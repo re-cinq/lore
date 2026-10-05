@@ -12,7 +12,7 @@ import type {
   PlanVerbs,
 } from "../../../work/plans/plan-engine.js";
 import {
-  planMarkdown,
+  planSnapshot,
   type PlanFilePorts,
 } from "../../../work/plans/plan-file.js";
 import { ensureSpecBranch } from "../../../work/plans/spec-branch.js";
@@ -45,7 +45,13 @@ export async function planVerbsFor(
   );
   const deps = seams.floorDeps ?? (await deploymentFloorDeps(plan.repo, floor));
 
-  return floorPlanVerbs(deps, (planId) => planMarkdown(planId, { livePlan }));
+  return floorPlanVerbs(deps, liveSnapshots(livePlan));
+}
+
+/** The plan as a spec pass is handed it, its blocks cited under the deployment's web UI. */
+function liveSnapshots(livePlan: PlanFilePorts["livePlan"]) {
+  return (subject: PlanSubject) =>
+    planSnapshot(subject, { livePlan }, process.env.LORE_UI_URL);
 }
 
 async function deploymentFloorDeps(

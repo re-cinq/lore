@@ -49,6 +49,31 @@ out of bounds.
 
 Write the specs it calls for. Do not implement code.
 
+## Cite the plan
+
+When `/workspace/plan-blocks.json` exists, it lists every block of
+the approved plan a spec statement must carry: each with its
+section `slot`, its `kind`, its `text` and the `link` to cite. The
+step after you counts which blocks no statement cites, and sends
+you back with exactly those.
+
+- Every statement that specifies a plan block ends its trailing link
+  group with that block's link, labelled `from plan`:
+  `Members pay in their currency. ([from plan](<link>))`.
+- One statement may cite several blocks, and one block may be cited
+  by several statements: `([from plan](<link 1>), [from plan](<link
+  2>))`.
+- A statement has ONE trailing link group. Test links join the same
+  group, never a second one after it:
+  `([from plan](<link>), [validated by …](path/to/test.ts#L42))`.
+  When you amend a statement that already ends in a group, add the
+  plan link inside it.
+- An Open question of the plan becomes an Open Questions bullet
+  that cites the question's block.
+- Copy each link exactly as the file gives it. Never shorten one,
+  make one up, or cite a block for a statement that does not say
+  what the block says.
+
 ## Write from the templates (spec-kit)
 
 This repository writes specifications the spec-kit way: an agent
@@ -112,6 +137,8 @@ you must satisfy by hand:
 - Every testable statement carries a trailing
   `([validated by](path/to/test.ts#Lnn))` link or lives under a
   narrative heading (Background / Rationale / Open Questions).
+- A `from plan` link counts as no test link: a spec whose
+  statements carry only plan links is still `Draft`.
 - An intro paragraph must sit before the spec's first `##` heading.
 - Files end with a trailing newline.
 
@@ -135,6 +162,8 @@ Before you commit, check the artifacts you touched:
   deliberately dropped, with the reason;
 - every plan Constraint appears as a requirement;
 - every plan Open question is copied, not answered;
+- every block in `/workspace/plan-blocks.json` is cited by at least
+  one statement in the specs you touched;
 - no requirement exists that neither the plan nor the change-set
   calls for;
 - no statement is duplicated within or across the touched specs;
@@ -161,6 +190,15 @@ Before you commit, check the artifacts you touched:
   as inline code, and its `[P]`/`(depends on …)` marks; no markdown
   link points at a file that does not exist;
 - every file ends with a newline.
+
+## When the coverage check sent this back
+
+When `/workspace/plan-coverage.md` exists and lists blocks under "Not
+cited yet", the specs on THIS branch already exist and left those
+blocks uncited. For each listed block, either add the statement that
+specifies it, or add its link to the statement that already says
+what it says. Change nothing else, then format, commit and push as
+below. A file that lists no block needs nothing from you.
 
 ## When the spec review sent this back
 

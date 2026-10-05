@@ -116,6 +116,14 @@ function startedRefine(requests: FloorRequest[]): string {
   return body?.startItems?.refine?.ref ?? "";
 }
 
+function startedItem(requests: FloorRequest[], name: string): unknown {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: Record<string, unknown>;
+  };
+
+  return body?.startItems?.[name];
+}
+
 function startedDescription(requests: FloorRequest[]): string {
   const body = posts(requests).at(-1)?.body as {
     startItems?: { description?: { ref?: string } };
@@ -420,6 +428,20 @@ async function refusalsOf(
   };
 }
 
+const PLAN_URL = "https://lore.example/repos/re-cinq/lore/plans/p1";
+const CITABLE = {
+  plan_url: PLAN_URL,
+  blocks: [
+    {
+      id: "b-why",
+      slot: "intent",
+      kind: "paragraph",
+      text: "Checkout is slow.",
+      link: `${PLAN_URL}#b-why`,
+    },
+  ],
+};
+
 describe("approveFloorPlan", () => {
   it("reports success on the author visit with the approved plan.md when the run waits on author", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
@@ -437,6 +459,49 @@ describe("approveFloorPlan", () => {
         produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
       }),
     );
+  });
+
+  it("hands the author visit the plan's citable blocks as plan_blocks beside plan.md", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      citablePlan: CITABLE,
+      brief: BRIEF,
+    });
+
+    expect({
+      blobs: posts(requests)
+        .filter((request) => request.path === "/blobs")
+        .map((request) => request.body),
+      produced: reportedProduced(requests),
+    }).toEqual({
+      blobs: [MARKDOWN, JSON.stringify(CITABLE)],
+      produced: {
+        plan_md: PLAN_BLOB_HASH,
+        plan_blocks: PLAN_BLOB_HASH,
+        description: BRIEF,
+        refine: "",
+      },
+    });
+  });
+
+  it("starts the spec pass with plan_blocks when the floor holds no run", async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      citablePlan: CITABLE,
+      brief: BRIEF,
+    });
+
+    expect(startedItem(requests, "plan_blocks")).toEqual({
+      kind: "file",
+      ref: PLAN_BLOB_HASH,
+      by: "lore",
+    });
   });
 
   it("starts a fresh run entered at analyse-specs when the floor holds no run", async () => {
@@ -510,7 +575,9 @@ describe("a round that answers no section says so", () => {
 describe("the round's brief the floor's planning agent is given", () => {
   it("names the section the Refine asks about in the brief the agent is given", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
-    const verbs = floorPlanVerbs(deps, () => Promise.resolve(MARKDOWN));
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+    }));
 
     await verbs.refine(DRAFT, REFINE);
 
@@ -521,7 +588,9 @@ describe("the round's brief the floor's planning agent is given", () => {
 
   it("tells the agent what the plan's author already knows on a first draft", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
-    const verbs = floorPlanVerbs(deps, () => Promise.resolve(MARKDOWN));
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+    }));
 
     await verbs.draft(DRAFT, {
       known: "checkout drops carts",
@@ -763,10 +832,11 @@ describe("floorPlanVerbs", () => {
   it("hands the markdown read for plan p1 to the run it starts as the plan.md blob", async () => {
     const { deps, requests } = scene(NO_RUN);
     const reads: string[] = [];
-    const verbs = floorPlanVerbs(
-      deps,
-      async (planId) => (reads.push(planId), MARKDOWN),
-    );
+    const verbs = floorPlanVerbs(deps, async (subject) => {
+      reads.push(subject.id);
+
+      return { planMarkdown: MARKDOWN };
+    });
 
     await verbs.draft(DRAFT, {
       known: "Checkout is slow.",
@@ -780,10 +850,24 @@ describe("floorPlanVerbs", () => {
     });
   });
 
+  it("hands an approval the snapshot's citable blocks as plan_blocks", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+      citablePlan: CITABLE,
+    }));
+
+    await verbs.handOverApproved(APPROVED, "gedaiu");
+
+    expect(reportedProduced(requests).plan_blocks).toBe(PLAN_BLOB_HASH);
+  });
+
   it("reopens an approved plan whose run waits on its author and says it did", async () => {
     const { deps } = scene({ visits: ON_AUTHOR });
     const reopened: string[] = [];
-    const verbs = floorPlanVerbs(deps, async () => MARKDOWN);
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+    }));
 
     const locked = await verbs.openForAuthor(APPROVED, async (planId) =>
       reopened.push(planId),

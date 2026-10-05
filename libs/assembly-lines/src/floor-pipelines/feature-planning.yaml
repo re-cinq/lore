@@ -40,6 +40,12 @@ line:
       station: spec-write
       bind:
         target: repo
+    # Counts the approved plan's blocks no spec statement cites, on the branch
+    # write just pushed. See the spec-coverage station.
+    - id: spec-coverage
+      station: spec-coverage
+      bind:
+        target: repo
     - id: open-spec-pr
       station: open-spec-pr
       bind:
@@ -120,7 +126,7 @@ line:
       to: done
       on: failed
     - from: write
-      to: open-spec-pr
+      to: spec-coverage
       on: success
     # The change set was unusable — a spec path that does not exist, or an
     # instruction to amend a spec that does not cover the area. One correction:
@@ -131,6 +137,20 @@ line:
       on: changes_requested
       iteration_max: 1
     - from: write
+      to: done
+      on: failed
+    - from: spec-coverage
+      to: open-spec-pr
+      on: success
+    # Plan blocks no statement cites go back to the writer, and only those. The
+    # station itself stops asking after COVERAGE_ROUNDS handbacks and lets the PR
+    # open with the gaps listed, because a spent budget halts the whole run: this
+    # iteration_max is the backstop it never reaches.
+    - from: spec-coverage
+      to: write
+      on: changes_requested
+      iteration_max: 3
+    - from: spec-coverage
       to: done
       on: failed
     - from: open-spec-pr
@@ -309,10 +329,43 @@ stations:
       - name: spec_plan
         kind: file
         path: spec-plan.json
+      # The approved plan's blocks a statement must cite, with their links;
+      # absent where the deployment names no web UI to link them under.
+      - name: plan_blocks
+        kind: file
+        path: plan-blocks.json
+        optional: true
+      # What spec-coverage last counted; absent before its first visit.
+      - name: plan_coverage
+        kind: file
+        path: plan-coverage.md
+        optional: true
     produces:
       - name: spec_review
         kind: file
         path: spec-review-result.json
+  spec-coverage:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: spec_plan
+        kind: file
+      # Absent where the deployment names no web UI: then there is nothing to
+      # count, and the station lets the PR open.
+      - name: plan_blocks
+        kind: file
+        optional: true
+    produces:
+      # Produced on every visit that counts, so the latest one is always true.
+      - name: plan_coverage
+        kind: file
   open-spec-pr:
     kind: service
     outcomes:
@@ -333,6 +386,11 @@ stations:
       # so the stations after the merge read it rather than derive it again.
       - name: spec_plan
         kind: file
+      # Listed in the PR's body, so its reviewer sees which plan blocks the
+      # spec still does not cite.
+      - name: plan_coverage
+        kind: file
+        optional: true
     produces:
       - name: pr_url
         kind: value

@@ -17,6 +17,7 @@ import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run.js";
+import type { CitablePlan } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import {
   openPrBrief,
@@ -36,6 +37,7 @@ import {
 } from "./planning-line.js";
 import { endedInFailure, refineRefusal } from "./refine-refusal.js";
 import { type SpecReviewReads } from "./spec-rework.js";
+import { storeCitable, storeMarkdown } from "./plan-blobs.js";
 
 /** What a report that answers no section produces for `refine`. The floor's bag only ever takes a key, never drops one, so a round that said nothing about `refine` would leave the last Refine's section standing: a later failed draft would then tell a section nobody asked about. The Postgres path said `refine: null` for the same reason. */
 const NO_REFINE = "";
@@ -60,6 +62,8 @@ export interface FloorPlanDeps {
 export interface FloorPlanMarkdown {
   plan: PlanSubject;
   planMarkdown: string;
+  /** The blocks a spec statement must cite, read from the same plan as the markdown; absent where the deployment names no web UI to link them under. */
+  citablePlan?: CitablePlan;
   /** What this round asks for, as the agent is told it: the draft's own brief, the section a Refine names, or which spec pass this is. Reading the plan cannot tell an agent which of its sections a person just clicked. */
   brief: string;
   /** The issue number of the user story this plan answers, when the request names one; a round that names none keeps the one its plan's last run carried. */
@@ -166,12 +170,7 @@ export async function approveFloorPlan(
   const decision = approvalDecisionOf(line);
 
   if (line?.parkedAuthor) {
-    await reportApproved(
-      deps,
-      line.parkedAuthor,
-      input.planMarkdown,
-      input.brief,
-    );
+    await reportApproved(deps, line.parkedAuthor, input);
 
     return decision;
   }
@@ -250,29 +249,16 @@ export function keyOf(plan: PlanRef): { repo: string; planId: string } {
   return { repo: plan.repo, planId: plan.id };
 }
 
-/** The plan as a blob the run's agents download as plan.md; the hash is what a report or a start carries. */
-async function storeMarkdown(
-  floor: Pick<PlanFloor, "blobs">,
-  planMarkdown: string,
-): Promise<string> {
-  const stored = await floor.blobs.put(
-    new TextEncoder().encode(planMarkdown),
-    "text/markdown",
-  );
-
-  return stored.hash;
-}
-
 async function reportApproved(
   deps: FloorPlanDeps,
   author: ParkedVisit,
-  planMarkdown: string,
-  brief: string,
+  { planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
 ): Promise<void> {
   await reportToVisit(deps.floor.events, author.visitId, {
     outcome: "success",
     produced: {
       plan_md: await storeMarkdown(deps.floor, planMarkdown),
+      ...(await storeCitable(deps.floor, citablePlan)),
       description: brief,
       refine: NO_REFINE,
     },
@@ -282,13 +268,18 @@ async function reportApproved(
 async function startSpecPass(
   deps: FloorPlanDeps,
   line: FloorPlanLine | null,
-  { plan, planMarkdown, brief }: FloorPlanMarkdown,
+  { plan, planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
 ): Promise<string> {
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
+  const { plan_blocks: planBlocks } = await storeCitable(
+    deps.floor,
+    citablePlan,
+  );
 
   return startPlanRun(deps, line, {
     plan,
     planMd,
+    planBlocks,
     brief,
     entry: SPEC_WORK_ENTRY,
   });
@@ -297,6 +288,8 @@ async function startSpecPass(
 interface PlanRunStart {
   plan: PlanRef;
   planMd: string;
+  /** The citable blocks' blob, on a spec pass whose plan came with them. */
+  planBlocks?: string;
   brief: string;
   /** The section this round answers, for a Refine that had no round waiting to take it. */
   refine?: string;
@@ -324,7 +317,7 @@ async function startPlanRun(
 /** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan, this round's brief and the user story it answers, when it names one. */
 async function startItemsOf(
   deps: FloorPlanDeps,
-  { plan, planMd, brief, refine, storyIssue }: PlanRunStart,
+  { plan, planMd, planBlocks, brief, refine, storyIssue }: PlanRunStart,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
   const [branch, base] = await Promise.all([
     deps.specBranch(plan),
@@ -338,6 +331,7 @@ async function startItemsOf(
     plan_id: valueItem(plan.id),
     plan_title: valueItem(plan.title),
     plan_md: fileItem(planMd),
+    ...(planBlocks ? { plan_blocks: fileItem(planBlocks) } : {}),
     description: valueItem(brief),
     refine: valueItem(refine ?? NO_REFINE),
     ...(storyIssue ? { story_issue: valueItem(String(storyIssue)) } : {}),

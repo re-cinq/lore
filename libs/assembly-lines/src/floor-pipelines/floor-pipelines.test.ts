@@ -3,6 +3,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
 import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
+import { COVERAGE_ROUNDS } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 
 interface Arg {
   kind: string;
@@ -748,10 +749,60 @@ describe("the feature-planning pipeline", () => {
         "merged",
         "open-spec-pr",
         "plan-pass-end",
+        "spec-coverage",
         "validate",
         "write",
       ].sort(),
       validateStart: "plan-validate",
+    });
+  });
+
+  it("checks plan coverage between write and open-spec-pr, sending write back at most COVERAGE_ROUNDS times", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect({
+      fromWrite: edgesOn(line, "write").find((edge) => edge.on === "success"),
+      fromCoverage: edgesOn(line, "spec-coverage"),
+    }).toEqual({
+      fromWrite: { from: "write", to: "spec-coverage", on: "success" },
+      fromCoverage: [
+        { from: "spec-coverage", to: "open-spec-pr", on: "success" },
+        {
+          from: "spec-coverage",
+          to: "write",
+          on: "changes_requested",
+          iteration_max: COVERAGE_ROUNDS,
+        },
+        { from: "spec-coverage", to: "done", on: "failed" },
+      ],
+    });
+  });
+
+  it("hands spec-write the citable plan blocks and the last coverage as optional files its prompt names", () => {
+    const write = pipelineOf("feature-planning").stations["spec-write"];
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      blocks: needOf(write, "plan_blocks"),
+      coverage: needOf(write, "plan_coverage"),
+      named: [
+        prompt.includes("/workspace/plan-blocks.json"),
+        prompt.includes("/workspace/plan-coverage.md"),
+      ],
+    }).toEqual({
+      named: [true, true],
+      blocks: {
+        name: "plan_blocks",
+        kind: "file",
+        path: "plan-blocks.json",
+        optional: true,
+      },
+      coverage: {
+        name: "plan_coverage",
+        kind: "file",
+        path: "plan-coverage.md",
+        optional: true,
+      },
     });
   });
 

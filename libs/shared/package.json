@@ -98,6 +98,14 @@
       "types": "./dist/domain/feature-planning/spec-plan-path.d.ts",
       "default": "./dist/domain/feature-planning/spec-plan-path.js"
     },
+    "./feature-planning/plan-coverage.js": {
+      "types": "./dist/domain/feature-planning/plan-coverage.d.ts",
+      "default": "./dist/domain/feature-planning/plan-coverage.js"
+    },
+    "./feature-planning/plan-url.js": {
+      "types": "./dist/domain/feature-planning/plan-url.d.ts",
+      "default": "./dist/domain/feature-planning/plan-url.js"
+    },
     "./feature-planning/*.js": {
       "types": "./dist/work/feature-planning/*.d.ts",
       "default": "./dist/work/feature-planning/*.js"

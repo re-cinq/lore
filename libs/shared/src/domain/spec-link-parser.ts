@@ -123,28 +123,32 @@ export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
   return parseLinksInStatement(statement, isTestFile);
 }
 
+/** Every href in the statement's trailing link group, as written — a plan block's `#<id>` included, which the `#Lnn` line-anchor read would cut. */
+export function trailingLinkHrefs(statement: string): string[] {
+  return trailingLinkMatches(statement).map((match) => match[2].trim());
+}
+
 function parseLinksInStatement(
   statement: string,
   keepPath: (path: string) => boolean,
 ): SpecLinkRef[] {
+  return trailingLinkMatches(statement)
+    .map(linkRefFromMatch)
+    .filter((ref) => keepPath(ref.path));
+}
+
+function trailingLinkMatches(statement: string): RegExpMatchArray[] {
   const span = findTrailingParenSpan(statement);
 
   if (span === null) {
     return [];
   }
-  const inner = statement.slice(span.innerStart, span.innerEnd);
 
-  const refs: SpecLinkRef[] = [];
-
-  for (const match of inner.matchAll(LINK_INSIDE_PAREN_RE)) {
-    const ref = linkRefFromMatch(match);
-
-    if (keepPath(ref.path)) {
-      refs.push(ref);
-    }
-  }
-
-  return refs;
+  return [
+    ...statement
+      .slice(span.innerStart, span.innerEnd)
+      .matchAll(LINK_INSIDE_PAREN_RE),
+  ];
 }
 
 function findTrailingParenSpan(
