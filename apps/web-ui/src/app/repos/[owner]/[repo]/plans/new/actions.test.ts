@@ -63,23 +63,6 @@ describe("createPlanAction", () => {
     });
   });
 
-  it("refuses user story other/repo#42 for a re-cinq/lore plan and creates nothing", async () => {
-    const result = await createPlanAction(
-      "re-cinq/lore",
-      null,
-      form({
-        title: "Faster checkout",
-        type: "feature",
-        story: "https://github.com/other/repo/issues/42",
-      }),
-    );
-
-    expect({ result, fetched: fetchMock.mock.calls.length }).toEqual({
-      result: { error: "The user story must be an issue of re-cinq/lore." },
-      fetched: 0,
-    });
-  });
-
   it("creates gedaiu's feature plan, seeds its intent, and opens it", async () => {
     await expect(
       createPlanAction(
@@ -122,6 +105,37 @@ describe("createPlanAction", () => {
     ]);
   });
 
+  it("leaves the template's intent alone when the description is empty", async () => {
+    await expect(
+      createPlanAction(
+        "re-cinq/lore",
+        null,
+        form({ title: "Faster checkout", type: "feature", description: "" }),
+      ),
+    ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
+    expect(calls().map((call) => call.url)).toEqual([
+      "http://api:3000/api/plans",
+      "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
+    ]);
+  });
+
+  it("refuses user story other/repo#42 for a re-cinq/lore plan and creates nothing", async () => {
+    const result = await createPlanAction(
+      "re-cinq/lore",
+      null,
+      form({
+        title: "Faster checkout",
+        type: "feature",
+        story: "https://github.com/other/repo/issues/42",
+      }),
+    );
+
+    expect({ result, fetched: fetchMock.mock.calls.length }).toEqual({
+      result: { error: "The user story must be an issue of re-cinq/lore." },
+      fetched: 0,
+    });
+  });
+
   it("asks for the draft with user story 42 when the form names re-cinq/lore issue 42", async () => {
     await expect(
       createPlanAction(
@@ -139,19 +153,5 @@ describe("createPlanAction", () => {
       url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
       body: { known: "", createdBy: "gedaiu", storyIssue: 42 },
     });
-  });
-
-  it("leaves the template's intent alone when the description is empty", async () => {
-    await expect(
-      createPlanAction(
-        "re-cinq/lore",
-        null,
-        form({ title: "Faster checkout", type: "feature", description: "" }),
-      ),
-    ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
-    expect(calls().map((call) => call.url)).toEqual([
-      "http://api:3000/api/plans",
-      "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
-    ]);
   });
 });
