@@ -22,6 +22,7 @@ function openedTitleFor(planTitle: string): Promise<string> {
   const titles: string[] = [];
   const handle = scene({
     pulls: {
+      update: () => Promise.reject(new Error("unused")),
       list: () => Promise.resolve([]),
       open: (_branch, pr) => {
         titles.push(pr.title);
@@ -70,6 +71,7 @@ describe("openSpecPrHandle", () => {
     const opened: unknown[] = [];
     const handle = scene({
       pulls: {
+        update: () => Promise.reject(new Error("unused")),
         list: () => Promise.resolve([existing]),
         open: (branch, pr) => {
           opened.push({ branch, pr });
@@ -91,6 +93,7 @@ describe("openSpecPrHandle", () => {
       [];
     const handle = scene({
       pulls: {
+        update: () => Promise.reject(new Error("unused")),
         list: () => Promise.resolve([]),
         open: (branch, pr) => {
           opened.push({ branch, pr });
@@ -140,6 +143,7 @@ describe("openSpecPrHandle", () => {
   it("reports failed with the error message when opening the PR fails", async () => {
     const handle = scene({
       pulls: {
+        update: () => Promise.reject(new Error("unused")),
         list: () => Promise.resolve([]),
         open: () => Promise.reject(new Error("GitHub is down")),
       },
@@ -154,6 +158,7 @@ describe("openSpecPrHandle", () => {
   it("produces spec_path specs/widget/spec.md beside the PR url, from the first spec spec_plan creates", async () => {
     const handle = scene({
       pulls: {
+        update: () => Promise.reject(new Error("unused")),
         list: () => Promise.resolve([pullRef()]),
         open: () => Promise.reject(new Error("unused")),
       },
@@ -177,4 +182,70 @@ describe("openSpecPrHandle", () => {
       },
     });
   });
+
+  it("adds the plan coverage to the body of the PR it opens when the run carries one", async () => {
+    const bodies: string[] = [];
+    const handle = scene({
+      pulls: {
+        list: () => Promise.resolve([]),
+        open: (_branch, pr) => (
+          bodies.push(pr.body),
+          Promise.resolve(pullRef())
+        ),
+        update: async () => {},
+      },
+    });
+
+    await handle(coveredBrief(), coverageTools());
+
+    expect(bodies).toEqual([
+      `Opened by the Lore feature-planning line from \`spec/widget\`.\n\n${COVERAGE}`,
+    ]);
+  });
+
+  it("rewrites the body of PR 42 already open on the branch with the plan coverage", async () => {
+    const updates: unknown[] = [];
+    const handle = scene({
+      pulls: {
+        list: () => Promise.resolve([pullRef()]),
+        open: () => Promise.reject(new Error("unused")),
+        update: async (number, fields) => {
+          updates.push({ number, fields });
+        },
+      },
+    });
+
+    await handle(coveredBrief(), coverageTools());
+
+    expect(updates).toEqual([
+      {
+        number: 42,
+        fields: {
+          body: `Opened by the Lore feature-planning line from \`spec/widget\`.\n\n${COVERAGE}`,
+        },
+      },
+    ]);
+  });
 });
+
+const COVERAGE =
+  "## Plan coverage\n\n1 of 2 plan blocks are cited by a spec statement. Not cited yet:\n";
+
+function coveredBrief() {
+  return {
+    visitId: "visit-pr",
+    iteration: 1,
+    needs: {
+      target: "github.com/re-cinq/lore@spec/widget",
+      plan_coverage: "blob://coverage",
+    },
+  };
+}
+
+function coverageTools(): Tools {
+  return {
+    ...TOOLS,
+    read: (need) =>
+      Promise.resolve(Buffer.from(need === "plan_coverage" ? COVERAGE : "")),
+  };
+}
