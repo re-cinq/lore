@@ -14,7 +14,8 @@ describe("loadAgentDefaults", () => {
             name.startsWith("def-") ||
             ["implementation", "implementation-tdd", "general"].includes(name),
         ),
-      review: defaults.find((row) => row.name === "code-review")?.execution_mode,
+      review: defaults.find((row) => row.name === "code-review")
+        ?.execution_mode,
     }).toEqual({
       count: 21,
       deleted: [],
