@@ -46,11 +46,12 @@ export function linksForStatements(
   }));
 }
 
-/** Keeps only source-code links — excludes test files and prose docs (so ADR/docs `.md` refs don't become IMPLEMENTED_BY links). */
+/** Keeps only source-code links in the repo — excludes test files, prose docs (so ADR/docs `.md` refs don't become IMPLEMENTED_BY links) and URLs such as a plan block's. */
 export function parseCodeLinksInStatement(statement: string): CodeLinkRef[] {
   return parseLinksInStatement(
     statement,
-    (path) => !isTestFile(path) && !isDocFile(path),
+    (path) =>
+      !isTestFile(path) && !isDocFile(path) && !NON_REPO_PATH_RE.test(path),
   );
 }
 
