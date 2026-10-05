@@ -15,6 +15,8 @@ export interface StoryIssueInput {
   stories: readonly UserStory[];
   /** Task id → filed issue number, once the task issues exist. */
   taskIssues?: ReadonlyMap<string, number>;
+  /** How many of the spec's testable statements the tasks name, as `issueCoverageBrief` writes it. */
+  coverage?: string;
 }
 
 export function storyIssueBody(input: StoryIssueInput): string {
@@ -29,6 +31,7 @@ export function storyIssueBody(input: StoryIssueInput): string {
   return [
     ...header,
     ...input.stories.flatMap((story) => storySection(story, input.taskIssues)),
+    ...(input.coverage ? [input.coverage] : []),
   ].join("\n");
 }
 
@@ -83,6 +86,13 @@ export interface TaskIssueInput {
   task: DecompTask;
   /** The tasks this one waits on: an issue number once filed, the task id while its issue doesn't exist yet. */
   dependsOn: readonly (number | string)[];
+  /** The spec statements the task implements, each with the link to its line. */
+  specStatements?: readonly SpecStatementLink[];
+}
+
+export interface SpecStatementLink {
+  text: string;
+  link: string;
 }
 
 export function taskIssueBody({
@@ -90,10 +100,12 @@ export function taskIssueBody({
   storyNumber,
   task,
   dependsOn,
+  specStatements = [],
 }: TaskIssueInput): string {
   return [
     ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
     ...dependencyLine(dependsOn),
+    ...implementsSection(specStatements),
     ...section("Context", task.context),
     ...section("What to change", task.changes ?? task.description),
     ...(task.file_path ? [`Target file: \`${task.file_path}\``, ""] : []),
@@ -109,6 +121,29 @@ function dependencyLine(dependsOn: readonly (number | string)[]): string[] {
   );
 
   return named.length ? [`**Depends on:** ${named.join(", ")}`, ""] : [];
+}
+
+function implementsSection(statements: readonly SpecStatementLink[]): string[] {
+  return statements.length
+    ? [
+        "## Implements",
+        "",
+        ...statements.map(({ text, link }) => `- [${quoted(text)}](${link})`),
+        "",
+      ]
+    : [];
+}
+
+const QUOTE_LENGTH = 80;
+
+// Short enough to read as a pointer, with its brackets escaped so they cannot end the link text.
+function quoted(text: string): string {
+  const short =
+    text.length > QUOTE_LENGTH
+      ? `${text.slice(0, QUOTE_LENGTH - 1).trimEnd()}…`
+      : text;
+
+  return short.replace(/[[\]]/g, "\\$&");
 }
 
 function section(heading: string, text: string | undefined): string[] {

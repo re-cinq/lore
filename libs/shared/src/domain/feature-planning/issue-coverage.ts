@@ -52,6 +52,16 @@ export function partAt(
   return parts.findLast((part) => part.line <= line);
 }
 
+/** The parts some of `lines` fall in, once each, in spec order. */
+export function partsNamed(
+  parts: readonly SpecPart[],
+  lines: readonly number[],
+): SpecPart[] {
+  const named = new Set(lines.map((line) => partAt(parts, line)));
+
+  return parts.filter((part) => named.has(part));
+}
+
 export interface IssueCoverage {
   total: number;
   covered: number;
@@ -65,11 +75,12 @@ export function issueCoverage(
 ): IssueCoverage {
   const parts = specParts(specMd);
   const named = new Set(
-    tasks
-      .flatMap((task) => task.spec_lines ?? [])
-      .map((line) => partAt(parts, line)?.line),
+    partsNamed(
+      parts,
+      tasks.flatMap((task) => task.spec_lines ?? []),
+    ),
   );
-  const missing = parts.filter((part) => !named.has(part.line));
+  const missing = parts.filter((part) => !named.has(part));
 
   return {
     total: parts.length,

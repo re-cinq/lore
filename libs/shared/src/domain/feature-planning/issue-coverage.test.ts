@@ -3,6 +3,7 @@ import {
   issueCoverage,
   issueCoverageBrief,
   partAt,
+  partsNamed,
   specParts,
   statementLink,
 } from "./issue-coverage.js";
@@ -52,6 +53,14 @@ describe("partAt", () => {
   });
 });
 
+describe("partsNamed", () => {
+  it("names FR1 and FR2 once each, in spec order, for lines 9, 7 and 8", () => {
+    expect(
+      partsNamed(specParts(SPEC), [9, 7, 8]).map(({ line }) => line),
+    ).toEqual([7, 8]);
+  });
+});
+
 describe("issueCoverage", () => {
   it("reports 2 of 4 covered with FR3 and the paragraph missing, a line inside FR2 counting for it", () => {
     const tasks = [{ spec_lines: [7] }, { spec_lines: [9, 3] }, {}];
@@ -72,9 +81,7 @@ describe("issueCoverageBrief", () => {
     statementLink({ repo: "o/r", file: "specs/f/spec.md", line });
 
   it("names each statement no task covers with its line and link", () => {
-    const coverage = issueCoverage(SPEC, [
-      { spec_lines: [7, 8, 14] },
-    ]);
+    const coverage = issueCoverage(SPEC, [{ spec_lines: [7, 8, 14] }]);
 
     expect(issueCoverageBrief(coverage, link)).toBe(
       [
@@ -91,7 +98,9 @@ describe("issueCoverageBrief", () => {
   it("says every statement has a task when none is missing", () => {
     expect(
       issueCoverageBrief({ total: 4, covered: 4, missing: [] }, link),
-    ).toBe("## Spec coverage\n\n4 of 4 testable spec statements have a task.\n");
+    ).toBe(
+      "## Spec coverage\n\n4 of 4 testable spec statements have a task.\n",
+    );
   });
 });
 
