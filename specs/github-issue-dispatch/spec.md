@@ -77,7 +77,7 @@ During `lore_onboard_repo`, configure the GitHub webhook on the target repo:
 - URL: `https://LORE_EVENTS_DOMAIN/api/events` (the public URL the ingress rewrites onto lore-api's `POST /api/webhook/github`)
 - Events: `issues`
 - Secret: from `LORE_WEBHOOK_SECRET` env var
-- Content type: `application/json`
+- Content type: `json` (GitHub webhook API `content_type` value; set by `ensureRepoWebhook` in `apps/lore-api/src/work/webhook/webhook-manage.ts`)
 
 For already-onboarded repos, add webhook via the settings UI or
 `gh` CLI manually.
