@@ -104,6 +104,14 @@ describe("storyIssueBody", () => {
     );
   });
 
+  it("ends with the spec coverage it is given", () => {
+    const coverage =
+      "## Spec coverage\n\n2 of 3 testable spec statements have a task.\n";
+    const body = storyIssueBody({ repo: REPO, stories: STORIES, coverage });
+
+    expect(body.endsWith(`\n${coverage}`)).toBe(true);
+  });
+
   it("names the plan without a link when no web UI address is known, and leaves out spec links without a spec", () => {
     const body = storyIssueBody({
       repo: REPO,
@@ -174,6 +182,37 @@ describe("taskIssueBody", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("quotes each spec statement it implements as a link to its line, cutting a long one at 80 characters", () => {
+    const link = "https://github.com/re-cinq/lore/blob/abc123/specs/f/spec.md";
+    const long =
+      "FR2 — The issues station links every task issue to the spec statements it implements, by line.";
+    const body = taskIssueBody({
+      repo: REPO,
+      storyNumber: 2260,
+      dependsOn: [],
+      specStatements: [
+        { text: "FR1 — The station files [one] issue.", link: `${link}#L7` },
+        { text: long, link: `${link}#L8` },
+      ],
+      task: {
+        id: "T001",
+        description: "File the issues",
+        depends_on: [],
+        parallelizable: false,
+        phase: 1,
+      },
+    });
+
+    expect(body.split("\n").slice(0, 6)).toEqual([
+      "Part of #2260.",
+      "",
+      "## Implements",
+      "",
+      `- [FR1 — The station files \\[one\\] issue.](${link}#L7)`,
+      `- [${long.slice(0, 79)}…](${link}#L8)`,
+    ]);
   });
 
   it("names dependency T007 by its task id when its issue is filed after this one", () => {

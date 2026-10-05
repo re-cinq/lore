@@ -43,6 +43,9 @@ export function openSpecPrHandle(deps: OpenSpecPrDeps): Handle {
       const pr = await openWithCoverage(pulls, branch, brief, tools);
       const specPlan = await tools.read("spec_plan");
 
+      // The bag never drops a key: without this, the decompose after this spec merges would read what an earlier decomposition's coverage check left and take it for a coverage round.
+      await tools.produce("issue_coverage", "");
+
       return reported(pr.url, specPathOfPlan(specPlan.toString("utf8")));
     } catch (err) {
       return { outcome: "failed", error: (err as Error).message };

@@ -68,6 +68,12 @@ line:
       station: issues
       bind:
         target: base
+    # Counts the merged spec's testable statements no task names, at the commit
+    # decompose read. See the issue-coverage station.
+    - id: issue-coverage
+      station: issue-coverage
+      bind:
+        target: base
     - id: done
   edges:
     - from: analyze
@@ -190,7 +196,7 @@ line:
       to: done
       on: failed
     - from: issues
-      to: done
+      to: issue-coverage
       on: success
     # The station is the first thing to read the decomposition as DATA, so it is
     # where a label the repo does not have, or a story with no tasks, actually
@@ -200,6 +206,22 @@ line:
       on: changes_requested
       iteration_max: 1
     - from: issues
+      to: done
+      on: failed
+    - from: issue-coverage
+      to: done
+      on: success
+    # Spec statements no task names go back to decompose, and only those; the
+    # issues station then refiles what it filed before and adds the new tasks.
+    # The station itself stops asking after COVERAGE_ROUNDS handbacks and lets
+    # the run settle with the gaps listed on the story issue, because a spent
+    # budget halts the whole run: this iteration_max is the backstop it never
+    # reaches.
+    - from: issue-coverage
+      to: decompose
+      on: changes_requested
+      iteration_max: 3
+    - from: issue-coverage
       to: done
       on: failed
 stations:
@@ -397,6 +419,10 @@ stations:
       # Produced only when the spec plan names a spec.
       - name: spec_path
         kind: value
+      # Emptied on every spec PR, so the decompose after its merge starts a
+      # fresh decomposition rather than a coverage round of an earlier one.
+      - name: issue_coverage
+        kind: file
   spec-pr-merged:
     kind: human
     outcomes:
@@ -424,6 +450,18 @@ stations:
       # reads that spec rather than searching the clone for it.
       - name: spec_path
         kind: value
+      # Its own last decomposition, where it writes the next one, so a round
+      # that adds tasks keeps the ids the filed issues are matched by. Absent on
+      # the first visit.
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+        optional: true
+      # What issue-coverage last counted; absent before its first visit.
+      - name: issue_coverage
+        kind: file
+        path: issue-coverage.md
+        optional: true
     produces:
       - name: decomposition
         kind: file
@@ -452,6 +490,27 @@ stations:
         kind: value
         optional: true
     produces: []
+  issue-coverage:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+      # A plan naming no spec has nothing to count, and the run settles.
+      - name: spec_path
+        kind: value
+        optional: true
+    produces:
+      # Produced on every visit that counts, so the latest one is always true.
+      - name: issue_coverage
+        kind: file
 agent_definitions:
   plan-analyze:
     settings:

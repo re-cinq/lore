@@ -62,6 +62,7 @@ function fakeProject(labels: string[]) {
     issues,
     tasks,
     project: {
+      repo: { read: async () => null },
       issues: {
         listLabels: async () => labels,
         list: async () => [],

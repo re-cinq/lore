@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import {
-  specCoverageHandle,
-  type RunVisit,
-  type SpecCoverageDeps,
-} from "./station.js";
+import { specCoverageHandle } from "./station.js";
+import type { CoverageDeps, RunVisit } from "../coverage-deps.js";
 
 const PLAN_URL = "https://lore.example/repos/re-cinq/lore/plans/p1";
 const SPEC_PATH = "specs/checkout/spec.md";
@@ -61,7 +58,7 @@ function scene(spec: string, visits: RunVisit[] = []) {
     modelCall: async () => {},
     signal: new AbortController().signal,
   };
-  const deps: SpecCoverageDeps = {
+  const deps: CoverageDeps = {
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
 
