@@ -6,18 +6,18 @@
 
 ## Done when these pass
 
-- [ ] **posts the verdict comment before closing the issue** — station calls `issues.comment` then `issues.close` in that order
+- [x] **posts the verdict comment before closing the issue** — station calls `issues.comment` then `issues.close` in that order
   `apps/stations/src/work/close-issue/close-issue.test.ts`
 
-- [ ] **posts the verdict text on the correct issue and closes it** — comment body equals the verdict need; close targets the correct issue number
+- [x] **posts the verdict text on the correct issue and closes it** — comment body equals the verdict need; close targets the correct issue number
   `apps/stations/src/work/close-issue/close-issue.test.ts`
 
 ## Facets
 
-- [ ] Create `apps/stations/src/work/close-issue/index.ts` exporting `closeIssueHandle(deps)` and `startCloseIssueStation()`; implement: parse `needs.repo`, `needs.issue_number`, `needs.verdict`; call `deps.issues(repo)` then `comment`, then `close`
-- [ ] Create `apps/stations/src/work/close-issue/manifest.ts` declaring the station's event trigger(s)
-- [ ] Register `close-issue` in `apps/stations/src/work/registry.ts` (after T004's entry) — the registry test enforces this
-- [ ] Wire `startCloseIssueStation()` into `startFloorStations()` in `apps/stations/src/index.ts`
+- [x] Create `apps/stations/src/work/close-issue/index.ts` exporting `closeIssueHandle(deps)` and `startCloseIssueStation()`; implement: parse `needs.repo`, `needs.issue_number`, `needs.verdict`; call `deps.issues(repo)` then `comment`, then `close`
+- [x] Create `apps/stations/src/work/close-issue/manifest.ts` declaring the station's event trigger(s)
+- [x] Register `close-issue` in `apps/stations/src/work/registry.ts` (after T004's entry) — the registry test enforces this
+- [x] Wire `startCloseIssueStation()` into `startFloorStations()` in `apps/stations/src/index.ts`
 
 ## Out of scope
 
