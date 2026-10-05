@@ -56,7 +56,12 @@ type ExistingIssue = {
   body: string;
 };
 
-function fakeProject(labels: string[], existing: ExistingIssue[] = []) {
+function fakeProject(
+  labels: string[],
+  existing: ExistingIssue[] = [],
+  specs: Record<string, string> = {},
+) {
+  const reads: string[] = [];
   const issues: Array<{ title: string; body: string; labels?: string[] }> = [];
   const tasks: Array<Record<string, unknown>> = [];
   const steps: string[] = [];
@@ -68,7 +73,15 @@ function fakeProject(labels: string[], existing: ExistingIssue[] = []) {
     tasks,
     steps,
     bodies,
+    reads,
     project: {
+      repo: {
+        read: async (path: string, ref: string) => {
+          reads.push(`${path}@${ref}`);
+
+          return specs[path] ?? null;
+        },
+      },
       issues: {
         listLabels: async () => labels,
         list: async (filter: { state: string; labels: string[] }) =>
@@ -134,6 +147,85 @@ async function specSlugFiledFor(specPath: string): Promise<unknown> {
 
   return (fake.tasks[0].contextBundle as Record<string, unknown>).spec_slug;
 }
+
+const SPEC = [
+  "# Live runs",
+  "",
+  "Authors watch their runs.",
+  "",
+  "## Requirements",
+  "",
+  "- FR1 — The run page streams node events.",
+  "- FR2 — The graph renders each node event.",
+  "",
+].join("\n");
+
+const CITING_DECOMPOSITION = JSON.stringify({
+  ...JSON.parse(DECOMPOSITION),
+  spec_commit: "abc123",
+  stories: JSON.parse(DECOMPOSITION).stories.map(
+    (story: { tasks: object[] }) => ({
+      ...story,
+      tasks: story.tasks.map((task, index) =>
+        index === 0 ? { ...task, spec_lines: [7] } : task,
+      ),
+    }),
+  ),
+});
+
+async function filedCitingSpec() {
+  const fake = fakeProject(LABELS, [], { "specs/live/spec.md": SPEC });
+
+  await runIssuesStation(
+    input({
+      feature_decomposition: CITING_DECOMPOSITION,
+      spec_path: "specs/live/",
+    }),
+    { project: fake.project },
+  );
+
+  return fake;
+}
+
+describe("runIssuesStation citing the spec", () => {
+  it("links T001's issue to FR1 on spec line 7 at commit abc123, the one the decomposition read", async () => {
+    const fake = await filedCitingSpec();
+
+    expect({
+      reads: fake.reads,
+      implements: fake.bodies
+        .get(102)
+        ?.includes(
+          "## Implements\n\n- [FR1 — The run page streams node events.](https://github.com/re-cinq/lore/blob/abc123/specs/live/spec.md#L7)\n",
+        ),
+    }).toEqual({ reads: ["specs/live/spec.md@abc123"], implements: true });
+  });
+
+  it("ends the story with 1 of 2 statements covered, listing FR2 on line 8", async () => {
+    const story = (await filedCitingSpec()).bodies.get(101) ?? "";
+
+    expect(story).toContain(
+      "1 of 2 testable spec statements have a task. Not covered yet:\n\n- line 8: FR2 — The graph renders each node event. — https://github.com/re-cinq/lore/blob/abc123/specs/live/spec.md#L8\n",
+    );
+  });
+
+  it("files the issues without a spec section when spec_path names no file on the branch", async () => {
+    const fake = fakeProject(LABELS);
+
+    await runIssuesStation(
+      input({
+        feature_decomposition: CITING_DECOMPOSITION,
+        spec_path: "specs/live/",
+      }),
+      { project: fake.project },
+    );
+
+    expect({
+      task: fake.bodies.get(102)?.includes("## Implements"),
+      story: fake.bodies.get(101)?.includes("## Spec coverage"),
+    }).toEqual({ task: false, story: false });
+  });
+});
 
 describe("runIssuesStation", () => {
   it("files one story issue, then per task its own issue linked under the story, then lists the task issues in the story and files a spec-task on each", async () => {

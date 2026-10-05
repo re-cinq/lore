@@ -70,10 +70,9 @@ export interface IssueCoverage {
 
 /** Which of the spec's testable parts some task names in its `spec_lines`. */
 export function issueCoverage(
-  specMd: string,
+  parts: readonly SpecPart[],
   tasks: readonly { spec_lines?: number[] }[],
 ): IssueCoverage {
-  const parts = specParts(specMd);
   const named = new Set(
     partsNamed(
       parts,
@@ -87,6 +86,13 @@ export function issueCoverage(
     covered: parts.length - missing.length,
     missing,
   };
+}
+
+/** The spec.md a plan's `spec_path` names: the file itself, or the spec.md in the spec-kit directory. */
+export function specFileOf(specPath: string): string {
+  return specPath.endsWith(".md")
+    ? specPath
+    : `${specPath.replace(/\/+$/, "")}/spec.md`;
 }
 
 export interface StatementLinkInput {

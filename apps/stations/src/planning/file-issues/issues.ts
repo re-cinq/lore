@@ -17,6 +17,11 @@ import {
 } from "./plan-issue-filing.js";
 import { specSlugOf } from "./spec-task-inputs.js";
 import { planUrlOf } from "@re-cinq/lore-shared/feature-planning/plan-url.js";
+import {
+  issueCoverage,
+  issueCoverageBrief,
+} from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
+import { decomposedSpec, type DecomposedSpec } from "./decomposed-spec.js";
 
 export interface IssuesStationDeps {
   /** Injectable project for tests; defaults to the pod's HTTP facade. */
@@ -43,7 +48,19 @@ export async function runIssuesStation(
     return rework(work.objection);
   }
 
-  const context = filingContext(input, decomposition, deps.uiUrl);
+  const spec = await decomposedSpec(
+    (path, ref) => project.repo.read(path, ref),
+    {
+      repo: input.repo,
+      branch: input.branch,
+      specPath: input.params.spec_path,
+      commit: decomposition.spec_commit,
+    },
+  );
+  const context = filingContext(input, decomposition, {
+    uiUrl: deps.uiUrl,
+    spec,
+  });
 
   return filed(await filePlanIssues(project, work, context), work.tasks.length);
 }
@@ -81,18 +98,41 @@ function rework(objection: string): NodeResult {
   };
 }
 
+interface FilingSources {
+  uiUrl: string | undefined;
+  spec: DecomposedSpec | undefined;
+}
+
 // The plan id is what a rerun recognises its issues by.
 function filingContext(
   input: StationInput,
   decomposition: DecompositionResult,
-  uiUrl: string | undefined,
+  { uiUrl, spec }: FilingSources,
 ): FilingContext {
   const planId = input.params.plan_id;
 
   return {
     input,
-    story: storyInput(input, decomposition, uiUrl),
+    story: {
+      ...storyInput(input, decomposition, uiUrl),
+      ...storyCoverage(decomposition, spec),
+    },
     ...(planId ? { planId } : {}),
+    ...(spec ? { spec } : {}),
+  };
+}
+
+function storyCoverage(
+  decomposition: DecompositionResult,
+  spec: DecomposedSpec | undefined,
+): { coverage?: string } {
+  if (!spec) {
+    return {};
+  }
+  const tasks = decomposition.stories.flatMap((story) => story.tasks);
+
+  return {
+    coverage: issueCoverageBrief(issueCoverage(spec.parts, tasks), spec.linkOf),
   };
 }
 

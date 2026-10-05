@@ -4,6 +4,7 @@ import {
   issueCoverageBrief,
   partAt,
   partsNamed,
+  specFileOf,
   specParts,
   statementLink,
 } from "./issue-coverage.js";
@@ -65,7 +66,7 @@ describe("issueCoverage", () => {
   it("reports 2 of 4 covered with FR3 and the paragraph missing, a line inside FR2 counting for it", () => {
     const tasks = [{ spec_lines: [7] }, { spec_lines: [9, 3] }, {}];
 
-    expect(issueCoverage(SPEC, tasks)).toEqual({
+    expect(issueCoverage(specParts(SPEC), tasks)).toEqual({
       total: 4,
       covered: 2,
       missing: [
@@ -81,7 +82,9 @@ describe("issueCoverageBrief", () => {
     statementLink({ repo: "o/r", file: "specs/f/spec.md", line });
 
   it("names each statement no task covers with its line and link", () => {
-    const coverage = issueCoverage(SPEC, [{ spec_lines: [7, 8, 14] }]);
+    const coverage = issueCoverage(specParts(SPEC), [
+      { spec_lines: [7, 8, 14] },
+    ]);
 
     expect(issueCoverageBrief(coverage, link)).toBe(
       [
@@ -114,5 +117,15 @@ describe("statementLink", () => {
         line: 42,
       }),
     ).toBe("https://github.com/o/r/blob/abc123/specs/f/spec.md#L42");
+  });
+});
+
+describe("specFileOf", () => {
+  it("reads the spec.md of the spec-kit directory specs/checkout/", () => {
+    expect(specFileOf("specs/checkout/")).toBe("specs/checkout/spec.md");
+  });
+
+  it("reads specs/checkout/spec.md as it is named", () => {
+    expect(specFileOf("specs/checkout/spec.md")).toBe("specs/checkout/spec.md");
   });
 });
