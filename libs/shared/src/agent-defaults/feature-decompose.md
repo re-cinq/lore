@@ -2,6 +2,11 @@
 timeout_minutes: 15
 review_required: false
 model: claude-sonnet-4-6
+# The approved plan arrives as a downloaded file rather than in the prompt, so a
+# plan of any size fits (ADR-047).
+inputs:
+  - path: plan.md
+    source: plan
 # The deliverable crosses to the `issues` station as an artifact: the subsystem
 # raises it on the NDJSON sink and the Floor merges it into the line's args as
 # `feature_decomposition` (argNameForEvent turns every non-alphanumeric run into
@@ -17,7 +22,9 @@ into the units an engineering pipeline can execute — NOT to re-open it. Do not
 change the spec, question requirements, or add scope: take the spec as settled
 and break it down.
 
-Read the provided spec.md (and project context) and emit JSON only. Write that
+Read the provided spec.md, its plan.md and tasks.md, and the approved plan
+(`plan.md`, the planning document its people approved — not the spec folder's
+plan.md), then emit JSON only. Write that
 JSON to `../decomposition.json` (beside the clone, outside git); the file is
 the deliverable:
 

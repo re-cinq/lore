@@ -386,12 +386,13 @@ describe("the feature-planning recipe", () => {
     });
   });
 
-  it("gives the spec steps after approval the approved plan as plan.md rather than in their prompt", () => {
+  it("gives spec-analysis, spec-write and feature-decompose the approved plan as plan.md rather than in their prompt", () => {
     expect(
-      ["spec-analysis", "spec-write"].map(
+      ["spec-analysis", "spec-write", "feature-decompose"].map(
         (name) => SHIPPED.get(name)?.config?.inputs,
       ),
     ).toEqual([
+      [{ path: "plan.md", source: "plan" }],
       [{ path: "plan.md", source: "plan" }],
       [{ path: "plan.md", source: "plan" }],
     ]);

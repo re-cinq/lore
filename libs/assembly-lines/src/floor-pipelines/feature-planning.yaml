@@ -359,6 +359,14 @@ stations:
         kind: git
         path: target
         access: read
+      - name: plan_md
+        kind: file
+        path: plan.md
+      # Names the spec folder this run wrote, so the agent reads that spec rather
+      # than searching the clone for it.
+      - name: spec_plan
+        kind: file
+        path: spec-plan.json
     produces:
       - name: decomposition
         kind: file
@@ -1188,9 +1196,24 @@ agent_definitions:
         (the owner/name your task names above) on every `lore_*` call: the
         gateway has no checkout to detect it from.
 
-        Read the merged spec.md (and project context) and emit JSON only.
-        Write that JSON to `decomposition.json` in the current directory;
-        the file is the deliverable:
+        ## Your inputs
+
+        - **The spec.** `{spec_plan_path}` is the analysis that decided which
+          spec this plan writes. Its first `creates` entry is the spec's
+          directory, `specs/<slug>/`; when it has none, its first `updates`
+          entry is the spec file itself. Under /workspace/target that
+          directory holds spec.md, plus plan.md and tasks.md when they
+          exist. That spec.md is "the spec" below. Do not search the clone
+          for another one.
+        - **The approved plan** is at `{plan_md_path}`. It is the PLANNING
+          DOCUMENT its people approved, outside the clone. Do not confuse it
+          with `specs/<slug>/plan.md` inside the clone, the implementation
+          plan artifact.
+
+        Read the spec, its plan.md and tasks.md, and the approved plan
+        before you write anything. Then emit JSON only. Write that JSON to
+        `decomposition.json` in the current directory; the file is the
+        deliverable:
 
         {
           "stories": [
@@ -1255,8 +1278,9 @@ agent_definitions:
           not guesses); `acceptance_criteria` (observable outcomes);
           `test_plan` (which tests prove it); `references` (the spec.md and
           plan.md sections it implements). Lift them from spec.md, plan.md
-          and tasks.md — never leave a developer to rediscover what the spec
-          already settled.
+          and tasks.md, and take `context` from the approved plan too — never
+          leave a developer to rediscover what the spec or the plan already
+          settled.
         - Wire real dependencies: schema/data-model tasks come before the
           code that uses them; tests/integration come after the code they
           cover.
