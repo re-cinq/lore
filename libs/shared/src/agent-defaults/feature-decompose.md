@@ -82,8 +82,16 @@ covered yet", this round is for exactly those: each is named by its
 line at the `spec_commit` in `/workspace/decomposition.json`. Keep
 that `spec_commit` and every task as it is, and either add the line
 to the `spec_lines` of the task that already implements the
-statement, or add a task for it with the next free id. Change nothing
-else.
+statement, or add a task for it with the next free id.
+
+When it also lists task ids under "Not on main", that task names a
+path, function or component the code does not have, usually because
+it quotes a plan block written for code that has since moved or
+gone. Read the file named, or search the clone, and rewrite that task
+from the code on the branch; drop a plan quote that names something
+the code lacks, unless the task itself adds it. Keep the task's id.
+
+Change nothing else.
 
 Rules:
 - **When `tasks.md` exists beside the spec** (`specs/<slug>/tasks.md`,
