@@ -745,6 +745,7 @@ describe("the feature-planning pipeline", () => {
         "author",
         "decompose",
         "done",
+        "issue-coverage",
         "issues",
         "merged",
         "open-spec-pr",
@@ -775,6 +776,56 @@ describe("the feature-planning pipeline", () => {
         },
         { from: "spec-coverage", to: "done", on: "failed" },
       ],
+    });
+  });
+
+  it("checks issue coverage after issues, sending decompose back at most COVERAGE_ROUNDS times", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect({
+      fromIssues: edgesOn(line, "issues").find((edge) => edge.on === "success"),
+      fromCoverage: edgesOn(line, "issue-coverage"),
+    }).toEqual({
+      fromIssues: { from: "issues", to: "issue-coverage", on: "success" },
+      fromCoverage: [
+        { from: "issue-coverage", to: "done", on: "success" },
+        {
+          from: "issue-coverage",
+          to: "decompose",
+          on: "changes_requested",
+          iteration_max: COVERAGE_ROUNDS,
+        },
+        { from: "issue-coverage", to: "done", on: "failed" },
+      ],
+    });
+  });
+
+  it("hands feature-decompose its last decomposition and issue coverage as optional files its prompt names", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      decomposition: needOf(decompose, "decomposition"),
+      coverage: needOf(decompose, "issue_coverage"),
+      named: [
+        prompt.includes("/workspace/decomposition.json"),
+        prompt.includes("/workspace/issue-coverage.md"),
+      ],
+    }).toEqual({
+      named: [true, true],
+      decomposition: {
+        name: "decomposition",
+        kind: "file",
+        path: "decomposition.json",
+        optional: true,
+      },
+      coverage: {
+        name: "issue_coverage",
+        kind: "file",
+        path: "issue-coverage.md",
+        optional: true,
+      },
     });
   });
 

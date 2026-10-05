@@ -511,4 +511,26 @@ describe("the planning recipes check a plan against what the platform has (issue
       context: prompt.includes("take `context` from the approved plan too"),
     }).toEqual({ spec: true, noSearch: true, context: true });
   });
+
+  it("has feature-decompose name each task's spec lines at the commit it read, and on a coverage round add only the statements listed", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      lines: prompt.includes('"spec_lines": [42, 57]'),
+      commit: prompt.includes("git -C /workspace/target rev-parse HEAD"),
+      everyStatement: prompt.includes(
+        "Name every testable statement in at least one task",
+      ),
+      keepsIds: prompt.includes(
+        "keep every task that is still the same work, with its id",
+      ),
+      onlyListed: prompt.includes("this round is for exactly those"),
+    }).toEqual({
+      lines: true,
+      commit: true,
+      everyStatement: true,
+      keepsIds: true,
+      onlyListed: true,
+    });
+  });
 });
