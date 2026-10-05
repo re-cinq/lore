@@ -32,7 +32,7 @@ function brief(needs: Partial<Record<string, string>> = {}) {
     visitId: "visit-issues",
     iteration: 1,
     needs: {
-      target: "github.com/re-cinq/lore@spec/widget",
+      target: "https://github.com/re-cinq/lore@spec/widget",
       plan_id: "3b3a67af",
       ...needs,
     },
@@ -94,7 +94,10 @@ function fakeProject(labels: string[]) {
 function scene(project: ReturnType<typeof fakeProject>["project"]) {
   const deps: FileIssuesDeps = {
     runOf: () => Promise.resolve("run-1"),
-    project: () => Promise.resolve(project),
+    project: (repo) =>
+      repo === "re-cinq/lore"
+        ? Promise.resolve(project)
+        : Promise.reject(new Error(`Not Found: ${repo}`)),
     uiUrl: undefined,
   };
 

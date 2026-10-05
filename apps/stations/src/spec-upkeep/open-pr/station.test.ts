@@ -22,22 +22,26 @@ function brief(needs: Record<string, string> = {}) {
   return {
     visitId: "visit-open-pr",
     iteration: 1,
-    needs: { target: `github.com/acme/widgets@${BRANCH}`, ...needs },
+    needs: { target: `https://github.com/acme/widgets@${BRANCH}`, ...needs },
   };
 }
 
 function scene(refusal?: Error) {
   const opened: PullDraft[] = [];
   const handle = openUpkeepPrHandle({
-    pulls: () =>
-      Promise.resolve({
-        list: () => Promise.resolve([]),
-        open: (_branch: string, pr: PullDraft) => {
-          opened.push(pr);
+    pulls: (repo) =>
+      repo !== "acme/widgets"
+        ? Promise.reject(new Error(`Not Found: ${repo}`))
+        : Promise.resolve({
+            list: () => Promise.resolve([]),
+            open: (_branch: string, pr: PullDraft) => {
+              opened.push(pr);
 
-          return refusal ? Promise.reject(refusal) : Promise.resolve(pullRef());
-        },
-      }),
+              return refusal
+                ? Promise.reject(refusal)
+                : Promise.resolve(pullRef());
+            },
+          }),
   });
 
   return { handle, opened };
