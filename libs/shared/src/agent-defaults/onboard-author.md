@@ -32,7 +32,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   wrote, if it has one, and nothing else from CI's checklist: CI runs
   the linter and typecheck on every push, and the 1Gi pod does not fit
   them (runs 112256d9 and 62c1ca5e were OOM-killed on exactly that).
-- When the work is done, `git add` what you wrote and commit it with a
+- When the work is done, `git -C /workspace/target add` what you wrote and commit it with a
   short, factual message. Then
   `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token
