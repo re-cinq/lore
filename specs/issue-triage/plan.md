@@ -28,7 +28,7 @@ This plan details the implementation of a new `issue-triage` assembly line on th
 
 ### Trigger wiring
 
-The trigger relies on the existing `github.issues.labeled` webhook ingress. The stations drain handler `issueLabeled` in `apps/stations/src/events/repo-handlers.ts` currently calls `dispatchLabeledIssue` (from `@re-cinq/lore-shared/backlog/label-dispatch.js`) which handles the `lore` label for implementation dispatch. This handler is extended to also detect `lore:triage` and `triage: needs-triage` labels, and when either matches, calls `floorClient().lines.start('issue-triage', {repo, issue_url, issue_number})` via `@re-cinq/lore-shared/floor/floor-client.js`.
+The trigger relies on the existing `github.issues.labeled` webhook ingress. The stations drain handler `issueLabeled` in `apps/stations/src/events/repo-handlers.ts` currently calls `dispatchLabeledIssue` (from `libs/shared/src/work/backlog/label-dispatch.ts`) which handles the `lore` label for implementation dispatch. This handler is extended to also detect `lore:triage` and `triage: needs-triage` labels, and when either matches, calls `floorClient().lines.start('issue-triage', {repo, issue_url, issue_number})` via `libs/shared/src/outbound/floor/floor-client.ts`.
 
 ### Batch processing
 
