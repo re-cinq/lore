@@ -230,12 +230,17 @@ describe("groundingFindings", () => {
     });
 
     expect(findings).toEqual([
-      { name: "libs/shared/src/work/backlog/label-dispatcher.ts", kind: "path", line: 2 },
+      {
+        name: "libs/shared/src/work/backlog/label-dispatcher.ts",
+        kind: "path",
+        line: 2,
+      },
     ]);
   });
 
   it("accepts a folder spec.md names that plan.md's files-touched list adds", () => {
-    const plan = "Files touched:\n- `apps/stations/src/work/issue-triage-tick/` — cron sweep";
+    const plan =
+      "Files touched:\n- `apps/stations/src/work/issue-triage-tick/` — cron sweep";
 
     const findings = groundingFindings({
       text: "- **FR9**: a sweep under `apps/stations/src/work/issue-triage-tick/` picks the oldest issues.",
