@@ -102,6 +102,9 @@ function scene() {
 
       return Promise.resolve("moved 5 of 7");
     },
+    startIssueTriage: () => Promise.resolve("run-1"),
+    findParkedTriageVisit: () => Promise.resolve(null),
+    reportTriageGate: () => Promise.resolve(),
   };
   const handlers = repoEventHandlers(deps);
   const fire = (eventName: string, params: Record<string, unknown>) =>

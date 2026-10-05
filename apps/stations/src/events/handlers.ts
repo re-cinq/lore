@@ -105,7 +105,7 @@ const repoEventDeps: RepoEventDeps = {
       if (issueNum.ref !== String(issueNumber)) {
         continue;
       }
-      const { items: visits } = await floor.stationRuns.list({ run: run.id });
+      const visits = await floor.stationRuns.list({ run: run.id });
       const parked = visits.findLast(
         (v) => v.nodeId === "human-gate" && v.report === null,
       );
