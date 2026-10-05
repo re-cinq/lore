@@ -61,6 +61,7 @@ function scene(decomposed: string, visits: RunVisit[] = []) {
 
       return path === SPEC_PATH ? SPEC : null;
     },
+    listTree: async () => [],
     visitsOf: async () => [
       ...visits,
       { nodeId: "issue-coverage", report: null },

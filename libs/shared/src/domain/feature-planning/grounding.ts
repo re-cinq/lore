@@ -175,3 +175,53 @@ function camelParts(name: string): string[] {
     .split(/[\s_]+/)
     .filter(Boolean);
 }
+
+/** Every path the text names in backticks, anchors dropped: the files whose contents its identifiers are checked against. */
+export function namedPaths(text: string): string[] {
+  const paths = backticked(text)
+    .map(withoutAnchor)
+    .filter((name) => PATH.test(name));
+
+  return [...new Set(paths)];
+}
+
+export interface GroundedFile {
+  path: string;
+  findings: readonly GroundingFinding[];
+}
+
+/** The findings a writer is sent back with, one line each under the file they are in; empty when there are none. */
+export function groundingBrief(files: readonly GroundedFile[]): string {
+  const lines = files.flatMap(({ path, findings }) =>
+    findings.map((finding) => `- \`${path}\`: ${findingLine(finding)}`),
+  );
+
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return [
+    "## Not on main",
+    "",
+    "Rewrite each statement below from the code as it stands on main.",
+    "",
+    ...lines,
+    "",
+  ].join("\n");
+}
+
+function findingLine({ name, kind, line, hint }: GroundingFinding): string {
+  const where = `\`${name}\` (line ${line})`;
+
+  if (kind === "retired") {
+    return `${where} is retired: ${hint}`;
+  }
+
+  if (kind === "path") {
+    return `${where} is not on main`;
+  }
+
+  return hint
+    ? `${where} is not in the files the line names; closest: \`${hint}\``
+    : `${where} is not in the files the line names`;
+}
