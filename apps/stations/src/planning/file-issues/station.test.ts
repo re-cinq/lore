@@ -177,4 +177,18 @@ describe("fileIssuesHandle", () => {
       contextBundle: { spec_path: "specs/legacy/spec.md" },
     });
   });
+
+  it("folds the approved plan the bag carries as plan_md into the story issue it files", async () => {
+    const fake = fakeProject(LABELS);
+    const handle = scene(fake.project);
+
+    await handle(
+      brief({ plan_md: "sha256:plan" }),
+      tools({ plan_md: "# Widget\n\nThe team ships a widget." }),
+    );
+
+    expect(fake.issues[0].body).toContain(
+      "<details><summary>The approved plan</summary>\n\n# Widget\n\nThe team ships a widget.\n\n</details>",
+    );
+  });
 });

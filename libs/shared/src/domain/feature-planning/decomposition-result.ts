@@ -19,6 +19,8 @@ export interface DecompTask {
   references?: string[];
   /** The spec.md lines where the statements this task implements begin; its issue links each, and the issue-coverage check counts them. */
   spec_lines?: number[];
+  /** The approved plan's passages the task comes from, quoted as written: the plan is not in the repository. */
+  plan_quotes?: string[];
 }
 
 export interface UserStory {
@@ -203,6 +205,7 @@ export type TaskIssueDetail = Pick<
   | "acceptance_criteria"
   | "test_plan"
   | "references"
+  | "plan_quotes"
 >;
 
 export function taskIssueDetail(source: object): TaskIssueDetail {
@@ -218,6 +221,7 @@ export function taskIssueDetail(source: object): TaskIssueDetail {
       t.acceptance_criteria ?? t.acceptanceCriteria,
     ),
     ...listField("references", t.references),
+    ...listField("plan_quotes", t.plan_quotes),
   };
 }
 

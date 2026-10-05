@@ -42,7 +42,8 @@ refuses a file that leaves an outcome with nowhere to go. A back-edge needs
 ## Stations
 
 - **Agent station** (`kind: agent`): names an entry in `agent_definitions`.
-  The prompt lives in the pipeline file, not in `libs/shared/src/agent-defaults/`.
+  Its prompt is the body of `libs/shared/src/agent-defaults/<agent definition>.md`,
+  filled in when the pipeline file is loaded (`withAgentPrompts`).
   Say what the agent is given (`needs`: a `git` checkout with `access: write`
   or `read`, a `file`, a `value`), what it writes (`produces`), and how it
   reports its outcome. A second writer on a branch must come after a human

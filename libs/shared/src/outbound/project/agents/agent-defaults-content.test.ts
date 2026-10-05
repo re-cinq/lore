@@ -533,4 +533,14 @@ describe("the planning recipes check a plan against what the platform has (issue
       onlyListed: true,
     });
   });
+
+  it("has feature-decompose read every spec spec-plan.json names, cite the plan blocks, and quote the plan on every task", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      everySpec: prompt.includes("Read every spec it names"),
+      cites: prompt.includes("copied exactly as the file gives it"),
+      quotes: prompt.includes("`plan_quotes`"),
+    }).toEqual({ everySpec: true, cites: true, quotes: true });
+  });
 });

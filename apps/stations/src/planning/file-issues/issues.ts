@@ -146,7 +146,11 @@ function storyInput(
   decomposition: DecompositionResult,
   uiUrl = process.env.LORE_UI_URL,
 ): StoryIssueInput {
-  const { plan_id: planId, plan_title: planTitle } = input.params;
+  const {
+    plan_id: planId,
+    plan_title: planTitle,
+    plan_md: planMarkdown,
+  } = input.params;
   const specSlug = specSlugOf(input.params.spec_path);
 
   return {
@@ -155,6 +159,7 @@ function storyInput(
     ...(planTitle ? { planTitle } : {}),
     ...storyPlanUrl(uiUrl, input.repo, planId),
     ...(specSlug ? { specSlug } : {}),
+    ...(planMarkdown ? { planMarkdown } : {}),
   };
 }
 
