@@ -80,9 +80,8 @@ words.
 
 The op catalogue (every op is one JSON object with its `op` name):
 
-- `append-to-section` `{slot, paragraphs: ["…"]}` — adds plain
-  paragraphs at the end of a section. The usual way to extend a
-  section.
+- `append-to-section` `{slot, paragraphs: ["…"]}` — adds paragraphs
+  at the end of a section. The usual way to extend a section.
 - `insert-blocks` `{slot, after: blockId | null, blocks: [block]}` —
   adds structured blocks after a block (`null`: at the top of the
   section).
@@ -92,8 +91,11 @@ The op catalogue (every op is one JSON object with its `op` name):
   `{slot, blocks: [block]}` — replace a section's whole prose. Only
   for a section that is empty or holds only your own earlier words;
   the section's questions and KPIs stay.
-- A `paragraphs` entry is plain text: Markdown in it is shown
-  literally. For structure write `block`s: `{"type":
+- A `paragraphs` entry is read as Markdown: `### ` subheadings, `- `
+  and `1. ` lists nested by indent, `**bold**`, `` `code` `` and
+  `[text](url)` become real blocks and styles. Never write a heading
+  as a `**bold**` paragraph or a list as one paragraph per `- ` line.
+  To place blocks precisely, write `block`s: `{"type":
   "paragraph"|"quote", "content": inline}`, `{"type": "heading",
   "content": inline}` (a subheading inside the section), `{"type":
   "bulletListItem"|"numberedListItem"|"checkListItem", "content":

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newPlanInput, paragraphsOf, storyIssueOf } from "./plan-input";
+import { newPlanInput, storyIssueOf } from "./plan-input";
 
 const STORY_REFUSED =
   "The user story must be a GitHub issue URL or its number.";
@@ -74,14 +74,6 @@ describe("newPlanInput", () => {
     ).toEqual({
       error: "Unknown plan type saga.",
     });
-  });
-});
-
-describe("paragraphsOf", () => {
-  it("splits a description into its blank-line separated paragraphs", () => {
-    expect(
-      paragraphsOf("Checkout is slow.\n\n  Mobile users drop off.\n"),
-    ).toEqual(["Checkout is slow.", "Mobile users drop off."]);
   });
 });
 
