@@ -76,18 +76,27 @@ export function newPlanInput(
   );
 }
 
-// A blank story is no story; one that names no issue is refused rather than dropped.
 function withStory(
   input: NewPlanInput,
   story: string,
   repo: string,
 ): NewPlanInput | { error: string } {
-  if (!story) {
-    return input;
+  const read = storyField(story, repo);
+
+  return "error" in read ? read : { ...input, ...read };
+}
+
+/** A story field as a request carries it: blank is no story, and one that names no issue is refused rather than dropped. */
+export function storyField(
+  story: string,
+  repo: string,
+): { storyIssue?: number } | { error: string } {
+  if (!story.trim()) {
+    return {};
   }
   const read = storyIssueOf(story, repo);
 
-  return "error" in read ? read : { ...input, storyIssue: read.issue };
+  return "error" in read ? read : { storyIssue: read.issue };
 }
 
 function field(formData: FormData, key: string): string {
