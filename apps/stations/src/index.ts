@@ -31,7 +31,7 @@ import { startDigestStations } from "./digest/index.js";
 import { startOnboardStations } from "./onboard/index.js";
 import { startSpecUpkeepStations } from "./spec-upkeep/index.js";
 import { startImplementationLoopStations } from "./implementation-loop/index.js";
-import { startCloseIssueStation } from "./work/close-issue/index.js";
+import { startIssueTriageStations } from "./issue-triage/index.js";
 
 const PORT = requiredPort(process.env, "PORT");
 
@@ -83,7 +83,7 @@ function startFloorStations() {
         ...startOnboardStations(),
         ...startSpecUpkeepStations(),
         ...startImplementationLoopStations(),
-        startCloseIssueStation(),
+        ...startIssueTriageStations(),
       ]
     : [];
 }
