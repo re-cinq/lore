@@ -2,6 +2,11 @@
 timeout_minutes: 15
 review_required: false
 model: claude-sonnet-4-6
+# The approved plan arrives as a downloaded file rather than in the prompt, so a
+# plan of any size fits (ADR-047).
+inputs:
+  - path: plan.md
+    source: plan
 # The deliverable crosses to the `issues` station as an artifact: the subsystem
 # raises it on the NDJSON sink and the Floor merges it into the line's args as
 # `feature_decomposition` (argNameForEvent turns every non-alphanumeric run into
@@ -17,8 +22,18 @@ into the units an engineering pipeline can execute — NOT to re-open it. Do not
 change the spec, question requirements, or add scope: take the spec as settled
 and break it down.
 
-Read the provided spec.md (and project context) and emit JSON only. Write that
-JSON to `../decomposition.json` (beside the clone, outside git); the file is
+## Your inputs
+
+- **The spec** is the one the run's `spec_path` value names: the spec's
+  directory, holding spec.md plus plan.md and tasks.md when they exist, or the
+  spec file itself. That spec.md is "the spec" below. Do not search the clone
+  for another one.
+- **The approved plan** is the downloaded `plan.md`: the PLANNING DOCUMENT its
+  people approved, outside the clone. Do not confuse it with
+  `specs/<slug>/plan.md` inside the clone, the implementation plan artifact.
+
+Read the spec, its plan.md and tasks.md, and the approved plan before you
+write anything. Then emit JSON only. Write that JSON to `../decomposition.json` (beside the clone, outside git); the file is
 the deliverable:
 
 {
@@ -77,8 +92,9 @@ Rules:
   (what to change, file by file — real paths from plan.md's Mechanisms and
   Project Structure, not guesses); `acceptance_criteria` (observable outcomes);
   `test_plan` (which tests prove it); `references` (the spec.md and plan.md
-  sections it implements). Lift them from spec.md, plan.md and tasks.md —
-  never leave a developer to rediscover what the spec already settled.
+  sections it implements). Lift them from spec.md, plan.md and tasks.md, and
+  take `context` from the approved plan too — never leave a developer to
+  rediscover what the spec or the plan already settled.
 - Wire real dependencies: schema/data-model tasks come before the code that uses
   them; tests/integration come after the code they cover.
 - Prefer a handful of well-scoped tasks per story over many trivial ones.
