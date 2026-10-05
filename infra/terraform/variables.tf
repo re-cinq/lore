@@ -52,6 +52,15 @@ variable "enable_gemini" {
   default = false
 }
 
+# Gates the wiring to the external floor engine (namespace `floor`): the
+# FLOOR_* env on lore-api and stations, the two service-token secrets, and the
+# `lore-mcp-auth` key merged into the floor's `agent-secrets`. Seed
+# lore-floor-service-token and lore-floor-git-credential-token first.
+variable "enable_external_floor" {
+  type    = bool
+  default = false
+}
+
 # Gates satellite-cluster registration (specs/running-stations-in-any-k8s-cluster
 variable "log_retention_days" {
   description = "Number of days to retain task logs in GCS"
@@ -102,13 +111,34 @@ variable "lore_webhook_hostname" {
 }
 
 variable "lore_event_router_hostname" {
-  description = "Hostname for the event-router ingress: the canonical GitHub webhook URL (ADR-044), which LORE_WEBHOOK_URL on lore-api and the legacy alias on lore_webhook_hostname both resolve to. Empty disables the ingress."
+  description = "Hostname of the GitHub webhook URL (`/api/events`), served by lore-api since 2026-10-02 (ADR-044 amendment); LORE_WEBHOOK_URL on lore-api and the legacy alias on lore_webhook_hostname both resolve to it. Empty disables the ingress."
   type        = string
   default     = ""
 }
 
-variable "lore_agent_events_hostname" {
-  description = "Hostname for the Floor's agent-telemetry ingress (POST /api/agent-events), which registered SATELLITE clusters report run telemetry to with their own per-agent token. Empty disables the ingress and leaves the sink cluster-internal, which is exactly the behaviour before satellites existed — central-cluster pods reach it over in-cluster DNS either way."
+# Gates the Headlamp cluster dashboard and its Google sign-in proxy (headlamp.tf).
+# The cluster is GKE Autopilot, which cannot run Rancher — Rancher writes into
+# kube-system to install, and an Autopilot cluster cannot even be registered into a
+# Rancher running elsewhere (rancher/rancher#57604). Headlamp is the read-only
+# substitute, and it is a dashboard rather than a dependency: leaving this false
+# changes nothing about how the platform runs.
+variable "enable_headlamp" {
+  type    = bool
+  default = false
+
+  # A hostname is not decoration for this feature, it is a dependency: oauth2-proxy
+  # builds its Google redirect URL out of it and refuses to start on a malformed
+  # one, so `enable_headlamp` with no hostname deploys a pod that cannot boot and
+  # fails the apply on the Helm readiness timeout. Rejecting the pair up front beats
+  # both that timeout and the quieter alternative of silently deploying nothing.
+  validation {
+    condition     = !var.enable_headlamp || var.headlamp_hostname != ""
+    error_message = "enable_headlamp = true requires a non-empty headlamp_hostname: oauth2-proxy derives its OAuth redirect URL from it and will not start without one."
+  }
+}
+
+variable "headlamp_hostname" {
+  description = "Hostname for the Headlamp dashboard ingress (e.g. headlamp.example.com). Also the OAuth redirect host, so changing it invalidates the Google OAuth client's registered callback. Required when enable_headlamp is true — an empty value is rejected rather than quietly deploying nothing."
   type        = string
   default     = ""
 }

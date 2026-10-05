@@ -36,20 +36,12 @@
       "description": "Per-repo agent definitions."
     },
     {
-      "name": "Cluster Agents",
-      "description": "Execution-cluster registry and pull-based dispatch."
-    },
-    {
       "name": "Ingestion",
       "description": "Content and graph ingestion."
     },
     {
       "name": "Traceability",
       "description": "Spec-traceability queries and change impact."
-    },
-    {
-      "name": "Dark Factory",
-      "description": "Autonomous-mode (dark factory) settings."
     },
     {
       "name": "Webhooks",
@@ -62,10 +54,6 @@
     {
       "name": "Tokens",
       "description": "Scoped API token management."
-    },
-    {
-      "name": "Cluster Agents",
-      "description": "Execution-cluster registry and pull-based station-run dispatch (specs/running-stations-in-any-k8s-cluster)."
     },
     {
       "name": "Meta",
@@ -162,7 +150,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
+            "description": "Which lines use each stored definition (none: a floor pipeline carries its agents inline)",
             "content": {
               "application/json": {
                 "schema": {
@@ -725,108 +713,6 @@
           }
         },
         "x-required-scope": "read"
-      },
-      "post": {
-        "operationId": "post_api_assembly-runs",
-        "summary": "POST /api/assembly-runs",
-        "tags": ["Tasks"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "201": {
-            "description": "Run started",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssemblyRunStarted"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "task",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "definition": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "repo": {
-                    "type": "string",
-                    "pattern": "^[^/\\s]+\\/[^/\\s]+$"
-                  },
-                  "branch": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 300
-                  },
-                  "args": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {}
-                  },
-                  "resume_from": {
-                    "type": "object",
-                    "properties": {
-                      "run_id": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      "node_id": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      "iteration": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "required": ["run_id", "node_id"],
-                    "additionalProperties": false
-                  }
-                },
-                "required": ["definition", "repo"],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
       }
     },
     "/api/assembly-runs/{id}": {
@@ -931,6 +817,54 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/events": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_events",
+        "summary": "GET /api/assembly-runs/{id}/events",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEvents"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/nodes": {
       "get": {
         "operationId": "get_api_assembly-runs_id_nodes",
@@ -979,10 +913,10 @@
         ]
       }
     },
-    "/api/assembly-runs/{id}/run-station": {
-      "post": {
-        "operationId": "post_api_assembly-runs_id_run-station",
-        "summary": "POST /api/assembly-runs/{id}/run-station",
+    "/api/assembly-runs/{id}/nodes/{name}/logs": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_nodes_name_logs",
+        "summary": "GET /api/assembly-runs/{id}/nodes/{name}/logs",
         "tags": ["Tasks"],
         "security": [
           {
@@ -991,18 +925,15 @@
         ],
         "x-rate-limit-bucket": "default",
         "responses": {
-          "202": {
-            "description": "The station's next iteration was asked for in the same run, which is reopened if it had ended; the Floor launches it",
+          "200": {
+            "description": "One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AssemblyRunStationRequested"
+                  "$ref": "#/components/schemas/NodeLogs"
                 }
               }
             }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1013,12 +944,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1026,7 +951,7 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
-        "x-required-scope": "task",
+        "x-required-scope": "read",
         "parameters": [
           {
             "name": "id",
@@ -1035,32 +960,16 @@
             "schema": {
               "type": "string"
             }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "node_id": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "actor": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  }
-                },
-                "required": ["node_id", "actor"],
-                "additionalProperties": false
-              }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
-        }
+        ]
       }
     },
     "/api/assembly-runs/{id}/stream-token": {
@@ -1167,6 +1076,54 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AssemblyRunTokenUsage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/turns": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_turns",
+        "summary": "GET /api/assembly-runs/{id}/turns",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunTurns"
                 }
               }
             }
@@ -1349,582 +1306,6 @@
         "x-required-scope": "read"
       }
     },
-    "/api/cluster-agents": {
-      "get": {
-        "operationId": "get_api_cluster-agents",
-        "summary": "GET /api/cluster-agents",
-        "tags": ["Cluster Agents"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Every registered cluster-agent with its open-claim count, plus recent offline events",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentList"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read"
-      }
-    },
-    "/api/cluster-agents/install-info": {
-      "get": {
-        "operationId": "get_api_cluster-agents_install-info",
-        "summary": "GET /api/cluster-agents/install-info",
-        "tags": ["Cluster Agents"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "What this deployment can hand a satellite installer — URLs and the registration token, or why not",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentInstallInfo"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "admin"
-      }
-    },
-    "/api/cluster-agents/install.sh": {
-      "get": {
-        "operationId": "get_api_cluster-agents_install.sh",
-        "summary": "GET /api/cluster-agents/install.sh",
-        "tags": ["Cluster Agents"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "admin"
-      }
-    },
-    "/api/cluster-agents/register": {
-      "post": {
-        "operationId": "post_api_cluster-agents_register",
-        "summary": "POST /api/cluster-agents/register",
-        "tags": ["Cluster Agents"],
-        "security": [],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "The registered identity with its per-agent token — served once and never again",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentRegistration"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "tags": {
-                    "default": [],
-                    "maxItems": 50,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "maxLength": 100
-                    }
-                  },
-                  "cluster_info": {
-                    "default": null,
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "propertyNames": {
-                          "type": "string"
-                        },
-                        "additionalProperties": {}
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "current_token": {
-                    "type": "string"
-                  }
-                },
-                "required": ["name"],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/cluster-agents/{id}/catalog-events": {
-      "get": {
-        "operationId": "get_api_cluster-agents_id_catalog-events",
-        "summary": "GET /api/cluster-agents/{id}/catalog-events",
-        "tags": ["Cluster Agents"],
-        "security": [],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentCatalogEvents"
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/api/cluster-agents/{id}/catalog-status": {
-      "post": {
-        "operationId": "post_api_cluster-agents_id_catalog-status",
-        "summary": "POST /api/cluster-agents/{id}/catalog-status",
-        "tags": ["Cluster Agents"],
-        "security": [],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentCatalogStatus"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "reports": {
-                    "maxItems": 2000,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "project_id": {
-                          "type": ["string", "null"]
-                        },
-                        "state": {
-                          "type": "string",
-                          "enum": ["applied", "refused", "skipped", "deleted"]
-                        },
-                        "reason": {
-                          "type": ["string", "null"]
-                        }
-                      },
-                      "required": ["name", "project_id", "state", "reason"],
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "required": ["reports"],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/cluster-agents/{id}/claim": {
-      "post": {
-        "operationId": "post_api_cluster-agents_id_claim",
-        "summary": "POST /api/cluster-agents/{id}/claim",
-        "tags": ["Cluster Agents"],
-        "security": [],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentClaim"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/api/cluster-agents/{id}/heartbeat": {
-      "post": {
-        "operationId": "post_api_cluster-agents_id_heartbeat",
-        "summary": "POST /api/cluster-agents/{id}/heartbeat",
-        "tags": ["Cluster Agents"],
-        "security": [],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Liveness acknowledgement; last_seen_at was bumped",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentHeartbeat"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/api/cluster-agents/{id}/paused": {
-      "put": {
-        "operationId": "put_api_cluster-agents_id_paused",
-        "summary": "PUT /api/cluster-agents/{id}/paused",
-        "tags": ["Cluster Agents"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "The cluster-agent's new paused state — paused agents are passed over when work is handed out, but stay alive and finish what they hold",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentPause"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "paused": {
-                    "type": "boolean"
-                  }
-                },
-                "required": ["paused"],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/cluster-agents/{id}/release": {
-      "post": {
-        "operationId": "post_api_cluster-agents_id_release",
-        "summary": "POST /api/cluster-agents/{id}/release",
-        "tags": ["Cluster Agents"],
-        "security": [],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Whether the unlaunched visit went back on the queue, failed because no retry can launch it, or had already settled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentRelease"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "node_row_id": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "reason": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 2000
-                  }
-                },
-                "required": ["node_row_id", "reason"],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/cluster-agents/{id}/restart": {
-      "post": {
-        "operationId": "post_api_cluster-agents_id_restart",
-        "summary": "POST /api/cluster-agents/{id}/restart",
-        "tags": ["Cluster Agents"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClusterAgentRestart"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
     "/api/context": {
       "get": {
         "operationId": "get_api_context",
@@ -1946,6 +1327,122 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/context-evals": {
+      "post": {
+        "operationId": "post_api_context-evals",
+        "summary": "POST /api/context-evals",
+        "tags": ["Context"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One document's context eval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentEval"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "question": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": ["repo", "path"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/context-evals/documents": {
+      "get": {
+        "operationId": "get_api_context-evals_documents",
+        "summary": "GET /api/context-evals/documents",
+        "tags": ["Context"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The paths a context eval samples from",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalDocuments"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2209,20 +1706,62 @@
         "x-required-scope": "read"
       }
     },
-    "/api/github-credentials": {
-      "post": {
-        "operationId": "post_api_github-credentials",
-        "summary": "POST /api/github-credentials",
-        "tags": ["Cluster Agents"],
-        "security": [],
+    "/api/floor-runs": {
+      "get": {
+        "operationId": "get_api_floor-runs",
+        "summary": "GET /api/floor-runs",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "A freshly minted installation token for the run's repo, as the git credential-helper username/password pair",
+            "description": "One page of the external floor's runs, newest first, each with its mini pipeline",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GitCredential"
+                  "$ref": "#/components/schemas/FloorRunPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/floor-runs/stream-token": {
+      "post": {
+        "operationId": "post_api_floor-runs_stream-token",
+        "summary": "POST /api/floor-runs/stream-token",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorRunsStreamToken"
                 }
               }
             }
@@ -2241,6 +1780,72 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["id", "name"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["user"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/floor/git-credential": {
+      "post": {
+        "operationId": "post_api_floor_git-credential",
+        "summary": "POST /api/floor/git-credential",
+        "tags": ["Repositories"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A freshly minted installation token for the requested repo, as the git credential-helper username/password pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorGitCredential"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         },
         "requestBody": {
@@ -2250,12 +1855,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "repo": {
+                  "repoUrl": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "access": {
+                    "type": "string",
+                    "enum": ["read", "write"]
                   }
                 },
-                "required": ["repo"],
+                "required": ["repoUrl", "access"],
                 "additionalProperties": false
               }
             }
@@ -4380,7 +3989,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep",
+            "description": "The tail of one GitHub Actions job's log, timestamps stripped. With grep, only the lines containing it are kept and the tail is taken from those",
             "content": {
               "application/json": {
                 "schema": {
@@ -4990,6 +4599,15 @@
                       "type": "string"
                     }
                   },
+                  "present": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "force": {
+                    "type": "boolean"
+                  },
                   "report": {}
                 },
                 "required": ["kind", "commit", "base_commit"],
@@ -5013,7 +4631,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The projections this push started",
+            "description": "Never answered: the route refuses with 410",
             "content": {
               "application/json": {
                 "schema": {
@@ -5963,6 +5581,11 @@
                   "createdBy": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "storyIssue": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": ["known", "createdBy"],
@@ -6381,190 +6004,6 @@
         }
       }
     },
-    "/api/repos/{owner}/{repo}/settings/dark-factory": {
-      "get": {
-        "operationId": "get_api_repos_owner_repo_settings_dark-factory",
-        "summary": "GET /api/repos/{owner}/{repo}/settings/dark-factory",
-        "tags": ["Dark Factory"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Every dark-factory knob, resolved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DarkFactorySettings"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "admin",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "put": {
-        "operationId": "put_api_repos_owner_repo_settings_dark-factory",
-        "summary": "PUT /api/repos/{owner}/{repo}/settings/dark-factory",
-        "tags": ["Dark Factory"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "What the write applied, and under whose authority",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DarkFactorySettingsApplied"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "admin",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "enabled": {
-                    "type": "boolean"
-                  },
-                  "create_issue": {
-                    "type": "string",
-                    "enum": ["never", "on_gate", "always"]
-                  },
-                  "auto_merge": {
-                    "type": "object",
-                    "properties": {
-                      "paths": {
-                        "maxItems": 32,
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "min_trust": {
-                        "type": "string",
-                        "enum": ["docs", "tests", "implementation", "full"]
-                      },
-                      "require_green_ci": {
-                        "type": "boolean"
-                      },
-                      "require_bot_approval": {
-                        "type": "boolean"
-                      }
-                    },
-                    "additionalProperties": false
-                  },
-                  "review": {
-                    "type": "string",
-                    "enum": ["trust_based", "always", "never"]
-                  },
-                  "notify": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "enum": ["escalation", "watched", "all"]
-                    }
-                  },
-                  "execution": {
-                    "type": "object",
-                    "properties": {
-                      "image": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 256
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/repos/{owner}/{repo}/tasks": {
       "post": {
         "operationId": "post_api_repos_owner_repo_tasks",
@@ -6899,6 +6338,87 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/trace/overlay-drop": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_trace_overlay-drop",
+        "summary": "POST /api/repos/{owner}/{repo}/trace/overlay-drop",
+        "tags": ["Traceability"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether the graph was asked to drop the branch's overlay; false when no graph is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverlayDrop"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "branch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": ["branch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/trace/{kind}": {
       "get": {
         "operationId": "get_api_repos_owner_repo_trace_kind",
@@ -7143,6 +6663,73 @@
         ]
       }
     },
+    "/api/review/start": {
+      "post": {
+        "operationId": "post_api_review_start",
+        "summary": "POST /api/review/start",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "A code-review run was started on the floor for the pull request, or joined if one is already open; null when the pull request is not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pr_number": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["repo", "pr_number"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search-context": {
       "get": {
         "operationId": "get_api_search-context",
@@ -7370,6 +6957,80 @@
                   }
                 },
                 "required": ["entries"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/spec-links/parse": {
+      "post": {
+        "operationId": "post_api_spec-links_parse",
+        "summary": "POST /api/spec-links/parse",
+        "tags": ["Traceability"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The test links the posted specs and ADRs carry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecLinksParseResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["path", "content"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["docs"],
                 "additionalProperties": false
               }
             }
@@ -7628,7 +7289,7 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "The created task, or the transition's acknowledgement",
+            "description": "The transition's acknowledgement",
             "content": {
               "application/json": {
                 "schema": {
@@ -7687,26 +7348,7 @@
                   },
                   "error": {
                     "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "created_by": {
-                    "type": "string"
-                  },
-                  "feedback": {
-                    "type": "string"
-                  },
-                  "task_type": {
-                    "type": "string"
-                  },
-                  "target_repo": {
-                    "type": "string"
-                  },
-                  "group_id": {
-                    "type": "string"
-                  },
-                  "context": {}
+                  }
                 },
                 "additionalProperties": false
               }
@@ -8131,57 +7773,6 @@
         ]
       }
     },
-    "/api/tasks/{id}/runs": {
-      "get": {
-        "operationId": "get_api_tasks_id_runs",
-        "summary": "GET /api/tasks/{id}/runs",
-        "tags": ["Tasks"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "task",
-        "responses": {
-          "200": {
-            "description": "The task's per-attempt runs, newest first",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskRunList"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
     "/api/tasks/{id}/runtime": {
       "get": {
         "operationId": "get_api_tasks_id_runtime",
@@ -8484,6 +8075,40 @@
           }
         },
         "x-required-scope": "read"
+      }
+    },
+    "/api/webhook/github": {
+      "post": {
+        "operationId": "post_api_webhook_github",
+        "summary": "POST /api/webhook/github",
+        "tags": ["Webhooks"],
+        "security": [],
+        "x-rate-limit-bucket": "unlimited",
+        "responses": {
+          "202": {
+            "description": "The bus events the delivery was mapped to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubDeliveryCaptured"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "description": "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON."
       }
     },
     "/api/webhook/incident": {
@@ -9023,35 +8648,9 @@
               "required": ["name", "used_by"],
               "additionalProperties": false
             }
-          },
-          "applied": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "project_id": {
-                  "type": ["string", "null"]
-                },
-                "cluster": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": ["applied", "refused", "skipped", "deleted"]
-                },
-                "reason": {
-                  "type": ["string", "null"]
-                }
-              },
-              "required": ["name", "project_id", "cluster", "state", "reason"],
-              "additionalProperties": false
-            }
           }
         },
-        "required": ["usage", "applied"],
+        "required": ["usage"],
         "additionalProperties": false
       },
       "AgentDefinitionWritten": {
@@ -9467,6 +9066,9 @@
           "subject_key": {
             "type": ["string", "null"]
           },
+          "engine": {
+            "type": "string"
+          },
           "graph": {},
           "status": {
             "type": "string"
@@ -9519,6 +9121,7 @@
           "repo",
           "branch",
           "subject_key",
+          "engine",
           "status",
           "outcome",
           "reason",
@@ -9564,6 +9167,9 @@
                 },
                 "subject_key": {
                   "type": ["string", "null"]
+                },
+                "engine": {
+                  "type": "string"
                 },
                 "graph": {},
                 "status": {
@@ -9617,6 +9223,7 @@
                 "repo",
                 "branch",
                 "subject_key",
+                "engine",
                 "status",
                 "outcome",
                 "reason",
@@ -9664,26 +9271,6 @@
           }
         },
         "required": ["line", "definitionKnown", "nodes"],
-        "additionalProperties": false
-      },
-      "AssemblyRunStarted": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": ["id"],
-        "additionalProperties": false
-      },
-      "AssemblyRunStationRequested": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": ["id"],
         "additionalProperties": false
       },
       "AssemblyRunTokenUsage": {
@@ -10006,441 +9593,6 @@
         "required": ["job_id", "lines", "total", "truncated"],
         "additionalProperties": false
       },
-      "ClusterAgentCatalogEvents": {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "enum": ["snapshot", "tail"]
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "entries": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "project_id": {
-                  "type": ["string", "null"]
-                },
-                "definition": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "model": {
-                          "type": ["string", "null"]
-                        },
-                        "timeout_minutes": {
-                          "type": ["number", "null"]
-                        },
-                        "prompt": {
-                          "type": ["string", "null"]
-                        },
-                        "image": {
-                          "type": ["string", "null"]
-                        },
-                        "execution_mode": {
-                          "type": "string"
-                        },
-                        "review_required": {
-                          "type": "boolean"
-                        },
-                        "project_id": {
-                          "type": ["string", "null"]
-                        },
-                        "config": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "skills": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "pod_resources": {
-                                  "type": "object",
-                                  "properties": {
-                                    "requests": {
-                                      "type": "object",
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "limits": {
-                                      "type": "object",
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      }
-                                    }
-                                  },
-                                  "additionalProperties": false
-                                },
-                                "disallowed_tools": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "watch": {
-                                  "type": "object",
-                                  "properties": {
-                                    "event": {
-                                      "type": "string"
-                                    },
-                                    "path": {
-                                      "type": "string"
-                                    },
-                                    "upload": {
-                                      "type": "boolean"
-                                    }
-                                  },
-                                  "required": ["event", "path"],
-                                  "additionalProperties": false
-                                },
-                                "inputs": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "path": {
-                                        "type": "string"
-                                      },
-                                      "source": {
-                                        "type": "string",
-                                        "enum": ["plan", "digest-draft"]
-                                      }
-                                    },
-                                    "required": ["path", "source"],
-                                    "additionalProperties": false
-                                  }
-                                },
-                                "repo_workdir": {
-                                  "type": "boolean"
-                                },
-                                "command": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "env": {
-                                  "type": "object",
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "additionalProperties": {
-                                    "type": "string"
-                                  }
-                                },
-                                "pod_labels": {
-                                  "type": "object",
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "additionalProperties": {
-                                    "type": "string"
-                                  }
-                                },
-                                "needs_model": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "additionalProperties": {}
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "model",
-                        "timeout_minutes",
-                        "prompt",
-                        "image",
-                        "execution_mode",
-                        "review_required",
-                        "project_id",
-                        "config"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": ["name", "project_id", "definition"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["mode", "cursor", "entries"],
-        "additionalProperties": false
-      },
-      "ClusterAgentCatalogStatus": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "const": true
-          },
-          "recorded": {
-            "type": "number"
-          }
-        },
-        "required": ["ok", "recorded"],
-        "additionalProperties": false
-      },
-      "ClusterAgentClaim": {
-        "type": "object",
-        "properties": {
-          "station_run_id": {
-            "type": "string"
-          },
-          "node_row_id": {
-            "type": "string"
-          },
-          "assembly_run_id": {
-            "type": "string"
-          },
-          "node_id": {
-            "type": "string"
-          },
-          "iteration": {
-            "type": "number"
-          },
-          "agent_cr_name": {
-            "type": ["string", "null"]
-          },
-          "spec": {},
-          "git_credential": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "station_run_id",
-          "node_row_id",
-          "assembly_run_id",
-          "node_id",
-          "iteration",
-          "agent_cr_name",
-          "spec",
-          "git_credential"
-        ],
-        "additionalProperties": false
-      },
-      "ClusterAgentHeartbeat": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "const": "ok"
-          }
-        },
-        "required": ["status"],
-        "additionalProperties": false
-      },
-      "ClusterAgentInstallInfo": {
-        "type": "object",
-        "properties": {
-          "available": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": ["string", "null"]
-          },
-          "api_url": {
-            "type": ["string", "null"]
-          },
-          "event_router_url": {
-            "type": ["string", "null"]
-          },
-          "registration_token": {
-            "type": ["string", "null"]
-          },
-          "repo_url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "available",
-          "reason",
-          "api_url",
-          "event_router_url",
-          "registration_token",
-          "repo_url"
-        ],
-        "additionalProperties": false
-      },
-      "ClusterAgentList": {
-        "type": "object",
-        "properties": {
-          "agents": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "tags": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "status": {
-                  "type": "string",
-                  "enum": ["active", "offline"]
-                },
-                "paused": {
-                  "type": "boolean"
-                },
-                "last_seen_at": {
-                  "type": "string"
-                },
-                "running_claims": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "tags",
-                "status",
-                "paused",
-                "last_seen_at",
-                "running_claims"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "offline_events": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "created_at": {
-                  "type": "string"
-                },
-                "cluster_agent_id": {
-                  "type": ["string", "null"]
-                },
-                "station_run_id": {
-                  "type": ["string", "null"]
-                },
-                "assembly_run_id": {
-                  "type": ["string", "null"]
-                },
-                "node_id": {
-                  "type": ["string", "null"]
-                },
-                "elapsed_since_claim_ms": {
-                  "type": ["number", "null"]
-                }
-              },
-              "required": [
-                "created_at",
-                "cluster_agent_id",
-                "station_run_id",
-                "assembly_run_id",
-                "node_id",
-                "elapsed_since_claim_ms"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["agents", "offline_events"],
-        "additionalProperties": false
-      },
-      "ClusterAgentPause": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "paused": {
-            "type": "boolean"
-          }
-        },
-        "required": ["id", "name", "paused"],
-        "additionalProperties": false
-      },
-      "ClusterAgentRegistration": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "token": {
-            "type": "string"
-          }
-        },
-        "required": ["id", "name", "tags", "token"],
-        "additionalProperties": false
-      },
-      "ClusterAgentRelease": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": ["requeued", "failed", "settled"]
-          }
-        },
-        "required": ["status"],
-        "additionalProperties": false
-      },
-      "ClusterAgentRestart": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "restarted": {
-            "type": "boolean"
-          }
-        },
-        "required": ["id", "name", "restarted"],
-        "additionalProperties": false
-      },
       "CommitCreated": {
         "type": "object",
         "properties": {
@@ -10452,150 +9604,40 @@
         "required": ["ok"],
         "additionalProperties": false
       },
-      "DarkFactorySettings": {
+      "DocumentEval": {
         "type": "object",
         "properties": {
-          "enabled": {
+          "path": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "found": {
             "type": "boolean"
           },
-          "create_issue": {
-            "type": "string",
-            "enum": ["never", "on_gate", "always"]
+          "answered": {
+            "type": "boolean"
           },
-          "auto_merge": {
-            "type": "object",
-            "properties": {
-              "paths": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "min_trust": {
-                "type": "string",
-                "enum": ["docs", "tests", "implementation", "full"]
-              },
-              "require_green_ci": {
-                "type": "boolean"
-              },
-              "require_bot_approval": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "paths",
-              "min_trust",
-              "require_green_ci",
-              "require_bot_approval"
-            ],
-            "additionalProperties": false
+          "useful_share": {
+            "type": "number"
           },
-          "review": {
-            "type": "string",
-            "enum": ["trust_based", "always", "never"]
+          "reason": {
+            "type": "string"
           },
-          "notify": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": ["escalation", "watched", "all"]
-            }
+          "model": {
+            "type": "string"
           }
         },
         "required": [
-          "enabled",
-          "create_issue",
-          "auto_merge",
-          "review",
-          "notify"
+          "path",
+          "question",
+          "found",
+          "answered",
+          "useful_share",
+          "reason",
+          "model"
         ],
-        "additionalProperties": false
-      },
-      "DarkFactorySettingsApplied": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "const": true
-          },
-          "applied": {
-            "type": "object",
-            "properties": {
-              "enabled": {
-                "type": "boolean"
-              },
-              "create_issue": {
-                "type": "string",
-                "enum": ["never", "on_gate", "always"]
-              },
-              "auto_merge": {
-                "type": "object",
-                "properties": {
-                  "paths": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "min_trust": {
-                    "type": "string",
-                    "enum": ["docs", "tests", "implementation", "full"]
-                  },
-                  "require_green_ci": {
-                    "type": "boolean"
-                  },
-                  "require_bot_approval": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "paths",
-                  "min_trust",
-                  "require_green_ci",
-                  "require_bot_approval"
-                ],
-                "additionalProperties": false
-              },
-              "review": {
-                "type": "string",
-                "enum": ["trust_based", "always", "never"]
-              },
-              "notify": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "enum": ["escalation", "watched", "all"]
-                }
-              }
-            },
-            "required": [
-              "enabled",
-              "create_issue",
-              "auto_merge",
-              "review",
-              "notify"
-            ],
-            "additionalProperties": false
-          },
-          "ceremony": {
-            "type": "object",
-            "properties": {
-              "tier": {
-                "type": "string",
-                "enum": ["two_key", "admin"]
-              },
-              "pr_ref": {
-                "type": "string"
-              },
-              "approver": {
-                "type": "string"
-              }
-            },
-            "required": ["tier"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["ok", "applied", "ceremony"],
         "additionalProperties": false
       },
       "DodProgress": {
@@ -10747,20 +9789,6 @@
                   ]
                 },
                 "context_refs": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "dark_factory_overrides": {
                   "anyOf": [
                     {
                       "type": "object",
@@ -10939,6 +9967,19 @@
         },
         "required": ["error"]
       },
+      "EvalDocuments": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["documents"],
+        "additionalProperties": false
+      },
       "EventPayload": {
         "type": "object",
         "propertyNames": {
@@ -10946,7 +9987,7 @@
         },
         "additionalProperties": {}
       },
-      "GitCredential": {
+      "FloorGitCredential": {
         "type": "object",
         "properties": {
           "username": {
@@ -10957,6 +9998,163 @@
           }
         },
         "required": ["username", "password"],
+        "additionalProperties": false
+      },
+      "FloorRunPage": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "blueprint_name": {
+                  "type": "string"
+                },
+                "definition_name": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": ["string", "null"]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "branch": {
+                  "type": ["string", "null"]
+                },
+                "subject_key": {
+                  "type": ["string", "null"]
+                },
+                "engine": {
+                  "type": "string"
+                },
+                "graph": {},
+                "status": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": ["string", "null"]
+                },
+                "reason": {
+                  "type": ["string", "null"]
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "type": ["string", "null"]
+                },
+                "finished_at": {
+                  "type": ["string", "null"]
+                },
+                "args_pr_number": {
+                  "type": ["number", "null"]
+                },
+                "spec_plan_summary": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "task_pr_number": {
+                  "type": ["number", "null"]
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "issue_number": {
+                  "type": ["number", "null"]
+                },
+                "created_by": {
+                  "type": ["string", "null"]
+                },
+                "cost_usd": {
+                  "type": ["number", "null"]
+                },
+                "pipeline": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "node_id": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["node_id", "state"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "blueprint_name",
+                "definition_name",
+                "task_id",
+                "repo",
+                "branch",
+                "subject_key",
+                "engine",
+                "status",
+                "outcome",
+                "reason",
+                "created_at",
+                "started_at",
+                "finished_at",
+                "args_pr_number",
+                "spec_plan_summary",
+                "pr_url",
+                "task_pr_number",
+                "issue_url",
+                "issue_number",
+                "created_by",
+                "cost_usd",
+                "pipeline"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "next_cursor": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["runs", "next_cursor"],
+        "additionalProperties": false
+      },
+      "FloorRunsStreamToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["token", "expires_at"],
+        "additionalProperties": false
+      },
+      "GitHubDeliveryCaptured": {
+        "type": "object",
+        "properties": {
+          "captured": {
+            "type": "number"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["captured", "events"],
         "additionalProperties": false
       },
       "GithubInstallation": {
@@ -11273,8 +10471,35 @@
                   "created_at": {
                     "type": ["string", "null"]
                   },
-                  "error": {
-                    "type": ["string", "null"]
+                  "hold": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "text_too_long",
+                              "waits_on_blockers",
+                              "two_priorities",
+                              "parked",
+                              "failed"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "fix": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kind", "message", "fix"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "run_id": {
                     "type": ["string", "null"]
@@ -11301,9 +10526,6 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "text_too_long": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -11314,10 +10536,9 @@
                   "pr_url",
                   "state",
                   "created_at",
-                  "error",
+                  "hold",
                   "run_id",
-                  "pipeline",
-                  "text_too_long"
+                  "pipeline"
                 ],
                 "additionalProperties": false
               },
@@ -11357,8 +10578,35 @@
                 "created_at": {
                   "type": ["string", "null"]
                 },
-                "error": {
-                  "type": ["string", "null"]
+                "hold": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "text_too_long",
+                            "waits_on_blockers",
+                            "two_priorities",
+                            "parked",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "message", "fix"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "run_id": {
                   "type": ["string", "null"]
@@ -11385,9 +10633,6 @@
                       "type": "null"
                     }
                   ]
-                },
-                "text_too_long": {
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -11398,10 +10643,109 @@
                 "pr_url",
                 "state",
                 "created_at",
-                "error",
+                "hold",
                 "run_id",
-                "pipeline",
-                "text_too_long"
+                "pipeline"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "parked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "hold": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "text_too_long",
+                            "waits_on_blockers",
+                            "two_priorities",
+                            "parked",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "message", "fix"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "issue_number",
+                "issue_url",
+                "title",
+                "priority",
+                "pr_url",
+                "state",
+                "created_at",
+                "hold",
+                "run_id",
+                "pipeline"
               ],
               "additionalProperties": false
             }
@@ -11434,8 +10778,35 @@
                 "created_at": {
                   "type": ["string", "null"]
                 },
-                "error": {
-                  "type": ["string", "null"]
+                "hold": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "text_too_long",
+                            "waits_on_blockers",
+                            "two_priorities",
+                            "parked",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "message", "fix"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "run_id": {
                   "type": ["string", "null"]
@@ -11462,9 +10833,6 @@
                       "type": "null"
                     }
                   ]
-                },
-                "text_too_long": {
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -11475,10 +10843,9 @@
                 "pr_url",
                 "state",
                 "created_at",
-                "error",
+                "hold",
                 "run_id",
-                "pipeline",
-                "text_too_long"
+                "pipeline"
               ],
               "additionalProperties": false
             }
@@ -11490,6 +10857,7 @@
           "current",
           "current_run_id",
           "next",
+          "parked",
           "recent"
         ],
         "additionalProperties": false
@@ -11743,6 +11111,58 @@
               }
             },
             "required": ["type", "channel", "kind", "subject"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "open"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "kind": {
+                "type": "string",
+                "const": "runs"
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1
+              },
+              "token": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["type", "channel", "kind", "subject", "token"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "watch"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "runs": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": ["type", "channel", "runs"],
             "additionalProperties": false
           },
           {
@@ -12197,6 +11617,176 @@
             "properties": {
               "type": {
                 "type": "string",
+                "const": "runs"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "frame": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "run_started"
+                      },
+                      "run_id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["type", "run_id"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "run_row"
+                      },
+                      "run": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "blueprint_name": {
+                            "type": "string"
+                          },
+                          "definition_name": {
+                            "type": "string"
+                          },
+                          "task_id": {
+                            "type": ["string", "null"]
+                          },
+                          "repo": {
+                            "type": "string"
+                          },
+                          "branch": {
+                            "type": ["string", "null"]
+                          },
+                          "subject_key": {
+                            "type": ["string", "null"]
+                          },
+                          "engine": {
+                            "type": "string"
+                          },
+                          "graph": {},
+                          "status": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": ["string", "null"]
+                          },
+                          "reason": {
+                            "type": ["string", "null"]
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "started_at": {
+                            "type": ["string", "null"]
+                          },
+                          "finished_at": {
+                            "type": ["string", "null"]
+                          },
+                          "args_pr_number": {
+                            "type": ["number", "null"]
+                          },
+                          "spec_plan_summary": {
+                            "type": ["string", "null"]
+                          },
+                          "pr_url": {
+                            "type": ["string", "null"]
+                          },
+                          "task_pr_number": {
+                            "type": ["number", "null"]
+                          },
+                          "issue_url": {
+                            "type": ["string", "null"]
+                          },
+                          "issue_number": {
+                            "type": ["number", "null"]
+                          },
+                          "created_by": {
+                            "type": ["string", "null"]
+                          },
+                          "cost_usd": {
+                            "type": ["number", "null"]
+                          },
+                          "pipeline": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "node_id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["node_id", "state"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "blueprint_name",
+                          "definition_name",
+                          "task_id",
+                          "repo",
+                          "branch",
+                          "subject_key",
+                          "engine",
+                          "status",
+                          "outcome",
+                          "reason",
+                          "created_at",
+                          "started_at",
+                          "finished_at",
+                          "args_pr_number",
+                          "spec_plan_summary",
+                          "pr_url",
+                          "task_pr_number",
+                          "issue_url",
+                          "issue_number",
+                          "created_by",
+                          "cost_usd",
+                          "pipeline"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "run"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "resync"
+                      }
+                    },
+                    "required": ["type"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": ["type", "channel", "frame"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
                 "const": "data"
               },
               "channel": {
@@ -12531,6 +12121,32 @@
         "required": ["results"],
         "additionalProperties": false
       },
+      "NodeLogs": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "logs": {
+            "type": ["string", "null"]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "podName": {
+            "type": "null"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "const": "no-records"
+          }
+        },
+        "required": ["available", "logs", "phase", "podName", "archived"],
+        "additionalProperties": false
+      },
       "OnboardResult": {
         "anyOf": [
           {
@@ -12658,20 +12274,6 @@
                   ]
                 },
                 "context_refs": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "dark_factory_overrides": {
                   "anyOf": [
                     {
                       "type": "object",
@@ -13094,6 +12696,16 @@
         "required": ["ok"],
         "additionalProperties": false
       },
+      "OverlayDrop": {
+        "type": "object",
+        "properties": {
+          "dropped": {
+            "type": "boolean"
+          }
+        },
+        "required": ["dropped"],
+        "additionalProperties": false
+      },
       "PipelineAnalytics": {
         "type": "object",
         "propertyNames": {
@@ -13445,61 +13057,6 @@
               {
                 "type": "object",
                 "properties": {
-                  "dark_factory": {
-                    "type": "object",
-                    "properties": {
-                      "enabled": {
-                        "type": "boolean"
-                      },
-                      "create_issue": {
-                        "type": "string",
-                        "enum": ["never", "on_gate", "always"]
-                      },
-                      "auto_merge": {
-                        "type": "object",
-                        "properties": {
-                          "paths": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "min_trust": {
-                            "type": "string",
-                            "enum": ["docs", "tests", "implementation", "full"]
-                          },
-                          "require_green_ci": {
-                            "type": "boolean"
-                          },
-                          "require_bot_approval": {
-                            "type": "boolean"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      "review": {
-                        "type": "string",
-                        "enum": ["trust_based", "always", "never"]
-                      },
-                      "notify": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["escalation", "watched", "all"]
-                        }
-                      },
-                      "execution": {
-                        "type": "object",
-                        "properties": {
-                          "image": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": false
-                      }
-                    },
-                    "additionalProperties": false
-                  },
                   "trust": {
                     "type": "object",
                     "properties": {
@@ -13520,39 +13077,6 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
-                  },
-                  "task_overrides": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {
-                      "type": "object",
-                      "properties": {
-                        "model": {
-                          "type": "string"
-                        },
-                        "timeout_minutes": {
-                          "type": "number"
-                        },
-                        "system_prompt_suffix": {
-                          "type": "string"
-                        },
-                        "review_required": {
-                          "type": "boolean"
-                        },
-                        "execution": {
-                          "type": "object",
-                          "properties": {
-                            "image": {
-                              "type": "string"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "additionalProperties": {}
                     }
                   },
                   "auto_review": {
@@ -13684,15 +13208,9 @@
         "properties": {
           "tasks": {
             "type": ["number", "null"]
-          },
-          "auto_merged": {
-            "type": ["number", "null"]
-          },
-          "escalations": {
-            "type": ["number", "null"]
           }
         },
-        "required": ["tasks", "auto_merged", "escalations"],
+        "required": ["tasks"],
         "additionalProperties": false
       },
       "RepoChunkSummary": {
@@ -13906,66 +13424,6 @@
                     {
                       "type": "object",
                       "properties": {
-                        "dark_factory": {
-                          "type": "object",
-                          "properties": {
-                            "enabled": {
-                              "type": "boolean"
-                            },
-                            "create_issue": {
-                              "type": "string",
-                              "enum": ["never", "on_gate", "always"]
-                            },
-                            "auto_merge": {
-                              "type": "object",
-                              "properties": {
-                                "paths": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "min_trust": {
-                                  "type": "string",
-                                  "enum": [
-                                    "docs",
-                                    "tests",
-                                    "implementation",
-                                    "full"
-                                  ]
-                                },
-                                "require_green_ci": {
-                                  "type": "boolean"
-                                },
-                                "require_bot_approval": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "additionalProperties": false
-                            },
-                            "review": {
-                              "type": "string",
-                              "enum": ["trust_based", "always", "never"]
-                            },
-                            "notify": {
-                              "type": "array",
-                              "items": {
-                                "type": "string",
-                                "enum": ["escalation", "watched", "all"]
-                              }
-                            },
-                            "execution": {
-                              "type": "object",
-                              "properties": {
-                                "image": {
-                                  "type": "string"
-                                }
-                              },
-                              "additionalProperties": false
-                            }
-                          },
-                          "additionalProperties": false
-                        },
                         "trust": {
                           "type": "object",
                           "properties": {
@@ -13991,39 +13449,6 @@
                           "type": "array",
                           "items": {
                             "type": "string"
-                          }
-                        },
-                        "task_overrides": {
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "model": {
-                                "type": "string"
-                              },
-                              "timeout_minutes": {
-                                "type": "number"
-                              },
-                              "system_prompt_suffix": {
-                                "type": "string"
-                              },
-                              "review_required": {
-                                "type": "boolean"
-                              },
-                              "execution": {
-                                "type": "object",
-                                "properties": {
-                                  "image": {
-                                    "type": "string"
-                                  }
-                                },
-                                "additionalProperties": false
-                              }
-                            },
-                            "additionalProperties": {}
                           }
                         },
                         "auto_review": {
@@ -14367,6 +13792,187 @@
         },
         "required": ["state", "canonicalUrl"],
         "additionalProperties": false
+      },
+      "ReviewStarted": {
+        "type": "object",
+        "properties": {
+          "started": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["started"],
+        "additionalProperties": false
+      },
+      "RunEvents": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["events"],
+        "additionalProperties": false
+      },
+      "RunListFrame": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "run_started"
+              },
+              "run_id": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "run_id"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "run_row"
+              },
+              "run": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "blueprint_name": {
+                    "type": "string"
+                  },
+                  "definition_name": {
+                    "type": "string"
+                  },
+                  "task_id": {
+                    "type": ["string", "null"]
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": ["string", "null"]
+                  },
+                  "subject_key": {
+                    "type": ["string", "null"]
+                  },
+                  "engine": {
+                    "type": "string"
+                  },
+                  "graph": {},
+                  "status": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "type": ["string", "null"]
+                  },
+                  "reason": {
+                    "type": ["string", "null"]
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "started_at": {
+                    "type": ["string", "null"]
+                  },
+                  "finished_at": {
+                    "type": ["string", "null"]
+                  },
+                  "args_pr_number": {
+                    "type": ["number", "null"]
+                  },
+                  "spec_plan_summary": {
+                    "type": ["string", "null"]
+                  },
+                  "pr_url": {
+                    "type": ["string", "null"]
+                  },
+                  "task_pr_number": {
+                    "type": ["number", "null"]
+                  },
+                  "issue_url": {
+                    "type": ["string", "null"]
+                  },
+                  "issue_number": {
+                    "type": ["number", "null"]
+                  },
+                  "created_by": {
+                    "type": ["string", "null"]
+                  },
+                  "cost_usd": {
+                    "type": ["number", "null"]
+                  },
+                  "pipeline": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "node_id": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["node_id", "state"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "blueprint_name",
+                  "definition_name",
+                  "task_id",
+                  "repo",
+                  "branch",
+                  "subject_key",
+                  "engine",
+                  "status",
+                  "outcome",
+                  "reason",
+                  "created_at",
+                  "started_at",
+                  "finished_at",
+                  "args_pr_number",
+                  "spec_plan_summary",
+                  "pr_url",
+                  "task_pr_number",
+                  "issue_url",
+                  "issue_number",
+                  "created_by",
+                  "cost_usd",
+                  "pipeline"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "run"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "resync"
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": false
+          }
+        ]
       },
       "RunStreamFrame": {
         "oneOf": [
@@ -14753,6 +14359,20 @@
         "required": ["token", "expires_at"],
         "additionalProperties": false
       },
+      "RunTurns": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "array",
+            "items": {}
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": ["turns", "hasMore"],
+        "additionalProperties": false
+      },
       "SearchContextResults": {
         "type": "object",
         "properties": {
@@ -14946,6 +14566,48 @@
       },
       "SlackEventAck": {
         "type": "string"
+      },
+      "SpecLinksParseResult": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "doc_path": {
+                  "type": "string"
+                },
+                "statement_line": {
+                  "type": ["number", "null"]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": ["number", "null"]
+                },
+                "misplaced": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "doc_path",
+                "statement_line",
+                "label",
+                "path",
+                "line",
+                "misplaced"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["links"],
+        "additionalProperties": false
       },
       "SpecList": {
         "type": "object",
@@ -15445,63 +15107,13 @@
               },
               "est_total_usd": {
                 "type": "number"
-              },
-              "live_pods": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "phase": {
-                      "type": "string"
-                    },
-                    "started_at": {
-                      "type": ["string", "null"]
-                    },
-                    "requests": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "usd_per_hour": {
-                      "type": "number"
-                    },
-                    "usd_so_far": {
-                      "type": "number"
-                    },
-                    "station_run_id": {
-                      "type": ["string", "null"]
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "phase",
-                    "started_at",
-                    "requests",
-                    "usd_per_hour",
-                    "usd_so_far",
-                    "station_run_id"
-                  ],
-                  "additionalProperties": false
-                }
-              },
-              "live_usd_per_hour": {
-                "type": "number"
               }
             },
             "required": [
               "rates",
               "assumed_profile",
               "pod_hours",
-              "est_total_usd",
-              "live_pods",
-              "live_usd_per_hour"
+              "est_total_usd"
             ],
             "additionalProperties": false
           },
@@ -15970,20 +15582,6 @@
               }
             ]
           },
-          "dark_factory_overrides": {
-            "anyOf": [
-              {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {}
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "failure_reason": {
             "type": ["string", "null"]
           },
@@ -16091,7 +15689,6 @@
           "review_iteration",
           "context_bundle",
           "context_refs",
-          "dark_factory_overrides",
           "failure_reason",
           "created_by",
           "created_at",
@@ -16188,37 +15785,6 @@
           }
         },
         "required": ["tasks", "total", "limit", "offset"],
-        "additionalProperties": false
-      },
-      "TaskRunList": {
-        "type": "object",
-        "properties": {
-          "runs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string",
-                  "enum": ["queued", "running", "finished", "failed"]
-                },
-                "outcome": {
-                  "type": ["string", "null"]
-                },
-                "created_at": {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              },
-              "required": ["id", "status", "outcome", "created_at"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["runs"],
         "additionalProperties": false
       },
       "TaskRuntime": {
@@ -16625,7 +16191,7 @@
   },
   "x-websocket": {
     "path": "/api/ws",
-    "description": "The browser's one live socket: JSON text frames, client-chosen channel ids; a `run` channel carries RunStreamFrame envelopes, a `plan` channel tunnels the plan collaboration protocol as base64.",
+    "description": "The browser's one live socket: JSON text frames, client-chosen channel ids; a `run` channel carries RunStreamFrame envelopes, a `runs` channel carries the RunListFrame envelopes of the floor's run list, a `plan` channel tunnels the plan collaboration protocol as base64.",
     "client": {
       "$ref": "#/components/schemas/LiveClientMessage"
     },

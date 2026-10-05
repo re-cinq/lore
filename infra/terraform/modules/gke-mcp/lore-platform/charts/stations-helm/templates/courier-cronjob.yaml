@@ -1,21 +1,25 @@
 {{/*
 The courier (#1357). One CronJob per entry in .Values.courierJobs. Each pod does
-exactly one thing: POST /api/assembly-runs to start an assembly line, then exit.
+exactly one thing: POST one station of the stations service, then exit.
 
 It holds NO business logic. The schedule lives in Kubernetes, the work lives in
-the assembly line — which brings run rows, retries, a timeline, and per-node
-logs that a bare CronJob pod never had. This is what replaces "a batch job lives
-in the coordinator because the coordinator's image is what the alarm launched".
+the station. This is what replaces "a batch job lives in the coordinator because
+the coordinator's image is what the alarm launched".
 
 Required per entry: .name (k8s suffix), .schedule (cron), .path (the lore-api
 path to post to).
 Optional: .body (object, rendered as the JSON payload; omitted entirely when
 absent, for endpoints that take none).
+Optional: .maxTimeSeconds (how long one post may take, default 30). Only for a
+sweep that answers when its work is done and whose work is slow; it must stay
+under the job's 120-second deadline, which is what stops a timed-out post from
+being retried into a second run of the same work.
+Optional: .retries (curl's own retries of one post, default 3). Set 0 for work
+that must not run twice: curl retries a timed-out post, and by then the first
+one may already have done the work.
 
-The path is deliberately per-entry rather than fixed. Work with STEPS posts
-`/api/assembly-runs` and runs as a real line; a single data operation posts
-`/api/maintenance/<job>` and runs in lore-api. Both are "the schedule is in
-Kubernetes and the pod holds no logic" — only the URL differs.
+The path is per-entry: `/api/stations/<job>`. The schedule is in Kubernetes and
+the pod holds no logic.
 
 The token is written to a curl config file by a shell BUILTIN rather than passed
 as an argument, so it never appears in any process's argv (readable via /proc by
@@ -89,7 +93,7 @@ spec:
                   printf 'header = "Authorization: Bearer %s"\n' "$LORE_INGEST_TOKEN" > /tmp/curlrc
                   exec curl --config /tmp/curlrc \
                     --fail-with-body --silent --show-error \
-                    --retry 3 --retry-connrefused --max-time 30 \
+                    --retry {{ if hasKey . "retries" }}{{ .retries }}{{ else }}3{{ end }} --retry-connrefused --max-time {{ default 30 .maxTimeSeconds }} \
                     -X POST {{ $url | quote }}{{ if .body }} \
                     -H 'Content-Type: application/json' \
                     -d {{ .body | toJson | quote }}{{ end }}

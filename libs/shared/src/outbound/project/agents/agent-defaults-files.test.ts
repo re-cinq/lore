@@ -2,14 +2,24 @@ import { describe, it, expect } from "vitest";
 import { loadAgentDefaults } from "./agent-defaults-files.js";
 
 describe("loadAgentDefaults", () => {
-  it("loads the 23 shipped agents and 5 def- stations, each named after its file", () => {
+  it("loads the 21 shipped agents, each named after its file, and none of the deleted def- station recipes, implementation, implementation-tdd and general", () => {
     const defaults = loadAgentDefaults();
 
     expect({
       count: defaults.length,
-      review: defaults.find((row) => row.name === "review")?.execution_mode,
-      station: defaults.find((row) => row.name === "def-validate")
+      deleted: defaults
+        .map((row) => row.name)
+        .filter(
+          (name) =>
+            name.startsWith("def-") ||
+            ["implementation", "implementation-tdd", "general"].includes(name),
+        ),
+      review: defaults.find((row) => row.name === "code-review")
         ?.execution_mode,
-    }).toEqual({ count: 28, review: "claude-code", station: "station" });
+    }).toEqual({
+      count: 21,
+      deleted: [],
+      review: "claude-code",
+    });
   });
 });

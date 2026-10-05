@@ -10,7 +10,7 @@
 | Module  | ci (`ci-tools.ts`)             |
 | Scope   | shared (served in agent mode)  |
 
-`lore_get_ci_job_log` returns the tail of one GitHub Actions job's log, timestamps stripped and optionally filtered to lines containing a substring, so a caller that needs more than a failure's annotations and tail reads the part it needs rather than re-running the job.
+`lore_get_ci_job_log` returns the tail of one GitHub Actions job's log, timestamps stripped; with `grep`, only the lines containing it are kept and the tail is taken from those, so a caller that needs more than a failure's annotations and tail reads the part it needs rather than re-running the job.
 
 ## Problem Statement
 

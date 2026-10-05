@@ -47,13 +47,13 @@ describe("createTask trust gate", () => {
     },
   );
 
-  it("still refuses an implementation task at trust level docs", async () => {
+  it("still refuses a spec-task at trust level docs", async () => {
     const { pool } = poolWithTrust("docs");
 
     await expect(
       createTask(pool, {
         description: "build it",
-        taskType: "implementation",
+        taskType: "spec-task",
         targetRepo: "o/r",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
@@ -151,7 +151,7 @@ describe("createTask issue linking", () => {
 
     await createTask(pool, {
       description: "d",
-      taskType: "gap-fill",
+      taskType: "onboard",
       targetRepo: "o/r",
     });
 

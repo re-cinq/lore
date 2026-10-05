@@ -7,7 +7,6 @@ import { takenEdgeKeys } from "@/lib/run-taken-edges";
 import { latestRowByNode } from "@/lib/run-replay-view";
 import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
 import { stepViews } from "@/lib/step-presenter";
-import { retryResumeSource } from "./retry-resume";
 import {
   buildRunData,
   computeGraphMode,
@@ -48,7 +47,6 @@ export function useRunGraph(input: RunGraphInput) {
   const { nodes, definition, nodeStates, showOutcomes } = input;
   const hasRunData = computeHasRunData(nodes.length, nodeStates);
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
-  const retrySource = useRetrySource(input);
   const runData = useRunData({ ...input, latestRows });
   const visibleGraph = useVisibleGraph({
     definition,
@@ -57,7 +55,7 @@ export function useRunGraph(input: RunGraphInput) {
     showOutcomes,
   });
 
-  return { hasRunData, visibleGraph, retrySource, latestRows };
+  return { hasRunData, visibleGraph, latestRows };
 }
 
 /** The graph as drawn. A run with no rows yet passes `null` run data on purpose — the definition alone renders as the plain shape of the line, rather than as every node wrongly reporting "not started". */
@@ -74,21 +72,6 @@ function useVisibleGraph(input: {
     () =>
       deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
     [definition, hasRunData, runData, graphMode],
-  );
-}
-
-/** Fork source for "retry this node", or null to hide the button — a live run, an unvisited node, the entry node, or a prefix that cannot be named (see retry-resume.ts). */
-function useRetrySource(
-  input: Pick<RunGraphInput, "nodes" | "runIsLive" | "selectedNodeId">,
-) {
-  const { nodes, runIsLive, selectedNodeId } = input;
-
-  return useMemo(
-    () =>
-      runIsLive || selectedNodeId === null
-        ? null
-        : retryResumeSource(nodes, selectedNodeId),
-    [runIsLive, nodes, selectedNodeId],
   );
 }
 

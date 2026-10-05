@@ -9,7 +9,7 @@ interface AgentListProps {
   /** Repo base path for Edit links; null renders org-catalog (/agents). */
   base: string | null;
   agents: AgentDefinition[];
-  /** Blueprint refs and cluster verdicts; null when endpoint unreachable (renders unknown). */
+  /** Blueprint refs; null when endpoint unreachable (renders unknown). */
   usage?: AgentUsage | null;
   /** With base null: link to global org editor (/agents/edit/[name]). */
   orgEditable?: boolean;
@@ -124,7 +124,6 @@ function TableHead({ showEdit }: { showEdit: boolean }) {
         <th>Timeout</th>
         <th>Mode</th>
         <th>Used by</th>
-        <th>Rollout</th>
         {showEdit && <th></th>}
       </tr>
     </thead>
@@ -156,15 +155,14 @@ interface AgentRowProps {
 }
 
 function AgentRow({ agent, usage, editHref, remove }: AgentRowProps) {
-  const { use, mode, rollout } = rowCells(agent, usage);
+  const { use, mode } = rowCells(agent, usage);
   const isProject = agent.project_id != null && agent.project_id !== "";
 
   return (
     <tr>
       <td className={styles.name}>{agent.name}</td>
       <AgentConfigCells agent={agent} mode={mode} isProject={isProject} />
-      <StatusCell kind="usage" name={agent.name} cell={use} />
-      <StatusCell kind="rollout" name={agent.name} cell={rollout} />
+      <UsageCell name={agent.name} cell={use} />
       <ActionsCell
         href={editHref}
         name={agent.name}
@@ -203,23 +201,18 @@ function AgentConfigCells({ agent, mode, isProject }: AgentConfigCellsProps) {
   );
 }
 
-/** A usage or rollout cell. Both carry a flag saying the value is BAD news — dormant, or a rollout that did not land — which the class turns into something a reader scans for rather than reads. */
-function StatusCell({
-  kind,
+/** The usage cell. It carries a flag saying the value is BAD news — a dormant definition — which the class turns into something a reader scans for rather than reads. */
+function UsageCell({
   name,
   cell,
 }: {
-  kind: "usage" | "rollout";
   name: string;
-  cell: { text: string; dormant?: boolean; bad?: boolean };
+  cell: { text: string; dormant: boolean };
 }) {
-  const className =
-    kind === "usage"
-      ? detailClass(cell.dormant ? styles.detailDormant : null)
-      : detailClass(cell.bad ? styles.detailBad : null);
+  const className = `${styles.detail} ${cell.dormant ? styles.detailDormant : ""}`;
 
   return (
-    <td className={className} data-testid={`${kind}-${name}`}>
+    <td className={className} data-testid={`usage-${name}`}>
       {cell.text}
     </td>
   );
@@ -238,9 +231,4 @@ function ScopePill({ isProject }: { isProject: boolean }) {
       {isProject ? "project" : "org"}
     </span>
   );
-}
-
-/** A detail cell, with the modifier that turns bad news into something a reader scans for. */
-function detailClass(modifier: string | null): string {
-  return `${styles.detail} ${modifier ?? ""}`;
 }

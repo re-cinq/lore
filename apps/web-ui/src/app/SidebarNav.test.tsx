@@ -28,7 +28,6 @@ const PRIMARY_LINKS = [
   { href: "/", label: "Repos" },
   { href: "/assembly-runs", label: "Assembly Runs" },
   { href: "/agents", label: "Agents" },
-  { href: "/cluster-agents", label: "Clusters" },
   { href: "/search", label: "Search" },
   { href: "/audit", label: "Audit" },
   { href: "/pools", label: "Pools" },
@@ -103,6 +102,66 @@ describe("SidebarNav rendering", () => {
 
     expect(linkByLabel("Repos").className).not.toContain("addRepo");
     expect(linkByLabel("Repos").className).not.toContain("footerLink");
+  });
+});
+
+describe("SidebarNav cluster dashboard link", () => {
+  const HEADLAMP = "https://headlamp.example.com";
+
+  it("renders no Headlamp link when the deployment names no dashboard", () => {
+    render(<SidebarNav />);
+    expect(screen.queryByRole("link", { name: /Headlamp/ })).toBeNull();
+  });
+
+  it("renders no Headlamp link when the dashboard address is empty", () => {
+    render(<SidebarNav headlampUrl="" />);
+    expect(screen.queryByRole("link", { name: /Headlamp/ })).toBeNull();
+  });
+
+  it("links to the named dashboard in a new tab without leaking the referrer", () => {
+    render(<SidebarNav headlampUrl={HEADLAMP} />);
+    const link = linkByLabel("Headlamp");
+
+    expect(link).toHaveAttribute("href", HEADLAMP);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noreferrer");
+  });
+
+  it("marks the dashboard link as leaving the app rather than as a route", () => {
+    const { container } = render(<SidebarNav headlampUrl={HEADLAMP} />);
+    const link = linkByLabel("Headlamp");
+
+    expect(container.querySelector('[data-icon="external"]')).not.toBeNull();
+    expect(link).not.toHaveAttribute("aria-current");
+    expect(link.className).not.toContain("active");
+  });
+
+  it("pins the dashboard link outside the scrollable nav, beside Settings", () => {
+    const { container } = render(<SidebarNav headlampUrl={HEADLAMP} />);
+    const nav = container.querySelector("nav");
+
+    expect(nav!.contains(linkByLabel("Headlamp"))).toBe(false);
+    expect(linkByLabel("Headlamp").className).toContain("footerLink");
+  });
+
+  it("leaves the dashboard link inert while an in-app navigation is pending", () => {
+    linkStatus.mockReturnValue({ pending: true });
+    render(<SidebarNav headlampUrl={HEADLAMP} />);
+
+    expect(screen.getAllByRole("status", { name: "loading" })).toHaveLength(
+      ALL_LINKS.length,
+    );
+    expect(linkByLabel("Headlamp").querySelector('[role="status"]')).toBeNull();
+  });
+
+  it("adds exactly one link to the sidebar and changes no other", () => {
+    render(<SidebarNav headlampUrl={HEADLAMP} />);
+
+    expect(screen.getAllByRole("link")).toHaveLength(ALL_LINKS.length + 1);
+
+    for (const { href, label } of ALL_LINKS) {
+      expect(linkByLabel(label)).toHaveAttribute("href", href);
+    }
   });
 });
 

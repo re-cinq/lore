@@ -20,10 +20,12 @@ export interface NodeLogPanelProps {
   assemblyLineId: string;
   agentCrName: string;
   label: string;
+  /** Which engine walks the run, so a floor node's missing pod is explained rather than reported as a missing agent. */
+  engine?: string;
 }
 
 export default function NodeLogPanel(props: NodeLogPanelProps) {
-  const { assemblyLineId, agentCrName, label } = props;
+  const { assemblyLineId, agentCrName, label, engine } = props;
   const logs = useNodeLogs(assemblyLineId, agentCrName);
   const { resp } = logs;
 
@@ -33,7 +35,7 @@ export default function NodeLogPanel(props: NodeLogPanelProps) {
       labels={[resp?.phase, resp?.archived ? "retained" : null]}
       onToggle={logs.setOpen}
     >
-      <NodeLogBody {...nodeLogBodyProps(logs)} />
+      <NodeLogBody {...nodeLogBodyProps(logs)} engine={engine} />
     </CollapsibleCard>
   );
 }
@@ -81,6 +83,7 @@ interface NodeLogBodyProps {
   setShowRaw: (raw: boolean) => void;
   entries: LogEntry[];
   bottomRef: React.RefObject<HTMLDivElement | null>;
+  engine?: string;
 }
 
 /** Everything below the collapsible header: error, unavailable notice, format toggle, and the log body itself. */
@@ -164,8 +167,10 @@ function useScrollToTail(
 }
 
 /** What to show INSTEAD of logs, or null when there are logs to show. A closed card renders nothing at all — not even a placeholder — because the fetch has not been asked for yet, and "Loading…" under a collapsed header would claim work nobody started. */
-function logNotice(notice: Pick<NodeLogBodyProps, "open" | "error" | "resp">) {
-  const { open, error, resp } = notice;
+function logNotice(
+  notice: Pick<NodeLogBodyProps, "open" | "error" | "resp" | "engine">,
+) {
+  const { open, error, resp, engine } = notice;
 
   if (error) {
     return <p className={styles.error}>Failed to load logs: {error}</p>;
@@ -176,7 +181,9 @@ function logNotice(notice: Pick<NodeLogBodyProps, "open" | "error" | "resp">) {
   }
 
   if (!resp.available) {
-    return <LogPlaceholder>{unavailableMessage(resp.reason)}</LogPlaceholder>;
+    return (
+      <LogPlaceholder>{unavailableMessage(resp.reason, engine)}</LogPlaceholder>
+    );
   }
 
   return null;

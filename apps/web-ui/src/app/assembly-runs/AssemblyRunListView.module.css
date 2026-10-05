@@ -4,5 +4,6 @@
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  /* The chip sits on the heading's first line, whether the heading is one row or a title above an intro. */
+  align-items: baseline;
 }

@@ -14,7 +14,9 @@ import { planProvider } from "@/lib/live-socket/plan-provider";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
+import PlanBlockAnchor from "./PlanBlockAnchor";
 import PlanOutlineActions from "./PlanOutlineActions";
+import { useRefineAsk } from "./useRefineAsk";
 
 interface PlanEditorPanelProps extends PlanActions {
   meta: PlanMeta;
@@ -50,19 +52,22 @@ export default function PlanEditorPanel(props: PlanEditorPanelProps) {
 function ConnectedPlan(props: ConnectedPlanProps) {
   const [canApprove, setCanApprove] = useState(false);
   const { meta, user, transport, refine, ...actions } = props;
+  const { refusal, ask } = useRefineAsk(refine, props.state);
+  const outlineActions = { ...actions, canApprove, refusal };
 
   return (
-    <PlanEditor
-      transport={transport}
-      user={user}
-      readOnly={meta.status === "approved"}
-      validationPhase="approval"
-      onValidation={(report) => setCanApprove(report.passed)}
-      onRefine={(request) => askOrWithdraw(refine, request)}
-      outlineFooter={
-        <PlanOutlineActions {...actions} canApprove={canApprove} />
-      }
-    />
+    <>
+      <PlanBlockAnchor />
+      <PlanEditor
+        transport={transport}
+        user={user}
+        readOnly={meta.status === "approved"}
+        validationPhase="approval"
+        onValidation={(report) => setCanApprove(report.passed)}
+        onRefine={ask}
+        outlineFooter={<PlanOutlineActions {...outlineActions} />}
+      />
+    </>
   );
 }
 
@@ -134,16 +139,4 @@ function planTransport(
       plan.destroy();
     },
   };
-}
-
-// The editor withdraws a Refine whose promise rejects, so a refused ask must throw.
-async function askOrWithdraw(
-  refine: PlanActions["refine"],
-  request: Parameters<PlanActions["refine"]>[0],
-): Promise<void> {
-  const asked = await refine(request);
-
-  if (asked.error) {
-    throw new Error(asked.error);
-  }
 }

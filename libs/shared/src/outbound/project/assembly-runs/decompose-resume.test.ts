@@ -94,9 +94,16 @@ describe("decideMergeResume", () => {
 });
 
 function recorder() {
-  const events: (ParkedTarget & { outcome: string })[] = [];
-  const report = async (target: ParkedTarget, outcome: string) => {
-    events.push({ ...target, outcome });
+  const events: (ParkedTarget & {
+    outcome: string;
+    args?: Record<string, unknown>;
+  })[] = [];
+  const report = async (
+    target: ParkedTarget,
+    outcome: string,
+    args?: Record<string, unknown>,
+  ) => {
+    events.push({ ...target, outcome, ...(args ? { args } : {}) });
   };
 
   return { events, report };
@@ -133,6 +140,26 @@ describe("resumeDecomposition", () => {
 
     expect(rec.events).toEqual([
       { lineId: id, nodeId: "merged", iteration: 1, outcome: "success" },
+    ]);
+  });
+
+  it("points the resumed line at main, the branch PR #42 merged into, since GitHub deletes the merged head branch the line still names", async () => {
+    const { lines, id } = await lineParkedOnMerge(42);
+    const rec = recorder();
+
+    await resumeDecomposition(
+      { repo: REPO, prNumber: 42, baseRef: "main" },
+      { assemblyRuns: lines, report: rec.report },
+    );
+
+    expect(rec.events).toEqual([
+      {
+        lineId: id,
+        nodeId: "merged",
+        iteration: 1,
+        outcome: "success",
+        args: { ref: "main" },
+      },
     ]);
   });
 
@@ -204,6 +231,17 @@ describe("decideResumeFromClosedPr", () => {
         merged: true,
       }),
     ).toEqual({ repo: REPO, prNumber: 1225 });
+  });
+
+  it("carries the branch PR #1225 merged into as baseRef", () => {
+    expect(
+      decideResumeFromClosedPr({
+        repo: REPO,
+        pr_number: 1225,
+        merged: true,
+        base_ref: "main",
+      }),
+    ).toEqual({ repo: REPO, prNumber: 1225, baseRef: "main" });
   });
 
   it("ignores a PR closed without merging, which settles a line rather than advancing it", () => {
