@@ -11,6 +11,7 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { specPathOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { runIssuesStation, type IssuesStationDeps } from "./issues.js";
 
@@ -58,8 +59,9 @@ async function stationInputOf(
   deps: FileIssuesDeps,
   { repo, branch, brief, tools }: TargetBrief,
 ): Promise<StationInput> {
-  const [decomposition, runId] = await Promise.all([
+  const [decomposition, specPath, runId] = await Promise.all([
     textOf(tools, "decomposition"),
+    specPathOf(brief.needs, tools),
     groupingRunOf(deps, brief.visitId),
   ]);
 
@@ -70,8 +72,20 @@ async function stationInputOf(
     repo,
     branch,
     task_id: null,
-    params: paramsOf(brief.needs, decomposition),
+    params: paramsOf(brief.needs, decomposition, specPath),
   };
+}
+
+// Serves runs started before #2502, whose line declares spec_plan rather than spec_path; can go once none remain.
+async function specPathOf(
+  needs: Record<string, string>,
+  tools: Parameters<Handle>[1],
+): Promise<string | undefined> {
+  if (needs.spec_path || !needs.spec_plan) {
+    return needs.spec_path;
+  }
+
+  return specPathOfPlan(await textOf(tools, "spec_plan"));
 }
 
 /** The run's id is the spec-tasks' group id, and the merge-check reads that group to flip the spec's status. A visit id would differ on every re-drive, so the tasks would land in a group nobody counts: better to fail here than to file them wrong. */
@@ -93,12 +107,13 @@ async function groupingRunOf(
 function paramsOf(
   needs: Record<string, string>,
   decomposition: string,
+  specPath: string | undefined,
 ): Record<string, string> {
   return {
     feature_decomposition: decomposition,
     plan_id: needs.plan_id,
     ...(needs.plan_title ? { plan_title: needs.plan_title } : {}),
-    ...(needs.spec_path ? { spec_path: needs.spec_path } : {}),
+    ...(specPath ? { spec_path: specPath } : {}),
   };
 }
 
