@@ -5,7 +5,6 @@ import {
   approvePlan,
   askRefine,
   deletePlan,
-  mintCollabToken,
   reopenPlan,
   startDrafting,
   startSpecWork,
@@ -14,28 +13,7 @@ import {
   validatePlan,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
-import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
-import { getSession } from "@/lib/session";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
-import type { PlanSocket } from "./plan-actions";
-
-type Allowed = { user: PlanUser } | { error: string };
-
-export async function openPlanSocketAction(
-  fullName: string,
-  planId: string,
-): Promise<PlanSocket | { error: string }> {
-  const allowed = await allowedUser(fullName);
-
-  if ("error" in allowed) {
-    return allowed;
-  }
-  const minted = await mintCollabToken(fullName, planId, allowed.user, "write");
-
-  return minted.status === "ok"
-    ? minted.data
-    : { error: "Could not open the plan." };
-}
+import { allowedUser } from "./plan-access";
 
 export async function approvePlanAction(
   fullName: string,
@@ -197,19 +175,4 @@ async function inUsersName(
   const answer = await route(fullName, planId, allowed.user.id);
 
   return answer.status === "ok" ? {} : { error: refusalOf(answer) };
-}
-
-// Every action is bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.
-async function allowedUser(fullName: string): Promise<Allowed> {
-  const session = (await getSession()) as
-    (PlanSession & { accessToken?: string }) | null;
-  const user = planUserOf(session);
-
-  if (!user || !session?.accessToken) {
-    return { error: "Sign in to open this plan." };
-  }
-
-  return (await userCanAccessRepo(session.accessToken, fullName))
-    ? { user }
-    : { error: "You do not have access to this repo." };
 }

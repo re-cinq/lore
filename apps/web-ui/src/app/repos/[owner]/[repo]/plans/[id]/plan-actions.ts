@@ -10,7 +10,6 @@ type Outcome = Promise<{ error?: string }>;
 
 /** The server actions a plan page hands its editor, bound to one plan of one repo. */
 export interface PlanActions {
-  openSocket: () => Promise<PlanSocket | { error: string }>;
   approve: () => Outcome;
   /** One section back to the planning agent; an error withdraws the ask in the editor. */
   refine: (request: RefineAsk) => Outcome;

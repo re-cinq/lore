@@ -31,7 +31,6 @@ const META: PlanMeta = {
 const actions = {
   refine: async () => ({}),
   draftAgain: async () => ({}),
-  openSocket: async () => ({ error: "unused" }),
   approve: async () => ({}),
   reopen: async () => ({}),
   retrySpecWork: async () => ({}),

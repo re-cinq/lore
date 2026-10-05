@@ -15,7 +15,6 @@ import {
   approvePlanAction,
   deletePlanAction,
   draftAgainAction,
-  openPlanSocketAction,
   refinePlanAction,
   reopenPlanAction,
   retrySpecWorkAction,
@@ -45,7 +44,6 @@ export default async function PlanDetailPage({
 // Every action bound to this plan of this repo on the server, so the client never names either.
 function boundActions(fullName: string, id: string) {
   return {
-    openSocket: openPlanSocketAction.bind(null, fullName, id),
     approve: approvePlanAction.bind(null, fullName, id),
     refine: refinePlanAction.bind(null, fullName, id),
     draftAgain: draftAgainAction.bind(null, fullName, id),
