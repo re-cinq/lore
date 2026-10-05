@@ -10,7 +10,7 @@ import {
 } from "@/lib/assembly-run-presenter";
 import { formatCost, shortAgentId } from "@/lib/task-presenter";
 import MiniPipeline from "@/components/MiniPipeline";
-import PRStatusBadgePanel from "../tasks/PRStatusBadgePanel";
+import PRStatusBadgePanel from "./PRStatusBadgePanel";
 import styles from "./AssemblyRunsTable.module.css";
 
 const EM_DASH = "—";

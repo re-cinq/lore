@@ -9,6 +9,7 @@ import {
   AUTH,
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { floorBackedRuns } from "../../../work/floor/floor-backed-runs.js";
 import { assemblyLineRoutes } from "./assembly-lines.js";
 
 const originalEnv = { ...process.env };
@@ -181,6 +182,25 @@ describe("assembly-line reads", () => {
       );
 
       expect((res.result as { runs: unknown[] }).runs).toHaveLength(1);
+    });
+
+    it("returns the floor's run for a task Postgres holds no run of", async () => {
+      const floor = new InMemoryAssemblyRuns();
+      const taskId = "22222222-2222-4222-8222-222222222222";
+      const runId = await floor.start({
+        blueprintName: "onboard",
+        repo: "re-cinq/lore",
+        taskId,
+      });
+      const server = await servePort(
+        floorBackedRuns(new InMemoryAssemblyRuns(), floor),
+      );
+
+      const res = await server.inject(
+        `/api/assembly-runs?task_id=${taskId}&limit=1`,
+      );
+
+      expect(res.result).toMatchObject({ runs: [{ id: runId }] });
     });
 
     it("carries each visit's recorded input, and null for a visit that predates it", async () => {

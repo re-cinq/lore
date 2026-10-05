@@ -2,7 +2,7 @@ import CollapsibleCard from "@/components/CollapsibleCard";
 import Linkified from "@/components/Linkified";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { TaskRuntimeLlmCall } from "@/lib/task-runtime";
-import styles from "./TaskDetailView.module.css";
+import styles from "./LlmCallsTable.module.css";
 
 interface LlmCallProps {
   call: TaskRuntimeLlmCall;

@@ -695,119 +695,31 @@ non-terminal states and resolve them without manual intervention. ([validated by
 
 ### FR-19: Task Detail UI (Phase 1)
 
-The web UI MUST present a per-task detail view at `/tasks/[id]` that is
-the task's lifecycle shell — metadata, PR status, failure reason, the
-cancel/revision controls, and the list of run attempts — while all
-execution detail (per-node timeline, transcript, pod logs, event
-history, LLM-call ledger) lives on the run detail page at
-`/assembly-runs/[id]` (issue #1608: task = the request, run = one
-attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L99), [`TaskDetailView.test.tsx:316`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L280))
+_(Rewritten 2026-10-05.)_ A task has no page of its own: the run detail
+page at `/assembly-runs/[id]` is where a task is read, and the
+`/tasks/[id]` lifecycle shell, which only forwarded to a run Postgres
+held and so opened empty for a task whose run is on the external floor,
+is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L76))
 
-- FR-19.1: The detail heading reads `Task: <description>` with the
-  description truncated to 80 characters, and the view shows the task
-  type, target repo, creator, and a sentence-cased status badge.
-  Priority renders as a red badge when `immediate` and falls back to a
-  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L99), [`TaskDetailView.test.tsx:128`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L118), [`TaskDetailView.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L126), [`TaskDetailView.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L138), [`TaskDetailView.test.tsx:155`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L145))
-- FR-19.2: The agent row, failure row, and review-iterations row each
-  render only when their value is present (agent assigned, failure
-  reason set, review iteration greater than zero) and are omitted
-  otherwise. ([validated by `TaskDetailView.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L197), [`TaskDetailView.test.tsx:213`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L203), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L225), [`TaskDetailView.test.tsx:241`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L231), [`TaskDetailView.test.tsx:247`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L237))
-- FR-19.3: The view lists the task's run attempts under a "Runs"
-  heading, each linking to its run detail at `/assembly-runs/<run-id>`
-  with a status-classed badge showing the run's outcome (falling back
-  to its status) and its start time, and omits the section entirely
-  when the task has no runs. ([validated by `TaskDetailView.test.tsx:54`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L44), [`TaskDetailView.test.tsx:75`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L65), [`TaskDetailView.test.tsx:101`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L91))
-- FR-19.3a: When the task has exactly one run attempt, the page
-  redirects straight to that run's detail page — the run page links
-  back via "View task →"; with zero or several attempts the lifecycle
-  shell renders with its runs list. ([validated by `TaskDetailView.test.tsx:340`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L302), [`TaskDetailView.test.tsx:344`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L308), [`TaskDetailView.test.tsx:348`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L312))
-- FR-19.4: In-flight controls follow actions-up: a "Run Now" form
-  posting to `/api/tasks/<id>/run-now` appears only for pending
-  normal-priority tasks; a "Cancel Task" control appears for
-  non-terminal tasks and is hidden once merged or completed; the
+- FR-19.1: `/assembly-runs/<id>` given a task id redirects to the task's
+  newest run, so every link that knows only a task (a repository's recent
+  tasks, the backlog's onboarding banner, the bounce after a cancel) points
+  there. lore-api's `GET /api/assembly-runs?task_id=` answers the run from
+  Postgres when it holds one and from the external floor otherwise. ([validated by returns the floor's run for a task Postgres holds no run of](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L187))
+- FR-19.2: A task nothing ran for says so: the heading "This task has no
+  run", its sentence-cased status badge, its failure reason when it has
+  one, and a link to its repository. ([validated by says the failed task has no run and why it failed](apps/web-ui/src/app/assembly-runs/[id]/TaskWithoutRun.test.tsx#L9), [validated by links the task's repository](apps/web-ui/src/app/assembly-runs/[id]/TaskWithoutRun.test.tsx#L23), [validated by shows no reason for a task that has none](apps/web-ui/src/app/assembly-runs/[id]/TaskWithoutRun.test.tsx#L32))
+- FR-19.4: The run header offers "Cancel Task" while the run is open and
+  has a task, and not on a finished run or a run with no task; the
   confirm-gated `CancelTaskButton` shows only its trigger until clicked,
   then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
-  task" backs out of. *(Since 2026-10-02 the page has no "Give Feedback" form: a pull request is revised by a review that requests changes on it, FR-19.24.)* ([validated by `TaskDetailView.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L152), [`TaskDetailView.test.tsx:173`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L163), [`TaskDetailView.test.tsx:180`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L170), [`TaskDetailView.test.tsx:187`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L177), [`TaskDetailView.test.tsx:200`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L190), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30), [validated by offers no feedback form on a feature-request task with a PR: a pull request is revised by a review on it](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L265))
-- FR-19.5: When a failed task carries a failed-event with metadata, the
-  view renders a "Failure" panel surfacing the error; absent that
-  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L242), [`TaskDetailView.test.tsx:268`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L258))
+  task" backs out of. There is no "Run Now": no task is created pending. ([validated by offers to cancel the task of a running run](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L57), [validated by offers no cancel on %s](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L67), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L30))
 - FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L117), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L142), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [adds a task transition the stream reports to the selected node's transcript](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L162))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
   and a status badge (red with the error text on failure), and an
   empty-state note in place of the table when there are none; the section
-  is a collapsible card titled LLM Calls. ([validated by `LlmCallsTable.test.tsx:25`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L25), [`LlmCallsTable.test.tsx:33`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L33), [`LlmCallsTable.test.tsx:41`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L41), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:53`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L53), [`LlmCallsTable.test.tsx:65`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L65))
-- FR-19.10: The pure PR status card shows a loading placeholder until
-  details arrive, an "unavailable" fallback with a "View on GitHub" link
-  when only an error is present, keeps the loaded details on screen even
-  when a later error arrives, renders the computed-status pill (mapped
-  colour, muted fallback for an unknown status) with a PR link, omits
-  the checks row when there are no checks and otherwise counts passing
-  (success / skipped), failing (failure / timed_out), and pending (any
-  non-completed) checks — showing no counts when every check is
-  zero-bucketed — and lists approvers and change-requesters (or both),
-  omitting the reviews row when there are neither. ([validated by `PRStatusCard.test.tsx:44`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L42), [`PRStatusCard.test.tsx:51`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L51), [`PRStatusCard.test.tsx:68`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L68), [`PRStatusCard.test.tsx:81`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L81), [`PRStatusCard.test.tsx:104`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L104), [`PRStatusCard.test.tsx:118`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L118), [`PRStatusCard.test.tsx:134`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L134), [`PRStatusCard.test.tsx:146`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L146), [`PRStatusCard.test.tsx:167`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L167), [`PRStatusCard.test.tsx:186`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L186), [`PRStatusCard.test.tsx:203`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L203), [`PRStatusCard.test.tsx:223`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L223), [`PRStatusCard.test.tsx:240`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L240), [`PRStatusCard.test.tsx:252`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L252), [`PRStatusCard.test.tsx:286`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L286))
-- FR-19.11: The PR status container fetches `/api/tasks/<id>/pr-status`
-  and renders the card, surfaces the unavailable fallback on an error
-  payload or a rejected fetch, refetches when the task id changes, does
-  not fetch after unmount, keeps the loaded details when a later
-  refresh fails, and reports inactive after a failed refresh so the
-  coordinator stops re-fetching it. ([validated by `PRStatusPanel.test.tsx:84`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L79), [`PRStatusPanel.test.tsx:92`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L92), [`PRStatusPanel.test.tsx:105`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L105), [`PRStatusPanel.test.tsx:121`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L121), [`PRStatusPanel.test.tsx:137`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L137), [`PRStatusPanel.test.tsx:163`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L163), [`PRStatusPanel.test.tsx:191`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L191))
-
-- FR-19.12: The task-refresh presenter makes every scheduling decision
-  as pure functions: the live run is the newest non-terminal
-  `pipeline.assembly_lines` attempt (empty, all-terminal, and unsorted
-  inputs handled; `queued` counts as live; `created_at` sorts correctly
-  whether it arrives as a string or a Date); the refresh driver is
-  `idle` with no active panel, `poll` without a live run, without
-  EventSource, or after the stream gives up, and `stream` otherwise;
-  the interval is null when idle, a 30-second heartbeat on a live
-  stream, and the 10-second coordinated cadence otherwise (including
-  while the stream is still connecting or reconnecting);
-  event-triggered refreshes wait out the remainder of the 3-second
-  window (zero delay at or past the boundary); the stream cursor folds
-  numerically (ids past MAX_SAFE_INTEGER compare correctly, non-numeric
-  candidates keep the cursor); and the runs check stays active while a
-  run is attached (so its terminality is re-read, task status
-  regardless) or, unattached, while the task status can still mint a
-  run — never with no active panel. ([returns null for an empty run list](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L25), [returns null when every run is finished or failed](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L29), [returns the only running run's id](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L38), [returns the newest non-terminal run from an unsorted list](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L47), [accepts a queued run as live](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L69), [sorts rows whose created_at is a Date object](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L73), [returns idle when no panel is active even with a live run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L92), [returns poll when there is no live run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L103), [returns poll when EventSource is unavailable](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L114), [returns poll once the stream has given up](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L125), [returns stream for a live run with EventSource available](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L136), [returns null for the idle driver](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L149), [returns the heartbeat cadence for a live stream](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L153), [returns the coordinated cadence for a stream still connecting](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L157), [returns the coordinated cadence for a reconnecting stream](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L161), [returns the coordinated cadence for the poll driver](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L167), [returns the remaining window when the last refresh was 1s ago](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L173), [returns 0 exactly at the min gap](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L179), [returns 0 when the gap exceeds the minimum](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L185), [returns 10 over 9 despite lexicographic order](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L191), [keeps the current cursor when the candidate is smaller](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L195), [keeps the current cursor for a non-numeric candidate](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L199), [handles ids beyond Number.MAX_SAFE_INTEGER](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L203), [returns true for a pending task with active panels and no run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L211), [returns true while a run is attached so its terminality is re-checked](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L221), [returns true for an attached run even on a terminal task status](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L231), [returns false for a terminal task status with no attached run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L241), [returns false when no panel is active](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L251))
-- FR-19.13: The task-refresh provider is the page's single scheduler:
-  it never ticks with no active panel, stops when the last panel goes
-  inactive or on unmount, and a panel without a provider ancestor never
-  auto-refreshes; a tick refreshes active panels and skips inactive
-  ones; a running run at mount opens exactly one EventSource on the
-  run's stream proxy — none when every run is terminal or no panel is
-  active, and the socket closes when the page goes idle;
-  catchup-complete flips the `live` flag panels render from; the
-  catch-up replay burst triggers no immediate refresh wave, an event
-  past the window refreshes at once, and a burst inside it coalesces
-  into one trailing refresh at the window boundary; the interval slows
-  to the heartbeat while the stream is live and returns to coordinated
-  polling after the stream's bounded give-up; a run minted after mount
-  is discovered via `/api/tasks/<id>/runs` on poll ticks and attaches
-  the stream — never for a terminal task status with nothing attached,
-  and a discovery response with no live run keeps polling; and the
-  attached run's recorded status is re-checked on ticks, detaching a
-  finished run back to coordinated polling and attaching a retry's
-  fresh run in its place. ([never ticks when no panel is active](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L160), [ticks the active panel and skips the inactive one on the same interval](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L170), [stops ticking after the last panel goes inactive](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L190), [never auto-refreshes without a provider ancestor](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L219), [never auto-refreshes without a provider ancestor](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L219), [opens one run channel on the tab's socket for a running run](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L231), [opens no channel when every run is terminal](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L245), [opens no channel when no panel is active](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L256), [closes the channel when the last panel goes inactive](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L267), [reports live to panels once the server opens the channel](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L286), [does not refresh on the catch-up replay burst at mount](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L303), [refreshes immediately past the gap and coalesces a burst into one trailing refresh](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L324), [slows the interval to the heartbeat cadence while the stream is live](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L348), [falls back to coordinated polling after the socket gives up](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L366), [discovers a run minted after mount and opens its channel](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L396), [detaches and returns to coordinated polling when the attached run turns terminal](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L423), [attaches a retry's fresh run in place of a finished one](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L453), [does not discover for a task in a terminal status](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L487), [keeps polling when the discovery response has no live run](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L506), [stops ticking after unmount](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L206))
-- FR-19.14: `GET /api/tasks/[id]/runs` serves the task's per-attempt
-  run rows newest first, behind the timeline route's auth ladder (401
-  without a session, 404 for an unknown task, 403 without repo access),
-  returning an empty list on pre-0025 databases, exporting
-  `force-dynamic`, and mapping a thrown lookup to a 500. The rows come
-  from lore-api's `GET /api/tasks/{id}/runs`, not from
-  `pipeline.assembly_lines` directly: the repo this route authorizes
-  against and the runs it returns must be read through one source, or
-  the two can disagree about which task they describe. ([validated by `route.test.ts:34`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L34), [`route.test.ts:39`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L39), [`route.test.ts:48`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L48), [`route.test.ts:61`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L61), [`route.test.ts:77`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L77), [`route.test.ts:102`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L102), [`route.test.ts:110`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L110), [`route.test.ts:118`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L118), [`route.test.ts:127`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L127))
-
-- FR-19.15: lore-api serves those rows at `GET /api/tasks/{id}/runs`,
-  under the `read` scope: 503 without a pool, 404 for a task that does
-  not exist, the run rows newest first, and an empty list — not a 500 —
-  when the database predates migration 0025 and has no
-  `pipeline.assembly_lines` table. The 404 comes before the run query
-  deliberately: an unknown id and a task with no runs both answered
-  `{runs: []}` before, which reads as "nothing started yet" for a task
-  that never existed. ([validated by `task-runs.test.ts:30`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L30), [`task-runs.test.ts:36`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L36), [`task-runs.test.ts:46`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L46), [`task-runs.test.ts:72`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L72))
+  is a collapsible card titled LLM Calls. ([validated by `LlmCallsTable.test.tsx:25`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L25), [`LlmCallsTable.test.tsx:33`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L33), [`LlmCallsTable.test.tsx:41`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L41), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:53`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L53), [`LlmCallsTable.test.tsx:65`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L65))
 - FR-19.16: The two task transitions the UI offers are shared seams in
   `libs/shared`, not route-local SQL. `escalateTask` (run-now) refuses an
   unknown id and anything past `pending`, sets `priority = 'immediate'`,
@@ -842,7 +754,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   not go down over an unmigrated cluster. Token usage reads
   `pipeline.agent_run_turns`, not `llm_calls`: the cost table is
   authoritative but a row lands only when a run ENDS, which is the
-  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:86`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L86), [`assembly-lines.test.ts:90`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L90), [`assembly-lines.test.ts:106`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:153`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L153), [`assembly-lines.test.ts:169`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L169), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:397`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L476), [`assembly-lines.test.ts:410`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L489), [`assembly-lines.test.ts:418`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L497), [`assembly-lines.test.ts:430`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L509), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:490`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L569), [`assembly-lines.test.ts:508`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L587), [`assembly-lines.test.ts:518`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L597))
+  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:86`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L87), [`assembly-lines.test.ts:90`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L91), [`assembly-lines.test.ts:106`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L107), [`assembly-lines.test.ts:153`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L154), [`assembly-lines.test.ts:169`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L170), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L243), [`assembly-lines.test.ts:397`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L496), [`assembly-lines.test.ts:410`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L509), [`assembly-lines.test.ts:418`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L517), [`assembly-lines.test.ts:430`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L529), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L243), [`assembly-lines.test.ts:490`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L589), [`assembly-lines.test.ts:508`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L607), [`assembly-lines.test.ts:518`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L617))
 
 - FR-19.20: lore-api serves the activity reads the audit, gaps, events,
   job-run and repo-overview views need, all under the `read` scope:

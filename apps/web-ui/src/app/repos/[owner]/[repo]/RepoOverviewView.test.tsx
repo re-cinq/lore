@@ -137,7 +137,7 @@ describe("RepoOverviewView", () => {
     expect(completed).toHaveClass("op-badge", "op-completed");
     expect(
       screen.getByRole("link", { name: "Implement the widget..." }),
-    ).toHaveAttribute("href", "/tasks/1");
+    ).toHaveAttribute("href", "/assembly-runs/1");
     expect(screen.getByRole("link", { name: "PR" })).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/pull/7",

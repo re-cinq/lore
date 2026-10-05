@@ -7768,57 +7768,6 @@
         ]
       }
     },
-    "/api/tasks/{id}/runs": {
-      "get": {
-        "operationId": "get_api_tasks_id_runs",
-        "summary": "GET /api/tasks/{id}/runs",
-        "tags": ["Tasks"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "task",
-        "responses": {
-          "200": {
-            "description": "The task's per-attempt runs, newest first",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskRunList"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
     "/api/tasks/{id}/runtime": {
       "get": {
         "operationId": "get_api_tasks_id_runtime",
@@ -15831,37 +15780,6 @@
           }
         },
         "required": ["tasks", "total", "limit", "offset"],
-        "additionalProperties": false
-      },
-      "TaskRunList": {
-        "type": "object",
-        "properties": {
-          "runs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string",
-                  "enum": ["queued", "running", "finished", "failed"]
-                },
-                "outcome": {
-                  "type": ["string", "null"]
-                },
-                "created_at": {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              },
-              "required": ["id", "status", "outcome", "created_at"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["runs"],
         "additionalProperties": false
       },
       "TaskRuntime": {

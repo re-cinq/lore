@@ -3,11 +3,9 @@ import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
-// Task operations typed at one place, replacing direct pipeline.tasks SQL in the proxy routes — transition rules (cancel, run-now) belong beside the data, not in six route handlers.
+// Task operations typed at one place, replacing direct pipeline.tasks SQL in the proxy routes — transition rules (cancel) belong beside the data, not in six route handlers.
 /** Task/run shapes alias the OpenAPI document lore-api generates (ADR-035); check-openapi-drift.sh guards staleness. `GET /api/task/{id}` returns more than this names. */
 export type Task = components["schemas"]["TaskDetail"];
-
-export type TaskRun = components["schemas"]["TaskRunList"]["runs"][number];
 
 export interface TaskLogs {
   logs: string | null;
@@ -27,22 +25,6 @@ export function cancelTask(
     method: "POST",
     body: { action: "cancel", task_id: id },
   });
-}
-
-/** Jumps a pending task to the front of the queue; refuses anything past `pending` (409) rather than silently no-op-ing. */
-export function runTaskNow(
-  id: string,
-): Promise<ApiResult<{ task_id: string; priority: string }>> {
-  return apiFetch("lore-api", "/api/task", {
-    method: "POST",
-    body: { action: "run-now", task_id: id },
-  });
-}
-
-export function getTaskRuns(
-  id: string,
-): Promise<ApiResult<{ runs: TaskRun[] }>> {
-  return apiFetch("lore-api", `/api/tasks/${encodeURIComponent(id)}/runs`);
 }
 
 export function getTaskLogs(
