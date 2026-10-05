@@ -11,19 +11,15 @@ function promptFor(name: string): string {
 
 describe("triage agent recipes (specs/issue-triage/spec.md FR12)", () => {
   it("triage-reproduce, triage-diagnose, and triage-verify exist with non-empty prompts and correct timeout_minutes", () => {
-    const reproduce = recipe("triage-reproduce");
-    const diagnose = recipe("triage-diagnose");
-    const verify = recipe("triage-verify");
-
-    expect(reproduce).toBeDefined();
-    expect(reproduce!.timeout_minutes).toBe(15);
-    expect(reproduce!.prompt).toBeTruthy();
-    expect(diagnose).toBeDefined();
-    expect(diagnose!.timeout_minutes).toBe(10);
-    expect(diagnose!.prompt).toBeTruthy();
-    expect(verify).toBeDefined();
-    expect(verify!.timeout_minutes).toBe(10);
-    expect(verify!.prompt).toBeTruthy();
+    expect({
+      reproduce: recipe("triage-reproduce"),
+      diagnose: recipe("triage-diagnose"),
+      verify: recipe("triage-verify"),
+    }).toMatchObject({
+      reproduce: { timeout_minutes: 15, prompt: expect.stringMatching(/.+/) },
+      diagnose: { timeout_minutes: 10, prompt: expect.stringMatching(/.+/) },
+      verify: { timeout_minutes: 10, prompt: expect.stringMatching(/.+/) },
+    });
   });
 
   it("each recipe documents every LORE_NODE_RESULT outcome it can emit", () => {
