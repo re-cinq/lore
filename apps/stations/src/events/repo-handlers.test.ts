@@ -1,4 +1,3 @@
-// specs/issue-triage/spec.md#FR7 and #FR16
 import { describe, expect, it } from "vitest";
 import {
   REPO_EVENTS,
@@ -6,20 +5,16 @@ import {
   type RepoEventDeps,
 } from "./repo-handlers.js";
 
-/** Extended deps the ticket's implementation will add to RepoEventDeps for triage label dispatch (FR7, FR16). */
 interface TriageRepoEventDeps extends RepoEventDeps {
-  /** Starts a floor run for the issue-triage line (FR7). */
   startIssueTriage(
     repo: string,
     issueNumber: number,
     issueUrl: string,
   ): Promise<string>;
-  /** Returns the floor visit-id of the issue-triage run parked at human-gate, or null (FR16). */
   findParkedTriageVisit(
     repo: string,
     issueNumber: number,
   ): Promise<string | null>;
-  /** Reports success to the parked human-gate visit so the triage run advances (FR16). */
   reportTriageGate(visitId: string): Promise<void>;
 }
 
@@ -175,7 +170,7 @@ describe("repoEventHandlers", () => {
 });
 
 describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
-  it("lore:triage label starts an issue-triage floor run with repo, issue_number, and issue_url args", async () => { // specs/issue-triage/spec.md#FR7
+  it("lore:triage label starts an issue-triage floor run with repo, issue_number, and issue_url args", async () => {
     const { fire, started } = triageScene();
 
     await fire("github.issues.labeled", {
@@ -192,7 +187,7 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
     expect(started[0]).toMatchObject({ repo: "acme/widgets", issueNumber: 7 });
   });
 
-  it("triage: needs-triage label also starts an issue-triage floor run", async () => { // specs/issue-triage/spec.md#FR7
+  it("triage: needs-triage label also starts an issue-triage floor run", async () => {
     const { fire, started } = triageScene();
 
     await fire("github.issues.labeled", {
@@ -209,7 +204,7 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
     expect(started[0]).toMatchObject({ issueNumber: 42 });
   });
 
-  it("lore:implementation on a parked triage run reports to the human-gate visit before activeTaskByIssue fires", async () => { // specs/issue-triage/spec.md#FR16
+  it("lore:implementation on a parked triage run reports to the human-gate visit before activeTaskByIssue fires", async () => {
     const callOrder: string[] = [];
     const reported: string[] = [];
     const { fire } = triageScene({
