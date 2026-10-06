@@ -256,6 +256,26 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
   });
 
+  it("tells the planning agent the Refine it was asked for is in the plan read, outranking the description its node started with", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      inTheRead: prompt.includes(
+        "`lore_plan_read` answers with `refine: {slot, title, brief}`",
+      ),
+      onlySection: prompt.includes("the only section you were asked to change"),
+      outranks: prompt.includes("the `refine` in this read outranks it"),
+      noneIsADraft: prompt.includes(
+        "answers no `refine`, nobody asked for a section and this is a draft",
+      ),
+    }).toEqual({
+      inTheRead: true,
+      onlySection: true,
+      outranks: true,
+      noneIsADraft: true,
+    });
+  });
+
   it("tells the planning agent that Open questions holds only questions, so it never restates its questions there as a list", () => {
     const prompt = promptOnOneLine("plan-analyze");
 

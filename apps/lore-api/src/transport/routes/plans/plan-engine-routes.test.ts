@@ -49,6 +49,7 @@ const WHILE_ANALYZING = [
 ];
 
 const REFINE = {
+  actor: "ana",
   slot: "intent",
   title: "Intent",
   baseHash: "3f9a",
@@ -81,6 +82,7 @@ function subject(
       specBranch: async (plan) => specBranchOf(plan),
       baseBranch: () => Promise.resolve("main"),
       specPrState: () => Promise.resolve(null),
+      recordRefineAsk: () => Promise.resolve(),
       pulls: {
         listReviewThreads: async () => [],
         listComments: async () => [],
@@ -174,13 +176,13 @@ describe("the plan routes on a plan the floor holds", () => {
     expect(writes(requests)).toEqual([]);
   });
 
-  it("answers refine with 202 and reports the section on the author visit", async () => {
+  it("answers refine with 202 and starts the analyze node, writing no blob since the ask travels in no bag", async () => {
     const { server, requests } = subject({ visits: ON_AUTHOR });
 
     const res = await post(server, "refine", REFINE);
 
     expect(answer(res)).toEqual({ status: 202, body: { slot: "intent" } });
-    expect(writes(requests)).toEqual(["/blobs", "/events"]);
+    expect(writes(requests)).toEqual(["/events"]);
   });
 
   it("answers refine with 409 while the planning agent is still working on the plan", async () => {

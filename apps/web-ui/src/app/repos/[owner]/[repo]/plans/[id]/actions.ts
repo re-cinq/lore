@@ -155,8 +155,8 @@ export async function refinePlanAction(
   story = "",
 ): Promise<{ error?: string }> {
   return withStory(story, fullName, (named) =>
-    inUsersName(fullName, planId, (repo, id) =>
-      askRefine(repo, id, { ...refine, ...named }),
+    inUsersName(fullName, planId, (repo, id, userId) =>
+      askRefine(repo, id, { ...refine, ...named, actor: userId }),
     ),
   );
 }

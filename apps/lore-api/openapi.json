@@ -5763,6 +5763,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1
+                  },
                   "slot": {
                     "type": "string",
                     "minLength": 1
@@ -5782,7 +5786,14 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": ["slot", "title", "baseHash", "inputs", "uses"],
+                "required": [
+                  "actor",
+                  "slot",
+                  "title",
+                  "baseHash",
+                  "inputs",
+                  "uses"
+                ],
                 "additionalProperties": false
               }
             }
