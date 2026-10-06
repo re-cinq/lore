@@ -50,4 +50,5 @@ stations:
       - unable-to-reproduce
       - needs-reproduction
       - skipped
+    produces: []
 agent_definitions: {}
