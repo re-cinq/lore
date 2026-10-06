@@ -29,6 +29,11 @@ export interface PlanVerbSeams {
   pool?: () => Pool;
 }
 
+const NO_FLOOR = "plans need the external floor, and this deployment has none";
+const NO_LIVE_PLAN = "the plan verbs on the floor need the live plan";
+const NO_POOL =
+  "recording a Refine ask needs the pool the plans registration supplies";
+
 /** The verbs of a plan's planning line. Every planning line runs on the external floor (ADR-049), so a deployment with none answers 503. */
 export async function planVerbsFor(
   plan: PlanSubject,
@@ -37,16 +42,8 @@ export async function planVerbsFor(
   const { livePlan } = seams;
   const floor: PlanFloor | null = seams.floorDeps?.floor ?? floorIfConfigured();
 
-  enforceTrue(
-    floor,
-    apiError(503),
-    "plans need the external floor, and this deployment has none",
-  );
-  enforceTrue(
-    livePlan,
-    Error,
-    "the plan verbs on the floor need the live plan",
-  );
+  enforceTrue(floor, apiError(503), NO_FLOOR);
+  enforceTrue(livePlan, Error, NO_LIVE_PLAN);
   const deps =
     seams.floorDeps ??
     (await deploymentFloorDeps(plan.repo, floor, poolOf(seams)));
@@ -64,11 +61,7 @@ function liveSnapshots(livePlan: PlanFilePorts["livePlan"]) {
 function poolOf(seams: PlanVerbSeams): () => Pool {
   const { pool } = seams;
 
-  enforceTrue(
-    pool,
-    Error,
-    "recording a Refine ask needs the pool the plans registration supplies",
-  );
+  enforceTrue(pool, Error, NO_POOL);
 
   return pool;
 }
