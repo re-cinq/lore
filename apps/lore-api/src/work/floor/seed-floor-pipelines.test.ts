@@ -153,7 +153,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     const decompose = issueTriage?.stations.find((s) => s.id === "decompose");
 
     expect(decompose?.body.kind).toBe("agent");
-    expect(decompose?.body.agent_definition).toBe("feature-decompose");
+    expect(decompose?.body.agentDefinition).toBe("feature-decompose");
   });
 
   it("routes issue-triage decompose on always to done", () => {
