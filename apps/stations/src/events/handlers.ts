@@ -54,6 +54,22 @@ const floorReviewDeps: FloorReviewDeps = {
 
 const floorPlanDeps: FloorPlanDeps = { floor: floorClient };
 
+async function findParkedVisitId(
+  floor: ReturnType<typeof floorClient>,
+  run: { id: string; startItems: Record<string, { ref: string }> },
+  issueNumber: number,
+): Promise<string | null> {
+  if (run.startItems.issue_number.ref !== String(issueNumber)) {
+    return null;
+  }
+  const visits = await floor.stationRuns.list({ run: run.id });
+  const parked = visits.findLast(
+    (v) => v.nodeId === "human-gate" && v.report === null,
+  );
+
+  return parked?.id ?? null;
+}
+
 const repoEventDeps: RepoEventDeps = {
   labelDispatch: async (repo) => {
     const { issues } = await projectFor(repo);
@@ -100,18 +116,10 @@ const repoEventDeps: RepoEventDeps = {
     });
 
     for (const run of runs) {
-      const startedIssue = run.startItems.issue_number;
+      const visitId = await findParkedVisitId(floor, run, issueNumber);
 
-      if (startedIssue.ref !== String(issueNumber)) {
-        continue;
-      }
-      const visits = await floor.stationRuns.list({ run: run.id });
-      const parked = visits.findLast(
-        (v) => v.nodeId === "human-gate" && v.report === null,
-      );
-
-      if (parked) {
-        return parked.id;
+      if (visitId !== null) {
+        return visitId;
       }
     }
 
