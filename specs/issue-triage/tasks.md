@@ -46,7 +46,7 @@ A 2026-10-06 audit of this spec against its plan found four requirements no task
 
 - [ ] T017 Make the reporter loop real (FR19, #2544): the `label-needs-repro` and `label-unable` nodes post a comment naming what the reporter must supply, and the `github.issue_comment` handler in `apps/stations/src/events/repo-handlers.ts` re-applies `triage: needs-triage` when the reporter comments on an issue carrying `triage: needs-reproduction` or `triage: unable-to-reproduce`. (depends on T004, T015) — test: `apps/stations/src/events/repo-handlers.test.ts` asserts a reporter comment on a `needs-reproduction` issue re-applies `triage: needs-triage`, and a comment on an unlabelled issue does not
 
-- [ ] T018 Declare `issue_url` with `subject: true` in `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` so the floor refuses a second concurrent run for an issue one already holds (FR7, FR9, #2547). Today the webhook starts a run and the two-minute sweep starts another for the same issue. (depends on T001) — test: `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` asserts `issue-triage` keys its runs on `issue_url`
+- [x] T018 Declare `issue_url` with `subject: true` in `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` so the floor refuses a second concurrent run for an issue one already holds (FR7, FR9, #2547). Today the webhook starts a run and the two-minute sweep starts another for the same issue. Landed with the pipeline lint that enforces it for every line (#2552). — test: `libs/assembly-lines/src/pipeline-lint.test.ts` reports `unkeyed-line` for a line no arg keys
 
 ## Phase 3: User Story 1 — Automated Bug Reproduction in Sandbox (P1, MVP)
 
