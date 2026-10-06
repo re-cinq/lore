@@ -172,7 +172,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
         from: string;
         to: string;
         on: string;
-        iteration_max?: number;
+        iterationMax?: number;
       }>;
     };
     const body = issueTriage.line!.body as LineBody;
@@ -185,7 +185,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
     expect(diagnoseSuccess?.to).toBe("triage-label");
     expect(diagnoseFailed?.to).toBe("triage-label");
-    expect(diagnoseFailed?.iteration_max).toBe(3);
+    expect(diagnoseFailed?.iterationMax).toBe(3);
   });
 
   it("give every agent definition a non-empty prompt", () => {
