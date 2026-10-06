@@ -182,12 +182,12 @@ function retryOrGiveUp(state: MachineState, survivors: string[]): Transition {
   };
 }
 
-/** The retry timer fired: a backed-off socket connects again; an open one re-sends the channels waiting on it. */
+/** A retry fired: the SOCKET's own (no channel id) connects a backed-off socket; a channel's re-opens that channel alone, and never wakes the socket early. */
 function onRetryDue(
   state: MachineState,
   event: Extract<MachineEvent, { type: "retry_due" }>,
 ): Transition {
-  if (state.socket === "backoff") {
+  if (state.socket === "backoff" && event.id === undefined) {
     return {
       state: { ...state, socket: "connecting" },
       effects: [{ type: "connect" }],

@@ -285,6 +285,28 @@ describe("connection machine — the server closes a channel", () => {
     });
   });
 
+  it("leaves a backing-off socket alone when a channel's own retry fires", () => {
+    const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
+    const dropped = reduce(live, { type: "socket_closed" }).state;
+    const channelDue = reduce(dropped, { type: "retry_due", id: "a" });
+
+    expect({
+      socket: channelDue.state.socket,
+      effects: channelDue.effects,
+    }).toEqual({ socket: "backoff", effects: [] });
+  });
+
+  it("connects a backing-off socket when its own retry fires, which carries no channel", () => {
+    const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
+    const dropped = reduce(live, { type: "socket_closed" }).state;
+    const socketDue = reduce(dropped, { type: "retry_due" });
+
+    expect({
+      socket: socketDue.state.socket,
+      effects: socketDue.effects,
+    }).toEqual({ socket: "connecting", effects: [{ type: "connect" }] });
+  });
+
   it("schedules a channel's retry under that channel's own id, so the socket's timer is its own", () => {
     const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
 

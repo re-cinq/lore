@@ -63,7 +63,7 @@ export interface LiveSocketOptions {
 
 const OPEN = 1;
 
-// Timer keys: the socket's own is a key no channel id can spell, since a channel's is its id.
+// Timer keys: the socket's own and a channel's are separately prefixed, so neither can spell the other.
 const SOCKET_TIMER = "socket:";
 
 export class LiveSocketClient {
@@ -196,7 +196,10 @@ export class LiveSocketClient {
       setTimer(
         () => {
           this.timers.delete(key);
-          this.dispatch({ type: "retry_due", ...(id ? { id } : {}) });
+          this.dispatch({
+            type: "retry_due",
+            ...(id === undefined ? {} : { id }),
+          });
         },
         jittered(delayMs, this.options.random),
       ),
