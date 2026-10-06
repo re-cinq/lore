@@ -3,8 +3,11 @@ line:
   entry: verify
   exit: done
   args:
+    # One run per issue: the webhook starts a run the moment the label lands and the
+    # two-minute sweep still sees that label, so without a key the issue gets two.
     issue_url:
       kind: value
+      subject: true
   nodes:
     - id: verify
     - id: human-gate
