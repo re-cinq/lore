@@ -73,8 +73,11 @@ function approvalVerbs(
     handOverApproved: async (plan) => {
       await approveFloorPlan(deps, await briefed(plan, approvedBrief(plan)));
     },
-    startSpecWork: async (plan) =>
-      startFloorSpecWork(deps, await briefed(plan, approvedBrief(plan))),
+    startSpecWork: async (plan, _createdBy, storyIssue) =>
+      startFloorSpecWork(deps, {
+        ...(await briefed(plan, approvedBrief(plan))),
+        storyIssue,
+      }),
   };
 }
 
