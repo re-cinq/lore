@@ -12,6 +12,8 @@ line:
     - id: verify
     - id: human-gate
       station: human-gate
+    - id: decompose
+      station: decompose
     - id: done
   edges:
     - from: verify
@@ -20,10 +22,22 @@ line:
     - from: human-gate
       to: done
       on: success
+    - from: decompose
+      to: done
+      on: always
 stations:
   human-gate:
     kind: human
     route: "{args.issue_url}"
     outcomes:
       - success
+  decompose:
+    kind: agent
+    agent_definition: feature-decompose
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    produces: []
 agent_definitions: {}
