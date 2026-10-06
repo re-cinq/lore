@@ -207,8 +207,26 @@ the statement from what the code says now; a retired component is
 replaced by what its line says took its work. Never keep a name the
 code does not have, unless the statement says this feature adds it.
 
+When it lists statements under "Compound requirements", one
+requirement carries more than one MUST. A task claims a statement by
+the line it starts on, so half a compound requirement counts as the
+whole and the other half gets no task at all. Split each listed
+statement into one requirement per MUST, numbering the new ones after
+the spec's last requirement rather than renumbering what follows, and
+keep each new statement's trailing link group with the half it
+belongs to.
+
+When it lists statements under "Unbacked success criteria", a
+criterion counts a state, label or record that no other statement of
+that spec defines. Either add the requirement that defines what it
+counts, or rewrite the criterion around something the spec does
+define; a criterion nothing defines cannot be computed once the line
+runs. A criterion the plan asked for that this spec cannot back
+belongs in the dropped-KPI note with its reason, not in the list.
+
 Change nothing else, then format, commit and push as below. A file
-that lists neither blocks nor names needs nothing from you.
+that lists no blocks, names, requirements or criteria needs nothing
+from you.
 
 ## When the spec review sent this back
 

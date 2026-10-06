@@ -20,6 +20,11 @@ import {
   groundingBrief,
   type GroundedFile,
 } from "@re-cinq/lore-shared/feature-planning/grounding.js";
+import {
+  soundnessBrief,
+  specSoundness,
+  type SoundnessFinding,
+} from "@re-cinq/lore-shared/feature-planning/spec-soundness.js";
 import { specPathsOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
@@ -35,23 +40,47 @@ export function specCoverageHandle(deps: CoverageDeps): Handle {
     }
 
     try {
-      const { coverage, grounded } = await coverageOnBranch(deps, brief, tools);
-
-      await tools.produce(
-        "plan_coverage",
-        coverageBrief(coverage) + groundingBrief(grounded),
-      );
-
-      return await verdict(deps, brief.visitId, gapsIn(coverage, grounded));
+      return await counted(deps, brief, tools);
     } catch (err) {
       return { outcome: "failed", error: (err as Error).message };
     }
   };
 }
 
+/** The brief the writer reads, and the verdict that sends it round again while the budget holds. */
+async function counted(
+  deps: CoverageDeps,
+  brief: Brief,
+  tools: Tools,
+): Promise<Report> {
+  const { coverage, grounded, unsound } = await coverageOnBranch(
+    deps,
+    brief,
+    tools,
+  );
+
+  await tools.produce(
+    "plan_coverage",
+    coverageBrief(coverage) +
+      groundingBrief(grounded) +
+      soundnessBrief(unsound),
+  );
+
+  return verdict(deps, brief.visitId, gapsIn(coverage, grounded, unsound));
+}
+
 interface SpecsOnBranch {
   coverage: PlanCoverage;
   grounded: GroundedFile[];
+  unsound: SoundnessFinding[];
+}
+
+interface BranchRead {
+  deps: CoverageDeps;
+  tools: Tools;
+  repo: string;
+  branch: string;
+  read: (path: string) => Promise<string | null>;
 }
 
 async function coverageOnBranch(
@@ -61,20 +90,47 @@ async function coverageOnBranch(
 ): Promise<SpecsOnBranch> {
   const { repo, branch } = parseGitRef(brief.needs.target);
   const read = (path: string) => deps.readSpec(repo, path, branch);
-  const [citable, specPlan, tree] = await Promise.all([
-    readJson<CitablePlan>(tools, "plan_blocks"),
-    tools.read("spec_plan"),
-    deps.listTree(repo, branch),
-  ]);
-  const specs = await specsOnBranch(specPlan.toString("utf8"), read);
+  const [citable, tree, specs] = await readBranch({
+    deps,
+    tools,
+    repo,
+    branch,
+    read,
+  });
 
-  const grounded = groundedSpecs(specs, tree, read);
-  const texts = specs.map((spec) => spec.text);
+  return countsOf(citable, specs, await groundedSpecs(specs, tree, read));
+}
 
+function countsOf(
+  citable: CitablePlan,
+  specs: readonly SpecFile[],
+  grounded: GroundedFile[],
+): SpecsOnBranch {
   return {
-    coverage: planCoverage(citable.blocks, texts),
-    grounded: await grounded,
+    coverage: planCoverage(
+      citable.blocks,
+      specs.map((spec) => spec.text),
+    ),
+    grounded,
+    unsound: specSoundness(specs),
   };
+}
+
+/** The plan's blocks, the tree the names are checked against, and the specs as the branch holds them. */
+function readBranch({
+  deps,
+  tools,
+  repo,
+  branch,
+  read,
+}: BranchRead): Promise<[CitablePlan, string[], SpecFile[]]> {
+  return Promise.all([
+    readJson<CitablePlan>(tools, "plan_blocks"),
+    deps.listTree(repo, branch),
+    tools
+      .read("spec_plan")
+      .then((specPlan) => specsOnBranch(specPlan.toString("utf8"), read)),
+  ]);
 }
 
 /** Each spec grounded, what any of them says the feature adds counting for all. */
@@ -113,8 +169,9 @@ async function specsOnBranch(
 function gapsIn(
   coverage: PlanCoverage,
   grounded: readonly GroundedFile[],
+  unsound: readonly SoundnessFinding[],
 ): number {
-  return coverage.missing.length + findingsIn(grounded);
+  return coverage.missing.length + findingsIn(grounded) + unsound.length;
 }
 
 async function readJson<T>(tools: Tools, need: string): Promise<T> {
