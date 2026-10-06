@@ -57,6 +57,7 @@ export function runSettledHandle(deps: RunSettledDeps): Handle {
   return async ({ needs }) => {
     if (needs.line_id === ISSUE_TRIAGE_LINE && needs.outcome !== "success") {
       await applyTriageFailed(deps, needs.run_id);
+
       return SETTLED;
     }
 

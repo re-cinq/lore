@@ -22,6 +22,7 @@ function scene(outcome: string) {
       Promise.reject(new Error("project not expected for issue-triage")),
     addLabel: (repo: string, issue: number, label: string) => {
       applied.push({ repo, issue, label });
+
       return Promise.resolve();
     },
   };
