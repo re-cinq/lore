@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **creates all eight triage:\* labels on a freshly enrolled repository** — asserts that calling `enrolRepo` causes all eight `triage:*` labels defined in FR14 to be included in the labels passed to `createLabels`
+- [x] **creates all eight triage:\* labels on a freshly enrolled repository** — asserts that calling `enrolRepo` causes all eight `triage:*` labels defined in FR14 to be included in the labels passed to `createLabels`
   `libs/shared/src/work/onboard/enrol-repo.test.ts`
 
 ## Facets
 
-- [ ] Add a `TRIAGE_LABEL_SEED` constant (or inline array) with the eight labels and their colors/descriptions to `dispatchLabelSeed()` in `libs/shared/src/work/onboard/onboard-audit.ts`
-- [ ] Run the test suite to confirm the new test goes green and the four existing tests still pass
+- [x] Add a `TRIAGE_LABEL_SEED` constant (or inline array) with the eight labels and their colors/descriptions to `dispatchLabelSeed()` in `libs/shared/src/work/onboard/onboard-audit.ts`
+- [x] Run the test suite to confirm the new test goes green and the four existing tests still pass
 - [ ] Confirm the backfill path for already-enrolled repositories (the ticket notes a one-off backfill is owed; out of scope for this ticket's test)
 
 ## Out of scope
