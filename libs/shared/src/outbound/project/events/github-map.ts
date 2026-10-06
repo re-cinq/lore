@@ -245,14 +245,16 @@ function reviewFields(review: SubmittedReview = {}): Record<string, unknown> {
   };
 }
 
-/** Comment identity the code-review reply handler needs — author drives the bot-loop guard; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */
+/** Comment identity the review handlers need — author drives the bot-loop guard, and its association is GitHub's word on whether that author may write, which an `@lore review` needs; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */
 function commentParams(comment?: {
   id?: number;
   user?: { login?: string };
+  author_association?: string;
   body?: string;
 }): {
   comment_id: number;
   comment_author: string;
+  comment_author_association: string;
   comment_body: string;
 } {
   const c = comment ?? {};
@@ -260,6 +262,7 @@ function commentParams(comment?: {
   return {
     comment_id: c.id ?? 0,
     comment_author: commentAuthor(c.user),
+    comment_author_association: c.author_association ?? "",
     comment_body: c.body ?? "",
   };
 }
