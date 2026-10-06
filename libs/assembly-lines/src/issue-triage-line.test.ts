@@ -21,4 +21,17 @@ describe("the issue-triage line", () => {
     expect(successorsOf("decompose", "success")).toEqual(["issues"]);
     expect(successorsOf("issues", "success")).toEqual(["done"]);
   });
+
+  it("routes reproduce (success) through triage-label to diagnose (specs/issue-triage/spec.md#FR3)", () => {
+    expect(successorsOf("reproduce", "success")).toEqual(["triage-label"]);
+  });
+
+  it("covers diagnose (success, failed) edges through triage-label (specs/issue-triage/spec.md#FR3)", () => {
+    expect(successorsOf("diagnose", "success")).toEqual(["triage-label"]);
+    const failEdge = triageLine.edges.find(
+      (e) => e.from === "diagnose" && e.on === "failed",
+    );
+    expect(failEdge?.to).toBe("triage-label");
+    expect(failEdge?.iteration_max).toBe(3);
+  });
 });

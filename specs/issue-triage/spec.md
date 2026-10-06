@@ -79,7 +79,7 @@ After successful diagnosis and verification, the bot waits for human approval be
 
 - **FR1**: The `issue-triage` assembly line MUST be defined as a YAML graph topology in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
 - **FR2**: The Reproduce station MUST execute untrusted reproduction code within a Dedicated Agent Pod sandbox.
-- **FR3**: The Diagnose station MUST instrument the codebase to trace the root cause of the reproduced failure.
+- **FR3**: The Diagnose station MUST instrument the codebase to trace the root cause of the reproduced failure. ([validated by routes reproduce (success) through triage-label to diagnose (specs/issue-triage/spec.md#FR3)](libs/assembly-lines/src/issue-triage-line.test.ts#L25))
 - **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation.
 - **FR5**: The assembly line MUST automatically close issues that the Verify station detects as already implemented or obsolete.
 - **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node. ([validated by](libs/assembly-lines/src/issue-triage-line.test.ts#L19))
