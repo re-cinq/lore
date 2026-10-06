@@ -32,7 +32,7 @@ A 2026-10-06 audit of this spec against its plan found four requirements no task
 
 - [ ] ~~T003 Add `"issue-triage"` to `TaskTypeSchema` and `TRUST_LEVELS`~~ — **dropped** (FR13, #2549). A triage run starts via `floor.lines.start` with no `pipeline.tasks` row, so neither value would ever be read, and the line writes labels, comments and child issues, never code.
 
-- [ ] T004 [P] Implement the `triage_label` service station in `apps/stations/src/work/triage-label/` (one `index.ts` + `manifest.ts` following the `@re-cinq/floor-station` pattern) to apply the `triage:*` label its node names via `project.issues.addLabel`; register it in `apps/stations/src/index.ts` (FR14). One station serves every label node of FR17; the label comes from the node's own params, never from the predecessor's outcome. — test: `apps/stations/src/work/triage-label/triage-label.test.ts` asserts the station applies the label its params name
+- [ ] T004 [P] Implement the `triage_label` service station in `apps/stations/src/work/triage-label/` (one `index.ts` + `manifest.ts` following the `@re-cinq/floor-station` pattern) to apply the `triage:*` label its node names via `project.issues.addLabel` and optionally post a comment if one is defined in its params; register it in `apps/stations/src/index.ts` (FR14, FR19). One station serves every label node of FR17; the label comes from the node's own params, never from the predecessor's outcome. — test: `apps/stations/src/work/triage-label/triage-label.test.ts` asserts the station applies the label its params name and posts a comment when provided
 
 - [ ] T005 [P] Implement the `close_issue` service station in `apps/stations/src/work/close-issue/` (one `index.ts` + `manifest.ts`) to post a verdict comment then call `project.issues.close`; register it in `apps/stations/src/index.ts` (FR15). — test: `apps/stations/src/work/close-issue/close-issue.test.ts` asserts the station posts the verdict comment before closing the issue
 
@@ -56,7 +56,7 @@ A 2026-10-06 audit of this spec against its plan found four requirements no task
 
 - [ ] T009 [US2] Define the `diagnose` agent node with agent definition `triage-diagnose` and `timeout_minutes: 10`; success → `label-diagnosed` → `verify`, failure (with `iteration_max: 3`) → `label-failed` → `done`. (depends on T002, T008) — test: `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` asserts all `diagnose` edges are covered
 
-- [ ] T010 [US2] Define the `verify` agent node with agent definition `triage-verify`, `timeout_minutes: 10`, and custom outcomes `[obsolete, large-issue, not-actionable]`; success → `label-diagnosed` → `human-gate`, `obsolete` → `close-obsolete`, `large-issue` → `decompose`, `not-actionable` → `label-not-actionable` → `done`, failure → `label-failed` → `done`. (depends on T002, T009) — test: `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` asserts every `verify` outcome has a matching outgoing edge
+- [ ] T010 [US2] Define the `verify` agent node with agent definition `triage-verify`, `timeout_minutes: 10`, and custom outcomes `[obsolete, large-issue, not-actionable]`; success → `human-gate`, `obsolete` → `close-obsolete`, `large-issue` → `decompose`, `not-actionable` → `label-not-actionable` → `done`, failure → `label-failed` → `done`. (depends on T002, T009) — test: `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` asserts every `verify` outcome has a matching outgoing edge
 
 ## Phase 5: User Story 5 — Human-Gated Handoff to Implementation (P1)
 
@@ -66,7 +66,7 @@ A 2026-10-06 audit of this spec against its plan found four requirements no task
 
 - [ ] T012 [US3] Add the `close-obsolete` node using the `close-issue` service station with an `always` edge to `done` (FR5, FR15). (depends on T005, T010) — test: `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` asserts `close-obsolete` uses the `close-issue` station and its only outgoing edge is `always`
 
-- [ ] T013 [US4] Add the `decompose` agent node using the new `triage-decompose` agent definition with an `always` edge to `done`; its output JSON is `feature-decompose`'s contract, so the existing issue-filing station consumes it unchanged (FR6, #2546). (depends on T002, T010, T012) — test: `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` asserts `decompose` has an `always` edge and every edge of the complete graph is covered
+- [ ] T013 [US4] Add the `decompose` agent node using the new `triage-decompose` agent definition with an `always` edge to an `issues` station (which uses `file-issues`) that then routes to `done`; its output JSON is `feature-decompose`'s contract, so the existing issue-filing station consumes it unchanged (FR6, #2546). (depends on T002, T010, T012) — test: `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` asserts `decompose` routes to `issues`, which has an `always` edge to `done`, and every edge of the complete graph is covered
 
 ## Phase 7: Polish
 
