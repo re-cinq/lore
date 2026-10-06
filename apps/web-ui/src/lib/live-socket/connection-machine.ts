@@ -11,6 +11,8 @@ export type ChannelState = "connecting" | "live" | "reconnecting" | "offline";
 export interface ChannelEntry {
   kind: ChannelKind;
   phase: ChannelPhase;
+  /** Consecutive server closes this channel has answered; reset the moment it opens. */
+  attempt: number;
 }
 
 export interface MachineState {
@@ -46,9 +48,6 @@ export const INITIAL_STATE: MachineState = {
   attempt: 0,
   channels: {},
 };
-
-/** A channel that opens again after a close the server may recover from waits this long, so a refused open does not spin. */
-const CHANNEL_RETRY_MS = 1000;
 
 /** Closes that end the channel for good: the server will not change its mind, and the client asked for the last one. */
 const FINAL_REASONS: ReadonlySet<ClosedReason> = new Set([
@@ -86,15 +85,20 @@ function onChannelRequested(
 ): Transition {
   const notify: Effect = { type: "notify", id: event.id, state: "connecting" };
   const phase = state.socket === "open" ? "opening" : "pending";
-  const added = withChannel(state, event.id, { kind: event.kind, phase });
+  const fresh: ChannelEntry = { kind: event.kind, phase, attempt: 0 };
+  const added = withChannel(state, event.id, fresh);
 
-  if (state.socket === "open") {
-    return {
-      state: added,
-      effects: [notify, { type: "send_open", id: event.id }],
-    };
-  }
+  return state.socket === "open"
+    ? { state: added, effects: [notify, { type: "send_open", id: event.id }] }
+    : awaitingSocket(state, added, notify);
+}
 
+// Idle or gone: the socket is opened first; while connecting or backing off the channel waits its turn.
+function awaitingSocket(
+  state: MachineState,
+  added: MachineState,
+  notify: Effect,
+): Transition {
   return needsSocket(state)
     ? {
         state: { ...added, socket: "connecting", attempt: 0 },
@@ -209,7 +213,11 @@ function onServerOpened(
   }
 
   return {
-    state: withChannel(state, event.id, { ...entry, phase: "open" }),
+    state: withChannel(state, event.id, {
+      ...entry,
+      phase: "open",
+      attempt: 0,
+    }),
     effects: [{ type: "notify", id: event.id, state: "live" }],
   };
 }
@@ -235,20 +243,28 @@ function onServerClosed(
   return reopenLater(state, event.id);
 }
 
+/** A close the server may recover from is tried again with the socket's own backoff, and given up on once the attempts are spent: a server that fails the same way on every open would otherwise be re-opened once a second for as long as the page stays up, and each open replays the run's snapshot — which is how one untranslatable frame refreshed a plan page in a loop (specs/external-floor FR18.11). */
 function reopenLater(state: MachineState, id: string): Transition {
   const entry = channelOf(state, id);
 
   if (entry === undefined) {
     return { state, effects: [] };
   }
+  const attempt = entry.attempt + 1;
+  const action = reconnectAction(attempt);
 
-  return {
-    state: withChannel(state, id, { ...entry, phase: "pending" }),
-    effects: [
-      { type: "notify", id, state: "reconnecting" },
-      { type: "schedule_retry", delayMs: CHANNEL_RETRY_MS },
-    ],
-  };
+  return action.kind === "give-up"
+    ? {
+        state: withChannel(state, id, { ...entry, phase: "closed", attempt }),
+        effects: [{ type: "notify", id, state: "offline" }],
+      }
+    : {
+        state: withChannel(state, id, { ...entry, phase: "pending", attempt }),
+        effects: [
+          { type: "notify", id, state: "reconnecting" },
+          { type: "schedule_retry", delayMs: action.delayMs },
+        ],
+      };
 }
 
 function channelOf(state: MachineState, id: string): ChannelEntry | undefined {

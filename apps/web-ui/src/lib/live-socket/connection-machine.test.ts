@@ -41,7 +41,7 @@ describe("connection machine — opening", () => {
         state: {
           socket: "connecting",
           attempt: 0,
-          channels: { a: { kind: "run", phase: "pending" } },
+          channels: { a: { kind: "run", phase: "pending", attempt: 0 } },
         },
         effects: [
           { type: "notify", id: "a", state: "connecting" },
@@ -52,7 +52,7 @@ describe("connection machine — opening", () => {
         state: {
           socket: "open",
           attempt: 0,
-          channels: { a: { kind: "run", phase: "opening" } },
+          channels: { a: { kind: "run", phase: "opening", attempt: 0 } },
         },
         effects: [{ type: "send_open", id: "a" }],
       },
@@ -77,8 +77,8 @@ describe("connection machine — opening", () => {
           socket: "open",
           attempt: 0,
           channels: {
-            a: { kind: "run", phase: "opening" },
-            b: { kind: "plan", phase: "open" },
+            a: { kind: "run", phase: "opening", attempt: 0 },
+            b: { kind: "plan", phase: "open", attempt: 0 },
           },
         },
         effects: [{ type: "notify", id: "b", state: "live" }],
@@ -142,7 +142,7 @@ describe("connection machine — the socket drops", () => {
         state: {
           socket: "backoff",
           attempt: 1,
-          channels: { a: { kind: "run", phase: "pending" } },
+          channels: { a: { kind: "run", phase: "pending", attempt: 0 } },
         },
         effects: [
           { type: "notify", id: "a", state: "reconnecting" },
@@ -154,7 +154,7 @@ describe("connection machine — the socket drops", () => {
         state: {
           socket: "open",
           attempt: 0,
-          channels: { a: { kind: "run", phase: "opening" } },
+          channels: { a: { kind: "run", phase: "opening", attempt: 0 } },
         },
         effects: [{ type: "send_open", id: "a" }],
       },
@@ -196,7 +196,7 @@ describe("connection machine — the socket drops", () => {
         state: {
           socket: "gone",
           attempt: 6,
-          channels: { a: { kind: "run", phase: "pending" } },
+          channels: { a: { kind: "run", phase: "pending", attempt: 0 } },
         },
         effects: [{ type: "notify", id: "a", state: "offline" }],
       },
@@ -221,13 +221,60 @@ describe("connection machine — the server closes a channel", () => {
       state: {
         socket: "open",
         attempt: 0,
-        channels: { a: { kind: "run", phase: "closed" } },
+        channels: { a: { kind: "run", phase: "closed", attempt: 0 } },
       },
       effects: [{ type: "notify", id: "a", state: "offline" }],
     });
   });
 
-  it("re-opens a channel closed as slow after a pause, and likewise one whose token could not be fetched", () => {
+  it("escalates the pause and gives up after five server closes, instead of re-opening forever", () => {
+    const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
+    const delays: (number | "offline")[] = [];
+    let state = live;
+
+    for (let round = 0; round < 6; round += 1) {
+      const closed = reduce(state, {
+        type: "server_closed",
+        id: "a",
+        reason: "server",
+      });
+
+      delays.push(
+        closed.effects.find((effect) => effect.type === "schedule_retry")
+          ?.delayMs ?? "offline",
+      );
+      state = reduce(closed.state, { type: "retry_due" }).state;
+    }
+
+    expect({ delays, phase: state.channels.a?.phase }).toEqual({
+      delays: [1000, 2000, 4000, 8000, 16000, "offline"],
+      phase: "closed",
+    });
+  });
+
+  it("forgets the failed attempts once the channel opens again", () => {
+    const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
+    const closed = reduce(live, {
+      type: "server_closed",
+      id: "a",
+      reason: "server",
+    });
+    const reopened = reduce(reduce(closed.state, { type: "retry_due" }).state, {
+      type: "server_opened",
+      id: "a",
+    }).state;
+    const closedAgain = reduce(reopened, {
+      type: "server_closed",
+      id: "a",
+      reason: "server",
+    });
+
+    expect(
+      closedAgain.effects.find((effect) => effect.type === "schedule_retry"),
+    ).toEqual({ type: "schedule_retry", delayMs: 1000 });
+  });
+
+  it("re-opens a channel closed as slow after one second, and waits two when its token then fails", () => {
     const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
     const slow = reduce(live, {
       type: "server_closed",
@@ -242,7 +289,7 @@ describe("connection machine — the server closes a channel", () => {
         state: {
           socket: "open",
           attempt: 0,
-          channels: { a: { kind: "run", phase: "pending" } },
+          channels: { a: { kind: "run", phase: "pending", attempt: 1 } },
         },
         effects: [
           { type: "notify", id: "a", state: "reconnecting" },
@@ -252,7 +299,7 @@ describe("connection machine — the server closes a channel", () => {
       retried: [{ type: "send_open", id: "a" }],
       failed: [
         { type: "notify", id: "a", state: "reconnecting" },
-        { type: "schedule_retry", delayMs: 1000 },
+        { type: "schedule_retry", delayMs: 2000 },
       ],
     });
   });
