@@ -153,6 +153,7 @@ describe("enrolRepo", () => {
       "triage: not-actionable",
       "triage: failed",
     ];
+
     for (const label of TRIAGE_LABELS) {
       expect(
         labels,
