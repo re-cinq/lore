@@ -35,12 +35,18 @@ import {
   type PlanRef,
   type SpecPrState,
 } from "./planning-line.js";
-import { endedInFailure, refineRefusal } from "./refine-refusal.js";
+import { AGENT_STILL_WORKING, refineRefusal } from "./refine-refusal.js";
+import { askNode } from "../floor/run-node-by-hand.js";
+import type { RefineAsk } from "./refine-asks.js";
 import { type SpecReviewReads } from "./spec-rework.js";
 import { storeCitable, storeMarkdown } from "./plan-blobs.js";
 
 /** What a report that answers no section produces for `refine`. The floor's bag only ever takes a key, never drops one, so a round that said nothing about `refine` would leave the last Refine's section standing: a later failed draft would then tell a section nobody asked about. The Postgres path said `refine: null` for the same reason. */
 const NO_REFINE = "";
+
+/** The node whose agent refines a section, and the start event it declares. */
+const ANALYZE_NODE = "analyze";
+const ANALYZE_EVENT = `node.${ANALYZE_NODE}.start`;
 
 export interface PlanFloor extends PlanLineFloor {
   lines: Pick<FloorClient["lines"], "start">;
@@ -57,6 +63,8 @@ export interface FloorPlanDeps {
   /** What GitHub says of a spec PR now, so a later pass is briefed as the amendment it is; null when the PR is gone. */
   specPrState(repo: string, prNumber: number): Promise<SpecPrState>;
   pulls: SpecReviewReads;
+  /** Writes the pending Refine down, where the agent and `plan-pass-end` read it. */
+  recordRefineAsk(ask: RefineAsk): Promise<void>;
 }
 
 export interface FloorPlanMarkdown {
@@ -72,6 +80,8 @@ export interface FloorPlanMarkdown {
 
 export interface FloorRefineInput extends FloorPlanMarkdown {
   refine: RefineRequest;
+  /** Who asked, as the floor records it on the visit the ask opens. */
+  actor: string;
 }
 
 /** Drafts the plan: a run waiting on its author goes back to the agent with the edited plan and no section (a draft answers none); otherwise a run starts, or joins the one already open. The run's id either way. */
@@ -94,64 +104,43 @@ export async function startFloorDrafting(
   return startPlanRun(deps, line, { plan, planMd, brief, storyIssue });
 }
 
-/** Sends one section back to the agent while the run waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. The refine value is what `plan-pass-end` reads back. */
+/** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while an `analyze` visit is already open, since two agents would edit the same blocks. */
 export async function askFloorRefine(
   deps: FloorPlanDeps,
-  { plan, planMarkdown, brief, refine }: FloorRefineInput,
+  { plan, planMarkdown, brief, refine, actor }: FloorRefineInput,
 ): Promise<void> {
   const line = await floorPlanLineState(deps.floor, keyOf(plan));
-  const parked = line?.parkedAuthor;
 
-  if (!parked) {
-    return startRefineRound(deps, { plan, planMarkdown, brief, refine }, line);
-  }
-  await reportToVisit(deps.floor.events, parked.visitId, {
-    outcome: "changes_requested",
-    produced: {
-      plan_md: await storeMarkdown(deps.floor, planMarkdown),
-      refine: refineValue(refine),
-      description: brief,
-    },
-  });
-}
-
-/** No author waits, so the ask starts the round that answers it — but only where the plan page's own advice is to Regenerate: a draft whose line never started or ended in failure still has sections to refine, and regenerating would redraft the whole plan instead of the one section asked about. A line that delivered is told to edit by hand, as it was, and every other state keeps the reason its page shows. */
-async function startRefineRound(
-  deps: FloorPlanDeps,
-  { plan, planMarkdown, brief, refine }: FloorRefineInput,
-  line: FloorPlanLine | null,
-): Promise<void> {
   enforceTrue(
-    startsItsOwnRound(plan, line),
+    plan.status !== "approved",
     apiError(409),
     refineRefusal(plan, line),
   );
-  const planMd = await storeMarkdown(deps.floor, planMarkdown);
+  enforceTrue(line?.open !== ANALYZE_NODE, apiError(409), AGENT_STILL_WORKING);
 
-  await startPlanRun(deps, line, {
-    plan,
-    planMd,
-    brief,
-    refine: refineValue(refine),
-    storyIssue: refine.storyIssue,
+  await deps.recordRefineAsk(askOf(plan, refine, brief));
+
+  if (!line) {
+    await startPlanRun(deps, line, {
+      plan,
+      planMd: await storeMarkdown(deps.floor, planMarkdown),
+      brief,
+      storyIssue: refine.storyIssue,
+    });
+
+    return;
+  }
+  await askNode(deps.floor, {
+    event: ANALYZE_EVENT,
+    runId: line.lineId,
+    actor,
   });
 }
 
-/** Whether the ask may start its own round: a draft plan with nothing open whose line never started or ended in failure. */
-function startsItsOwnRound(
-  plan: PlanSubject,
-  line: FloorPlanLine | null,
-): boolean {
-  if (plan.status === "approved" || line?.open) {
-    return false;
-  }
+function askOf(plan: PlanRef, refine: RefineRequest, brief: string): RefineAsk {
+  const { slot, title, baseHash, inputs, uses } = refine;
 
-  return !line || endedInFailure(line);
-}
-
-/** The section a round was asked about, as `plan-pass-end` reads it back. */
-function refineValue({ slot, baseHash, uses }: RefineRequest): string {
-  return JSON.stringify({ slot, baseHash, uses });
+  return { planId: plan.id, slot, title, baseHash, inputs, uses, brief };
 }
 
 /** The refusal for an approval, before the plan's status flips. */

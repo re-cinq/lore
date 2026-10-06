@@ -93,6 +93,7 @@ describe("/api/plans on lore-api", () => {
       specBranch: async (plan) => specBranchOf(plan),
       baseBranch: () => Promise.resolve("main"),
       specPrState: () => Promise.resolve(null),
+      recordRefineAsk: () => Promise.resolve(),
       pulls: {
         listReviewThreads: async () => [],
         listComments: async () => [],

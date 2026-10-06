@@ -7176,6 +7176,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          actor: string;
           slot: string;
           title: string;
           baseHash: string;

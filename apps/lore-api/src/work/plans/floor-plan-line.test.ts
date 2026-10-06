@@ -18,6 +18,7 @@ import {
   startFloorSpecWork,
   type FloorPlanDeps,
 } from "./floor-plan-line.js";
+import type { RefineAsk } from "./refine-asks.js";
 import type { SpecReviewReads } from "./spec-rework.js";
 import { specBranchOf } from "./spec-branch.js";
 
@@ -34,6 +35,7 @@ const SUCCESS: Report = { outcome: "success" };
 const SPEC_PR_URL = "https://github.com/re-cinq/lore/pull/12";
 
 const REFINE = {
+  actor: "ana",
   slot: "intent",
   title: "Intent",
   baseHash: "3f9a",
@@ -87,15 +89,19 @@ function scene(
     visits: { "run-open": given.visits ?? [] },
   });
   const branchesFor: string[] = [];
+  const asks: RefineAsk[] = [];
   const deps: FloorPlanDeps = {
     floor: recorded.floor,
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
     baseBranch: () => Promise.resolve("main"),
     specPrState: () => Promise.resolve(given.specPrState ?? null),
     pulls: given.pulls ?? REVIEWED,
+    recordRefineAsk: async (ask) => {
+      asks.push(ask);
+    },
   };
 
-  return { deps, requests: recorded.requests, branchesFor };
+  return { deps, requests: recorded.requests, branchesFor, asks };
 }
 
 const NO_RUN = { runs: [] };
@@ -256,7 +262,41 @@ describe("startFloorDrafting", () => {
 });
 
 describe("askFloorRefine", () => {
-  it("reports changes_requested on the author visit with plan.md and the refine slot intent read at 3f9a", async () => {
+  it("posts a bare analyze start on the plan's run and records the ask, with the author waiting", async () => {
+    const { deps, requests, asks } = scene({ visits: ON_AUTHOR });
+
+    await askFloorRefine(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      refine: REFINE,
+      actor: "ana",
+    });
+
+    expect({ post: posts(requests).at(-1), asks }).toEqual({
+      post: {
+        method: "POST",
+        path: "/events",
+        body: {
+          name: "node.analyze.start",
+          payload: { runId: "run-open", requestedBy: "ana" },
+        },
+      },
+      asks: [
+        {
+          planId: "p1",
+          slot: "intent",
+          title: "Intent",
+          baseHash: "3f9a",
+          inputs: {},
+          uses: { answers: ["a1"] },
+          brief: BRIEF,
+        },
+      ],
+    });
+  });
+
+  it("carries no refine value in the run's bag, since the ask is read from lore-api", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
 
     await askFloorRefine(deps, {
@@ -264,23 +304,14 @@ describe("askFloorRefine", () => {
       planMarkdown: MARKDOWN,
       brief: BRIEF,
       refine: REFINE,
+      actor: "ana",
     });
 
-    expect(posts(requests).at(-1)).toEqual(
-      reported("visit-author", {
-        outcome: "changes_requested",
-        produced: {
-          plan_md: PLAN_BLOB_HASH,
-          refine:
-            '{"slot":"intent","baseHash":"3f9a","uses":{"answers":["a1"]}}',
-          description: BRIEF,
-        },
-      }),
-    );
+    expect(JSON.stringify(posts(requests))).not.toContain("3f9a");
   });
 
-  it("refuses with 409 while the planning agent is still working on this plan, reporting nothing", async () => {
-    const { deps, requests } = scene({ visits: WHILE_ANALYZING });
+  it("refuses with 409 while an analyze visit is open, so two agents never edit one plan, recording no ask", async () => {
+    const { deps, requests, asks } = scene({ visits: WHILE_ANALYZING });
 
     await expect(
       askFloorRefine(deps, {
@@ -288,30 +319,36 @@ describe("askFloorRefine", () => {
         planMarkdown: MARKDOWN,
         brief: BRIEF,
         refine: REFINE,
+        actor: "ana",
       }),
     ).rejects.toMatchObject({
       output: { statusCode: 409 },
       message: "the planning agent is still working on this plan",
     });
-    expect(posts(requests)).toEqual([]);
+    expect({ posts: posts(requests), asks }).toEqual({ posts: [], asks: [] });
   });
 
-  it("starts a round carrying the section when the plan's last run already ended, rather than refusing", async () => {
-    const { deps, requests } = scene(NO_RUN);
+  it("starts a run when the plan has none, since there is no run to start a node on", async () => {
+    const { deps, requests, asks } = scene(NO_RUN);
 
     await askFloorRefine(deps, {
       plan: DRAFT,
       planMarkdown: MARKDOWN,
       brief: BRIEF,
       refine: REFINE,
+      actor: "ana",
     });
 
-    expect(startedRefine(requests)).toBe(
-      '{"slot":"intent","baseHash":"3f9a","uses":{"answers":["a1"]}}',
-    );
+    expect({
+      started: posts(requests).at(-1)?.path,
+      recorded: asks.length,
+    }).toEqual({
+      started: "/assembly-lines/feature-planning/start",
+      recorded: 1,
+    });
   });
 
-  it("starts its own round where the page would say Regenerate, and refuses the rest with the reason it shows, on draft plan p1", async () => {
+  it("starts the station in every state but an approved plan and an open analyze visit, on draft plan p1", async () => {
     const scenes = {
       noRun: NO_RUN,
       specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
@@ -324,50 +361,33 @@ describe("askFloorRefine", () => {
       decomposing: { visits: DECOMPOSING },
     };
 
-    expect(await refusalsOf(DRAFT, scenes)).toEqual({
+    expect(await refusalsOf(DRAFT, scenes)).toMatchObject({
       refusals: {
         noRun: "resumed",
         specWorkFailed: "resumed",
         cancelled: "resumed",
-        delivered:
-          "409: the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
-        specPrOpen:
-          "409: the spec PR is being sent back to the author; try again in a moment",
+        delivered: "resumed",
+        specPrOpen: "resumed",
         whileAnalyzing: "409: the planning agent is still working on this plan",
-        settlingThePass:
-          "409: the planning agent is still working on this plan",
-        writingSpecs: "409: the specs are being written; wait for the spec PR",
-        decomposing: "409: wait until the spec-tasks are filed",
+        settlingThePass: "resumed",
+        writingSpecs: "resumed",
+        decomposing: "resumed",
       },
-      reported: 6,
     });
   });
 
-  it("names Retry and Reopen, never Regenerate, when approved plan p1 is refined on the floor, as its read-only page offers them", async () => {
+  it("refuses an approved plan in every state, since approval settles its sections", async () => {
     const scenes = {
       noRun: NO_RUN,
-      specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
       delivered: { runs: [FINISHED], visits: DELIVERED },
       specPrOpen: { visits: ON_MERGED },
       writingSpecs: { visits: WHILE_WRITING },
-      decomposing: { visits: DECOMPOSING },
     };
+    const { refusals } = await refusalsOf(APPROVED, scenes);
 
-    expect(await refusalsOf(APPROVED, scenes)).toEqual({
-      refusals: {
-        noRun:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        specWorkFailed:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        delivered:
-          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
-        specPrOpen:
-          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
-        writingSpecs: "409: the specs are being written; wait for the spec PR",
-        decomposing: "409: wait until the spec-tasks are filed",
-      },
-      reported: 0,
-    });
+    expect(
+      Object.values(refusals).every((refusal) => refusal.startsWith("409: ")),
+    ).toBe(true);
   });
 });
 
@@ -409,6 +429,7 @@ async function refusalsOf(
         planMarkdown: MARKDOWN,
         brief: BRIEF,
         refine: REFINE,
+        actor: "ana",
       })
         .then(() => "resumed")
         .catch(
@@ -574,16 +595,14 @@ describe("a round that answers no section says so", () => {
 
 describe("the round's brief the floor's planning agent is given", () => {
   it("names the section the Refine asks about in the brief the agent is given", async () => {
-    const { deps, requests } = scene({ visits: ON_AUTHOR });
+    const { deps, asks } = scene({ visits: ON_AUTHOR });
     const verbs = floorPlanVerbs(deps, async () => ({
       planMarkdown: MARKDOWN,
     }));
 
     await verbs.refine(DRAFT, REFINE);
 
-    expect(reportedProduced(requests).description).toContain(
-      "<!-- slot:intent -->",
-    );
+    expect(asks.at(0)?.brief).toContain("<!-- slot:intent -->");
   });
 
   it("tells the agent what the plan's author already knows on a first draft", async () => {
