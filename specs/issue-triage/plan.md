@@ -81,15 +81,6 @@ One `.md` file per agent definition in `libs/shared/src/agent-defaults/`:
 
 On the external floor, custom outcomes are declared in the `stations` block of the pipeline YAML (the `outcomes:` field under each station entry). The floor's own loader validates that every declared outcome has an edge and routes `on: <outcome>` edges by exact string match. No Lore-side changes are needed.
 
-### Task type registration
-
-Two files, in sequence:
-
-1. Add `"issue-triage"` to `TaskTypeSchema` in `libs/shared/src/domain/models/pipeline-task.ts`.
-2. Add an `"issue-triage"` entry to `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts` (tier: `implementation`).
-
-Dispatch is through the stations drain handler via `floorClient().lines.start` — no extra routing in Lore is needed. The pipeline name is added to the pinned list in `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`.
-
 ### Label creation and `triage_label` service station
 
 The eight `triage:*` labels must be created in each onboarded repository (as a one-time setup step) before any triage run reaches the labelling station.
@@ -127,8 +118,6 @@ Files touched:
 - `libs/shared/src/agent-defaults/triage-reproduce.md` — reproduce recipe
 - `libs/shared/src/agent-defaults/triage-diagnose.md` — diagnose recipe
 - `libs/shared/src/agent-defaults/triage-verify.md` — verify recipe
-- `libs/shared/src/domain/models/pipeline-task.ts` — `TaskTypeSchema`
-- `libs/shared/src/domain/pipeline-task-trust.ts` — `TRUST_LEVELS`
 - `libs/shared/src/work/scheduler/cron-emitters.ts` — cron tick emitter for triage
 - `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` — bundled-lines list
 - `apps/stations/src/events/repo-handlers.ts` — label dispatch + human-gate resume
