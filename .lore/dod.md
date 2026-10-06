@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **triage-verify station declares custom outcomes and every declared outcome has a matching outgoing edge from the verify node** — the `triage-verify` station exists in the `issue-triage` pipeline's `stations` block and every outcome it declares has a corresponding outgoing edge from the `verify` node.
+- [x] **triage-verify station declares custom outcomes and every declared outcome has a matching outgoing edge from the verify node** — the `triage-verify` station exists in the `issue-triage` pipeline's `stations` block and every outcome it declares has a corresponding outgoing edge from the `verify` node.
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
 ## Facets
 
-- [ ] Add a `triage-verify` entry to the `stations` block in `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` declaring outcomes `[success, obsolete, large-issue, not-actionable, failed]` and `agent_definition: triage-verify`.
-- [ ] Wire the verify node: `success` → `human-gate`, `obsolete` → `close-obsolete`, `large-issue` → `decompose`, `not-actionable` → `label-not-actionable`, `failed` (with `iteration_max: 3`) → `label-failed`.
-- [ ] Run the acceptance test green.
+- [x] Add a `triage-verify` entry to the `stations` block in `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` declaring outcomes `[success, obsolete, large-issue, not-actionable, failed]` and `agent_definition: triage-verify`.
+- [x] Wire the verify node: `success` → `human-gate`, `obsolete` → `close-obsolete`, `large-issue` → `decompose`, `not-actionable` → `label-not-actionable`, `failed` (with `iteration_max: 3`) → `label-failed`.
+- [x] Run the acceptance test green.
 
 ## Out of scope
 

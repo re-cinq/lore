@@ -10,6 +10,7 @@ line:
       subject: true
   nodes:
     - id: verify
+      station: triage-verify
     - id: human-gate
       station: human-gate
     - id: done
@@ -17,10 +18,32 @@ line:
     - from: verify
       to: human-gate
       on: success
+    - from: verify
+      to: close-obsolete
+      on: obsolete
+    - from: verify
+      to: decompose
+      on: large-issue
+    - from: verify
+      to: label-not-actionable
+      on: not-actionable
+    - from: verify
+      to: label-failed
+      on: failed
+      iteration_max: 3
     - from: human-gate
       to: done
       on: success
 stations:
+  triage-verify:
+    kind: agent
+    agent_definition: triage-verify
+    outcomes:
+      - success
+      - obsolete
+      - large-issue
+      - not-actionable
+      - failed
   human-gate:
     kind: human
     route: "{args.issue_url}"
