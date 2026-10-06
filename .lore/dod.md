@@ -14,9 +14,10 @@
 
 ## Facets
 
-- [ ] In `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` `stations` block, add `decompose` entry: `kind: agent`, `agent_definition: feature-decompose`
-- [ ] Add edge `from: decompose / to: done / on: always` to the `line.edges` list
+- [x] In `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` `stations` block, add `decompose` entry: `kind: agent`, `agent_definition: feature-decompose`
+- [x] Add edge `from: decompose / to: done / on: always` to the `line.edges` list
 - [ ] Confirm (do not add) the `verify` (on: large-issue) edge already points to `decompose` — set by T010 (#2259)
+- [ ] Fix acceptance test bug: `seed-floor-pipelines.test.ts:156` checks `body.agent_definition` (snake_case) but `pipelineOf` from `@re-cinq/floor-pipeline` converts it to `body.agentDefinition` (camelCase); the test will always return `undefined` as written — needs to check `body.agentDefinition` OR the package must stop renaming station fields. Note: spec FR20 also says decompose MUST NOT use `feature-decompose`, contradicting this ticket and the DoD test.
 
 ## Out of scope
 
