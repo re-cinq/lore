@@ -154,7 +154,7 @@ jobs:
           - name: skill-help
             test: bash scripts/check-skill-help.sh
           # The scripts' OWN tests. `scripts/**/*.test.mjs` had no CI home at all:
-          # install-contract, lore-merge-settings and (until this entry) the deploy
+          # install-contract and (until this entry) the deploy
           # classifier ran nowhere, so a broken guard stayed green. Only
           # check-bootstrap-columns ran, and only from migrations.yml.
           # Files are passed explicitly via find: node 22 resolves a bare directory

@@ -1,0 +1,17 @@
+{
+  "description": "Bootstrap a fresh Lore worktree when Codex starts a session.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "repo=\"$(git rev-parse --show-toplevel)\" || exit 0; { [ -d \"$repo/node_modules\" ] && [ ! -d \"$repo/.lore-bootstrap.lock\" ]; } || bash \"$repo/scripts/worktree-bootstrap.sh\"",
+            "timeout": 900,
+            "statusMessage": "Bootstrapping Lore worktree"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -99,14 +99,13 @@ select_team() {
   fi
 }
 
-# --- 4. Register MCP server + merge settings ---------------------------------
-merge_settings() {
-  CURRENT_STEP="merge Claude settings"
-  echo "[lore] Configuring MCP server + hooks for team '$TEAM' ..."
+# --- 4. Register MCP server --------------------------------------------------
+configure_codex() {
+  CURRENT_STEP="configure Codex"
+  echo "[lore] Configuring Codex MCP server for team '$TEAM' ..."
 
-  # Register MCP server via CLI (the reliable way)
-  if command -v claude &>/dev/null; then
-    claude mcp remove lore-context 2>/dev/null || true
+  if command -v codex &>/dev/null; then
+    codex mcp remove lore-context 2>/dev/null || true
 
     # Read API URL and token from config (set during first install or manually)
     LORE_API_URL="$(git config --global lore.api-url 2>/dev/null || true)"
@@ -121,7 +120,7 @@ merge_settings() {
     # Prompt for token if not set
     if [ -z "$LORE_TOKEN" ]; then
       echo ""
-      echo "[lore] To delegate tasks from Claude Code to agents, you need a token."
+      echo "[lore] To delegate tasks from Codex to agents, you need a token."
       echo "  Get it from: kubectl get secret lore-ingest-token -n lore-api -o jsonpath='{.data.token}' | base64 -d"
       echo "  Or ask the platform team."
       echo ""
@@ -140,39 +139,37 @@ merge_settings() {
       fi
     fi
 
-    MCP_ENV_ARGS=(-e "CONTEXT_PATH=$LORE_DIR" -e "LORE_TEAM=$TEAM")
+    MCP_ENV_ARGS=(--env "CONTEXT_PATH=$LORE_DIR" --env "LORE_TEAM=$TEAM")
     if [ -n "$LORE_API_URL" ]; then
-      MCP_ENV_ARGS+=(-e "LORE_API_URL=$LORE_API_URL")
+      MCP_ENV_ARGS+=(--env "LORE_API_URL=$LORE_API_URL")
     fi
     if [ -n "$LORE_TOKEN" ]; then
-      MCP_ENV_ARGS+=(-e "LORE_INGEST_TOKEN=$LORE_TOKEN")
+      MCP_ENV_ARGS+=(--env "LORE_INGEST_TOKEN=$LORE_TOKEN")
     fi
 
-    claude mcp add lore-context node \
+    codex mcp add lore-context "${MCP_ENV_ARGS[@]}" -- node \
       "$LORE_DIR/apps/mcp-server/dist/index.js" \
-      "${MCP_ENV_ARGS[@]}" \
-      2>/dev/null && echo "[lore] MCP server registered via claude CLI" || \
-      echo "[lore] Warning: claude mcp add failed, falling back to settings.json"
+      2>/dev/null && echo "[lore] MCP server registered via Codex CLI" || \
+      echo "[lore] Warning: codex mcp add failed"
+  else
+    echo "[lore] Warning: Codex CLI not found; skipped MCP registration"
   fi
-
-  # Merge env vars + hooks + status line into settings.json
-  node "$LORE_DIR/scripts/lore-merge-settings.js" "$TEAM"
 }
 
 # --- 5. Install platform skills -----------------------------------------------
 install_skills() {
   CURRENT_STEP="install platform skills"
   echo "[lore] Installing platform skills ..."
-  mkdir -p "$HOME/.claude/skills"
+  mkdir -p "$HOME/.codex/skills"
   # These are Lore-owned vendored files, so an existing copy is refreshed rather
   # than skipped: skipping meant a skill edited upstream never reached a machine
   # that had installed once, and /lore-help then documented behaviour the
   # installed copy did not have. A hand-edited copy is overwritten — the
   # "Updated" line says so.
-  for skill_dir in "$LORE_DIR/.claude/skills/"*/; do
+  for skill_dir in "$LORE_DIR/.codex/skills/"*/; do
     [ -d "$skill_dir" ] || continue
     name="$(basename "$skill_dir")"
-    dest="$HOME/.claude/skills/$name"
+    dest="$HOME/.codex/skills/$name"
     if [ ! -d "$dest" ]; then
       cp -r "$skill_dir" "$dest"
       echo "  Installed /$name"
@@ -225,7 +222,7 @@ install_agentdb() {
 install_context
 build_mcp_server
 select_team
-merge_settings
+configure_codex
 install_skills
 install_specify
 generate_agent_id

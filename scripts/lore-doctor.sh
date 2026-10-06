@@ -46,22 +46,22 @@ check "Git can reach github.com (SSH)" \
   git_ssh_ok || \
   echo "     Fix: check SSH key config (ssh -T git@github.com)"
 
-# 5. Platform hooks
-check "Platform hooks installed" \
-  grep -q "re-cinq/lore" "$HOME/.claude/settings.json" 2>/dev/null || \
-  echo "     Fix: node $LORE_DIR/scripts/lore-merge-settings.js"
+# 5. Codex MCP registration
+check "Codex MCP server registered" \
+  codex mcp get lore-context || \
+  echo "     Fix: $LORE_DIR/scripts/install.sh"
 
 # 6. Platform skills — every skill the checkout ships must be installed AND match
 # it. A stale copy is worse than a missing one: /lore-help would document
 # behaviour the installed skill does not have.
 check_skills() {
-  local src="$LORE_DIR/.claude/skills" name
+  local src="$LORE_DIR/.codex/skills" name
   [ -d "$src" ] || return 1
   for skill_dir in "$src"/*/; do
     [ -d "$skill_dir" ] || continue
     name="$(basename "$skill_dir")"
-    [ -d "$HOME/.claude/skills/$name" ] || return 1
-    diff -rq "$skill_dir" "$HOME/.claude/skills/$name" >/dev/null 2>&1 || return 1
+    [ -d "$HOME/.codex/skills/$name" ] || return 1
+    diff -rq "$skill_dir" "$HOME/.codex/skills/$name" >/dev/null 2>&1 || return 1
   done
 }
 check "Platform skills installed and current (/lore-help lists them)" \

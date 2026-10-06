@@ -3,7 +3,7 @@
 # malformed. /lore-help aggregates these blocks verbatim — a skill without one
 # is invisible in the index, and a half-written one renders as a gap.
 #
-# Required shape (see .claude/skills/lore-help/SKILL.md):
+# Required shape (see .codex/skills/lore-help/SKILL.md):
 #
 #   <!-- lore-help:begin -->
 #   **Summary.** One sentence.
@@ -23,7 +23,7 @@ fail() {
 	failed=1
 }
 
-for skill in .claude/skills/*/SKILL.md; do
+for skill in .codex/skills/*/SKILL.md; do
 	[ -f "$skill" ] || continue
 	name="$(basename "$(dirname "$skill")")"
 	checked=$((checked + 1))
@@ -52,13 +52,13 @@ for skill in .claude/skills/*/SKILL.md; do
 done
 
 if [ "$checked" -eq 0 ]; then
-	fail "no skills found under .claude/skills/ — did the layout change?"
+	fail "no skills found under .codex/skills/ — did the layout change?"
 fi
 
 if [ "$failed" -ne 0 ]; then
 	echo >&2
-	echo "Every .claude/skills/*/SKILL.md must end with a Help block that /lore-help reads." >&2
-	echo "Copy the shape from .claude/skills/lore-help/SKILL.md." >&2
+	echo "Every .codex/skills/*/SKILL.md must end with a Help block that /lore-help reads." >&2
+	echo "Copy the shape from .codex/skills/lore-help/SKILL.md." >&2
 	exit 1
 fi
 

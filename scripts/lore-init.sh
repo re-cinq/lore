@@ -5,7 +5,7 @@ set -euo pipefail
 # lore-init.sh — Initialize Lore for a new organization
 #
 # Replaces the fictional Acme content with real content from your org.
-# Creates team directories, skeleton CLAUDE.md files, CODEOWNERS, and
+# Creates team directories, skeleton AGENTS.md files, CODEOWNERS, and
 # optionally your first ADR.
 # ---------------------------------------------------------------------------
 
@@ -55,7 +55,7 @@ slugify() {
 
 blank
 info "Initializing Lore for your organization."
-info "This will set up your team structure, first CLAUDE.md, and first ADR."
+info "This will set up your team structure, first AGENTS.md, and first ADR."
 blank
 
 # ---------------------------------------------------------------------------
@@ -142,12 +142,12 @@ blank
 info "Teams: ${TEAMS[*]}"
 
 # ---------------------------------------------------------------------------
-# 4. Create skeleton CLAUDE.md files
+# 4. Create skeleton AGENTS.md files
 # ---------------------------------------------------------------------------
 
-# Root CLAUDE.md
-info "Creating root CLAUDE.md..."
-cat > "$REPO_DIR/CLAUDE.md" << ROOTEOF
+# Root AGENTS.md
+info "Creating root AGENTS.md..."
+cat > "$REPO_DIR/AGENTS.md" << ROOTEOF
 # ${ORG_NAME} Engineering Guide
 
 ## Architecture
@@ -170,12 +170,12 @@ cat > "$REPO_DIR/CLAUDE.md" << ROOTEOF
      - service-name: what it owns, key constraints -->
 ROOTEOF
 
-# Team CLAUDE.md files
+# Team AGENTS.md files
 for team in "${TEAMS[@]}"; do
   team_dir="$REPO_DIR/teams/$team"
   mkdir -p "$team_dir"
 
-  if [ -f "$team_dir/CLAUDE.md" ]; then
+  if [ -f "$team_dir/AGENTS.md" ]; then
     # Check if the existing file is fictional content (from the template)
     is_fictional=false
     for ft in "${FICTIONAL_TEAMS[@]}"; do
@@ -186,20 +186,20 @@ for team in "${TEAMS[@]}"; do
     done
 
     if $is_fictional; then
-      info "Replacing fictional CLAUDE.md for team '$team'..."
+      info "Replacing fictional AGENTS.md for team '$team'..."
     else
-      info "Skipping teams/$team/CLAUDE.md (already exists)"
+      info "Skipping teams/$team/AGENTS.md (already exists)"
       continue
     fi
   else
-    info "Creating teams/$team/CLAUDE.md..."
+    info "Creating teams/$team/AGENTS.md..."
   fi
 
-  cat > "$team_dir/CLAUDE.md" << TEAMEOF
+  cat > "$team_dir/AGENTS.md" << TEAMEOF
 # ${team} Team
 
 <!-- This file describes conventions specific to the ${team} team.
-     It's loaded automatically when a developer on this team opens Claude Code. -->
+     It's loaded automatically when a developer on this team opens Codex. -->
 
 ## Current Work
 
@@ -218,7 +218,6 @@ done
 
 info "Creating CODEOWNERS..."
 {
-  echo "/CLAUDE.md @${ORG_NAME}/engineering"
   echo "/AGENTS.md @${ORG_NAME}/engineering"
   echo ""
   for team in "${TEAMS[@]}"; do
@@ -427,14 +426,14 @@ blank
 info "Initialization complete."
 echo "  Organization: ${ORG_NAME}"
 echo "  Teams: ${TEAM_LIST}"
-echo "  CLAUDE.md: created (fill in your conventions)"
+echo "  AGENTS.md: created (fill in your conventions)"
 echo "  CODEOWNERS: created"
 echo "  ADRs: ${ADR_STATUS}"
 blank
 echo "Next steps:"
-echo "  1. Fill in CLAUDE.md with your actual architecture and conventions"
-echo "  2. Fill in teams/*/CLAUDE.md with team-specific patterns"
+echo "  1. Fill in AGENTS.md with your actual architecture and conventions"
+echo "  2. Fill in teams/*/AGENTS.md with team-specific patterns"
 echo "  3. Write your first ADR if you haven't already"
 echo "  4. Run: git add -A && git commit -m \"initialize lore for ${ORG_NAME}\""
-echo "  5. Run install.sh to set up Claude Code"
+echo "  5. Run install.sh to set up Codex"
 blank

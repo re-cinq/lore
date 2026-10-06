@@ -13,7 +13,7 @@
 #
 # Idempotent: installs only when node_modules is absent, rebuilds the
 # workspace libs only when their src is newer than their dist. A bootstrapped
-# checkout is an instant no-op, so the .claude/settings.json SessionStart
+# checkout is an instant no-op, so the .codex/hooks.json SessionStart
 # hook runs this on every session.
 
 set -euo pipefail

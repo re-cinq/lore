@@ -20,7 +20,7 @@ on:
       # Which files are specs and ADRs; a change re-selects the whole corpus.
       - '.lore/ingest.yml'
       - 'scripts/agent-prompts/**'
-      - '.claude/skills/**'
+      - '.codex/skills/**'
   # Manual lever: a push-to-main can silently fail to dispatch (a dropped GitHub
   # delivery leaves the ingested copy — and every derived spec-status pill —
   # stale until the next push). Dispatch re-ingests on demand: an empty `files`
@@ -64,7 +64,7 @@ jobs:
               # last commit touched.
               FILES=$(git ls-files -- \
                 CLAUDE.md AGENTS.md adrs runbooks specs teams .specify \
-                scripts/agent-prompts .claude/skills \
+                scripts/agent-prompts .codex/skills \
                 | jq -R -s -c 'split("\n") | map(select(. != ""))')
             fi
           else

@@ -48,8 +48,8 @@ Bootstrap the worktree once:
 scripts/worktree-bootstrap.sh   # npm ci + build libs/{shared,assembly-lines,server-core}
 ```
 
-Claude Code sessions run it automatically via the SessionStart hook in
-`.claude/settings.json` — but only when the checkout has no `node_modules`
+Codex sessions run it automatically via the SessionStart hook in
+`.codex/hooks.json` — but only when the checkout has no `node_modules`
 yet, i.e. exactly once, on the first session in a fresh worktree. Sessions in
 a bootstrapped checkout skip it entirely. Run it yourself in worktrees created
 by hand. It is idempotent and guarded by a lock (`.lore-bootstrap.lock/`), so

@@ -43,6 +43,6 @@ for f in "$REPO"/scripts/*.sh "$REPO"/scripts/*.js "$REPO"/scripts/*.py; do [ -f
 for f in "$REPO"/scripts/agent-prompts/*.md; do [ -f "$f" ] && insert doc "scripts/agent-prompts/$(basename "$f")"; done
 
 # Skills
-for f in "$REPO"/.claude/skills/*/SKILL.md; do [ -f "$f" ] && skill=$(basename "$(dirname "$f")") && insert doc ".claude/skills/$skill/SKILL.md"; done
+for f in "$REPO"/.codex/skills/*/SKILL.md; do [ -f "$f" ] && skill=$(basename "$(dirname "$f")") && insert doc ".codex/skills/$skill/SKILL.md"; done
 
 echo "[lore] Done. Run scripts/infra/reembed.sh to embed the rows that have no vector yet."

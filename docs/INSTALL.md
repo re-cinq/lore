@@ -142,7 +142,7 @@ installs that point at `/api/webhook/github` on `lore_webhook_hostname` reach th
 ## Step 6: Install on a Developer Laptop
 
 This is the per-developer install — it builds and registers the Lore MCP server
-locally so Claude Code gets org context in every onboarded repo. No GKE access
+locally so Codex gets org context in every onboarded repo. No GKE access
 needed; the local server proxies to the backend deployed above.
 
 **Runs on macOS and Linux** (the installer is `#!/usr/bin/env bash` and stays
@@ -152,7 +152,7 @@ within bash 3.2, the macOS default).
 
 - git
 - Node.js >= 18 and npm (`uuidgen` or `python3` for the agent ID — one is present on both OSes)
-- [Claude Code](https://claude.com/claude-code) (`claude` CLI) — the installer registers the MCP server through it
+- [Codex](https://developers.openai.com/codex) (`codex` CLI) — the installer registers the MCP server through it
 - A reachable Lore backend URL (the `lore_api_url` from Step 3). The local server
   has no offline mode; context, memory, and pipeline calls all proxy to it.
 
@@ -168,9 +168,9 @@ cd lore && scripts/install.sh
 - clones/updates the context checkout into `~/.re-cinq/lore`
 - runs `npm ci` once at the repo root (npm workspaces) and builds
   `@re-cinq/lore-shared` + `@re-cinq/lore-mcp`
-- registers the `lore-context` MCP server with Claude Code, pointing at
+- registers the `lore-context` MCP server with Codex, pointing at
   `~/.re-cinq/lore/apps/mcp-server/dist/index.js`
-- installs the platform skills, hooks, and system prompt
+- installs the platform skills; project hooks are loaded from `.codex/hooks.json`
 - generates a stable agent ID at `~/.lore/agent-id`
 - runs `scripts/lore-doctor.sh` to verify the install
 

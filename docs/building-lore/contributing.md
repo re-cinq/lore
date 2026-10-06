@@ -77,7 +77,7 @@ If a service dies with `EADDRINUSE`, a previous stack is still holding the port:
 
 ### Working in a git worktree
 
-Run `scripts/worktree-bootstrap.sh` once per worktree. A fresh `git worktree` has no `node_modules` and no built workspace libs, so module resolution escapes into the main checkout's (possibly stale) install and `eslint`/`tsc` fail or go falsely green. The `.claude/settings.json` SessionStart hook runs it automatically, but only when the checkout has no `node_modules` yet — after editing `libs/*/src`, re-run it yourself so package-level `tsc --noEmit` sees the fresh types (vitest reads source, `tsc` reads `dist`).
+Run `scripts/worktree-bootstrap.sh` once per worktree. A fresh `git worktree` has no `node_modules` and no built workspace libs, so module resolution escapes into the main checkout's (possibly stale) install and `eslint`/`tsc` fail or go falsely green. The `.codex/hooks.json` SessionStart hook runs it automatically once trusted, but only when the checkout has no `node_modules` yet — after editing `libs/*/src`, re-run it yourself so package-level `tsc --noEmit` sees the fresh types (vitest reads source, `tsc` reads `dist`).
 
 ### Starting over from scratch
 
