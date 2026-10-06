@@ -6,21 +6,21 @@
 
 ## Done when these pass
 
-- [ ] **routes issue-triage reproduce (success) through triage-label to diagnose** — `reproduce`'s success edge points to `triage-label`, not directly to `diagnose`
+- [x] **routes issue-triage reproduce (success) through triage-label to diagnose** — `reproduce`'s success edge points to `triage-label`, not directly to `diagnose`
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
-- [ ] **covers issue-triage diagnose edges: success → triage-label, failed (iteration_max: 3) → triage-label** — `diagnose` success and failed edges both route through `triage-label`; the failed edge carries `iteration_max: 3`
+- [x] **covers issue-triage diagnose edges: success → triage-label, failed (iteration_max: 3) → triage-label** — `diagnose` success and failed edges both route through `triage-label`; the failed edge carries `iteration_max: 3`
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
 ## Facets
 
-- [ ] Add a `triage-label` service node to `issue-triage.yaml`
-- [ ] Change `reproduce (success) → diagnose` to `reproduce (success) → triage-label`
-- [ ] Add `triage-label (success) → diagnose` (or equivalent outgoing edge)
-- [ ] Change `diagnose (success) → verify` to `diagnose (success) → triage-label`
-- [ ] Change `diagnose (failed, iteration_max: 3) → done` to `diagnose (failed, iteration_max: 3) → triage-label`
-- [ ] Add outgoing edges from `triage-label` to `verify` and `done` (valid for a service node: success/failed coverage)
-- [ ] Add `diagnose` entry with `agent_definition: triage-diagnose` and `timeout_minutes: 10`
+- [x] Add a `triage-label` service node to `issue-triage.yaml`
+- [x] Change `reproduce (success) → diagnose` to `reproduce (success) → triage-label`
+- [x] Add `triage-label (success) → diagnose` (or equivalent outgoing edge)
+- [x] Change `diagnose (success) → verify` to `diagnose (success) → triage-label`
+- [x] Change `diagnose (failed, iteration_max: 3) → done` to `diagnose (failed, iteration_max: 3) → triage-label`
+- [x] Add outgoing edges from `triage-label` to `verify` and `done` (valid for a service node: success/failed coverage)
+- [x] Add `diagnose` entry with `agent_definition: triage-diagnose` and `timeout_minutes: 10`
 
 ## Out of scope
 
