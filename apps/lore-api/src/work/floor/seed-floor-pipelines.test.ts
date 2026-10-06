@@ -148,7 +148,6 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     expect(successEdge?.to).toBe("done");
   });
 
-  // specs/issue-triage/spec.md FR22
   it("triage-verify station declares custom outcomes and every declared outcome has a matching outgoing edge from the verify node", () => {
     const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
     const verifyStation = issueTriage?.stations.find(
