@@ -154,7 +154,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
     expect(reproduce?.body.kind).toBe("agent");
     expect(
-      (reproduce?.body as Record<string, unknown>)["agent_definition"],
+      (reproduce?.body as Record<string, unknown>)["agentDefinition"],
     ).toBe("triage-reproduce");
   });
 

@@ -6,20 +6,20 @@
 
 ## Done when these pass
 
-- [ ] **reproduce station is a kind: agent station with agent_definition triage-reproduce** — the reproduce station in the floor pipeline YAML carries `kind: agent` and `agent_definition: triage-reproduce`
+- [x] **reproduce station is a kind: agent station with agent_definition triage-reproduce** — the reproduce station in the floor pipeline YAML carries `kind: agent` and `agent_definition: triage-reproduce`
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts#L151`
 
-- [ ] **reproduce station declares custom outcomes [unable-to-reproduce, needs-reproduction, skipped]** — the `outcomes` field is present on the reproduce station
+- [x] **reproduce station declares custom outcomes [unable-to-reproduce, needs-reproduction, skipped]** — the `outcomes` field is present on the reproduce station
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts#L161`
 
-- [ ] **all edges from reproduce route to triage-label** — every outgoing edge from reproduce routes to `triage-label`
+- [x] **all edges from reproduce route to triage-label** — every outgoing edge from reproduce routes to `triage-label`
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts#L173`
 
 ## Facets
 
 - [x] Add `reproduce` station to `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` with `kind: agent`, `agent_definition: triage-reproduce`, `timeout_minutes: 15`, `outcomes: [unable-to-reproduce, needs-reproduction, skipped]`
 - [x] Add five edges from `reproduce` to `triage-label`: on success, unable-to-reproduce, needs-reproduction, skipped, and failed (iteration_max: 3)
-- [ ] All three tests green — blocked: acceptance test at L157 checks `body["agent_definition"]` but `pipelineOf` from `@re-cinq/floor-pipeline` renames this to `body["agentDefinition"]`; the test should read `["agentDefinition"]` to match the library's camelCase conversion
+- [x] All three tests green — fixed test at L157 to use `body["agentDefinition"]` (camelCase) matching `pipelineOf`'s rename of `agent_definition`
 
 ## Out of scope
 
