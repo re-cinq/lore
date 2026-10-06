@@ -1,3 +1,4 @@
+import type { Pool } from "pg";
 import { floorPlanVerbs } from "../../../work/plans/floor-plan-verbs.js";
 import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -16,7 +17,6 @@ import {
   type PlanFilePorts,
 } from "../../../work/plans/plan-file.js";
 import { ensureSpecBranch } from "../../../work/plans/spec-branch.js";
-import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { pgRefineAsks } from "../../../work/plans/refine-asks-pg.js";
 
 /** What a plan route needs to run a verb on the floor; a test hands in doubles for what production reads from the environment and the repo's GitHub App. */
@@ -25,6 +25,8 @@ export interface PlanVerbSeams {
   livePlan?: PlanFilePorts["livePlan"];
   /** The floor the verbs run on; the deployment's own when absent. */
   floorDeps?: FloorPlanDeps;
+  /** The pool a Refine ask is recorded on. lore-api builds its own in index.ts and never calls initPool(), so the shared getPool() throws here; the plans registration supplies this one. */
+  pool?: () => Pool;
 }
 
 /** The verbs of a plan's planning line. Every planning line runs on the external floor (ADR-049), so a deployment with none answers 503. */
@@ -40,12 +42,10 @@ export async function planVerbsFor(
     apiError(503),
     "plans need the external floor, and this deployment has none",
   );
-  enforceTrue(
-    livePlan,
-    Error,
-    "the plan verbs on the floor need the live plan",
-  );
-  const deps = seams.floorDeps ?? (await deploymentFloorDeps(plan.repo, floor));
+  enforceTrue(livePlan, Error, "the plan verbs on the floor need the live plan");
+  const deps =
+    seams.floorDeps ??
+    (await deploymentFloorDeps(plan.repo, floor, poolOf(seams)));
 
   return floorPlanVerbs(deps, liveSnapshots(livePlan));
 }
@@ -56,9 +56,23 @@ function liveSnapshots(livePlan: PlanFilePorts["livePlan"]) {
     planSnapshot(subject, { livePlan }, process.env.LORE_UI_URL);
 }
 
+// asserts rather than defaults: a Refine recorded on the wrong pool throws at the ask, not at boot.
+function poolOf(seams: PlanVerbSeams): () => Pool {
+  const { pool } = seams;
+
+  enforceTrue(
+    pool,
+    Error,
+    "recording a Refine ask needs the pool the plans registration supplies",
+  );
+
+  return pool;
+}
+
 async function deploymentFloorDeps(
   repo: string,
   floor: PlanFloor,
+  pool: () => Pool,
 ): Promise<FloorPlanDeps> {
   const { repo: files, pulls } = await projectFor(repo);
 
@@ -69,6 +83,6 @@ async function deploymentFloorDeps(
     specPrState: async (_repo, prNumber) =>
       (await pulls.get(prNumber))?.state ?? null,
     pulls,
-    recordRefineAsk: (ask) => pgRefineAsks(getPool).record(ask),
+    recordRefineAsk: (ask) => pgRefineAsks(pool).record(ask),
   };
 }

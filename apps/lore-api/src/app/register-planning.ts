@@ -36,7 +36,7 @@ export function registerPlanning(
   floorDeps?: PlanVerbSeams["floorDeps"],
 ): RegisteredPlanning {
   const pool = livePool(getPool);
-  const seams: PlanVerbSeams = { floorDeps };
+  const seams: PlanVerbSeams = { floorDeps, pool };
 
   const sync = registerPlanningSync(server, {
     store: pgPlanStore(pool),
