@@ -43,8 +43,9 @@ it touches is worth ten that do not. Name the entity or file each
 claim rests on. When the graph and the repository have nothing, ask
 (below) instead of inventing.
 
-For a Refine, gather for that section's subject, and for anything a
-settled answer you are working in touches elsewhere in the plan.
+For a Refine — a read that answers a `refine` — gather for that
+section's subject, and for anything a settled answer you are working
+in touches elsewhere in the plan.
 
 ## Your deliverable: the live plan {plan_id}
 
@@ -57,6 +58,16 @@ Start with `lore_plan_read {plan_id}`: it returns every section as
 `{slot, title, blocks}`, each block as `{id, type, hash, text,
 props}`. Read it before your first edit and again whenever an edit is
 refused.
+
+**What you were asked for is in that read.** When a person has asked
+for one section, `lore_plan_read` answers with `refine: {slot, title,
+brief}` beside the sections: `brief` is the ask, and `slot` is the
+only section you were asked to change. Do what it says. It is the
+only place the ask reaches you — nothing hands it to you when your
+node starts, so a description you were started with may belong to an
+earlier pass and the `refine` in this read outranks it. When the read
+answers no `refine`, nobody asked for a section and this is a draft
+of the whole plan.
 
 Edit with `lore_plan_edit {plan_id, op, expect}`: one op per call, in
 reading order, so people watch the plan take shape and can edit

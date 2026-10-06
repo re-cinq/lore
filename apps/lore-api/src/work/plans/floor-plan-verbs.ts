@@ -60,6 +60,7 @@ function draftingVerbs(
       askFloorRefine(deps, {
         ...(await briefed(plan, refineBrief(plan, refine))),
         refine,
+        actor: refine.actor,
       }),
   };
 }

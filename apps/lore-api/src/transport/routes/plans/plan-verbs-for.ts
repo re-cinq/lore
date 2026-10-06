@@ -16,6 +16,8 @@ import {
   type PlanFilePorts,
 } from "../../../work/plans/plan-file.js";
 import { ensureSpecBranch } from "../../../work/plans/spec-branch.js";
+import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
+import { pgRefineAsks } from "../../../work/plans/refine-asks-pg.js";
 
 /** What a plan route needs to run a verb on the floor; a test hands in doubles for what production reads from the environment and the repo's GitHub App. */
 export interface PlanVerbSeams {
@@ -67,5 +69,6 @@ async function deploymentFloorDeps(
     specPrState: async (_repo, prNumber) =>
       (await pulls.get(prNumber))?.state ?? null,
     pulls,
+    recordRefineAsk: (ask) => pgRefineAsks(getPool).record(ask),
   };
 }

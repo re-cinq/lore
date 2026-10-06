@@ -23,6 +23,7 @@ describe("plan briefs", () => {
 
   it("asks to refine the Intent section of the live plan by its slot marker, to add the sections a settled answer asks for, to follow one into the sections it makes wrong, and to contradict nothing, since its edits land unreviewed", () => {
     const request = {
+      actor: "ana",
       slot: "intent",
       title: "Intent",
       baseHash: "3f9a",
@@ -37,6 +38,7 @@ describe("plan briefs", () => {
 
   it("lists answered question q-target and resolved thread c1 by id, each on one line, to write into Intent or ask about", () => {
     const request = {
+      actor: "ana",
       slot: "intent",
       title: "Intent",
       baseHash: "3f9a",

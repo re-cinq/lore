@@ -369,7 +369,7 @@ describe("the user story typed on the plan page", () => {
       "https://github.com/re-cinq/lore/issues/42",
     );
 
-    expect(sentBody()).toEqual({ ...REFINE, storyIssue: 42 });
+    expect(sentBody()).toEqual({ ...REFINE, storyIssue: 42, actor: "gedaiu" });
   });
 
   it("starts plan p1's spec pass with storyIssue 42 when the story reads 42", async () => {

@@ -18,6 +18,7 @@ import type {
 import type { LivePlan } from "../../outbound/plans/live-plan.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import type { RefineAsk, RefineAsks } from "./refine-asks.js";
 import {
   citablePlan,
   type CitablePlan,
@@ -27,6 +28,8 @@ import { planUrlOf } from "@re-cinq/lore-shared/feature-planning/plan-url.js";
 export interface PlanFilePorts {
   /** The plan as it stands in its live document, which people may be editing right now. */
   livePlan(planId: string): Promise<LivePlan>;
+  /** The pending Refine: the ask reaches the agent and the pass end here, never in the run's bag. */
+  refineAsks: Pick<RefineAsks, "pending" | "clear">;
   /** The agent's writes into the live document; what they return is not this module's to read. */
   writer: {
     applyOps(request: OpsRequest): Promise<unknown>;
@@ -34,6 +37,12 @@ export interface PlanFilePorts {
     proposeChanges(request: PassRequest): Promise<unknown>;
     /** A Refine whose pass stopped before it answered: the section says why, and can be asked again. */
     failRefine(request: FailRequest): Promise<unknown>;
+    /** A Refine its pass answered: the section stops waiting, and what the pass used is marked used. */
+    finishRefine(request: {
+      planId: string;
+      slot: string;
+      uses: unknown;
+    }): Promise<unknown>;
   };
 }
 
@@ -84,10 +93,27 @@ export async function planSnapshot(
 export async function planAgentView(
   planId: string,
   ports: PlanFilePorts,
-): Promise<ReadView> {
-  const { blocks } = await ports.livePlan(planId);
+): Promise<ReadView & { refine?: PendingRefine }> {
+  const [{ blocks }, refine] = await Promise.all([
+    ports.livePlan(planId),
+    ports.refineAsks.pending(planId),
+  ]);
 
-  return readView(blocks);
+  return {
+    ...readView(blocks),
+    ...(refine ? { refine: askedOf(refine) } : {}),
+  };
+}
+
+/** What a pass is asked to refine: the section and what the agent is told to do with it. */
+export interface PendingRefine {
+  slot: string;
+  title: string;
+  brief: string;
+}
+
+function askedOf({ slot, title, brief }: RefineAsk): PendingRefine {
+  return { slot, title, brief };
 }
 
 /** Writes what the edited file changed. A file with problems and nothing writable is refused whole, so a broken pass reads as a failure rather than as a silent no-op. */

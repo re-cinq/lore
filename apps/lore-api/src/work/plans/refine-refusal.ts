@@ -1,7 +1,9 @@
 import type { PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 
 /** Why a Refine is refused while the agent has the plan. */
-const AGENT_STILL_WORKING = "the planning agent is still working on this plan";
+/** Two agents must never edit one plan: the by-hand Refine refuses while an `analyze` visit is open. */
+export const AGENT_STILL_WORKING =
+  "the planning agent is still working on this plan";
 
 /** What a refusal reads of a line, whichever engine read it: the floor spells an open line `open` and a delivered one `success`, where Postgres says `running` and `completed`. */
 export type RefinableLine = Pick<
