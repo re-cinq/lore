@@ -164,6 +164,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
   it("covers issue-triage diagnose edges: success → triage-label, failed (iteration_max: 3) → triage-label", () => {
     const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+    enforceTrue(issueTriage, Error, "no issue-triage pipeline");
 
     type LineBody = {
       edges: Array<{
@@ -173,11 +174,11 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
         iteration_max?: number;
       }>;
     };
-    const body = issueTriage?.line?.body as LineBody | undefined;
-    const diagnoseSuccess = body?.edges.find(
+    const body = issueTriage.line!.body as LineBody;
+    const diagnoseSuccess = body.edges.find(
       (e) => e.from === "diagnose" && e.on === "success",
     );
-    const diagnoseFailed = body?.edges.find(
+    const diagnoseFailed = body.edges.find(
       (e) => e.from === "diagnose" && e.on === "failed",
     );
 
