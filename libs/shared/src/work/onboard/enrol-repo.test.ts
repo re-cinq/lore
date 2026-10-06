@@ -138,7 +138,6 @@ describe("enrolRepo", () => {
     expect(attention).toContain("`LORE_INGEST_TOKEN` is not configured");
   });
 
-  // FR14: all eight triage labels must be created for a freshly enrolled repository
   it("creates all eight triage:* labels on a freshly enrolled repository", async () => {
     const { deps, labels } = scene();
 
