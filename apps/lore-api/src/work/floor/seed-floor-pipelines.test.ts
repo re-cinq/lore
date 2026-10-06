@@ -127,7 +127,6 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   });
 
   it("declares issue-triage human-gate as a kind: human station with route '{args.issue_url}'", () => {
-    // specs/issue-triage/spec.md#FR16
     const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
     const humanGate = issueTriage?.stations.find((s) => s.id === "human-gate");
 
@@ -136,7 +135,6 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   });
 
   it("routes issue-triage human-gate's success edge to done", () => {
-    // specs/issue-triage/spec.md#FR8
     const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
     type LineBody = {
       edges: Array<{ from: string; to: string; on: string }>;
