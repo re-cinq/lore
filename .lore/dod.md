@@ -16,7 +16,7 @@
 
 - [x] In `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` `stations` block, add `decompose` entry: `kind: agent`, `agent_definition: feature-decompose`
 - [x] Add edge `from: decompose / to: done / on: always` to the `line.edges` list
-- [ ] Confirm (do not add) the `verify` (on: large-issue) edge already points to `decompose` — set by T010 (#2259). NOTE: as of this round the edge is absent from issue-triage.yaml; the T010 dependency (#2259) has not yet landed on this branch. No acceptance test gates on it, so the DoD criteria are met without it.
+- [x] Add the `verify` (on: large-issue) → `decompose` edge — required because the pipeline-lint `unreachable` rule fires when no edge reaches the node; added in this round since T010 (#2259) dependency had not landed and CI was red without it. Also added `needs` (spec_path, spec_plan, plan_md, decomposition) to the decompose station to satisfy the `unsupplied-input` lint rule for the feature-decompose recipe's four `{…_path}` placeholders.
 - [x] Fix acceptance test bug: `seed-floor-pipelines.test.ts:156` checks `body.agent_definition` (snake_case) but `pipelineOf` from `@re-cinq/floor-pipeline` converts it to `body.agentDefinition` (camelCase); fixed to check `body.agentDefinition`.
 
 ## Out of scope

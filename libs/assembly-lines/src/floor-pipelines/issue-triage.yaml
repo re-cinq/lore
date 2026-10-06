@@ -19,6 +19,9 @@ line:
     - from: verify
       to: human-gate
       on: success
+    - from: verify
+      to: decompose
+      on: large-issue
     - from: human-gate
       to: done
       on: success
@@ -38,6 +41,18 @@ stations:
       - success
       - changes_requested
       - failed
-    needs: []
+    needs:
+      - name: spec_path
+        kind: value
+      - name: spec_plan
+        kind: file
+        path: spec-plan.json
+      - name: plan_md
+        kind: file
+        path: plan.md
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+        optional: true
     produces: []
 agent_definitions: {}
