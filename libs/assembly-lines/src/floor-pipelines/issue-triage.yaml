@@ -9,6 +9,9 @@ line:
     - id: verify
     - id: human-gate
       station: human-gate
+    - id: reproduce
+      station: reproduce
+    - id: triage-label
     - id: done
   edges:
     - from: verify
@@ -17,10 +20,34 @@ line:
     - from: human-gate
       to: done
       on: success
+    - from: reproduce
+      to: triage-label
+      on: success
+    - from: reproduce
+      to: triage-label
+      on: unable-to-reproduce
+    - from: reproduce
+      to: triage-label
+      on: needs-reproduction
+    - from: reproduce
+      to: triage-label
+      on: skipped
+    - from: reproduce
+      to: triage-label
+      on: failed
+      iteration_max: 3
 stations:
   human-gate:
     kind: human
     route: "{args.issue_url}"
     outcomes:
       - success
+  reproduce:
+    kind: agent
+    agent_definition: triage-reproduce
+    timeout_minutes: 15
+    outcomes:
+      - unable-to-reproduce
+      - needs-reproduction
+      - skipped
 agent_definitions: {}

@@ -17,9 +17,9 @@
 
 ## Facets
 
-- [ ] Add `reproduce` station to `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` with `kind: agent`, `agent_definition: triage-reproduce`, `timeout_minutes: 15`, `outcomes: [unable-to-reproduce, needs-reproduction, skipped]`
-- [ ] Add five edges from `reproduce` to `triage-label`: on success, unable-to-reproduce, needs-reproduction, skipped, and failed (iteration_max: 3)
-- [ ] All three tests green
+- [x] Add `reproduce` station to `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` with `kind: agent`, `agent_definition: triage-reproduce`, `timeout_minutes: 15`, `outcomes: [unable-to-reproduce, needs-reproduction, skipped]`
+- [x] Add five edges from `reproduce` to `triage-label`: on success, unable-to-reproduce, needs-reproduction, skipped, and failed (iteration_max: 3)
+- [ ] All three tests green — blocked: acceptance test at L157 checks `body["agent_definition"]` but `pipelineOf` from `@re-cinq/floor-pipeline` renames this to `body["agentDefinition"]`; the test should read `["agentDefinition"]` to match the library's camelCase conversion
 
 ## Out of scope
 
