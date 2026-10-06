@@ -137,4 +137,28 @@ describe("enrolRepo", () => {
     expect(configured).toEqual(["LORE_INGEST_URL=https://lore.example.test"]);
     expect(attention).toContain("`LORE_INGEST_TOKEN` is not configured");
   });
+
+  // FR14: all eight triage labels must be created for a freshly enrolled repository
+  it("creates all eight triage:* labels on a freshly enrolled repository", async () => {
+    const { deps, labels } = scene();
+
+    await enrolRepo(deps, TARGET);
+
+    const TRIAGE_LABELS = [
+      "triage: needs-triage",
+      "triage: needs-reproduction",
+      "triage: reproduced",
+      "triage: unable-to-reproduce",
+      "triage: diagnosed",
+      "triage: skipped",
+      "triage: not-actionable",
+      "triage: failed",
+    ];
+    for (const label of TRIAGE_LABELS) {
+      expect(
+        labels,
+        `expected triage label "${label}" to be created`,
+      ).toContain(label);
+    }
+  });
 });
