@@ -20,7 +20,11 @@ function sourceFiles(dir: string): string[] {
 describe("lore-api and the shared Postgres pool", () => {
   it("imports getPool from @re-cinq/lore-shared/db/pg-pool.js in no source file, since initPool never runs here", () => {
     const importing = sourceFiles(SRC)
-      .filter((file) => /\bgetPool\b[^;]*from "@re-cinq\/lore-shared\/db\/pg-pool\.js"/s.test(readFileSync(file, "utf8")))
+      .filter((file) =>
+        /\bgetPool\b[^;]*from "@re-cinq\/lore-shared\/db\/pg-pool\.js"/s.test(
+          readFileSync(file, "utf8"),
+        ),
+      )
       .map((file) => path.relative(SRC, file));
 
     expect(importing).toEqual([]);

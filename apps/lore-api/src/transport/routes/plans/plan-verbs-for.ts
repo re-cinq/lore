@@ -42,7 +42,11 @@ export async function planVerbsFor(
     apiError(503),
     "plans need the external floor, and this deployment has none",
   );
-  enforceTrue(livePlan, Error, "the plan verbs on the floor need the live plan");
+  enforceTrue(
+    livePlan,
+    Error,
+    "the plan verbs on the floor need the live plan",
+  );
   const deps =
     seams.floorDeps ??
     (await deploymentFloorDeps(plan.repo, floor, poolOf(seams)));
