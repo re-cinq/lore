@@ -12,16 +12,16 @@ The agent ran on `claude-sonnet-4-6`. Nobody had chosen that for decompose: the 
 
 Each model ran once on each of three specs in this repository, with the same inputs at the same commit.
 
-| Rank | Model | Model id | Usable runs | Coverage, all 3 specs | issue-triage | in-the-ui-… | github-issue-dispatch | Avg cost per run | Avg time | Plan quotes copied verbatim | Issue detail (chars per task) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Claude Opus 5.5 | `claude-opus-5-5` | 3/3 | **119/125 (95%)** | 60/65 | 26/26 | 33/34 | $1.54 | 257 s | 81/81 | **1120** |
-| 2 | Gemini 3.1 Pro (preview) | `gemini-3.1-pro-preview` | 3/3 | 90/125 (72%) | 44/65 | 24/26 | 22/34 | $0.59 | 228 s | 37/37 | 442 |
-| 3 | Gemini 3 Flash (preview) | `gemini-3-flash-preview` | 3/3 | 81/125 (65%) | 33/65 | 19/26 | 29/34 | **$0.12** | 129 s | 34/44 | 350 |
-| 4 | Claude Sonnet 4.6 | `claude-sonnet-4-6` | 3/3 | 62/125 (50%) | 22/65 | 15/26 | 25/34 | $0.74 | 250 s | 38/44 | 864 |
-| 5 | Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | 3/3 | 41/125 (33%) | 13/65 | 10/26 | 18/34 | $0.21 | 128 s | 10/23 | 779 |
-| 6 | Gemini 2.5 Flash | `gemini-2.5-flash` | 1/3 | 19/125 (15%) | no file | no file | 19/34 | $0.08 | 174 s | 10/10 | 463 |
-| 7 | Gemini 2.5 Pro | `gemini-2.5-pro` | 1/3 | 5/125 (4%) | invalid JSON | 5/26 | invalid JSON | $0.18 | 93 s | 5/5 | 574 |
-| 8 | Gemini 2.5 Flash-Lite | `gemini-2.5-flash-lite` | 0/3 | 0/125 | no file | no file | no file | $0.01 | 95 s | — | — |
+| Rank | Model | Model id | Usable runs | Coverage, all 3 specs | issue-triage | in-the-ui-… | github-issue-dispatch | Avg cost per run | Avg time | Plan quotes copied verbatim | Issue detail (chars per task) | Est. cost to full coverage (passes: dispatch / ui / triage) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Claude Opus 5.5 | `claude-opus-5-5` | 3/3 | **119/125 (95%)** | 60/65 | 26/26 | 33/34 | $1.54 | 257 s | 81/81 | **1120** | **$2.66** (2 / 1 / 2) |
+| 2 | Gemini 3.1 Pro (preview) | `gemini-3.1-pro-preview` | 3/3 | 90/125 (72%) | 44/65 | 24/26 | 22/34 | $0.59 | 228 s | 37/37 | 442 | $1.99 (4 / 2 / 4) |
+| 3 | Gemini 3 Flash (preview) | `gemini-3-flash-preview` | 3/3 | 81/125 (65%) | 33/65 | 19/26 | 29/34 | **$0.12** | 129 s | 34/44 | 350 | $0.42 (2 / 3 / **6**) |
+| 4 | Claude Sonnet 4.6 | `claude-sonnet-4-6` | 3/3 | 62/125 (50%) | 22/65 | 15/26 | 25/34 | $0.74 | 250 s | 38/44 | 864 | $4.54 (3 / 4 / **11**) |
+| 5 | Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | 3/3 | 41/125 (33%) | 13/65 | 10/26 | 18/34 | $0.21 | 128 s | 10/23 | 779 | $2.28 (5 / 7 / **19**) |
+| 6 | Gemini 2.5 Flash | `gemini-2.5-flash` | 1/3 | 19/125 (15%) | no file | no file | 19/34 | $0.08 | 174 s | 10/10 | 463 | — (unreliable) |
+| 7 | Gemini 2.5 Pro | `gemini-2.5-pro` | 1/3 | 5/125 (4%) | invalid JSON | 5/26 | invalid JSON | $0.18 | 93 s | 5/5 | 574 | — (unreliable) |
+| 8 | Gemini 2.5 Flash-Lite | `gemini-2.5-flash-lite` | 0/3 | 0/125 | no file | no file | no file | $0.01 | 95 s | — | — | — (unreliable) |
 
 What the columns mean:
 
@@ -29,14 +29,15 @@ What the columns mean:
 - **Coverage**: the spec's testable statements some task names in its `spec_lines`, counted with `issueCoverage`, the function the `issue-coverage` station uses. Each statement left out costs another decompose round.
 - **Plan quotes copied verbatim**: `plan_quotes` must copy the approved plan as written, because the issue is all a developer reads.
 - **Issue detail**: the average length of a task's `changes`, `context` and `test_plan`.
+- **Est. cost to full coverage**: what it would cost, per spec on average, to keep sending decompose back with only the missing statements until none is left, and how many decompose passes each spec would take. It assumes every later pass costs what the first did and covers the same share of what is still missing as the first pass covered; a later pass is aimed at only the missing statements, so this is likely pessimistic. The planning line stops after three coverage rounds, four passes in all; a **bold** pass count is past that, so in production that spec would settle with statements still uncovered.
 - **Cost**: what the Claude CLI reports for Claude runs. For Gemini runs, token counts at Google's list prices per million input/output tokens: $2/$12 for 3.1 Pro, $0.50/$3 for 3 Flash (assumed), $1.25/$10 for 2.5 Pro, $0.30/$2.50 for 2.5 Flash, $0.10/$0.40 for 2.5 Flash-Lite.
 
 ## What we read in it
 
-- **Opus 5.5 is the best decomposer** on every measure that matters: near-full coverage, the most detailed issues, every plan quote exact. It also noticed that a component `tasks.md` named had since been deleted, and wrote the task around that. It costs about 2.6 times as much as Gemini 3.1 Pro, roughly a dollar more per decompose. Fewer coverage rounds pay some of that back.
+- **Opus 5.5 is the best decomposer** on every measure that matters: near-full coverage, the most detailed issues, every plan quote exact. It also noticed that a component `tasks.md` named had since been deleted, and wrote the task around that. A single pass costs about 2.6 times as much as Gemini 3.1 Pro, roughly a dollar more. Counted to full coverage the gap shrinks to about $0.67 per spec, because Opus needs one or two passes where Gemini 3.1 Pro needs up to four, the line's limit.
 - **Gemini 3.1 Pro is the value pick.** Second on coverage, every quote exact, issues shorter but still naming the file, the change and what the test asserts. A few of its tasks asked to add helpers that already exist elsewhere; the grounding check catches those and sends them back.
-- **Gemini 3 Flash** is very cheap, but its issues are thin: one test plan only said "Run vitest", one run paraphrased every plan quote, and one task named a path that does not exist.
-- **Sonnet 4.6**, the setting before this comparison, wrote detailed issues but named the fewest statements of the usable top four.
+- **Gemini 3 Flash** is the cheapest way to full coverage on paper, but on the largest spec it needs six passes, past the line's limit, and its issues are thin: one test plan only said "Run vitest", one run paraphrased every plan quote, and one task named a path that does not exist.
+- **Sonnet 4.6**, the setting before this comparison, wrote detailed issues but named the fewest statements of the usable top four. Counted to full coverage it is the most expensive model of all, and the largest spec would need eleven passes.
 - **Haiku 4.5** always wrote a valid file, but its coverage was low, and it paraphrased or skipped most plan quotes.
 - **The Gemini 2.5 models cannot do this job.** Flash-Lite printed the JSON in its reply instead of writing the file, every time, and still reported success. 2.5 Flash mistyped the spec path once and wrote no file once. 2.5 Pro wrote `\'` escapes, which are invalid JSON, twice.
 
