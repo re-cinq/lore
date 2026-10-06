@@ -136,6 +136,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
   it("routes issue-triage human-gate's success edge to done", () => {
     const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+
     type LineBody = {
       edges: Array<{ from: string; to: string; on: string }>;
     };
