@@ -23,9 +23,7 @@ const CRITERION = /^\*\*SC-?[-\d.]*\d\*\*/;
 const MUST = /\bMUST\b/g;
 const BACKTICKED = /`([^`\n]{2,80})`/g;
 
-export function specSoundness(
-  specs: readonly SpecText[],
-): SoundnessFinding[] {
+export function specSoundness(specs: readonly SpecText[]): SoundnessFinding[] {
   return specs.flatMap((spec) => specFindings(spec));
 }
 
@@ -64,7 +62,9 @@ function unbackedCriterion(
     return [];
   }
   const named = [...said.matchAll(BACKTICKED)].map(([, name]) => name);
-  const defined = named.filter((name) => definedElsewhere(spec, statement, name));
+  const defined = named.filter((name) =>
+    definedElsewhere(spec, statement, name),
+  );
 
   return named.length > 0 && defined.length > 0
     ? []
@@ -116,9 +116,7 @@ const HEADINGS: Record<SoundnessRule, string> = {
   "unbacked-criterion": "## Unbacked success criteria",
 };
 
-export function soundnessBrief(
-  findings: readonly SoundnessFinding[],
-): string {
+export function soundnessBrief(findings: readonly SoundnessFinding[]): string {
   return (Object.keys(HEADINGS) as SoundnessRule[])
     .map((rule) => section(rule, findings))
     .filter((text) => text.length > 0)

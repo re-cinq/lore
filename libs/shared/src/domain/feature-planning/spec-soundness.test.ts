@@ -37,7 +37,9 @@ function rulesOn(statement: string): string[] {
 
 describe("specSoundness — a requirement carrying more than one MUST", () => {
   it("reports compound-requirement for the FR naming both the labels and the station", () => {
-    expect(findings().filter((f) => f.rule === "compound-requirement")).toMatchObject([
+    expect(
+      findings().filter((f) => f.rule === "compound-requirement"),
+    ).toMatchObject([
       {
         path: "specs/triage/spec.md",
         rule: "compound-requirement",
