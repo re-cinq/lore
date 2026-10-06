@@ -8,6 +8,7 @@ import {
   planMarkdown,
   type PlanFilePorts,
 } from "../../../work/plans/plan-file.js";
+import { settleRefine } from "../../../work/plans/refine-settled.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
@@ -17,10 +18,47 @@ export function planFileRoutes(ports: PlanFilePorts): ServerRoute[] {
     agentViewRoute(ports),
     agentFileRoute(ports),
     refineFailedRoute(ports),
+    refineSettledRoute(ports),
   ];
 }
 
+const RefineSettledBody = z.object({
+  outcome: z.string().min(1),
+  reason: z.string().optional(),
+});
+
+const RefineSettledSchema = z.object({
+  settled: z.boolean(),
+  slot: z.string().optional(),
+});
+
+/** The analyze pass ended: lore-api answers the section a person asked about, or says why it could not, and clears the ask. A pass nobody asked about settles nothing. */
+function refineSettledRoute(ports: PlanFilePorts): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/plans/{id}/refine-settled",
+    options: {
+      ...zodResponse({}, RefineSettledSchema, {
+        name: "PlanRefineSettled",
+        description:
+          "An analyze pass ended: its person's Refine is answered or told why not, and the ask is cleared",
+        errors: [404],
+      }),
+      validate: { payload: zodValidate(RefineSettledBody) },
+    },
+    handler: async (request) =>
+      settleRefine(
+        request.params.id,
+        request.payload as z.infer<typeof RefineSettledBody>,
+        ports,
+      ),
+  };
+}
+
 const PlanAgentViewSchema = z.object({
+  refine: z
+    .object({ slot: z.string(), title: z.string(), brief: z.string() })
+    .optional(),
   sections: z.array(
     z.object({
       slot: z.string(),
@@ -45,7 +83,7 @@ function agentViewRoute(ports: PlanFilePorts): ServerRoute {
     options: zodResponse({}, PlanAgentViewSchema, {
       name: "PlanAgentView",
       description:
-        "The live plan as a person reads it: one section per slot, with its own blocks and their content only",
+        "The live plan as a person reads it: one section per slot, with its own blocks and their content only, and the section a person is waiting to have refined when there is one",
       errors: [404],
     }),
     handler: async (request) => planAgentView(request.params.id, ports),
