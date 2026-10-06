@@ -41,9 +41,6 @@ import type { RefineAsk } from "./refine-asks.js";
 import { type SpecReviewReads } from "./spec-rework.js";
 import { storeCitable, storeMarkdown } from "./plan-blobs.js";
 
-/** What a report that answers no section produces for `refine`. The floor's bag only ever takes a key, never drops one, so a round that said nothing about `refine` would leave the last Refine's section standing: a later failed draft would then tell a section nobody asked about. The Postgres path said `refine: null` for the same reason. */
-const NO_REFINE = "";
-
 /** The node whose agent refines a section, and the start event it declares. */
 const ANALYZE_NODE = "analyze";
 const ANALYZE_EVENT = `node.${ANALYZE_NODE}.start`;
@@ -95,7 +92,7 @@ export async function startFloorDrafting(
   if (line?.parkedAuthor) {
     await reportToVisit(deps.floor.events, line.parkedAuthor.visitId, {
       outcome: "changes_requested",
-      produced: { plan_md: planMd, description: brief, refine: NO_REFINE },
+      produced: { plan_md: planMd, description: brief },
     });
 
     return line.lineId;
@@ -119,21 +116,21 @@ export async function askFloorRefine(
   enforceTrue(line?.open !== ANALYZE_NODE, apiError(409), AGENT_STILL_WORKING);
 
   await deps.recordRefineAsk(askOf(plan, refine, brief));
+  await (line
+    ? askNode(deps.floor, { event: ANALYZE_EVENT, runId: line.lineId, actor })
+    : startRunToRefine(deps, { plan, planMarkdown, brief, refine, actor }));
+}
 
-  if (!line) {
-    await startPlanRun(deps, line, {
-      plan,
-      planMd: await storeMarkdown(deps.floor, planMarkdown),
-      brief,
-      storyIssue: refine.storyIssue,
-    });
-
-    return;
-  }
-  await askNode(deps.floor, {
-    event: ANALYZE_EVENT,
-    runId: line.lineId,
-    actor,
+// No run to start a node on, so the ask opens one; the agent reads the ask the same way.
+async function startRunToRefine(
+  deps: FloorPlanDeps,
+  { plan, planMarkdown, brief, refine }: FloorRefineInput,
+): Promise<void> {
+  await startPlanRun(deps, null, {
+    plan,
+    planMd: await storeMarkdown(deps.floor, planMarkdown),
+    brief,
+    storyIssue: refine.storyIssue,
   });
 }
 
@@ -250,7 +247,6 @@ async function reportApproved(
       plan_md: await storeMarkdown(deps.floor, planMarkdown),
       ...(await storeCitable(deps.floor, citablePlan)),
       description: brief,
-      refine: NO_REFINE,
     },
   });
 }
@@ -282,8 +278,6 @@ interface PlanRunStart {
   /** The citable blocks' blob, on a spec pass whose plan came with them. */
   planBlocks?: string;
   brief: string;
-  /** The section this round answers, for a Refine that had no round waiting to take it. */
-  refine?: string;
   entry?: string;
   storyIssue?: number;
 }
@@ -308,7 +302,7 @@ async function startPlanRun(
 /** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan, this round's brief and the user story it answers, when it names one. */
 async function startItemsOf(
   deps: FloorPlanDeps,
-  { plan, planMd, planBlocks, brief, refine, storyIssue }: PlanRunStart,
+  { plan, planMd, planBlocks, brief, storyIssue }: PlanRunStart,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
   const [branch, base] = await Promise.all([
     deps.specBranch(plan),
@@ -324,7 +318,6 @@ async function startItemsOf(
     plan_md: fileItem(planMd),
     ...(planBlocks ? { plan_blocks: fileItem(planBlocks) } : {}),
     description: valueItem(brief),
-    refine: valueItem(refine ?? NO_REFINE),
     ...(storyIssue ? { story_issue: valueItem(String(storyIssue)) } : {}),
   };
 }

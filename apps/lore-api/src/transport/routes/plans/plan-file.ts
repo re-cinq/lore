@@ -32,20 +32,22 @@ const RefineSettledSchema = z.object({
   slot: z.string().optional(),
 });
 
+const REFINE_SETTLED_OPTIONS = {
+  ...zodResponse({}, RefineSettledSchema, {
+    name: "PlanRefineSettled",
+    description:
+      "An analyze pass ended: its person's Refine is answered or told why not, and the ask is cleared",
+    errors: [404],
+  }),
+  validate: { payload: zodValidate(RefineSettledBody) },
+};
+
 /** The analyze pass ended: lore-api answers the section a person asked about, or says why it could not, and clears the ask. A pass nobody asked about settles nothing. */
 function refineSettledRoute(ports: PlanFilePorts): ServerRoute {
   return {
     method: "POST",
     path: "/api/plans/{id}/refine-settled",
-    options: {
-      ...zodResponse({}, RefineSettledSchema, {
-        name: "PlanRefineSettled",
-        description:
-          "An analyze pass ended: its person's Refine is answered or told why not, and the ask is cleared",
-        errors: [404],
-      }),
-      validate: { payload: zodValidate(RefineSettledBody) },
-    },
+    options: REFINE_SETTLED_OPTIONS,
     handler: async (request) =>
       settleRefine(
         request.params.id,

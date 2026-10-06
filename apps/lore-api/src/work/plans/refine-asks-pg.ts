@@ -36,17 +36,7 @@ interface PendingRow {
 
 export function pgRefineAsks(db: Db): RefineAsks {
   return {
-    record: async (ask) => {
-      await db().query(UPSERT, [
-        ask.planId,
-        ask.slot,
-        ask.title,
-        ask.baseHash,
-        jsonOf(ask.inputs),
-        jsonOf(ask.uses),
-        ask.brief,
-      ]);
-    },
+    record: (ask) => record(db, ask),
     pending: async (planId) => {
       const { rows } = await db().query<PendingRow>(SELECT_PENDING, [planId]);
       const row = rows.at(0);
@@ -57,6 +47,18 @@ export function pgRefineAsks(db: Db): RefineAsks {
       await db().query(DELETE_PENDING, [planId]);
     },
   };
+}
+
+async function record(db: Db, ask: RefineAsk): Promise<void> {
+  await db().query(UPSERT, [
+    ask.planId,
+    ask.slot,
+    ask.title,
+    ask.baseHash,
+    jsonOf(ask.inputs),
+    jsonOf(ask.uses),
+    ask.brief,
+  ]);
 }
 
 // A jsonb column takes the text of the value, and `undefined` is SQL NULL rather than the string "undefined".

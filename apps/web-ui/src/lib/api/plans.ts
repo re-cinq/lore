@@ -178,7 +178,7 @@ export interface RefineAsk {
 export function askRefine(
   repo: string,
   planId: string,
-  refine: RefineAsk,
+  refine: RefineAsk & { actor: string },
 ): Promise<ApiResult<{ ok: true }>> {
   return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/refine`, {
     method: "POST",
