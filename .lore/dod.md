@@ -14,9 +14,9 @@
 
 ## Facets
 
-- [ ] Add `"github.issue_comment"` to the `REPO_EVENTS` constant in `repo-handlers.ts`
-- [ ] Register an `issueComment` handler in `repoEventHandlers` that reads `issue.labels`, checks for `triage: needs-reproduction` or `triage: unable-to-reproduce`, and calls `(await deps.labelDispatch(repo)).addLabel(issue.number, "triage: needs-triage")`
-- [ ] The two red tests turn green; the existing 9 tests stay green
+- [x] Add `"github.issue_comment"` to the `REPO_EVENTS` constant in `repo-handlers.ts`
+- [x] Register an `issueComment` handler in `repoEventHandlers` that reads `issue.labels`, checks for `triage: needs-reproduction` or `triage: unable-to-reproduce`, and calls `(await deps.labelDispatch(repo)).addLabel(issue.number, "triage: needs-triage")`
+- [x] The two red tests turn green; the existing 9 tests stay green
 
 ## Out of scope
 

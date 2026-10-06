@@ -32,6 +32,7 @@ export interface RepoEventDeps {
 
 export const REPO_EVENTS: readonly string[] = [
   "github.issues.labeled",
+  "github.issue_comment",
   "github.repository.renamed",
   "github.pull_request.closed",
   "internal.repo.team_changed",
@@ -42,6 +43,7 @@ export function repoEventHandlers(
 ): Map<string, EventHandler> {
   return new Map<string, EventHandler>([
     ["github.issues.labeled", issueLabeled(deps)],
+    ["github.issue_comment", issueComment(deps)],
     ["github.repository.renamed", repositoryRenamed(deps)],
     ["github.pull_request.closed", pullRequestClosed(deps)],
     ["internal.repo.team_changed", teamChanged(deps)],
@@ -49,6 +51,11 @@ export function repoEventHandlers(
 }
 
 const TRIAGE_TRIGGER_LABELS = ["lore:triage", "triage: needs-triage"] as const;
+
+const WAITING_TRIAGE_LABELS = [
+  "triage: needs-reproduction",
+  "triage: unable-to-reproduce",
+] as const;
 
 type LabeledIssueParams = {
   repo: string;
@@ -78,6 +85,25 @@ function issueLabeled(deps: RepoEventDeps): EventHandler {
     const labeled: LabeledIssue = { repo, label, issue };
 
     await dispatchLabeledIssue(await deps.labelDispatch(repo), labeled);
+  };
+}
+
+function issueComment(deps: RepoEventDeps): EventHandler {
+  return async (params) => {
+    const { repo, issue } = params as unknown as {
+      repo: string;
+      issue: { number: number; labels: readonly string[] };
+    };
+    const labels: readonly string[] = issue?.labels ?? [];
+    const needsRetriage = (WAITING_TRIAGE_LABELS as readonly string[]).some(
+      (l) => labels.includes(l),
+    );
+
+    if (needsRetriage) {
+      await (
+        await deps.labelDispatch(repo)
+      ).addLabel(issue.number, "triage: needs-triage");
+    }
   };
 }
 
