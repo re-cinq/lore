@@ -45,7 +45,7 @@ The line lives at `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` in
 - `verify` — `kind: agent`, agent definition `triage-verify`, `timeout_minutes: 10`. Declares custom outcomes: `[obsolete, large-issue, not-actionable]`.
 - `triage-label` — `kind: service`, station `triage-label`. Applied after each agent node to stamp the matching `triage:*` label on the issue.
 - `close-obsolete` — `kind: service`, station `close-issue`. Posts verdict comment and closes the issue.
-- `decompose` — `kind: agent`, agent definition `feature-decompose` (reuses existing contract). Splits the issue into smaller child issues.
+- `decompose` — `kind: agent`, agent definition `triage-decompose` (FR6, FR20). Splits the issue into smaller child issues; emits `feature-decompose`'s output JSON contract so the existing issue-filing station consumes it unchanged.
 - `human-gate` — `kind: human`, `route: '{args.issue_url}'`. Parks the run until a maintainer applies `lore:implementation`.
 - `done` — the terminal exit node (a `retrospective`-equivalent; the floor itself uses `exit`).
 
@@ -73,22 +73,14 @@ One `.md` file per agent definition in `libs/shared/src/agent-defaults/`:
 
 - `triage-reproduce.md` — frontmatter: `model`, `timeout_minutes: 15`; body: clone the reproduction repository, run the provided steps, emit `LORE_NODE_RESULT: success` (reproduced), `LORE_NODE_RESULT: unable-to-reproduce`, `LORE_NODE_RESULT: needs-reproduction` (missing info), or `LORE_NODE_RESULT: skipped` (environment limits).
 - `triage-diagnose.md` — frontmatter: `timeout_minutes: 10`; body: instrument and trace root cause, emit `LORE_NODE_RESULT: success` or `LORE_NODE_RESULT: failed`.
-- `triage-verify.md` — frontmatter: `timeout_minutes: 10`; body: cross-reference diagnosis against specs and docs; reuse `feature-decompose` output contract for the large-issue path; emit `LORE_NODE_RESULT: success`, `LORE_NODE_RESULT: obsolete`, `LORE_NODE_RESULT: large-issue`, or `LORE_NODE_RESULT: not-actionable`.
+- `triage-verify.md` — frontmatter: `timeout_minutes: 10`; body: cross-reference diagnosis against specs and docs; emit `LORE_NODE_RESULT: success`, `LORE_NODE_RESULT: obsolete`, `LORE_NODE_RESULT: large-issue`, or `LORE_NODE_RESULT: not-actionable`.
+- `triage-decompose.md` — frontmatter: `timeout_minutes: 15`; body: read the issue body and the diagnosis, decompose the issue into smaller child issues, emit `feature-decompose`'s output JSON contract unchanged so the existing issue-filing station consumes it; emit `LORE_NODE_RESULT: success` or `LORE_NODE_RESULT: failed`.
 
 `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` fails CI for any agent definition with an empty prompt — the three recipes must be created before the YAML node can load.
 
 ### Custom node outcomes
 
 On the external floor, custom outcomes are declared in the `stations` block of the pipeline YAML (the `outcomes:` field under each station entry). The floor's own loader validates that every declared outcome has an edge and routes `on: <outcome>` edges by exact string match. No Lore-side changes are needed.
-
-### Task type registration
-
-Two files, in sequence:
-
-1. Add `"issue-triage"` to `TaskTypeSchema` in `libs/shared/src/domain/models/pipeline-task.ts`.
-2. Add an `"issue-triage"` entry to `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts` (tier: `implementation`).
-
-Dispatch is through the stations drain handler via `floorClient().lines.start` — no extra routing in Lore is needed. The pipeline name is added to the pinned list in `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`.
 
 ### Label creation and `triage_label` service station
 
@@ -127,8 +119,7 @@ Files touched:
 - `libs/shared/src/agent-defaults/triage-reproduce.md` — reproduce recipe
 - `libs/shared/src/agent-defaults/triage-diagnose.md` — diagnose recipe
 - `libs/shared/src/agent-defaults/triage-verify.md` — verify recipe
-- `libs/shared/src/domain/models/pipeline-task.ts` — `TaskTypeSchema`
-- `libs/shared/src/domain/pipeline-task-trust.ts` — `TRUST_LEVELS`
+- `libs/shared/src/agent-defaults/triage-decompose.md` — decompose recipe
 - `libs/shared/src/work/scheduler/cron-emitters.ts` — cron tick emitter for triage
 - `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts` — bundled-lines list
 - `apps/stations/src/events/repo-handlers.ts` — label dispatch + human-gate resume
