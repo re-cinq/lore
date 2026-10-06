@@ -26,4 +26,6 @@ stations:
     route: "{args.issue_url}"
     outcomes:
       - success
+    needs: []
+    produces: []
 agent_definitions: {}

@@ -4,6 +4,7 @@ import {
   productionSeedDeps,
   seedFloorPipelines,
   type SeedDeps,
+  type SeedFailure,
 } from "../work/floor/seed-floor-pipelines.js";
 
 export interface FloorSeeding {
@@ -26,13 +27,28 @@ export async function seedFloor(
   }
 
   try {
-    const changed = await seedFloorPipelines(seeding.deps());
+    const { changed, failed } = await seedFloorPipelines(seeding.deps());
 
     seeding.log(`floor pipelines put: ${changed.join(", ") || "none changed"}`);
+    reportRefusals(seeding, failed);
   } catch (err) {
     seeding.log(
       "floor pipeline put FAILED — the floor keeps what it holds:",
       err,
     );
   }
+}
+
+function reportRefusals(seeding: FloorSeeding, failed: SeedFailure[]): void {
+  if (failed.length === 0) {
+    return;
+  }
+
+  seeding.log(
+    `floor REFUSED, and keeps what it holds for: ${failed.map(described).join(", ")}`,
+  );
+}
+
+function described(failure: SeedFailure): string {
+  return `${failure.name} (${failure.reason})`;
 }
