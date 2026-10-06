@@ -6,22 +6,22 @@
 
 ## Done when these pass
 
-- [ ] **declare the lines … issue-triage …** — the shipped pipeline list includes `issue-triage`
+- [x] **declare the lines … issue-triage …** — the shipped pipeline list includes `issue-triage`
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
-- [ ] **declares issue-triage human-gate as a kind: human station with route '{args.issue_url}'** — the station named `human-gate` in the YAML's `stations` block has `kind: human` and `route: '{args.issue_url}'` (FR16)
+- [x] **declares issue-triage human-gate as a kind: human station with route '{args.issue_url}'** — the station named `human-gate` in the YAML's `stations` block has `kind: human` and `route: '{args.issue_url}'` (FR16)
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
-- [ ] **routes issue-triage human-gate's success edge to done** — the `success` edge from the `human-gate` node leads to the `done` exit node (FR8)
+- [x] **routes issue-triage human-gate's success edge to done** — the `success` edge from the `human-gate` node leads to the `done` exit node (FR8)
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
 ## Facets
 
-- [ ] Create `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` with the three-block floor format (`line`, `stations`, `agent_definitions`)
-- [ ] Add a `human-gate` entry to the `stations` block with `kind: human` and `route: '{args.issue_url}'`
-- [ ] Add a `human-gate` node to `line.nodes` wired from `verify`'s `success` output
-- [ ] Add edge: `human-gate` on `success` → `done`
-- [ ] Update `floor-pipelines.test.ts` pinned-list test to include `issue-triage` (that test will break when the YAML is added)
+- [x] Create `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` with the three-block floor format (`line`, `stations`, `agent_definitions`)
+- [x] Add a `human-gate` entry to the `stations` block with `kind: human` and `route: '{args.issue_url}'`
+- [x] Add a `human-gate` node to `line.nodes` wired from `verify`'s `success` output
+- [x] Add edge: `human-gate` on `success` → `done`
+- [x] Update `floor-pipelines.test.ts` pinned-list test to include `issue-triage` (that test will break when the YAML is added)
 
 ## Out of scope
 
