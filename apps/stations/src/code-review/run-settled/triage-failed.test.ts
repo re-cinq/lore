@@ -1,4 +1,3 @@
-// spec: specs/issue-triage/spec.md#FR18
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
 import type { RunView } from "@re-cinq/floor-client";
@@ -13,24 +12,6 @@ const TOOLS: Tools = {
 
 const ISSUE_NUMBER = 42;
 const ISSUE_URL = `https://github.com/re-cinq/lore/issues/${ISSUE_NUMBER}`;
-
-function triageRun(outcome: string): RunView {
-  return {
-    id: "run-triage-1",
-    lineId: "issue-triage",
-    lineHash: "hash",
-    repo: "github.com/re-cinq/lore",
-    subjectKey: `issue_url:${ISSUE_URL}`,
-    startItems: {
-      issue_url: { kind: "value", ref: ISSUE_URL, by: "lore" },
-      issue_number: { kind: "value", ref: String(ISSUE_NUMBER), by: "lore" },
-    },
-    createdAt: "2026-10-01T09:00:00.000Z",
-    outcome,
-    reason: "pod crashed",
-    finishedAt: "2026-10-01T10:00:00.000Z",
-  };
-}
 
 function scene(outcome: string) {
   const applied: Array<{ repo: string; issue: number; label: string }> = [];
@@ -60,6 +41,24 @@ function scene(outcome: string) {
         TOOLS,
       ),
     applied,
+  };
+}
+
+function triageRun(outcome: string): RunView {
+  return {
+    id: "run-triage-1",
+    lineId: "issue-triage",
+    lineHash: "hash",
+    repo: "github.com/re-cinq/lore",
+    subjectKey: `issue_url:${ISSUE_URL}`,
+    startItems: {
+      issue_url: { kind: "value", ref: ISSUE_URL, by: "lore" },
+      issue_number: { kind: "value", ref: String(ISSUE_NUMBER), by: "lore" },
+    },
+    createdAt: "2026-10-01T09:00:00.000Z",
+    outcome,
+    reason: "pod crashed",
+    finishedAt: "2026-10-01T10:00:00.000Z",
   };
 }
 
