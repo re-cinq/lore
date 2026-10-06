@@ -32,6 +32,7 @@ export interface RunLiveShellProps {
   nodeModels?: Record<string, NodeModel>;
   /** The issue the run works on, read server-side; null when the run names none or GitHub could not answer. */
   issue?: Issue | null;
+  upgradeAvailable?: boolean;
 }
 
 export default function RunLiveShell(props: RunLiveShellProps) {
@@ -45,7 +46,10 @@ export default function RunLiveShell(props: RunLiveShellProps) {
       <RunHeader run={run} definition={props.definition} nodes={live.nodes} />
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
-      <AssemblyRunOptions run={run} />
+      <AssemblyRunOptions
+        run={run}
+        upgradeAvailable={props.upgradeAvailable ?? false}
+      />
       <LiveSections
         props={props}
         run={run}

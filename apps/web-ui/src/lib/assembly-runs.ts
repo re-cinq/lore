@@ -123,6 +123,15 @@ export async function fetchAssemblyRunNodes(
   return nodes.map(toAssemblyRunNode);
 }
 
+export async function hasAssemblyRunUpgrade(id: string): Promise<boolean> {
+  const result = await apiFetch<{ available: boolean }>(
+    "lore-api",
+    `/api/assembly-runs/${encodeURIComponent(id)}/upgrade`,
+  );
+
+  return result.status === "ok" && result.data.available;
+}
+
 /** A line's usage so far, or null on no-usage-yet/any error (a pre-0037 DB included) — reads `pipeline.agent_run_turns`, not `llm_calls`, since turns arrive mid-stream while a cost row lands only when the run ends; summed SQL-side (migration 0037 grants `lore_ui` SELECT). */
 export async function fetchRunTokens(
   assemblyLineId: string | null | undefined,
