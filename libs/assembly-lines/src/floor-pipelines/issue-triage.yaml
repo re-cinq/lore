@@ -38,9 +38,6 @@ line:
       on: failed
       iteration_max: 3
     - from: triage-label
-      to: verify
-      on: success
-    - from: triage-label
       to: done
       on: failed
     - from: verify
@@ -59,6 +56,7 @@ stations:
     needs:
       - name: issue_url
         kind: value
+    produces: []
   triage-label:
     kind: service
     outcomes:
@@ -76,6 +74,7 @@ stations:
     needs:
       - name: issue_url
         kind: value
+    produces: []
   human-gate:
     kind: human
     route: "{args.issue_url}"
