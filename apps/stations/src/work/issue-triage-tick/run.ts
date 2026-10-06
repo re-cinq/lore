@@ -18,7 +18,10 @@ const NEEDS_TRIAGE_LABEL = "triage: needs-triage";
 export async function runIssueTriageTick(
   params: Readonly<Record<string, unknown>>,
 ): Promise<string> {
-  if (!floorConfigured()) return NO_FLOOR;
+  if (!floorConfigured()) {
+    return NO_FLOOR;
+  }
+
   return issueTriageTick(params, {
     repos: async () =>
       (await settings().onboardedRepos()).map((r) => r.full_name),
@@ -37,6 +40,7 @@ async function fetchNeedsTriageIssues(
     state: "open",
     labels: [NEEDS_TRIAGE_LABEL],
   });
+
   return issues
     .filter((i) => i.url !== undefined)
     .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
@@ -49,5 +53,6 @@ async function countRunning(repo: string): Promise<number> {
     line: "issue-triage",
     open: true,
   });
+
   return activeRuns.length;
 }

@@ -29,6 +29,7 @@ function scene(opts: {
         starting: { repo: string; startItems: Record<string, unknown> },
       ) => {
         started.push({ line, ...starting });
+
         return Promise.resolve({
           run: { id: `run-${started.length}` },
           joined: false,

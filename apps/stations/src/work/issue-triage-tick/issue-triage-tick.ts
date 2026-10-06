@@ -52,9 +52,11 @@ async function startForRepo(
   ]);
   const slots = Math.max(0, deps.cap - running);
   const qualifying = issues.slice(0, slots);
+
   for (const issue of qualifying) {
     await deps.floor.start(ISSUE_TRIAGE_LINE, triageStartArgs(repo, issue));
   }
+
   return qualifying.length;
 }
 
