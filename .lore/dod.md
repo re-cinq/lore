@@ -21,6 +21,8 @@
 - [x] Add five edges from `reproduce` to `triage-label`: on success, unable-to-reproduce, needs-reproduction, skipped, and failed (iteration_max: 3)
 - [x] All three tests green — fixed test at L157 to use `body["agentDefinition"]` (camelCase) matching `pipelineOf`'s rename of `agent_definition`
 
+- [x] Add `triage-reproduce` to `agent_definitions` in `issue-triage.yaml` so `floor-pipelines.test.ts` can resolve its settings (L1340 `promptOnOneLine` calls `settingsOf`, which fails if the name is absent from all pipeline `agent_definitions`); create `libs/shared/src/agent-defaults/triage-reproduce.md` with the prompt body
+
 ## Out of scope
 
 - Adding the `triage-label` node's own edges or logic (T009 and subsequent tasks)
