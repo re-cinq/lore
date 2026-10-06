@@ -229,6 +229,7 @@ describe("/api/plans on lore-api", () => {
       `/api/repos/${REPO}/plans/${planId}/refine`,
       TOKEN,
       {
+        actor: "ana",
         slot: "intent",
         title: "Intent",
         baseHash: "3f9a",
