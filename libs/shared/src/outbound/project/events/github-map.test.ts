@@ -21,7 +21,7 @@ describe("mapGitHubEvent — pull_request", () => {
     ]);
   });
 
-  it("maps closed+merged to github.pull_request.closed carrying merged/branch/sha/labels", () => {
+  it("maps closed+merged to github.pull_request.closed carrying merged/branch/base_ref/sha/labels", () => {
     const payload = {
       ...REPO,
       action: "closed",
@@ -29,6 +29,7 @@ describe("mapGitHubEvent — pull_request", () => {
         number: 9,
         merged: true,
         head: { ref: "lore/feature-request/auth-abcd1234" },
+        base: { ref: "main" },
         merge_commit_sha: "sha9",
         labels: [{ name: "spec" }],
       },
@@ -43,6 +44,7 @@ describe("mapGitHubEvent — pull_request", () => {
           pr_number: 9,
           merged: true,
           branch: "lore/feature-request/auth-abcd1234",
+          base_ref: "main",
           merge_commit_sha: "sha9",
           labels: ["spec"],
         },
@@ -72,6 +74,7 @@ describe("mapGitHubEvent — pull_request", () => {
           pr_number: 9,
           merged: false,
           branch: "feature/x",
+          base_ref: "",
           merge_commit_sha: null,
           labels: [],
         },
@@ -104,6 +107,7 @@ describe("mapGitHubEvent — review and comments", () => {
             id: 900,
             state: "changes_requested",
             user: { login: "alice" },
+            author_association: "MEMBER",
             body: "please guard the null case",
           },
         },
@@ -119,6 +123,7 @@ describe("mapGitHubEvent — review and comments", () => {
           review_id: 900,
           review_state: "changes_requested",
           review_author: "alice",
+          review_author_association: "MEMBER",
           review_body: "please guard the null case",
         },
         dedupeKey: "github:d5",
@@ -143,6 +148,7 @@ describe("mapGitHubEvent — review and comments", () => {
           review_id: null,
           review_state: "",
           review_author: "",
+          review_author_association: "",
           review_body: "",
         },
         dedupeKey: "github:d5",
@@ -150,12 +156,17 @@ describe("mapGitHubEvent — review and comments", () => {
     ]);
   });
 
-  it("maps a PR issue_comment.created carrying the comment author/id/body", () => {
+  it("maps a PR issue_comment.created carrying the comment author, its MEMBER standing, id and body", () => {
     const payload = {
       ...REPO,
       action: "created",
       issue: { number: 5, pull_request: {} },
-      comment: { id: 111, body: "please fix", user: { login: "alice" } },
+      comment: {
+        id: 111,
+        body: "please fix",
+        user: { login: "alice" },
+        author_association: "MEMBER",
+      },
     };
 
     expect(mapGitHubEvent("issue_comment", payload, "d6")).toEqual([
@@ -167,6 +178,7 @@ describe("mapGitHubEvent — review and comments", () => {
           pr_number: 5,
           comment_id: 111,
           comment_author: "alice",
+          comment_author_association: "MEMBER",
           comment_body: "please fix",
         },
         dedupeKey: "github:d6",
@@ -184,12 +196,17 @@ describe("mapGitHubEvent — review and comments", () => {
     ).toEqual([]);
   });
 
-  it("maps a created pull_request_review_comment carrying the comment author/id/body", () => {
+  it("maps a created pull_request_review_comment carrying the comment author, its NONE standing, id and body", () => {
     const payload = {
       ...REPO,
       action: "created",
       pull_request: { number: 8 },
-      comment: { id: 222, body: "why here?", user: { login: "bob" } },
+      comment: {
+        id: 222,
+        body: "why here?",
+        user: { login: "bob" },
+        author_association: "NONE",
+      },
     };
 
     expect(
@@ -203,6 +220,7 @@ describe("mapGitHubEvent — review and comments", () => {
           pr_number: 8,
           comment_id: 222,
           comment_author: "bob",
+          comment_author_association: "NONE",
           comment_body: "why here?",
           in_reply_to_id: null,
         },
@@ -235,6 +253,7 @@ describe("mapGitHubEvent — review and comments", () => {
           pr_number: 8,
           comment_id: 223,
           comment_author: "bob",
+          comment_author_association: "",
           comment_body: "ok, fix it",
           in_reply_to_id: 222,
         },
@@ -253,41 +272,6 @@ describe("mapGitHubEvent — review and comments", () => {
           pull_request: { number: 8 },
           comment: { id: 222 },
         },
-        "d9",
-      ),
-    ).toEqual([]);
-  });
-});
-
-describe("mapGitHubEvent — check fan-out", () => {
-  it("fans out check_suite.completed to one event per backing PR with per-PR dedupe keys", () => {
-    const payload = {
-      ...REPO,
-      action: "completed",
-      check_suite: { pull_requests: [{ number: 1 }, { number: 2 }] },
-    };
-
-    expect(mapGitHubEvent("check_suite", payload, "d8")).toEqual([
-      {
-        eventName: "github.check_suite.completed",
-        source: "github",
-        params: { repo: "re-cinq/lore", pr_number: 1 },
-        dedupeKey: "github:d8:1",
-      },
-      {
-        eventName: "github.check_suite.completed",
-        source: "github",
-        params: { repo: "re-cinq/lore", pr_number: 2 },
-        dedupeKey: "github:d8:2",
-      },
-    ]);
-  });
-
-  it("returns nothing for a check with no backing PRs", () => {
-    expect(
-      mapGitHubEvent(
-        "check_run",
-        { ...REPO, action: "completed", check_run: { pull_requests: [] } },
         "d9",
       ),
     ).toEqual([]);

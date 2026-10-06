@@ -26,8 +26,7 @@ import {
 } from "./run-visualization-hooks";
 import { RunFilesSection } from "./RunFilesSection";
 import { NodeInspectorPanel } from "./NodeInspectorPanel";
-import { transcriptFeed } from "./run-visualization-selectors";
-import { runStateOf } from "./RunStationButton";
+import { inspectorProps } from "./run-inspector-props";
 import { RunGraphSection } from "./RunGraphSection";
 import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
 
@@ -38,6 +37,8 @@ export interface RunVisualizationPanelProps {
   nodes: readonly AssemblyRunNode[];
   repo: string;
   reason: string | null;
+  /** How the run ended, for the chip; null while it runs. Optional so a page that predates it reads as still unknown. */
+  runOutcome?: string | null;
   // nodeId → agents-editor href for each agent node the catalog holds; resolved server-side, the panel only renders what it is handed.
   agentEditHrefs?: Record<string, string>;
   /** nodeId → the model an agent node runs on, resolved server-side against the catalog. */
@@ -48,6 +49,8 @@ export interface RunVisualizationPanelProps {
   onFrame?: (frame: RunStreamFrame) => void;
   /** The run's pull request, which the per-file diff drawer reads; null when the run opened none. */
   prNumber?: number | null;
+  /** Which engine walks the run; a node of a run on the external floor can be run again from here. */
+  engine?: string;
 }
 
 export default function RunVisualizationPanel(
@@ -58,12 +61,21 @@ export default function RunVisualizationPanel(
   return (
     <section className={styles.panel}>
       <RunWorkbenchLayout
-        graph={<RunGraph view={view} definition={props.definition} />}
+        graph={<RunGraph view={view} {...graphProps(props)} />}
         inspector={<NodeInspectorPanel {...inspectorProps(view, props)} />}
         below={<RunFilesSection {...filesProps(view, props)} />}
       />
     </section>
   );
+}
+
+/** The run facts the graph section shows beside the view: the definition, how the run ended, and why it is where it is. */
+function graphProps(props: RunVisualizationPanelProps) {
+  return {
+    definition: props.definition,
+    runOutcome: props.runOutcome ?? null,
+    reason: props.reason,
+  };
 }
 
 type RunVisualizationInput = Pick<
@@ -97,12 +109,16 @@ type RunView = ReturnType<typeof useRunVisualization>;
 interface RunGraphProps {
   view: RunView;
   definition: RunVisualizationPanelProps["definition"];
+  runOutcome: string | null;
+  reason: string | null;
 }
 
-function RunGraph({ view, definition }: RunGraphProps) {
+function RunGraph({ view, definition, runOutcome, reason }: RunGraphProps) {
   return (
     <RunGraphSection
       chipState={view.chipState}
+      runOutcome={runOutcome}
+      reason={reason}
       graph={view.graph.visibleGraph}
       definition={definition}
       onSelectNode={view.setSelectedNodeId}
@@ -113,41 +129,6 @@ function RunGraph({ view, definition }: RunGraphProps) {
       onToggleOutcomes={() => view.setShowOutcomes((shown) => !shown)}
     />
   );
-}
-
-/** Takes the run's own props as `page` rather than threading eight arguments: none of them is derived from the run, they are what the route already knew. */
-type RunDetailPage = Pick<
-  RunVisualizationPanelProps,
-  | "runId"
-  | "runStatus"
-  | "repo"
-  | "reason"
-  | "definition"
-  | "agentEditHrefs"
-  | "nodeModels"
-  | "taskEvents"
->;
-
-/** The inspector's plain values — the page's own facts and the view's derivations, flattened into one bundle because the panel reads them as a flat prop list. */
-function inspectorProps(view: RunView, page: RunDetailPage) {
-  return {
-    selectedNodeId: view.selectedNodeId,
-    runId: page.runId,
-    repo: page.repo,
-    reason: page.reason,
-    definition: page.definition,
-    latestRows: view.graph.latestRows,
-    selectedRows: view.node.selectedRows,
-    selectedAttempts: view.node.selectedAttempts,
-    nodeInputs: view.node.nodeInputs,
-    retrySource: view.graph.retrySource,
-    runState: runStateOf(page.runStatus),
-    agentEditHrefs: page.agentEditHrefs,
-    nodeModels: page.nodeModels,
-    ...transcriptFeed(view.state, page.taskEvents),
-    selectedState: view.node.selected,
-    visibleNodeCount: visibleNodeCount(view),
-  };
 }
 
 /** The files strip's plain values: the touches the reducer folded and the run the drawer reads diffs for. */
@@ -316,12 +297,6 @@ function useNodeMeta(
       [...ids].map((id) => [id, metaLineFor(id, sources)]),
     );
   }, [state, latestRows, nodeModels, now]);
-}
-
-function visibleNodeCount(view: RunView): number {
-  const { visibleGraph } = view.graph;
-
-  return visibleGraph.nodes.length;
 }
 
 function reducePanel(state: RunLiveState, action: PanelAction): RunLiveState {

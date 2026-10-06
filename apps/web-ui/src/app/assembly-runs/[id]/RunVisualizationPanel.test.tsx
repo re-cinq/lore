@@ -10,6 +10,8 @@ import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
 vi.mock("./live-actions", () => ({
   openRunChannelAction: async () => ({ token: "tok" }),
 }));
@@ -775,7 +777,7 @@ describe("a node's input opens its transcript", () => {
   });
 });
 
-describe("retry from node", () => {
+describe("Run this station", () => {
   function retryRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
     return {
       nodeId: "implement",
@@ -788,15 +790,26 @@ describe("retry from node", () => {
     };
   }
 
-  function renderRun(runStatus: string, nodes: AssemblyRunNode[]) {
+  const floorDefinition: AssemblyLineDefinition = {
+    ...definition,
+    fail: "gave-up",
+    nodes: [...definition.nodes, { id: "gave-up", type: "retrospective" }],
+  };
+
+  function renderRun(
+    runStatus: string,
+    nodes: AssemblyRunNode[],
+    engine?: string,
+  ) {
     return render(
       <RunVisualizationPanel
         runId="run-1"
         runStatus={runStatus}
-        definition={definition}
+        definition={floorDefinition}
         nodes={nodes}
         repo="re-cinq/lore"
         reason={null}
+        engine={engine}
       />,
     );
   }
@@ -809,122 +822,52 @@ describe("retry from node", () => {
     });
   }
 
-  it("offers Run this station on a node the run never visited, while the run is still live", async () => {
-    stubHistory([]);
-
-    useFakeSocket();
-    renderRun("running", [retryRow({ nodeId: "implement", outcome: null })]);
-
-    await settle();
-    await select("validate");
-
-    expect({
-      run: screen.getByRole("button", { name: "Run this station" }) !== null,
-      retry: screen.queryByRole("button", { name: "Retry from this node" }),
-    }).toEqual({ run: true, retry: null });
-  });
-
-  it("offers retry in the node card's header on a finished run, posting the implement fork source", async () => {
-    const fetchMock = stubHistory([]); // eslint-disable-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
-
-    useFakeSocket();
-
-    const { container } = renderRun("finished", [
-      retryRow({ nodeId: "implement" }),
-      retryRow({ nodeId: "validate", outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("validate");
-
-    const button = screen.getByRole("button", {
-      name: "Retry from this node",
-    });
-
-    expect(button.closest("summary")).toBe(
-      container.querySelector("section summary"),
-    );
-
-    await act(async () => {
-      fireEvent.click(button);
-    });
-
-    const rerunCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === "/api/assembly-runs/rerun",
-    );
-    const body = rerunCall?.[1]?.body as URLSearchParams;
-
-    expect(rerunCall?.[1]).toMatchObject({ method: "POST" });
-    expect(Object.fromEntries(body)).toEqual({
-      run_id: "run-1",
-      node_id: "implement",
-      iteration: "1",
-    });
-  });
-
-  it("offers retry on a looping run's validate node, posting implement@2 as the fork source", async () => {
-    const fetchMock = stubHistory([]);
-
-    useFakeSocket();
-
-    renderRun("failed", [
-      retryRow({ nodeId: "implement", iteration: 1 }),
-      retryRow({ nodeId: "validate", iteration: 1, outcome: "failed" }),
-      retryRow({ nodeId: "implement", iteration: 2 }),
-      retryRow({ nodeId: "validate", iteration: 2, outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("validate");
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Retry from this node" }),
-      );
-    });
-
-    const rerunCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === "/api/assembly-runs/rerun",
-    );
-
-    expect(Object.fromEntries(rerunCall?.[1]?.body as URLSearchParams)).toEqual(
-      {
-        run_id: "run-1",
-        node_id: "implement",
-        iteration: "2",
-      },
-    );
-  });
-
-  it("offers no retry while the run is still running", async () => {
-    stubHistory([]);
-    useFakeSocket();
-
-    renderRun("running", [
-      retryRow({ nodeId: "implement" }),
-      retryRow({ nodeId: "validate", outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("validate");
-
-    expect(
-      screen.queryByRole("button", { name: "Retry from this node" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("offers no retry on the entry node — there is no prefix to fork from", async () => {
+  it("offers neither retry nor Run this station on a node of a finished run Lore's own engine walked", async () => {
     stubHistory([]);
     useFakeSocket();
 
     renderRun("finished", [
-      retryRow({ nodeId: "implement", outcome: "failed" }),
+      retryRow({ nodeId: "implement" }),
+      retryRow({ nodeId: "validate", outcome: "failed" }),
     ]);
 
     await settle();
     await select("implement");
 
+    expect({
+      retry: screen.queryByRole("button", { name: "Retry from this node" }),
+      run: screen.queryByRole("button", { name: "Run this station" }),
+    }).toEqual({ retry: null, run: null });
+  });
+
+  it("offers Run this station on implement, a node of a finished floor run", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderRun("finished", [retryRow({ nodeId: "implement" })], "floor");
+
+    await settle();
+    await select("implement");
+
     expect(
-      screen.queryByRole("button", { name: "Retry from this node" }),
+      screen.getByRole("button", { name: "Run this station" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["validate", "the exit"],
+    ["gave-up", "the fail node"],
+  ])("offers no Run this station on %s, %s of a floor run", async (nodeId) => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderRun("finished", [retryRow({ nodeId })], "floor");
+
+    await settle();
+    await select(nodeId);
+
+    expect(
+      screen.queryByRole("button", { name: "Run this station" }),
     ).not.toBeInTheDocument();
   });
 });
@@ -1031,5 +974,67 @@ describe("file diff drawer", () => {
     });
 
     expect(screen.getByText("Diff · src/a.ts")).toBeInTheDocument();
+  });
+});
+
+describe("a run that ended", () => {
+  function renderEnded(
+    runStatus: string,
+    runOutcome: string | null,
+    reason: string | null,
+  ) {
+    return render(
+      <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+        <RunVisualizationPanel
+          runId="run-1"
+          runStatus={runStatus}
+          runOutcome={runOutcome}
+          definition={definition}
+          nodes={[]}
+          repo="re-cinq/lore"
+          reason={reason}
+        />
+      </LiveSocketProvider>,
+    );
+  }
+
+  it("labels the chip Cancelled for a finished run whose outcome is cancelled", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderEnded("finished", "cancelled", null);
+    await settle();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Cancelled");
+    expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  });
+
+  it("labels the chip Failed for a failed run", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderEnded("failed", "failed", null);
+    await settle();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Failed");
+  });
+
+  it("says no step ran and quotes the reason for a run with a graph and no node rows, offering no outcomes toggle", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderEnded(
+      "finished",
+      "cancelled",
+      "merged back into run 01750e85 (Run this station now runs in the same run)",
+    );
+    await settle();
+
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "No step ran in this run. merged back into run 01750e85 (Run this station now runs in the same run)",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Show possible outcomes" }),
+    ).not.toBeInTheDocument();
   });
 });

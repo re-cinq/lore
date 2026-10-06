@@ -94,14 +94,6 @@ export type {
 export type { PipelineRepositories } from "./pipeline/pipeline-repositories.js";
 
 export type {
-  NotifyPort,
-  NotifyLevel,
-  NotifyResult,
-} from "./notify/notify-port.js";
-export { Notify } from "./notify/notify.js";
-export { decideNotify, type NotifySettings } from "./notify/notify-decision.js";
-
-export type {
   KnowledgePort,
   AssembledContext,
   DocRef,
@@ -118,13 +110,6 @@ export type {
 } from "./test-runner/test-runner-port.js";
 export { TestSuite } from "./test-runner/test-suite.js";
 
-export type {
-  AgentRunnerPort,
-  AgentMode,
-  AgentRunResult,
-  AgentRunOpts,
-} from "./agents/agent-runner-port.js";
-export { Agents } from "./agents/agents.js";
 export { AgentDefs } from "./agents/agent-defs.js";
 export type {
   AgentDefinition,
@@ -132,23 +117,6 @@ export type {
   AgentDefsPort,
 } from "./agents/agent-defs-port.js";
 export { resolveAgentConfig, KNOWN_MODELS } from "./agents/agent-defs-port.js";
-export type { LlmPort, LlmCompletion } from "./agents/llm-port.js";
-export type { K8sPort, LoreTaskSpec } from "./agents/k8s-port.js";
-export type {
-  StationBackend,
-  StationLaunchResult,
-  StationCompletion,
-  StationBackendKind,
-} from "./agents/station-port.js";
-export {
-  selectStationBackend,
-  defaultStationName,
-} from "./agents/station-port.js";
-export type {
-  StationCredentials,
-  StationLlmCredential,
-  StationMount,
-} from "./agents/station-credentials.js";
 export type { ProjectProviders } from "./lib/providers.js";
 
 export type { GitPort, CloneOpts } from "./workspace/git-port.js";

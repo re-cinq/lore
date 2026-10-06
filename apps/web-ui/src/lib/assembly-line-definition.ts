@@ -1,16 +1,13 @@
-// Hand mirror of libs/assembly-lines/src/loader.ts's definition types — web-ui can't import libs/, so scripts/type-drift/assembly-line-definition.drift.ts guards it. Structural, not debt (#1419): the Floor serves no OpenAPI document here.
+// The shape of a line as the run page draws it: the graph a run stored when it started, or a floor run's line mapped onto it. It mirrored the old engine's loader types until that loader was deleted (2026-10-02); the node types below are the ones stored runs carry.
 export type DefinitionNodeType =
   | "agent"
   | "validate"
   | "retrospective"
   | "detect"
-  | "comment-triage"
   | "ingest"
   | "issues"
   // One step of the merge line, parameterised by job_ref.
   | "merge_step"
-  // One step of the escalation line, parameterised the same way.
-  | "escalation_step"
   // Stations whose worker is a PERSON — the type names the form contract, `route` the page it lives on (FR6.40).
   | "feature_review"
   | "pr_review"
@@ -53,6 +50,8 @@ export interface AssemblyLineDefinition {
   version: 1;
   entry: string;
   exit: string;
+  /** The node that ends the run as failed on purpose; absent when the line has none. */
+  fail?: string;
   nodes: DefinitionNode[];
   edges: DefinitionEdge[];
 }

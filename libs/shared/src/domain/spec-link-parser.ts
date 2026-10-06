@@ -46,11 +46,12 @@ export function linksForStatements(
   }));
 }
 
-/** Keeps only source-code links — excludes test files and prose docs (so ADR/docs `.md` refs don't become IMPLEMENTED_BY links). */
+/** Keeps only source-code links in the repo — excludes test files, prose docs (so ADR/docs `.md` refs don't become IMPLEMENTED_BY links) and URLs such as a plan block's. */
 export function parseCodeLinksInStatement(statement: string): CodeLinkRef[] {
   return parseLinksInStatement(
     statement,
-    (path) => !isTestFile(path) && !isDocFile(path),
+    (path) =>
+      !isTestFile(path) && !isDocFile(path) && !NON_REPO_PATH_RE.test(path),
   );
 }
 
@@ -77,33 +78,86 @@ export function findMisplacedCoverageLinks(statement: string): SpecLinkRef[] {
   return refs;
 }
 
+/** A test link as a whole-document check needs it: resolved to a repo path, with the line of the statement that carries it. */
+export interface DocTestLink extends SpecLinkRef {
+  /** 1-based line of the statement in the doc, or null when the segmenter did not record one. */
+  statementLine: number | null;
+  /** A link outside its statement's trailing parenthetical: valid markdown, but attached to no statement. */
+  misplaced: boolean;
+}
+
+/** Every test link a spec or ADR carries that can be checked against a checkout: URLs and the placeholder paths prose uses to show the convention are left out. */
+export function testLinksOfDoc(
+  docPath: string,
+  content: string,
+): DocTestLink[] {
+  return segmentStatements(content).flatMap((statement) =>
+    placedTestLinks(statement.text)
+      .filter((link) => !NON_REPO_PATH_RE.test(link.path))
+      .map((link) => ({
+        ...link,
+        path: resolveLinkPath(link.path, docPath),
+        statementLine: statement.line ?? null,
+      })),
+  );
+}
+
+/** A statement's test links, each saying whether it sits in the trailing parenthetical or before it. */
+function placedTestLinks(
+  statement: string,
+): Array<SpecLinkRef & { misplaced: boolean }> {
+  return [
+    ...parseTestLinksInStatement(statement).map((link) => ({
+      ...link,
+      misplaced: false,
+    })),
+    ...findMisplacedCoverageLinks(statement).map((link) => ({
+      ...link,
+      misplaced: true,
+    })),
+  ];
+}
+
 /** Keeps only links whose path is a test file (VALIDATED_BY edges). */
 export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
   return parseLinksInStatement(statement, isTestFile);
+}
+
+/** Every href in the statement's trailing link group, as written — a plan block's `#<id>` included, which the `#Lnn` line-anchor read would cut. */
+export function trailingLinkHrefs(statement: string): string[] {
+  return trailingLinkMatches(statement).map((match) => match[2].trim());
+}
+
+/** The statement as a reader quotes it: its trailing link group, when it has one, cut off. */
+export function withoutTrailingLinkGroup(statement: string): string {
+  const span = findTrailingParenSpan(statement);
+
+  return span && trailingLinkMatches(statement).length > 0
+    ? statement.slice(0, span.open).trimEnd()
+    : statement;
 }
 
 function parseLinksInStatement(
   statement: string,
   keepPath: (path: string) => boolean,
 ): SpecLinkRef[] {
+  return trailingLinkMatches(statement)
+    .map(linkRefFromMatch)
+    .filter((ref) => keepPath(ref.path));
+}
+
+function trailingLinkMatches(statement: string): RegExpMatchArray[] {
   const span = findTrailingParenSpan(statement);
 
   if (span === null) {
     return [];
   }
-  const inner = statement.slice(span.innerStart, span.innerEnd);
 
-  const refs: SpecLinkRef[] = [];
-
-  for (const match of inner.matchAll(LINK_INSIDE_PAREN_RE)) {
-    const ref = linkRefFromMatch(match);
-
-    if (keepPath(ref.path)) {
-      refs.push(ref);
-    }
-  }
-
-  return refs;
+  return [
+    ...statement
+      .slice(span.innerStart, span.innerEnd)
+      .matchAll(LINK_INSIDE_PAREN_RE),
+  ];
 }
 
 function findTrailingParenSpan(

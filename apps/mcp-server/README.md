@@ -37,7 +37,7 @@ recipe's `resources.mcp_servers` entry (ADR-030/031/032). It proxies to
 | `LORE_MCP_HTTP=1` | Serve over HTTP instead of stdio. |
 | `LORE_MCP_PORT` | Listen port (default `8080`). |
 | `LORE_MCP_AUTH_TOKEN` | Require `Authorization: Bearer <token>` on every request. Unset ⇒ auth off (local dev only). |
-| `LORE_MCP_SERVER_MODE=agent` | Omit the laptop-only tools **and** `lore_create_pipeline_task` — context / memory / search / graph only. |
+| `LORE_MCP_SERVER_MODE=agent` | Omit the laptop-only tools — context / memory / search / graph only. |
 | `LORE_API_URL` | The `lore-api` base the gateway proxies to. |
 
 **Endpoints:** `POST /mcp` (send `initialize` first; subsequent tool calls carry

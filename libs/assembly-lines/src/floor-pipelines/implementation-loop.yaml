@@ -1,0 +1,481 @@
+# One backlog ticket per run (specs/implementation-loop FR3, specs/external-floor
+# FR12): acceptance tests first, then one red-green-refactor round per visit,
+# each judged by the pull request's own CI, behind a draft pull request, and a
+# wait until it is green with no unresolved review threads. It never merges.
+#
+# The two waits are human stations nobody answers by hand: Lore's
+# pr-ready-check sweep reads the pull request and reports to the parked visit.
+# A red verdict rides along as the round brief, a file the next agent reads.
+#
+# One backlog ticket per repository at a time: the run is keyed on `backlog`, a
+# value that is the same for every backlog ticket of a repository. A plan's
+# task is keyed on itself instead (`spec-task-<task id>`), so the tasks of a
+# plan run side by side and beside the backlog's ticket (FR15).
+line:
+  id: implementation-loop
+  entry: dod
+  exit: done
+  args:
+    repo:
+      kind: git
+    backlog:
+      kind: value
+      subject: true
+    task_id:
+      kind: value
+    ticket:
+      kind: file
+  nodes:
+    - id: dod
+      station: loop-dod
+      bind:
+        target: repo
+    - id: open-pr
+      station: loop-open-pr
+      bind:
+        target: repo
+    - id: tdd-round
+      station: loop-tdd-round
+      bind:
+        target: repo
+    # The round is judged by the pull request's build, not by the pod that
+    # wrote it: a park costs nothing while it waits.
+    - id: await-ci
+      station: loop-await-ci
+      route: "{args.pr_url}"
+    - id: repair-build
+      station: loop-repair-build
+      bind:
+        target: repo
+    - id: ready-for-review
+      station: loop-ready-for-review
+      bind:
+        target: repo
+    - id: mark-ready
+      station: loop-mark-ready
+    - id: await-pr
+      station: loop-await-pr
+      route: "{args.pr_url}"
+    - id: fix-ci
+      station: loop-fix-ci
+      bind:
+        target: repo
+    - id: done
+  edges:
+    - from: dod
+      to: open-pr
+      on: success
+    - from: dod
+      to: dod
+      on: failed
+      iteration_max: 1
+    # "This ticket cannot be expressed as acceptance tests", or "it is already
+    # resolved": a scoping verdict, not a failure. A retry cannot make an
+    # unclear ticket clear, so the run ends and Lore reads `dod_blocked` or
+    # `dod_resolved` off the visit to say so on the ticket.
+    # The run itself settles as success, as the Postgres-walked line settles it
+    # `completed`: the floor has no failing exit yet (re-cinq/floor#20), and
+    # these edges move to it when it has one.
+    - from: dod
+      to: done
+      on: changes_requested
+    - from: open-pr
+      to: tdd-round
+      on: success
+    - from: open-pr
+      to: open-pr
+      on: failed
+      iteration_max: 1
+    # Both outcomes mean the round pushed, and CI decides what that push was
+    # worth.
+    - from: tdd-round
+      to: await-ci
+      on: success
+    - from: tdd-round
+      to: await-ci
+      on: changes_requested
+    # Stuck, or the pod died. One more try, then the run settles as
+    # iteration_max rather than reaching the exit as a success.
+    - from: tdd-round
+      to: tdd-round
+      on: failed
+      iteration_max: 1
+    - from: await-ci
+      to: ready-for-review
+      on: success
+    # The round budget. Twelve rounds on one ticket means it was mis-sized,
+    # so the budget failing IS the diagnosis.
+    - from: await-ci
+      to: tdd-round
+      on: changes_requested
+      iteration_max: 12
+    # A build that stayed red, or a branch that stayed conflicted, across a
+    # round which pushed nothing. Another round would re-derive the same
+    # verdict; repair-build is handed the failing checks and fixes only those.
+    - from: await-ci
+      to: repair-build
+      on: failed
+      iteration_max: 2
+    # Whatever the repair says of itself, the build is the judge: a repair
+    # that moved nothing comes back as `failed` on the same sha until the
+    # budget above is spent.
+    - from: repair-build
+      to: await-ci
+      on: success
+    - from: repair-build
+      to: await-ci
+      on: changes_requested
+    - from: repair-build
+      to: repair-build
+      on: failed
+      iteration_max: 1
+    - from: ready-for-review
+      to: mark-ready
+      on: success
+    # It wrote less than it was asked for; what it did write still goes on
+    # the pull request, and a person reads the rest there.
+    - from: ready-for-review
+      to: mark-ready
+      on: changes_requested
+    - from: ready-for-review
+      to: ready-for-review
+      on: failed
+      iteration_max: 1
+    - from: mark-ready
+      to: await-pr
+      on: success
+    - from: mark-ready
+      to: mark-ready
+      on: failed
+      iteration_max: 1
+    - from: await-pr
+      to: done
+      on: success
+    # Red CI is the one blocking condition this line can act on.
+    - from: await-pr
+      to: fix-ci
+      on: changes_requested
+      iteration_max: 3
+    # Unresolved threads the review round-trip did not clear: a human
+    # conversation, not a build and not a failure of the machine, so the run
+    # ends here with the pull request open for the people in it.
+    - from: await-pr
+      to: done
+      on: failed
+    - from: fix-ci
+      to: await-pr
+      on: success
+    - from: fix-ci
+      to: await-pr
+      on: changes_requested
+    - from: fix-ci
+      to: fix-ci
+      on: failed
+      iteration_max: 1
+stations:
+  loop-dod:
+    kind: agent
+    agent_definition: loop-dod
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+    produces:
+      - name: dod_strategy
+        kind: value
+      - name: dod_blocked
+        kind: value
+      - name: dod_resolved
+        kind: value
+  loop-open-pr:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: task_id
+        kind: value
+      # The ticket's title and number: absent on a run started by hand.
+      - name: issue_title
+        kind: value
+        optional: true
+      - name: issue_number
+        kind: value
+        optional: true
+    produces:
+      - name: pr_url
+        kind: value
+  loop-tdd-round:
+    kind: agent
+    agent_definition: loop-tdd-round
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+      # Absent on the first round: only a red build produces it.
+      - name: round_brief
+        kind: file
+        path: round-brief.md
+        optional: true
+    produces:
+      - name: tdd_done
+        kind: value
+      - name: tdd_next
+        kind: value
+      - name: tdd_blocked
+        kind: value
+  loop-await-ci:
+    kind: human
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    # Written only on a red report: the sha the build judged, the checks that
+    # failed and what they printed, and the same as one file for the next agent.
+    produces:
+      - name: ci_feedback_sha
+        kind: value
+      - name: ci_failed_checks
+        kind: value
+      - name: ci_failure_summary
+        kind: value
+      - name: round_brief
+        kind: file
+  loop-repair-build:
+    kind: agent
+    agent_definition: loop-fix-ci
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+      # Absent on the first round: only a red build produces it.
+      - name: round_brief
+        kind: file
+        path: round-brief.md
+        optional: true
+    produces:
+      - name: ci_fixed
+        kind: value
+      - name: ci_blocked
+        kind: value
+  loop-ready-for-review:
+    kind: agent
+    agent_definition: loop-pr-ready
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+    produces:
+      - name: pr_body
+        kind: file
+        path: pr-body.md
+      - name: pr_title
+        kind: value
+      - name: issue_coverage
+        kind: value
+      - name: pr_blocked
+        kind: value
+  loop-mark-ready:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: pr_url
+        kind: value
+      - name: task_id
+        kind: value
+      - name: issue_number
+        kind: value
+        optional: true
+      # What the ready-for-review agent wrote; each is absent when it wrote none.
+      - name: pr_body
+        kind: file
+        optional: true
+      - name: pr_title
+        kind: value
+        optional: true
+      - name: issue_coverage
+        kind: value
+        optional: true
+    produces: []
+  loop-await-pr:
+    kind: human
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    # Written only on a red report: the sha the build judged, the checks that
+    # failed and what they printed, and the same as one file for the next agent.
+    produces:
+      - name: ci_feedback_sha
+        kind: value
+      - name: ci_failed_checks
+        kind: value
+      - name: ci_failure_summary
+        kind: value
+      - name: round_brief
+        kind: file
+  loop-fix-ci:
+    kind: agent
+    agent_definition: loop-fix-ci
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+      # Absent on the first round: only a red build produces it.
+      - name: round_brief
+        kind: file
+        path: round-brief.md
+        optional: true
+    produces:
+      - name: ci_fixed
+        kind: value
+      - name: ci_blocked
+        kind: value
+agent_definitions:
+  loop-dod:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 60
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+          - tdd-loop
+          - legacy-characterize
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  loop-tdd-round:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 60
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+          - tdd-loop
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  loop-pr-ready:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 20
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+          - tdd-loop
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        env:
+          LORE_TEST_POLICY: none
+  loop-fix-ci:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 45
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth

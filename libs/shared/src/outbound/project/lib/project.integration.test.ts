@@ -37,7 +37,7 @@ describe.skipIf(!reachable)("Project (live Postgres)", () => {
     await pool.end();
   });
 
-  it("resolves settings, queries tasks, and reads the graph through a real connection", async () => {
+  it("reads settings, queries tasks, and reads the graph through a real connection", async () => {
     await pool.query(
       `INSERT INTO lore.repos (owner, name, full_name, settings)
        VALUES ($1, $2, $3, $4::jsonb)`,
@@ -45,16 +45,16 @@ describe.skipIf(!reachable)("Project (live Postgres)", () => {
         "lore-smoke",
         fullName.split("/")[1],
         fullName,
-        JSON.stringify({ dark_factory: { enabled: true } }),
+        JSON.stringify({ trust: { level: "tests" } }),
       ],
     );
     const project = await createProject(fullName, pool, noDgraph, {});
 
-    const settings = await project.settings.resolve();
+    const settings = await project.settings.rawSettings();
     const pending = await project.tasks.pendingTasks();
     const graph = await project.knowledge.queryLiveGraph();
 
-    expect(settings.enabled).toBe(true);
+    expect(settings).toEqual({ trust: { level: "tests" } });
     expect(Array.isArray(pending)).toBe(true);
     expect(Array.isArray(graph)).toBe(true);
   });

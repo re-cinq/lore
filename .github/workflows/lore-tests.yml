@@ -20,11 +20,12 @@ permissions:
 jobs:
   test-report:
     runs-on: ubuntu-latest
-    # A cold runner takes ~24 minutes for the suite plus the per-file coverage
-    # runs; the old 30 killed one merge in four before the report ever posted
-    # (the ingest self-heals on the next success, but "one in four" was the
-    # normal rate, not an outlier).
-    timeout-minutes: 45
+    # The suite plus the per-file coverage runs took ~24 minutes when 45 was
+    # chosen; by 2026-10-02 it took 40 on a quiet runner and was cancelled at 45
+    # when a merge started nine other workflows beside it. A cancelled run posts
+    # nothing, and the next one has the same work to do, so the limit has to sit
+    # well above the slow case rather than at it.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:

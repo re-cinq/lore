@@ -104,6 +104,14 @@ describe("storyIssueBody", () => {
     );
   });
 
+  it("ends with the spec coverage it is given", () => {
+    const coverage =
+      "## Spec coverage\n\n2 of 3 testable spec statements have a task.\n";
+    const body = storyIssueBody({ repo: REPO, stories: STORIES, coverage });
+
+    expect(body.endsWith(`\n${coverage}`)).toBe(true);
+  });
+
   it("names the plan without a link when no web UI address is known, and leaves out spec links without a spec", () => {
     const body = storyIssueBody({
       repo: REPO,
@@ -115,6 +123,59 @@ describe("storyIssueBody", () => {
       "**Plan:** Issue triage Assembly Line",
       "",
     ]);
+  });
+
+  it("carries the approved plan folded under the plan line, so the story reads without opening the plan page", () => {
+    const body = storyIssueBody({
+      repo: REPO,
+      planTitle: "Issue triage Assembly Line",
+      planMarkdown: "# Issue triage\n\nReproduction runs before any diagnosis.",
+      stories: STORIES,
+    });
+
+    expect(body.split("\n").slice(0, 9)).toEqual([
+      "**Plan:** Issue triage Assembly Line",
+      "",
+      "<details><summary>The approved plan</summary>",
+      "",
+      "# Issue triage",
+      "",
+      "Reproduction runs before any diagnosis.",
+      "",
+      "</details>",
+    ]);
+  });
+
+  it("cuts a plan of 70,000 characters short with a pointer to the plan page, keeping the story body under GitHub's 65,536", () => {
+    const body = storyIssueBody({
+      repo: REPO,
+      planTitle: "Issue triage Assembly Line",
+      planUrl: "https://lore.example/repos/re-cinq/lore/plans/3b3a67af",
+      planMarkdown: "x".repeat(70_000),
+      stories: STORIES,
+    });
+
+    expect({
+      underLimit: body.length < 65_536,
+      pointer: body.includes(
+        "*The plan continues on [its page](https://lore.example/repos/re-cinq/lore/plans/3b3a67af).*",
+      ),
+      keepsStories: body.endsWith("- T006: Add the human-gate node\n"),
+    }).toEqual({ underLimit: true, pointer: true, keepsStories: true });
+  });
+
+  it("leaves the plan out when the stories alone leave no room for it under GitHub's 65,536", () => {
+    const body = storyIssueBody({
+      repo: REPO,
+      planTitle: "Issue triage Assembly Line",
+      planMarkdown: "# Issue triage",
+      stories: [{ ...STORIES[0], summary: "x".repeat(65_200) }],
+    });
+
+    expect({
+      underLimit: body.length <= 65_536,
+      plan: body.includes("<details>"),
+    }).toEqual({ underLimit: true, plan: false });
   });
 });
 
@@ -174,6 +235,37 @@ describe("taskIssueBody", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("quotes each spec statement it implements as a link to its line, cutting a long one at 80 characters", () => {
+    const link = "https://github.com/re-cinq/lore/blob/abc123/specs/f/spec.md";
+    const long =
+      "FR2 — The issues station links every task issue to the spec statements it implements, by line.";
+    const body = taskIssueBody({
+      repo: REPO,
+      storyNumber: 2260,
+      dependsOn: [],
+      specStatements: [
+        { text: "FR1 — The station files [one] issue.", link: `${link}#L7` },
+        { text: long, link: `${link}#L8` },
+      ],
+      task: {
+        id: "T001",
+        description: "File the issues",
+        depends_on: [],
+        parallelizable: false,
+        phase: 1,
+      },
+    });
+
+    expect(body.split("\n").slice(0, 6)).toEqual([
+      "Part of #2260.",
+      "",
+      "## Implements",
+      "",
+      `- [FR1 — The station files \\[one\\] issue.](${link}#L7)`,
+      `- [${long.slice(0, 79)}…](${link}#L8)`,
+    ]);
   });
 
   it("names dependency T007 by its task id when its issue is filed after this one", () => {
@@ -257,6 +349,36 @@ describe("taskIssueBody", () => {
         "",
         "Add the human-gate node",
         "",
+      ].join("\n"),
+    );
+  });
+
+  it("quotes the plan passages the task comes from, after its context", () => {
+    const body = taskIssueBody({
+      repo: REPO,
+      dependsOn: [],
+      task: {
+        id: "T003",
+        description: "reproduce",
+        depends_on: [],
+        parallelizable: false,
+        phase: 3,
+        context: "The first station of the line.",
+        plan_quotes: ["Reproduction runs before any diagnosis."],
+      },
+    });
+
+    expect(body).toContain(
+      [
+        "## Context",
+        "",
+        "The first station of the line.",
+        "",
+        "## From the plan",
+        "",
+        "> Reproduction runs before any diagnosis.",
+        "",
+        "## What to change",
       ].join("\n"),
     );
   });

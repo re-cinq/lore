@@ -53,8 +53,9 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 1. Parse `req.url` with base `http://localhost`. Read `repo`, `query`,
    `template` (default `"default"`), and `debug` (`"1"` or `"true"` → true).
 2. **Assembly path** — if `query` is truthy **and** `pool` is non-null:
-   1. `await assembleContext(pool, query, template, 8000, repo || undefined,
-      undefined, undefined, undefined, debug)` — max-tokens fixed at 8000.
+   1. `await assembleContext(pool, query, { templateName, maxTokens, repo,
+      agentId, crossRepo, debug, dgraph })` — `maxTokens` is the `max_tokens`
+      query parameter, 8000 when absent or non-numeric and capped at 128000.
    2. Write 200 `{ text: result.text || null, sections: result.sections,
       trace: result.trace }`. Empty/falsy text is coerced to `null`.
 3. **Chunk-join path** (no query, or no pool):

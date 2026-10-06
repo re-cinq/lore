@@ -9,7 +9,7 @@ import type {
   StaleTask,
   ReadySpecTask,
   CompletedSpecTask,
-  SpecGroupCount,
+  RunningSpecTask,
   AwaitingApprovalTask,
   TaskPrInfo,
   ReviewableTask,
@@ -134,8 +134,8 @@ export class PgTaskQueue implements TaskQueueRepository {
     return this.specTasks.findReadySpecTasks(repo);
   }
 
-  countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
-    return this.specTasks.countRunningSpecTasksByGroup();
+  runningSpecTasks(): Promise<RunningSpecTask[]> {
+    return this.specTasks.runningSpecTasks();
   }
 
   countUnmergedInGroup(groupId: string): Promise<number> {

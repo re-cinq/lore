@@ -16,6 +16,8 @@ export interface LlmCompleteRequest {
   systemPrompt?: string;
   model?: string;
   maxTokens?: number;
+  /** Sampling temperature, 0 for the most repeatable answer. A provider that cannot set one ignores it. */
+  temperature?: number;
   taskId?: string;
   jobName?: string;
 }

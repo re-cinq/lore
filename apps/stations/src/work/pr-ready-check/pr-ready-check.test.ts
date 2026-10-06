@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { prReadyCheckSweep, type PrReadyCheckDeps } from "./pr-ready-check.js";
+import {
+  openReviewRunCounter,
+  prReadyCheckSweep,
+  type PrReadyCheckDeps,
+} from "./pr-ready-check.js";
 
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
@@ -60,6 +64,7 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
     listOpenLoopRuns: async () => [
       {
         id: "run-1",
+        blueprintName: "implementation-loop",
         repo: "acme/widgets",
         status: "running",
         args: { pr_number: 12 },
@@ -192,6 +197,7 @@ describe("prReadyCheckSweep", () => {
       listOpenLoopRuns: async () => [
         {
           id: "run-1",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: {},
@@ -210,6 +216,7 @@ describe("prReadyCheckSweep", () => {
       listOpenLoopRuns: async () => [
         {
           id: "run-err",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 1 },
@@ -217,6 +224,7 @@ describe("prReadyCheckSweep", () => {
         },
         {
           id: "run-ok",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 2 },
@@ -301,6 +309,7 @@ describe("prReadyCheckSweep", () => {
       listOpenLoopRuns: async () => [
         {
           id: "run-1",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 12, ci_feedback_sha: "deadbeef" },
@@ -316,6 +325,54 @@ describe("prReadyCheckSweep", () => {
     expect(d.reported[0]).toMatchObject({
       outcome: "failed",
       args: { reason: "ci_red_unchanged" },
+    });
+  });
+
+  it("resumes a gap-fill run parked at await-ci when its build is green, not only implementation-loop runs", async () => {
+    const d = deps({
+      listOpenLoopRuns: async () => [
+        {
+          id: "run-2",
+          blueprintName: "gap-fill",
+          repo: "acme/widgets",
+          status: "running",
+          args: { pr_number: 12 },
+          graph: { ...graph, name: "gap-fill" },
+        },
+      ],
+      listStationRuns: async () => parkedAtCi,
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([
+      {
+        target: { lineId: "run-2", nodeId: "await-ci", iteration: 1 },
+        outcome: "success",
+        args: {},
+      },
+    ]);
+  });
+
+  it("leaves a pr_review park of any line but implementation-loop to whatever resumes it", async () => {
+    const d = deps({
+      listOpenLoopRuns: async () => [
+        {
+          id: "run-3",
+          blueprintName: "gap-fill",
+          repo: "acme/widgets",
+          status: "running",
+          args: { pr_number: 12 },
+          graph: { ...graph, name: "gap-fill" },
+        },
+      ],
+    });
+
+    const summary = await prReadyCheckSweep(d.deps);
+
+    expect({ reported: d.reported, summary }).toEqual({
+      reported: [],
+      summary: "checked 1, resumed 0, blocked 0, waiting 0",
     });
   });
 
@@ -471,5 +528,30 @@ describe("a red end-of-line verdict on an Actions job", () => {
         },
       },
     ]);
+  });
+});
+
+describe("openReviewRunCounter", () => {
+  const counter = (localRuns: number, floorRuns: number) =>
+    openReviewRunCounter(
+      () => ({
+        assemblyRuns: {
+          listSummaries: () =>
+            Promise.resolve(Array.from({ length: localRuns }, () => ({}))),
+        },
+      }),
+      () => Promise.resolve(floorRuns),
+    );
+
+  it("counts 1 for a pull request whose only open review runs on the floor", async () => {
+    expect(await counter(0, 1)("re-cinq/lore", 412)).toBe(1);
+  });
+
+  it("counts 3 for 1 open run in Postgres and 2 on the floor", async () => {
+    expect(await counter(1, 2)("re-cinq/lore", 412)).toBe(3);
+  });
+
+  it("counts 0 when neither holds an open review", async () => {
+    expect(await counter(0, 0)("re-cinq/lore", 412)).toBe(0);
   });
 });

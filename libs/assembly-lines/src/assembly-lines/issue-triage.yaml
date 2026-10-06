@@ -10,7 +10,15 @@ nodes:
     prompt_ref: reproduce
     station_ref: reproduce
     model: claude-sonnet-4-6
+    required_tags: ["sandbox"]
     description: Clone and run the reproduction repository in a secure sandbox.
+
+  - id: diagnose
+    type: agent
+    prompt_ref: diagnose
+    station_ref: diagnose
+    model: claude-sonnet-4-6
+    description: Instrument the codebase to trace the root cause of the reproduced failure.
 
   - id: verify
     type: agent
@@ -19,10 +27,22 @@ nodes:
     model: claude-sonnet-4-6
     description: Cross-reference the diagnosed behavior against existing specs and documentation.
 
+  - id: human-gate
+    type: human
+    route: /issues/triage-gate
+    description: A maintainer reviews the diagnosis and applies lore:implementation to proceed.
+
   - id: close-obsolete
     type: service
     route: /api/stations/close-obsolete
     description: Close the issue if verified as obsolete.
+
+  - id: decompose
+    type: agent
+    prompt_ref: decompose
+    station_ref: decompose
+    model: claude-sonnet-4-6
+    description: Split large issues into smaller tasks.
 
   - id: done
     type: retrospective
@@ -30,28 +50,55 @@ nodes:
 
 edges:
   - from: reproduce
-    to: verify
+    to: diagnose
     on: success
   - from: reproduce
     to: done
-    on: changes_requested
+    on: unable-to-reproduce
+  - from: reproduce
+    to: done
+    on: needs-reproduction
+  - from: reproduce
+    to: done
+    on: skipped
   - from: reproduce
     to: done
     on: failed
+    iteration_max: 3
 
+  - from: diagnose
+    to: verify
+    on: success
+  - from: diagnose
+    to: done
+    on: failed
+    iteration_max: 3
+
+  - from: verify
+    to: human-gate
+    on: success
   - from: verify
     to: close-obsolete
     on: obsolete
   - from: verify
-    to: done
-    on: success
+    to: decompose
+    on: large-issue
   - from: verify
     to: done
-    on: changes_requested
+    on: not-actionable
   - from: verify
     to: done
     on: failed
+    iteration_max: 3
 
   - from: close-obsolete
     to: done
     on: always
+
+  - from: decompose
+    to: done
+    on: always
+
+  - from: human-gate
+    to: done
+    on: success

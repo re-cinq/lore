@@ -37,6 +37,18 @@
 }
 
 /* Degraded but advancing: the history-poll fallback, not a dead stream. */
+.ended {
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.emptyRun {
+  margin: var(--space-2) 0 var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
 .polling {
   color: var(--warning);
   background: var(--warning-bg);

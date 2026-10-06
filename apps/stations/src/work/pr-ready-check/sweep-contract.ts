@@ -10,12 +10,20 @@ import type {
   ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 
-/** The one blueprint this sweep judges. */
+/** The line whose runs also park on the PR's settled state (`await-pr`). */
 export const LOOP_BLUEPRINT = "implementation-loop";
 
-/** The slice of one open implementation-loop run the sweep reads. */
+/** Every line that parks on its PR's CI (`await-ci`) after pushing: the loop, and the lines whose in-pod `validate` deferred to CI (2026-09-29). */
+export const CI_WAIT_BLUEPRINTS = [
+  LOOP_BLUEPRINT,
+  "gap-fill",
+  "onboard",
+] as const;
+
+/** The slice of one open run the sweep reads. */
 export interface LoopRunSlice {
   id: string;
+  blueprintName: string;
   repo: string;
   status: string;
   args: Record<string, unknown>;

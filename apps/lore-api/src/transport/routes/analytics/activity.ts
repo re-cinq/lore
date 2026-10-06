@@ -87,28 +87,15 @@ const EventListSchema = z.object({
   ),
 });
 
-// Seven-day activity counters; each is NULL (not zero) when its table is absent, so "unknown" is distinguishable from "a quiet week".
+// The seven-day task count; NULL (not zero) when the count fails, so "unknown" is distinguishable from "a quiet week".
 const ActivityCountsSchema = z.object({
   tasks: z.number().nullable(),
-  auto_merged: z.number().nullable(),
-  escalations: z.number().nullable(),
 });
 
 const JobRunReadSchema = wireSchema(JobRunSchema, JOB_RUN_COLUMNS);
 
 const TASKS_7D_SQL = `SELECT count(*)::int as c FROM pipeline.tasks
         WHERE target_repo = $1 AND created_at >= now() - interval '7 days'`;
-
-const AUTO_MERGED_7D_SQL = `SELECT count(*)::int as c FROM pipeline.audit_log
-        WHERE repo = $1
-          AND event_type = 'auto_merge_decision'
-          AND payload->>'outcome' = 'merged'
-          AND created_at >= now() - interval '7 days'`;
-
-const ESCALATIONS_7D_SQL = `SELECT count(*)::int as c FROM pipeline.audit_log
-        WHERE repo = $1
-          AND event_type = 'escalation_issued'
-          AND created_at >= now() - interval '7 days'`;
 
 export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
@@ -317,17 +304,7 @@ async function serveActivityCounts(
 ): Promise<ResponseObject> {
   const repo = `${request.params.owner}/${request.params.repo}`;
 
-  return h.response(await sevenDayCounts(pool, repo));
-}
-
-/** Seven-day counters for a repo — the numbers the dashboard tiles read, computed here rather than client-side so every caller counts the same way. */
-/** The three seven-day counters. Auto-merges and escalations are counted from the AUDIT log rather than from task status: a task can be merged by a human after the machine deferred, and only the audit row says which happened. */
-async function sevenDayCounts(pool: Pool, repo: string) {
-  return {
-    tasks: await countOrNull(pool, TASKS_7D_SQL, [repo]),
-    auto_merged: await countOrNull(pool, AUTO_MERGED_7D_SQL, [repo]),
-    escalations: await countOrNull(pool, ESCALATIONS_7D_SQL, [repo]),
-  };
+  return h.response({ tasks: await countOrNull(pool, TASKS_7D_SQL, [repo]) });
 }
 
 // A dashboard count that must never take its page down: an absent table or failed count reports null.

@@ -6,9 +6,9 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import {
+  heldBacklog,
   orderBacklog,
   BACKLOG_LABEL_SEED,
-  ticketTextTooLong,
 } from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
@@ -28,8 +28,8 @@ import {
 import {
   fetchRunContext,
   LOOP_TASK_COLUMNS,
-  priorityOf,
   taskTicket,
+  waitingTicket,
   type LoopTaskRow,
 } from "./backlog-ticket.js";
 import { withPool } from "../with-pool.js";
@@ -37,7 +37,7 @@ import { onboardingOf, readRepoRow } from "./backlog-repo.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
-// The backlog loop's repo surface (FR10): GET returns toggle/current/queue/recent, PUT flips the toggle. Deliberately not a dark-factory privileged field — the loop never merges, so no CODEOWNER ceremony (FR7).
+// The backlog loop's repo surface (FR10): GET returns toggle/current/queue/recent, PUT flips the toggle. Deliberately not behind the two-key ceremony — the loop never merges, so no CODEOWNER ceremony (FR7).
 
 const PATH = "/api/repos/{owner}/{repo}/implementation-loop";
 
@@ -109,6 +109,8 @@ interface BacklogState {
   onboarding: Onboarding;
   taskRows: LoopTaskRow[];
   openIssues: OpenIssues;
+  /** Open blockers of each queued ticket that carries a blocked-by link. */
+  openBlockers: Map<number, number[]>;
   currentRunId: string | null;
   runByTask: Map<string, Parameters<typeof taskTicket>[2] & object>;
   nodeRows: NodeRows;
@@ -126,7 +128,7 @@ async function loadBacklogState(
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
     taskRows,
-    openIssues: await readOpenIssues(repo),
+    ...(await readIssues(repo)),
     currentRunId: await readCurrentRunId(pool, repo),
     ...(await readRunIndex(pool, taskRows)),
   };
@@ -154,10 +156,21 @@ function resolveEnabled(settings: Record<string, unknown> | null): boolean {
   return loop?.enabled === true;
 }
 
-async function readOpenIssues(repo: string): Promise<OpenIssues> {
-  const project = await projectFor(repo);
+/** The repo's open issues, and the open blockers of the queued ones. Only a ticket whose listing reports a blocked-by link costs a second GitHub read, the driver's own rule (FR2). */
+async function readIssues(
+  repo: string,
+): Promise<Pick<BacklogState, "openIssues" | "openBlockers">> {
+  const { issues } = await projectFor(repo);
+  const openIssues = await issues.list({ state: "open" });
+  const linked = orderBacklog(openIssues).filter((i) => i.blockedByCount);
+  const blockers = await Promise.all(
+    linked.map((i) => issues.openBlockers(i.number)),
+  );
 
-  return project.issues.list({ state: "open" });
+  return {
+    openIssues,
+    openBlockers: new Map(linked.map((i, at) => [i.number, blockers[at]])),
+  };
 }
 
 /** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. */
@@ -194,7 +207,8 @@ async function readRunIndex(
 
 function projectBacklog(state: BacklogState): {
   current: Ticket | null;
-  next: unknown[];
+  next: Ticket[];
+  parked: Ticket[];
   recent: Ticket[];
 } {
   const { taskRows, openIssues } = state;
@@ -204,7 +218,10 @@ function projectBacklog(state: BacklogState): {
 
   return {
     current: currentTicket(state, currentRow),
-    next: nextTickets(openIssues, taskRows),
+    next: nextTickets(state),
+    parked: heldBacklog(openIssues).map((issue) =>
+      waitingTicket(issue, "parked", state),
+    ),
     recent: recentTickets(state, currentRow),
   };
 }
@@ -222,10 +239,8 @@ function currentTicket(
 }
 
 /** What is queued behind the current work. Issues whose task is neither failed nor cancelled are EXCLUDED — this mirrors the driver's own eligibility guard, and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
-function nextTickets(
-  openIssues: BacklogState["openIssues"],
-  taskRows: BacklogState["taskRows"],
-): unknown[] {
+function nextTickets(state: BacklogState): Ticket[] {
+  const { taskRows, openIssues } = state;
   const guardedIssues = new Set(
     taskRows
       .filter((t) => !["failed", "cancelled"].includes(t.status))
@@ -234,25 +249,7 @@ function nextTickets(
 
   return orderBacklog(openIssues)
     .filter((i) => !guardedIssues.has(i.number))
-    .map(queuedTicket);
-}
-
-function queuedTicket(issue: OpenIssues[number]) {
-  return {
-    issue_number: issue.number,
-    issue_url: issue.url ?? null,
-    title: issue.title,
-    priority: priorityOf(issue),
-    pr_url: null,
-    state: "queued",
-    created_at: issue.createdAt
-      ? new Date(issue.createdAt).toISOString()
-      : null,
-    error: null,
-    run_id: null,
-    pipeline: null,
-    text_too_long: ticketTextTooLong(issue),
-  };
+    .map((issue) => waitingTicket(issue, "queued", state));
 }
 
 /** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. */

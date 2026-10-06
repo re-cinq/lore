@@ -1,0 +1,140 @@
+# Everything that must happen once a task's pull request has merged
+# (specs/external-floor FR10). One service station per step, each handed the
+# task's id; the steps do not depend on each other's results.
+#
+# Only `settle` is a precondition: every later step assumes the task is merged.
+# A failed `settle` is retried once and a second failure settles the run as
+# iteration_max, because a run that reaches the exit settles as success. Every
+# other step walks on whatever its outcome, so a failing step is a recorded
+# visit and the steps after it still run.
+#
+# Started by the merge-check sweep, keyed on the task so two sweeps noticing one
+# merge share a run.
+line:
+  id: merge
+  entry: settle
+  exit: done
+  args:
+    task_id:
+      kind: value
+      subject: true
+  nodes:
+    - id: settle
+      station: merge-settle
+    - id: spec-status
+      station: merge-spec-status
+    - id: close-issue
+      station: merge-close-issue
+    - id: outcome-stats
+      station: merge-outcome-stats
+    - id: curate
+      station: merge-curate
+    - id: memory-feedback
+      station: merge-memory-feedback
+    - id: trust
+      station: merge-trust
+    - id: spec-tasks
+      station: merge-spec-tasks
+    - id: done
+  edges:
+    - from: settle
+      to: spec-status
+      on: success
+    - from: settle
+      to: settle
+      on: failed
+      iteration_max: 1
+    - from: spec-status
+      to: close-issue
+      on: always
+    - from: close-issue
+      to: outcome-stats
+      on: always
+    - from: outcome-stats
+      to: curate
+      on: always
+    - from: curate
+      to: memory-feedback
+      on: always
+    - from: memory-feedback
+      to: trust
+      on: always
+    - from: trust
+      to: spec-tasks
+      on: always
+    - from: spec-tasks
+      to: done
+      on: always
+stations:
+  merge-settle:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
+  merge-spec-status:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
+  merge-close-issue:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
+  merge-outcome-stats:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
+  merge-curate:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
+  merge-memory-feedback:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
+  merge-trust:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
+  merge-spec-tasks:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: task_id
+        kind: value
+    produces: []
