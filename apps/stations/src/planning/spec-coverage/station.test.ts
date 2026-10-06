@@ -50,11 +50,21 @@ const handback = (): RunVisit => ({
   report: { outcome: "changes_requested" },
 });
 
-function scene(spec: string, visits: RunVisit[] = []) {
+const PLAN_PATH = "specs/checkout/plan.md";
+const PLAN_ADDS_TICK =
+  "Files touched:\n- `apps/stations/src/work/issue-triage-tick/` — the sweep";
+const NAMES_THE_TICK = [
+  CITES_BOTH,
+  `- FR-003: A sweep under \`apps/stations/src/work/issue-triage-tick/\` picks the oldest. ([from plan](${PLAN_URL}#b-why))`,
+].join("\n");
+
+function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
   const produced: Record<string, string> = {};
   const reads: string[] = [];
   const files: Record<string, string> = {
-    spec_plan: JSON.stringify({ creates: [{ path: SPEC_PATH }] }),
+    spec_plan: JSON.stringify({
+      creates: [{ path: SPEC_PATH }, ...(plan ? [{ path: PLAN_PATH }] : [])],
+    }),
     plan_blocks: JSON.stringify(CITABLE),
   };
   const tools: Tools = {
@@ -69,7 +79,13 @@ function scene(spec: string, visits: RunVisit[] = []) {
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
 
-      return { [SPEC_PATH]: spec, [HANDLER_PATH]: HANDLER }[path] ?? null;
+      const onBranch: Record<string, string> = {
+        [SPEC_PATH]: spec,
+        [HANDLER_PATH]: HANDLER,
+        ...(plan ? { [PLAN_PATH]: plan } : {}),
+      };
+
+      return onBranch[path] ?? null;
     },
     listTree: async () => [SPEC_PATH, HANDLER_PATH],
     visitsOf: async () => [
@@ -138,6 +154,14 @@ describe("specCoverageHandle", () => {
         "`alreadyWorkingOnIssue` (line 5) is not in the files the line names; closest: `activeTaskByIssue`",
       ),
     }).toEqual({ report: { outcome: "changes_requested" }, namesGuard: true });
+  });
+
+  it("reports success when the spec names a folder its plan.md's files-touched list adds", async () => {
+    const { handle, tools } = scene(NAMES_THE_TICK, [], PLAN_ADDS_TICK);
+
+    const report = await handle(brief(), tools);
+
+    expect(report).toEqual({ outcome: "success" });
   });
 
   it("reports success and produces nothing when the run carries no citable blocks", async () => {

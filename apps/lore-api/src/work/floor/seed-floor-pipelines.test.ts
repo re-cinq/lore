@@ -110,7 +110,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     pipelineOfText(file.text, FIXED_ENV),
   );
 
-  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
+  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "code-review",
       "code-review-recheck",
@@ -118,11 +118,34 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       "daily-digest",
       "feature-planning",
       "implementation-loop",
+      "issue-triage",
       "lore-run-settled",
       "merge",
       "onboard",
       "spec-upkeep",
     ]);
+  });
+
+  it("declares issue-triage human-gate as a kind: human station with route '{args.issue_url}'", () => {
+    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+    const humanGate = issueTriage?.stations.find((s) => s.id === "human-gate");
+
+    expect(humanGate?.body.kind).toBe("human");
+    expect(humanGate?.body.route).toBe("{args.issue_url}");
+  });
+
+  it("routes issue-triage human-gate's success edge to done", () => {
+    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+
+    type LineBody = {
+      edges: Array<{ from: string; to: string; on: string }>;
+    };
+    const body = issueTriage?.line?.body as LineBody | undefined;
+    const successEdge = body?.edges.find(
+      (e) => e.from === "human-gate" && e.on === "success",
+    );
+
+    expect(successEdge?.to).toBe("done");
   });
 
   it("give every agent definition a non-empty prompt", () => {

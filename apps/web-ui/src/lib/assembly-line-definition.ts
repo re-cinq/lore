@@ -50,6 +50,8 @@ export interface AssemblyLineDefinition {
   version: 1;
   entry: string;
   exit: string;
+  /** The node that ends the run as failed on purpose; absent when the line has none. */
+  fail?: string;
   nodes: DefinitionNode[];
   edges: DefinitionEdge[];
 }

@@ -10,6 +10,8 @@ import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
 vi.mock("./live-actions", () => ({
   openRunChannelAction: async () => ({ token: "tok" }),
 }));
@@ -775,7 +777,7 @@ describe("a node's input opens its transcript", () => {
   });
 });
 
-describe("run actions that went with the old engine", () => {
+describe("Run this station", () => {
   function retryRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
     return {
       nodeId: "implement",
@@ -788,6 +790,12 @@ describe("run actions that went with the old engine", () => {
     };
   }
 
+  const floorDefinition: AssemblyLineDefinition = {
+    ...definition,
+    fail: "gave-up",
+    nodes: [...definition.nodes, { id: "gave-up", type: "retrospective" }],
+  };
+
   function renderRun(
     runStatus: string,
     nodes: AssemblyRunNode[],
@@ -797,7 +805,7 @@ describe("run actions that went with the old engine", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus={runStatus}
-        definition={definition}
+        definition={floorDefinition}
         nodes={nodes}
         repo="re-cinq/lore"
         reason={null}
@@ -814,7 +822,7 @@ describe("run actions that went with the old engine", () => {
     });
   }
 
-  it("offers neither retry nor Run this station on a finished run, whichever engine walked it", async () => {
+  it("offers neither retry nor Run this station on a node of a finished run Lore's own engine walked", async () => {
     stubHistory([]);
     useFakeSocket();
 
@@ -824,12 +832,43 @@ describe("run actions that went with the old engine", () => {
     ]);
 
     await settle();
-    await select("validate");
+    await select("implement");
 
     expect({
       retry: screen.queryByRole("button", { name: "Retry from this node" }),
       run: screen.queryByRole("button", { name: "Run this station" }),
     }).toEqual({ retry: null, run: null });
+  });
+
+  it("offers Run this station on implement, a node of a finished floor run", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderRun("finished", [retryRow({ nodeId: "implement" })], "floor");
+
+    await settle();
+    await select("implement");
+
+    expect(
+      screen.getByRole("button", { name: "Run this station" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["validate", "the exit"],
+    ["gave-up", "the fail node"],
+  ])("offers no Run this station on %s, %s of a floor run", async (nodeId) => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderRun("finished", [retryRow({ nodeId })], "floor");
+
+    await settle();
+    await select(nodeId);
+
+    expect(
+      screen.queryByRole("button", { name: "Run this station" }),
+    ).not.toBeInTheDocument();
   });
 });
 

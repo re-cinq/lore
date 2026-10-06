@@ -32,7 +32,7 @@ import {
   type DecomposedSpec,
 } from "../file-issues/decomposed-spec.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
-import { findingsIn, groundedText } from "../grounded-text.js";
+import { addedAcross, findingsIn, groundedText } from "../grounded-text.js";
 
 const SUCCESS: Report = { outcome: "success" };
 
@@ -103,11 +103,11 @@ function groundedTasks(
   read: (path: string) => Promise<string | null>,
 ): Promise<GroundedFile[]> {
   const tasks = decomposition.stories.flatMap((story) => story.tasks);
+  const texts = tasks.map((task) => ({ path: task.id, text: taskText(task) }));
+  const added = addedAcross(texts);
 
   return Promise.all(
-    tasks.map((task) =>
-      groundedText({ path: task.id, text: taskText(task) }, tree, read),
-    ),
+    texts.map((text) => groundedText(text, tree, read, added)),
   );
 }
 

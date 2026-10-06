@@ -46,7 +46,7 @@ export interface AssemblyRun {
 
 const FLOOR_ENGINE = "floor";
 
-/** True for a run the external floor walks: the run page may read and watch it, but only the floor can re-run it. */
+/** True for a run the external floor walks: the run page reads and watches it, and asks the floor to run one of its nodes again. */
 export function isFloorEngine(engine: string | undefined): boolean {
   return engine === FLOOR_ENGINE;
 }

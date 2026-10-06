@@ -15,6 +15,7 @@ import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { consolidationStation } from "./consolidation/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { closeIssueStation } from "./close-issue/manifest.js";
+import { issueTriageTickStation } from "./issue-triage-tick/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
@@ -25,6 +26,7 @@ export const STATION_NAMES = [
   "digest-tick",
   "gcp-cost-sync",
   "importance-decay",
+  "issue-triage-tick",
   "loop-tick",
   "memory-ttl",
   "merge-check",
@@ -44,6 +46,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "digest-tick": digestTickStation,
   "gcp-cost-sync": gcpCostSync,
   "importance-decay": importanceDecayStation,
+  "issue-triage-tick": issueTriageTickStation,
   "loop-tick": loopTickStation,
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
