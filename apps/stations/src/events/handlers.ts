@@ -100,7 +100,8 @@ const repoEventDeps: RepoEventDeps = {
     });
 
     for (const run of runs) {
-      if (run.startItems.issue_number.ref !== String(issueNumber)) continue;
+      const startedIssue = run.startItems.issue_number;
+      if (startedIssue.ref !== String(issueNumber)) continue;
       const visits = await floor.stationRuns.list({ run: run.id });
       const parked = visits.findLast(
         (v) => v.nodeId === "human-gate" && v.report === null,
