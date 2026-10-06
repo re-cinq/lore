@@ -59,7 +59,7 @@ async function findParkedVisitId(
   run: { id: string; startItems: Record<string, { ref: string }> },
   issueNumber: number,
 ): Promise<string | null> {
-  const { startItems } = run;
+  const startItems: Partial<Record<string, { ref: string }>> = run.startItems;
   const issueItem = startItems["issue_number"];
 
   if (issueItem?.ref !== String(issueNumber)) {
