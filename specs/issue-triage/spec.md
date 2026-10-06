@@ -1,6 +1,6 @@
 | Feature | Issue Triage Assembly Line             |
 | ------- | -------------------------------------- |
-| Status  | Draft                                  |
+| Status  | In Progress                            |
 | Created | 2026-09-28                             |
 | Owner   | Lore Platform Team                     |
 

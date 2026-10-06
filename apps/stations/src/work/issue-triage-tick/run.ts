@@ -15,6 +15,20 @@ const DEFAULT_CAP = 3;
 
 const NEEDS_TRIAGE_LABEL = "triage: needs-triage";
 
+export async function runIssueTriageTick(
+  params: Readonly<Record<string, unknown>>,
+): Promise<string> {
+  if (!floorConfigured()) return NO_FLOOR;
+  return issueTriageTick(params, {
+    repos: async () =>
+      (await settings().onboardedRepos()).map((r) => r.full_name),
+    needsTriageIssues: fetchNeedsTriageIssues,
+    runningCount: countRunning,
+    cap: DEFAULT_CAP,
+    floor: { start: (line, args) => floorClient().lines.start(line, args) },
+  });
+}
+
 async function fetchNeedsTriageIssues(
   repo: string,
 ): Promise<IssueTriageIssue[]> {
@@ -36,18 +50,4 @@ async function countRunning(repo: string): Promise<number> {
     open: true,
   });
   return activeRuns.length;
-}
-
-export async function runIssueTriageTick(
-  params: Readonly<Record<string, unknown>>,
-): Promise<string> {
-  if (!floorConfigured()) return NO_FLOOR;
-  return issueTriageTick(params, {
-    repos: async () =>
-      (await settings().onboardedRepos()).map((r) => r.full_name),
-    needsTriageIssues: fetchNeedsTriageIssues,
-    runningCount: countRunning,
-    cap: DEFAULT_CAP,
-    floor: { start: (line, args) => floorClient().lines.start(line, args) },
-  });
 }

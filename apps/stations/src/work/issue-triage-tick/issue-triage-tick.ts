@@ -42,16 +42,6 @@ export async function issueTriageTick(
   return `issue-triage-tick: started ${total} run(s)`;
 }
 
-function triageStartArgs(repo: string, issue: IssueTriageIssue) {
-  return {
-    repo: floorRepoOf(repo),
-    startItems: {
-      issue_url: valueItem(issue.url),
-      issue_number: valueItem(issue.number),
-    },
-  };
-}
-
 async function startForRepo(
   repo: string,
   deps: IssueTriageTickDeps,
@@ -66,4 +56,14 @@ async function startForRepo(
     await deps.floor.start(ISSUE_TRIAGE_LINE, triageStartArgs(repo, issue));
   }
   return qualifying.length;
+}
+
+function triageStartArgs(repo: string, issue: IssueTriageIssue) {
+  return {
+    repo: floorRepoOf(repo),
+    startItems: {
+      issue_url: valueItem(issue.url),
+      issue_number: valueItem(issue.number),
+    },
+  };
 }
