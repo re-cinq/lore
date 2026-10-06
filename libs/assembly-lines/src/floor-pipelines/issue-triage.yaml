@@ -12,18 +12,29 @@ line:
     - id: verify
     - id: human-gate
       station: human-gate
+    - id: close-obsolete
+      station: close-obsolete
     - id: done
   edges:
     - from: verify
       to: human-gate
       on: success
+    - from: verify
+      to: close-obsolete
+      on: obsolete
     - from: human-gate
       to: done
       on: success
+    - from: close-obsolete
+      to: done
+      on: always
 stations:
   human-gate:
     kind: human
     route: "{args.issue_url}"
     outcomes:
       - success
+  close-obsolete:
+    kind: service
+    station: close-issue
 agent_definitions: {}

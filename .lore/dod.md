@@ -6,18 +6,18 @@
 
 ## Done when these pass
 
-- [ ] **close-obsolete station uses the close-issue service** — the `stations` block of `issue-triage.yaml` declares a `close-obsolete` entry whose `station` field is `close-issue`
+- [x] **close-obsolete station uses the close-issue service** — the `stations` block of `issue-triage.yaml` declares a `close-obsolete` entry whose `station` field is `close-issue`
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
-- [ ] **close-obsolete's only outgoing edge is always → done** — the pipeline's edge list has exactly one edge whose `from` is `close-obsolete`, and that edge's `on` is `always`
+- [x] **close-obsolete's only outgoing edge is always → done** — the pipeline's edge list has exactly one edge whose `from` is `close-obsolete`, and that edge's `on` is `always`
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
 ## Facets
 
-- [ ] Add `close-obsolete` station entry in the `stations` block of `issue-triage.yaml` with `kind: service` and `station: close-issue`
-- [ ] Add the node `close-obsolete` to `line.nodes` in `issue-triage.yaml`
-- [ ] Add edge `close-obsolete` (on: always) → `done` to `line.edges`
-- [ ] Confirm the `verify` (on: obsolete) → `close-obsolete` edge is present (set by T010 / #2288)
+- [x] Add `close-obsolete` station entry in the `stations` block of `issue-triage.yaml` with `kind: service` and `station: close-issue`
+- [x] Add the node `close-obsolete` to `line.nodes` in `issue-triage.yaml`
+- [x] Add edge `close-obsolete` (on: always) → `done` to `line.edges`
+- [x] Confirm the `verify` (on: obsolete) → `close-obsolete` edge is present (set by T010 / #2288)
 
 ## Out of scope
 
