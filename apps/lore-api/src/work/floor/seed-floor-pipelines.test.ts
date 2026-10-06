@@ -74,25 +74,45 @@ describe("seedFloorPipelines", () => {
   it("puts both pipelines and reports only lore-run-settled as changed when the floor holds code-review as written", async () => {
     const { deps, imported } = fakeFloor(["code-review"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([
-      "assembly-lines/lore-run-settled",
-    ]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["assembly-lines/lore-run-settled"],
+      failed: [],
+    });
     expect(imported).toEqual(["code-review", "lore-run-settled"]);
   });
 
   it("reports both lines as changed on a floor that holds neither", async () => {
     const { deps } = fakeFloor([]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([
-      "assembly-lines/code-review",
-      "assembly-lines/lore-run-settled",
-    ]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: [
+        "assembly-lines/code-review",
+        "assembly-lines/lore-run-settled",
+      ],
+      failed: [],
+    });
   });
 
   it("reports nothing changed when the floor holds every pipeline as written", async () => {
     const { deps } = fakeFloor(["code-review", "lore-run-settled"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([]);
+    expect(await seedFloorPipelines(deps)).toEqual({ changed: [], failed: [] });
+  });
+
+  it("puts b.yaml and reports a.yaml as failed when the floor refuses a.yaml", async () => {
+    const { deps, imported } = fakeFloor([]);
+    const put = deps.importPipeline;
+
+    deps.importPipeline = (pipeline) =>
+      pipeline.line?.id === "code-review"
+        ? Promise.reject(new Error("invalid station body"))
+        : put(pipeline);
+
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["assembly-lines/lore-run-settled"],
+      failed: [{ name: "a.yaml", reason: "invalid station body" }],
+    });
+    expect(imported).toEqual(["lore-run-settled"]);
   });
 
   it("names a station two pipelines share once", async () => {
@@ -101,7 +121,10 @@ describe("seedFloorPipelines", () => {
 
     deps.importPipeline = () => Promise.resolve([shared]);
 
-    expect(await seedFloorPipelines(deps)).toEqual(["stations/post-review"]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["stations/post-review"],
+      failed: [],
+    });
   });
 });
 

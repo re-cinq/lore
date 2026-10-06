@@ -49,10 +49,14 @@ stations:
     kind: service
     outcomes:
       - success
+    needs: []
+    produces: []
   triage-label:
     kind: service
     outcomes:
       - success
+    needs: []
+    produces: []
 `;
 
 const SOUND = `
@@ -81,6 +85,8 @@ stations:
     outcomes:
       - success
       - failed
+    needs: []
+    produces: []
 `;
 
 const FEATURE_DECOMPOSE_REUSED = `
@@ -106,13 +112,13 @@ stations:
     agent_definition: feature-decompose
     outcomes:
       - success
+    needs: []
+    produces: []
 `;
 
 const DECOMPOSE_INPUTS_DECLARED = FEATURE_DECOMPOSE_REUSED.replace(
-  "    outcomes:\n      - success\n",
-  `    outcomes:
-      - success
-    needs:
+  "    needs: []\n    produces: []\n",
+  `    needs:
       - name: spec_plan
         kind: file
         path: spec-plan.json
@@ -235,6 +241,8 @@ stations:
     outcomes:
       - success
       - skipped
+    needs: []
+    produces: []
 `;
 
 describe("pipelineProblems — where a run can get to", () => {
@@ -320,6 +328,38 @@ describe("pipelineProblems — the outcomes an edge may route on", () => {
     ).replace("    - from: work\n      to: done\n      on: success\n", "");
 
     expect(rules(always)).toEqual([]);
+  });
+});
+
+describe("pipelineProblems — what the floor requires of a station", () => {
+  const NO_BAG = SOUND.replace("    needs: []\n    produces: []\n", "");
+
+  it("reports undeclared-bag naming the station and both missing arrays", () => {
+    expect(problems(NO_BAG)).toEqual([
+      {
+        line: "sound",
+        node: undefined,
+        rule: "undeclared-bag",
+        detail:
+          'station "work" declares no needs and no produces; the floor requires both arrays',
+      },
+    ]);
+  });
+
+  it("reports undeclared-bag naming produces alone when needs is declared", () => {
+    expect(problems(SOUND.replace("    produces: []\n", ""))).toEqual([
+      {
+        line: "sound",
+        node: undefined,
+        rule: "undeclared-bag",
+        detail:
+          'station "work" declares no produces; the floor requires both arrays',
+      },
+    ]);
+  });
+
+  it("reports nothing for a station whose bag arrays are empty but declared", () => {
+    expect(problems(SOUND)).toEqual([]);
   });
 });
 
