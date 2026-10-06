@@ -202,3 +202,55 @@ describe("PlanDetailView", () => {
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
+
+describe("the user story field in the plan's header", () => {
+  const storyField = (value: string, run: PlanRun | null = null) => {
+    const onChange = vi.fn();
+
+    render(
+      <PlanDetailView
+        meta={META}
+        run={run}
+        user={null}
+        story={{ value, onChange }}
+        {...actions}
+      />,
+    );
+
+    return onChange;
+  };
+
+  it("says a story typed for a run with none applies from the next draft or refine", () => {
+    storyField("");
+
+    expect(
+      screen.getByRole("textbox", { name: "User story" }),
+    ).toHaveAccessibleDescription("Applies from the next draft or refine.");
+  });
+
+  it("hands #42 typed into the User story field to the page", () => {
+    const onChange = storyField("");
+
+    fireEvent.change(screen.getByRole("textbox", { name: "User story" }), {
+      target: { value: "#42" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith("#42");
+  });
+
+  it("describes issue 42 of other/repo as not an issue of re-cinq/lore", () => {
+    storyField("https://github.com/other/repo/issues/42");
+
+    expect(
+      screen.getByRole("textbox", { name: "User story" }),
+    ).toHaveAccessibleDescription(
+      "The user story must be an issue of re-cinq/lore.",
+    );
+  });
+
+  it("shows no User story field once the run carries story 42", () => {
+    storyField("", { ...QUEUED_RUN, issueUrl: STORY_URL, issueNumber: 42 });
+
+    expect(screen.queryByRole("textbox", { name: "User story" })).toBeNull();
+  });
+});

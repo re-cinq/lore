@@ -14,6 +14,8 @@ export interface RefineRequest {
   baseHash: string;
   inputs: unknown;
   uses: unknown;
+  /** The user story a round this ask starts carries; an ask reported to a waiting run cannot change the story that run started with. */
+  storyIssue?: number;
 }
 
 /** The first draft: what the author already knows. */

@@ -80,10 +80,11 @@ export function startSpecWork(
   repo: string,
   planId: string,
   createdBy: string,
+  storyIssue?: number,
 ): Promise<ApiResult<{ task_id: string }>> {
   return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/spec-work`, {
     method: "POST",
-    body: { createdBy },
+    body: { createdBy, storyIssue },
   });
 }
 
@@ -170,6 +171,8 @@ export interface RefineAsk {
   baseHash: string;
   inputs: unknown;
   uses: unknown;
+  /** The user story the round this ask starts carries; a run already waiting keeps the story it started with. */
+  storyIssue?: number;
 }
 
 export function askRefine(
