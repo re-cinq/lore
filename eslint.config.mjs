@@ -497,6 +497,11 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-hooks/set-state-in-effect": "error",
       "re-lint/no-sql-in-web-ui": "error",
+      // Warns while the five buttons it finds are undrained: a second click on a
+      // button whose request is still in flight starts that request again, and
+      // nothing on screen says the first one is running. Promote to error once
+      // those five own their pending state.
+      "re-lint/no-unguarded-async-button": "warn",
     },
   },
 
@@ -587,14 +592,25 @@ export default tseslint.config(
   // cannot outrun what the tests actually validate — a mismatch errors. Scoped to
   // spec.md + ADR bodies — not the exploratory plan.md/tasks.md/research.md
   // siblings. First markdown-language block in the repo.
+  // `no-ungrounded-spec-name` warns, not errors: every code path in a spec is
+  // written as inline code so `no-dead-md-links` cannot see it, which is how a
+  // spec came to name three files deleted two days earlier (#2550). The corpus
+  // predates the rule, so its findings are a queue to drain, not a gate yet.
+  // The canary spec is covered too; `tools/eslint-canaries/**` is ignored
+  // repo-wide and reached only by scripts/check-eslint-canaries.sh --no-ignore.
   {
-    files: ["specs/**/spec.md", "adrs/**/*.md"],
+    files: [
+      "specs/**/spec.md",
+      "adrs/**/*.md",
+      "tools/eslint-canaries/**/spec.md",
+    ],
     language: "markdown/gfm",
     plugins: { markdown, "re-lint": reLint },
     rules: {
       "re-lint/require-statement-links": "warn",
       "re-lint/require-intro-paragraph": "error",
       "re-lint/require-status-matches-coverage": "error",
+      "re-lint/no-ungrounded-spec-name": "warn",
     },
   },
   // Every markdown link to a repo file, wherever docs live. `require-spec-link`
