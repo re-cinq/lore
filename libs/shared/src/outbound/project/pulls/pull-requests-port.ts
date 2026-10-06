@@ -60,6 +60,8 @@ export interface ReviewComment {
   created_at: string;
   /** The submitted review this inline comment belongs to. Absent on legacy doubles. */
   review_id?: number | null;
+  /** The comment that opened the thread this one replies in; null on the opening comment itself. GitHub takes a reply only against that first comment. */
+  in_reply_to_id?: number | null;
 }
 
 export interface IssueComment {

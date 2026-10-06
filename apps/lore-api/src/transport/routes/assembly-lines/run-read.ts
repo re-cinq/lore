@@ -5,21 +5,19 @@ import type { Request, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
-  resolveRunGraph,
-  loadBuiltinAssemblyLines,
-  type AssemblyLine,
-} from "@re-cinq/lore-assembly-lines";
-import { describeStationRun } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+  describeStationRun,
+  type RunGraph,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type {
   AssemblyRunsPort,
   StationRunRecord,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 
 // GET /api/assembly-runs/{id} — the run, its nodes, and the Station each dispatches to; moved from the Floor (#1347) once lore-api's Dockerfile started building libs/assembly-lines too. stationInherited surfaces station inheritance in the response rather than leaving it to be reconstructed from YAML.
 
-// The ENRICHED run read (FR6.40a): each node joined to what the run's OWN graph says (FR6.38, resolved at clone time); graph facts are null only when the run predates clones AND its blueprint is gone.
+// The ENRICHED run read (FR6.40a): each node joined to what the run's OWN graph says (FR6.38, cloned when the run started); graph facts are null for a run that predates clones, since the definition it was loaded from by name is deleted.
 const RunReadSchema = z.object({
   line: z.record(z.string(), z.unknown()),
   definitionKnown: z.boolean(),
@@ -28,7 +26,6 @@ const RunReadSchema = z.object({
 
 export function runReadRoute(
   getPool: () => Pool | null,
-  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
   runs?: AssemblyRunsPort,
 ): ServerRoute {
   return {
@@ -39,13 +36,12 @@ export function runReadRoute(
       description: "A run joined to the graph it walked",
       errors: [404],
     }),
-    handler: (request) => serveRunRead(getPool, load, runs, request),
+    handler: (request) => serveRunRead(getPool, runs, request),
   };
 }
 
 async function serveRunRead(
   getPool: () => Pool | null,
-  load: () => Promise<Map<string, AssemblyLine>>,
   runs: AssemblyRunsPort | undefined,
   request: Request,
 ): Promise<object> {
@@ -53,16 +49,12 @@ async function serveRunRead(
   const line = await port.getById(request.params.id);
 
   enforceTrue(line !== null, apiError(404), "assembly run not found");
-  const [rows, graph] = await Promise.all([
-    port.listStationRuns(line.id),
-    // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and the reaper).
-    resolveRunGraph(line, load),
-  ]);
+  const rows = await port.listStationRuns(line.id);
 
   return {
     line,
-    definitionKnown: Boolean(graph),
-    nodes: describeNodes(rows, graph, line.args),
+    definitionKnown: Boolean(line.graph),
+    nodes: describeNodes(rows, line.graph, line.args),
   };
 }
 
@@ -78,15 +70,13 @@ export function resolvePort(
     "database unavailable",
   );
 
-  return runs ?? new PgAssemblyRuns(pool as Pool);
+  return runs ?? runsReadingFloor(pool as Pool);
 }
-
-type RunGraph = Awaited<ReturnType<typeof resolveRunGraph>>;
 
 /** Each visit joined to the node it visited; a visit whose node has left the graph still describes itself. */
 function describeNodes(
   rows: StationRunRecord[],
-  graph: RunGraph,
+  graph: RunGraph | null | undefined,
   args: Record<string, unknown>,
 ) {
   return rows.map((row) =>

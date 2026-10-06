@@ -12,7 +12,7 @@ export interface ApprovalConfig {
 let config: ApprovalConfig = {
   required: false,
   label: "approved",
-  auto_approve: ["general", "gap-fill"],
+  auto_approve: ["gap-fill"],
   repos: {},
 };
 

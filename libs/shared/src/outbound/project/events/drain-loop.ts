@@ -1,6 +1,6 @@
 /** The drain loop (layer 2): claim a batch, dispatch each event to its registered handler, transition the row. At-least-once. */
 
-import { decideRetry } from "./retry.js";
+import { decideRetry, retryBudgetOf } from "./retry.js";
 import type { EventDeliveryRow as EventRow } from "./event-deliveries-port.js";
 
 /** Row identity a handler may need (e.g. to hand a large payload off by reference); handlers that don't care ignore it. */
@@ -156,16 +156,27 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
     await handler(ev.params ?? {}, { eventId: ev.event_id });
     await deps.markDone(ev.id);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const decision = decideRetry({ attempts: ev.attempts });
-
-    if (decision.kind === "retry") {
-      await deps.markFailed(ev.id, message, decision.backoffSeconds);
-
-      return;
-    }
-    await deadLetter(deps, ev, message);
+    await retryOrDeadLetter(deps, ev, err);
   }
+}
+
+async function retryOrDeadLetter(
+  deps: LoopDeps,
+  ev: EventRow,
+  err: unknown,
+): Promise<void> {
+  const message = err instanceof Error ? err.message : String(err);
+  const decision = decideRetry({
+    attempts: ev.attempts,
+    max: retryBudgetOf(err),
+  });
+
+  if (decision.kind === "retry") {
+    await deps.markFailed(ev.id, message, decision.backoffSeconds);
+
+    return;
+  }
+  await deadLetter(deps, ev, message);
 }
 
 /** Give up on a delivery, out loud — dead-lettering used to write the row and say nothing, and the row itself is deleted by the hourly prune a week later. */

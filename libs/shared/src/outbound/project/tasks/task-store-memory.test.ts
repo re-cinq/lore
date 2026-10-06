@@ -49,12 +49,13 @@ describe("InMemoryTaskStore.create", () => {
     const store = new InMemoryTaskStore([], { now: tick(T0) });
     const created = await store.create({
       description: "do the thing",
+      taskType: "onboard",
       targetRepo: "a/b",
       priority: "whatever",
     });
 
     expect(created).toMatchObject({
-      task_type: "general",
+      task_type: "onboard",
       status: "pending",
       priority: "normal",
     });
@@ -74,14 +75,14 @@ describe("InMemoryTaskStore.create", () => {
     await expect(
       store.create({
         description: "impl",
-        taskType: "implementation",
+        taskType: "spec-task",
         targetRepo: "a/b",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
     await expect(
       store.create({
         description: "impl",
-        taskType: "implementation",
+        taskType: "spec-task",
         targetRepo: "unseeded/repo",
       }),
     ).resolves.toMatchObject({ status: "pending" });
@@ -91,8 +92,16 @@ describe("InMemoryTaskStore.create", () => {
     const store = new InMemoryTaskStore();
 
     await expect(
-      store.create({ description: "x".repeat(32001) }),
+      store.create({ description: "x".repeat(32001), taskType: "onboard" }),
     ).rejects.toThrow(new Error("Description too long (max 32000 chars)"));
+  });
+
+  it("refuses a task with no type, as the Postgres store does", async () => {
+    const store = new InMemoryTaskStore();
+
+    await expect(store.create({ description: "do the thing" })).rejects.toThrow(
+      /^task_type is required/,
+    );
   });
 });
 
@@ -103,7 +112,7 @@ describe("InMemoryTaskStore.retry", () => {
         {
           id: "t1",
           description: "broken run",
-          task_type: "general",
+          task_type: "onboard",
           status: "failed",
           target_repo: "a/b",
           created_by: "ui",

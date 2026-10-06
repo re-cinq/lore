@@ -1,0 +1,26 @@
+line:
+  id: issue-triage
+  entry: verify
+  exit: done
+  args:
+    issue_url:
+      kind: value
+  nodes:
+    - id: verify
+    - id: human-gate
+      station: human-gate
+    - id: done
+  edges:
+    - from: verify
+      to: human-gate
+      on: success
+    - from: human-gate
+      to: done
+      on: success
+stations:
+  human-gate:
+    kind: human
+    route: "{args.issue_url}"
+    outcomes:
+      - success
+agent_definitions: {}

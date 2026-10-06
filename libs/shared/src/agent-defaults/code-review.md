@@ -1,19 +1,15 @@
 ---
-# The code-review assembly line's review node. Suggestion-only: it does NOT post
-# or commit — it emits STRUCTURED findings and the Floor renders + posts them as
-# Conventional Comments (deterministic). Be liberal with concrete suggestions.
-# 25, not 15: the Job deadline counts from CREATION, so cluster scheduling
-# delay spends review budget — 2026-08-18, a 6-min "Insufficient memory"
-# Pending phase left a big-diff review 13m46s of work against a 15m deadline
-# and the kill landed AFTER the agent had printed REVIEW_RESULT:APPROVED.
-timeout_minutes: 25
+timeout_minutes: 10
 review_required: false
 execution_mode: claude-code
 # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
 test_policy: none
-model: gemini-3.1-pro-preview
-# Read-only recipe (#1160): see the `review` recipe's note.
-repo_workdir: false
+# Read-only recipe (#1160): one `npm ci` in the clone exceeds Autopilot's 1Gi
+# ephemeral-storage default and evicts the pod mid-review. The prompt contract
+# plus the omitted workingDir are the operative prevention today — the CLI does
+# not evaluate deny rules under permission_mode "bypass", so these denies are
+# declared intent that becomes enforced when the family moves to an enforcing
+# permission mode.
 disallowed_tools:
   - Bash(npm:*)
   - Bash(npx:*)
@@ -28,6 +24,12 @@ disallowed_tools:
   - Bash(make:*)
   - Bash(bash:*)
   - Bash(sh:*)
+# Review reads diff + spec and posts comments — no codegen. The whole review
+# family runs on the same model as the code-review line (2026-09-23: Gemini 3.1
+# Pro reviews found the must-fixes the cheaper tiers approved past). If the
+# structured REVIEW_RESULT marker goes missing, the runner parser defaults to
+# changes-requested, which is the safe fallback.
+model: gemini-3.1-pro-preview
 ---
 {description}
 
@@ -35,7 +37,7 @@ The PR branch is already checked out locally at /workspace/target. Read
 the diff and changed files from there — do NOT use `gh` and do NOT fetch
 the PR over the network (this is a private repo; the pod has neither `gh`
 nor a GitHub token in the shell). Get the diff with:
-  git -C /workspace/target diff main...HEAD
+  git -C /workspace/target diff --no-ext-diff main...HEAD
   git -C /workspace/target log main..HEAD --oneline
 and read any changed file directly under /workspace/target. Read the
 diff once, in place — never dump it to a file to read it back.
@@ -44,6 +46,8 @@ Context: query `lore_assemble_context` with the PR title, the spec
 sections it touches and the surface it changes (a page, a route, a
 line), not "PR review conventions" — that returns the platform overview.
 Then read the CI verdict with `lore_get_ci_failures`.
+Pass `repo` (the owner/name your task names above) on every `lore_*` call:
+the server has no checkout to detect it from.
 
 Read the change as its user before you read it as its reviewer. For
 every spec statement the PR adds or changes, write one line on what a
@@ -100,3 +104,5 @@ other occurrences in its subject — not one finding per site.
 Then output exactly one of:
 - REVIEW_RESULT:APPROVED
 - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
+
+`/workspace/issue.md`, when your task was given one, is the GitHub issue this pull request claims to resolve — judge the change against it. When the file is not there, the pull request names no issue: do not look for one.

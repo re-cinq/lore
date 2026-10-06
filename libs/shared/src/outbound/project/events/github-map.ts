@@ -1,4 +1,4 @@
-/** GitHub webhook → event mapping: produces zero or more EventInputs per check/PR/review. */
+/** GitHub webhook → event mapping: produces zero or more EventInputs per PR/review/comment. */
 
 import type { EventInsert as EventInput } from "../../events.js";
 import { githubDedupeKey } from "./dedupe.js";
@@ -18,8 +18,6 @@ export const GITHUB_EVENT_NAMES: string[] = [
   ),
   "github.pull_request_review.submitted",
   "github.pull_request_review_comment.created",
-  "github.check_run.completed",
-  "github.check_suite.completed",
   "github.issue_comment.created",
   "github.issues.labeled",
   "github.repository.renamed",
@@ -37,10 +35,6 @@ type EventMapper = (
 const EVENT_MAPPERS: Record<string, EventMapper | undefined> = {
   pull_request: mapPullRequest,
   pull_request_review: mapPullRequestReview,
-  check_run: (payload, repo, key) =>
-    mapCheckCompleted("check_run", payload, repo, key),
-  check_suite: (payload, repo, key) =>
-    mapCheckCompleted("check_suite", payload, repo, key),
   issue_comment: mapIssueComment,
   pull_request_review_comment: mapReviewComment,
   issues: mapIssueLabeled,
@@ -108,26 +102,6 @@ function mapPullRequestReview(
     { repo, pr_number: prNumber, ...reviewFields(payload.review) },
     key,
   );
-}
-
-function mapCheckCompleted(
-  eventType: string,
-  payload: GitHubPayload,
-  repo: string,
-  key: string,
-): EventInput[] {
-  if (payload.action !== "completed") {
-    return [];
-  }
-
-  return checkPullRequests(payload)
-    .filter((pr): pr is { number: number } => typeof pr?.number === "number")
-    .map((pr) => ({
-      eventName: `github.${eventType}.completed`,
-      source: "github" as const,
-      params: { repo, pr_number: pr.number },
-      dedupeKey: `${key}:${pr.number}`,
-    }));
 }
 
 function mapIssueComment(
@@ -231,6 +205,7 @@ function closedPrEvent(
       pr_number: prNumber,
       merged: pr.merged === true,
       branch: pr.head?.ref ?? "",
+      base_ref: pr.base?.ref ?? "",
       merge_commit_sha: pr.merge_commit_sha ?? null,
       labels: labelNames(pr.labels),
     },
@@ -251,43 +226,35 @@ function reviewTriggerEvent(
   );
 }
 
-function reviewFields(review?: {
+interface SubmittedReview {
   id?: number;
   state?: string;
   user?: { login?: string };
   body?: string;
-}): {
-  review_id: number | null;
-  review_state: string;
-  review_author: string;
-  review_body: string;
-} {
-  const r = review ?? {};
+  author_association?: string;
+}
 
+/** `review_author_association` is GitHub's own word on the reviewer's standing; the reply line starts only for one who may write. */
+function reviewFields(review: SubmittedReview = {}): Record<string, unknown> {
   return {
-    review_id: r.id ?? null,
-    review_state: r.state ?? "",
-    review_author: commentAuthor(r.user),
-    review_body: r.body ?? "",
+    review_id: review.id ?? null,
+    review_state: review.state ?? "",
+    review_author: commentAuthor(review.user),
+    review_author_association: review.author_association ?? "",
+    review_body: review.body ?? "",
   };
 }
 
-function checkPullRequests(
-  payload: GitHubPayload,
-): Array<{ number?: number } | null | undefined> {
-  return (
-    payload.check_run?.pull_requests ?? payload.check_suite?.pull_requests ?? []
-  );
-}
-
-/** Comment identity the code-review reply handler needs — author drives the bot-loop guard; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */
+/** Comment identity the review handlers need — author drives the bot-loop guard, and its association is GitHub's word on whether that author may write, which an `@lore review` needs; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */
 function commentParams(comment?: {
   id?: number;
   user?: { login?: string };
+  author_association?: string;
   body?: string;
 }): {
   comment_id: number;
   comment_author: string;
+  comment_author_association: string;
   comment_body: string;
 } {
   const c = comment ?? {};
@@ -295,6 +262,7 @@ function commentParams(comment?: {
   return {
     comment_id: c.id ?? 0,
     comment_author: commentAuthor(c.user),
+    comment_author_association: c.author_association ?? "",
     comment_body: c.body ?? "",
   };
 }

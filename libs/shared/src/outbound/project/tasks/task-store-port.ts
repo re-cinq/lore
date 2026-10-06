@@ -17,7 +17,7 @@ export const OPEN_TASK_STATES = [
   "retried",
 ] as const;
 
-// Task records port; backed by pipeline.tasks (cluster) or ~/.lore/local-tasks.json (local), same surface. Record side only — execution lives behind AgentRunnerPort; pg SQL single-sourced in shared/src/pipeline-tasks.ts.
+// Task records port; backed by pipeline.tasks (cluster) or ~/.lore/local-tasks.json (local), same surface. Record side only; pg SQL single-sourced in shared/src/pipeline-tasks.ts.
 
 export type TaskAction = "claim" | "cancel" | "retry";
 

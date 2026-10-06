@@ -27,14 +27,14 @@ Registered via `server.tool` ([registration + handler](apps/mcp-server/src/trans
 - **description** (verbatim):
 
 ```text
-Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name + run_id), returning {logs, complete:true}. Use for scheduled jobs like context_reindex or spec_test_linker. Instead: lore_get_task_logs for a user-created pipeline task's logs (by UUID).
+Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name + run_id), returning {logs, complete:true}. Use for scheduled jobs like daily_digest or spec_upkeep. Instead: lore_get_task_logs for a user-created pipeline task's logs (by UUID).
 ```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `job_name` | string | yes | — | Scheduled job name, e.g. `context_reindex` or `spec_test_linker`. |
+| `job_name` | string | yes | — | Scheduled job name, e.g. `daily_digest` or `spec_upkeep`. |
 | `run_id` | string | yes | — | Run UUID from `pipeline.job_runs`. |
 
 ## Behavior
@@ -82,9 +82,9 @@ In stdio mode the request proxies to the API with the job name and run id:
 without `LORE_API_URL`/`LORE_INGEST_TOKEN` it returns the require-URL message
 without fetching, and on success it returns the proxied body. ([validated by
 `lore_get_job_logs reports the require-URL message when the env is
-unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L677), [`lore_get_job_logs
+unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L573), [`lore_get_job_logs
 returns the proxied body on
-success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L690))
+success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L586))
 
 The `/api/job-run-logs` HTTP route (the stdio-proxy target) reads the run's GCS object and returns `{logs, complete}`: the full body with `complete: true` when the object exists, empty with `complete: false` when it does not, 400 when `job_name`/`run_id` are missing, and 500 on a storage error. ([validated by GET /api/job-run-logs returns the file content when it exists](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L51), [`job-run-logs.test.ts:44`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L44), [`job-run-logs.test.ts:38`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L38), [`job-run-logs.test.ts:59`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L59))
 

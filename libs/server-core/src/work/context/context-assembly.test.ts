@@ -304,4 +304,46 @@ describe("assembleContext — traceable XML output", () => {
       omitReason: "no results",
     });
   });
+
+  it("writes nothing to the database when the default template is assembled passively", async () => {
+    const written: string[] = [];
+    const recordingPool = {
+      query: async (sql: string) => {
+        if (/^\s*(UPDATE|INSERT)/.test(sql)) {
+          written.push(sql);
+        }
+
+        return { rows: [] };
+      },
+    };
+
+    await assembleContext(
+      recordingPool as unknown as Parameters<typeof assembleContext>[0],
+      "how are webhooks verified",
+      { repo: "o/r", passive: true },
+    );
+
+    expect(written).toEqual([]);
+  });
+
+  it("audits its memory searches when the default template is assembled for an agent", async () => {
+    const written: string[] = [];
+    const recordingPool = {
+      query: async (sql: string) => {
+        if (/^\s*(UPDATE|INSERT)/.test(sql)) {
+          written.push(sql);
+        }
+
+        return { rows: [] };
+      },
+    };
+
+    await assembleContext(
+      recordingPool as unknown as Parameters<typeof assembleContext>[0],
+      "how are webhooks verified",
+      { repo: "o/r" },
+    );
+
+    expect(written.length).toBeGreaterThan(0);
+  });
 });

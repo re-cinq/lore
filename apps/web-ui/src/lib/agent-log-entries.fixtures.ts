@@ -44,7 +44,7 @@ export const RESULT_TERMINAL =
 export const LIFECYCLE_SUCCEEDED =
   '{"kind":"lifecycle","exitCode":0,"phase":"agent","status":"succeeded"}';
 
-// Exact serialized output of eventLine()/resultLine() in libs/assembly-lines/src/agent-output.ts (web-ui cannot import that lib).
+// Exact serialized output of a station's log line and result line, as stored runs carry them.
 export const STATION_LOG =
   '{"type":"log","message":"detect: scanning 42 specs"}';
 

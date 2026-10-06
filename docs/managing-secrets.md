@@ -48,19 +48,17 @@ Terraform removes the second source of truth, which removes the failure.
 
    | Change | Restart |
    |---|---|
-   | Anthropic key | `lore-floor`, `lore-api`, `lore-stations` |
-   | DB password | `lore-floor`, `lore-api`, `lore-ui` |
-   | Ingest / internal token | `lore-floor`, `lore-api`, `lore-ui` |
-   | Slack credentials | `lore-floor`, `lore-api` |
+   | Anthropic key | `lore-api`, `lore-stations` |
+   | DB password | `lore-api`, `lore-ui`, `lore-stations` |
+   | Ingest / internal token | `lore-api`, `lore-ui`, `lore-stations` |
+   | Slack credentials | `lore-api`, `lore-stations` |
    | OAuth / NextAuth | `lore-ui` |
-   | GitHub App | `lore-floor`, `lore-api` |
+   | GitHub App | `lore-api`, `lore-ui`, `lore-stations` |
    | GHCR pull secret | none — read at image-pull time |
 
-   The ai-agents controller needs no restart; agent pods re-read `agent-secrets`
-   when they spawn.
 
    ```bash
-   kubectl rollout restart deployment -n lore-floor
+   kubectl rollout restart deployment -n lore-api
    ```
 
 3. **Re-sign anything that holds the other half.** A shared secret is two-sided.
@@ -148,6 +146,63 @@ key live, re-save each gemini-model definition on `/agents` — a refusal is
 acked past permanently, so the re-save is what emits the catalog event that
 makes the sync loop re-render and apply it.
 
+## The Headlamp sign-in credentials (`lore-headlamp-*`)
+
+The Headlamp dashboard (`infra/terraform/headlamp.tf`) is public at
+`headlamp_hostname` and is gated by oauth2-proxy using Google as the identity
+provider, restricted to `@re-cinq.com` addresses. Three secrets, all gated on
+`enable_headlamp`, which Terraform refuses to accept without a non-empty
+`headlamp_hostname` — oauth2-proxy derives its OAuth redirect URL from that
+hostname and will not start without one.
+
+Google OAuth **web** clients have no Terraform resource outside IAP, so the client
+itself is created by hand, once:
+
+1. Cloud Console → APIs & Services → **Credentials** → Create OAuth client ID →
+   *Web application*, name `headlamp`.
+2. Authorized redirect URI — exactly, or sign-in fails with `redirect_uri_mismatch`:
+   `https://<headlamp_hostname>/oauth2/callback`
+3. Consent screen: choose **Internal** if `re-cinq.com` is a Google Workspace org in
+   this GCP org. That restricts sign-in to re-cinq accounts at Google's end as well
+   as at oauth2-proxy's, which is the difference between one gate and two.
+
+Then seed the versions:
+
+```bash
+printf '%s' "<client id>"     | gcloud secrets versions add lore-headlamp-oauth-client-id     --data-file=-
+printf '%s' "<client secret>" | gcloud secrets versions add lore-headlamp-oauth-client-secret --data-file=-
+openssl rand -base64 32 | head -c 32 \
+  | gcloud secrets versions add lore-headlamp-cookie-secret --data-file=-
+```
+
+`head -c 32` is load-bearing: oauth2-proxy accepts a cookie secret of exactly 16,
+24 or 32 bytes and refuses to start otherwise.
+
+**Order matters here, more than for the other secrets.** The Helm provider waits
+for a release to become Ready, and oauth2-proxy cannot start without its secret, so
+a single `terraform apply` on a fresh install fails on that release's 5-minute
+timeout. Create the containers first, seed them, then apply the rest:
+
+```bash
+cd infra/terraform
+terraform apply -target='google_secret_manager_secret.lore'   # containers only
+# ... seed the three versions with the commands above ...
+terraform apply                                              # the workloads
+```
+
+Rotating later is the ordinary path — `gcloud secrets versions add`, then
+`kubectl rollout restart deploy/oauth2-proxy -n headlamp`. Rotating the cookie
+secret signs everyone out; rotating the client secret needs the same restart.
+
+**What these credentials protect.** GKE does not let you point the API server at a
+third-party OIDC issuer, so a Google login cannot become a Kubernetes identity —
+Headlamp talks to the API server as its own ServiceAccount, and everyone who gets
+past Google shares that one identity. These secrets are therefore the *only* thing
+deciding who reads the cluster, and the `headlamp-view` ClusterRole (read-only, no
+Secrets) is the only thing bounding what they can read. Treat a leak of the client
+secret as cluster-wide read exposure, and note that the Kubernetes audit log will
+name the ServiceAccount rather than the person.
+
 ## Change a non-secret value
 
 Hostnames, `project_id`, the `enable_*` gates, `log_retention_days` — these live
@@ -167,13 +222,22 @@ holding.
 
 ## Seed a new environment
 
+The containers have to exist before a value can be written to them, and the
+workloads have to come after both — the Helm provider waits for Ready, and a pod
+whose `secretKeyRef` points at an unseeded secret never gets there. So the first
+apply is targeted:
+
 ```bash
-cd infra/terraform && terraform apply    # creates the empty containers
-./scripts/infra/seed-secrets.sh          # prompts for each missing value
+cd infra/terraform
+terraform apply -target='google_secret_manager_secret.lore'  # the empty containers
+./scripts/infra/seed-secrets.sh                              # prompts for each missing value
+terraform apply                                              # the workloads
 ```
 
 Idempotent: a secret that already has an enabled version is skipped, so
-re-running it is free.
+re-running it is free. On an environment that is already up, the plain
+`terraform apply` is enough on its own — the targeted first pass is only for a
+cold start, or for a newly added secret whose consumer ships in the same apply.
 
 ## Migrating an existing deployment
 
@@ -208,8 +272,7 @@ Then rename your local `secrets.tfvars` to `terraform.tfvars` and delete every
 secret variable from it; what remains is identifiers and hostnames. Set the two
 `enable_*` gates to match what you had (`enable_anthropic_admin_key`,
 `enable_ui_admin_token`) — these replaced the old "is this variable non-empty"
-checks. (`enable_cluster_agent_registration` was a third until 2026-08-29; every
-cluster-agent registers now, so its token is an unconditional platform secret.)
+checks.
 
 **Land the whole change before anyone applies.** In the window between step 1 and
 the merge, a stale checkout running the old code will rewrite the versions from

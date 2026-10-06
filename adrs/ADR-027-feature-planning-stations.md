@@ -22,7 +22,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > **Amendment 2026-08-13 — one line spans the whole feature lifecycle.** The two-definition
 > split described immediately above is gone, and so is the separate decomposition run that
 > [ADR-029](./ADR-029-feature-spec-decomposition.md) introduced.
-> [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> feature-planning.yaml
 > is now the whole lifecycle:
 >
 > ```
@@ -34,7 +34,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > accepts a round — became a real `wait` node when the finalize line was folded in, and a
 > planning round is now a *resume* of the parked node rather than a new task. The
 > `merged` node applies the same idea to the spec PR: `pr_merged` was a declared but unused
-> `WaitSignal` in [loader.ts](../libs/assembly-lines/src/loader.ts), and using it turns the
+> `WaitSignal` in loader.ts, and using it turns the
 > "wait for a human to merge" gap into a step you can see in the graph. ADR-029 carries the
 > full rationale and the defect that forced it.
 >
@@ -42,7 +42,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > for a planning round; **finalize no longer commits as its own task** — the `write` and
 > `push` nodes do it on the same line; and the feature's `pr-open` transition belongs to
 > the `push` node's terminal handler, not to
-> [agent-watcher.ts](../apps/floor/src/work/watcher/agent-watcher.ts), which returns early
+> agent-watcher.ts, which returns early
 > for every assembly-line node CR.
 
 
@@ -54,7 +54,7 @@ The wizard, the `lore.features` / `lore.feature_iterations` tables, the `Feature
 
 Spec authoring is the most context-dependent step in the Lore pipeline and the
 least interactive. `feature-request`
-([handle-feature-request.ts](../apps/floor/src/work/task/handle-feature-request.ts))
+
 runs one LLM pass and opens a PR — no human in the loop, no place for a draft,
 and no way to steer the architecture before the PR exists. Features themselves
 are not first-class: they are `specs/<n>-<name>/` folders *computed* into the

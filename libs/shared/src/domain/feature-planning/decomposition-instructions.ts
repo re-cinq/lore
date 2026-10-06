@@ -30,6 +30,9 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           test_plan:
             "Apply the migration locally; insert the same (user, repo) twice and see one row.",
           references: ["specs/favorites/plan.md#data-model"],
+          plan_quotes: [
+            "A favorite is one row per developer and repo; starring twice changes nothing.",
+          ],
         },
         {
           id: "T002",
@@ -48,6 +51,9 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           ],
           test_plan: "Route test calling it twice for one user and repo.",
           references: ["specs/favorites/spec.md#FR-001"],
+          plan_quotes: [
+            "The star is a toggle: one endpoint flips it and answers the new state.",
+          ],
         },
         {
           id: "T003",
@@ -67,6 +73,9 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           ],
           test_plan: "Component test with the endpoint stubbed both ways.",
           references: ["specs/favorites/spec.md#user-story-1"],
+          plan_quotes: [
+            "The star sits beside the repo page header, where the repo's name is.",
+          ],
         },
         {
           id: "T004",
@@ -84,6 +93,9 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           ],
           test_plan: "Page test with zero and two favorites.",
           references: ["specs/favorites/spec.md#user-story-2"],
+          plan_quotes: [
+            "Favorites gets its own entry in the navigation, newest first.",
+          ],
         },
       ],
     },

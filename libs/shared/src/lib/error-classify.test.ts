@@ -17,8 +17,40 @@ describe("classifyError", () => {
     ).toMatchObject({ category: "anthropic-credit" });
   });
 
+  it("returns anthropic-credit for Gemini's exceeded your current quota message", () => {
+    expect(
+      classifyError(
+        "429 You exceeded your current quota, please check your plan and billing details.",
+      ),
+    ).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
+  it("returns anthropic-credit for Gemini's insufficient_quota message", () => {
+    expect(classifyError("429 insufficient_quota")).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
+  it("returns anthropic-credit for Gemini's depleted prepayment credits message", () => {
+    expect(
+      classifyError(
+        "429 Your prepayment credits are depleted. Please go to AI Studio to manage your project and billing.",
+      ),
+    ).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
   it("returns anthropic-rate-limit for a 429 rate limit message", () => {
     expect(classifyError("429 rate limit exceeded")).toMatchObject({
+      category: "anthropic-rate-limit",
+    });
+  });
+
+  it("returns anthropic-rate-limit for a plain 429 too many requests message", () => {
+    expect(classifyError("429 Too Many Requests")).toMatchObject({
       category: "anthropic-rate-limit",
     });
   });

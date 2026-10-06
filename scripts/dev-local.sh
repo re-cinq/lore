@@ -5,8 +5,8 @@ set -euo pipefail
 #   Postgres (docker) + shared (tsc --watch) + mcp-server + agent + web-ui.
 # Idempotent — safe to re-run. Ctrl-C tears everything down (concurrently -k).
 #
-# Ports after start: web-ui :3000, mcp-server :3001, skills :3002, event-router :3003,
-# stations :3004, cluster-agent :3005, agent :8080, Postgres :5432.
+# Ports after start: web-ui :3000, mcp-server :3001, skills :3002,
+# stations :3004, agent :8080, Postgres :5432.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -16,14 +16,14 @@ fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
 # Kill any stale Lore stack from a previous `npm start`. node --watch children
 # ignore plain SIGTERM and can survive a rough exit, then hold the service ports
-# (web-ui :3000, mcp-server :3001, skills :3002, event-router :3003, stations :3004,
-# cluster-agent :3005, agent :8080) so the next run dies
+# (web-ui :3000, mcp-server :3001, skills :3002, stations :3004,
+# agent :8080) so the next run dies
 # with EADDRINUSE. Free those ports here. Postgres :5432 / Dgraph :8081 are
 # docker-managed, so we leave them alone. Idempotent: a no-op when nothing runs.
 free_stale_ports() {
   command -v lsof >/dev/null 2>&1 || { log "lsof not found — skipping stale-instance cleanup"; return 0; }
   local port pids
-  for port in 3000 3001 3002 3003 3004 3005 8080; do
+  for port in 3000 3001 3002 3004 8080; do
     pids="$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null || true)"
     [ -n "$pids" ] || continue
     log "Port $port held by a stale instance (PID $(echo "$pids" | tr '\n' ' ')) — stopping it"
@@ -106,38 +106,7 @@ export LORE_AGENT_URL="${LORE_AGENT_URL:-http://localhost:8080}"
 #     Both ends read LORE_AGENT_INTERNAL_TOKEN here, defaulting to the same
 #     LORE_INGEST_TOKEN above so a local run needs one token, not two.
 export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-$LORE_INGEST_TOKEN}"
-export EVENT_ROUTER_URL="${EVENT_ROUTER_URL:-http://localhost:3003}"
 export STATIONS_URL="${STATIONS_URL:-http://localhost:3004}"
-export CLUSTER_AGENT_URL="${CLUSTER_AGENT_URL:-http://localhost:3005}"
-
-#     The cluster-agent registers and claims like every other one — there is no
-#     unregistered mode — so both ends of the registration need the same
-#     pre-shared token locally. lore-api reads it to authorize
-#     POST /api/cluster-agents/register; the agent presents it once at boot and
-#     uses the per-agent token it gets back for everything after.
-export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN="${LORE_CLUSTER_AGENT_REGISTRATION_TOKEN:-lore-local-registration-token}"
-export LORE_CLUSTER_AGENT_NAME="${LORE_CLUSTER_AGENT_NAME:-central}"
-#     The identity it gets back persists in a Secret in minikube, exactly as in a
-#     deployed cluster: the agent only starts under LORE_STATION_BACKEND=k8s.
-export LORE_CLUSTER_AGENT_IDENTITY_SECRET="${LORE_CLUSTER_AGENT_IDENTITY_SECRET:-lore-cluster-agent-identity}"
-export LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE="${LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE:-${LORE_AGENTS_NAMESPACE:-ai-agents}}"
-#     Every tag, as the umbrella chart's central agent carries: on a laptop this
-#     is the only cluster, so anything it cannot claim runs nowhere.
-export LORE_CLUSTER_AGENT_TAGS="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest}"
-
-# Station execution. Tasks run as Agent CRs on the ai-agent-subsystem (agent-cr),
-# which needs a Kubernetes cluster. The default `inprocess` keeps the lightweight
-# feature-planning/finalize path for a dev without one; set LORE_STATION_BACKEND=k8s
-# in .env.local to execute real impl/review tasks against a laptop minikube.
-export LORE_STATION_BACKEND="${LORE_STATION_BACKEND:-inprocess}"
-
-# Agent CR plumbing. The Floor reaches the cluster through the developer's kubeconfig
-# (LORE_KUBECONFIG, else KUBECONFIG, else ~/.kube/config — shared/src/kube-config.ts);
-# run pods reach back to this host at host.minikube.internal. The run pods' telemetry
-# callbacks are authorized with LORE_AGENT_INTERNAL_TOKEN, so this host and the
-# cluster's agent-secrets must agree — both default to the same dev token.
-export LORE_AGENTS_NAMESPACE="${LORE_AGENTS_NAMESPACE:-ai-agents}"
-export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-lore-local-agent-token}"
 
 # Agent conversations (ai-agent-subsystem#188): a run saves its state so a LATER run
 # continues it instead of being re-briefed. Two things have to be true or the whole
@@ -154,32 +123,6 @@ export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-lore-local-agent-
 export LORE_FLOOR_POD_URL="${LORE_FLOOR_POD_URL:-http://host.minikube.internal:8080}"
 export LORE_ARCHIVE_DIR="${LORE_ARCHIVE_DIR:-$ROOT/.lore-archive}"
 
-# The cluster-agent's catalog sync is the only writer of minikube's
-# AgentDefinition/Station CRs: it renders lore.agent_definitions with these, the
-# host as the PODS see it. Scoped to the cluster-agent's own command, because
-# LORE_DGRAPH_HTTP means localhost to every other process here. `bare` because
-# pods get no MCP gateway URL locally; skills still resolve, which is what keeps
-# Claude agents booting. The LLM key follows setup-minikube-agents.sh's
-# precedence — the two must agree or run pods mount a key agent-secrets lacks.
-catalog_llm_key="CLAUDE_CODE_OAUTH_TOKEN"
-[ -n "${ANTHROPIC_API_KEY:-}" ] && catalog_llm_key="ANTHROPIC_API_KEY"
-cluster_agent_catalog_env="LORE_CATALOG_PROFILE=bare"
-cluster_agent_catalog_env+=" LORE_AGENT_LLM_SECRET_KEY=$catalog_llm_key"
-cluster_agent_catalog_env+=" LORE_POD_API_URL=http://host.minikube.internal:3001"
-cluster_agent_catalog_env+=" LORE_AGENT_EVENTS_URL=http://host.minikube.internal:8080/api/agent-events"
-cluster_agent_catalog_env+=" LORE_AGENT_FILES_URL=http://host.minikube.internal:8080/api/agent-files"
-cluster_agent_catalog_env+=" LORE_SKILLS_URL=http://host.minikube.internal:3002/skills"
-cluster_agent_catalog_env+=" LORE_DGRAPH_HTTP=http://host.minikube.internal:8081"
-cluster_agent_catalog_env+=" LORE_STATION_IMAGE=ghcr.io/re-cinq/lore-station:latest"
-
-if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
-  log "Station backend is k8s — bootstrapping the ai-agent-subsystem on minikube"
-  bash "$ROOT/scripts/infra/setup-minikube-agents.sh"
-  # The setup script wrote a kubeconfig holding ONLY the minikube context. Point the
-  # Floor at it so its Agent CR dispatch cannot follow a stray current-context into a
-  # real cluster; an explicitly-set LORE_KUBECONFIG still wins.
-  export LORE_KUBECONFIG="${LORE_KUBECONFIG:-$ROOT/.lore-kubeconfig-minikube}"
-fi
 
 # 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret
 #     once and persist it (gitignored) so sessions survive restarts.
@@ -258,8 +201,8 @@ set -m
 # dies with "Settings file not found", which is invisible from the Floor side.
 # LORE_AGENT_SKILLS_DIR is explicit because the gateway otherwise resolves the
 # bundle relative to cwd, and concurrently runs from the repo root.
-names="shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,router-tsc,router,stations-tsc,stations"
-colors="blue,gray,green,greenBright,yellow,white,magenta,magentaBright,red,red,redBright,redBright"
+names="shared,core,api-tsc,api,mcp-tsc,skills,stations-tsc,stations"
+colors="blue,gray,green,greenBright,yellow,white,redBright,redBright"
 commands=(
   "npm run dev -w @re-cinq/lore-shared"
   "npm run dev -w @re-cinq/lore-server-core"
@@ -267,29 +210,10 @@ commands=(
   "PORT=3001 npm run start:watch -w @re-cinq/lore-api"
   "npm run dev -w @re-cinq/lore-mcp"
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp"
-  "npm run dev -w @re-cinq/lore-floor"
-  "PORT=8080 npm run start:watch -w @re-cinq/lore-floor"
-  "npm run dev -w @re-cinq/lore-event-router"
-  "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router"
   "npm run dev -w @re-cinq/lore-stations"
   "PORT=3004 npm run start:watch -w @re-cinq/lore-stations"
 )
 
-# The cluster-agent runs only with a cluster to run against. It is a Kubernetes
-# client and a claim loop and nothing else, so without `k8s` it now refuses to
-# boot — and under `concurrently -k` one exiting process takes the whole stack
-# with it. Skipping it keeps `LORE_STATION_BACKEND=inprocess` (the default, for a
-# dev with no minikube) a working stack rather than an immediate teardown.
-if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
-  names="$names,cluster-tsc,cluster"
-  colors="$colors,yellowBright,yellowBright"
-  commands+=(
-    "npm run dev -w @re-cinq/lore-cluster-agent"
-    "$cluster_agent_catalog_env PORT=3005 npm run start:watch -w @re-cinq/lore-cluster-agent"
-  )
-else
-  log "LORE_STATION_BACKEND=$LORE_STATION_BACKEND — cluster-agent not started (it needs a cluster to claim into)"
-fi
 names="$names,ui"
 colors="$colors,cyan"
 commands+=("npm --prefix apps/web-ui run dev")

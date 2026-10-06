@@ -7,12 +7,12 @@ import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 import type { NodeModel } from "@/lib/node-models";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
+import { isFloorEngine } from "@/lib/assembly-run-rows";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
 import NodeInputCard from "./NodeInputCard";
 import RunNodeDetail from "./RunNodeDetail";
-import { RerunNodeButton } from "./RerunNodeButton";
-import { RunStationButton, type RunState } from "./RunStationButton";
+import { RunNodeButton } from "./RunNodeButton";
 import styles from "./RunVisualizationPanel.module.css";
 
 /** Everything shown about the currently selected node — or the hint to pick one when nothing is selected. */
@@ -27,9 +27,8 @@ interface SelectedNodeSectionProps {
   selectedRows: readonly AssemblyRunNode[];
   selectedAttempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
   nodeInputs: Parameters<typeof NodeInputCard>[0]["inputs"];
-  retrySource: { nodeId: string; iteration: number } | null;
-  /** Whether the run is still open; a station run then retires it first. */
-  runState: RunState;
+  /** Which engine walks the run; it decides what the node's pod logs can say. */
+  engine?: string;
   agentEditHrefs?: Record<string, string>;
   nodeModels?: Record<string, NodeModel>;
   taskEvents?: readonly TaskRuntimeEvent[];
@@ -84,10 +83,9 @@ interface NodeInspectorProps {
   state: Parameters<typeof RunNodeDetail>[0]["state"];
   row: Parameters<typeof RunNodeDetail>[0]["row"];
   rows: readonly AssemblyRunNode[];
-  runState: RunState;
   attempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
   inputs: Parameters<typeof NodeInputCard>[0]["inputs"];
-  retrySource: { nodeId: string; iteration: number } | null;
+  engine?: string;
   agentEditHref?: string;
   model: NodeModel | null;
 }
@@ -106,10 +104,10 @@ function NodeInspector(props: NodeInspectorProps) {
         repo={props.repo}
         attempts={props.attempts}
         model={props.model}
-        actions={nodeActions(props)}
+        actions={<NodeActions {...props} />}
       />
       <NodeInputCard inputs={props.inputs} />
-      <AttemptLogPanels runId={runId} rows={rows} />
+      <AttemptLogPanels runId={runId} rows={rows} engine={props.engine} />
     </section>
   );
 }
@@ -133,57 +131,64 @@ function inspectorPropsFor(
 }
 
 // The facts every node shares: the run, its repo, its definition and its state.
-function pageFacts({
-  runId,
-  repo,
-  reason,
-  definition,
-  retrySource,
-  runState,
-}: SelectedNodeSectionProps) {
-  return { runId, repo, reason, definition, retrySource, runState };
-}
-
-type RetrySource = { nodeId: string; iteration: number };
-
-/** What a viewer can DO to this node: run it, retry from it when an exact fork exists, edit its agent. Every control sits inside a <summary>, so each stops propagation — without it the card toggles shut behind the click. */
-function nodeActions({
-  runId,
-  nodeId,
-  runState,
-  retrySource,
-  agentEditHref,
-}: NodeInspectorProps): React.ReactNode {
-  return (
-    <>
-      <EditAgentSlot href={agentEditHref} />
-      <RerunSlot runId={runId} retrySource={retrySource} />
-      <RunStationButton runId={runId} nodeId={nodeId} runState={runState} />
-    </>
-  );
+function pageFacts(props: SelectedNodeSectionProps) {
+  return {
+    runId: props.runId,
+    repo: props.repo,
+    reason: props.reason,
+    definition: props.definition,
+    engine: props.engine,
+  };
 }
 
 /** One log panel per attempt that actually ran a pod. An attempt with no Agent CR name never reached a pod — a service-runtime node, or one that failed before dispatch — so there are no logs to offer, and an empty panel would read as logs that failed to load. */
-function AttemptLogPanels({
-  runId,
-  rows,
-}: {
+interface AttemptLogPanelsProps {
   runId: string;
   rows: NodeInspectorProps["rows"];
-}) {
+  engine?: string;
+}
+
+function AttemptLogPanels({ runId, rows, engine }: AttemptLogPanelsProps) {
   return rows
     .filter((attempt) => attempt.agentCrName)
     .map((attempt) => (
       <NodeLogPanel
         key={attempt.agentCrName as string}
         assemblyLineId={runId}
+        engine={engine}
         agentCrName={attempt.agentCrName as string}
         label={`Pod logs · attempt ${attempt.iteration}`}
       />
     ));
 }
 
-/** The link to this node's agent definition, absent when the node has no editable agent. */
+/** The card header's actions: run the node again, and edit its agent. */
+function NodeActions(props: NodeInspectorProps) {
+  return (
+    <>
+      <RunNodeSlot {...props} />
+      <EditAgentSlot href={props.agentEditHref} />
+    </>
+  );
+}
+
+/** "Run this station" on a floor run's node. The exit and fail nodes end the run, so they have no station to run. */
+function RunNodeSlot({
+  nodeId,
+  runId,
+  engine,
+  definition,
+}: NodeInspectorProps) {
+  const endsRun = nodeId === definition?.exit || nodeId === definition?.fail;
+
+  if (!isFloorEngine(engine) || endsRun) {
+    return null;
+  }
+
+  return <RunNodeButton runId={runId} nodeId={nodeId} />;
+}
+
+/** The link to this node's agent definition, absent when the node has no editable agent. It sits inside a <summary>, so it stops propagation — without it the card toggles shut behind the click. */
 function EditAgentSlot({ href }: { href: string | undefined }) {
   if (href === undefined) {
     return null;
@@ -197,26 +202,5 @@ function EditAgentSlot({ href }: { href: string | undefined }) {
     >
       Edit agent
     </Link>
-  );
-}
-
-/** The retry control, absent when no attempt of this node can be resumed from. */
-function RerunSlot({
-  runId,
-  retrySource,
-}: {
-  runId: string;
-  retrySource: RetrySource | null;
-}) {
-  if (retrySource === null) {
-    return null;
-  }
-
-  return (
-    <RerunNodeButton
-      runId={runId}
-      resumeNodeId={retrySource.nodeId}
-      resumeIteration={retrySource.iteration}
-    />
   );
 }

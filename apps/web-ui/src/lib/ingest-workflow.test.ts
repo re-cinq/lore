@@ -12,8 +12,8 @@ describe("constants", () => {
     expect(LORE_INGEST_WORKFLOW_PATH).toBe(".github/workflows/lore-ingest.yml");
   });
 
-  it("pins the canonical version to 5", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(5);
+  it("pins the canonical version to 6", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(6);
   });
 
   it("embeds a version marker that matches the version constant", () => {

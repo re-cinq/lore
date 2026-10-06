@@ -1,0 +1,270 @@
+# A repository's onboarding (specs/4-ux-repo-onboarding FR-2, specs/external-floor
+# FR12). Lore enrols the repository and commits its verbatim workflows and
+# templates on the branch, an agent authors the repository-specific files from
+# the onboarding ticket, and Lore opens the ONE pull request an onboarding
+# produces. The run then waits for that pull request's CI, sends a red build
+# back to an agent at most twice, and asks the code-review line for a review
+# once the build is green.
+#
+# Started by lore-api when a repository is onboarded, keyed on the onboarding's
+# task. The task's row is settled by the lore-run-settled line when this run
+# ends, however it ends.
+#
+# A failed service station is retried once and a second failure settles the run
+# as iteration_max, because a run that reaches the exit settles as success.
+line:
+  id: onboard
+  entry: enrol
+  exit: done
+  args:
+    repo:
+      kind: git
+    task_id:
+      kind: value
+      subject: true
+    ticket:
+      kind: file
+  nodes:
+    - id: enrol
+      station: onboard-enrol
+      bind:
+        target: repo
+    - id: author
+      station: onboard-author
+      bind:
+        target: repo
+    - id: open-pr
+      station: onboard-open-pr
+      bind:
+        target: repo
+    # The station IS the pull request's page on GitHub. Nobody clicks anything
+    # there to answer it: Lore's pr-ready-check sweep reads the build and posts
+    # station_run.reported for this visit once CI has a verdict.
+    - id: await-ci
+      station: onboard-await-ci
+      route: "{args.pr_url}"
+    - id: fix-ci
+      station: onboard-fix-ci
+      bind:
+        target: repo
+    - id: request-review
+      station: onboard-request-review
+    - id: done
+  edges:
+    - from: enrol
+      to: author
+      on: success
+    - from: enrol
+      to: enrol
+      on: failed
+      iteration_max: 1
+    - from: author
+      to: open-pr
+      on: success
+    # The agent could not write something the ticket asked for. The branch
+    # still holds what Lore committed, and a person reads the rest on the pull
+    # request, so the line walks on.
+    - from: author
+      to: open-pr
+      on: changes_requested
+    - from: author
+      to: author
+      on: failed
+      iteration_max: 1
+    - from: open-pr
+      to: await-ci
+      on: success
+    # Nothing on the branch: the Lore setup is already current, there is no
+    # pull request to open, and that is how a hand-triggered update of an
+    # up-to-date repository ends.
+    - from: open-pr
+      to: done
+      on: changes_requested
+    - from: open-pr
+      to: open-pr
+      on: failed
+      iteration_max: 1
+    - from: await-ci
+      to: request-review
+      on: success
+    # A red build, and a red build on a sha already reported red: both go to
+    # fix-ci, twice at most each. `await-ci` is a human station, which is what
+    # makes this cycle a guarded one.
+    - from: await-ci
+      to: fix-ci
+      on: changes_requested
+      iteration_max: 2
+    - from: await-ci
+      to: fix-ci
+      on: failed
+      iteration_max: 2
+    # Whatever the repair says of itself, the build is the judge: the wait
+    # reads CI again, and a repair that moved nothing comes back as `failed`
+    # on the same sha until the budget above is spent.
+    - from: fix-ci
+      to: await-ci
+      on: success
+    - from: fix-ci
+      to: await-ci
+      on: changes_requested
+    - from: fix-ci
+      to: fix-ci
+      on: failed
+      iteration_max: 1
+    - from: request-review
+      to: done
+      on: success
+    - from: request-review
+      to: request-review
+      on: failed
+      iteration_max: 1
+stations:
+  onboard-enrol:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: task_id
+        kind: value
+    produces:
+      # The "needs attention" section, empty when enrolment left no gap.
+      - name: attention
+        kind: value
+  onboard-author:
+    kind: agent
+    agent_definition: onboard-author
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      # The first writer on the branch: no agent has written to it before this
+      # node, so no human station has to precede it.
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+    produces: []
+  onboard-open-pr:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: task_id
+        kind: value
+      - name: attention
+        kind: value
+        optional: true
+    produces:
+      - name: pr_url
+        kind: value
+  onboard-await-ci:
+    kind: human
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    # Written only on a red report: the sha the build judged, the checks that
+    # failed and what they printed, which is what fix-ci is handed.
+    produces:
+      - name: ci_feedback_sha
+        kind: value
+      - name: ci_failed_checks
+        kind: value
+      - name: ci_failure_summary
+        kind: value
+  onboard-fix-ci:
+    kind: agent
+    agent_definition: onboard-fix-ci
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      # Write access after another writer: `await-ci`, a human station,
+      # precedes this node on every path in.
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+      - name: ci_feedback_sha
+        kind: value
+      - name: ci_failed_checks
+        kind: value
+      - name: ci_failure_summary
+        kind: value
+    produces: []
+  onboard-request-review:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: pr_url
+        kind: value
+    produces: []
+agent_definitions:
+  onboard-author:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 30
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  onboard-fix-ci:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 45
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth

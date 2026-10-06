@@ -42,7 +42,6 @@ REQUIRED=(
   lore-github-oauth-client-secret
   lore-nextauth-secret
   lore-ghcr-pull-secret
-  lore-cluster-agent-registration-token
 )
 OPTIONAL=(
   lore-anthropic-admin-api-key
@@ -51,6 +50,18 @@ OPTIONAL=(
   # runs read as GEMINI_API_KEY (docs/managing-secrets.md has the creation
   # commands).
   lore-gemini-api-key
+  # Behind enable_headlamp: the Google OAuth web client that gates the Headlamp
+  # dashboard, plus the key oauth2-proxy signs its session cookie with. The
+  # cookie secret must be exactly 16, 24 or 32 bytes:
+  #   openssl rand -base64 32 | head -c 32
+  lore-headlamp-oauth-client-id
+  lore-headlamp-oauth-client-secret
+  lore-headlamp-cookie-secret
+  # Behind enable_external_floor: the bearer tokens between Lore and the external
+  # floor engine (its service token, and the one it presents to lore-api's
+  # /api/floor/git-credential).
+  lore-floor-service-token
+  lore-floor-git-credential-token
 )
 
 has_value() {

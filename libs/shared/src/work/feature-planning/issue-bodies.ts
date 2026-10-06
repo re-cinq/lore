@@ -12,24 +12,52 @@ export interface StoryIssueInput {
   planUrl?: string;
   /** `specs/<slug>/`, where the spec-kit set lives. */
   specSlug?: string;
+  /** The approved plan as Markdown, folded into the story so it reads without the plan page. */
+  planMarkdown?: string;
   stories: readonly UserStory[];
   /** Task id → filed issue number, once the task issues exist. */
   taskIssues?: ReadonlyMap<string, number>;
+  /** How many of the spec's testable statements the tasks name, as `issueCoverageBrief` writes it. */
+  coverage?: string;
 }
 
+// GitHub refuses an issue body longer than this.
+const GITHUB_BODY_LIMIT = 65_536;
+
 export function storyIssueBody(input: StoryIssueInput): string {
-  const header = [
-    planLine(input),
-    ...specLine(input),
-    "",
+  const links = [planLine(input), ...specLine(input), ""];
+  const stories = [
     "Each task below is its own sub-issue of this story.",
     "",
-  ];
-
-  return [
-    ...header,
     ...input.stories.flatMap((story) => storySection(story, input.taskIssues)),
-  ].join("\n");
+    ...(input.coverage ? [input.coverage] : []),
+  ];
+  const room = GITHUB_BODY_LIMIT - [...links, ...stories].join("\n").length - 1;
+
+  return [...links, ...planFold(input, room), ...stories].join("\n");
+}
+
+const FOLD_OPEN = "<details><summary>The approved plan</summary>";
+const FOLD_CLOSE = "</details>";
+
+// The plan is cut short rather than the stories: the plan page holds the rest, the stories are what this issue tracks.
+function planFold(
+  { planMarkdown, planUrl }: StoryIssueInput,
+  room: number,
+): string[] {
+  if (!planMarkdown) {
+    return [];
+  }
+  const fold = (text: string) => [FOLD_OPEN, "", text, "", FOLD_CLOSE, ""];
+  const whole = fold(planMarkdown);
+
+  if (whole.join("\n").length + 1 <= room) {
+    return whole;
+  }
+  const pointer = `\n\n*The plan continues on ${planUrl ? `[its page](${planUrl})` : "its page"}.*`;
+  const kept = room - fold(pointer).join("\n").length - 1;
+
+  return kept > 0 ? fold(planMarkdown.slice(0, kept) + pointer) : [];
 }
 
 function planLine({ planTitle, planUrl, stories }: StoryIssueInput): string {
@@ -83,6 +111,13 @@ export interface TaskIssueInput {
   task: DecompTask;
   /** The tasks this one waits on: an issue number once filed, the task id while its issue doesn't exist yet. */
   dependsOn: readonly (number | string)[];
+  /** The spec statements the task implements, each with the link to its line. */
+  specStatements?: readonly SpecStatementLink[];
+}
+
+export interface SpecStatementLink {
+  text: string;
+  link: string;
 }
 
 export function taskIssueBody({
@@ -90,11 +125,14 @@ export function taskIssueBody({
   storyNumber,
   task,
   dependsOn,
+  specStatements,
 }: TaskIssueInput): string {
   return [
     ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
     ...dependencyLine(dependsOn),
+    ...implementsSection(specStatements),
     ...section("Context", task.context),
+    ...quotes("From the plan", task.plan_quotes),
     ...section("What to change", task.changes ?? task.description),
     ...(task.file_path ? [`Target file: \`${task.file_path}\``, ""] : []),
     ...checklist("## Acceptance criteria", task.acceptance_criteria ?? []),
@@ -111,8 +149,50 @@ function dependencyLine(dependsOn: readonly (number | string)[]): string[] {
   return named.length ? [`**Depends on:** ${named.join(", ")}`, ""] : [];
 }
 
+function implementsSection(
+  statements: readonly SpecStatementLink[] | undefined,
+): string[] {
+  return statements?.length
+    ? [
+        "## Implements",
+        "",
+        ...statements.map(({ text, link }) => `- [${quoted(text)}](${link})`),
+        "",
+      ]
+    : [];
+}
+
+const QUOTE_LENGTH = 80;
+
+// Short enough to read as a pointer, with its brackets escaped so they cannot end the link text.
+function quoted(text: string): string {
+  const short =
+    text.length > QUOTE_LENGTH
+      ? `${text.slice(0, QUOTE_LENGTH - 1).trimEnd()}…`
+      : text;
+
+  return short.replace(/[[\]]/g, "\\$&");
+}
+
 function section(heading: string, text: string | undefined): string[] {
   return text ? [`## ${heading}`, "", text, ""] : [];
+}
+
+function quotes(heading: string, passages: readonly string[] = []): string[] {
+  return passages.length
+    ? [
+        `## ${heading}`,
+        "",
+        ...passages.flatMap((passage) => [blockquote(passage), ""]),
+      ]
+    : [];
+}
+
+function blockquote(passage: string): string {
+  return passage
+    .split("\n")
+    .map((line) => (line ? `> ${line}` : ">"))
+    .join("\n");
 }
 
 function checklist(heading: string, criteria: readonly string[]): string[] {

@@ -3,7 +3,7 @@ import { unblockedBy } from "./task-queue-port.js";
 import type {
   ReadySpecTask,
   CompletedSpecTask,
-  SpecGroupCount,
+  RunningSpecTask,
 } from "./task-queue-port.js";
 
 type SpecTaskContextFields = { context_bundle: Record<string, unknown> | null };
@@ -54,17 +54,18 @@ export class PgSpecTaskQueries {
     return rows as ReadySpecTask[];
   }
 
-  async countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
-    const { rows } = await this.pool.query<SpecGroupCount>(
-      `SELECT task_group_id, COUNT(*) as cnt
+  async runningSpecTasks(): Promise<RunningSpecTask[]> {
+    const { rows } = await this.pool.query<RunningSpecTask>(
+      `SELECT task_group_id,
+              context_bundle->>'file_path' AS file_path,
+              COALESCE((context_bundle->>'parallelizable')::boolean, false) AS parallelizable
          FROM pipeline.tasks
         WHERE task_type = 'spec-task'
           AND status IN ('running', 'queued')
-          AND task_group_id IS NOT NULL
-        GROUP BY task_group_id`,
+          AND task_group_id IS NOT NULL`,
     );
 
-    return rows as SpecGroupCount[];
+    return rows as RunningSpecTask[];
   }
 
   async countUnmergedInGroup(groupId: string): Promise<number> {

@@ -329,16 +329,16 @@ export default tseslint.config(
           selector:
             "JSXOpeningElement[name.name='button']:has(JSXAttribute[name.name='type'] > Literal[value='submit']):not(:has(JSXAttribute[name.name='disabled']))",
           message:
-            "A submit button needs pending/disabled feedback so a double-click can't double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type=\"submit\">.",
+            'A submit button needs pending/disabled feedback so a double-click can\'t double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type="submit">.',
         },
       ],
     },
   },
 
-  // The Floor reaches infrastructure through the shared port adapters bound
-  // in kernel/, never the vendor SDK directly.
+  // The stations service reaches infrastructure through the shared port
+  // adapters, never the vendor SDK directly.
   {
-    files: ["apps/floor/src/**/*.ts"],
+    files: ["apps/stations/src/**/*.ts"],
     rules: {
       "re-lint/no-forbidden-imports": [
         "error",
@@ -347,32 +347,10 @@ export default tseslint.config(
             {
               specifier: "@google-cloud/storage",
               message:
-                "The Floor reaches infrastructure through @re-cinq/lore-shared port adapters bound in kernel/, not @google-cloud/storage directly.",
+                "The stations service reaches infrastructure through @re-cinq/lore-shared port adapters, not @google-cloud/storage directly.",
             },
           ],
         },
-      ],
-    },
-  },
-
-  // An in-memory double restates the table it stands in for; that is its job.
-  // A contract's parameters name their shape: an inline `opts: { limit: number }`
-  // gets restated by every caller instead of imported. Scoped to cluster-agent,
-  // where it started; the rest of the repo still carries ~290 of them.
-  {
-    files: ["apps/cluster-agent/src/**/*.ts"],
-    ignores: ["**/*.test.ts"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...[
-          "TSMethodSignature > :matches(Identifier, ObjectPattern) > TSTypeAnnotation > TSTypeLiteral",
-          "ExportNamedDeclaration > FunctionDeclaration > :matches(Identifier, ObjectPattern) > TSTypeAnnotation > TSTypeLiteral",
-        ].map((selector) => ({
-          selector,
-          message:
-            "Type this parameter with a named, exported type instead of an inline object literal, so callers share one declaration.",
-        })),
       ],
     },
   },
@@ -408,7 +386,6 @@ export default tseslint.config(
             // than token similarity, so reporting them here only buries the
             // duplication that is nobody's decision.
             "apps/web-ui/src/lib/agents-mirror.ts",
-            "apps/web-ui/src/lib/dark-factory-resolve.ts",
             "apps/web-ui/src/lib/github.ts",
             "apps/web-ui/src/lib/ingest-workflow.ts",
             "apps/web-ui/src/lib/octokit-retry-policy.ts",
@@ -426,11 +403,11 @@ export default tseslint.config(
   },
 
   // An HTTP refusal is a precondition, so it goes through the same bouncer as
-  // every other guard. Scoped to the two hapi servers — the rule rewrites to
-  // `apiError`, and each server owns its own copy of that helper (shared cannot
+  // every other guard. Scoped to the hapi server — the rule rewrites to
+  // `apiError`, and the server owns its own copy of that helper (shared cannot
   // hold it without dragging @hapi/boom into the lean MCP adapter, ADR-032).
   {
-    files: ["apps/lore-api/src/**/*.ts", "apps/floor/src/**/*.ts"],
+    files: ["apps/lore-api/src/**/*.ts"],
     rules: {
       "re-lint/prefer-api-error": [
         "error",
@@ -438,7 +415,6 @@ export default tseslint.config(
           enforceModule: ENFORCE_MODULE,
           errorModules: [
             { root: "apps/lore-api/src", path: "server/api-error.js" },
-            { root: "apps/floor/src", path: "delivery/http/api-error.js" },
           ],
         },
       ],
