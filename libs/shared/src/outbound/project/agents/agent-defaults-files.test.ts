@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { loadAgentDefaults } from "./agent-defaults-files.js";
 
 describe("loadAgentDefaults", () => {
-  it("loads the 21 shipped agents, each named after its file, and none of the deleted def- station recipes, implementation, implementation-tdd and general", () => {
+  it("loads the 23 shipped agents, each named after its file, and none of the deleted def- station recipes, implementation, implementation-tdd and general", () => {
     const defaults = loadAgentDefaults();
 
     expect({
@@ -17,7 +17,7 @@ describe("loadAgentDefaults", () => {
       review: defaults.find((row) => row.name === "code-review")
         ?.execution_mode,
     }).toEqual({
-      count: 21,
+      count: 23,
       deleted: [],
       review: "claude-code",
     });
