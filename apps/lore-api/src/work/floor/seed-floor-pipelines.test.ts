@@ -166,7 +166,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       edges: Array<{ from: string; to: string; on: string }>;
     };
 
-    const outcomes = (verifyStation!.body as StationBody).outcomes;
+    const outcomes = (verifyStation!.body as unknown as StationBody).outcomes;
     const body = issueTriage?.line?.body as LineBody | undefined;
 
     for (const outcome of outcomes) {

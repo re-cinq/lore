@@ -44,9 +44,23 @@ stations:
       - large-issue
       - not-actionable
       - failed
+    produces: []
   human-gate:
     kind: human
     route: "{args.issue_url}"
     outcomes:
       - success
-agent_definitions: {}
+agent_definitions:
+  triage-verify:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: "2"
+            memory: 1Gi
