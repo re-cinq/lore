@@ -708,9 +708,14 @@ agent_definitions:
           LORE_TEST_POLICY: none
   feature-decompose:
     settings:
-      model: claude-sonnet-4-6
+      # Tried beside claude-sonnet-4-6 and gemini-3-flash-preview on three of this repository's specs (2026-10-06): it named the most spec statements, at no more than Sonnet's cost.
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 15
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:

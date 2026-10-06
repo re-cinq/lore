@@ -35,6 +35,10 @@ interface Station {
 
 interface AgentSettings {
   model: string;
+  prices?: Record<
+    string,
+    { input_per_million: number; output_per_million: number }
+  >;
   prompt: string;
   config: {
     env: Record<string, string>;
@@ -984,6 +988,21 @@ describe("the feature-planning pipeline", () => {
         optional: true,
       },
       named: [true, true],
+    });
+  });
+
+  it("runs feature-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const { settings } =
+      pipelineOf("feature-planning").agent_definitions!["feature-decompose"]!;
+
+    expect({ model: settings.model, prices: settings.prices }).toEqual({
+      model: "gemini-3.1-pro-preview",
+      prices: {
+        "gemini-3.1-pro-preview": {
+          input_per_million: 2,
+          output_per_million: 12,
+        },
+      },
     });
   });
 
