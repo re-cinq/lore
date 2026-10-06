@@ -4,8 +4,8 @@ import {
   MISSING_FINDING_ID,
   planFindingsHandle,
   type PlanFindingsDeps,
-  type PlanEdit,
 } from "./station.js";
+import type { PlanEdit } from "../plan-findings-ops.js";
 
 const PLAN_ID = "3b3a67af-1111-4a35-9d1f-8f6f0a2f4e21";
 
