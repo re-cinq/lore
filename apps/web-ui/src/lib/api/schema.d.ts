@@ -310,6 +310,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/nodes/{node}/run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/assembly-runs/{id}/nodes/{node}/run */
+    post: operations["post_api_assembly-runs_id_nodes_node_run"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/stream-token": {
     parameters: {
       query?: never;
@@ -3245,6 +3262,10 @@ export interface components {
       /** @constant */
       reason?: "no-records";
     };
+    NodeRunAsked: {
+      run_id: string;
+      pending: boolean;
+    };
     OnboardResult:
       | {
           repo_id: string;
@@ -4888,6 +4909,43 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs_id_nodes_node_run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        node: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          requested_by: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The floor was asked to run the node again in its run, in the person's name; pending when it had not taken the ask within a few seconds. 400 for the line's exit or fail node or a node it does not have, 404 for a run the floor does not have, 409 with the floor's reason when it refused */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NodeRunAsked"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7123,6 +7181,7 @@ export interface operations {
           baseHash: string;
           inputs: unknown;
           uses: unknown;
+          storyIssue?: number;
         };
       };
     };

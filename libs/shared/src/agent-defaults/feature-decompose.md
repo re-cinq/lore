@@ -2,7 +2,7 @@
 # The feature-planning line's `feature-decompose` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 15
 review_required: false
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 ---
 You decompose a FINALIZED feature specification into implementable
 work.

@@ -78,7 +78,10 @@ function lifecycleRoute(
 
 const ApproveBody = z.object({ approvedBy: z.string().min(1) });
 const ReopenBody = z.object({ reopenedBy: z.string().min(1) });
-const SpecWorkBody = z.object({ createdBy: z.string().min(1) });
+const SpecWorkBody = z.object({
+  createdBy: z.string().min(1),
+  storyIssue: z.number().int().positive().optional(),
+});
 const SpecWorkSchema = z.object({ task_id: z.string() });
 
 const APPROVE_OPTIONS = zodResponse(
@@ -219,10 +222,14 @@ async function serveSpecWork(
   h: ResponseToolkit,
 ) {
   const { plan, verbs } = await planWithVerbs(ports, pool, request);
-  const { createdBy } = request.payload as z.infer<typeof SpecWorkBody>;
+  const { createdBy, storyIssue } = request.payload as z.infer<
+    typeof SpecWorkBody
+  >;
 
   return h
-    .response({ task_id: await verbs.startSpecWork(plan, createdBy) })
+    .response({
+      task_id: await verbs.startSpecWork(plan, createdBy, storyIssue),
+    })
     .code(202);
 }
 

@@ -972,6 +972,92 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/nodes/{node}/run": {
+      "post": {
+        "operationId": "post_api_assembly-runs_id_nodes_node_run",
+        "summary": "POST /api/assembly-runs/{id}/nodes/{node}/run",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "The floor was asked to run the node again in its run, in the person's name; pending when it had not taken the ask within a few seconds. 400 for the line's exit or fail node or a node it does not have, 404 for a run the floor does not have, 409 with the floor's reason when it refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeRunAsked"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "node",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "requested_by": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["requested_by"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/assembly-runs/{id}/stream-token": {
       "post": {
         "operationId": "post_api_assembly-runs_id_stream-token",
@@ -5689,7 +5775,12 @@
                     "minLength": 1
                   },
                   "inputs": {},
-                  "uses": {}
+                  "uses": {},
+                  "storyIssue": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
                 },
                 "required": ["slot", "title", "baseHash", "inputs", "uses"],
                 "additionalProperties": false
@@ -12145,6 +12236,19 @@
           }
         },
         "required": ["available", "logs", "phase", "podName", "archived"],
+        "additionalProperties": false
+      },
+      "NodeRunAsked": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "pending": {
+            "type": "boolean"
+          }
+        },
+        "required": ["run_id", "pending"],
         "additionalProperties": false
       },
       "OnboardResult": {

@@ -333,3 +333,64 @@ describe("draftAgainAction", () => {
     });
   });
 });
+
+describe("the user story typed on the plan page", () => {
+  const REFINE = {
+    slot: "intent",
+    title: "Intent",
+    baseHash: "3f9a",
+    inputs: {},
+    uses: {},
+  };
+  const sentBody = () =>
+    JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body),
+    ) as unknown;
+
+  it("drafts plan p1 again with storyIssue 42 when the story reads #42", async () => {
+    answer(202, { task_id: "t2" });
+
+    await draftAgainAction("re-cinq/lore", "p1", "#42");
+
+    expect(sentBody()).toEqual({
+      known: "",
+      createdBy: "gedaiu",
+      storyIssue: 42,
+    });
+  });
+
+  it("asks for the intent section's refine with storyIssue 42 when the story is issue URL 42 of re-cinq/lore", async () => {
+    answer(202, { slot: "intent" });
+
+    await refinePlanAction(
+      "re-cinq/lore",
+      "p1",
+      REFINE,
+      "https://github.com/re-cinq/lore/issues/42",
+    );
+
+    expect(sentBody()).toEqual({ ...REFINE, storyIssue: 42 });
+  });
+
+  it("starts plan p1's spec pass with storyIssue 42 when the story reads 42", async () => {
+    answer(202, { task_id: "t3" });
+
+    await retrySpecWorkAction("re-cinq/lore", "p1", "42");
+
+    expect(sentBody()).toEqual({ createdBy: "gedaiu", storyIssue: 42 });
+  });
+
+  it("starts no draft and names the repo when the story is issue 42 of other/repo", async () => {
+    expect({
+      result: await draftAgainAction(
+        "re-cinq/lore",
+        "p1",
+        "https://github.com/other/repo/issues/42",
+      ),
+      fetched: fetchMock.mock.calls.length,
+    }).toEqual({
+      result: { error: "The user story must be an issue of re-cinq/lore." },
+      fetched: 0,
+    });
+  });
+});
