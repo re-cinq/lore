@@ -46,10 +46,7 @@ export default function RunLiveShell(props: RunLiveShellProps) {
       <RunHeader run={run} definition={props.definition} nodes={live.nodes} />
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
-      <AssemblyRunOptions
-        run={run}
-        upgradeAvailable={props.upgradeAvailable ?? false}
-      />
+      <AssemblyRunOptions run={run} upgradeAvailable={props.upgradeAvailable} />
       <LiveSections
         props={props}
         run={run}

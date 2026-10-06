@@ -123,6 +123,7 @@ export async function fetchAssemblyRunNodes(
   return nodes.map(toAssemblyRunNode);
 }
 
+/** Whether the floor holds a newer version of the run's assembly line — false for any run the floor does not have, the legacy runs Lore's own engine walked included. */
 export async function hasAssemblyRunUpgrade(id: string): Promise<boolean> {
   const result = await apiFetch<{ available: boolean }>(
     "lore-api",

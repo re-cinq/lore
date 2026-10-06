@@ -2,7 +2,7 @@ import type { FloorClient, RunView } from "@re-cinq/floor-client";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
-/** The small Floor surface an upgrade needs: read the old run, find the current line, and start it with the old inputs. */
+/** The small Floor surface an upgrade needs: read the old run, find the current line, cancel the old run and start the new one. */
 export type UpgradeRunFloor = Pick<FloorClient, "runs" | "lines">;
 
 export type RunUpgrade = {
@@ -10,19 +10,13 @@ export type RunUpgrade = {
   latestHash: string | null;
 };
 
+const UPGRADED = "upgraded to the latest assembly line";
+
 export async function upgradeFor(
   floor: UpgradeRunFloor,
   runId: string,
 ): Promise<RunUpgrade> {
-  const found = await floor.runs.get(runId);
-
-  enforceTrue(found, apiError(404), `the floor has no run ${runId}`);
-  const latest = await floor.lines.get(found.run.lineId);
-
-  return {
-    available: latest !== null && latest.hash !== found.run.lineHash,
-    latestHash: latest?.hash ?? null,
-  };
+  return latestUpgrade(floor, await sourceRun(floor, runId));
 }
 
 /** Starts the latest definition with the exact bag that began the old run. The Floor ignores inputs a newer line no longer needs and validates inputs it newly needs. */
@@ -30,14 +24,13 @@ export async function upgradeRun(
   floor: UpgradeRunFloor,
   runId: string,
 ): Promise<{ runId: string }> {
-  const found = await floor.runs.get(runId);
+  const run = await sourceRun(floor, runId);
+  const upgrade = await latestUpgrade(floor, run);
 
-  enforceTrue(found, apiError(404), `the floor has no run ${runId}`);
-  const upgrade = await upgradeForRun(floor, found.run);
   enforceTrue(
     upgrade.latestHash,
     apiError(409),
-    `the floor has no current line ${found.run.lineId}`,
+    `the floor has no current line ${run.lineId}`,
   );
   enforceTrue(
     upgrade.available,
@@ -45,16 +38,45 @@ export async function upgradeRun(
     "this run already uses the latest assembly line",
   );
 
-  const started = await floor.lines.start(found.run.lineId, {
-    repo: found.run.repo,
-    startItems: found.run.startItems,
-    lineHash: upgrade.latestHash,
+  return restart(floor, run, upgrade.latestHash);
+}
+
+/** The floor answers a start on a subject that already has an open run by joining that run, so the old run is cancelled first — otherwise the upgrade would hand back the old run on the old version. */
+async function restart(
+  floor: UpgradeRunFloor,
+  run: RunView,
+  lineHash: string,
+): Promise<{ runId: string }> {
+  if (run.finishedAt === null) {
+    await floor.runs.cancel(run.id, UPGRADED);
+  }
+  const started = await floor.lines.start(run.lineId, {
+    repo: run.repo,
+    startItems: run.startItems,
+    lineHash,
   });
+
+  enforceTrue(
+    !started.joined,
+    apiError(409),
+    `the floor joined the open run ${started.run.id} instead of starting a new one`,
+  );
 
   return { runId: started.run.id };
 }
 
-async function upgradeForRun(
+async function sourceRun(
+  floor: UpgradeRunFloor,
+  runId: string,
+): Promise<RunView> {
+  const found = await floor.runs.get(runId);
+
+  enforceTrue(found, apiError(404), `the floor has no run ${runId}`);
+
+  return found.run;
+}
+
+async function latestUpgrade(
   floor: UpgradeRunFloor,
   run: RunView,
 ): Promise<RunUpgrade> {
