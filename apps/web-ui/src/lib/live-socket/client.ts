@@ -182,7 +182,7 @@ export class LiveSocketClient {
     }
   }
 
-  /** One pending retry at a time: whichever fires serves both a backed-off socket and the channels waiting to re-open. */
+  /** One pending retry per waiting channel, and the socket's own beside them: a retry serves whoever armed it. */
   scheduleRetry(delayMs: number, id?: string): void {
     const key = id === undefined ? SOCKET_TIMER : `channel:${id}`;
 
