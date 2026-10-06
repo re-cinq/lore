@@ -148,6 +148,28 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     expect(successEdge?.to).toBe("done");
   });
 
+  it("wires issue-triage decompose as a feature-decompose agent station", () => {
+    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+    const decompose = issueTriage?.stations.find((s) => s.id === "decompose");
+
+    expect(decompose?.body.kind).toBe("agent");
+    expect(decompose?.body.agent_definition).toBe("feature-decompose");
+  });
+
+  it("routes issue-triage decompose on always to done", () => {
+    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+
+    type LineBody = {
+      edges: Array<{ from: string; to: string; on: string }>;
+    };
+    const body = issueTriage?.line?.body as LineBody | undefined;
+    const alwaysEdge = body?.edges.find(
+      (e) => e.from === "decompose" && e.on === "always",
+    );
+
+    expect(alwaysEdge?.to).toBe("done");
+  });
+
   it("give every agent definition a non-empty prompt", () => {
     const prompts = pipelines
       .flatMap((pipeline) => pipeline.agentDefinitions)
