@@ -164,6 +164,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
   it("covers issue-triage diagnose edges: success → triage-label, failed (iteration_max: 3) → triage-label", () => {
     const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+
     enforceTrue(issueTriage, Error, "no issue-triage pipeline");
 
     type LineBody = {
