@@ -80,7 +80,7 @@ After successful diagnosis and verification, the bot waits for human approval be
 - **FR1**: The `issue-triage` assembly line MUST be defined as a YAML graph topology in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
 - **FR2**: The Reproduce station MUST execute untrusted reproduction code within a Dedicated Agent Pod sandbox.
 - **FR3**: The Diagnose station MUST instrument the codebase to trace the root cause of the reproduced failure.
-- **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation.
+- **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation. ([validated by verify node covers every outcome with a matching outgoing edge](apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts#L6))
 - **FR5**: The assembly line MUST automatically close issues that the Verify station detects as already implemented or obsolete.
 - **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node.
 - **FR7**: State transitions MUST be driven by a label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) via the `pipeline.events` bus and GitHub webhook ingress.
