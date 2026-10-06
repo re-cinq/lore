@@ -739,6 +739,27 @@ describe("the floor pipelines shipped in this folder", () => {
 });
 
 describe("the feature-planning pipeline", () => {
+  it("grounds the plan between plan-pass-end and author, reading the default branch and the plan markdown", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+    const node = line.nodes.find((each) => each.id === "plan-grounding");
+
+    expect({
+      station: node?.station,
+      base: node?.bind,
+      from: edgesOn(line, "plan-pass-end").map((edge) => [edge.to, edge.on]),
+      to: edgesOn(line, "plan-grounding").map((edge) => [edge.to, edge.on]),
+      planMd: needOf(stations["plan-grounding"], "plan_md"),
+      target: needOf(stations["plan-grounding"], "target"),
+    }).toMatchObject({
+      station: "plan-grounding",
+      base: { target: "base" },
+      from: [["plan-grounding", "always"]],
+      to: [["author", "always"]],
+      planMd: { kind: "file", optional: true },
+      target: { kind: "git", access: "read" },
+    });
+  });
+
   it("walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event", () => {
     const { line } = pipelineOf("feature-planning");
 
@@ -761,6 +782,7 @@ describe("the feature-planning pipeline", () => {
         "merged",
         "open-spec-pr",
         "plan-findings",
+        "plan-grounding",
         "plan-pass-end",
         "spec-coverage",
         "validate",

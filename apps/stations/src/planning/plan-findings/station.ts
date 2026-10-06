@@ -8,16 +8,16 @@ import {
   type Tools,
 } from "@re-cinq/floor-station";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { djb2Hash } from "@re-cinq/lore-shared/llm/prompt-cache.js";
+import { planValidationResultSchema } from "@re-cinq/lore-shared/review/plan-validation.js";
+import { planEditorAs } from "../plan-editor.js";
 import {
-  planValidationResultSchema,
-  type PlanValidationResult,
-} from "@re-cinq/lore-shared/review/plan-validation.js";
-import { z } from "zod";
-import { requestPlan } from "../plan-api.js";
-
-/** Who the plan's people see the findings from. */
-const PLAN_VALIDATOR_ACTOR = "plan-validator";
+  reconciledOps,
+  validatorOwned,
+  type Finding,
+  type FindingOp,
+  type PlanEdit,
+  type PlanSections,
+} from "../plan-findings-ops.js";
 
 /** The one blocker a visit that delivered nothing leaves, replaced by the next pass that does deliver. */
 export const MISSING_FINDING_ID = "f-validation-missing";
@@ -28,33 +28,6 @@ const NOT_PARSED =
   "the validator's plan-validation.json does not parse; the plan was not validated";
 const MISSING_TEXT =
   "Validation did not finish: the validator delivered no findings. Validate the plan again.";
-
-type Finding = PlanValidationResult["findings"][number];
-
-interface PlanFinding {
-  findingId: string;
-  resolved: boolean;
-}
-
-export interface PlanSections {
-  sections: { slot: string; findings: PlanFinding[] }[];
-}
-
-type FindingOp =
-  | {
-      op: "add-finding";
-      slot: string;
-      findingId: string;
-      text: string;
-      why: string;
-      severity: Finding["severity"];
-    }
-  | { op: "remove-block"; slot: string; blockId: string };
-
-export interface PlanEdit {
-  planId: string;
-  ops: FindingOp[];
-}
 
 export interface PlanFindingsDeps {
   /** Whether the latest `validate` visit of this visit's run produced its findings file: the bag still holds an earlier visit's file when this one wrote nothing. */
@@ -74,7 +47,7 @@ export function planFindingsHandle(deps: PlanFindingsDeps): Handle {
     if (typeof findings === "string") {
       return blockApproval(deps, { planId, plan, reason: findings });
     }
-    await editWith(deps, planId, reconciledOps(findings, plan));
+    await editWith(deps, planId, reconciledOps(findings, plan, validatorOwned));
 
     return { outcome: "success" };
   };
@@ -150,70 +123,6 @@ function missingFindingOp(slot: string, reason: string): FindingOp {
   };
 }
 
-/** The pass's findings added, and every unresolved finding it did not report again removed. A resolved finding is its people's, never removed. */
-function reconciledOps(findings: Finding[], plan: PlanSections): FindingOp[] {
-  const addOps = findings.map(addFindingOp);
-  const reported = new Set(addOps.map((op) => op.findingId));
-  const staleOps = plan.sections.flatMap(({ slot, findings: existing }) =>
-    existing
-      .filter(
-        (finding) => !finding.resolved && !reported.has(finding.findingId),
-      )
-      .map((finding) => ({
-        op: "remove-block" as const,
-        slot,
-        blockId: finding.findingId,
-      })),
-  );
-
-  return [...addOps, ...staleOps];
-}
-
-function addFindingOp(finding: Finding): FindingOp & { findingId: string } {
-  return {
-    op: "add-finding",
-    slot: finding.slot,
-    findingId:
-      finding.finding_id ?? `f-${djb2Hash(`${finding.slot}\n${finding.text}`)}`,
-    text: finding.text,
-    why: finding.why,
-    severity: finding.severity,
-  };
-}
-
-// The plan projection lore-api serves at `GET /api/plans/{id}`,, read only as far as its sections and their finding blocks.
-const planProjectionSchema = z.object({
-  json: z.object({
-    sections: z.array(
-      z.object({
-        slot: z.string(),
-        blocks: z.array(
-          z.object({
-            type: z.string(),
-            props: z.record(z.string(), z.unknown()).default({}),
-          }),
-        ),
-      }),
-    ),
-  }),
-});
-
-function sectionsOf(projection: unknown): PlanSections {
-  const { sections } = planProjectionSchema.parse(projection).json;
-
-  return {
-    sections: sections.map(({ slot, blocks }) => ({
-      slot,
-      findings: blocks
-        .filter((block) => block.type === "finding")
-        .map(({ props }) => ({
-          findingId: String(props.findingId),
-          resolved: props.resolved === true,
-        })),
-    })),
-  };
-}
-
 async function latestValidateDelivered(visitId: string): Promise<boolean> {
   const runId = (await floorClient().stationRuns.get(visitId))?.runId;
   const visits = runId
@@ -226,16 +135,12 @@ async function latestValidateDelivered(visitId: string): Promise<boolean> {
   return "plan_validation" in produced;
 }
 
+/** Who the plan's people see the findings from. */
+const PLAN_VALIDATOR_ACTOR = "plan-validator";
+
 const productionDeps: PlanFindingsDeps = {
   validateDelivered: latestValidateDelivered,
-  planOf: async (planId) =>
-    sectionsOf(await (await requestPlan(planId, { method: "GET" })).json()),
-  edit: async ({ planId, ops }) => {
-    await requestPlan(`${planId}/agent-edits`, {
-      method: "POST",
-      body: { actor: PLAN_VALIDATOR_ACTOR, ops },
-    });
-  },
+  ...planEditorAs(PLAN_VALIDATOR_ACTOR),
 };
 
 export function startPlanFindingsStation(): RunningStation {
