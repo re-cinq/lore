@@ -98,6 +98,16 @@ describe("lineBodyToRunGraph", () => {
       ],
     });
   });
+
+  it("carries the line's fail node gave-up onto the graph", () => {
+    const failing = lineBodyToRunGraph(
+      "code-review",
+      { ...line, fail: "gave-up" },
+      stationKinds,
+    );
+
+    expect(failing.fail).toBe("gave-up");
+  });
 });
 
 describe("floorRunToAssemblyRun", () => {

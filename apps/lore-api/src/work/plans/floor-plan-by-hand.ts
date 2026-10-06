@@ -3,11 +3,8 @@
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
-import {
-  keyOf,
-  type FloorPlanDeps,
-  type PlanFloor,
-} from "./floor-plan-line.js";
+import { askNode } from "../floor/run-node-by-hand.js";
+import { keyOf, type FloorPlanDeps } from "./floor-plan-line.js";
 import type { PlanSubject } from "./plan-engine.js";
 import { assertValidatable } from "./plan-validate.js";
 import {
@@ -33,11 +30,13 @@ export async function validateFloorPlan(
 
   assertValidatable(plan, line);
 
-  return askNode(deps.floor, {
+  await askNode(deps.floor, {
     event: VALIDATE_EVENT,
     runId: line.lineId,
     actor,
   });
+
+  return line.lineId;
 }
 
 /** Runs the spec writer again in the same run while it waits on the spec PR: the floor cancels the open `merged` visit and reopens it afterwards. The run's id. */
@@ -50,27 +49,11 @@ export async function reworkFloorSpec(
   enforceTrue(line !== null, apiError(409), SPEC_PR_NOT_WAITING);
   await gatherOpenReview(deps.pulls, assertReworkable(plan, line));
 
-  return askNode(deps.floor, {
+  await askNode(deps.floor, {
     event: REWRITE_EVENT,
     runId: line.lineId,
     actor,
   });
-}
 
-interface NodeAsk {
-  event: string;
-  runId: string;
-  actor: string;
-}
-
-async function askNode(
-  floor: Pick<PlanFloor, "events">,
-  { event, runId, actor }: NodeAsk,
-): Promise<string> {
-  await floor.events.post({
-    name: event,
-    payload: { runId, requestedBy: actor },
-  });
-
-  return runId;
+  return line.lineId;
 }
