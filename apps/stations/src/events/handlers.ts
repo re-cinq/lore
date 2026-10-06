@@ -59,7 +59,10 @@ async function findParkedVisitId(
   run: { id: string; startItems: Record<string, { ref: string }> },
   issueNumber: number,
 ): Promise<string | null> {
-  if (run.startItems.issue_number.ref !== String(issueNumber)) {
+  const { startItems } = run;
+  const issueItem = startItems["issue_number"];
+
+  if (issueItem?.ref !== String(issueNumber)) {
     return null;
   }
   const visits = await floor.stationRuns.list({ run: run.id });
