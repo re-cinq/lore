@@ -133,6 +133,7 @@ async function startRefineRound(
     planMd,
     brief,
     refine: refineValue(refine),
+    storyIssue: refine.storyIssue,
   });
 }
 
@@ -268,7 +269,7 @@ async function reportApproved(
 async function startSpecPass(
   deps: FloorPlanDeps,
   line: FloorPlanLine | null,
-  { plan, planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
+  { plan, planMarkdown, citablePlan, brief, storyIssue }: FloorPlanMarkdown,
 ): Promise<string> {
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
   const { plan_blocks: planBlocks } = await storeCitable(
@@ -282,6 +283,7 @@ async function startSpecPass(
     planBlocks,
     brief,
     entry: SPEC_WORK_ENTRY,
+    storyIssue,
   });
 }
 

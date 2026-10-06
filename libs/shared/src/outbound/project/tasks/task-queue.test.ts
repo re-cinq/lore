@@ -654,6 +654,40 @@ describe("runningSpecTasks", () => {
   });
 });
 
+describe("mergeableTasks", () => {
+  it("InMemory offers completed spec-task T001 with PR #2271 to the merge check, and not a completed implementation task or a spec-task with no PR", async () => {
+    const q = new InMemoryTaskQueue([
+      {
+        id: "t001",
+        task_type: "spec-task",
+        status: "completed",
+        pr_number: 2271,
+        pr_url: "https://github.com/re-cinq/lore/pull/2271",
+      },
+      {
+        id: "impl",
+        task_type: "implementation",
+        status: "completed",
+        pr_number: 9,
+        pr_url: "https://github.com/re-cinq/lore/pull/9",
+      },
+      { id: "nopr", task_type: "spec-task", status: "completed" },
+    ]);
+
+    expect((await q.mergeableTasks()).map((t) => t.id)).toEqual(["t001"]);
+  });
+
+  it("PgTaskQueue selects completed spec-tasks beside pr-created and review tasks", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).mergeableTasks();
+
+    expect(calls[0].text).toContain(
+      "status = 'completed' AND task_type = 'spec-task'",
+    );
+  });
+});
+
 describe("countUnmergedInGroup", () => {
   it("PgTaskQueue counts group rows neither merged nor cancelled", async () => {
     const { pool, calls } = fakePgPool([{ rows: [{ cnt: "2" }] }]);

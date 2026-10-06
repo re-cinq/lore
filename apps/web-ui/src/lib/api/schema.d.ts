@@ -7181,6 +7181,7 @@ export interface operations {
           baseHash: string;
           inputs: unknown;
           uses: unknown;
+          storyIssue?: number;
         };
       };
     };

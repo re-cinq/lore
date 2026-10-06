@@ -200,6 +200,7 @@ const RefineBody = z.object({
   baseHash: z.string().min(1),
   inputs: z.unknown(),
   uses: z.unknown(),
+  storyIssue: z.number().int().positive().optional(),
 });
 
 const RefineSchema = z.object({ slot: z.string() });

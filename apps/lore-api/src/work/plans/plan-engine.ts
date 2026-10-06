@@ -23,7 +23,11 @@ export interface PlanVerbs {
     plan: PlanSubject,
     reopen: (planId: string) => Promise<unknown>,
   ): Promise<boolean>;
-  startSpecWork(plan: PlanSubject, createdBy: string): Promise<string>;
+  startSpecWork(
+    plan: PlanSubject,
+    createdBy: string,
+    storyIssue?: number,
+  ): Promise<string>;
   reworkSpec(plan: PlanSubject, actor: string): Promise<string>;
   validate(plan: PlanSubject, actor: string): Promise<string>;
 }

@@ -30,6 +30,7 @@ layers:
       - onboard
       - implementation-loop
       - spec-upkeep
+      - issue-triage
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the code-review lines, one
     # folder each. They claim their own work from the floor's queue, so nothing
@@ -75,6 +76,12 @@ layers:
     # line, one folder each.
     implementation-loop:
       - domain
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The station the external floor dispatches for the issue-triage line:
+    # close-issue posts the verdict comment then closes the GitHub issue.
+    issue-triage:
       - outbound
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"

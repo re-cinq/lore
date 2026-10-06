@@ -3,6 +3,7 @@ import { Alert } from "@/components/Alert";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import Icon from "@/components/Icon";
 import { planPageState, type PlanPageState } from "@/lib/plan-page-state";
+import { storyField } from "@/lib/plan-input";
 import type { PlanUser } from "@/lib/plan-user";
 import DraftingPlan from "./DraftingPlan";
 import PlanStatusBadge from "../PlanStatusBadge";
@@ -18,6 +19,13 @@ interface PlanDetailViewProps extends PlanActions {
   user: PlanUser | null;
   draftAgain: () => Promise<{ error?: string }>;
   deletePlan: () => Promise<{ error?: string }>;
+  /** The user story typed for a run that carries none; without it the header offers no field. */
+  story?: StoryInput;
+}
+
+export interface StoryInput {
+  value: string;
+  onChange: (text: string) => void;
 }
 
 export default function PlanDetailView({
@@ -26,6 +34,7 @@ export default function PlanDetailView({
   user,
   draftAgain,
   deletePlan,
+  story,
   ...actions
 }: PlanDetailViewProps) {
   const state = planPageState(meta.status, run);
@@ -33,7 +42,7 @@ export default function PlanDetailView({
 
   return (
     <div>
-      <PlanHeader meta={meta} run={run} deletePlan={deletePlan} />
+      <PlanHeader meta={meta} run={run} deletePlan={deletePlan} story={story} />
       <PlanRunPanel {...card} />
       <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
     </div>
@@ -56,7 +65,10 @@ function PlanRunPanel(props: PlanRunPanelProps) {
   );
 }
 
-type PlanBodyProps = Omit<PlanDetailViewProps, "draftAgain" | "deletePlan"> & {
+type PlanBodyProps = Omit<
+  PlanDetailViewProps,
+  "draftAgain" | "deletePlan" | "story"
+> & {
   state: PlanPageState;
 };
 
@@ -99,17 +111,18 @@ function specPrOf(run: PlanRun | null): typeof NO_PR {
   return { prUrl, prNumber, prTitle, prUnresolvedThreads };
 }
 
-type PlanHeaderProps = Pick<PlanDetailViewProps, "meta" | "run" | "deletePlan">;
+type PlanHeaderProps = Pick<
+  PlanDetailViewProps,
+  "meta" | "run" | "deletePlan" | "story"
+>;
 
-function PlanHeader({ meta, run, deletePlan }: PlanHeaderProps) {
+function PlanHeader({ meta, run, deletePlan, story }: PlanHeaderProps) {
   return (
     <div className={styles.header}>
-      <p className="meta">
-        {meta.type} plan · version {meta.version} · by {meta.createdBy}
-        {meta.approval &&
-          ` · approved by ${meta.approval.approvedBy} on ${approvedOn(meta.approval.approvedAt)}`}
-        {run?.issueUrl && <UserStoryLink run={run} />}
-      </p>
+      <div>
+        <PlanFacts meta={meta} run={run} />
+        {!run?.issueUrl && story && <StoryField repo={meta.repo} {...story} />}
+      </div>
       <div className={styles.headerActions}>
         <PlanStatusBadge status={meta.status} />
         <ConfirmedActionButton
@@ -119,6 +132,17 @@ function PlanHeader({ meta, run, deletePlan }: PlanHeaderProps) {
         />
       </div>
     </div>
+  );
+}
+
+function PlanFacts({ meta, run }: Pick<PlanHeaderProps, "meta" | "run">) {
+  return (
+    <p className="meta">
+      {meta.type} plan · version {meta.version} · by {meta.createdBy}
+      {meta.approval &&
+        ` · approved by ${meta.approval.approvedBy} on ${approvedOn(meta.approval.approvedAt)}`}
+      {run?.issueUrl && <UserStoryLink run={run} />}
+    </p>
   );
 }
 
@@ -136,6 +160,36 @@ function UserStoryLink({ run }: { run: PlanRun }) {
       </a>
     </>
   );
+}
+
+const STORY_HINT_ID = "plan-story-hint";
+
+// A run's start items are fixed, so a story typed here reaches the next run the page starts, never the one already going.
+function StoryField({ repo, value, onChange }: StoryInput & { repo: string }) {
+  return (
+    <div className={styles.storyField}>
+      <label>
+        User story
+        <input
+          value={value}
+          placeholder="An issue URL, or its number: 123"
+          aria-describedby={STORY_HINT_ID}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      <span id={STORY_HINT_ID} className="meta">
+        {storyHint(value, repo)}
+      </span>
+    </div>
+  );
+}
+
+function storyHint(value: string, repo: string): string {
+  const named = storyField(value, repo);
+
+  return "error" in named
+    ? named.error
+    : "Applies from the next draft or refine.";
 }
 
 function deleteQuestion(title: string) {
