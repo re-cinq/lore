@@ -23,7 +23,7 @@ A user submits a bug report with a reproduction repository. The triage line auto
 
 **Acceptance Scenarios**:
 
-1. **Given** a new issue labeled `triage: needs-triage` with a reproduction repository, **When** the triage line runs, **Then** it executes the reproduction in a Dedicated Agent Pod and transitions the issue to `triage: reproduced`.
+1. **Given** a new issue labeled `triage: needs-triage` with a reproduction repository, **When** the triage line runs, **Then** it executes the reproduction in a Dedicated Agent Pod and transitions the issue to `triage: reproduced`. ([validated by `seed-floor-pipelines.test.ts:27`](apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts#L27))
 
 ### User Story 2 - Root Cause Diagnosis and Spec Verification (Priority: P1)
 
@@ -78,7 +78,7 @@ After successful diagnosis and verification, the bot waits for human approval be
 ### Functional Requirements
 
 - **FR1**: The `issue-triage` assembly line MUST be defined as a YAML graph topology in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
-- **FR2**: The Reproduce station MUST execute untrusted reproduction code within a Dedicated Agent Pod sandbox.
+- **FR2**: The Reproduce station MUST execute untrusted reproduction code within a Dedicated Agent Pod sandbox. ([validated by `seed-floor-pipelines.test.ts:6`](apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts#L6), [validated by `seed-floor-pipelines.test.ts:14`](apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts#L14))
 - **FR3**: The Diagnose station MUST instrument the codebase to trace the root cause of the reproduced failure.
 - **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation.
 - **FR5**: The assembly line MUST automatically close issues that the Verify station detects as already implemented or obsolete.
