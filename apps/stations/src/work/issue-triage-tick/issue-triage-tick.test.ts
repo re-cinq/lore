@@ -4,10 +4,6 @@ import {
   type IssueTriageTickDeps,
 } from "./issue-triage-tick.js";
 
-// Validates specs/issue-triage/spec.md FR9: the sweep picks the oldest
-// `triage: needs-triage`-labelled issues up to a per-repo concurrency cap
-// and starts a floor run for each with no shared context between runs.
-
 function scene(opts: {
   issues?: Record<string, Array<{ url: string; number: number }>>;
   running?: Record<string, number>;
@@ -28,17 +24,15 @@ function scene(opts: {
       Promise.resolve((opts.running ?? {})[repo] ?? 0),
     cap: opts.cap ?? 3,
     floor: {
-      lines: {
-        start: (
-          line: string,
-          starting: { repo: string; startItems: Record<string, unknown> },
-        ) => {
-          started.push({ line, ...starting });
-          return Promise.resolve({
-            run: { id: `run-${started.length}` },
-            joined: false,
-          });
-        },
+      start: (
+        line: string,
+        starting: { repo: string; startItems: Record<string, unknown> },
+      ) => {
+        started.push({ line, ...starting });
+        return Promise.resolve({
+          run: { id: `run-${started.length}` },
+          joined: false,
+        });
       },
     },
   } as unknown as IssueTriageTickDeps;
@@ -64,17 +58,18 @@ describe("the issue-triage-tick sweep on the external floor", () => {
       "issue-triage",
       "issue-triage",
     ]);
-    // Oldest issue (#1) starts first — ordered by created_at ASC
-    expect(started[0].startItems).toMatchObject({
-      issue_url: expect.objectContaining({
-        ref: "https://github.com/acme/widgets/issues/1",
-      }),
-    });
-    expect(started[1].startItems).toMatchObject({
-      issue_url: expect.objectContaining({
-        ref: "https://github.com/acme/widgets/issues/2",
-      }),
-    });
+    expect(started.map((s) => s.startItems)).toMatchObject([
+      {
+        issue_url: expect.objectContaining({
+          ref: "https://github.com/acme/widgets/issues/1",
+        }),
+      },
+      {
+        issue_url: expect.objectContaining({
+          ref: "https://github.com/acme/widgets/issues/2",
+        }),
+      },
+    ]);
   });
 
   it("respects the per-repo concurrency cap: starts only as many runs as the remaining capacity allows", async () => {
@@ -92,7 +87,6 @@ describe("the issue-triage-tick sweep on the external floor", () => {
 
     await issueTriageTick({}, deps);
 
-    // 3 running - 2 already running = 1 slot; only the oldest issue starts
     expect(started).toHaveLength(1);
     expect(started[0].startItems).toMatchObject({
       issue_url: expect.objectContaining({

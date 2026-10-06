@@ -6,7 +6,7 @@ import {
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { settings } from "../../outbound/queues.js";
-import { issueTriageTick } from "./issue-triage-tick.js";
+import { issueTriageTick, type IssueTriageIssue } from "./issue-triage-tick.js";
 
 export const NO_FLOOR =
   "no external floor configured: the Floor walks issue-triage";
@@ -15,39 +15,39 @@ const DEFAULT_CAP = 3;
 
 const NEEDS_TRIAGE_LABEL = "triage: needs-triage";
 
+async function fetchNeedsTriageIssues(
+  repo: string,
+): Promise<IssueTriageIssue[]> {
+  const project = await projectFor(repo);
+  const issues = await project.issues.list({
+    state: "open",
+    labels: [NEEDS_TRIAGE_LABEL],
+  });
+  return issues
+    .filter((i) => i.url !== undefined)
+    .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
+    .map((i) => ({ url: i.url as string, number: i.number }));
+}
+
+async function countRunning(repo: string): Promise<number> {
+  const { items: activeRuns } = await floorClient().runs.list({
+    repo: floorRepoOf(repo),
+    line: "issue-triage",
+    open: true,
+  });
+  return activeRuns.length;
+}
+
 export async function runIssueTriageTick(
   params: Readonly<Record<string, unknown>>,
 ): Promise<string> {
-  if (!floorConfigured()) {
-    return NO_FLOOR;
-  }
-
+  if (!floorConfigured()) return NO_FLOOR;
   return issueTriageTick(params, {
     repos: async () =>
-      (await settings().onboardedRepos()).map((repo) => repo.full_name),
-    needsTriageIssues: async (repo) => {
-      const project = await projectFor(repo);
-      const issues = await project.issues.list({
-        state: "open",
-        labels: [NEEDS_TRIAGE_LABEL],
-      });
-
-      return issues
-        .filter((i) => i.url !== undefined)
-        .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
-        .map((i) => ({ url: i.url as string, number: i.number }));
-    },
-    runningCount: async (repo) => {
-      const floor = floorClient();
-      const { items } = await floor.runs.list({
-        repo: floorRepoOf(repo),
-        line: "issue-triage",
-        open: true,
-      });
-
-      return items.length;
-    },
+      (await settings().onboardedRepos()).map((r) => r.full_name),
+    needsTriageIssues: fetchNeedsTriageIssues,
+    runningCount: countRunning,
     cap: DEFAULT_CAP,
-    floor: floorClient(),
+    floor: { start: (line, args) => floorClient().lines.start(line, args) },
   });
 }

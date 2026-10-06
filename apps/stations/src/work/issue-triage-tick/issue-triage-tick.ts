@@ -24,7 +24,7 @@ export interface IssueTriageTickDeps {
   /** Per-repo concurrency cap. */
   cap: number;
   floor: {
-    lines: Pick<Floor["lines"], "start">;
+    start: Floor["lines"]["start"];
   };
 }
 
@@ -42,6 +42,16 @@ export async function issueTriageTick(
   return `issue-triage-tick: started ${total} run(s)`;
 }
 
+function triageStartArgs(repo: string, issue: IssueTriageIssue) {
+  return {
+    repo: floorRepoOf(repo),
+    startItems: {
+      issue_url: valueItem(issue.url),
+      issue_number: valueItem(issue.number),
+    },
+  };
+}
+
 async function startForRepo(
   repo: string,
   deps: IssueTriageTickDeps,
@@ -51,18 +61,9 @@ async function startForRepo(
     deps.runningCount(repo),
   ]);
   const slots = Math.max(0, deps.cap - running);
-  let started = 0;
-
-  for (const issue of issues.slice(0, slots)) {
-    await deps.floor.lines.start(ISSUE_TRIAGE_LINE, {
-      repo: floorRepoOf(repo),
-      startItems: {
-        issue_url: valueItem(issue.url),
-        issue_number: valueItem(issue.number),
-      },
-    });
-    started++;
+  const qualifying = issues.slice(0, slots);
+  for (const issue of qualifying) {
+    await deps.floor.start(ISSUE_TRIAGE_LINE, triageStartArgs(repo, issue));
   }
-
-  return started;
+  return qualifying.length;
 }
