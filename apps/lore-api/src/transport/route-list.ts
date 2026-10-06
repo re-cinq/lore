@@ -94,6 +94,7 @@ import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
+import { runNodeRoute } from "./routes/floor/run-node.js";
 import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
 import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
@@ -123,11 +124,12 @@ export function routeList(
   ];
 }
 
-/** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review the run page starts. */
+/** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review and the stations the run page starts. */
 function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     floorGitCredentialRoute(),
     reviewStartRoute(),
+    runNodeRoute(),
     floorRunsRoute(floorRunPages),
     ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),
