@@ -1,16 +1,45 @@
 line:
   id: issue-triage
-  entry: verify
+  entry: reproduce
   exit: done
   args:
     issue_url:
       kind: value
   nodes:
+    - id: reproduce
+      station: reproduce
+    - id: triage-label
+      station: triage-label
+    - id: diagnose
+      station: diagnose
     - id: verify
     - id: human-gate
       station: human-gate
     - id: done
   edges:
+    - from: reproduce
+      to: triage-label
+      on: success
+    - from: reproduce
+      to: triage-label
+      on: failed
+      iteration_max: 3
+    - from: triage-label
+      to: diagnose
+      on: success
+    - from: diagnose
+      to: triage-label
+      on: success
+    - from: diagnose
+      to: triage-label
+      on: failed
+      iteration_max: 3
+    - from: triage-label
+      to: verify
+      on: success
+    - from: triage-label
+      to: done
+      on: failed
     - from: verify
       to: human-gate
       on: success
@@ -18,9 +47,57 @@ line:
       to: done
       on: success
 stations:
+  reproduce:
+    kind: agent
+    agent_definition: triage-reproduce
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
+  triage-label:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
+  diagnose:
+    kind: agent
+    agent_definition: triage-diagnose
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
   human-gate:
     kind: human
     route: "{args.issue_url}"
     outcomes:
       - success
-agent_definitions: {}
+agent_definitions:
+  triage-reproduce:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  triage-diagnose:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
