@@ -36,6 +36,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/webhook/ensure",
   // The job to run is the path param; a courier posts it with no body at all.
   "POST /api/maintenance/{job}",
+  // The run to upgrade is the path param; its inputs and the line's newest version are read from the floor.
+  "POST /api/assembly-runs/{id}/upgrade",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

@@ -54,4 +54,14 @@ describe("AssemblyRunOptions", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("renders the assembly line upgrade action when a newer version exists", () => {
+    render(
+      <AssemblyRunOptions run={buildRun({ id: "old-run" })} upgradeAvailable />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Upgrade assembly line" }),
+    ).toBeInTheDocument();
+  });
 });
