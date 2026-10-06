@@ -117,6 +117,33 @@ describe("specCoverageHandle", () => {
     });
   });
 
+  it("sends the writer back naming the compound requirement and the unbacked criterion, with every plan block cited", async () => {
+    const unsound = [
+      CITES_BOTH,
+      `- **FR-002**: The \`reproduce\` station MUST run in a pod, and \`triage_label\` MUST apply the label. ([from plan](${PLAN_URL}#b-why))`,
+      `- **SC-002**: Backlog trend decreases. ([from plan](${PLAN_URL}#k-1))`,
+    ].join("\n");
+    const { handle, tools, produced } = scene(unsound);
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      compound: produced.plan_coverage?.includes("## Compound requirements"),
+      carries: produced.plan_coverage?.includes("carries 2 MUSTs"),
+      unbacked: produced.plan_coverage?.includes(
+        "## Unbacked success criteria",
+      ),
+      measurable: produced.plan_coverage?.includes("names nothing measurable"),
+    }).toEqual({
+      report: { outcome: "changes_requested" },
+      compound: true,
+      carries: true,
+      unbacked: true,
+      measurable: true,
+    });
+  });
+
   it("sends the writer back with the uncited KPI when no coverage round was spent yet", async () => {
     const { handle, tools, produced } = scene(CITES_ONE);
 

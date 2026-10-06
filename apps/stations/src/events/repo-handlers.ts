@@ -9,10 +9,23 @@ import {
 export interface RepoEventDeps {
   /** The ports a labelled Issue of this repository is dispatched through. */
   labelDispatch(repo: string): Promise<LabelDispatchDeps>;
+  /** Starts an issue-triage floor run for the given issue (FR7). */
+  startIssueTriage(
+    repo: string,
+    issueNumber: number,
+    issueUrl: string,
+  ): Promise<string>;
   /** The `lore.repos` row follows the new name, so runs stop minting installation tokens for a name GitHub no longer serves (#2040). */
   renameRepo(from: string, to: string): Promise<string>;
+  /** Returns the visit-id of the issue-triage run parked at human-gate for this issue, or null (FR16). */
+  findParkedTriageVisit(
+    repo: string,
+    issueNumber: number,
+  ): Promise<string | null>;
   /** Tells the graph a branch is done: every run on a pull request's head branch shares one overlay, so it goes when the pull request closes, merged or not (#1769). */
   dropOverlay(repo: string, branch: string): Promise<void>;
+  /** Reports success to a parked human-gate visit so the triage run advances (FR16). */
+  reportTriageGate(visitId: string): Promise<void>;
   /** A team change moves the repository's stored context into the team's schema, where reads now look; answers what it did. */
   relocateChunks(repo: string): Promise<string>;
 }
@@ -35,11 +48,36 @@ export function repoEventHandlers(
   ]);
 }
 
+const TRIAGE_TRIGGER_LABELS = ["lore:triage", "triage: needs-triage"] as const;
+
+type LabeledIssueParams = {
+  repo: string;
+  label: string;
+  issue: { number: number; html_url?: string; labels: readonly string[] };
+};
+
 function issueLabeled(deps: RepoEventDeps): EventHandler {
   return async (params) => {
-    const labeled = params as unknown as LabeledIssue;
+    const { repo, label, issue } = params as unknown as LabeledIssueParams;
 
-    await dispatchLabeledIssue(await deps.labelDispatch(labeled.repo), labeled);
+    if ((TRIAGE_TRIGGER_LABELS as readonly string[]).includes(label)) {
+      await deps.startIssueTriage(repo, issue.number, issue.html_url ?? "");
+
+      return;
+    }
+
+    const visitId =
+      label === "lore:implementation"
+        ? await deps.findParkedTriageVisit(repo, issue.number)
+        : null;
+
+    if (visitId) {
+      await deps.reportTriageGate(visitId);
+    }
+
+    const labeled: LabeledIssue = { repo, label, issue };
+
+    await dispatchLabeledIssue(await deps.labelDispatch(repo), labeled);
   };
 }
 

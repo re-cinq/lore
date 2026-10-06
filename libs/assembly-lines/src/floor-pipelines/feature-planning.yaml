@@ -23,6 +23,13 @@ line:
     # plan that will never answer. See the plan-pass-end station.
     - id: plan-pass-end
       station: plan-pass-end
+    # Deterministic and modelless, so it runs on every pass rather than when
+    # someone clicks Validate: a stale name costs nothing to find and reaches the
+    # plan while its people are still writing it.
+    - id: plan-grounding
+      station: plan-grounding
+      bind:
+        target: base
     - id: author
       station: plan-author
     # No inbound edge — the plan page's own Validate button fires this event while
@@ -103,6 +110,11 @@ line:
     # success or failed of its own (posting the Refine-failure notice, or not), and
     # either way the plan waits on its author next.
     - from: plan-pass-end
+      to: plan-grounding
+      on: always
+    # Grounding never holds the plan back: its findings are on the plan, and the
+    # blockers among them are what Approve already refuses on.
+    - from: plan-grounding
       to: author
       on: always
     # Unbounded on purpose. The back-edge rule exists to stop two agents arguing
@@ -295,6 +307,27 @@ stations:
       # has none.
       - name: refine
         kind: value
+        optional: true
+    produces: []
+  plan-grounding:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # The default branch as it stands when the visit opens, never the plan's spec
+      # branch: that one is cut when the run starts and a name may have gone since.
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # The plan as its people last saw it. Absent on no pass that reaches here,
+      # but a pass without one has nothing to ground rather than a failure.
+      - name: plan_md
+        kind: file
+        path: plan.md
         optional: true
     produces: []
   plan-validate:
@@ -708,9 +741,14 @@ agent_definitions:
           LORE_TEST_POLICY: none
   feature-decompose:
     settings:
-      model: claude-sonnet-4-6
+      # Tried beside claude-sonnet-4-6 and gemini-3-flash-preview on three of this repository's specs (2026-10-06): it named the most spec statements, at no more than Sonnet's cost.
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 15
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:

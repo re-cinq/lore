@@ -534,6 +534,32 @@ describe("the planning recipes check a plan against what the platform has (issue
     }).toEqual({ heading: true, fromCode: true, neverKeep: true });
   });
 
+  it("has spec-write split a compound requirement one MUST per statement and back an unbacked success criterion", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      compound: prompt.includes(
+        'lists statements under "Compound requirements"',
+      ),
+      perMust: prompt.includes(
+        "Split each listed statement into one requirement per MUST",
+      ),
+      claimsByLine: prompt.includes("A task claims a statement by"),
+      unbacked: prompt.includes(
+        'lists statements under "Unbacked success criteria"',
+      ),
+      defineIt: prompt.includes(
+        "add the requirement that defines what it counts",
+      ),
+    }).toEqual({
+      compound: true,
+      perMust: true,
+      claimsByLine: true,
+      unbacked: true,
+      defineIt: true,
+    });
+  });
+
   it("has feature-decompose rewrite each task listed under Not on main from the code and drop the plan quotes naming what is gone", () => {
     const prompt = promptOnOneLine("feature-decompose");
 

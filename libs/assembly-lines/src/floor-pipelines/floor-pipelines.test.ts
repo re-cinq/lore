@@ -35,6 +35,10 @@ interface Station {
 
 interface AgentSettings {
   model: string;
+  prices?: Record<
+    string,
+    { input_per_million: number; output_per_million: number }
+  >;
   prompt: string;
   config: {
     env: Record<string, string>;
@@ -87,7 +91,7 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -97,6 +101,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "daily-digest",
       "feature-planning",
       "implementation-loop",
+      "issue-triage",
       "lore-run-settled",
       "merge",
       "onboard",
@@ -637,7 +642,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("marks pr_url as the subject of code-review and head_sha as the subject of code-review-recheck, so a re-check never joins an open review and two re-checks of one sha are one run", () => {
+  it("keys code-review on pr_url, code-review-recheck on head_sha and code-review-reply on review_id, so a re-check never joins an open review, two re-checks of one sha are one run, and one review is answered once", () => {
     const subjectArgs = (id: string): string[] =>
       Object.entries(pipelineOf(id).line.args)
         .filter(([, arg]) => arg.subject)
@@ -647,7 +652,11 @@ describe("the floor pipelines shipped in this folder", () => {
       review: subjectArgs("code-review"),
       recheck: subjectArgs("code-review-recheck"),
       reply: subjectArgs("code-review-reply"),
-    }).toEqual({ review: ["pr_url"], recheck: ["head_sha"], reply: [] });
+    }).toEqual({
+      review: ["pr_url"],
+      recheck: ["head_sha"],
+      reply: ["review_id"],
+    });
   });
 
   it("enters code-review-reply at read-review and clones the repository with write access for its code-review-refine station", () => {
@@ -730,6 +739,27 @@ describe("the floor pipelines shipped in this folder", () => {
 });
 
 describe("the feature-planning pipeline", () => {
+  it("grounds the plan between plan-pass-end and author, reading the default branch and the plan markdown", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+    const node = line.nodes.find((each) => each.id === "plan-grounding");
+
+    expect({
+      station: node?.station,
+      base: node?.bind,
+      from: edgesOn(line, "plan-pass-end").map((edge) => [edge.to, edge.on]),
+      to: edgesOn(line, "plan-grounding").map((edge) => [edge.to, edge.on]),
+      planMd: needOf(stations["plan-grounding"], "plan_md"),
+      target: needOf(stations["plan-grounding"], "target"),
+    }).toMatchObject({
+      station: "plan-grounding",
+      base: { target: "base" },
+      from: [["plan-grounding", "always"]],
+      to: [["author", "always"]],
+      planMd: { kind: "file", optional: true },
+      target: { kind: "git", access: "read" },
+    });
+  });
+
   it("walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event", () => {
     const { line } = pipelineOf("feature-planning");
 
@@ -752,6 +782,7 @@ describe("the feature-planning pipeline", () => {
         "merged",
         "open-spec-pr",
         "plan-findings",
+        "plan-grounding",
         "plan-pass-end",
         "spec-coverage",
         "validate",
@@ -983,6 +1014,21 @@ describe("the feature-planning pipeline", () => {
         optional: true,
       },
       named: [true, true],
+    });
+  });
+
+  it("runs feature-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const { settings } =
+      pipelineOf("feature-planning").agent_definitions!["feature-decompose"]!;
+
+    expect({ model: settings.model, prices: settings.prices }).toEqual({
+      model: "gemini-3.1-pro-preview",
+      prices: {
+        "gemini-3.1-pro-preview": {
+          input_per_million: 2,
+          output_per_million: 12,
+        },
+      },
     });
   });
 

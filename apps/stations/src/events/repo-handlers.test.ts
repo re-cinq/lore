@@ -5,6 +5,69 @@ import {
   type RepoEventDeps,
 } from "./repo-handlers.js";
 
+interface TriageRepoEventDeps extends RepoEventDeps {
+  startIssueTriage(
+    repo: string,
+    issueNumber: number,
+    issueUrl: string,
+  ): Promise<string>;
+  findParkedTriageVisit(
+    repo: string,
+    issueNumber: number,
+  ): Promise<string | null>;
+  reportTriageGate(visitId: string): Promise<void>;
+}
+
+function triageScene(over: Partial<TriageRepoEventDeps> = {}) {
+  const started: Array<{
+    repo: string;
+    issueNumber: number;
+    issueUrl: string;
+  }> = [];
+  const reported: string[] = [];
+  const callOrder: string[] = [];
+
+  const deps: TriageRepoEventDeps = {
+    labelDispatch: () =>
+      Promise.resolve({
+        rawSettings: () => Promise.resolve({}),
+        activeTaskByIssue: () => {
+          callOrder.push("activeTaskByIssue");
+
+          return Promise.resolve(null);
+        },
+        addLabel: () => Promise.resolve(),
+        comment: () => Promise.resolve(),
+      }),
+    renameRepo: () => Promise.resolve("renamed"),
+    dropOverlay: () => Promise.resolve(),
+    relocateChunks: () => Promise.resolve("moved 0 of 0"),
+    startIssueTriage: (repo, issueNumber, issueUrl) => {
+      callOrder.push("startIssueTriage");
+      started.push({ repo, issueNumber, issueUrl });
+
+      return Promise.resolve("run-1");
+    },
+    findParkedTriageVisit: () => {
+      callOrder.push("findParkedTriageVisit");
+
+      return Promise.resolve(null);
+    },
+    reportTriageGate: (visitId) => {
+      callOrder.push("reportTriageGate");
+      reported.push(visitId);
+
+      return Promise.resolve();
+    },
+    ...over,
+  };
+  const handlers = repoEventHandlers(deps as RepoEventDeps);
+  const fire = (eventName: string, params: Record<string, unknown>) =>
+    handlers.get(eventName)!(params);
+
+  return { fire, started, reported, callOrder };
+}
+
 function scene() {
   const steps: string[] = [];
   const deps: RepoEventDeps = {
@@ -39,6 +102,9 @@ function scene() {
 
       return Promise.resolve("moved 5 of 7");
     },
+    startIssueTriage: () => Promise.resolve("run-1"),
+    findParkedTriageVisit: () => Promise.resolve(null),
+    reportTriageGate: () => Promise.resolve(),
   };
   const handlers = repoEventHandlers(deps);
   const fire = (eventName: string, params: Record<string, unknown>) =>
@@ -103,5 +169,87 @@ describe("repoEventHandlers", () => {
     await fire("internal.repo.team_changed", { repo: "acme/widgets" });
 
     expect(steps).toEqual(["relocate acme/widgets"]);
+  });
+});
+
+describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
+  it("lore:triage label starts an issue-triage floor run with repo, issue_number, and issue_url args", async () => {
+    const { fire, started } = triageScene();
+
+    await fire("github.issues.labeled", {
+      repo: "acme/widgets",
+      label: "lore:triage",
+      issue: {
+        number: 7,
+        html_url: "https://github.com/acme/widgets/issues/7",
+        labels: ["lore:triage"],
+      },
+    });
+
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({ repo: "acme/widgets", issueNumber: 7 });
+  });
+
+  it("triage: needs-triage label also starts an issue-triage floor run", async () => {
+    const { fire, started } = triageScene();
+
+    await fire("github.issues.labeled", {
+      repo: "acme/widgets",
+      label: "triage: needs-triage",
+      issue: {
+        number: 42,
+        html_url: "https://github.com/acme/widgets/issues/42",
+        labels: ["triage: needs-triage"],
+      },
+    });
+
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({ issueNumber: 42 });
+  });
+
+  it("lore:implementation on a parked triage run reports to the human-gate visit before activeTaskByIssue fires", async () => {
+    const callOrder: string[] = [];
+    const reported: string[] = [];
+    const { fire } = triageScene({
+      findParkedTriageVisit: () => {
+        callOrder.push("findParkedTriageVisit");
+
+        return Promise.resolve("visit-abc");
+      },
+      reportTriageGate: (visitId) => {
+        callOrder.push("reportTriageGate");
+        reported.push(visitId);
+
+        return Promise.resolve();
+      },
+      labelDispatch: () =>
+        Promise.resolve({
+          rawSettings: () => Promise.resolve({}),
+          activeTaskByIssue: () => {
+            callOrder.push("activeTaskByIssue");
+
+            return Promise.resolve(null);
+          },
+          addLabel: () => Promise.resolve(),
+          comment: () => Promise.resolve(),
+        }),
+    });
+
+    await fire("github.issues.labeled", {
+      repo: "acme/widgets",
+      label: "lore:implementation",
+      issue: {
+        number: 99,
+        html_url: "https://github.com/acme/widgets/issues/99",
+        labels: ["lore:implementation"],
+      },
+    });
+
+    expect(reported).toEqual(["visit-abc"]);
+    const reportIdx = callOrder.indexOf("reportTriageGate");
+    const activeIdx = callOrder.indexOf("activeTaskByIssue");
+
+    expect(reportIdx).toBeGreaterThanOrEqual(0);
+    expect(reportIdx).toBeLessThan(activeIdx);
   });
 });
