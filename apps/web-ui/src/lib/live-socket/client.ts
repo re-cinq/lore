@@ -63,10 +63,14 @@ export interface LiveSocketOptions {
 
 const OPEN = 1;
 
+// Timer keys: the socket's own is a key no channel id can spell, since a channel's is its id.
+const SOCKET_TIMER = "socket:";
+
 export class LiveSocketClient {
   private state: MachineState = INITIAL_STATE;
   private socket: SocketLike | null = null;
-  private timer: unknown = null;
+  // One timer per waiting channel: a channel waiting 16s must hold neither the socket's reconnect nor another channel's.
+  private readonly timers = new Map<string, unknown>();
   private readonly specs = new Map<string, ChannelSpec>();
   private readonly watched = new Map<string, readonly string[]>();
   private nextId = 0;
@@ -179,18 +183,23 @@ export class LiveSocketClient {
   }
 
   /** One pending retry at a time: whichever fires serves both a backed-off socket and the channels waiting to re-open. */
-  scheduleRetry(delayMs: number): void {
-    if (this.timer !== null) {
+  scheduleRetry(delayMs: number, id?: string): void {
+    const key = id === undefined ? SOCKET_TIMER : `channel:${id}`;
+
+    if (this.timers.has(key)) {
       return;
     }
     const setTimer = this.options.setTimer ?? setTimeout;
 
-    this.timer = setTimer(
-      () => {
-        this.timer = null;
-        this.dispatch({ type: "retry_due" });
-      },
-      jittered(delayMs, this.options.random),
+    this.timers.set(
+      key,
+      setTimer(
+        () => {
+          this.timers.delete(key);
+          this.dispatch({ type: "retry_due", ...(id ? { id } : {}) });
+        },
+        jittered(delayMs, this.options.random),
+      ),
     );
   }
 
@@ -231,7 +240,7 @@ interface ClientInternals {
   connect(): void;
   sendOpen(id: string): Promise<void>;
   send(message: LiveClientMessage): void;
-  scheduleRetry(delayMs: number): void;
+  scheduleRetry(delayMs: number, id?: string): void;
   notify(id: string, state: ChannelState): void;
   dispatch(event: MachineEvent): void;
   deliverFrame(channel: string, frame: RunStreamFrame): void;
@@ -248,7 +257,8 @@ const EFFECTS: {
   send_open: (client, effect) => void client.sendOpen(effect.id),
   send_close: (client, effect) =>
     client.send({ type: "close", channel: effect.id }),
-  schedule_retry: (client, effect) => client.scheduleRetry(effect.delayMs),
+  schedule_retry: (client, effect) =>
+    client.scheduleRetry(effect.delayMs, effect.id),
   notify: (client, effect) => client.notify(effect.id, effect.state),
 };
 

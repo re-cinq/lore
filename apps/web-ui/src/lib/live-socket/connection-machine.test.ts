@@ -252,6 +252,51 @@ describe("connection machine — the server closes a channel", () => {
     });
   });
 
+  it("opens only the channel whose own retry came due, leaving another still waiting", () => {
+    let state = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
+
+    state = reduce(state, {
+      type: "channel_requested",
+      id: "b",
+      kind: "run",
+    }).state;
+    state = reduce(state, { type: "server_opened", id: "b" }).state;
+    state = reduce(state, {
+      type: "server_closed",
+      id: "a",
+      reason: "server",
+    }).state;
+    state = reduce(state, {
+      type: "server_closed",
+      id: "b",
+      reason: "server",
+    }).state;
+
+    const due = reduce(state, { type: "retry_due", id: "b" });
+
+    expect({
+      effects: due.effects,
+      a: due.state.channels.a?.phase,
+      b: due.state.channels.b?.phase,
+    }).toEqual({
+      effects: [{ type: "send_open", id: "b" }],
+      a: "pending",
+      b: "opening",
+    });
+  });
+
+  it("schedules a channel's retry under that channel's own id, so the socket's timer is its own", () => {
+    const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
+
+    expect(
+      reduce(live, { type: "server_closed", id: "a", reason: "server" })
+        .effects,
+    ).toEqual([
+      { type: "notify", id: "a", state: "reconnecting" },
+      { type: "schedule_retry", id: "a", delayMs: 1000 },
+    ]);
+  });
+
   it("forgets the failed attempts once the channel opens again", () => {
     const live = reduce(openSocket(), { type: "server_opened", id: "a" }).state;
     const closed = reduce(live, {
@@ -271,7 +316,7 @@ describe("connection machine — the server closes a channel", () => {
 
     expect(
       closedAgain.effects.find((effect) => effect.type === "schedule_retry"),
-    ).toEqual({ type: "schedule_retry", delayMs: 1000 });
+    ).toEqual({ type: "schedule_retry", id: "a", delayMs: 1000 });
   });
 
   it("re-opens a channel closed as slow after one second, and waits two when its token then fails", () => {
@@ -293,13 +338,13 @@ describe("connection machine — the server closes a channel", () => {
         },
         effects: [
           { type: "notify", id: "a", state: "reconnecting" },
-          { type: "schedule_retry", delayMs: 1000 },
+          { type: "schedule_retry", id: "a", delayMs: 1000 },
         ],
       },
       retried: [{ type: "send_open", id: "a" }],
       failed: [
         { type: "notify", id: "a", state: "reconnecting" },
-        { type: "schedule_retry", delayMs: 2000 },
+        { type: "schedule_retry", id: "a", delayMs: 2000 },
       ],
     });
   });

@@ -26,7 +26,7 @@ export type MachineEvent =
   | { type: "channel_released"; id: string }
   | { type: "socket_open" }
   | { type: "socket_closed" }
-  | { type: "retry_due" }
+  | { type: "retry_due"; id?: string }
   | { type: "server_opened"; id: string }
   | { type: "server_closed"; id: string; reason: ClosedReason }
   | { type: "open_failed"; id: string };
@@ -35,7 +35,7 @@ export type Effect =
   | { type: "connect" }
   | { type: "send_open"; id: string }
   | { type: "send_close"; id: string }
-  | { type: "schedule_retry"; delayMs: number }
+  | { type: "schedule_retry"; delayMs: number; id?: string }
   | { type: "notify"; id: string; state: ChannelState };
 
 export interface Transition {
@@ -183,7 +183,10 @@ function retryOrGiveUp(state: MachineState, survivors: string[]): Transition {
 }
 
 /** The retry timer fired: a backed-off socket connects again; an open one re-sends the channels waiting on it. */
-function onRetryDue(state: MachineState): Transition {
+function onRetryDue(
+  state: MachineState,
+  event: Extract<MachineEvent, { type: "retry_due" }>,
+): Transition {
   if (state.socket === "backoff") {
     return {
       state: { ...state, socket: "connecting" },
@@ -194,7 +197,7 @@ function onRetryDue(state: MachineState): Transition {
   if (state.socket !== "open") {
     return { state, effects: [] };
   }
-  const ids = idsInPhase(state, "pending");
+  const ids = dueIds(state, event);
 
   return {
     state: { ...state, channels: rephased(state, ids, "opening") },
@@ -262,9 +265,20 @@ function reopenLater(state: MachineState, id: string): Transition {
         state: withChannel(state, id, { ...entry, phase: "pending", attempt }),
         effects: [
           { type: "notify", id, state: "reconnecting" },
-          { type: "schedule_retry", delayMs: action.delayMs },
+          { type: "schedule_retry", id, delayMs: action.delayMs },
         ],
       };
+}
+
+function dueIds(
+  state: MachineState,
+  event: Extract<MachineEvent, { type: "retry_due" }>,
+): string[] {
+  const waiting = idsInPhase(state, "pending");
+
+  return event.id === undefined
+    ? waiting
+    : waiting.filter((id) => id === event.id);
 }
 
 function channelOf(state: MachineState, id: string): ChannelEntry | undefined {
