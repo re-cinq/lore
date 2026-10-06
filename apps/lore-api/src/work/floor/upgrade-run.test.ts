@@ -9,11 +9,9 @@ const START_ITEMS = {
 function floor({
   latestHash = "latest",
   finishedAt = null,
-  joined = false,
 }: {
   latestHash?: string | null;
   finishedAt?: string | null;
-  joined?: boolean;
 } = {}) {
   return {
     runs: {
@@ -31,9 +29,23 @@ function floor({
     },
     lines: {
       get: vi.fn().mockResolvedValue(latestHash ? { hash: latestHash } : null),
-      start: vi.fn().mockResolvedValue({ run: { id: "new-run" }, joined }),
+      start: vi.fn().mockResolvedValue({
+        run: { id: "new-run", lineHash: latestHash },
+        joined: false,
+      }),
     },
   } as unknown as UpgradeRunFloor;
+}
+
+function joining(lineHash: string): UpgradeRunFloor {
+  const source = floor();
+
+  vi.mocked(source.lines.start).mockResolvedValue({
+    run: { id: "new-run", lineHash },
+    joined: true,
+  } as never);
+
+  return source;
 }
 
 describe("assembly run upgrades", () => {
@@ -79,11 +91,15 @@ describe("assembly run upgrades", () => {
     expect(source.runs.cancel).not.toHaveBeenCalled();
   });
 
-  it("refuses when the floor joins the open source run instead of starting one", async () => {
-    await expect(
-      upgradeRun(floor({ joined: true }), "old-run"),
-    ).rejects.toThrow(
-      "the floor joined the open run new-run instead of starting a new one",
+  it("answers with the joined run when it already runs the latest line", async () => {
+    await expect(upgradeRun(joining("latest"), "old-run")).resolves.toEqual({
+      runId: "new-run",
+    });
+  });
+
+  it("refuses when the floor joins a run that is on an older line", async () => {
+    await expect(upgradeRun(joining("older"), "old-run")).rejects.toThrow(
+      "the floor joined the open run new-run, which is not on the latest assembly line",
     );
   });
 

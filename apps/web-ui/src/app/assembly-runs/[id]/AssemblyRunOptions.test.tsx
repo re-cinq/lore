@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import type { AssemblyRun } from "@/lib/assembly-runs";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 function buildRun(overrides: Partial<AssemblyRun>): AssemblyRun {
   return {

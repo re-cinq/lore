@@ -41,7 +41,7 @@ export async function upgradeRun(
   return restart(floor, run, upgrade.latestHash);
 }
 
-/** The floor answers a start on a subject that already has an open run by joining that run, so the old run is cancelled first — otherwise the upgrade would hand back the old run on the old version. */
+/** The floor answers a start on a subject that already has an open run by joining that run, so the old run is cancelled first — otherwise the upgrade would hand back the old run on the old version. A join it still answers with is an upgrade someone already made: that run is the answer when it is on the version asked for, and a refusal when it is not. */
 async function restart(
   floor: UpgradeRunFloor,
   run: RunView,
@@ -57,9 +57,9 @@ async function restart(
   });
 
   enforceTrue(
-    !started.joined,
+    !started.joined || started.run.lineHash === lineHash,
     apiError(409),
-    `the floor joined the open run ${started.run.id} instead of starting a new one`,
+    `the floor joined the open run ${started.run.id}, which is not on the latest assembly line`,
   );
 
   return { runId: started.run.id };
