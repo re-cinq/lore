@@ -29,6 +29,9 @@ line:
       iteration_max: 3
     - from: triage-label
       to: diagnose
+      on: diagnose
+    - from: triage-label
+      to: verify
       on: success
     - from: diagnose
       to: triage-label
@@ -60,6 +63,7 @@ stations:
   triage-label:
     kind: service
     outcomes:
+      - diagnose
       - success
       - failed
     needs:
