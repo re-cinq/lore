@@ -94,7 +94,7 @@ function issueComment(deps: RepoEventDeps): EventHandler {
       repo: string;
       issue: { number: number; labels: readonly string[] };
     };
-    const labels: readonly string[] = issue?.labels ?? [];
+    const labels: readonly string[] = issue.labels;
     const needsRetriage = (WAITING_TRIAGE_LABELS as readonly string[]).some(
       (l) => labels.includes(l),
     );

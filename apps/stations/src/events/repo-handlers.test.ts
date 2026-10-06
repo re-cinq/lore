@@ -254,7 +254,6 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
   });
 });
 
-// specs/issue-triage/spec.md#FR26
 describe("repoEventHandlers — reporter comment re-triage loop (T017, FR26)", () => {
   it("reporter comment on a needs-reproduction issue re-applies triage: needs-triage", async () => {
     const { fire, steps } = scene();
