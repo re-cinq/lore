@@ -253,3 +253,34 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
     expect(reportIdx).toBeLessThan(activeIdx);
   });
 });
+
+// specs/issue-triage/spec.md#FR26
+describe("repoEventHandlers — reporter comment re-triage loop (T017, FR26)", () => {
+  it("reporter comment on a needs-reproduction issue re-applies triage: needs-triage", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.issue_comment", {
+      repo: "acme/widgets",
+      issue: {
+        number: 55,
+        labels: ["triage: needs-reproduction"],
+      },
+    });
+
+    expect(steps).toContain("label #55 triage: needs-triage");
+  });
+
+  it("reporter comment on an unable-to-reproduce issue re-applies triage: needs-triage", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.issue_comment", {
+      repo: "acme/widgets",
+      issue: {
+        number: 66,
+        labels: ["triage: unable-to-reproduce"],
+      },
+    });
+
+    expect(steps).toContain("label #66 triage: needs-triage");
+  });
+});
