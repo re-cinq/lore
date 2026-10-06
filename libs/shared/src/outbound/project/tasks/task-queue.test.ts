@@ -601,6 +601,93 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
   });
 });
 
+describe("runningSpecTasks", () => {
+  it("PgTaskQueue reads each running or queued grouped spec-task's file and whether it is parallelizable", async () => {
+    const row = {
+      task_group_id: "g1",
+      file_path: "libs/assembly-lines/src/assembly-lines/issue-triage.yaml",
+      parallelizable: false,
+    };
+    const { pool, calls } = fakePgPool([{ rows: [row] }]);
+
+    expect({
+      rows: await new PgTaskQueue(pool).runningSpecTasks(),
+      statuses: calls[0].text.includes("status IN ('running', 'queued')"),
+    }).toEqual({ rows: [row], statuses: true });
+  });
+
+  it("InMemory lists running and queued spec-tasks of a group, treating one with no parallelizable mark as not parallelizable", async () => {
+    const q = new InMemoryTaskQueue([
+      {
+        id: "a",
+        task_type: "spec-task",
+        status: "running",
+        task_group_id: "g1",
+        context_bundle: { file_path: "README.md", parallelizable: true },
+      },
+      {
+        id: "b",
+        task_type: "spec-task",
+        status: "queued",
+        task_group_id: "g1",
+        context_bundle: {},
+      },
+      {
+        id: "c",
+        task_type: "spec-task",
+        status: "pending",
+        task_group_id: "g1",
+        context_bundle: {},
+      },
+      {
+        id: "d",
+        task_type: "spec-task",
+        status: "running",
+        context_bundle: {},
+      },
+    ]);
+
+    expect(await q.runningSpecTasks()).toEqual([
+      { task_group_id: "g1", file_path: "README.md", parallelizable: true },
+      { task_group_id: "g1", file_path: null, parallelizable: false },
+    ]);
+  });
+});
+
+describe("mergeableTasks", () => {
+  it("InMemory offers completed spec-task T001 with PR #2271 to the merge check, and not a completed implementation task or a spec-task with no PR", async () => {
+    const q = new InMemoryTaskQueue([
+      {
+        id: "t001",
+        task_type: "spec-task",
+        status: "completed",
+        pr_number: 2271,
+        pr_url: "https://github.com/re-cinq/lore/pull/2271",
+      },
+      {
+        id: "impl",
+        task_type: "implementation",
+        status: "completed",
+        pr_number: 9,
+        pr_url: "https://github.com/re-cinq/lore/pull/9",
+      },
+      { id: "nopr", task_type: "spec-task", status: "completed" },
+    ]);
+
+    expect((await q.mergeableTasks()).map((t) => t.id)).toEqual(["t001"]);
+  });
+
+  it("PgTaskQueue selects completed spec-tasks beside pr-created and review tasks", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).mergeableTasks();
+
+    expect(calls[0].text).toContain(
+      "status = 'completed' AND task_type = 'spec-task'",
+    );
+  });
+});
+
 describe("countUnmergedInGroup", () => {
   it("PgTaskQueue counts group rows neither merged nor cancelled", async () => {
     const { pool, calls } = fakePgPool([{ rows: [{ cnt: "2" }] }]);

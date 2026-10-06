@@ -22,8 +22,8 @@ const TERMINAL_RUN_STATUSES: ReadonlySet<string> = new Set([
 export type ConnectionState =
   "connecting" | "live" | "reconnecting" | "offline";
 
-// Stream states plus "polling" (degraded-but-advancing history-poll fallback), distinct from "offline" so a dead view reads differently.
-export type ChipState = ConnectionState | "polling";
+// Stream states plus "polling" (degraded-but-advancing history-poll fallback), distinct from "offline" so a dead view reads differently, and "ended" for a run with nothing live left to report.
+export type ChipState = ConnectionState | "polling" | "ended";
 
 export type StreamMode = "live" | "history-only";
 
@@ -63,12 +63,26 @@ export function connectionLabel(state: ChipState): string {
   }
 }
 
-// An active history-poll fallback reads "polling"; without it history-only mode presents as offline, and live mode passes the hook's own state through.
+/** How a run that ended reads on the chip: its own end, never a transport state, since there is nothing live to be offline from. */
+export function endedLabel(outcome: string | null): string {
+  if (outcome === "failed") {
+    return "Failed";
+  }
+
+  return outcome === "cancelled" ? "Cancelled" : "Finished";
+}
+
+// A terminal run reads "ended" whatever the transport did; an active history-poll fallback reads "polling"; without it history-only mode presents as offline, and live mode passes the hook's own state through.
 export function resolveChipState(input: {
   mode: StreamMode;
   connection: ConnectionState;
   fallbackPollActive: boolean;
+  runStatus: string;
 }): ChipState {
+  if (isTerminalRunStatus(input.runStatus)) {
+    return "ended";
+  }
+
   if (input.fallbackPollActive) {
     return "polling";
   }

@@ -1,17 +1,24 @@
 import Link from "next/link";
 import type { AssemblyRun } from "@/lib/assembly-runs";
-import { formatDuration, runStatusVisual } from "@/lib/assembly-run-presenter";
+import { formatDuration, runHeaderVisual } from "@/lib/assembly-run-presenter";
+import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
+import { CancelTaskButton } from "./CancelTaskButton";
 import styles from "./AssemblyRunView.module.css";
 
 const EM_DASH = "—";
 
 export interface AssemblyRunViewProps {
   run: AssemblyRun;
+  /** Whose move it is when only people hold the open run; null while a pod runs or the run ended. */
+  waitingOn?: string | null;
 }
 
 // Run header — line-level facts only; per-node state lives in the visualization panel below.
-export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
-  const visual = runStatusVisual(run.status, run.outcome);
+export default function AssemblyRunView({
+  run,
+  waitingOn = null,
+}: AssemblyRunViewProps) {
+  const visual = runHeaderVisual(run, waitingOn);
 
   return (
     <div>
@@ -51,7 +58,7 @@ function RunFacts({ run }: AssemblyRunViewProps) {
         <ReasonFact reason={run.reason} />
         <dt>Duration</dt>
         <dd>{formatDuration(run.durationSeconds)}</dd>
-        <TaskFact taskId={run.taskId} />
+        <TaskFact run={run} />
         <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
         <IssueFact issueUrl={run.issueUrl} issueNumber={run.issueNumber} />
       </dl>
@@ -88,8 +95,9 @@ function ReasonFact({ reason }: { reason: string | null }) {
   );
 }
 
-function TaskFact({ taskId }: { taskId: string | null }) {
-  if (!taskId) {
+/** Cancelling is the task's to do, and the run page is the only page a task has: offered while the run is still open. */
+function TaskFact({ run }: AssemblyRunViewProps) {
+  if (!run.taskId || isTerminalRunStatus(run.status)) {
     return null;
   }
 
@@ -97,7 +105,7 @@ function TaskFact({ taskId }: { taskId: string | null }) {
     <>
       <dt>Task</dt>
       <dd>
-        <Link href={`/tasks/${taskId}`}>View task →</Link>
+        <CancelTaskButton taskId={run.taskId} />
       </dd>
     </>
   );

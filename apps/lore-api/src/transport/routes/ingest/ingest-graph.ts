@@ -1,17 +1,10 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
-/** POST /api/repos/:o/:r/ingest-graph — spec-traceability projection trigger (docs only). */
+/** POST /api/repos/:o/:r/ingest-graph — the retired projection trigger; it answers 410 with what replaced it. */
 
-import type { Pool } from "pg";
-import type {
-  Request,
-  ResponseObject,
-  ResponseToolkit,
-  ServerRoute,
-} from "@hapi/hapi";
+import type { Request, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
-import { triggerAgentSpecTrace } from "../helpers.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
@@ -35,7 +28,7 @@ type IngestGraphBody = z.infer<typeof IngestGraphBody>;
 /** Which projection kinds the push triggered. */
 const IngestTriggeredSchema = z.object({ triggered: z.array(z.string()) });
 
-export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
+export function ingestGraphRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/ingest-graph",
@@ -47,35 +40,22 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
       IngestTriggeredSchema,
       {
         name: "IngestTriggered",
-        description: "The projections this push started",
+        description: "Never answered: the route refuses with 410",
         errors: [400],
       },
     ),
-    handler: (request, h) => serveIngestGraph(getPool, request, h),
+    handler: serveIngestGraph,
   };
 }
 
-/** Projects a repo's specs or ADRs into the traceability graph. Test projection is deliberately NOT accepted here — that path is CI-only, through the lore-code-trace binary. */
-async function serveIngestGraph(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const repo = `${request.params.owner}/${request.params.repo}`;
-  const body = request.payload as IngestGraphBody;
-  const requested = resolveDocKinds(body);
-  // Each doc kind → fire-and-forget projection trigger.
-  const pool = getPool();
+const REPLACED =
+  "Specs and ADRs are no longer projected by this route. The repository's lore-ingest.yml posts them itself with `lore-code-trace docs --post`: update the workflow from the onboarding template.";
 
-  for (const kind of requested) {
-    void triggerAgentSpecTrace(pool, repo, kind, {
-      commit: body.commit,
-      force: body.force,
-      glob: body.glob,
-    });
-  }
+/** This route queued a projection for Lore's own Floor to run. The Floor is gone and the repository's CI posts its specs and ADRs to the graph directly, so a workflow that still calls here is told to update: a 4xx fails its job, which is how the repository finds out. */
+function serveIngestGraph(request: Request): never {
+  resolveDocKinds(request.payload as IngestGraphBody);
 
-  return h.response({ triggered: requested });
+  throw apiError(410)(REPLACED);
 }
 
 /** The doc kinds a push asked for, defaulting to both; an unknown kind is refused rather than dropped. */
@@ -87,7 +67,7 @@ function resolveDocKinds(body: IngestGraphBody): string[] {
   enforceTrue(
     unsupported.length <= 0,
     apiError(400),
-    `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
+    `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs were ever projected here`,
   );
 
   return requested;

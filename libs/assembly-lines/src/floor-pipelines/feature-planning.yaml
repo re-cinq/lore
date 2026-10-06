@@ -1,0 +1,784 @@
+line:
+  id: feature-planning
+  entry: analyze
+  exit: done
+  args:
+    repo:
+      kind: git
+    plan_id:
+      kind: value
+      subject: true
+    # The repository at its default branch. What runs after the spec PR merges
+    # reads the merged spec, and the spec branch is gone by then: a git item
+    # carrying no sha clones the branch as it stands when the visit opens.
+    base:
+      kind: git
+  nodes:
+    - id: analyze
+      station: plan-analyze
+      bind:
+        target: repo
+    # Not a review: every pass settles here before the author waits again, so a
+    # Refine round that died tells its person rather than leaving them watching a
+    # plan that will never answer. See the plan-pass-end station.
+    - id: plan-pass-end
+      station: plan-pass-end
+    # Deterministic and modelless, so it runs on every pass rather than when
+    # someone clicks Validate: a stale name costs nothing to find and reaches the
+    # plan while its people are still writing it.
+    - id: plan-grounding
+      station: plan-grounding
+      bind:
+        target: base
+    - id: author
+      station: plan-author
+    # No inbound edge — the plan page's own Validate button fires this event while
+    # the line waits on `author`; every outcome goes through plan-findings back to
+    # the author. It reads `base`, cloned as the default branch stands when the
+    # visit opens: `repo` is the spec branch, cut from main when the run started
+    # and untouched until `write` pushes, so a Validate days later read deleted code.
+    - id: validate
+      station: plan-validate
+      start: manual.plan.validate
+      bind:
+        target: base
+    # Writes the validator's findings into the plan, or a blocker when the visit
+    # delivered none. See the plan-findings station.
+    - id: plan-findings
+      station: plan-findings
+    - id: analyse-specs
+      station: spec-analysis
+      bind:
+        target: repo
+    - id: write
+      station: spec-write
+      bind:
+        target: repo
+    # Counts the approved plan's blocks no spec statement cites, on the branch
+    # write just pushed. See the spec-coverage station.
+    - id: spec-coverage
+      station: spec-coverage
+      bind:
+        target: repo
+    - id: open-spec-pr
+      station: open-spec-pr
+      bind:
+        target: repo
+    # The station IS the GitHub PR view, a page this platform does not own — the
+    # route is absolute, and it resolves only once open-spec-pr has stamped pr_url.
+    # No `reports:` block: Lore's own webhook code posts station_run.reported for a
+    # PR close/merge explicitly, the same way it already handles the review lines,
+    # so that mapping stays out of the floor's generic event matcher.
+    - id: merged
+      station: spec-pr-merged
+      route: "{args.pr_url}"
+    # Reads the merged spec, so it clones the base branch: after the merge the
+    # spec branch may be deleted, and what it held is on the base anyway.
+    - id: decompose
+      station: feature-decompose
+      bind:
+        target: base
+    - id: issues
+      station: issues
+      bind:
+        target: base
+    # Counts the merged spec's testable statements no task names, at the commit
+    # decompose read. See the issue-coverage station.
+    - id: issue-coverage
+      station: issue-coverage
+      bind:
+        target: base
+    - id: done
+  edges:
+    - from: analyze
+      to: plan-pass-end
+      on: success
+    # An agent visit can produce this outcome, so the graph must route it; planning
+    # asks for no review, so it settles exactly as success does.
+    - from: analyze
+      to: plan-pass-end
+      on: changes_requested
+    # A pass that died — a crashed pod, a non-zero exit, a timeout — hands the plan
+    # back to its people rather than retrying on its own. Every pass is asked for by
+    # a person (the first draft, Regenerate, each Refine), so there is no runaway to
+    # bound: the page names the failure and they ask again. plan-pass-end is what
+    # tells a Refine's person their round died, before the author waits again.
+    - from: analyze
+      to: plan-pass-end
+      on: failed
+    # Every one of analyze's outcomes reaches here; plan-pass-end reports only
+    # success or failed of its own (posting the Refine-failure notice, or not), and
+    # either way the plan waits on its author next.
+    - from: plan-pass-end
+      to: plan-grounding
+      on: always
+    # Grounding never holds the plan back: its findings are on the plan, and the
+    # blockers among them are what Approve already refuses on.
+    - from: plan-grounding
+      to: author
+      on: always
+    # Unbounded on purpose. The back-edge rule exists to stop two agents arguing
+    # forever; here a person decides each pass, so there is no runaway to bound — and
+    # any number picked would silently kill a feature that needed one more round.
+    # `author` is a human station, which is what makes this cycle a guarded one.
+    - from: author
+      to: analyze
+      on: changes_requested
+    - from: author
+      to: analyse-specs
+      on: success
+    # The author walked away, or the feature was closed. Not a failure of the
+    # machine, so it settles rather than erroring — but it must be routed either
+    # way, since a station's outcome always needs an edge out.
+    - from: author
+      to: done
+      on: failed
+    # Validate reports only `success` in practice (the findings are the delivery,
+    # not the outcome) but a pod can still fail outright, so `always` catches both.
+    # plan-findings tells the two apart by whether the visit produced its file.
+    - from: validate
+      to: plan-findings
+      on: always
+    # A visit that delivered nothing has already put a blocker on the plan, so
+    # either way the plan goes back to the people reading it.
+    - from: plan-findings
+      to: author
+      on: always
+    - from: analyse-specs
+      to: write
+      on: success
+    # analyse-specs has no upstream NODE — its input is a plan a PERSON accepted, so
+    # a question about that plan can only be answered by that person.
+    - from: analyse-specs
+      to: author
+      on: changes_requested
+    - from: analyse-specs
+      to: done
+      on: failed
+    - from: write
+      to: spec-coverage
+      on: success
+    # The change set was unusable — a spec path that does not exist, or an
+    # instruction to amend a spec that does not cover the area. One correction:
+    # unlike the author's loop, which is unbounded because a person decides each
+    # pass, two agents disagreeing without a referee will do so all day.
+    - from: write
+      to: analyse-specs
+      on: changes_requested
+      iteration_max: 1
+    - from: write
+      to: done
+      on: failed
+    - from: spec-coverage
+      to: open-spec-pr
+      on: success
+    # Plan blocks no statement cites go back to the writer, and only those. The
+    # station itself stops asking after COVERAGE_ROUNDS handbacks and lets the PR
+    # open with the gaps listed, because a spent budget halts the whole run: this
+    # iteration_max is the backstop it never reaches.
+    - from: spec-coverage
+      to: write
+      on: changes_requested
+      iteration_max: 3
+    - from: spec-coverage
+      to: done
+      on: failed
+    - from: open-spec-pr
+      to: merged
+      on: success
+    - from: open-spec-pr
+      to: done
+      on: failed
+    - from: merged
+      to: decompose
+      on: success
+    # A reviewer asked for changes on the spec PR — the same shape as the spec
+    # analysis having a question: an objection to a plan a PERSON accepted,
+    # answerable only by that person. Unbounded like the author's own loop, and
+    # legal without iteration_max because BOTH ends are human stations: leaving one
+    # a person has just decided, entering one a person decides before anything else
+    # runs. Two agents still cannot argue forever through it.
+    - from: merged
+      to: author
+      on: changes_requested
+    # The PR was closed without merging — abandoned or superseded. Not a failure of
+    # the machine, so it settles rather than erroring, but it must be routed either
+    # way.
+    - from: merged
+      to: done
+      on: failed
+    - from: decompose
+      to: issues
+      on: success
+    # decompose has no upstream NODE — its input is a spec a human merged. A spec it
+    # cannot break down is a question for the author, not something to re-run, so
+    # the line ends rather than looping.
+    - from: decompose
+      to: done
+      on: changes_requested
+    - from: decompose
+      to: done
+      on: failed
+    - from: issues
+      to: issue-coverage
+      on: success
+    # The station is the first thing to read the decomposition as DATA, so it is
+    # where a label the repo does not have, or a story with no tasks, actually
+    # shows. One correction, then the budget is exhausted and the line fails.
+    - from: issues
+      to: decompose
+      on: changes_requested
+      iteration_max: 1
+    - from: issues
+      to: done
+      on: failed
+    - from: issue-coverage
+      to: done
+      on: success
+    # Spec statements no task names go back to decompose, and only those; the
+    # issues station then refiles what it filed before and adds the new tasks.
+    # The station itself stops asking after COVERAGE_ROUNDS handbacks and lets
+    # the run settle with the gaps listed on the story issue, because a spent
+    # budget halts the whole run: this iteration_max is the backstop it never
+    # reaches.
+    - from: issue-coverage
+      to: decompose
+      on: changes_requested
+      iteration_max: 3
+    - from: issue-coverage
+      to: done
+      on: failed
+stations:
+  plan-analyze:
+    kind: agent
+    agent_definition: plan-analyze
+    # Each Refine continues the previous round's conversation for the SAME plan, so
+    # the agent keeps what it read and decided instead of being re-briefed.
+    conversation: continue
+    conversation_key: plan_id
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: plan_id
+        kind: value
+      # What THIS round asks for: the first draft's brief with what its author
+      # already knows, or the one section a Refine names. Reading the plan cannot
+      # tell the agent which of its sections a person just asked about.
+      - name: description
+        kind: value
+        optional: true
+    produces: []
+  plan-author:
+    kind: human
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    produces:
+      - name: plan_md
+        kind: file
+      # Written only on a changes_requested report — the person clicked Refine on
+      # one section, naming it and the hash they read it at. plan-pass-end reads it
+      # back on the analyze pass it asks for.
+      - name: refine
+        kind: value
+      # What the round this report asks for is for: the Refine's section, or the
+      # draft's own brief. The agent is told, rather than having to guess from the
+      # plan which section a person just clicked.
+      - name: description
+        kind: value
+  plan-pass-end:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # Present only on a Refine round — the person who clicked Refine on the plan
+      # page produced it when `author` answered changes_requested; a first draft
+      # has none.
+      - name: refine
+        kind: value
+        optional: true
+    produces: []
+  plan-grounding:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # The default branch as it stands when the visit opens, never the plan's spec
+      # branch: that one is cut when the run starts and a name may have gone since.
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # The plan as its people last saw it. Absent on no pass that reaches here,
+      # but a pass without one has nothing to ground rather than a failure.
+      - name: plan_md
+        kind: file
+        path: plan.md
+        optional: true
+    produces: []
+  plan-validate:
+    kind: agent
+    agent_definition: plan-validate
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # The plan is read live through lore_plan_read, not from a file: a person
+      # clicks Validate after editing, and the bag's plan.md is only as fresh as
+      # the last Draft, Refine or approval. A hand-started node cannot be handed a
+      # new blob, so a snapshot here would validate text nobody is looking at.
+      - name: plan_id
+        kind: value
+    produces:
+      - name: plan_validation
+        kind: file
+        path: plan-validation.json
+  plan-findings:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # Optional: a visit that wrote nothing leaves the bag without one, or with
+      # an earlier visit's, which the station refuses to read as this one's.
+      - name: plan_validation
+        kind: file
+        optional: true
+    produces: []
+  spec-analysis:
+    kind: agent
+    agent_definition: spec-analysis
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: plan_md
+        kind: file
+        path: plan.md
+      # Which spec pass this is: the first one, or an amendment to specs an
+      # earlier pass already merged or left open on this branch.
+      - name: description
+        kind: value
+        optional: true
+    produces:
+      - name: spec_plan
+        kind: file
+        path: spec-plan.json
+  spec-write:
+    kind: agent
+    agent_definition: spec-write
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      # Write access needs a human on every path in — here `author` precedes this
+      # node on every route (through `analyse-specs`), so the cycle/need-graph rule
+      # is satisfied without this node ever being the first writer.
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: plan_md
+        kind: file
+        path: plan.md
+      - name: spec_plan
+        kind: file
+        path: spec-plan.json
+      # The approved plan's blocks a statement must cite, with their links;
+      # absent where the deployment names no web UI to link them under.
+      - name: plan_blocks
+        kind: file
+        path: plan-blocks.json
+        optional: true
+      # What spec-coverage last counted; absent before its first visit.
+      - name: plan_coverage
+        kind: file
+        path: plan-coverage.md
+        optional: true
+    produces:
+      - name: spec_review
+        kind: file
+        path: spec-review-result.json
+  spec-coverage:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: spec_plan
+        kind: file
+      # Absent where the deployment names no web UI: then there is nothing to
+      # count, and the station lets the PR open.
+      - name: plan_blocks
+        kind: file
+        optional: true
+    produces:
+      # Produced on every visit that counts, so the latest one is always true.
+      - name: plan_coverage
+        kind: file
+  open-spec-pr:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # The pull request is titled after the plan, as every spec PR opened by hand
+      # was; the branch name is the fallback, not the intent.
+      - name: plan_title
+        kind: value
+        optional: true
+      # Which spec the plan's spec-tasks belong to: spec-plan.json's first
+      # create or update. Read here once and put in the run's bag as spec_path,
+      # so the stations after the merge read it rather than derive it again.
+      - name: spec_plan
+        kind: file
+      # Listed in the PR's body, so its reviewer sees which plan blocks the
+      # spec still does not cite.
+      - name: plan_coverage
+        kind: file
+        optional: true
+    produces:
+      - name: pr_url
+        kind: value
+      # Produced only when the spec plan names a spec.
+      - name: spec_path
+        kind: value
+      # Emptied on every spec PR, so the decompose after its merge starts a
+      # fresh decomposition rather than a coverage round of an earlier one.
+      - name: issue_coverage
+        kind: file
+  spec-pr-merged:
+    kind: human
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    produces: []
+  feature-decompose:
+    kind: agent
+    agent_definition: feature-decompose
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: plan_md
+        kind: file
+        path: plan.md
+      # The spec this run wrote, as open-spec-pr put it in the bag, so the agent
+      # reads that spec rather than searching the clone for it.
+      - name: spec_path
+        kind: value
+      # Its own last decomposition, where it writes the next one, so a round
+      # that adds tasks keeps the ids the filed issues are matched by. Absent on
+      # the first visit.
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+        optional: true
+      # What issue-coverage last counted; absent before its first visit.
+      - name: issue_coverage
+        kind: file
+        path: issue-coverage.md
+        optional: true
+      # Every spec the plan created or updated: spec_path is only the first.
+      - name: spec_plan
+        kind: file
+        path: spec-plan.json
+      # The approved plan's blocks with the link each is cited by; absent without
+      # a web UI address to link to.
+      - name: plan_blocks
+        kind: file
+        path: plan-blocks.json
+        optional: true
+    produces:
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+  issues:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+      # The decomposition names stories and tasks, not which spec they belong
+      # to: open-spec-pr put that in the bag. A plan naming no spec has none.
+      - name: spec_path
+        kind: value
+        optional: true
+      - name: plan_id
+        kind: value
+      - name: plan_title
+        kind: value
+        optional: true
+      # Folded into the story issue: the plan lives in Lore, not in the
+      # repository the issues are filed on.
+      - name: plan_md
+        kind: file
+        optional: true
+    produces: []
+  issue-coverage:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+      # A plan naming no spec has nothing to count, and the run settles.
+      - name: spec_path
+        kind: value
+        optional: true
+    produces:
+      # Produced on every visit that counts, so the latest one is always true.
+      - name: issue_coverage
+        kind: file
+agent_definitions:
+  plan-analyze:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        disallowed_tools:
+          - Bash(npm:*)
+          - Bash(npx:*)
+          - Bash(yarn:*)
+          - Bash(pnpm:*)
+          - Bash(bun:*)
+          - Bash(pip:*)
+          - Bash(pip3:*)
+          - Bash(uv:*)
+          - Bash(cargo:*)
+          - Bash(go:*)
+          - Bash(make:*)
+          - Bash(bash:*)
+          - Bash(sh:*)
+        env:
+          LORE_TEST_POLICY: none
+  plan-validate:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        disallowed_tools:
+          - Bash(npm:*)
+          - Bash(npx:*)
+          - Bash(yarn:*)
+          - Bash(pnpm:*)
+          - Bash(bun:*)
+          - Bash(pip:*)
+          - Bash(pip3:*)
+          - Bash(uv:*)
+          - Bash(cargo:*)
+          - Bash(go:*)
+          - Bash(make:*)
+          - Bash(bash:*)
+          - Bash(sh:*)
+        env:
+          LORE_TEST_POLICY: none
+  spec-analysis:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        disallowed_tools:
+          - Bash(npm:*)
+          - Bash(npx:*)
+          - Bash(yarn:*)
+          - Bash(pnpm:*)
+          - Bash(bun:*)
+          - Bash(pip:*)
+          - Bash(pip3:*)
+          - Bash(uv:*)
+          - Bash(cargo:*)
+          - Bash(go:*)
+          - Bash(make:*)
+          - Bash(bash:*)
+          - Bash(sh:*)
+        env:
+          LORE_TEST_POLICY: none
+  spec-write:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        disallowed_tools:
+          - Bash(npm:*)
+          - Bash(npx:*)
+          - Bash(yarn:*)
+          - Bash(pnpm:*)
+          - Bash(bun:*)
+          - Bash(pip:*)
+          - Bash(pip3:*)
+          - Bash(uv:*)
+          - Bash(cargo:*)
+          - Bash(go:*)
+          - Bash(make:*)
+          - Bash(bash:*)
+          - Bash(sh:*)
+        env:
+          LORE_TEST_POLICY: none
+  feature-decompose:
+    settings:
+      # Tried beside claude-sonnet-4-6 and gemini-3-flash-preview on three of this repository's specs (2026-10-06): it named the most spec statements, at no more than Sonnet's cost.
+      model: gemini-3.1-pro-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        disallowed_tools:
+          - Bash(npm:*)
+          - Bash(npx:*)
+          - Bash(yarn:*)
+          - Bash(pnpm:*)
+          - Bash(bun:*)
+          - Bash(pip:*)
+          - Bash(pip3:*)
+          - Bash(uv:*)
+          - Bash(cargo:*)
+          - Bash(go:*)
+          - Bash(make:*)
+          - Bash(bash:*)
+          - Bash(sh:*)
+        env:
+          LORE_TEST_POLICY: none

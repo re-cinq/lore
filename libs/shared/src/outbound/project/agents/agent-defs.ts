@@ -5,7 +5,7 @@ import type {
   PodResourcesWrite,
 } from "./agent-defs-port.js";
 
-/** project.agentDefs — repo-bound Agent *definitions* (config), CRUD kept separate from execution (`project.agents.run()`); resolve/list field-merge project → org → yaml. */
+/** project.agentDefs — repo-bound Agent *definitions* (config): CRUD, and resolve/list field-merge project → org → yaml. */
 export class AgentDefs {
   constructor(
     private readonly repo: string,

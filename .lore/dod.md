@@ -2,21 +2,21 @@
 
 > Verify node is correctly wired with its custom outcomes in the YAML.
 
-**Strategy: `direct`** — The seam is the `loadBuiltinAssemblyLines()` function in `@re-cinq/lore-assembly-lines`, which reads every `*.yaml` file in `libs/assembly-lines/src/assembly-lines/`. The test loads the catalog and asserts the `verify` node's presence, station definition, timeout, and edge wiring. It fails today because `issue-triage.yaml` does not exist.
+**Strategy: `direct`** — The seam is the `issue-triage.yaml` floor pipeline file at `libs/assembly-lines/src/floor-pipelines/`, read by `pipelineOfText` in `seed-floor-pipelines.ts`. The test loads the real files and asserts the `triage-verify` station and its custom outcome edges exist. It fails today because `triage-verify` is not declared in the `stations` block of `issue-triage.yaml`.
 
 ## Done when these pass
 
-- [ ] **verify node covers every outcome with a matching outgoing edge** — the `issue-triage` assembly line exists in the builtin catalog; its `verify` node uses `station_ref: triage-verify`, `timeout_minutes: 10`, and has outgoing edges covering `success` → `human-gate` and `failed` → `label-failed` with no uncovered outcomes.
+- [ ] **triage-verify station declares custom outcomes and every declared outcome has a matching outgoing edge from the verify node** — the `triage-verify` station exists in the `issue-triage` pipeline's `stations` block and every outcome it declares has a corresponding outgoing edge from the `verify` node.
   `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`
 
 ## Facets
 
-- [ ] Create `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` with a `verify` agent node (`station_ref: triage-verify`, `timeout_minutes: 10`) wired `success` → `human-gate`, `changes_requested` → (appropriate node), `failed` → `label-failed`.
-- [ ] Ensure the YAML passes the loader's schema and graph validation (no uncovered outcomes, no dangling edges).
+- [ ] Add a `triage-verify` entry to the `stations` block in `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml` declaring outcomes `[success, obsolete, large-issue, not-actionable, failed]` and `agent_definition: triage-verify`.
+- [ ] Wire the verify node: `success` → `human-gate`, `obsolete` → `close-obsolete`, `large-issue` → `decompose`, `not-actionable` → `label-not-actionable`, `failed` (with `iteration_max: 3`) → `label-failed`.
 - [ ] Run the acceptance test green.
 
 ## Out of scope
 
-- Other nodes in the issue-triage assembly line (`reproduce`, `diagnose`, `human-gate`, `label-failed`, `close-obsolete`, `decompose`).
-- The webhook label-routing changes in `apps/floor/src/events/handlers/github.ts`.
-- Schema extension for custom outcome names (`obsolete`, `large-issue`, `not-actionable`) — these are expressed via `LORE_NODE_RESULT` extras, not new edge conditions.
+- The `triage-verify` agent definition recipe file (`libs/shared/src/agent-defaults/triage-verify.md`) — covered by T002.
+- The `close-obsolete`, `decompose`, `label-not-actionable`, `label-failed` nodes and their wiring — covered by T009, T012, T013 and the label node tasks.
+- The `iteration_max: 3` retry semantics — the test checks edge existence, not iteration count (FR25 is covered by T009).

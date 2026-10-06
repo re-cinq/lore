@@ -4,8 +4,9 @@ import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
 import { layerByLongestPath } from "./dag-layout";
 import { chosenEdge } from "./run-taken-edges";
+import { humanStation, nodeTypeOf } from "./human-station";
 
-export type StepTone = "ok" | "warn" | "err" | "running" | "idle";
+export type StepTone = "ok" | "warn" | "err" | "running" | "waiting" | "idle";
 
 export interface StepView {
   nodeId: string;
@@ -41,7 +42,7 @@ function toStepView(
   node: AssemblyRunNode,
   runReason: string | null,
 ): StepView {
-  const { tone, label } = toneOf(node.outcome);
+  const { tone, label } = parkedOn(definition, node) ?? toneOf(node.outcome);
 
   return {
     ...rowFacts(node),
@@ -50,6 +51,17 @@ function toStepView(
     transition: transitionOf(definition, layers, node),
     reason: tone === "err" ? runReason : null,
   };
+}
+
+// An open visit of a human station has no pod running: it waits on a person, and says who.
+function parkedOn(
+  definition: AssemblyLineDefinition | null,
+  node: AssemblyRunNode,
+): { tone: StepTone; label: string } | null {
+  const type = nodeTypeOf(definition, node.nodeId);
+  const waiting = node.outcome === null ? humanStation(type) : null;
+
+  return waiting && { tone: "waiting", label: waiting.label };
 }
 
 const TONES: { tone: StepTone; label: string }[] = [

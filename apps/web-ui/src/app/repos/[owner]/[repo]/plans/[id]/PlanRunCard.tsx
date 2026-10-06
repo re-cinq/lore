@@ -14,6 +14,9 @@ export interface PlanRun {
   status: string;
   outcome: string | null;
   reason: string | null;
+  /** The user story the run was started for, or null when it names none. */
+  issueUrl: string | null;
+  issueNumber: number | null;
   prUrl: string | null;
   prNumber: number | null;
   /** The spec PR's title as GitHub reports it, or null when nobody could ask. */

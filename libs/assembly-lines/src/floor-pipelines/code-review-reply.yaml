@@ -1,0 +1,148 @@
+line:
+  id: code-review-reply
+  entry: read-review
+  exit: done
+  args:
+    repo:
+      kind: git
+    pr_url:
+      kind: value
+    # One run per review: a second request for changes on the same review is the
+    # same work, and two replies in one thread read as the bot arguing with itself.
+    review_id:
+      kind: value
+      subject: true
+  nodes:
+    - id: read-review
+      station: read-review
+    - id: reply
+      station: code-review-refine
+      bind:
+        target: repo
+        description: review_feedback
+    - id: post-reply
+      station: post-reply
+    - id: done
+  edges:
+    - from: read-review
+      to: reply
+      on: success
+    - from: read-review
+      to: read-review
+      on: failed
+      iteration_max: 1
+    - from: reply
+      to: post-reply
+      on: success
+    - from: reply
+      to: post-reply
+      on: changes_requested
+    - from: reply
+      to: reply
+      on: failed
+      iteration_max: 1
+    - from: post-reply
+      to: done
+      on: success
+    # A post that fails is usually an agent that ended without a reply block; posting again reads the same output, so the agent runs again instead.
+    - from: post-reply
+      to: reply
+      on: failed
+      iteration_max: 1
+stations:
+  read-review:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: pr_url
+        kind: value
+      - name: review_id
+        kind: value
+    produces:
+      - name: review_feedback
+        kind: value
+  code-review-refine:
+    kind: agent
+    agent_definition: code-review-refine
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: description
+        kind: value
+      - name: issue
+        kind: file
+        path: issue.md
+        optional: true
+    produces:
+      - name: reply_output
+        kind: file
+        from: output
+  post-reply:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: reply_output
+        kind: file
+      - name: pr_url
+        kind: value
+      # A reply is posted in a thread only under a comment of this review.
+      - name: review_id
+        kind: value
+    produces:
+      - name: reply_url
+        kind: value
+agent_definitions:
+  code-review-refine:
+    settings:
+      model: gemini-3.1-pro-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 20
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
+      config:
+        # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        disallowed_tools:
+          - Bash(npm:*)
+          - Bash(npx:*)
+          - Bash(yarn:*)
+          - Bash(pnpm:*)
+          - Bash(bun:*)
+          - Bash(pip:*)
+          - Bash(pip3:*)
+          - Bash(uv:*)
+          - Bash(cargo:*)
+          - Bash(go:*)
+          - Bash(make:*)
+          - Bash(bash:*)
+          - Bash(sh:*)
+        env:
+          LORE_TEST_POLICY: none

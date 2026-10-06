@@ -7,6 +7,7 @@ import UserMenu from "./UserMenu";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { liveSocketUrl } from "@/lib/live-socket-url";
+import { headlampUrl } from "@/lib/headlamp-url";
 import { inter, ibmPlexMono, gohu } from "@/lib/theme/fonts";
 import { THEME_SCRIPT } from "@/lib/theme/theme-script";
 import "./theme.css";
@@ -58,7 +59,7 @@ function Sidebar() {
       <Link href="/" className="sidebar-brand">
         <img src="/logo.svg" alt="Lore" width={80} height={80} />
       </Link>
-      <SidebarNav />
+      <SidebarNav headlampUrl={headlampUrl(process.env)} />
       <UserMenu />
       <div className="meta sidebar-version" title="Deployed build (git SHA)">
         {process.env.LORE_UI_VERSION ?? "dev"}

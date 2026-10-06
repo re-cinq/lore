@@ -14,6 +14,7 @@ import {
   validatePlan,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
+import { storyField } from "@/lib/plan-input";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
@@ -122,8 +123,13 @@ export async function deletePlanAction(
 export async function retrySpecWorkAction(
   fullName: string,
   planId: string,
+  story = "",
 ): Promise<{ error?: string }> {
-  return inUsersName(fullName, planId, startSpecWork);
+  return withStory(story, fullName, ({ storyIssue }) =>
+    inUsersName(fullName, planId, (repo, id, userId) =>
+      startSpecWork(repo, id, userId, storyIssue),
+    ),
+  );
 }
 
 /** The spec writer again on the same PR, reading its review; anything against the plan comes back to the plan. */
@@ -146,34 +152,50 @@ export async function refinePlanAction(
   fullName: string,
   planId: string,
   refine: RefineAsk,
+  story = "",
 ): Promise<{ error?: string }> {
-  const allowed = await allowedUser(fullName);
-
-  if ("error" in allowed) {
-    return allowed;
-  }
-  const asked = await askRefine(fullName, planId, refine);
-
-  return asked.status === "ok"
-    ? {}
-    : { error: "The planning agent is still working on this plan." };
+  return withStory(story, fullName, (named) =>
+    inUsersName(fullName, planId, (repo, id) =>
+      askRefine(repo, id, { ...refine, ...named }),
+    ),
+  );
 }
 
 /** A fresh draft for a plan whose planning run failed or never started — the run page cannot retry a run that failed on its first node. */
 export async function draftAgainAction(
   fullName: string,
   planId: string,
+  story = "",
 ): Promise<{ error?: string }> {
-  const allowed = await allowedUser(fullName);
+  return withStory(story, fullName, async (named) => {
+    const allowed = await allowedUser(fullName);
 
-  if ("error" in allowed) {
-    return allowed;
-  }
-  const started = await startDrafting(fullName, planId, "", allowed.user.id);
+    if ("error" in allowed) {
+      return allowed;
+    }
+    const started = await startDrafting(fullName, planId, {
+      known: "",
+      createdBy: allowed.user.id,
+      ...named,
+    });
 
-  return started.status === "ok"
-    ? {}
-    : { error: "Could not start a new draft." };
+    return started.status === "ok"
+      ? {}
+      : { error: "Could not start a new draft." };
+  });
+}
+
+type NamedStory = { storyIssue?: number };
+
+// An action with the user story typed on the page; a story naming no issue of the repo is refused before anything is asked.
+async function withStory(
+  story: string,
+  fullName: string,
+  act: (named: NamedStory) => Promise<{ error?: string }>,
+): Promise<{ error?: string }> {
+  const named = storyField(story, fullName);
+
+  return "error" in named ? named : act(named);
 }
 
 type PlanRoute = (

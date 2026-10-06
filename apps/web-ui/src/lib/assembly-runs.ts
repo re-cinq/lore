@@ -15,10 +15,11 @@ export * from "./assembly-run-rows";
 export interface AssemblyRunFilter {
   status?: string;
   repo?: string;
-  clusterAgentId?: string;
   /** What the run works on, e.g. `plan:<id>`. */
   subjectKey?: string;
   blueprint?: string;
+  /** `lore`: only the runs Lore's own engine walked (Postgres). */
+  engine?: "lore";
   limit?: number;
 }
 
@@ -29,7 +30,7 @@ export async function fetchAssemblyRuns(
   return readRuns(`?${assemblyRunFilterParams(opts)}`);
 }
 
-/** A plan's planning run — its open one, else its newest — or null before one has started. The run is keyed on the plan (`plan:<id>`, the subject the Floor stamps); a newer run can be over while an older one was reopened, so the newest alone may be the wrong one. */
+/** A plan's planning run — its open one, else the newest that was not cancelled, else its newest — or null before one has started. The run is keyed on the plan (`plan:<id>`, the subject the Floor stamps); a newer run can be over while an older one was reopened, and a shell run a migration cancelled after folding its steps into another run (#2154) must not hide the run that did the work. */
 export async function fetchPlanRun(
   repo: string,
   planId: string,
@@ -40,19 +41,25 @@ export async function fetchPlanRun(
     blueprint: "feature-planning",
   });
 
-  return runs.find((run) => OPEN_RUN.has(run.status)) ?? runs.at(0) ?? null;
+  return (
+    runs.find((run) => OPEN_RUN.has(run.status)) ??
+    runs.find((run) => run.outcome !== CANCELLED) ??
+    runs.at(0) ??
+    null
+  );
 }
 
 const OPEN_RUN = new Set(["queued", "running"]);
+const CANCELLED = "cancelled";
 
 function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const params = new URLSearchParams();
   const filters: Array<[string, string | undefined]> = [
     ["status", opts.status],
     ["repo", opts.repo],
-    ["cluster_agent_id", opts.clusterAgentId],
     ["subject_key", opts.subjectKey],
     ["blueprint", opts.blueprint],
+    ["engine", opts.engine],
   ];
 
   filters

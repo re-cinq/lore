@@ -978,9 +978,6 @@ describe("PgAssemblyRuns node-transition primitives", () => {
       1,
       "abcd1234-review",
       null,
-      "running",
-      [],
-      null,
       null,
     ]);
   });

@@ -1,7 +1,6 @@
-// Node-execution vocabulary shared by the transition replay, outcome parsers, and station pods — extracted from the retired in-process executor (spec 6-dark-factory FR6.9 obsoleted the walk loop, not the types it defined).
+// What a station of Lore's reports: its outcome, what it produced for the next step, and what its own model calls cost.
 
 import type { FailureCategory } from "@re-cinq/lore-shared/error-classify.js";
-import type { AssemblyLineNode } from "./loader.js";
 
 export type StageOutcome = "success" | "changes_requested" | "failed";
 
@@ -27,18 +26,3 @@ export interface NodeResult {
   // The agent's own error text, capped, that produced `failureClass`.
   failureDetail?: string;
 }
-
-export interface NodeContext {
-  taskId: string;
-  // Per-attempt assembly run id — distinct across retries of one task.
-  assemblyRunId: string;
-  branchName: string;
-  gitDir: string;
-  iteration: number;
-  assemblyLineName: string;
-}
-
-export type NodeHandler = (
-  node: AssemblyLineNode,
-  ctx: NodeContext,
-) => Promise<NodeResult>;

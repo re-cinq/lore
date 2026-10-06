@@ -80,10 +80,11 @@ export function startSpecWork(
   repo: string,
   planId: string,
   createdBy: string,
+  storyIssue?: number,
 ): Promise<ApiResult<{ task_id: string }>> {
   return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/spec-work`, {
     method: "POST",
-    body: { createdBy },
+    body: { createdBy, storyIssue },
   });
 }
 
@@ -144,16 +145,22 @@ export function seedPlan(
   });
 }
 
-/** Starts the planning agent's first draft of the plan, from what its author already knows. */
+/** What the planning agent's draft is asked with: what the author already knows, who asks, and the user story the plan answers when one is named. */
+export interface DraftingRequest {
+  known: string;
+  createdBy: string;
+  storyIssue?: number;
+}
+
+/** Starts the planning agent's first draft of the plan. */
 export function startDrafting(
   repo: string,
   planId: string,
-  known: string,
-  createdBy: string,
+  request: DraftingRequest,
 ): Promise<ApiResult<{ task_id: string }>> {
   return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/drafting`, {
     method: "POST",
-    body: { known, createdBy },
+    body: request,
   });
 }
 
@@ -164,6 +171,8 @@ export interface RefineAsk {
   baseHash: string;
   inputs: unknown;
   uses: unknown;
+  /** The user story the round this ask starts carries; a run already waiting keeps the story it started with. */
+  storyIssue?: number;
 }
 
 export function askRefine(

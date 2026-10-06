@@ -7,15 +7,12 @@ import type {
   PendingTask,
 } from "../../work/pipeline/runner.local.js";
 import {
-  createPipelineTaskViaApi,
+  LOCAL_ONLY_TASK_TYPE,
   resolvePendingTask,
   claimTaskBestEffort,
 } from "./local-runner-api.js";
 
-export {
-  createPipelineTaskViaApi,
-  fetchPendingTaskFromApi,
-} from "./local-runner-api.js";
+export { fetchPendingTaskFromApi } from "./local-runner-api.js";
 
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 const RUN_TASK_LOCALLY_INPUT = {
@@ -23,12 +20,6 @@ const RUN_TASK_LOCALLY_INPUT = {
     .string()
     .describe(
       "Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning.",
-    ),
-  task_type: z
-    .enum(["implementation", "general", "runbook", "gap-fill"])
-    .default("implementation")
-    .describe(
-      "Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs).",
     ),
   model: z
     .string()
@@ -93,7 +84,7 @@ export function registerLocalRunnerTools(server: McpServer) {
 function registerRunTaskLocallyTool(server: McpServer) {
   server.tool(
     "lore_run_task_locally",
-    `Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
+    `Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally. The work is tracked on this machine only: code that should be tracked by the org starts from a backlog ticket with a priority label.`,
     RUN_TASK_LOCALLY_INPUT,
     async (args) => {
       try {
@@ -105,12 +96,8 @@ function registerRunTaskLocallyTool(server: McpServer) {
   );
 }
 
-/** Starts a brand-new task here. The pipeline row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. */
-async function runTaskLocally(args: {
-  description: string;
-  task_type: string;
-  model?: string;
-}) {
+/** Starts a brand-new task here: free-form work on this machine, tracked here only. It files no pipeline task, since there is no task type to file it under; code that should be tracked starts from a backlog ticket instead. */
+async function runTaskLocally(args: { description: string; model?: string }) {
   const { detectRepo } = await import("../../work/pipeline/runner.local.js");
   const repo = detectRepo();
 
@@ -123,11 +110,12 @@ async function runTaskLocally(args: {
   if (warning) {
     return textResult(warning);
   }
-  const taskId =
-    (await createPipelineTaskViaApi(args.description, args.task_type, repo)) ??
-    crypto.randomUUID();
 
-  return await spawnWorktreeRun(args, repo, taskId);
+  return await spawnWorktreeRun(
+    { ...args, task_type: LOCAL_ONLY_TASK_TYPE },
+    repo,
+    crypto.randomUUID(),
+  );
 }
 
 /** Warns when `description` references an `owner/repo` other than the one the caller is in. */
@@ -148,7 +136,6 @@ function wrongRepoWarning(description: string, repo: string): string | null {
   return `Warning: This task references ${referenced} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoDir} && claude`;
 }
 
-/** The id is already resolved by the caller because the pipeline row must exist before the process does — a run with no id is invisible to the org. */
 async function spawnWorktreeRun(
   args: { description: string; task_type: string; model?: string },
   repo: string,
@@ -235,7 +222,7 @@ async function cancelLocalTaskText(taskId: string) {
 function registerClaimAndRunLocallyTool(server: McpServer) {
   server.tool(
     "lore_claim_and_run_locally",
-    `Claims an EXISTING pending pipeline task by id and runs it on your local machine (your Claude subscription), then removes it from the pending list. ingest-* types run in-process with no worktree; all others spawn a background Claude Code worktree task and return task id, branch, log file, and PID. Instead of this: to start a BRAND-NEW task from a description use lore_run_task_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
+    `Claims an EXISTING pending pipeline task by id and runs it on your local machine (your Claude subscription), then removes it from the pending list. ingest-* types run in-process with no worktree; all others spawn a background Claude Code worktree task and return task id, branch, log file, and PID. Instead of this: to start a BRAND-NEW task from a description use lore_run_task_locally.`,
     CLAIM_AND_RUN_LOCALLY_INPUT,
     async (args) => {
       try {

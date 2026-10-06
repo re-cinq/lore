@@ -6,7 +6,7 @@ import type {
   StaleTask,
   ReadySpecTask,
   CompletedSpecTask,
-  SpecGroupCount,
+  RunningSpecTask,
   AwaitingApprovalTask,
   TaskPrInfo,
   ReviewableTask,
@@ -56,11 +56,17 @@ function isMergeableFeatureRequestOnBranch(
 }
 
 /** In-memory {@link TaskQueueRepository}: behavioral spec of the Pg adapter over seeded rows; `now` is injectable for deterministic age-dependent sweeps in tests. */
+// A spec-task's line settles it `completed` with its PR recorded (settle-task.ts); the merge check follows that PR to merged, or to failed on a close.
 function isMergeable(t: SeedTask): boolean {
+  return awaitsMerge(t) && t.pr_number != null && t.pr_url != null;
+}
+
+function awaitsMerge(t: SeedTask): boolean {
+  const completedSpecTask =
+    t.status === "completed" && t.task_type === "spec-task";
+
   return (
-    (t.status === "pr-created" || t.status === "review") &&
-    t.pr_number != null &&
-    t.pr_url != null
+    t.status === "pr-created" || t.status === "review" || completedSpecTask
   );
 }
 
@@ -148,8 +154,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     return this.specTasks.findReadySpecTasks(repo);
   }
 
-  countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
-    return this.specTasks.countRunningSpecTasksByGroup();
+  runningSpecTasks(): Promise<RunningSpecTask[]> {
+    return this.specTasks.runningSpecTasks();
   }
 
   countUnmergedInGroup(groupId: string): Promise<number> {

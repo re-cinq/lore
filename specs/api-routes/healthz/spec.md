@@ -131,7 +131,7 @@ header`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L146))
 
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L53), [validated by `rate-limit.test.ts:105`](apps/lore-api/src/transport/http/rate-limit.test.ts#L105))
+unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L53), [validated by `rate-limit.test.ts:107`](apps/lore-api/src/transport/http/rate-limit.test.ts#L107))
 
 ## Out of Scope
 
