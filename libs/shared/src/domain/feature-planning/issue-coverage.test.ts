@@ -10,6 +10,7 @@ import {
   statementLink,
   storyCoverageOf,
 } from "./issue-coverage.js";
+import type { SpecLine } from "./decomposition-result.js";
 
 const SPEC = [
   "# Feature",
@@ -83,11 +84,29 @@ describe("partsNamed", () => {
   });
 });
 
+const lines = (...numbers: number[]) => numbers.map((line) => ({ line }));
+
+const OTHER = [
+  "# Other",
+  "",
+  "Reviewers read the run.",
+  "",
+  "## Requirements",
+  "",
+  "- FR9 — The other spec counts too.",
+  "",
+].join("\n");
+
 describe("issueCoverage", () => {
   it("reports 2 of 4 covered with FR3 and the paragraph missing, a line inside FR2 counting for it", () => {
-    const tasks = [{ spec_lines: [7] }, { spec_lines: [9, 3] }, {}];
+    const tasks = [{ spec_lines: lines(7) }, { spec_lines: lines(9, 3) }, {}];
 
-    expect(issueCoverage(specParts(SPEC), tasks)).toEqual({
+    expect(
+      issueCoverage(
+        [{ file: "specs/f/spec.md", parts: specParts(SPEC) }],
+        tasks,
+      ),
+    ).toEqual({
       total: 4,
       covered: 2,
       missing: [
@@ -96,16 +115,40 @@ describe("issueCoverage", () => {
       ],
     });
   });
+
+  it("reports 4 of 5 covered across two specs with FR9 of specs/o/spec.md missing, line 7 of the main spec not counting for it", () => {
+    const specs = [
+      { file: "specs/f/spec.md", parts: specParts(SPEC) },
+      { file: "specs/o/spec.md", parts: specParts(OTHER) },
+    ];
+    const tasks = [
+      { spec_lines: [...lines(8, 14), { file: "specs/f/spec.md", line: 10 }] },
+      { spec_lines: lines(7) },
+    ];
+
+    expect(issueCoverage(specs, tasks)).toEqual({
+      total: 5,
+      covered: 4,
+      missing: [
+        {
+          file: "specs/o/spec.md",
+          line: 7,
+          text: "FR9 — The other spec counts too.",
+        },
+      ],
+    });
+  });
 });
 
 describe("issueCoverageBrief", () => {
-  const link = (line: number) =>
-    statementLink({ repo: "o/r", file: "specs/f/spec.md", ref: "main", line });
+  const link = ({ file = "specs/f/spec.md", line }: SpecLine) =>
+    statementLink({ repo: "o/r", file, ref: "main", line });
 
   it("names each statement no task covers with its line and link", () => {
-    const coverage = issueCoverage(specParts(SPEC), [
-      { spec_lines: [7, 8, 14] },
-    ]);
+    const coverage = issueCoverage(
+      [{ file: "specs/f/spec.md", parts: specParts(SPEC) }],
+      [{ spec_lines: lines(7, 8, 14) }],
+    );
 
     expect(issueCoverageBrief(coverage, link)).toBe(
       [
@@ -116,6 +159,18 @@ describe("issueCoverageBrief", () => {
         "- line 10: FR3 — The story lists every task. — https://github.com/o/r/blob/main/specs/f/spec.md#L10",
         "",
       ].join("\n"),
+    );
+  });
+
+  it("names FR9 by its spec specs/o/spec.md as well as its line 5", () => {
+    const coverage = {
+      total: 1,
+      covered: 0,
+      missing: [{ file: "specs/o/spec.md", line: 5, text: "FR9." }],
+    };
+
+    expect(issueCoverageBrief(coverage, link)).toContain(
+      "- specs/o/spec.md line 5: FR9. — https://github.com/o/r/blob/main/specs/o/spec.md#L5",
     );
   });
 
@@ -174,5 +229,22 @@ describe("coverageSections", () => {
         Math.max(body.length, ...comments.map((c) => c.length)) <= 65_536,
       entries: storyCoverageOf(body, comments, "p1"),
     }).toEqual({ longest: true, entries: OTTO_ENTRIES });
+  });
+});
+
+describe("storyCoverageOf", () => {
+  it("reads the entry for line 5 of specs/o/spec.md beside the main spec's line 7", () => {
+    const body = [
+      "## Spec coverage",
+      "",
+      "- line 7: FR1. — https://x/L7",
+      "- specs/o/spec.md line 5: FR9. — https://x/L5",
+      "",
+    ].join("\n");
+
+    expect(storyCoverageOf(body, [], "p1")).toEqual([
+      "- line 7: FR1. — https://x/L7",
+      "- specs/o/spec.md line 5: FR9. — https://x/L5",
+    ]);
   });
 });

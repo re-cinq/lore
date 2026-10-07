@@ -550,6 +550,11 @@ stations:
       - name: spec_path
         kind: value
         optional: true
+      # Every spec the plan's spec PR created or updated: each task issue links
+      # the statements it implements in any of them.
+      - name: spec_plan
+        kind: file
+        optional: true
       - name: plan_id
         kind: value
       - name: plan_title
@@ -580,6 +585,11 @@ stations:
       # A plan naming no spec has nothing to count, and the run settles.
       - name: spec_path
         kind: value
+        optional: true
+      # Statements are counted in every spec the plan's spec PR wrote, not only
+      # spec_path's.
+      - name: spec_plan
+        kind: file
         optional: true
     produces:
       # Produced on every visit that counts, so the latest one is always true.

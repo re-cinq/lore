@@ -162,6 +162,22 @@ const SPEC = [
   "",
 ].join("\n");
 
+const REVIEW_SPEC = [
+  "# Reviews",
+  "",
+  "Reviewers follow runs.",
+  "",
+  "## Requirements",
+  "",
+  "- FR9 — Reviewers see each node event.",
+  "",
+].join("\n");
+
+const SPEC_PLAN = JSON.stringify({
+  creates: [{ path: "specs/live/spec.md" }],
+  updates: [{ path: "specs/review/spec.md" }],
+});
+
 const CITING_DECOMPOSITION = JSON.stringify({
   ...JSON.parse(DECOMPOSITION),
   spec_commit: "abc123",
@@ -232,6 +248,43 @@ describe("runIssuesStation citing the spec", () => {
           "(https://github.com/re-cinq/lore/blob/spec/x/specs/live/spec.md#L7)",
         ),
     }).toEqual({ reads: ["specs/live/spec.md@spec/x"], linksBranch: true });
+  });
+
+  it("links T001's issue to FR9 on line 7 of specs/review/spec.md, the second spec the plan's spec PR wrote, counting 2 of 3 statements across both", async () => {
+    const fake = fakeProject(LABELS, [], {
+      "specs/live/spec.md": SPEC,
+      "specs/review/spec.md": REVIEW_SPEC,
+    });
+    const decomposition = JSON.parse(CITING_DECOMPOSITION);
+
+    decomposition.stories[0].tasks[0].spec_lines = {
+      "specs/live/": [7],
+      "specs/review/spec.md": [7],
+    };
+    await runIssuesStation(
+      input({
+        feature_decomposition: JSON.stringify(decomposition),
+        spec_path: "specs/live/",
+        spec_plan: SPEC_PLAN,
+      }),
+      { project: fake.project },
+    );
+
+    expect({
+      reads: fake.reads,
+      implementsFr9: fake.bodies
+        .get(102)
+        ?.includes(
+          "- [FR9 — Reviewers see each node event.](https://github.com/re-cinq/lore/blob/abc123/specs/review/spec.md#L7)",
+        ),
+      story: fake.bodies
+        .get(101)
+        ?.includes("2 of 3 testable spec statements have a task."),
+    }).toEqual({
+      reads: ["specs/live/spec.md@abc123", "specs/review/spec.md@abc123"],
+      implementsFr9: true,
+      story: true,
+    });
   });
 
   it("files the issues without a spec section when spec_path names no file on the branch", async () => {

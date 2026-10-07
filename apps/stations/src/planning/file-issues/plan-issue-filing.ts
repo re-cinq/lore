@@ -22,11 +22,15 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import {
   coverageCommentWrites,
   coverageSections,
+  citedAs,
+  linesIn,
+  mainFileOf,
   partsNamed,
   type CoverageSections,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { SpecStatementLink } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
-import type { DecomposedSpec } from "./decomposed-spec.js";
+import type { SpecLine } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import type { DecomposedSpecs } from "./decomposed-spec.js";
 
 /** A task issue as it was filed: what the story's checklist and each task's dependency lines are written from. */
 export type FiledIssue = { number: number; url?: string };
@@ -43,7 +47,7 @@ export interface FilingContext {
   /** The plan the markers name; without one every run files afresh. */
   planId?: string;
   /** The spec the tasks name statements of; without one the issues cite none. */
-  spec?: DecomposedSpec;
+  spec?: DecomposedSpecs;
 }
 
 // Lore-filed issues of either state: a closed task issue still counts as filed, so a rerun doesn't file it again.
@@ -245,15 +249,24 @@ function taskBody({ task }: PlannedTask, filing: FiledTasks): string {
 }
 
 function statementsCited(
-  spec: DecomposedSpec | undefined,
-  lines: readonly number[],
+  spec: DecomposedSpecs | undefined,
+  cited: readonly SpecLine[],
 ): SpecStatementLink[] {
-  return spec
-    ? partsNamed(spec.parts, lines).map(({ line, text }) => ({
-        text,
-        link: spec.linkOf(line),
-      }))
-    : [];
+  if (!spec) {
+    return [];
+  }
+
+  const mainFile = mainFileOf(spec.specs);
+
+  return spec.specs.flatMap(({ file: specFile, parts }, index) => {
+    const file = citedAs(spec.specs, index);
+    const named = partsNamed(parts, linesIn(cited, specFile, mainFile));
+
+    return named.map(({ line, text }) => ({
+      text,
+      link: spec.linkOf({ file, line }),
+    }));
+  });
 }
 
 async function closeDropped(

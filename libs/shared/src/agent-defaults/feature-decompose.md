@@ -61,7 +61,7 @@ deliverable:
           "acceptance_criteria": ["<observable outcome that proves it done>", "..."],
           "test_plan": "<which tests to write or run, and what they show>",
           "references": ["specs/<slug>/spec.md#<section>", "specs/<slug>/plan.md#<section>"],
-          "spec_lines": [42, 57],
+          "spec_lines": { "specs/<slug>/spec.md": [42, 57], "specs/<other>/spec.md": [12] },
           "plan_quotes": ["<a passage of the approved plan this task comes from, as written>"]
         }
       ]
@@ -79,9 +79,10 @@ than closed and filed again.
 
 When `/workspace/issue-coverage.md` lists statements under "Not
 covered yet", this round is for exactly those: each is named by its
-line at the `spec_commit` in `/workspace/decomposition.json`. Keep
-that `spec_commit` and every task as it is, and either add the line
-to the `spec_lines` of the task that already implements the
+line at the `spec_commit` in `/workspace/decomposition.json`, after
+its spec's path when it is not in `{spec_path}`. Keep that
+`spec_commit` and every task as it is, and either add the line under
+its spec in the `spec_lines` of the task that already implements the
 statement, or add a task for it with the next free id.
 
 When it also lists task ids under "Not on main", that task names a
@@ -134,13 +135,15 @@ Rules:
   leave a developer to rediscover what the spec or the plan already
   settled.
 - **Every task names the spec statements it implements** in
-  `spec_lines`: the line of spec.md, at `spec_commit`, where each
-  statement begins (a list item's first line, a paragraph's first
-  line). Its issue quotes each one as a link to that line, and the
-  line counts how many of spec.md's testable statements some task
-  names: every statement outside the intro and the narrative sections
-  (Background, Rationale, Problem Statement, Open Questions). Name
-  every testable statement in at least one task.
+  `spec_lines`, keyed by the spec.md they are in: the line, at
+  `spec_commit`, where each statement begins (a list item's first
+  line, a paragraph's first line). Its issue quotes each one as a
+  link to that line, and the line counts how many testable
+  statements some task names; statements in every spec `{spec_plan_path}` names count,
+  not only `{spec_path}`'s. A testable statement is every one outside
+  the intro and the narrative sections (Background, Rationale,
+  Problem Statement, Open Questions). Name every testable statement
+  in at least one task.
 - **Quote the plan the task comes from.** The issue is all the
   developer reads, and the approved plan is not in the repository, so
   a link to it is not enough. `plan_quotes` holds the passages of the
