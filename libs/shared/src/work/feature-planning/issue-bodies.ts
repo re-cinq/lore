@@ -127,18 +127,28 @@ export function taskIssueBody({
   dependsOn,
   specStatements,
 }: TaskIssueInput): string {
-  return [
-    ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
-    ...dependencyLine(dependsOn),
-    ...implementsSection(specStatements),
-    ...section("Context", task.context),
-    ...quotes("From the plan", task.plan_quotes),
-    ...section("What to change", task.changes ?? task.description),
-    ...(task.file_path ? [`Target file: \`${task.file_path}\``, ""] : []),
-    ...checklist("## Acceptance criteria", task.acceptance_criteria ?? []),
-    ...section("How to test", task.test_plan),
-    ...references(repo, task.references ?? []),
-  ].join("\n");
+  return withinLimit(
+    [
+      ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
+      ...dependencyLine(dependsOn),
+      ...implementsSection(specStatements),
+      ...section("Context", task.context),
+      ...quotes("From the plan", task.plan_quotes),
+      ...section("What to change", task.changes ?? task.description),
+      ...(task.file_path ? [`Target file: \`${task.file_path}\``, ""] : []),
+      ...checklist("## Acceptance criteria", task.acceptance_criteria ?? []),
+      ...section("How to test", task.test_plan),
+      ...references(repo, task.references ?? []),
+    ].join("\n"),
+  );
+}
+
+const CUT_NOTE = "\n\n*Cut short: GitHub holds 65,536 characters.*\n";
+
+function withinLimit(body: string): string {
+  return body.length <= GITHUB_BODY_LIMIT
+    ? body
+    : body.slice(0, GITHUB_BODY_LIMIT - CUT_NOTE.length) + CUT_NOTE;
 }
 
 function dependencyLine(dependsOn: readonly (number | string)[]): string[] {
