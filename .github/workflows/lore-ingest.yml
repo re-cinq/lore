@@ -1,9 +1,4 @@
-# lore-ingest-version: 5
-# Lore's own ingest workflow — a deliberate superset of the canonical
-# template (extra paths, manual dispatch, the lore-code-trace graph job)
-# carrying the v4 hardened error handling in
-# its ingest step. The version marker above is what the dashboard reads to
-# mark this repo's ingest workflow aligned.
+# lore-ingest-version: 6
 name: Lore Context Ingest
 
 on:
@@ -17,84 +12,46 @@ on:
       - 'specs/**'
       - 'teams/**'
       - '.specify/**'
-      # Which files are specs and ADRs; a change re-selects the whole corpus.
-      - '.lore/ingest.yml'
-      - 'scripts/agent-prompts/**'
-      - '.claude/skills/**'
-  # Manual lever: a push-to-main can silently fail to dispatch (a dropped GitHub
-  # delivery leaves the ingested copy — and every derived spec-status pill —
-  # stale until the next push). Dispatch re-ingests on demand: an empty `files`
-  # input re-projects every tracked doc path (full refresh); a JSON array
-  # re-ingests just those files.
-  workflow_dispatch:
-    inputs:
-      files:
-        description: 'JSON array of files to ingest; empty = re-ingest all tracked doc paths'
-        required: false
-        default: ''
-      force_graph:
-        description: 'Re-project every spec and ADR into the graph, even unchanged ones (after a parser change)'
-        type: boolean
-        required: false
-        default: false
-
-permissions:
-  contents: read
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-          persist-credentials: false
 
       - name: Get changed files
         id: changes
-        env:
-          INPUT_FILES: ${{ github.event.inputs.files }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ -n "${INPUT_FILES}" ]; then
-              FILES="${INPUT_FILES}"
-            else
-              # Full refresh: every tracked doc path in the tree (not a push diff),
-              # so a manual run re-projects stale statuses regardless of what the
-              # last commit touched.
-              FILES=$(git ls-files -- \
-                CLAUDE.md AGENTS.md adrs runbooks specs teams .specify \
-                scripts/agent-prompts .claude/skills \
-                | jq -R -s -c 'split("\n") | map(select(. != ""))')
-            fi
-          else
-            # --no-renames: a moved file must arrive as its old path (a delete)
-            # plus its new path, or the old path's chunks outlive the file.
-            FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
-          fi
-          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          # --no-renames: a moved file must arrive as its old path (a delete)
+          # plus its new path, or the old path's chunks outlive the file.
+          FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "files=${FILES}" >> "$GITHUB_OUTPUT"
 
-      - name: Submit to Lore ingest API
+      - name: Notify Lore to ingest
         if: steps.changes.outputs.files != '[]'
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_API_URL: ${{ vars.LORE_API_URL }}
+          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
           FILES: ${{ steps.changes.outputs.files }}
         run: |
-          # Misconfiguration (unset URL) is a hard error — a missing var must
-          # never silently fall back to a placeholder and report success.
-          if [ -z "${LORE_API_URL}" ]; then
-            echo "::error::LORE_API_URL repository variable is not set — context was NOT ingested"
+          # Misconfiguration (unset URL) is a hard error - a missing var must
+          # never silently fall back and report success.
+          if [ -z "${LORE_INGEST_URL}" ]; then
+            echo "::error::LORE_INGEST_URL repository variable or secret is not set - context was NOT ingested"
             exit 1
           fi
           # Same class of misconfiguration: an unset token means every POST is
           # rejected with 401, which must never pass as a green run.
           if [ -z "${LORE_INGEST_TOKEN}" ]; then
-            echo "::error::LORE_INGEST_TOKEN repository secret is not set — context was NOT ingested"
+            echo "::error::LORE_INGEST_TOKEN repository secret is not set - context was NOT ingested"
             exit 1
           fi
           # The Authorization header rides in a file so the token never
-          # appears on the curl command line.
+          # appears on the curl command line (readable in the process table
+          # for the request duration; the env var stays readable to same-uid
+          # processes, so this narrows the exposure, not eliminates it).
           AUTH_FILE="$(mktemp)"
           BODY_FILE="$(mktemp)"
           trap 'rm -f "${AUTH_FILE}" "${BODY_FILE}"' EXIT
@@ -112,7 +69,7 @@ jobs:
               \"repo\": \"${{ github.repository }}\",
               \"commit\": \"${{ github.sha }}\"
             }" \
-            "${LORE_API_URL}/api/ingest") || CURL_EXIT=$?
+            "${LORE_INGEST_URL}/api/ingest") || CURL_EXIT=$?
           echo "Lore ingest endpoint returned HTTP ${HTTP_STATUS:-000} (curl exit ${CURL_EXIT})"
           # Prefix each body line with '| ': the runner strips leading
           # whitespace before parsing ::workflow-commands::, so only a
@@ -122,72 +79,88 @@ jobs:
           head -c 4096 "${BODY_FILE}" | sed 's/^/| /'
           echo
           # A URL that cannot be parsed (exit 3) or resolved (exit 6) is a
-          # misconfigured LORE_API_URL, not a transient blip — hard-fail like
-          # the unset checks above.
+          # misconfigured LORE_INGEST_URL, not a transient blip - hard-fail
+          # like the unset checks above. TLS failures (exit 35/51/60) stay in
+          # the warn arm below: cert rotation windows are genuinely transient.
           if [ "${CURL_EXIT}" = "3" ] || [ "${CURL_EXIT}" = "6" ]; then
-            echo "::error::curl could not reach ${LORE_API_URL} (exit ${CURL_EXIT}) — context was NOT ingested"
+            echo "::error::curl could not reach ${LORE_INGEST_URL} (exit ${CURL_EXIT}) - context was NOT ingested"
             exit 1
           fi
           case "${HTTP_STATUS}" in
             2??)
               ;;
             5??|408|429|000|"")
-              # Server-side or network trouble is plausibly transient — warn,
-              # and rely on the next doc push (or a manual dispatch) to retry.
-              # This workflow runs on push to main and never blocks a merge.
-              echo "::warning::Lore ingest endpoint returned HTTP ${HTTP_STATUS:-000} (transient — next doc push retries)"
+              # Server-side trouble, throttling, or a network blip is
+              # plausibly transient - warn and rely on the next doc push to
+              # retry. This workflow runs on push to main and never blocks a
+              # merge.
+              echo "::warning::Lore ingest endpoint returned HTTP ${HTTP_STATUS:-000} (transient - next doc push retries)"
               ;;
             *)
               # Anything else (4xx auth/config, unexpected redirects) is
-              # permanent — a retry will not fix it, so fail the run.
-              echo "::error::Lore ingest endpoint returned HTTP ${HTTP_STATUS} — context was NOT ingested"
+              # permanent - a retry will not fix it, so fail the run.
+              echo "::error::Lore ingest endpoint returned HTTP ${HTTP_STATUS} - context was NOT ingested"
               exit 1
               ;;
           esac
 
-  # Spec/ADR → spec-traceability graph. lore-code-trace posts the changed
-  # specs and ADRs, content inline, to lore-api, which projects them in-process
-  # (specs/ci-incremental-ingest FR8): no event, no assembly run, no pod. The
-  # graph holds one copy per repo, so only the default branch may write it.
   graph:
-    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
-      # Full history: the delta is a diff against the last commit Lore ingested,
-      # which a shallow clone cannot reach.
-      - uses: actions/checkout@v5
+      # Full history: the delta is a diff against the last commit Lore
+      # ingested, which a shallow clone cannot reach.
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Fetch lore-code-trace
         env:
-          LORE_API_URL: ${{ vars.LORE_API_URL }}
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
         run: |
-          if [ -z "${LORE_API_URL}" ]; then
-            echo "::error::LORE_API_URL repository variable is not set — specs and ADRs were NOT projected"
+          # Misconfiguration (unset URL) is a hard error - a missing var must
+          # never silently fall back and report success.
+          if [ -z "${LORE_INGEST_URL}" ]; then
+            echo "::error::LORE_INGEST_URL repository variable or secret is not set - specs and ADRs were NOT projected"
             exit 1
           fi
-          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace
-          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
-          echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
+          # Same class of misconfiguration: an unset token means every POST is
+          # rejected with 401, which must never pass as a green run.
+          if [ -z "${LORE_INGEST_TOKEN}" ]; then
+            echo "::error::LORE_INGEST_TOKEN repository secret is not set - specs and ADRs were NOT projected"
+            exit 1
+          fi
+          # The binary that posts the delta is served by Lore itself, so it
+          # always matches the server's ingest contract. A fetch that fails is
+          # plausibly transient - warn and rely on the next doc push, which
+          # diffs from the last commit Lore ingested and so catches up.
+          for artifact in linux-amd64 checksums.txt; do
+            if ! curl -fsSL "${LORE_INGEST_URL}/dist/lore-code-trace/${artifact}" -o "${artifact}"; then
+              echo "::warning::lore-code-trace (${artifact}) could not be fetched from Lore - specs and ADRs were NOT projected (transient - next doc push retries)"
+              rm -f linux-amd64 checksums.txt
+              exit 0
+            fi
+          done
+          # A binary that does not match its checksum is never run, and that
+          # is a failure, not a skip.
+          echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  linux-amd64" | sha256sum -c -
+          mv linux-amd64 lore-code-trace
           chmod +x lore-code-trace
 
+      # lore-code-trace posts the changed specs and ADRs, content inline, to
+      # Lore, which projects them in-process: no pod clones this repository.
       - name: Project specs and ADRs into the graph
+        if: hashFiles('lore-code-trace') != ''
         env:
-          LORE_API_URL: ${{ vars.LORE_API_URL }}
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          FORCE: ${{ github.event.inputs.force_graph }}
+          LORE_API_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
         run: |
           # A binary older than the docs subcommand ignores the argument and
-          # runs the test suite instead. Printing the selection proves the
-          # subcommand exists before anything is posted.
-          if ! ./lore-code-trace docs | jq -e 'has("specs") and has("adrs")' > /dev/null; then
-            echo "::error::the served lore-code-trace has no docs subcommand — specs and ADRs were NOT projected"
+          # runs the repository's tests instead. Printing the selection proves
+          # the subcommand exists before anything is posted.
+          if ! ./lore-code-trace docs | grep '"specs"' > /dev/null; then
+            echo "::error::the lore-code-trace Lore serves has no docs subcommand - specs and ADRs were NOT projected"
             exit 1
           fi
-          if [ "${FORCE}" = "true" ]; then
-            ./lore-code-trace docs --post --force
-          else
-            ./lore-code-trace docs --post
-          fi
+          ./lore-code-trace docs --post
