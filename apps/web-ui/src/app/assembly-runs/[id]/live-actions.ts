@@ -11,7 +11,7 @@ import { getSession } from "@/lib/session";
 
 export type RunChannelGrant = { token: string } | { error: string };
 
-const REFUSALS: Record<number, string> = {
+const REFUSALS: Partial<Record<number, string>> = {
   401: "Sign in to follow this run.",
   403: "You do not have access to this run's repo.",
   404: "This run was not found.",
@@ -28,7 +28,7 @@ export async function openRunChannelAction(
   const user = planUserOf((await getSession()) as PlanSession | null);
 
   if (!user) {
-    return { error: REFUSALS[401] };
+    return { error: REFUSALS[401] ?? "Sign in to follow this run." };
   }
   const minted = await mintRunStreamToken(runId, {
     id: user.id,
