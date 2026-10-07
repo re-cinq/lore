@@ -741,4 +741,49 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       "rollback",
     );
   });
+
+  it("attaches a per-test Coverage node to the per-it TestChunk keyed by test name", async () => {
+    // spec: specs/spec-traceability-graph/spec.md#ac#8
+    // Coverage.xid = repo|testFile|testName. Currently coverageRecordsFor sets
+    // testName = file path (file-level), so the per-it TestChunk gets no coverage
+    // edge. The fix must emit testName = descriptor.name so findTestChunkUid
+    // resolves the per-it chunk and attaches coverage to it.
+    const repo = `test-report/${randomUUID()}`;
+
+    createdRepo = repo;
+    const report = {
+      tests: [
+        {
+          id: "a.test.ts::A > x",
+          name: "x",
+          file: "a.test.ts",
+          suite: ["A"],
+        },
+      ],
+      results: [
+        {
+          id: "a.test.ts::A > x",
+          passed: true,
+          covered: [{ file: "src/a.ts", startLine: 1, endLine: 5 }],
+        },
+      ],
+    };
+
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
+
+    const graph = (await readGraph(
+      `query q($xid: string) {
+        tc(func: eq(TestChunk.xid, $xid)) {
+          TestChunk.coverage { Coverage.xid }
+        }
+      }`,
+      { $xid: `${repo}|a.test.ts::A > x` },
+    )) as {
+      tc?: { "TestChunk.coverage"?: { "Coverage.xid": string }[] }[];
+    };
+
+    expect(graph.tc?.[0]?.["TestChunk.coverage"]).toEqual([
+      { "Coverage.xid": `${repo}|a.test.ts|x` },
+    ]);
+  });
 });
