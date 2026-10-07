@@ -3,7 +3,7 @@ import type { Project, StatusFlipResult } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { pipeline } from "../../outbound/queues.js";
 
-// spec-status-upkeep FR1: flip a spec's `| Status |` row to `shipped` once every task in its group is merged (ADR-016).
+// spec-status-upkeep FR1 (ADR-016), DORMANT since 2026-10-07: nothing writes a spec-task or a task_group_id any more, so the gate below never passes — see that spec's FR1 and #2589.
 
 /** Decide whether the merged task completes its plan's task group, and which spec it was about (pure). */
 export function decideSpecStatusFlip(

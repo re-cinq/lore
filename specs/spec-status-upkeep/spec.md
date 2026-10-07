@@ -53,11 +53,13 @@ disagree.
 
 ## FR1 — Deterministic flip on feature completion (pipeline-driven work)
 
-When the last spec-task in a feature's task group merges, the Floor's
+**Dormant since 2026-10-07.** This flip never fires any more. It recognises a feature's work by the `task_group_id` the `issues` station put on its spec-task rows, and gates on `task_type === "spec-task"`; the spec-task executor and then the rows themselves are removed (`specs/external-floor` FR15.0), and the backlog implementation loop that implements a plan's tasks instead works one ticket at a time and knows nothing about which tickets came from the same plan. So no group ever resolves, the gate never passes, and no PR is opened — silently, which is why it is written down here rather than left to be discovered from a stale status pill. The code is left in place rather than deleted so that the replacement can be judged against it. Its replacement is a lint rule that enforces the `| Status |` row against the spec's own statements and their links on the pull request that changes them, rather than a job that opens a PR after the fact (#2589); FR3 is already most of that rule. Until it lands, an author flips the row in the branch that earns it, which `CLAUDE.md` requires anyway.
+
+What it did while it ran: when the last spec-task in a feature's task group merged, the Floor's
 merge-check detects group completion — no sibling in the `task_group_id`
-is still unmerged (a sibling a rerun of the plan cancelled is no longer
-owed, while one whose PR was closed unmerged still is) — and, when the group resolves to a feature + spec path
-(feature-planning rows and spec-tasks both carry it):
+was still unmerged (a sibling a rerun of the plan cancelled was no longer
+owed, while one whose PR was closed unmerged still was) — and, when the group resolved to a feature + spec path
+(feature-planning rows and spec-tasks both carried it):
 
 - Detect that this merge completes the group, then resolve the owning feature before acting. ([validated by PgTaskQueue counts group rows neither merged nor cancelled](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L692), [validated by InMemory leaves out a spec-task a rerun cancelled, so the rest merging completes group g1](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L721), [`task-queue.test.ts:586`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L701), [`task-queue.test.ts:592`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L707), [`spec-status-flip.test.ts:17`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L14), [`spec-status-flip.test.ts:21`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L20), [`spec-status-flip.test.ts:25`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L24), [`spec-status-flip.test.ts:29`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L28), [`spec-status-flip.test.ts:33`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L32))
 - Open a one-line follow-up PR setting the spec's `| Status |` row to the status its test-link coverage entitles it to claim, using the same PR-opening plumbing as `spec-coverage-backfill`. ([validated by `spec-status-flip.test.ts:71`](libs/shared/src/work/spec-status-flip.test.ts#L71), [`spec-status-flip.test.ts:103`](libs/shared/src/work/spec-status-flip.test.ts#L103))
