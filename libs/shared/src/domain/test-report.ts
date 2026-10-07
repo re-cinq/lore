@@ -21,7 +21,7 @@ export interface CoveredChunk {
 
 export interface RunResult {
   passed: boolean;
-  covered: CoveredChunk[];
+  covered: CoveredChunk[] | null;
 }
 
 // A `tests.run` result tagged with the descriptor `id` it belongs to (the join key for `test-report`).
@@ -66,6 +66,10 @@ function buildTestDescriptor(entry: Record<string, unknown>): TestDescriptor {
 }
 
 function parseCoveredChunks(raw: unknown): CoveredChunk[] {
+  if (raw == null) {
+    return [];
+  }
+
   return asArray(raw, "covered chunks").map((entry) => ({
     file: requireString(entry, "file", "covered chunk"),
     startLine: requireNumber(entry, "startLine", "covered chunk"),

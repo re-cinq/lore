@@ -145,15 +145,17 @@ describe("flattenSpecGraph", () => {
                   uid: "0x3",
                   "TestChunk.file_path": "src/x.test.ts",
                   "TestChunk.test_name": "returns value",
-                  cov: {
-                    covers: [
-                      {
-                        uid: "0x5",
-                        "File.path": "src/x.ts",
-                        "Coverage.covers|ranges": "10-20,30-40",
-                      },
-                    ],
-                  },
+                  cov: [
+                    {
+                      covers: [
+                        {
+                          uid: "0x5",
+                          "File.path": "src/x.ts",
+                          "Coverage.covers|ranges": "10-20,30-40",
+                        },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -190,28 +192,32 @@ describe("flattenSpecGraph", () => {
                 {
                   uid: "0x3",
                   "TestChunk.file_path": "a.test.ts",
-                  cov: {
-                    covers: [
-                      {
-                        uid: "0x9",
-                        "File.path": "x.ts",
-                        "Coverage.covers|ranges": "1-5",
-                      },
-                    ],
-                  },
+                  cov: [
+                    {
+                      covers: [
+                        {
+                          uid: "0x9",
+                          "File.path": "x.ts",
+                          "Coverage.covers|ranges": "1-5",
+                        },
+                      ],
+                    },
+                  ],
                 },
                 {
                   uid: "0x4",
                   "TestChunk.file_path": "b.test.ts",
-                  cov: {
-                    covers: [
-                      {
-                        uid: "0xA",
-                        "File.path": "x.ts",
-                        "Coverage.covers|ranges": "1-5",
-                      },
-                    ],
-                  },
+                  cov: [
+                    {
+                      covers: [
+                        {
+                          uid: "0xA",
+                          "File.path": "x.ts",
+                          "Coverage.covers|ranges": "1-5",
+                        },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
@@ -328,15 +334,17 @@ describe("flattenSpecGraph unlinked tests", () => {
     uid: "0xt1",
     "TestChunk.file_path": "apps/api/test/config.test.ts",
     "TestChunk.test_name": "apps/api/test/config.test.ts",
-    cov: {
-      covers: [
-        {
-          uid: "0xf1",
-          "File.path": "apps/api/src/config.ts",
-          "Coverage.covers|ranges": "1-20",
-        },
-      ],
-    },
+    cov: [
+      {
+        covers: [
+          {
+            uid: "0xf1",
+            "File.path": "apps/api/src/config.ts",
+            "Coverage.covers|ranges": "1-20",
+          },
+        ],
+      },
+    ],
   };
 
   it("draws a covered TestChunk and its File when no spec links it", () => {
@@ -394,7 +402,7 @@ describe("flattenSpecGraph unlinked tests", () => {
         {
           uid: "0xt2",
           "TestChunk.file_path": "test/old.test.ts",
-          cov: { covers: [] },
+          cov: [{ covers: [] }],
         },
       ],
     });

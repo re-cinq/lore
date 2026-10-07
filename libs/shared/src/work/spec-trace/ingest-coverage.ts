@@ -7,6 +7,7 @@ import type {
 import {
   upsertByXid,
   withTxn,
+  replaceEdge,
   replaceEdgeWithFacets,
   type FacetedTarget,
 } from "../../outbound/spec-trace/dgraph-upsert.js";
@@ -78,15 +79,7 @@ async function linkTestChunkCoverage(
   if (!testChunkUid) {
     return;
   }
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      setJson: {
-        uid: testChunkUid,
-        "TestChunk.coverage": { uid: coverageUid },
-      },
-      commitNow: true,
-    }),
-  );
+  await replaceEdge(dgraph, testChunkUid, "TestChunk.coverage", [coverageUid]);
 }
 
 /** The uid of the TestChunk this coverage record describes, or undefined when no ingest has projected one. */

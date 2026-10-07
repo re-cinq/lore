@@ -499,13 +499,13 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     )) as {
       stmt?: {
         "Statement.validated_by"?: {
-          cov?: { covers?: Record<string, unknown>[] };
+          cov: { covers?: Record<string, unknown>[] }[];
         }[];
       }[];
     };
 
     expect(
-      graph.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers,
+      graph.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov[0]?.covers,
     ).toEqual([{ "File.xid": `${repo}|src/a.ts` }]);
   });
 
@@ -573,7 +573,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $r: repo },
     )) as { cov?: { uid: string }[]; fileChunk?: { hasCov?: number }[] };
 
-    expect(graph.cov ?? []).toHaveLength(1);
+    expect(graph.cov ?? []).toHaveLength(3);
     expect(graph.fileChunk?.[0]?.hasCov).toBe(1);
   });
 
@@ -740,5 +740,45 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     expect(graph.ac?.[0]?.["AcceptanceCriterion.violation_reason"]).toContain(
       "rollback",
     );
+  });
+
+  it("attaches a per-test Coverage node to the per-it TestChunk keyed by test name", async () => {
+    const repo = `test-report/${randomUUID()}`;
+
+    createdRepo = repo;
+    const report = {
+      tests: [
+        {
+          id: "a.test.ts::A > x",
+          name: "x",
+          file: "a.test.ts",
+          suite: ["A"],
+        },
+      ],
+      results: [
+        {
+          id: "a.test.ts::A > x",
+          passed: true,
+          covered: [{ file: "src/a.ts", startLine: 1, endLine: 5 }],
+        },
+      ],
+    };
+
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
+
+    const graph = (await readGraph(
+      `query q($xid: string) {
+        tc(func: eq(TestChunk.xid, $xid)) {
+          TestChunk.coverage { Coverage.xid }
+        }
+      }`,
+      { $xid: `${repo}|a.test.ts::A > x` },
+    )) as {
+      tc?: { "TestChunk.coverage"?: { "Coverage.xid": string }[] }[];
+    };
+
+    expect(graph.tc?.[0]?.["TestChunk.coverage"]).toEqual([
+      { "Coverage.xid": `${repo}|a.test.ts|x` },
+    ]);
   });
 });

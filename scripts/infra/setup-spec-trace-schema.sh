@@ -185,7 +185,7 @@ TestChunk.start_line: int .
 TestChunk.end_line: int .
 TestChunk.content_hash: string @index(hash) .
 TestChunk.embedding: float32vector @index(hnsw(metric:"cosine")) .
-TestChunk.coverage: uid @reverse .
+TestChunk.coverage: [uid] @reverse @count .
 TestChunk.suite: uid @reverse .
 
 TestSuite.repo: string @index(hash) .

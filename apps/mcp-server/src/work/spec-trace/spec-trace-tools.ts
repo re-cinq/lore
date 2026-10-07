@@ -43,10 +43,11 @@ export function stripCoveredPaths(
 ): RunResult {
   return {
     ...result,
-    covered: result.covered.map((chunk: CoveredChunk) => ({
-      ...chunk,
-      file: stripPathPrefix(chunk.file, prefix),
-    })),
+    covered:
+      result.covered?.map((chunk: CoveredChunk) => ({
+        ...chunk,
+        file: stripPathPrefix(chunk.file, prefix),
+      })) ?? null,
   };
 }
 
