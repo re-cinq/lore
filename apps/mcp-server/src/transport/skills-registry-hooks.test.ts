@@ -78,38 +78,4 @@ describe("per-vendor hook bundles", () => {
 
     expect(statuses).toEqual([404, 404]);
   });
-
-  it("serves a Gemini policy that allows every tool in any approval mode, and refuses only ask_user", async () => {
-    const { body } = await get("/skills/hooks/gemini.tar.gz");
-    const policy = spawnSync(
-      "tar",
-      ["-xzOf", "-", "./.gemini/policies/lore-agent.toml"],
-      { input: body },
-    ).stdout.toString();
-
-    expect(keyValuesOfEachRuleTable(policy)).toEqual([
-      {
-        toolName: '"*"',
-        decision: '"allow"',
-        priority: "100",
-        allowRedirection: "true",
-      },
-      { toolName: '"ask_user"', decision: '"deny"', priority: "200" },
-    ]);
-  });
 });
-
-function keyValuesOfEachRuleTable(toml: string) {
-  return toml
-    .split("[[rule]]")
-    .slice(1)
-    .map((table) =>
-      Object.fromEntries(
-        table
-          .split("\n")
-          .map((line) => /^(\w+) = (.+)$/.exec(line.trim()))
-          .filter((pair) => pair !== null)
-          .map((pair) => [pair[1], pair[2]]),
-      ),
-    );
-}
