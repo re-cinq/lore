@@ -76,6 +76,34 @@ describe("reconcileSpecTasks", () => {
     });
   });
 
+  it("drops failed T001's closed PR #2271 when it re-queues it, so the merge check cannot fail it again on that PR", async () => {
+    const store = new InMemoryTaskStore([
+      {
+        id: "t001",
+        task_type: "spec-task",
+        target_repo: REPO,
+        status: "failed",
+        task_group_id: RUN,
+        issue_number: 2261,
+        pr_number: 2271,
+        pr_url: "https://github.com/re-cinq/lore/pull/2271",
+        context_bundle: { spec_task_id: "T001" },
+      },
+    ]);
+
+    await store.reconcileSpecTasks(REPO, {
+      planId: PLAN,
+      groupId: RUN,
+      tasks: [wanted("T001", 2261)],
+    });
+
+    expect(store.tasks[0]).toMatchObject({
+      status: "pending",
+      pr_number: null,
+      pr_url: null,
+    });
+  });
+
   it("leaves another plan's spec-tasks in the repo alone", async () => {
     const store = new InMemoryTaskStore([
       {

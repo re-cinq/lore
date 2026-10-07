@@ -1240,6 +1240,115 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/upgrade": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_upgrade",
+        "summary": "GET /api/assembly-runs/{id}/upgrade",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether a newer version of the run's assembly line is available. 404 for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunUpgrade"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post_api_assembly-runs_id_upgrade",
+        "summary": "POST /api/assembly-runs/{id}/upgrade",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "201": {
+            "description": "A new run on the latest version of the assembly line, retaining the source run's inputs; the source run is cancelled when it is still open. 404 for a run the floor does not have, 409 for a run already on the latest version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunUpgraded"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/audit-log": {
       "get": {
         "operationId": "get_api_audit-log",
@@ -5763,6 +5872,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1
+                  },
                   "slot": {
                     "type": "string",
                     "minLength": 1
@@ -5775,9 +5888,21 @@
                     "minLength": 1
                   },
                   "inputs": {},
-                  "uses": {}
+                  "uses": {},
+                  "storyIssue": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
                 },
-                "required": ["slot", "title", "baseHash", "inputs", "uses"],
+                "required": [
+                  "actor",
+                  "slot",
+                  "title",
+                  "baseHash",
+                  "inputs",
+                  "uses"
+                ],
                 "additionalProperties": false
               }
             }
@@ -9381,6 +9506,26 @@
           "cache_creation_tokens",
           "cache_read_tokens"
         ],
+        "additionalProperties": false
+      },
+      "AssemblyRunUpgrade": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": ["available"],
+        "additionalProperties": false
+      },
+      "AssemblyRunUpgraded": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": ["run_id"],
         "additionalProperties": false
       },
       "AuditLogPage": {

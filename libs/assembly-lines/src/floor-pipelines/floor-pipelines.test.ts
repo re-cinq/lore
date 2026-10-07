@@ -739,7 +739,7 @@ describe("the floor pipelines shipped in this folder", () => {
 });
 
 describe("the feature-planning pipeline", () => {
-  it("grounds the plan between plan-pass-end and author, reading the default branch and the plan markdown", () => {
+  it("grounds the plan between plan-pass-end and author, reading the default branch and nothing from the bag", () => {
     const { line, stations } = pipelineOf("feature-planning");
     const node = line.nodes.find((each) => each.id === "plan-grounding");
 
@@ -750,13 +750,13 @@ describe("the feature-planning pipeline", () => {
       to: edgesOn(line, "plan-grounding").map((edge) => [edge.to, edge.on]),
       planMd: needOf(stations["plan-grounding"], "plan_md"),
       target: needOf(stations["plan-grounding"], "target"),
-    }).toMatchObject({
+    }).toEqual({
       station: "plan-grounding",
       base: { target: "base" },
       from: [["plan-grounding", "always"]],
       to: [["author", "always"]],
-      planMd: { kind: "file", optional: true },
-      target: { kind: "git", access: "read" },
+      planMd: undefined,
+      target: { name: "target", kind: "git", path: "target", access: "read" },
     });
   });
 

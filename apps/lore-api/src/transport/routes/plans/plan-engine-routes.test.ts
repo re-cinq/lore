@@ -49,6 +49,7 @@ const WHILE_ANALYZING = [
 ];
 
 const REFINE = {
+  actor: "ana",
   slot: "intent",
   title: "Intent",
   baseHash: "3f9a",
@@ -81,6 +82,7 @@ function subject(
       specBranch: async (plan) => specBranchOf(plan),
       baseBranch: () => Promise.resolve("main"),
       specPrState: () => Promise.resolve(null),
+      recordRefineAsk: () => Promise.resolve(),
       pulls: {
         listReviewThreads: async () => [],
         listComments: async () => [],
@@ -174,13 +176,13 @@ describe("the plan routes on a plan the floor holds", () => {
     expect(writes(requests)).toEqual([]);
   });
 
-  it("answers refine with 202 and reports the section on the author visit", async () => {
+  it("answers refine with 202 and starts the analyze node, writing no blob since the ask travels in no bag", async () => {
     const { server, requests } = subject({ visits: ON_AUTHOR });
 
     const res = await post(server, "refine", REFINE);
 
     expect(answer(res)).toEqual({ status: 202, body: { slot: "intent" } });
-    expect(writes(requests)).toEqual(["/blobs", "/events"]);
+    expect(writes(requests)).toEqual(["/events"]);
   });
 
   it("answers refine with 409 while the planning agent is still working on the plan", async () => {
@@ -269,6 +271,49 @@ describe("the plan verbs on a deployment with no floor", () => {
     ).rejects.toMatchObject({
       output: { statusCode: 503 },
       message: "plans need the external floor, and this deployment has none",
+    });
+  });
+});
+
+describe("the user story a run started from the plan page carries", () => {
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("starts the run with story_issue 42 when a refine with no round waiting names user story 42", async () => {
+    const { server, requests } = subject({ runs: false });
+
+    const res = await post(server, "refine", { ...REFINE, storyIssue: 42 });
+
+    expect(res.statusCode).toBe(202);
+    expect(requests.at(-1)?.body).toMatchObject({
+      startItems: { story_issue: { kind: "value", ref: "42" } },
+    });
+  });
+
+  it("answers refine with 400 and starts nothing when the user story is issue 0", async () => {
+    const { server, requests } = subject({ runs: false });
+
+    const res = await post(server, "refine", { ...REFINE, storyIssue: 0 });
+
+    expect(res.statusCode).toBe(400);
+    expect(writes(requests)).toEqual([]);
+  });
+
+  it("starts the spec pass with story_issue 42 when spec-work names user story 42", async () => {
+    const { server, requests } = subject({ runs: false, status: "approved" });
+
+    const res = await post(server, "spec-work", {
+      createdBy: "ana",
+      storyIssue: 42,
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(requests.at(-1)?.body).toMatchObject({
+      startItems: { story_issue: { kind: "value", ref: "42" } },
     });
   });
 });

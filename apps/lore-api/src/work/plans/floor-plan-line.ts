@@ -30,19 +30,28 @@ import {
   SPEC_WORK_ENTRY,
   SPEC_WORK_RUNNING,
   approvalDecisionOf,
-  reopenTargetOf,
+  reopenActionOf,
   type ApprovalDecision,
   type PlanRef,
   type SpecPrState,
 } from "./planning-line.js";
-import { endedInFailure, refineRefusal } from "./refine-refusal.js";
+import {
+  AGENT_STILL_WORKING,
+  agentHasThePlan,
+  approvedRefineRefusal,
+} from "./refine-refusal.js";
+import { askNode } from "../floor/run-node-by-hand.js";
+import type { RefineAsk } from "./refine-asks.js";
 import { type SpecReviewReads } from "./spec-rework.js";
 import { storeCitable, storeMarkdown } from "./plan-blobs.js";
 
-/** What a report that answers no section produces for `refine`. The floor's bag only ever takes a key, never drops one, so a round that said nothing about `refine` would leave the last Refine's section standing: a later failed draft would then tell a section nobody asked about. The Postgres path said `refine: null` for the same reason. */
-const NO_REFINE = "";
+/** The node whose agent refines a section, and the start event it declares. */
+const ANALYZE_NODE = "analyze";
+const ANALYZE_EVENT = `node.${ANALYZE_NODE}.start`;
 
 export interface PlanFloor extends PlanLineFloor {
+  /** `cancel` beyond the reads: reopening a plan ends the spec work writing specs from it. */
+  runs: Pick<FloorClient["runs"], "list" | "cancel">;
   lines: Pick<FloorClient["lines"], "start">;
   events: Pick<FloorClient["events"], "post">;
   blobs: Pick<FloorClient["blobs"], "put">;
@@ -57,6 +66,8 @@ export interface FloorPlanDeps {
   /** What GitHub says of a spec PR now, so a later pass is briefed as the amendment it is; null when the PR is gone. */
   specPrState(repo: string, prNumber: number): Promise<SpecPrState>;
   pulls: SpecReviewReads;
+  /** Writes the pending Refine down, where the agent and `plan-pass-end` read it. */
+  recordRefineAsk(ask: RefineAsk): Promise<void>;
 }
 
 export interface FloorPlanMarkdown {
@@ -72,6 +83,8 @@ export interface FloorPlanMarkdown {
 
 export interface FloorRefineInput extends FloorPlanMarkdown {
   refine: RefineRequest;
+  /** Who asked, as the floor records it on the visit the ask opens. */
+  actor: string;
 }
 
 /** Drafts the plan: a run waiting on its author goes back to the agent with the edited plan and no section (a draft answers none); otherwise a run starts, or joins the one already open. The run's id either way. */
@@ -85,7 +98,7 @@ export async function startFloorDrafting(
   if (line?.parkedAuthor) {
     await reportToVisit(deps.floor.events, line.parkedAuthor.visitId, {
       outcome: "changes_requested",
-      produced: { plan_md: planMd, description: brief, refine: NO_REFINE },
+      produced: { plan_md: planMd, description: brief },
     });
 
     return line.lineId;
@@ -94,63 +107,43 @@ export async function startFloorDrafting(
   return startPlanRun(deps, line, { plan, planMd, brief, storyIssue });
 }
 
-/** Sends one section back to the agent while the run waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. The refine value is what `plan-pass-end` reads back. */
+/** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while a drafting pass still holds the plan — `analyze`, the `plan-pass-end` that settles it, or the validation and findings someone asked for — since two agents would edit the same blocks. */
 export async function askFloorRefine(
   deps: FloorPlanDeps,
-  { plan, planMarkdown, brief, refine }: FloorRefineInput,
+  { plan, planMarkdown, brief, refine, actor }: FloorRefineInput,
 ): Promise<void> {
   const line = await floorPlanLineState(deps.floor, keyOf(plan));
-  const parked = line?.parkedAuthor;
 
-  if (!parked) {
-    return startRefineRound(deps, { plan, planMarkdown, brief, refine }, line);
-  }
-  await reportToVisit(deps.floor.events, parked.visitId, {
-    outcome: "changes_requested",
-    produced: {
-      plan_md: await storeMarkdown(deps.floor, planMarkdown),
-      refine: refineValue(refine),
-      description: brief,
-    },
-  });
+  enforceTrue(
+    plan.status !== "approved",
+    apiError(409),
+    approvedRefineRefusal(line),
+  );
+  enforceTrue(!agentHasThePlan(line), apiError(409), AGENT_STILL_WORKING);
+
+  await deps.recordRefineAsk(askOf(plan, refine, brief));
+  await (line
+    ? askNode(deps.floor, { event: ANALYZE_EVENT, runId: line.lineId, actor })
+    : startRunToRefine(deps, { plan, planMarkdown, brief, refine, actor }));
 }
 
-/** No author waits, so the ask starts the round that answers it — but only where the plan page's own advice is to Regenerate: a draft whose line never started or ended in failure still has sections to refine, and regenerating would redraft the whole plan instead of the one section asked about. A line that delivered is told to edit by hand, as it was, and every other state keeps the reason its page shows. */
-async function startRefineRound(
+// No run to start a node on, so the ask opens one; the agent reads the ask the same way.
+async function startRunToRefine(
   deps: FloorPlanDeps,
   { plan, planMarkdown, brief, refine }: FloorRefineInput,
-  line: FloorPlanLine | null,
 ): Promise<void> {
-  enforceTrue(
-    startsItsOwnRound(plan, line),
-    apiError(409),
-    refineRefusal(plan, line),
-  );
-  const planMd = await storeMarkdown(deps.floor, planMarkdown);
-
-  await startPlanRun(deps, line, {
+  await startPlanRun(deps, null, {
     plan,
-    planMd,
+    planMd: await storeMarkdown(deps.floor, planMarkdown),
     brief,
-    refine: refineValue(refine),
+    storyIssue: refine.storyIssue,
   });
 }
 
-/** Whether the ask may start its own round: a draft plan with nothing open whose line never started or ended in failure. */
-function startsItsOwnRound(
-  plan: PlanSubject,
-  line: FloorPlanLine | null,
-): boolean {
-  if (plan.status === "approved" || line?.open) {
-    return false;
-  }
+function askOf(plan: PlanRef, refine: RefineRequest, brief: string): RefineAsk {
+  const { slot, title, baseHash, inputs, uses } = refine;
 
-  return !line || endedInFailure(line);
-}
-
-/** The section a round was asked about, as `plan-pass-end` reads it back. */
-function refineValue({ slot, baseHash, uses }: RefineRequest): string {
-  return JSON.stringify({ slot, baseHash, uses });
+  return { planId: plan.id, slot, title, baseHash, inputs, uses, brief };
 }
 
 /** The refusal for an approval, before the plan's status flips. */
@@ -161,7 +154,7 @@ export async function decideFloorApproval(
   return approvalDecisionOf(await floorPlanLineState(deps.floor, keyOf(plan)));
 }
 
-/** Moves an approved plan on: the author visit reports success with the approved plan, or with no run open a fresh run enters at the spec analysis. A run the agent is on moves nothing, and the refusal comes back as the decision. */
+/** Moves an approved plan on: the author visit reports success with the approved plan, or with no run open a fresh run enters at the spec analysis. Either way the brief is the amendment one where the plan already has a spec PR, so a re-approval after a reopening revises those specs rather than writing over them. A run the agent is on moves nothing, and the refusal comes back as the decision. */
 export async function approveFloorPlan(
   deps: FloorPlanDeps,
   input: FloorPlanMarkdown,
@@ -169,15 +162,19 @@ export async function approveFloorPlan(
   const line = await floorPlanLineState(deps.floor, keyOf(input.plan));
   const decision = approvalDecisionOf(line);
 
+  if (decision.kind === "refused") {
+    return decision;
+  }
+  // Specs an earlier pass already wrote are amended, never written over, whichever way the approval moves the line on.
+  const briefed = await amended(deps, input, line);
+
   if (line?.parkedAuthor) {
-    await reportApproved(deps, line.parkedAuthor, input);
+    await reportApproved(deps, line.parkedAuthor, briefed);
 
     return decision;
   }
 
-  if (decision.kind === "start-spec-work") {
-    await startSpecPass(deps, line, input);
-  }
+  await startSpecPass(deps, line, briefed);
 
   return decision;
 }
@@ -195,7 +192,7 @@ export async function startFloorSpecWork(
   return startSpecPass(deps, line, await amended(deps, input, line));
 }
 
-/** A pass over specs an earlier one already wrote is briefed as the amendment it is: onto the branch of a spec PR still open, or onto what reached main. A plan reaching its specs for the first time keeps the approved brief it came with. */
+/** A pass over specs an earlier one already wrote is briefed as the amendment it is: onto the branch of a spec PR still open, or onto what reached main. A plan reaching its specs for the first time keeps the approved brief it came with, and asks GitHub nothing, because the line names no PR. */
 async function amended(
   deps: FloorPlanDeps,
   input: FloorPlanMarkdown,
@@ -229,19 +226,25 @@ function amendmentBrief(
   return spec.merged ? revisedBrief(plan, prNumber) : null;
 }
 
-/** Sends an open spec PR back to the author: the visit parked on `merged` reports changes_requested. A run already at its author, ended or never started needs no report. */
+/** The reason the floor is given for a run the reopening ends. */
+const REOPENED = "the plan was reopened for writing";
+
+/** Sends an open spec PR back to the author: the visit parked on `merged` reports changes_requested. A run the spec work is on is cancelled instead — it writes specs from a plan that is about to change, and the floor would otherwise join that run on the next approval rather than starting a fresh pass. A run already at its author, ended or never started needs neither. */
 export async function reopenFloorPlan(
   deps: FloorPlanDeps,
   plan: PlanSubject,
 ): Promise<void> {
-  const parked = reopenTargetOf(
-    await floorPlanLineState(deps.floor, keyOf(plan)),
-  );
+  const { floor } = deps;
+  const action = reopenActionOf(await floorPlanLineState(floor, keyOf(plan)));
 
-  if (parked) {
-    await reportToVisit(deps.floor.events, parked.visitId, {
+  if (action.kind === "report") {
+    await reportToVisit(floor.events, action.parked.visitId, {
       outcome: "changes_requested",
     });
+  }
+
+  if (action.kind === "cancel") {
+    await floor.runs.cancel(action.runId, REOPENED);
   }
 }
 
@@ -260,7 +263,6 @@ async function reportApproved(
       plan_md: await storeMarkdown(deps.floor, planMarkdown),
       ...(await storeCitable(deps.floor, citablePlan)),
       description: brief,
-      refine: NO_REFINE,
     },
   });
 }
@@ -268,7 +270,7 @@ async function reportApproved(
 async function startSpecPass(
   deps: FloorPlanDeps,
   line: FloorPlanLine | null,
-  { plan, planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
+  { plan, planMarkdown, citablePlan, brief, storyIssue }: FloorPlanMarkdown,
 ): Promise<string> {
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
   const { plan_blocks: planBlocks } = await storeCitable(
@@ -282,6 +284,7 @@ async function startSpecPass(
     planBlocks,
     brief,
     entry: SPEC_WORK_ENTRY,
+    storyIssue,
   });
 }
 
@@ -291,8 +294,6 @@ interface PlanRunStart {
   /** The citable blocks' blob, on a spec pass whose plan came with them. */
   planBlocks?: string;
   brief: string;
-  /** The section this round answers, for a Refine that had no round waiting to take it. */
-  refine?: string;
   entry?: string;
   storyIssue?: number;
 }
@@ -317,7 +318,7 @@ async function startPlanRun(
 /** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan, this round's brief and the user story it answers, when it names one. */
 async function startItemsOf(
   deps: FloorPlanDeps,
-  { plan, planMd, planBlocks, brief, refine, storyIssue }: PlanRunStart,
+  { plan, planMd, planBlocks, brief, storyIssue }: PlanRunStart,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
   const [branch, base] = await Promise.all([
     deps.specBranch(plan),
@@ -333,7 +334,6 @@ async function startItemsOf(
     plan_md: fileItem(planMd),
     ...(planBlocks ? { plan_blocks: fileItem(planBlocks) } : {}),
     description: valueItem(brief),
-    refine: valueItem(refine ?? NO_REFINE),
     ...(storyIssue ? { story_issue: valueItem(String(storyIssue)) } : {}),
   };
 }

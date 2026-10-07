@@ -378,6 +378,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/upgrade */
+    get: operations["get_api_assembly-runs_id_upgrade"];
+    put?: never;
+    /** POST /api/assembly-runs/{id}/upgrade */
+    post: operations["post_api_assembly-runs_id_upgrade"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/audit-log": {
     parameters: {
       query?: never;
@@ -2476,6 +2494,12 @@ export interface components {
       output_tokens: number;
       cache_creation_tokens: number;
       cache_read_tokens: number;
+    };
+    AssemblyRunUpgrade: {
+      available: boolean;
+    };
+    AssemblyRunUpgraded: {
+      run_id: string;
     };
     AuditLogPage: {
       entries: {
@@ -5040,6 +5064,63 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Whether a newer version of the run's assembly line is available. 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunUpgrade"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs_id_upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A new run on the latest version of the assembly line, retaining the source run's inputs; the source run is cancelled when it is still open. 404 for a run the floor does not have, 409 for a run already on the latest version */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunUpgraded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_audit-log": {
     parameters: {
       query?: never;
@@ -7176,11 +7257,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          actor: string;
           slot: string;
           title: string;
           baseHash: string;
           inputs: unknown;
           uses: unknown;
+          storyIssue?: number;
         };
       };
     };

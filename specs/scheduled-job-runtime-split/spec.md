@@ -25,8 +25,8 @@ The agent now registers **16** jobs (`agent/src/index.ts`), and they fall into
 two profiles the single in-process scheduler serves equally badly at the heavy
 end:
 
-- **Hot-path ticks** — `merge_check`, `approval_check`, `loretask_watcher`,
-  `spec_task_executor` run `*/1 * * * *`; `review_reactor` / `stale_task_check`
+- **Hot-path ticks** — `merge_check`, `approval_check` and `loretask_watcher`
+  run `*/1 * * * *`; `review_reactor` / `stale_task_check`
   are frequent safety nets. These belong in-process: a pod-per-tick is pure
   churn, and several are coupled to the agent's webhook trigger endpoints and
   warm in-memory state (DB pool, Octokit client, prompt-cache break tracker).
@@ -100,7 +100,6 @@ resident process.
 | `merge_check` | `*/1 * * * *` | in-process | `scheduled/` |
 | `approval_check` | `*/1 * * * *` | in-process | `scheduled/` |
 | `loretask_watcher` | `*/1 * * * *` | in-process | `scheduled/` |
-| `spec_task_executor` | `*/1 * * * *` | in-process | `scheduled/` |
 | `review_reactor` | `7 7-17 * * 1-5` | in-process (webhook safety net) | `scheduled/` |
 | `stale_task_check` | `17 * * * *` | in-process | `scheduled/` |
 
