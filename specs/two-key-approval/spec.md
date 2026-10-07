@@ -6,14 +6,16 @@
 | Status      | In Progress                                                                 |
 | Created     | 2026-06-10                                                                  |
 | Owner       | Platform Engineering                                                        |
-| Used by     | `POST` / `PUT /api/repos/:owner/:repo/agent-definitions` when a write sets `image` |
+| Used by     | `POST` / `PUT /api/repos/:owner/:repo/agent-definitions` when a write sets `image`; `PUT /api/repos/:owner/:repo/settings` when a write sets `auto_merge.approver = lore-reviewer` |
 | Module      | `apps/lore-api/src/work/two-key/approval-pr.ts` (`verifyApproval`), `apps/lore-api/src/transport/routes/two-key.ts` (`checkApproval`) |
 
-A write that changes what code an agent pod runs needs a second key beside the admin token: an open pull request labeled `dark-factory-approval` by a CODEOWNER of the target repository.
+A write that changes what code an agent pod runs, or that installs a second GitHub identity able to approve branch-protected PRs, needs a second key beside the admin token: an open pull request labeled `dark-factory-approval` by a CODEOWNER of the target repository.
 
 ## Background
 
-This ceremony was written for the dark-factory settings route (`PUT /api/repos/:owner/:repo/settings/dark-factory`, ADR-016), which gated `enabled`, the auto-merge path allowlist and the `require_*` guards behind it. That route and the settings it wrote were deleted on 2026-10-02 with Lore's own Floor, the only reader of those settings (epic #2342). The ceremony stays because agent definitions use it for the `image` field (ADR-025, `specs/lore-agents`). The label keeps its old name so approval pull requests already open stay valid.
+This ceremony was written for the dark-factory settings route (`PUT /api/repos/:owner/:repo/settings/dark-factory`, ADR-016), which gated `enabled`, the auto-merge path allowlist and the `require_*` guards behind it. That route and the settings it wrote were deleted on 2026-10-02 with Lore's own Floor, the only reader of those settings (epic #2342). The ceremony stays because agent definitions use it for the `image` field (ADR-025, `specs/lore-agents`), and the protected-branch-merge plan extends it to `auto_merge.approver = lore-reviewer` (see [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md)). The label keeps its old name so approval pull requests already open stay valid.
+
+Setting `auto_merge.approver = lore-reviewer` is at least as privileged as changing an agent's `image`: it installs a second GitHub App identity that can satisfy a required-approval branch rule on every Lore-authored PR on that repository. `twoKeyFieldsTouched` covers `auto_merge.approver` alongside `image`; a PUT that changes `auto_merge.approver` to `lore-reviewer` without the `X-Lore-Approval-PR` header is refused `403 { error: "two_key_required" }`. The save path also validates prerequisites before persisting: it confirms that lore-reviewer is installed on the repository and that the branch rule requires one approval, Code Owners review, and the required CI checks; if any prerequisite is missing the response names them and leaves the setting at its current value. On a change from `lore-reviewer` to `none`, the save path calls `disablePullRequestAutoMerge` on every open Lore-authored PR and writes one `auto_merge_disarmed` audit row per PR (best-effort, after the main transaction commits). See [specs/protected-branch-merge/plan.md](../protected-branch-merge/plan.md) for the org-admin runbook and failure-edge handling.
 
 ## Interface
 
