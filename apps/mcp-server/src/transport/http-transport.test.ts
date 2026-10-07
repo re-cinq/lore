@@ -102,10 +102,9 @@ describe("startHttpGateway routing", () => {
     expect(parsed.error.message).toContain("send initialize first");
   });
 
-  it("400s a GET /mcp with an unknown session id", async () => {
+  it("400s a GET /mcp with no session id", async () => {
     const base = start({ port: 0 });
     const res = await fetch(`${base}/mcp`, {
-      headers: { "mcp-session-id": "does-not-exist" },
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
 
@@ -123,5 +122,122 @@ describe("startHttpGateway routing", () => {
     });
 
     expect(res.status).toBe(405);
+  });
+
+  const postMcp = (
+    base: string,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<Response> =>
+    fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        ...headers,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+    });
+
+  const initializeBody = {
+    jsonrpc: "2.0",
+    method: "initialize",
+    id: 1,
+    params: {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0.0" },
+    },
+  };
+
+  it("404s a POST /mcp carrying an unknown session id so the client re-initializes", async () => {
+    const base = start({ port: 0 });
+    const res = await postMcp(
+      base,
+      { jsonrpc: "2.0", method: "tools/list", id: 1 },
+      { "mcp-session-id": "does-not-exist" },
+    );
+
+    expect(res.status).toBe(404);
+    const parsed = (await res.json()) as {
+      error: { code: number; message: string };
+    };
+
+    expect(parsed.error).toEqual({
+      code: -32001,
+      message: "Session not found",
+    });
+  });
+
+  it("404s a GET and a DELETE /mcp carrying an unknown session id", async () => {
+    const base = start({ port: 0 });
+
+    for (const method of ["GET", "DELETE"]) {
+      const res = await fetch(`${base}/mcp`, {
+        method,
+        headers: { "mcp-session-id": "does-not-exist" },
+        signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+      });
+
+      expect(res.status).toBe(404);
+      const parsed = (await res.json()) as { error: { code: number } };
+
+      expect(parsed.error.code).toBe(-32001);
+    }
+  });
+
+  it("mints a fresh session on initialize after an unknown session 404", async () => {
+    const base = start({ port: 0 });
+    const stale = await postMcp(
+      base,
+      { jsonrpc: "2.0", method: "tools/list", id: 1 },
+      { "mcp-session-id": "does-not-exist" },
+    );
+    const init = await postMcp(base, initializeBody);
+    const sessionId = init.headers.get("mcp-session-id");
+
+    expect(stale.status).toBe(404);
+    expect(init.status).toBe(200);
+    expect(sessionId).toBeTruthy();
+  });
+
+  it("keeps serving a live session and 404s it once it is deleted", async () => {
+    const base = start({ port: 0 });
+    const init = await postMcp(base, initializeBody);
+    const sessionId = init.headers.get("mcp-session-id") ?? "";
+    const headers = {
+      "mcp-session-id": sessionId,
+      "mcp-protocol-version": "2025-03-26",
+    };
+    const live = await postMcp(
+      base,
+      { jsonrpc: "2.0", method: "tools/list", id: 2 },
+      headers,
+    );
+    const del = await fetch(`${base}/mcp`, {
+      method: "DELETE",
+      headers,
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+    });
+    const gone = await postMcp(
+      base,
+      { jsonrpc: "2.0", method: "tools/list", id: 3 },
+      headers,
+    );
+
+    expect(live.status).toBe(200);
+    expect(del.status).toBe(200);
+    expect(gone.status).toBe(404);
+  });
+
+  it("400s a GET /mcp whose session id header is empty, as POST does", async () => {
+    const base = start({ port: 0 });
+    const res = await fetch(`${base}/mcp`, {
+      headers: { "mcp-session-id": "" },
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+    });
+
+    expect(res.status).toBe(400);
   });
 });
