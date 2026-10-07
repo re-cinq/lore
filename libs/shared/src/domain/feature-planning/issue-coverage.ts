@@ -152,3 +152,81 @@ function writtenBy<T extends { text: string }>(
 
   return cited.length > 0 ? cited : statements;
 }
+
+// The story body carries the plan and its tasks too; coverage gets this much of it, comments take the rest.
+const BODY_COVERAGE_BUDGET = 20_000;
+// GitHub refuses a comment over 65,536 chars; the marker fits in what is left.
+const COMMENT_BUDGET = 60_000;
+const ENTRY = /^- line \d+: /;
+
+export interface CoverageSections {
+  /** The coverage as it goes in the story body. */
+  body: string;
+  /** The entries that did not fit, one marked comment each, in order. */
+  comments: string[];
+}
+
+export function coverageCommentMarker(planId: string, ordinal: number): string {
+  return `<!-- lore-plan-coverage: ${planId}/${ordinal} -->`;
+}
+
+export function coverageSections(
+  coverage: string,
+  planId: string,
+): CoverageSections {
+  const lines = coverage.split("\n");
+  const head = lines.filter((line) => !ENTRY.test(line) && line !== "");
+  const entries = lines.filter((line) => ENTRY.test(line));
+  const [inBody, ...overflow] = chunked(entries, BODY_COVERAGE_BUDGET);
+  const rest = overflow.flat();
+  const pointer = rest.length
+    ? [`*${rest.length} more statements are listed in the comments below.*`, ""]
+    : [];
+
+  return {
+    body: [...headOf(head), ...(inBody ?? []), "", ...pointer].join("\n"),
+    comments: chunked(rest, COMMENT_BUDGET).map((chunk, index) =>
+      [coverageCommentMarker(planId, index + 1), "", ...chunk, ""].join("\n"),
+    ),
+  };
+}
+
+function headOf([heading, summary]: string[]): string[] {
+  return [heading ?? "", "", summary ?? "", ""];
+}
+
+function chunked(entries: readonly string[], budget: number): string[][] {
+  const chunks: string[][] = [];
+  let size = budget;
+
+  for (const entry of entries) {
+    if (size + entry.length + 1 > budget) {
+      chunks.push([]);
+      size = 0;
+    }
+    chunks.at(-1)?.push(entry);
+    size += entry.length + 1;
+  }
+
+  return chunks;
+}
+
+/** The coverage entries the story issue lists: its body's, then its marked comments' in order. */
+export function storyCoverageOf(
+  body: string,
+  comments: readonly string[],
+  planId: string,
+): string[] {
+  const ordinalOf = (comment: string) =>
+    comment.match(
+      new RegExp(`^<!-- lore-plan-coverage: ${planId}/(\\d+) -->`),
+    )?.[1];
+  const marked = comments
+    .map((comment) => ({ comment, ordinal: ordinalOf(comment) }))
+    .filter((found) => found.ordinal !== undefined)
+    .sort((a, b) => Number(a.ordinal) - Number(b.ordinal));
+
+  return [body, ...marked.map(({ comment }) => comment)].flatMap((text) =>
+    text.split("\n").filter((line) => ENTRY.test(line)),
+  );
+}

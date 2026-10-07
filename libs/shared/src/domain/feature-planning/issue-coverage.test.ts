@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  coverageSections,
   issueCoverage,
   issueCoverageBrief,
   partAt,
@@ -7,6 +8,7 @@ import {
   specFileOf,
   specParts,
   statementLink,
+  storyCoverageOf,
 } from "./issue-coverage.js";
 
 const SPEC = [
@@ -137,5 +139,30 @@ describe("specFileOf", () => {
 
   it("reads specs/checkout/spec.md as it is named", () => {
     expect(specFileOf("specs/checkout/spec.md")).toBe("specs/checkout/spec.md");
+  });
+});
+
+const OTTO_ENTRIES = Array.from(
+  { length: 240 },
+  (_, index) =>
+    `- line ${index + 1}: ${"The agent answers the ticket. ".repeat(10)}— https://github.com/re-cinq/otto/blob/b4a46cb6/specs/tms/spec.md#L${index + 1}`,
+);
+const OTTO_COVERAGE = [
+  "## Spec coverage",
+  "",
+  "28 of 268 testable spec statements have a task. Not covered yet:",
+  "",
+  ...OTTO_ENTRIES,
+  "",
+].join("\n");
+
+describe("coverageSections", () => {
+  it("keeps 240 entries of 300 chars under 65,536 in the body and every comment, and reads all 240 back", () => {
+    const { body, comments } = coverageSections(OTTO_COVERAGE, "p1");
+
+    expect({
+      longest: Math.max(body.length, ...comments.map((c) => c.length)) <= 65_536,
+      entries: storyCoverageOf(body, comments, "p1"),
+    }).toEqual({ longest: true, entries: OTTO_ENTRIES });
   });
 });
