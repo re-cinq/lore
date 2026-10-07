@@ -136,9 +136,10 @@ export class PgSettings implements SettingsPort {
     return this.writer().setRepoSecret(repo, name, value);
   }
 
+  // Case-insensitive: the one lookup web-ui's repo layout uses to find the canonical casing of a URL typed or bookmarked with the wrong case.
   async record(repo: string): Promise<RepoRecord | null> {
     const { rows } = await this.pool.query<Record<string, unknown>>(
-      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE full_name = $1`,
+      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE LOWER(full_name) = LOWER($1)`,
       [repo],
     );
 
