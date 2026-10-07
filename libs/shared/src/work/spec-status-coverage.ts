@@ -5,7 +5,10 @@ import {
   buildIntroOrdinals,
   classifyByHeuristic,
 } from "../domain/spec-segment.js";
-import { parseTestLinksInStatement } from "../domain/spec-link-parser.js";
+import {
+  parseTestLinksInStatement,
+  type TestLinkRef,
+} from "../domain/spec-link-parser.js";
 import { enforceTrue } from "../lib/enforce.js";
 import type { DocKind, StatusBucket } from "../domain/spec-status.js";
 
@@ -21,13 +24,28 @@ export interface StatementCoverage {
   testable: number;
   linked: number;
   unlinked: UnlinkedStatement[];
+  /** Statements whose links all failed `isGroundedLink` (hollow or stale evidence); each is also in `unlinked`. */
+  ungrounded: UnlinkedStatement[];
+}
+
+export interface CoverageOptions {
+  /** Whether a parsed test link is real evidence. Default: any link counts. */
+  isGroundedLink?: (link: TestLinkRef) => boolean;
 }
 
 /** Single walk of a doc's testable statements; `require-statement-links` reads `unlinked`, status rules read `testable`/`linked`. */
-export function statementCoverage(content: string): StatementCoverage {
+export function statementCoverage(
+  content: string,
+  { isGroundedLink = () => true }: CoverageOptions = {},
+): StatementCoverage {
   const statements = segmentStatements(content);
   const introOrdinals = buildIntroOrdinals(statements);
-  const coverage: StatementCoverage = { testable: 0, linked: 0, unlinked: [] };
+  const coverage: StatementCoverage = {
+    testable: 0,
+    linked: 0,
+    unlinked: [],
+    ungrounded: [],
+  };
 
   for (const statement of statements) {
     if (
@@ -36,13 +54,20 @@ export function statementCoverage(content: string): StatementCoverage {
       continue;
     }
     coverage.testable++;
+    const links = parseTestLinksInStatement(statement.text);
 
-    if (parseTestLinksInStatement(statement.text).length > 0) {
+    if (links.some(isGroundedLink)) {
       coverage.linked++;
       continue;
     }
     // `Statement.line` is optional (test doubles omit it), so fall back to line 1.
-    coverage.unlinked.push({ text: statement.text, line: statement.line ?? 1 });
+    const unlinked = { text: statement.text, line: statement.line ?? 1 };
+
+    coverage.unlinked.push(unlinked);
+
+    if (links.length > 0) {
+      coverage.ungrounded.push(unlinked);
+    }
   }
 
   return coverage;
@@ -51,8 +76,9 @@ export function statementCoverage(content: string): StatementCoverage {
 /** Testable, unlinked statements — the `require-statement-links` view. */
 export function unlinkedTestableStatements(
   content: string,
+  options?: CoverageOptions,
 ): UnlinkedStatement[] {
-  return statementCoverage(content).unlinked;
+  return statementCoverage(content, options).unlinked;
 }
 
 export function coverageTier(testable: number, linked: number): CoverageTier {
@@ -102,8 +128,9 @@ export function statusLabel(status: StatusBucket, kind: DocKind): string {
 export function coverageStatusLabel(
   content: string,
   kind: DocKind,
+  options?: CoverageOptions,
 ): string | null {
-  const { testable, linked } = statementCoverage(content);
+  const { testable, linked } = statementCoverage(content, options);
   const status = expectedStatus(coverageTier(testable, linked));
 
   return status === null ? null : statusLabel(status, kind);
