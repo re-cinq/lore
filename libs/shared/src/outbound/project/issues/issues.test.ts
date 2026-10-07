@@ -53,6 +53,8 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     },
     createBranch: async () => {},
     commitFile: async () => {},
+    listIssueComments: async () => [],
+    updateIssueComment: async () => {},
     upsertCheckRun: async () => {},
   };
 }

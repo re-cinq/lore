@@ -574,6 +574,9 @@ stations:
         access: read
       - name: decomposition
         kind: file
+      # Only the statements this plan wrote are counted.
+      - name: plan_id
+        kind: value
       # A plan naming no spec has nothing to count, and the run settles.
       - name: spec_path
         kind: value

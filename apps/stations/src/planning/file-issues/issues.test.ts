@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runIssuesStation } from "./issues.js";
+import { storyCoverageOf } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import {
   storyMarker,
@@ -65,6 +66,7 @@ function fakeProject(
   const issues: Array<{ title: string; body: string; labels?: string[] }> = [];
   const steps: string[] = [];
   const bodies = new Map<number, string>();
+  const comments: Array<{ id: number; number: number; body: string }> = [];
   let n = 100;
 
   return {
@@ -72,6 +74,7 @@ function fakeProject(
     steps,
     bodies,
     reads,
+    comments,
     project: {
       repo: {
         read: async (path: string, ref: string) => {
@@ -109,8 +112,19 @@ function fakeProject(
           bodies.set(number, edit.body ?? "");
           steps.push(`update #${number}${edit.title ? ` ${edit.title}` : ""}`);
         },
-        comment: async (number: number) => {
+        comment: async (number: number, body: string) => {
+          comments.push({ id: comments.length + 1, number, body });
           steps.push(`comment #${number}`);
+        },
+        listComments: async (number: number) =>
+          comments.filter((comment) => comment.number === number),
+        updateComment: async (id: number, body: string) => {
+          const found = comments.find((comment) => comment.id === id);
+
+          if (found) {
+            found.body = body;
+          }
+          steps.push(`edit comment ${id}`);
         },
         close: async (number: number, reason?: string) => {
           steps.push(`close #${number} ${reason}`);
@@ -399,5 +413,110 @@ describe("runIssuesStation", () => {
       touched91: fake.steps.filter((step) => step.includes("#91")),
       t002Deps: fake.bodies.get(102)?.includes("**Depends on:** #91"),
     }).toEqual({ touched91: [], t002Deps: true });
+  });
+});
+
+const LONG_STATEMENT =
+  "The agent answers the support ticket in the customer's own words. ".repeat(
+    4,
+  );
+const LONG_SPEC = [
+  "# Support agent",
+  "",
+  "Agents answer support tickets.",
+  "",
+  "## Requirements",
+  "",
+  ...Array.from(
+    { length: 400 },
+    (_, index) => `- FR${index + 1} — ${LONG_STATEMENT}`,
+  ),
+  "",
+].join("\n");
+
+async function filedLongSpec() {
+  const fake = fakeProject(LABELS, [], { "specs/live/spec.md": LONG_SPEC });
+
+  await runIssuesStation(
+    input({
+      feature_decomposition: CITING_DECOMPOSITION,
+      spec_path: "specs/live/",
+      plan_id: "p1",
+    }),
+    { project: fake.project },
+  );
+
+  return fake;
+}
+
+describe("runIssuesStation with a spec too long for one issue body", () => {
+  it("files a story body under 65,536 chars and lists the other 399 uncovered statements in its comments", async () => {
+    const fake = await filedLongSpec();
+    const story = fake.bodies.get(101) ?? "";
+    const storyComments = fake.comments
+      .filter((comment) => comment.number === 101)
+      .map((comment) => comment.body);
+
+    expect({
+      fits: story.length <= 65_536,
+      listed: storyCoverageOf(story, storyComments, "p1").length,
+    }).toEqual({ fits: true, listed: 399 });
+  });
+
+  it("empties the 3 filed comments and files none when a rerun lists just FR2 in the body", async () => {
+    const fake = await filedLongSpec();
+    const story = fake.bodies.get(101) ?? "";
+    const rerun = fakeProject(
+      LABELS,
+      [{ number: 101, state: "open", body: story }],
+      { "specs/live/spec.md": SPEC },
+    );
+
+    rerun.comments.push(...fake.comments);
+    await runIssuesStation(
+      input({
+        feature_decomposition: CITING_DECOMPOSITION,
+        spec_path: "specs/live/",
+        plan_id: "p1",
+      }),
+      { project: rerun.project },
+    );
+
+    expect({
+      commentWrites: rerun.steps.filter((step) => step.includes("comment")),
+      listed: storyCoverageOf(
+        rerun.bodies.get(101) ?? "",
+        rerun.comments.map((comment) => comment.body),
+        "p1",
+      ),
+    }).toEqual({
+      commentWrites: ["edit comment 1", "edit comment 2", "edit comment 3"],
+      listed: [
+        "- line 8: FR2 — The graph renders each node event. — https://github.com/re-cinq/lore/blob/abc123/specs/live/spec.md#L8",
+      ],
+    });
+  });
+});
+
+describe("runIssuesStation rerun with coverage comments", () => {
+  it("writes no comment when a rerun finds the 3 coverage comments already right", async () => {
+    const fake = await filedLongSpec();
+    const rerun = fakeProject(
+      LABELS,
+      [{ number: 101, state: "open", body: fake.bodies.get(101) ?? "" }],
+      { "specs/live/spec.md": LONG_SPEC },
+    );
+
+    rerun.comments.push(...fake.comments);
+    await runIssuesStation(
+      input({
+        feature_decomposition: CITING_DECOMPOSITION,
+        spec_path: "specs/live/",
+        plan_id: "p1",
+      }),
+      { project: rerun.project },
+    );
+
+    expect(rerun.steps.filter((step) => step.includes("comment"))).toEqual([]);
   });
 });

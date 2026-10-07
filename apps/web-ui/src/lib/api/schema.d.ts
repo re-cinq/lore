@@ -2978,6 +2978,7 @@ export interface components {
                   node_id: string;
                   iteration: number;
                   outcome: string | null;
+                  failure_detail: string | null;
                   agent_cr_name: string | null;
                   station_run_id: string | null;
                   input: {
@@ -3769,6 +3770,7 @@ export interface components {
             node_id: string;
             iteration: number;
             outcome: string | null;
+            failure_detail: string | null;
             agent_cr_name: string | null;
             station_run_id: string | null;
             input: {
@@ -4082,6 +4084,7 @@ export interface components {
         node_id: string;
         iteration: number;
         outcome: string | null;
+        failure_detail: string | null;
         agent_cr_name: string | null;
         station_run_id: string | null;
         input: {

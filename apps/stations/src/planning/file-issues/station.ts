@@ -6,7 +6,7 @@ import {
   type Report,
   type RunningStation,
 } from "@re-cinq/floor-station";
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -43,6 +43,8 @@ export function fileIssuesHandle(deps: FileIssuesDeps): Handle {
 
       return reportOf(result);
     } catch (err) {
+      console.log(eventLine(`issues failed: ${(err as Error).message}`));
+
       return { outcome: "failed", error: (err as Error).message };
     }
   };

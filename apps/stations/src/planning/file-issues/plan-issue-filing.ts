@@ -19,7 +19,12 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/plan-issues.js";
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
-import { partsNamed } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
+import {
+  coverageCommentWrites,
+  coverageSections,
+  partsNamed,
+  type CoverageSections,
+} from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { SpecStatementLink } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
 import type { DecomposedSpec } from "./decomposed-spec.js";
 
@@ -82,13 +87,52 @@ async function rewriteStory(
   work: ProceedWork,
   { context, existing, storyNumber, taskIssues }: FiledTasks,
 ): Promise<void> {
+  const coverage = storyCoverageSections(context);
+  const story = { ...context.story, coverage: coverage.body };
+
   await project.issues.update(storyNumber, {
     ...(existing.story ? { title: work.story.title } : {}),
     body: marked(
-      storyIssueBody({ ...context.story, taskIssues: numbersOf(taskIssues) }),
+      storyIssueBody({ ...story, taskIssues: numbersOf(taskIssues) }),
       context.planId && storyMarker(context.planId),
     ),
   });
+  await rewriteCoverageComments(project, storyNumber, {
+    planId: coverageKey(context),
+    comments: coverage.comments,
+  });
+}
+
+// Without a plan id nothing is found again on a rerun, so any key does.
+function coverageKey({ planId }: FilingContext): string {
+  return planId ?? "unplanned";
+}
+
+function storyCoverageSections(context: FilingContext): CoverageSections {
+  const { coverage } = context.story;
+
+  return coverage
+    ? coverageSections(coverage, coverageKey(context))
+    : { body: "", comments: [] };
+}
+
+interface CoverageComments {
+  planId: string;
+  comments: readonly string[];
+}
+
+async function rewriteCoverageComments(
+  project: StationProject,
+  storyNumber: number,
+  { planId, comments }: CoverageComments,
+): Promise<void> {
+  const filed = await project.issues.listComments(storyNumber);
+
+  for (const write of coverageCommentWrites(filed, comments, planId)) {
+    await (write.kind === "create"
+      ? project.issues.comment(storyNumber, write.body)
+      : project.issues.updateComment(write.id, write.body));
+  }
 }
 
 async function fileStory(
@@ -99,7 +143,10 @@ async function fileStory(
   const issue = await project.issues.create(
     work.story.title,
     marked(
-      storyIssueBody(context.story),
+      storyIssueBody({
+        ...context.story,
+        coverage: storyCoverageSections(context).body,
+      }),
       context.planId && storyMarker(context.planId),
     ),
     work.story.labels,
