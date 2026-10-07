@@ -29,8 +29,14 @@ export function billingSourceSplit(byCluster: ByCluster): BillingSourceSplit {
 }
 
 function resolveMode(r: ClusterRow): "api" | "subscription" {
-  if (r.billing_mode === "api") return "api";
-  if (r.billing_mode === "subscription") return "subscription";
+  if (r.billing_mode === "api") {
+    return "api";
+  }
+
+  if (r.billing_mode === "subscription") {
+    return "subscription";
+  }
+
   return r.cluster === null ? "api" : "subscription";
 }
 
@@ -92,6 +98,7 @@ function BillingSourceNote({ recorded }: { recorded: boolean }) {
       </p>
     );
   }
+
   return (
     <p className={`meta ${styles.subnote}`}>
       Derived from which cluster ran each call: no cluster is the org&apos;s own

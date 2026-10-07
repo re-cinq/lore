@@ -3,7 +3,6 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { billingSourceSplit, BillingSource } from "./SpendBillingSource";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rows: any = [
   { cluster: "satellite-a", billing_mode: "api", calls: 100, cost_usd: 10.0 },
   { cluster: null, billing_mode: "subscription", calls: 50, cost_usd: 5.0 },
