@@ -52,12 +52,12 @@ beforeEach(() => {
 });
 
 describe("onboard action", () => {
-  it("redirects to the queued task's page when the API names one", async () => {
+  it("redirects to the repository page when onboarding queues task-1", async () => {
     createOnboardTask.mockResolvedValue({ ok: true, taskId: "task-1" });
     const action = await onboardAction();
 
     await expect(action(null, form("re-cinq/lore"))).rejects.toThrow(
-      "NEXT_REDIRECT:/tasks/task-1",
+      "NEXT_REDIRECT:/repos/re-cinq/lore",
     );
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });

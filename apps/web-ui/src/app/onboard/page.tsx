@@ -38,11 +38,7 @@ async function onboardRepo(
   }
 
   revalidatePath("/");
-  redirect(
-    outcome.taskId
-      ? `/tasks/${encodeURIComponent(outcome.taskId)}`
-      : `/repos/${fullName}`,
-  );
+  redirect(`/repos/${fullName}`);
 }
 
 function invalidSlugState(fullName: string): OnboardState {
