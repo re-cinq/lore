@@ -36,11 +36,12 @@ function markdownVerbs(
   deps: FloorPlanDeps,
   snapshotOf: SnapshotOf,
 ): PlanContentVerbs {
-  const briefed = async (plan: PlanSubject, brief: string) => ({
-    plan,
-    ...(await snapshotOf(plan)),
-    brief,
-  });
+  // The brief is written FROM the snapshot the run is handed, so what it says of the plan's findings and what the pod downloads are the one read.
+  const briefed = async (plan: PlanSubject, briefOf: BriefOf) => {
+    const snapshot = await snapshotOf(plan);
+
+    return { plan, ...snapshot, brief: briefOf(snapshot) };
+  };
 
   return { ...draftingVerbs(deps, briefed), ...approvalVerbs(deps, briefed) };
 }
@@ -53,12 +54,16 @@ function draftingVerbs(
   return {
     draft: async (plan, request) =>
       startFloorDrafting(deps, {
-        ...(await briefed(plan, draftBrief(plan, request.known))),
+        ...(await briefed(plan, (seen) =>
+          draftBrief(plan, request.known, seen.openFindings),
+        )),
         storyIssue: request.storyIssue,
       }),
     refine: async (plan, refine) =>
       askFloorRefine(deps, {
-        ...(await briefed(plan, refineBrief(plan, refine))),
+        ...(await briefed(plan, (seen) =>
+          refineBrief(plan, refine, seen.openFindings),
+        )),
         refine,
         actor: refine.actor,
       }),
@@ -72,17 +77,23 @@ function approvalVerbs(
 ): Pick<PlanContentVerbs, "handOverApproved" | "startSpecWork"> {
   return {
     handOverApproved: async (plan) => {
-      await approveFloorPlan(deps, await briefed(plan, approvedBrief(plan)));
+      await approveFloorPlan(deps, await briefed(plan, () => approvedBrief(plan)));
     },
     startSpecWork: async (plan, _createdBy, storyIssue) =>
       startFloorSpecWork(deps, {
-        ...(await briefed(plan, approvedBrief(plan))),
+        ...(await briefed(plan, () => approvedBrief(plan))),
         storyIssue,
       }),
   };
 }
 
-type Briefed = (plan: PlanSubject, brief: string) => Promise<FloorPlanMarkdown>;
+/** The round's brief, written from the plan as this read found it. */
+type BriefOf = (snapshot: PlanSnapshot) => string;
+
+type Briefed = (
+  plan: PlanSubject,
+  briefOf: BriefOf,
+) => Promise<FloorPlanMarkdown>;
 
 function lineVerbs(
   deps: FloorPlanDeps,

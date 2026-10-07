@@ -14,23 +14,22 @@ const PLAN_MD = [
   "",
 ].join("\n");
 
-const NEEDS = { plan_id: PLAN_ID, target: TARGET, plan_md: "blob://plan" };
+const NEEDS = { plan_id: PLAN_ID, target: TARGET };
 
 function scene(
-  planMd: string | null = PLAN_MD,
+  planMd: string = PLAN_MD,
   carried: { findingId: string; resolved: boolean }[] = [],
 ) {
   const edits: PlanEdit[] = [];
+  // Nothing in the bag is read: the pass grounds the plan as it stands.
   const tools: Tools = {
-    read: async () =>
-      planMd === null
-        ? Promise.reject(new Error("no plan_md in the bag"))
-        : Buffer.from(planMd),
+    read: async () => Promise.reject(new Error("the bag is never read")),
     produce: async () => {},
     modelCall: async () => {},
     signal: new AbortController().signal,
   };
   const deps: PlanGroundingDeps = {
+    markdownOf: async () => planMd,
     listTree: async () => [
       "libs/assembly-lines/src/floor-pipelines/onboard.yaml",
     ],
@@ -87,8 +86,10 @@ describe("planGroundingHandle", () => {
     ]);
   });
 
-  it("writes nothing when the pass carries no plan_md to ground", async () => {
-    const { handle, tools, edits } = scene(null);
+  it("writes nothing for a plan that names nothing the branch lacks", async () => {
+    const { handle, tools, edits } = scene(
+      "# Issue triage\n\n## Platform work <!-- slot:custom-platform-work -->\n\nNothing in backticks here.\n",
+    );
 
     expect({ report: await handle(brief, tools), edits }).toEqual({
       report: { outcome: "success" },
