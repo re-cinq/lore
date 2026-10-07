@@ -14,7 +14,7 @@ This plan details the implementation of a new `issue-triage` assembly line on th
 | -------------------- | --------------------------------------------------------------- |
 | Language/Runtime     | TypeScript ESM / Node 22                                        |
 | Modules touched      | `apps/stations`, `libs/assembly-lines`, `libs/shared`           |
-| Storage              | `pipeline.station_runs`, `pipeline.events`                      |
+| Storage              | `pipeline.events` (event bus); external floor run store (triage node outcomes, readable via `libs/shared/src/outbound/floor/floor-client.ts`) |
 | Testing              | vitest via workspace-source aliases                             |
 | Constraints          | Strict sandboxing for untrusted code execution                  |
 
