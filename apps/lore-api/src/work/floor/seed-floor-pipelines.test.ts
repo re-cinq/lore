@@ -2,8 +2,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { pipelineOf, readPipelineFile } from "@re-cinq/floor-pipeline";
 import {
+  fileOf,
+  pipelineOf,
+  readPipelineFile,
+  writePipelineFile,
+} from "@re-cinq/floor-pipeline";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import {
+  pipelineOfText,
   seedFloorPipelines,
   withEnvironment,
   type SeedDeps,
@@ -67,25 +74,45 @@ describe("seedFloorPipelines", () => {
   it("puts both pipelines and reports only lore-run-settled as changed when the floor holds code-review as written", async () => {
     const { deps, imported } = fakeFloor(["code-review"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([
-      "assembly-lines/lore-run-settled",
-    ]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["assembly-lines/lore-run-settled"],
+      failed: [],
+    });
     expect(imported).toEqual(["code-review", "lore-run-settled"]);
   });
 
   it("reports both lines as changed on a floor that holds neither", async () => {
     const { deps } = fakeFloor([]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([
-      "assembly-lines/code-review",
-      "assembly-lines/lore-run-settled",
-    ]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: [
+        "assembly-lines/code-review",
+        "assembly-lines/lore-run-settled",
+      ],
+      failed: [],
+    });
   });
 
   it("reports nothing changed when the floor holds every pipeline as written", async () => {
     const { deps } = fakeFloor(["code-review", "lore-run-settled"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([]);
+    expect(await seedFloorPipelines(deps)).toEqual({ changed: [], failed: [] });
+  });
+
+  it("puts b.yaml and reports a.yaml as failed when the floor refuses a.yaml", async () => {
+    const { deps, imported } = fakeFloor([]);
+    const put = deps.importPipeline;
+
+    deps.importPipeline = (pipeline) =>
+      pipeline.line?.id === "code-review"
+        ? Promise.reject(new Error("invalid station body"))
+        : put(pipeline);
+
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["assembly-lines/lore-run-settled"],
+      failed: [{ name: "a.yaml", reason: "invalid station body" }],
+    });
+    expect(imported).toEqual(["lore-run-settled"]);
   });
 
   it("names a station two pipelines share once", async () => {
@@ -94,24 +121,54 @@ describe("seedFloorPipelines", () => {
 
     deps.importPipeline = () => Promise.resolve([shared]);
 
-    expect(await seedFloorPipelines(deps)).toEqual(["stations/post-review"]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["stations/post-review"],
+      failed: [],
+    });
   });
 });
 
 describe("the pipeline files shipped in libs/assembly-lines", () => {
   const pipelines = realFiles().map((file) =>
-    pipelineOf(readPipelineFile(withEnvironment(file.text, FIXED_ENV))),
+    pipelineOfText(file.text, FIXED_ENV),
   );
 
-  it("declare the lines code-review, code-review-recheck, code-review-reply, feature-planning, lore-run-settled and merge", () => {
+  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "code-review",
       "code-review-recheck",
       "code-review-reply",
+      "daily-digest",
       "feature-planning",
+      "implementation-loop",
+      "issue-triage",
       "lore-run-settled",
       "merge",
+      "onboard",
+      "spec-upkeep",
     ]);
+  });
+
+  it("declares issue-triage human-gate as a kind: human station with route '{args.issue_url}'", () => {
+    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+    const humanGate = issueTriage?.stations.find((s) => s.id === "human-gate");
+
+    expect(humanGate?.body.kind).toBe("human");
+    expect(humanGate?.body.route).toBe("{args.issue_url}");
+  });
+
+  it("routes issue-triage human-gate's success edge to done", () => {
+    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+
+    type LineBody = {
+      edges: Array<{ from: string; to: string; on: string }>;
+    };
+    const body = issueTriage?.line?.body as LineBody | undefined;
+    const successEdge = body?.edges.find(
+      (e) => e.from === "human-gate" && e.on === "success",
+    );
+
+    expect(successEdge?.to).toBe("done");
   });
 
   it("give every agent definition a non-empty prompt", () => {
@@ -122,5 +179,18 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       );
 
     expect(prompts.every((prompt) => prompt.length > 0)).toBe(true);
+  });
+
+  it("put feature-planning exactly as a file carrying the same prompts inline would, trailing newline included", () => {
+    const featurePlanning = pipelines.find(
+      (pipeline) => pipeline.line?.id === "feature-planning",
+    );
+
+    enforceTrue(featurePlanning, Error, "no feature-planning pipeline");
+    const inline = pipelineOf(
+      readPipelineFile(writePipelineFile(fileOf(featurePlanning))),
+    );
+
+    expect(featurePlanning).toEqual(inline);
   });
 });

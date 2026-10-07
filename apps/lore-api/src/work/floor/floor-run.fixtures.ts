@@ -127,3 +127,16 @@ const ANSWERS: Record<string, unknown> = {
 export function floorWithOneRun(request: FloorRequest): unknown {
   return ANSWERS[request.path];
 }
+
+/** The floor with one run on a page that has a next one, and that run's cost. */
+export function floorWithRunPage(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  if (url.pathname === "/costs") {
+    return { items: [{ key: "run-1", costUsd: 0.42 }] };
+  }
+
+  return url.pathname === "/assembly-runs"
+    ? { items: [FLOOR_RUN], nextCursor: "cursor-2" }
+    : floorWithOneRun(request);
+}

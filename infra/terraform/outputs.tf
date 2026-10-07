@@ -7,7 +7,7 @@ output "ui_url" {
 }
 
 output "webhook_url" {
-  description = "Point repo webhooks here: the event-router front door (ADR-044)."
+  description = "Point repo webhooks here: the public webhook URL, served by lore-api."
   value       = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
 }
 

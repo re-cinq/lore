@@ -160,7 +160,10 @@ describe("plans client", () => {
   });
 
   it("asks for the planning agent's draft of plan p1, handing over what gedaiu knows", async () => {
-    await startDrafting("re-cinq/lore", "p1", "Checkout is slow.", "gedaiu");
+    await startDrafting("re-cinq/lore", "p1", {
+      known: "Checkout is slow.",
+      createdBy: "gedaiu",
+    });
 
     expect(request()).toEqual({
       url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
@@ -176,6 +179,7 @@ describe("plans client", () => {
       baseHash: "3f9a",
       inputs: {},
       uses: {},
+      actor: "ana",
     };
 
     await askRefine("re-cinq/lore", "p1", refine);

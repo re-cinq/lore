@@ -25,7 +25,7 @@ import {
 export const MAX_SUBSCRIBERS_PER_RUN = 20;
 
 /** Buffered bytes past which a viewer counts as too slow to keep. */
-const HIGH_WATER_MARK = 1024 * 1024;
+export const HIGH_WATER_MARK = 1024 * 1024;
 
 const PAGE_SIZE = 1000;
 

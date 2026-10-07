@@ -17,8 +17,9 @@ spec:
     spec:
       serviceAccountName: lore-api
       # Plan edits are debounced in memory (planning-sync flushes them on
-      # hapi's onPreStop), so give a rollout time to write the last keystrokes.
-      terminationGracePeriodSeconds: 45
+      # hapi's onPreStop), so give a rollout time to write the last keystrokes:
+      # 45 seconds for that, after the 10 the preStop below waits.
+      terminationGracePeriodSeconds: 55
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
@@ -27,6 +28,17 @@ spec:
         - name: mcp
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # A pod being replaced keeps serving for 10 seconds before it is told
+          # to stop. The ingress needs a moment to stop sending it requests;
+          # without the wait, a request arriving in that moment hits a closed
+          # port and is answered 502. That matters most for GitHub's webhook
+          # deliveries (`POST /api/webhook/github`, which the public webhook
+          # hostnames route here, infra/terraform/event-router.tf): GitHub
+          # does not retry one.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "10"]
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -61,18 +73,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.githubAppSecret.name }}
                   key: {{ .Values.githubAppSecret.installationIdKey }}
-            # The cluster-agent registration pre-shared token (FR1 of
-            # specs/running-stations-in-any-k8s-cluster). NOT optional: every
-            # cluster-agent registers, the central one included, so lore-api
-            # answering 401 to every registration is a dead factory rather than
-            # a disabled feature. It fails here the same way the agent fails
-            # without it, which is the point — a pair where one end degrades
-            # quietly and the other crashes is how the 2026-08-24 outage read.
-            - name: LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.clusterAgentRegistrationSecret.name }}
-                  key: {{ .Values.clusterAgentRegistrationSecret.key }}
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:

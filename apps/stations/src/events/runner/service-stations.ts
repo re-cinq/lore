@@ -3,14 +3,11 @@
 import {
   STATIONS,
   hostCanRun,
-  isSweepModule,
   type StationPortName,
 } from "../../work/index.js";
 
 /** This service holds a pool AND a GitHub App, so it serves every port. */
 const SERVED: readonly StationPortName[] = [
-  "awaitingApproval",
-  "approvalLabel",
   "repoFor",
   "memoryLifecycle",
   "cost",
@@ -39,7 +36,6 @@ export function serviceStations(
   }
 
   const fromRegistry = Object.values(STATIONS)
-    .filter(isSweepModule)
     .filter(hasHttpTrigger)
     .filter((mod) => hostCanRun(mod.manifest, SERVED))
     .map((mod): [string, Station] => [

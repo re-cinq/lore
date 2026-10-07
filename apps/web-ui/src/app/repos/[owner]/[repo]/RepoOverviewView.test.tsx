@@ -53,11 +53,8 @@ const baseProps = {
   repo: "lore",
   readme: null,
   enrollmentChecks: checks,
-  darkFactoryEnabled: false,
   trustLevel: "implementation",
-  darkTasksWeek: 0,
-  autoMergedWeek: 0,
-  escalationsWeek: 0,
+  tasksWeek: 0,
   recentTasks: [] as RecentTask[],
   latestEvents: [] as RepoEvent[],
   reonboardAction: action,
@@ -100,45 +97,19 @@ describe("RepoOverviewView", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows Off (legacy) mode and links Dark Factory settings to the repo settings page", () => {
+  it("shows trust level full and 12 tasks this week on the activity card, linked to settings", () => {
     render(
-      <RepoOverviewView
-        {...baseProps}
-        darkFactoryEnabled={false}
-        trustLevel="docs"
-      />,
+      <RepoOverviewView {...baseProps} trustLevel="full" tasksWeek={12} />,
     );
     const card = screen
-      .getByRole("heading", { level: 3, name: "Dark Factory" })
+      .getByRole("heading", { level: 3, name: "Activity" })
       .closest(".spec-card") as HTMLElement;
 
-    expect(within(card).getByText("Off (legacy)")).toBeInTheDocument();
-    expect(within(card).getByText("docs")).toBeInTheDocument();
+    expect(within(card).getByText("full")).toBeInTheDocument();
+    expect(within(card).getByText("12")).toBeInTheDocument();
     expect(
       within(card).getByRole("link", { name: "configure →" }),
     ).toHaveAttribute("href", "/repos/re-cinq/lore/settings");
-  });
-
-  it("shows Enabled mode and the weekly counters when dark factory is on", () => {
-    render(
-      <RepoOverviewView
-        {...baseProps}
-        darkFactoryEnabled
-        trustLevel="full"
-        darkTasksWeek={12}
-        autoMergedWeek={3}
-        escalationsWeek={2}
-      />,
-    );
-    const card = screen
-      .getByRole("heading", { level: 3, name: "Dark Factory" })
-      .closest(".spec-card") as HTMLElement;
-
-    expect(within(card).getByText("Enabled")).toBeInTheDocument();
-    expect(within(card).getByText("full")).toBeInTheDocument();
-    expect(within(card).getByText("12")).toBeInTheDocument();
-    expect(within(card).getByText("3")).toBeInTheDocument();
-    expect(within(card).getByText("2")).toBeInTheDocument();
   });
 
   it("renders a row per recent task with a PR link and a pipeline link", () => {
@@ -166,7 +137,7 @@ describe("RepoOverviewView", () => {
     expect(completed).toHaveClass("op-badge", "op-completed");
     expect(
       screen.getByRole("link", { name: "Implement the widget..." }),
-    ).toHaveAttribute("href", "/tasks/1");
+    ).toHaveAttribute("href", "/assembly-runs/1");
     expect(screen.getByRole("link", { name: "PR" })).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/pull/7",

@@ -9,7 +9,9 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { pgPlanStore } from "../outbound/plans/plan-store-pg.js";
 import { livePlanOf } from "../outbound/plans/live-plan.js";
+import { pgRefineAsks } from "../work/plans/refine-asks-pg.js";
 import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
+import type { PlanFilePorts } from "../work/plans/plan-file.js";
 import { planLifecycleRoutes } from "../transport/routes/plans/plan-lifecycle.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
 import {
@@ -31,20 +33,21 @@ export interface RegisteredPlanning {
 export function registerPlanning(
   server: Server,
   getPool: () => Pool | null,
+  floorDeps?: PlanVerbSeams["floorDeps"],
 ): RegisteredPlanning {
   const pool = livePool(getPool);
-  const seams: PlanVerbSeams = {};
+  const seams: PlanVerbSeams = { floorDeps, pool };
 
   const sync = registerPlanningSync(server, {
     store: pgPlanStore(pool),
     authenticator: collabAuthenticator(pool),
-    onApproved: (meta) => startSpecWork(pool, meta, seams),
+    onApproved: (meta) => startSpecWork(meta, seams),
   });
 
   // onApproved reaches the library before the sync it reads the plan through exists, so the seams are filled once it does.
   seams.livePlan = livePlanOf(sync);
   server.route([
-    ...planFileRoutes({ livePlan: seams.livePlan, writer: sync.writer }),
+    ...planFileRoutes(filePorts(seams.livePlan, sync, pool)),
     ...planLifecycleRoutes({ service: sync.service, getPool, ...seams }),
   ]);
   server.ext("onPreHandler", planRouteGuard(server));
@@ -65,11 +68,10 @@ function livePool(getPool: () => Pool | null): () => Pool {
 
 // Approval ends the plan and starts its spec work on the same planning line — or, with no line waiting, on a fresh one entered at the spec analysis.
 async function startSpecWork(
-  pool: () => Pool,
   meta: Parameters<NonNullable<PlanLifecycleHooks["onApproved"]>>[0],
   seams: PlanVerbSeams,
 ): Promise<void> {
-  const verbs = await planVerbsFor(pool(), meta, seams);
+  const verbs = await planVerbsFor(meta, seams);
 
   await verbs.handOverApproved(
     meta,
@@ -97,3 +99,11 @@ const planRouteGuard =
 
     return h.continue;
   };
+
+function filePorts(
+  livePlan: PlanFilePorts["livePlan"],
+  sync: { writer: PlanFilePorts["writer"] },
+  pool: () => Pool,
+): PlanFilePorts {
+  return { livePlan, writer: sync.writer, refineAsks: pgRefineAsks(pool) };
+}

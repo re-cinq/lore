@@ -1,0 +1,128 @@
+# One Slack channel's daily digest (specs/daily-digest FR14). A station collects
+# what merged, what closed and who holds which issue into a draft; an agent
+# writes a fresh intro and ending around the facts; a station posts the result
+# into the week's thread.
+#
+# Started per channel by the stations service's digest tick, keyed on the
+# channel, the local day and the scheduled slot, so a second tick joins the run
+# rather than starting another.
+#
+# The agent can only add to the digest, never block it: every outcome of
+# `refine` reaches `post`, which posts the draft when the agent left no
+# message. A failed `collect` or `post` is retried once and a second failure
+# settles the run as iteration_max, because a run that reaches the exit settles
+# as success; the next tick may then start the slot again.
+line:
+  id: daily-digest
+  entry: collect
+  exit: done
+  args:
+    digest_key:
+      kind: value
+      subject: true
+    channel:
+      kind: value
+    week_key:
+      kind: value
+    digest_date:
+      kind: value
+    digest_repos:
+      kind: value
+  nodes:
+    - id: collect
+      station: digest-collect
+    - id: refine
+      station: digest-refine
+    - id: post
+      station: digest-post
+    - id: done
+  edges:
+    - from: collect
+      to: refine
+      on: success
+    - from: collect
+      to: collect
+      on: failed
+      iteration_max: 1
+    - from: refine
+      to: post
+      on: always
+    - from: post
+      to: done
+      on: success
+    - from: post
+      to: post
+      on: failed
+      iteration_max: 1
+stations:
+  digest-collect:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: channel
+        kind: value
+      - name: week_key
+        kind: value
+      - name: digest_date
+        kind: value
+      - name: digest_repos
+        kind: value
+      - name: voice
+        kind: value
+        optional: true
+    produces:
+      - name: digest_draft
+        kind: file
+  digest-refine:
+    kind: agent
+    agent_definition: digest-refine
+    conversation: new
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: digest_draft
+        kind: file
+        path: digest-draft.md
+      - name: description
+        kind: value
+        optional: true
+    produces:
+      - name: digest_message
+        kind: file
+        path: digest.md
+  digest-post:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: channel
+        kind: value
+      - name: week_key
+        kind: value
+      - name: digest_date
+        kind: value
+      - name: digest_repos
+        kind: value
+      # Every repo on the channel, for the week's thread parent.
+      - name: channel_repos
+        kind: value
+        optional: true
+      - name: digest_draft
+        kind: file
+      # Absent when the agent failed or wrote nothing; the draft is posted then.
+      - name: digest_message
+        kind: file
+        optional: true
+    produces: []
+agent_definitions:
+  digest-refine:
+    settings:
+      # Gemini 3 Flash wrote the most recognisable voices in a side-by-side on
+      # the first live draft (Haiku stayed neutral whatever the prompt said).
+      model: gemini-3-flash-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10

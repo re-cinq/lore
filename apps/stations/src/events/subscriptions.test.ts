@@ -1,16 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { stationSubscriptions, STATIONS_SUBSCRIBER } from "./subscriptions.js";
 import { STATIONS } from "../work/registry.js";
-import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 import { buildStationHandlers } from "./handlers.js";
 
 describe("what the stations service subscribes to", () => {
-  it("claims the published-node event, without which a service-form node never runs", () => {
-    expect(stationSubscriptions().map((s) => s.eventName)).toContain(
-      SERVICE_NODE_EVENT,
-    );
-  });
-
   it("claims every event name a station's manifest declares", () => {
     const declared = Object.values(STATIONS).flatMap((mod) =>
       mod.manifest.triggers
@@ -27,21 +20,6 @@ describe("what the stations service subscribes to", () => {
     const names = stationSubscriptions().map((s) => s.eventName);
 
     expect(names.length).toBe(new Set(names).size);
-  });
-
-  it("gives the published-node subscription a budget long enough for the slowest node", () => {
-    const slowest = Math.max(
-      ...Object.values(STATIONS).flatMap((mod) =>
-        mod.manifest.triggers
-          .filter((t) => t.kind === "node" && t.runtime === "service")
-          .map((t) => (t as { timeoutMinutes: number }).timeoutMinutes),
-      ),
-    );
-    const sub = stationSubscriptions().find(
-      (s) => s.eventName === SERVICE_NODE_EVENT,
-    );
-
-    expect(sub?.visibilityTimeoutSeconds).toBeGreaterThanOrEqual(slowest * 60);
   });
 
   it("names one subscriber for the whole service, since two replicas share a backlog", () => {
@@ -79,11 +57,33 @@ describe("the review events, which only a deployment with a floor asks for", () 
     expect(names).toContain("github.pull_request.opened");
   });
 
-  it("claims no pull request event when no floor is configured", () => {
+  it("claims only the closed pull request, for its overlay drop, when no floor is configured", () => {
     const names = stationSubscriptions({}).map((s) => s.eventName);
 
     expect(
       names.filter((name) => name.startsWith("github.pull_request")),
+    ).toEqual(["github.pull_request.closed"]);
+  });
+
+  it("claims the label and rename events whether or not a floor is configured", () => {
+    const names = stationSubscriptions({}).map((s) => s.eventName);
+
+    expect(
+      names.filter((name) =>
+        ["github.issues.labeled", "github.repository.renamed"].includes(name),
+      ),
+    ).toEqual(["github.issues.labeled", "github.repository.renamed"]);
+  });
+});
+
+describe("the sweeps that run on a tick", () => {
+  it("claims the merge-check and pr-ready-check ticks, so no other service has to start those sweeps", () => {
+    const names = stationSubscriptions({}).map((s) => s.eventName);
+
+    expect(
+      ["cron.merge_check.tick", "cron.pr_ready_check.tick"].filter(
+        (tick) => !names.includes(tick),
+      ),
     ).toEqual([]);
   });
 });

@@ -219,4 +219,25 @@ describe("AssemblyRunsTable", () => {
 
     expect(screen.getByTitle(branch)).toHaveTextContent(branch);
   });
+
+  it("shows a Stages header and the run's pipeline dots with showStages", () => {
+    const pipeline = [
+      { node_id: "review", state: "running" },
+      { node_id: "done", state: "pending" },
+    ];
+
+    render(
+      <AssemblyRunsTable showStages runs={[run({ id: "run-1", pipeline })]} />,
+    );
+
+    expect({
+      header: screen.getByRole("columnheader", { name: "Stages" }).textContent,
+      dots: within(screen.getByTestId("mini-pipeline"))
+        .getAllByTitle(/: /)
+        .map((dot) => dot.getAttribute("title")),
+    }).toEqual({
+      header: "Stages",
+      dots: ["review: running", "done: pending"],
+    });
+  });
 });

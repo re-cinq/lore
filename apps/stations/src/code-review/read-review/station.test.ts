@@ -82,7 +82,6 @@ describe("readReviewHandle", () => {
       briefOf({
         pr_url: "https://github.com/re-cinq/lore/pull/412",
         review_id: "55",
-        intent: "address",
       }),
       tools,
     );
@@ -109,7 +108,6 @@ describe("readReviewHandle", () => {
       briefOf({
         pr_url: "https://github.com/re-cinq/lore/pull/412",
         review_id: "",
-        intent: "address",
       }),
       tools,
     );

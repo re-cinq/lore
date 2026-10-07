@@ -78,7 +78,7 @@ detail is one `/lore-help <skill>` away.
 
 1. `lore_assemble_context` — first call of every session; conventions, ADRs, memories, facts, graph in one bundle.
 2. `lore_search_memory` — before planning or building; check whether the org already solved this.
-3. During the work — `lore_search_context` for patterns, `lore_query_graph` for relationships, `lore_create_pipeline_task` to delegate.
+3. During the work — `lore_search_context` for patterns, `lore_query_graph` for relationships.
 4. Before the session ends — `lore_write_memory` for decisions and corrections, `lore_write_episode` for raw observations.
 
 Say plainly that steps 1 and 2 happen automatically via the installed hooks;
@@ -106,7 +106,7 @@ not a slash command:
 | let Lore run this repo's tests | `/lore-test-commands` |
 | change an agent's model, prompt or timeout | `/lore-agents` |
 | set up Lore for a new organisation | `/lore-init` |
-| hand work to a background agent | `lore_create_pipeline_task` (tool) |
+| hand work to a background agent | put a `priority:*` label on a ticket (the implementation loop), or start a plan |
 | run that work on my own machine instead | `lore_run_task_locally` (tool) |
 | find why we decided something | `lore_search_memory`, `lore_search_context` (tools) |
 | see what a task did, or why it failed | `lore_get_pipeline_status`, `lore_get_task_logs` (tools) |
@@ -117,7 +117,7 @@ not a slash command:
 
 - **Context** — assemble or search the org's ingested knowledge (`lore_assemble_context`, `lore_search_context`).
 - **Memory** — durable, org-wide learning: write, search, and the knowledge graph (`lore_write_memory`, `lore_search_memory`, `lore_write_episode`, `lore_query_graph`).
-- **Pipeline** — delegate and track work (`lore_create_pipeline_task`, `lore_get_pipeline_status`, `lore_get_task_logs`, the local runner family).
+- **Pipeline** — delegate and track work (`lore_get_pipeline_status`, `lore_get_task_logs`, the local runner family).
 - **Traceability** — specs, tests and coverage (`lore_list_tests`, `lore_run_test`, `query_trace`).
 
 Point at `docs/mcp-tools.md` (plain language) and
@@ -178,6 +178,6 @@ would run.
 **Examples**
 - `/lore-help` — what Lore is, the session workflow, every Lore skill, and the "I want to…" router
 - `/lore-help lore-suggest-links` — that skill's full entry, verbatim from its own docs
-- `/lore-help "how do I hand this off to an agent?"` — routes to `lore_create_pipeline_task` and explains why
+- `/lore-help "how do I hand this off to an agent?"` — routes to the backlog label and to plans, and explains why
 **Related:** `/lore-feature`, `/lore-pr`
 <!-- lore-help:end -->

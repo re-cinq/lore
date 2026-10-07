@@ -1,11 +1,13 @@
-// GET /api/assembly-runs/{id}/turns — the untruncated transcript of a run on the external floor, paged the way the Floor pages its own `/api/agent-turns/{id}` so the run page reads either without knowing which engine ran it.
+// GET /api/assembly-runs/{id}/turns — the untruncated transcript of a run, whichever engine ran it: the stored turns of a run Postgres has, the external floor's for any other.
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
+import type { StoredRunHistory } from "../../../work/floor/stored-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
+import { pageLimit } from "./page-limit.js";
 
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 1000;
@@ -20,29 +22,55 @@ export type TurnsOf = (runId: string) => Promise<AgentRunTurnRow[]>;
 const floorTurns: TurnsOf = (runId) =>
   floorConfigured() ? floorRunReader().turns(runId) : Promise.resolve([]);
 
-export function floorRunTurnsRoute(turnsOf: TurnsOf = floorTurns): ServerRoute {
+interface TurnPage {
+  turns: AgentRunTurnRow[];
+  hasMore: boolean;
+}
+
+type PageQuery = { after?: unknown; limit?: unknown };
+
+export type TurnPageOf = (runId: string, query: PageQuery) => Promise<TurnPage>;
+
+/** Postgres first: a run it has is paged in the database, read one row past the page so `hasMore` is the server's answer. Any other run is the floor's. */
+export function turnPageReader(
+  stored: () => StoredRunHistory | null,
+  floorTurnsOf: TurnsOf = floorTurns,
+): TurnPageOf {
+  return async (runId, query) => {
+    const limit = limitOf(query.limit);
+    const rows = await stored()?.turns(runId, cursorOf(query.after), limit + 1);
+
+    return rows
+      ? { turns: rows.slice(0, limit), hasMore: rows.length > limit }
+      : turnPage(await floorTurnsOf(runId), query);
+  };
+}
+
+export function runTurnsRoute(pageOf: TurnPageOf): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/turns",
     options: zodResponse(bearerScope("read"), TurnPageSchema, {
-      name: "FloorRunTurns",
+      name: "RunTurns",
       description:
-        "One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have",
+        "One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has",
     }),
     handler: async (request: Request, h: ResponseToolkit) =>
-      h.response(
-        turnPage(await turnsOf(request.params.id as string), request.query),
-      ),
+      h.response(await pageOf(request.params.id as string, request.query)),
   };
 }
 
+const limitOf = (value: unknown): number =>
+  pageLimit(value, { fallback: DEFAULT_LIMIT, max: MAX_LIMIT });
+
+function cursorOf(value: unknown): string {
+  return typeof value === "string" && /^\d+$/.test(value) ? value : "0";
+}
+
 /** The turns after the cursor, one page of them, and whether more remain. */
-export function turnPage(
-  turns: AgentRunTurnRow[],
-  query: { after?: unknown; limit?: unknown },
-): { turns: AgentRunTurnRow[]; hasMore: boolean } {
+export function turnPage(turns: AgentRunTurnRow[], query: PageQuery): TurnPage {
   const after = Number(query.after) || 0;
-  const limit = Math.min(Number(query.limit) || DEFAULT_LIMIT, MAX_LIMIT);
+  const limit = limitOf(query.limit);
   const remaining = turns.filter((turn) => Number(turn.id) > after);
 
   return {

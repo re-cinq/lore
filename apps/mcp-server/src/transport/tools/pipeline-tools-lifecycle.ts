@@ -1,147 +1,20 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import {
   unreachableError,
   deniedError,
   unconfiguredError,
   textResult,
 } from "./deps.js";
-import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 import {
   type ToolText,
   isAuthDenied,
   resolveApiCredentials,
 } from "./pipeline-tools-shared.js";
-import { CREATE_PIPELINE_TASK_INPUT } from "./pipeline-tools-schemas.js";
-
-interface CreateTaskArgs {
-  description: string;
-  task_type: string;
-  target_repo?: string;
-  priority: "normal" | "immediate";
-  group_id?: string;
-  context?: unknown;
-}
-
-// Every read a new task makes stale. Listed rather than cleared wholesale: a task creation says nothing about memories or the graph, and dropping those caches would cost round trips for no reason.
-const TASK_DERIVED_READS = [
-  "lore_list_pipeline_tasks",
-  "lore_list_pending_tasks",
-  "lore_get_pipeline_status",
-];
 
 export function registerPipelineLifecycleTools(server: McpServer) {
-  registerCreatePipelineTaskTool(server);
   registerGetPipelineStatusTool(server);
-}
-
-function registerCreatePipelineTaskTool(server: McpServer) {
-  server.tool(
-    "lore_create_pipeline_task",
-    "Enqueues a new server-side pipeline task and returns its UUID and a pickup hint. priority=normal lands in the backlog; priority=immediate the GKE agent picks up within ~30s. This tool only enqueues — it never runs anything on your machine. Instead: lore_run_task_locally to start a new ad-hoc task in a local worktree NOW; lore_claim_and_run_locally to run an existing backlog task locally; lore_sync_tasks to materialize a tasks.md checklist as spec-tasks (not this tool).",
-    CREATE_PIPELINE_TASK_INPUT,
-    async (args) => await createPipelineTask(args as CreateTaskArgs),
-  );
-}
-
-async function createPipelineTask(args: CreateTaskArgs) {
-  // Refused before anything else: onboarding's duplicate guard lives inside lore_onboard_repo's own transaction (#968).
-  if (args.task_type === "onboard") {
-    return textResult(
-      "Onboard tasks are not created here — use lore_onboard_repo, which refuses a repo that is already onboarded or has an onboard task in flight.",
-    );
-  }
-  const creds = resolveApiCredentials();
-
-  if (!creds) {
-    return unconfiguredError("creating a pipeline task");
-  }
-  // The adapter holds no pool: the remote API is the only writer.
-  const resolvedRepo = resolveTaskRepo(args.target_repo);
-
-  try {
-    const res = await postTask(creds.apiUrl, creds.token, args, resolvedRepo);
-
-    return res.ok
-      ? await createdResult(res, args, resolvedRepo)
-      : await refusalResult(res);
-  } catch (err) {
-    return unreachableError("creating a pipeline task", errorMessage(err));
-  }
-}
-
-function resolveTaskRepo(targetRepo: string | undefined): string | undefined {
-  return targetRepo || detectCurrentRepo() || undefined;
-}
-
-async function postTask(
-  apiUrl: string,
-  apiToken: string,
-  args: CreateTaskArgs,
-  resolvedRepo: string | undefined,
-): Promise<Response> {
-  return await fetch(`${apiUrl}/api/task`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(taskBody(args, resolvedRepo)),
-  });
-}
-
-// The task as the API names its fields — `task_type` and `target_repo` rather than the tool's own vocabulary.
-function taskBody(args: CreateTaskArgs, resolvedRepo: string | undefined) {
-  return {
-    description: args.description,
-    task_type: args.task_type,
-    target_repo: resolvedRepo,
-    priority: args.priority,
-    group_id: args.group_id,
-    context: args.context,
-  };
-}
-
-/** The uuid plus what to do next — the pickup hint differs by priority, which is the one thing a caller cannot read off the id. */
-async function createdResult(
-  res: Response,
-  args: CreateTaskArgs,
-  resolvedRepo: string | undefined,
-) {
-  const result = (await res.json()) as {
-    task_id?: string;
-    task_type?: string;
-  };
-
-  invalidateCache(TASK_DERIVED_READS);
-  const pickup = pickupHint(args.priority);
-
-  return textResult(
-    `Task created: ${result.task_id}\nType: ${result.task_type || args.task_type}\nPriority: ${args.priority}\nRepo: ${resolvedRepo || "default"}\n\n${pickup}`,
-  );
-}
-
-// What happens next, which is the one thing a caller cannot read off the returned id.
-function pickupHint(priority: string | undefined): string {
-  return priority === "immediate"
-    ? "The GKE agent will pick this up within 30 seconds."
-    : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
-}
-
-async function refusalResult(res: Response) {
-  if (isAuthDenied(res.status)) {
-    return deniedError("creating a pipeline task", res.statusText);
-  }
-  const err = (await res.json().catch(() => ({ error: res.statusText }))) as {
-    error?: string;
-  };
-
-  return textResult(
-    `Remote task creation failed: ${err.error || res.statusText}`,
-  );
 }
 
 function registerGetPipelineStatusTool(server: McpServer) {

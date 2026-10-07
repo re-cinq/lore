@@ -9,7 +9,7 @@ import {
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { startMergeLine } from "./start-merge-line.js";
 import { floorMergeLinePorts } from "./floor-merge-line.js";
-import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { nextTrust, type TrustState } from "../lib/trust-ladder.js";
@@ -212,7 +212,8 @@ async function checkMergeableTask(
   const project = await projectFor(task.target_repo);
 
   if (await project.pulls.isMerged(task.pr_number)) {
-    await startMergeLine(task, mergeLinePorts());
+    // The merge line runs on the external floor; a deployment with none fails this task's check loudly instead of queueing a run nothing walks.
+    await startMergeLine(task, floorMergeLinePorts(floorClient()));
     console.log(
       `[job] merge-check: task ${task.id} PR #${task.pr_number} merged`,
     );
@@ -231,21 +232,6 @@ async function checkMergeableTask(
   }
 
   return "unchanged";
-}
-
-// The run store, as the merge line reads it: the external floor where one is configured, Postgres otherwise. Thunks, not values: the pool does not exist when this module is loaded. The LINE does the work from here — its steps expose failures that route forward, which a single call could not.
-function mergeLinePorts(): Parameters<typeof startMergeLine>[1] {
-  const floor = floorIfConfigured();
-
-  return floor
-    ? floorMergeLinePorts(floor)
-    : {
-        findOpenBySubject: (repo, key) =>
-          pipeline().assemblyRuns.findOpenBySubject(repo, key),
-        countBySubject: (repo, key) =>
-          pipeline().assemblyRuns.countBySubject(repo, key),
-        start: (input) => pipeline().assemblyRuns.start(input),
-      };
 }
 
 /** A merged task: mark merged, close Issue, boost memory, promote trust. */

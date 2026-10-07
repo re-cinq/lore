@@ -9,8 +9,8 @@ import {
   runMergeStep,
   type MergeStep,
   type MergeStepDeps,
-} from "../../work/merge-step/merge-step.js";
-import { mergeStepProductionDeps } from "../../work/merge-step/run.js";
+} from "./merge-step.js";
+import { mergeStepProductionDeps } from "./run.js";
 
 /** `resume-planning` resumes a planning run parked in Postgres; where the floor walks this line it walks planning too, and hears of the merged spec PR itself. */
 export const FLOOR_MERGE_STEPS = MERGE_STEPS.filter(

@@ -229,7 +229,8 @@ export class PgTaskQueue implements TaskQueueRepository {
       `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number,
               task_type, description, created_at, task_group_id, context_bundle
          FROM pipeline.tasks
-        WHERE status IN ('pr-created', 'review')
+        WHERE (status IN ('pr-created', 'review')
+               OR (status = 'completed' AND task_type = 'spec-task'))
           AND pr_number IS NOT NULL
           AND pr_url IS NOT NULL`,
     );

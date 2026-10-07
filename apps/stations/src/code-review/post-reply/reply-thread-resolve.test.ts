@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ReviewThread } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
-  resolveRepliedThread,
+  resolveRepliedThreads,
   type ThreadResolver,
 } from "./reply-thread-resolve.js";
 
@@ -16,8 +16,11 @@ function thread(id: string, commentId: number): ReviewThread {
 
 function fakeResolver(threads: ReviewThread[] | Error) {
   const resolvedIds: string[] = [];
+  const listings: number[] = [];
   const resolver: ThreadResolver = {
-    listReviewThreads: async () => {
+    listReviewThreads: async (prNumber) => {
+      listings.push(prNumber);
+
       if (threads instanceof Error) {
         throw threads;
       }
@@ -29,45 +32,47 @@ function fakeResolver(threads: ReviewThread[] | Error) {
     },
   };
 
-  return { resolver, resolvedIds };
+  return { resolver, resolvedIds, listings };
 }
 
-describe("resolveRepliedThread", () => {
-  it("resolves thread T2 when intent is address and comment 20 sits in T2", async () => {
+describe("resolveRepliedThreads", () => {
+  it("resolves thread T2 when comment 20 sits in T2", async () => {
     const { resolver, resolvedIds } = fakeResolver([
       thread("T1", 10),
       thread("T2", 20),
     ]);
 
-    await resolveRepliedThread(
-      resolver,
-      { prNumber: 4, commentId: 20 },
-      "address",
-    );
+    await resolveRepliedThreads(resolver, 4, [20]);
 
     expect(resolvedIds).toEqual(["T2"]);
   });
 
-  it("leaves the thread open when intent is answer", async () => {
-    const { resolver, resolvedIds } = fakeResolver([thread("T2", 20)]);
+  it("resolves T1 and T2 from one listing when comments 10 and 20 were both settled", async () => {
+    const { resolver, resolvedIds, listings } = fakeResolver([
+      thread("T1", 10),
+      thread("T2", 20),
+    ]);
 
-    await resolveRepliedThread(
-      resolver,
-      { prNumber: 4, commentId: 20 },
-      "answer",
-    );
+    await resolveRepliedThreads(resolver, 4, [10, 20]);
 
-    expect(resolvedIds).toEqual([]);
+    expect({ resolvedIds, listings: listings.length }).toEqual({
+      resolvedIds: ["T1", "T2"],
+      listings: 1,
+    });
+  });
+
+  it("reads no threads when no comment was settled", async () => {
+    const { resolver, listings } = fakeResolver([thread("T2", 20)]);
+
+    await resolveRepliedThreads(resolver, 4, []);
+
+    expect(listings).toEqual([]);
   });
 
   it("resolves nothing when comment 99 is in no thread", async () => {
     const { resolver, resolvedIds } = fakeResolver([thread("T2", 20)]);
 
-    await resolveRepliedThread(
-      resolver,
-      { prNumber: 4, commentId: 99 },
-      "address",
-    );
+    await resolveRepliedThreads(resolver, 4, [99]);
 
     expect(resolvedIds).toEqual([]);
   });
@@ -77,11 +82,7 @@ describe("resolveRepliedThread", () => {
       { ...thread("T2", 20), isResolved: true },
     ]);
 
-    await resolveRepliedThread(
-      resolver,
-      { prNumber: 4, commentId: 20 },
-      "address",
-    );
+    await resolveRepliedThreads(resolver, 4, [20]);
 
     expect(resolvedIds).toEqual([]);
   });
@@ -90,7 +91,7 @@ describe("resolveRepliedThread", () => {
     const { resolver } = fakeResolver(new Error("502"));
 
     await expect(
-      resolveRepliedThread(resolver, { prNumber: 4, commentId: 20 }, "address"),
+      resolveRepliedThreads(resolver, 4, [20]),
     ).resolves.toBeUndefined();
   });
 });

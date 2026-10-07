@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import type { MergeStepDeps } from "../../work/merge-step/merge-step.js";
+import type { MergeStepDeps } from "./merge-step.js";
 import {
   FLOOR_MERGE_STEPS,
   mergeStationName,

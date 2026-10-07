@@ -20,8 +20,6 @@ export interface AssemblyRunQuery {
   taskId?: string;
   /** Matches `args->>'pr_number'`. */
   prNumber?: number;
-  /** Runs with an OPEN station-run claimed by this cluster-agent (running-claims drill-down). */
-  clusterAgentId?: string;
   /** Every run for one subject regardless of blueprint ("what worked on this feature"). */
   subjectKey?: string;
   /** Every attempt on one branch — the implementation loop mints a task per pick, so the branch is what one ticket's runs share (FR11). */
@@ -62,38 +60,11 @@ export interface StationRunStartInput {
   agentCrName?: string | null;
   /** Dispatch input, recorded once by the first writer; a re-dispatched duplicate keeps the existing value. */
   input?: StationRunInput;
-  /** Pull dispatch (FR3): "queued" parks for cluster-agent claim; default "running" is push-path/backfill meaning. */
-  status?: "queued" | "running";
-  /** Capability tags a claimant must carry (`required_tags <@ tags`). */
-  requiredTags?: string[];
-  /** Complete dispatch contract (LoreTaskSpec) stored whole, unlike the bounded `input` record. */
-  dispatchSpec?: unknown;
   /** Who ran this visit by hand; the walk restarts at it (fork-rerun-from-node FR8). */
   requestedBy?: string;
 }
 
-/** What a successful claim hands the cluster-agent: visit identity + its dispatch contract. */
-export interface ClaimedStationRun {
-  nodeRowId: string;
-  stationRunId: string;
-  assemblyRunId: string;
-  nodeId: string;
-  iteration: number;
-  agentCrName: string | null;
-  dispatchSpec: unknown;
-}
-
 /** Why a visit failed; optional (only "failed" outcomes have one) — avoids a 5th positional arg on every 2-arg caller. */
-/** What a claimant reports when it hands back a visit it could not launch. */
-export interface StationRunRelease {
-  reason: string;
-  failureClass: string;
-  permanent: boolean;
-  maxAttempts: number;
-}
-
-export type StationRunReleaseResult = "requeued" | "failed" | "settled";
-
 export interface StationRunFailure {
   failureClass?: string;
   failureDetail?: string;
@@ -163,25 +134,6 @@ export interface AssemblyRunsPort {
   ): Promise<StationRunRecord | null>;
   /** The visit a `station_run_id` names, or null — the git-credential broker's check that the run a credential names is still open. */
   findStationRunById(stationRunId: string): Promise<StationRunRecord | null>;
-  // The claim (FR3): atomically takes the oldest queued visit whose required_tags the claimant satisfies, one statement; null when nothing matches.
-  /** Arms a queued visit with its dispatch contract; written after ensureStationRun since claim only takes armed rows. */
-  enqueueStationRunDispatch(
-    nodeRowId: string,
-    dispatchSpec: unknown,
-  ): Promise<void>;
-  claimNextStationRun(claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  }): Promise<ClaimedStationRun | null>;
-  /** Resets a claimed-but-lost visit to queued on the same row; false if it already reached an outcome. */
-  requeueStationRun(nodeRowId: string): Promise<boolean>;
-  /** A claimant could not launch the visit: requeue it, or fail it once the error is permanent or the attempts reach the bound; `settled` when it already had an outcome. */
-  releaseStationRun(
-    nodeRowId: string,
-    release: StationRunRelease,
-  ): Promise<StationRunReleaseResult>;
-  /** Open claims per cluster-agent id (registered-clusters page's "currently executing" column, FR7). */
-  countOpenClaimsByAgent(): Promise<Record<string, number>>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
   listOpen(): Promise<AssemblyRunRecord[]>;
   /** Overlap-guard read: open runs on one repo+branch as graph-less summaries; cost must not grow with other branches (unlike listOpen). */

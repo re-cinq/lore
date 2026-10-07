@@ -1,3 +1,4 @@
+import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import type {
   Item,
   LineBody,
@@ -36,18 +37,22 @@ const PULL_REQUEST_URL = /\/pull\/(\d+)$/;
 const MILLIS_PER_MINUTE = 60_000;
 const EVENT_ID_ROW_SPAN = 100;
 
+/** A line as the floor sends it. floor-client 0.1.6 does not type `fail` yet; the floor sends it for a line that has one. */
+export type FloorLineBody = LineBody & { fail?: string };
+
 export const AGENT_CR_PREFIX = "floor-";
 export const FAILED_OUTCOMES = new Set(["error", "failed", "cancelled"]);
 
 export function lineBodyToRunGraph(
   lineId: string,
-  body: LineBody,
+  body: FloorLineBody,
   stationKinds: Record<string, StationKindName>,
 ): RunGraph {
   return {
     name: lineId,
     entry: body.entry,
     exit: body.exit,
+    fail: body.fail,
     nodes: body.nodes.map((node) => graphNodeOf(node, stationKinds)),
     edges: body.edges.map((edge) => ({
       from: edge.from,
@@ -194,7 +199,8 @@ function runIdentityOf(run: RunView): RunIdentity {
   return {
     id: run.id,
     blueprintName: run.lineId,
-    taskId: null,
+    // A line that keeps a `pipeline.tasks` row is started with it as `task_id`.
+    taskId: startValue(run, "task_id") ?? null,
     repo: run.repo.replace(GITHUB_PREFIX, ""),
     branch: branchOf(run.startItems),
     subjectKey: run.subjectKey,

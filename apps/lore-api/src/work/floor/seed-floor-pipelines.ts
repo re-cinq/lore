@@ -8,6 +8,7 @@ import {
   type Pipeline,
   type Put,
 } from "@re-cinq/floor-pipeline";
+import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 export interface PipelineText {
@@ -37,21 +38,57 @@ export function withEnvironment(
   });
 }
 
-/** Puts every shipped pipeline, every time. A version is its content, so a definition the floor already holds is left exactly as it is and an edit made on the floor since stays the latest; only a file that CHANGED here becomes a new version. Answers what changed, as `kind/id`. */
-export async function seedFloorPipelines(deps: SeedDeps): Promise<string[]> {
+/** A shipped pipeline file as the floor is given it: the environment filled in, and each agent's prompt read from its agent-defaults .md. */
+export function pipelineOfText(
+  yamlText: string,
+  env: Record<string, string | undefined>,
+): Pipeline {
+  return pipelineOf(
+    withAgentPrompts(readPipelineFile(withEnvironment(yamlText, env))),
+  );
+}
+
+export interface SeedFailure {
+  name: string;
+  reason: string;
+}
+
+export interface Seeded {
+  /** What became a new version, as `kind/id`. */
+  changed: string[];
+  failed: SeedFailure[];
+}
+
+/** Puts every shipped pipeline, every time. A version is its content, so a definition the floor already holds is left exactly as it is and an edit made on the floor since stays the latest; only a file that CHANGED here becomes a new version. A file the floor refuses is reported and the rest are still put: one unshippable file froze four pipelines for a day when a single throw ended the pass. */
+export async function seedFloorPipelines(deps: SeedDeps): Promise<Seeded> {
   const files = await deps.files();
   const changed: string[] = [];
+  const failed: SeedFailure[] = [];
 
   for (const file of files) {
-    const pipeline = pipelineOf(
-      readPipelineFile(withEnvironment(file.text, deps.env)),
-    );
-    const puts = await deps.importPipeline(pipeline);
-
-    changed.push(...puts.filter((put) => put.changed).map(putName));
+    await putOne(deps, file, changed, failed);
   }
 
-  return [...new Set(changed)];
+  return { changed: [...new Set(changed)], failed };
+}
+
+async function putOne(
+  deps: SeedDeps,
+  file: PipelineText,
+  changed: string[],
+  failed: SeedFailure[],
+): Promise<void> {
+  try {
+    const puts = await deps.importPipeline(pipelineOfText(file.text, deps.env));
+
+    changed.push(...puts.filter((put) => put.changed).map(putName));
+  } catch (cause) {
+    failed.push({ name: file.name, reason: reasonOf(cause) });
+  }
+}
+
+function reasonOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 function putName(put: Put): string {

@@ -26,6 +26,7 @@ describe("ImplementationLoopPage", () => {
         current: null,
         current_run_id: null,
         next: [],
+        parked: [],
         recent: [],
       },
     } as never);
