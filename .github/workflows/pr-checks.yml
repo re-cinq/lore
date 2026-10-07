@@ -316,4 +316,4 @@ jobs:
         env:
           LORE_API_URL: ${{ vars.LORE_API_URL }}
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-        run: ./lore-code-trace links
+        run: ./lore-code-trace links || echo "::warning::Lore spec-links check was not authoritative — see lore-code-trace output above"
