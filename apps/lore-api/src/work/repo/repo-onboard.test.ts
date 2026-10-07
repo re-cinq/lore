@@ -61,6 +61,8 @@ beforeEach(() => {
   });
 });
 
+const ON_FLOOR = { floorStart: () => Promise.resolve() };
+
 describe("onboardRepo", () => {
   it("ensures the Floor webhook for the onboarded repo and returns its outcome", async () => {
     vi.mocked(ensureLoreWebhook).mockResolvedValue({
@@ -69,7 +71,7 @@ describe("onboardRepo", () => {
       created: true,
     });
     const { pool } = poolWith({ repoId: "repo-1" });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(ensureLoreWebhook).toHaveBeenCalledWith("o/r");
     expect(result).toMatchObject({
@@ -85,7 +87,7 @@ describe("onboardRepo", () => {
       reason: "app_no_webhook_permission",
     });
     const { pool } = poolWith({ repoId: "repo-2" });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({
       repo_id: "repo-2",
@@ -102,7 +104,7 @@ describe("onboardRepo", () => {
     });
     const { pool, query } = poolWith();
 
-    await onboardRepo(pool, "o/r");
+    await onboardRepo(pool, "o/r", ON_FLOOR);
 
     const issued = sqlIssued(query);
 
@@ -123,7 +125,7 @@ describe("onboardRepo", () => {
     });
     const { pool, query, client } = poolWith();
 
-    await onboardRepo(pool, "o/r");
+    await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(pool.connect).toHaveBeenCalledTimes(1);
     expect(vi.mocked(createPipelineTask).mock.calls[0][0]).toBe(client);
@@ -138,7 +140,7 @@ describe("onboardRepo", () => {
     });
     const { pool } = poolWith();
 
-    await onboardRepo(pool, "o/r");
+    await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
       taskType: "onboard",
@@ -152,7 +154,7 @@ describe("onboardRepo", () => {
 
     vi.mocked(createPipelineTask).mockRejectedValue(new Error("insert failed"));
 
-    await expect(onboardRepo(pool, "o/r")).rejects.toThrow(
+    await expect(onboardRepo(pool, "o/r", ON_FLOOR)).rejects.toThrow(
       new Error("insert failed"),
     );
 
@@ -165,7 +167,7 @@ describe("onboardRepo", () => {
     const { pool } = poolWith({
       repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
     });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({ blocked: "already-onboarded" });
     expect(createPipelineTask).not.toHaveBeenCalled();
@@ -174,7 +176,7 @@ describe("onboardRepo", () => {
 
   it("blocks a repo with an onboard task in flight and names that task", async () => {
     const { pool } = poolWith({ taskRows: [{ id: "task-running" }] });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({
       blocked: "in-flight",
@@ -192,7 +194,7 @@ describe("onboardRepo", () => {
         },
       ],
     });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({
       blocked: "pr-open",
@@ -209,7 +211,10 @@ describe("onboardRepo", () => {
         },
       ],
     });
-    const result = await onboardRepo(pool, "o/r", { reonboard: true });
+    const result = await onboardRepo(pool, "o/r", {
+      reonboard: true,
+      ...ON_FLOOR,
+    });
 
     expect(result).toMatchObject({ blocked: "pr-open" });
     expect(createPipelineTask).not.toHaveBeenCalled();
@@ -224,7 +229,10 @@ describe("onboardRepo", () => {
     const { pool } = poolWith({
       repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
     });
-    const result = await onboardRepo(pool, "o/r", { reonboard: true });
+    const result = await onboardRepo(pool, "o/r", {
+      reonboard: true,
+      ...ON_FLOOR,
+    });
 
     expect(result).toMatchObject({ task_id: "task-1" });
   });
@@ -239,7 +247,7 @@ describe("onboardRepo", () => {
       repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
     });
 
-    await onboardRepo(pool, "o/r", { reonboard: true });
+    await onboardRepo(pool, "o/r", { reonboard: true, ...ON_FLOOR });
 
     expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
       taskType: "onboard",
@@ -259,7 +267,7 @@ describe("onboardRepo", () => {
       repoRows: [{ onboarding_pr_merged: false, onboarding_pr_url: null }],
     });
 
-    await onboardRepo(pool, "o/r", { reonboard: true });
+    await onboardRepo(pool, "o/r", { reonboard: true, ...ON_FLOOR });
 
     expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
       description: expect.stringContaining("Onboard o/r into Lore"),
@@ -271,7 +279,10 @@ describe("onboardRepo", () => {
       repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
       taskRows: [{ id: "task-running" }],
     });
-    const result = await onboardRepo(pool, "o/r", { reonboard: true });
+    const result = await onboardRepo(pool, "o/r", {
+      reonboard: true,
+      ...ON_FLOOR,
+    });
 
     expect(result).toMatchObject({ blocked: "in-flight" });
     expect(createPipelineTask).not.toHaveBeenCalled();
@@ -308,17 +319,14 @@ describe("onboardRepo", () => {
     ]);
   });
 
-  it("leaves task-1 pending for the old Floor when the deployment has no floor", async () => {
-    vi.mocked(ensureLoreWebhook).mockResolvedValue({
-      ok: false,
-      reason: "app_no_webhook_permission",
-    });
+  it("refuses with 503 and writes nothing when the deployment has no floor", async () => {
     const { pool, query } = poolWith();
 
-    await onboardRepo(pool, "o/r", { floorStart: null });
-
-    expect(
-      sqlIssued(query).filter((sql) => sql.includes("UPDATE pipeline.tasks")),
-    ).toEqual([]);
+    await expect(onboardRepo(pool, "o/r")).rejects.toMatchObject({
+      output: { statusCode: 503 },
+      message:
+        "onboarding needs the external floor, and this deployment has none",
+    });
+    expect(sqlIssued(query)).toEqual([]);
   });
 });

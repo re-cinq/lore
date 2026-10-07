@@ -2,8 +2,15 @@
 
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { runsOnFloor, runsReadingFloor } from "../floor/floor-backed-runs.js";
+import {
+  floorClient,
+  floorConfigured,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
+import {
+  floorRunsFeed,
+  runsOnFloor,
+  runsReadingFloor,
+} from "../floor/floor-backed-runs.js";
 import {
   FloorRunFeeds,
   type FloorRunFeedDeps,
@@ -15,6 +22,7 @@ import { liveTokenVerifier } from "./live-tokens.js";
 import { RunFeedRegistry } from "./run-feed.js";
 import { pgRunNotifier } from "./run-notify-hub.js";
 import type { RunChannelDeps } from "./run-channel.js";
+import type { RunsChannelDeps } from "./runs-channel.js";
 
 /** Run-channel dependencies bound to whatever pool exists when a channel opens; without one the open fails, which the socket reports as a server close. */
 export function runChannelDepsFromPool(
@@ -28,6 +36,18 @@ export function runChannelDepsFromPool(
     feeds: {
       join: (run, sink, after) => resolve().feeds.join(run, sink, after),
     },
+  };
+}
+
+/** The runs channel's dependencies: the same verifier as the run channel's, and the process's one feed on the floor where a floor is configured. */
+export function runsChannelDepsFromPool(
+  getPool: () => Pool | null,
+): RunsChannelDeps {
+  const resolve = boundOnce(getPool);
+
+  return {
+    verifyToken: (token, claim) => resolve().verifyToken(token, claim),
+    feed: floorConfigured() ? floorRunsFeed() : null,
   };
 }
 

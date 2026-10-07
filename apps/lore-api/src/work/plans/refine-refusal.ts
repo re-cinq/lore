@@ -1,7 +1,9 @@
 import type { PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 
 /** Why a Refine is refused while the agent has the plan. */
-const AGENT_STILL_WORKING = "the planning agent is still working on this plan";
+/** Two agents must never edit one plan: the by-hand Refine refuses while an `analyze` visit is open. */
+export const AGENT_STILL_WORKING =
+  "the planning agent is still working on this plan";
 
 /** What a refusal reads of a line, whichever engine read it: the floor spells an open line `open` and a delivered one `success`, where Postgres says `running` and `completed`. */
 export type RefinableLine = Pick<
@@ -21,8 +23,13 @@ export function refineRefusal(
 
 const OPEN_STATUSES = new Set(["queued", "running", "open"]);
 const SUCCESS_OUTCOMES = new Set(["completed", "success"]);
-// The nodes before the author: the agent drafting, the pass settling, the validate station run by hand.
-const DRAFTING_NODES = new Set(["analyze", "plan-pass-end", "validate"]);
+// The nodes before the author: the agent drafting, the pass settling, the validate station run by hand and the findings it delivers.
+const DRAFTING_NODES = new Set([
+  "analyze",
+  "plan-pass-end",
+  "validate",
+  "plan-findings",
+]);
 
 function draftRefusal(line: RefinableLine | null): string {
   if (!line) {
@@ -67,10 +74,10 @@ const APPROVED_RETRY =
 const APPROVED_REOPEN =
   "the plan is approved, so its sections are settled; reopen the plan to write again";
 
-// An approved plan is read-only, so its page offers Reopen, and Retry once the spec work failed; while the spec work runs, neither.
+// An approved plan is read-only, so its page offers Reopen in every state — a reopen mid spec work stops that work — and Retry once the spec work failed.
 function approvedRefusal(line: RefinableLine | null): string {
   if (line && OPEN_STATUSES.has(line.status)) {
-    return line.parkedMerged ? APPROVED_REOPEN : reopenRefusal(line);
+    return APPROVED_REOPEN;
   }
 
   return !line || endedInFailure(line) ? APPROVED_RETRY : APPROVED_REOPEN;

@@ -32,7 +32,7 @@ export interface RunNodeDetailProps {
   repo: string;
   /** Every walk row of this node in execution order — the loop history. */
   attempts: StepView[];
-  /** Header-row actions (the retry button), forwarded to the card's summary. */
+  /** Header-row actions (run this station, edit agent), forwarded to the card's summary. */
   actions?: React.ReactNode;
   /** The model this node runs on, with where the answer came from; absent for a node that runs no recipe. */
   model?: NodeModel | null;

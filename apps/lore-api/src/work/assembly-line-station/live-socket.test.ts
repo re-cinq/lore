@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createServer, type Server } from "node:http";
-import { WebSocket } from "ws";
 import { InMemoryRunNotifier } from "./run-notify-hub.js";
 import { memoryLiveTokens } from "./live-tokens.js";
 import { RunFeedRegistry } from "./run-feed.js";
+import { queuedClient } from "./live-socket.fixtures.js";
 import { mountLiveSocket, type LiveSocketMount } from "./live-socket.js";
 import type { CollabServer, TunnelSocket } from "./plan-channel.js";
 import {
@@ -30,43 +30,6 @@ function echoingCollabThatRefusesOnByte(): CollabServer {
           : socket.send(bytes),
       handleClose: () => {},
     }),
-  };
-}
-
-function queuedClient(port: number, path = "/api/ws") {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
-  const queue: LiveServerMessage[] = [];
-  const waiters: ((m: LiveServerMessage) => void)[] = [];
-
-  ws.on("message", (raw) => {
-    const message = JSON.parse(raw.toString()) as LiveServerMessage;
-    const waiter = waiters.shift();
-
-    if (waiter) {
-      waiter(message);
-
-      return;
-    }
-    queue.push(message);
-  });
-
-  return {
-    ws,
-    open: () =>
-      new Promise<void>((resolve) => ws.once("open", () => resolve())),
-    send: (message: object) => ws.send(JSON.stringify(message)),
-    next: () =>
-      new Promise<LiveServerMessage>((resolve) => {
-        const queued = queue.shift();
-
-        if (queued) {
-          resolve(queued);
-
-          return;
-        }
-        waiters.push(resolve);
-      }),
-    closed: () => new Promise<number>((resolve) => ws.once("close", resolve)),
   };
 }
 
@@ -142,6 +105,7 @@ describe("the live socket", () => {
     port = (http.address() as { port: number }).port;
     mount = mountLiveSocket(http, {
       run: { verifyToken: tokens.verify, runs: seed.runs, feeds },
+      runs: { verifyToken: tokens.verify, feed: null },
       collab: echoingCollabThatRefusesOnByte(),
       pingMs: 50,
       log: () => {},

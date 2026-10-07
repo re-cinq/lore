@@ -13,4 +13,4 @@
 ## Workflow
 - For new features: use `/lore-feature`
 - For PR descriptions: use `/lore-pr`
-- For task delegation: use `lore_create_pipeline_task` via MCP
+- For task delegation: put a `priority:*` label on a ticket; the implementation loop picks it up

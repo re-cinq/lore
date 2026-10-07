@@ -39,10 +39,6 @@ lore_webhook_hostname = "lore-webhook.example.com"
 # The event-router front door: the canonical GitHub webhook URL (ADR-044).
 lore_event_router_hostname = "lore-events.example.com"
 
-# The Floor's agent-telemetry ingress, which registered SATELLITE clusters
-# report live run telemetry to. Empty leaves the sink cluster-internal.
-lore_agent_events_hostname = "lore-agent-events.example.com"
-
 # The Headlamp cluster dashboard. Also the OAuth redirect host, so it must match
 # the Authorized redirect URI on the Google OAuth client
 # (https://<this host>/oauth2/callback). Required whenever enable_headlamp is

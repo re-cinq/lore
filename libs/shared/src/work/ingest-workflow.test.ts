@@ -89,6 +89,13 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     );
   });
 
+  it("probes for the docs subcommand without grep -q, which would kill a writer still printing under pipefail", () => {
+    expect(LORE_INGEST_WORKFLOW_CONTENT).toContain(
+      `./lore-code-trace docs | grep '"specs"' > /dev/null`,
+    );
+    expect(LORE_INGEST_WORKFLOW_CONTENT).not.toContain("grep -q");
+  });
+
   it("lists changed files with --no-renames so a renamed file arrives as a delete plus an add", () => {
     expect(LORE_INGEST_WORKFLOW_CONTENT).toContain(
       "git diff --name-only --no-renames HEAD~1 HEAD",

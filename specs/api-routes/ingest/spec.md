@@ -67,9 +67,10 @@ JSON body:
    reconciled. No event is inserted: the link-validation pass this step used to
    ask for was removed on 2026-10-02 (`specs/external-floor` FR16.6).
    This runs after the 200 has already been written. **Spec/ADR graph
-   re-projection is no longer fired here** — it is CI-driven via the repo's
-   `lore-ingest.yml` (per-kind jobs POST to `/api/repos/:o/:r/ingest-graph`,
-   which fires the spec-trace trigger; see [ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)).
+   re-projection is no longer fired here** — it is CI-driven: the repo's
+   `lore-ingest.yml` runs `lore-code-trace docs --post`, which posts the specs and ADRs
+   to the graph itself. The older `/api/repos/:o/:r/ingest-graph` trigger answers `410`
+   since Lore's own Floor, which ran its projection, was deleted (`specs/external-floor` FR16.10; see [ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)).
 9. **Catch** — log `[ingest] API error: <message>` and write 500
    `{ error: err.message }`.
 
@@ -94,7 +95,7 @@ A null pool returns 503 before any parsing. ([validated by `returns 503 when poo
 
 A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L48))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L67))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L65))
 
 A batch with an ingested file returns 200 and inserts no event: the link-validation pass an ingest used to ask for was removed on 2026-10-02 (`specs/external-floor` FR16.6). ([validated by returns 200 and inserts no event when a file lands](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L54))
 
@@ -166,7 +167,7 @@ The first row the embedder answers with no vector stops the batch (`stopped: tru
 ## Out of Scope
 
 - The chunking/embedding/persistence engine internals (`ingestFiles`).
-- The spec-traceability graph projection — CI-driven via `/api/repos/:o/:r/ingest-graph`
-  and the spec-trace trigger (ADR-023), not this route.
+- The spec-traceability graph projection — CI-driven via `lore-code-trace docs --post`
+  (ADR-023), not this route.
 - The agent-side spec-coverage-validate pass.
 - Bearer-token validation mechanics (owned by `auth.ts`).

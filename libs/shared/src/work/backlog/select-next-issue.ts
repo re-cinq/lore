@@ -30,6 +30,16 @@ export function orderBacklog(issues: readonly IssueRef[]): IssueRef[] {
   return eligible.map((c) => c.issue);
 }
 
+/** The open tickets someone queued that the picker leaves out: parked ones (`lore:blocked`) and ones carrying two priority labels. The backlog page lists them with why, since `orderBacklog` drops them without a word. Oldest first. */
+export function heldBacklog(issues: readonly IssueRef[]): IssueRef[] {
+  const queue = new Set(orderBacklog(issues));
+
+  return issues
+    .filter((issue) => issue.state === "open" && !queue.has(issue))
+    .filter((issue) => PRIORITY_LABELS.some((p) => issue.labels.includes(p)))
+    .sort((a, b) => compareIso(createdAtOrder(a), createdAtOrder(b)));
+}
+
 /** Plain lexicographic compare — correct for ISO timestamps, and not subject to the process's collation locale. */
 function compareIso(a: string, b: string): number {
   if (a < b) {

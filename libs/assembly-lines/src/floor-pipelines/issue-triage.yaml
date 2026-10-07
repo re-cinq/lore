@@ -1,0 +1,31 @@
+line:
+  id: issue-triage
+  entry: verify
+  exit: done
+  args:
+    # One run per issue: the webhook starts a run the moment the label lands and the
+    # two-minute sweep still sees that label, so without a key the issue gets two.
+    issue_url:
+      kind: value
+      subject: true
+  nodes:
+    - id: verify
+    - id: human-gate
+      station: human-gate
+    - id: done
+  edges:
+    - from: verify
+      to: human-gate
+      on: success
+    - from: human-gate
+      to: done
+      on: success
+stations:
+  human-gate:
+    kind: human
+    route: "{args.issue_url}"
+    outcomes:
+      - success
+    needs: []
+    produces: []
+agent_definitions: {}

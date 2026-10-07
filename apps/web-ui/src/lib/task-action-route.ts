@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { ApiResult } from "@/lib/api/result";
 import { serverError, upstreamError } from "@/lib/api-error";
 
-/** A task command route: lore-api owns the state rules, so this forwards its refusal and otherwise bounces back to the task page. */
+/** A task command route: lore-api owns the state rules, so this forwards its refusal and otherwise bounces back to the task's run, which the run page resolves from the task id. */
 export function taskActionRoute(
   command: (id: string) => Promise<ApiResult<unknown>>,
   actionLabel: string,
@@ -22,7 +22,7 @@ export function taskActionRoute(
   };
 }
 
-/** lore-api's refusal is forwarded as-is; success bounces back to the task page the command acted on. */
+/** lore-api's refusal is forwarded as-is; success bounces back to the run of the task the command acted on. */
 async function runTaskCommand(
   id: string,
   req: Request,
@@ -37,7 +37,9 @@ async function runTaskCommand(
     return upstreamError(action.actionLabel, result);
   }
 
-  return NextResponse.redirect(new URL(`/tasks/${id}`, requestOrigin(req)));
+  return NextResponse.redirect(
+    new URL(`/assembly-runs/${id}`, requestOrigin(req)),
+  );
 }
 
 /** The externally visible origin from the ingress headers — `req.url` is the in-cluster address, which would bounce the reader off the public host. */

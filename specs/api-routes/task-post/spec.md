@@ -189,7 +189,7 @@ No task is created from a description, whatever type the body names: the answer 
 
 Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L270))
 
-The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:71`](apps/lore-api/src/transport/http/rate-limit.test.ts#L68))
+The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:71`](apps/lore-api/src/transport/http/rate-limit.test.ts#L70))
 
 ## Out of Scope
 

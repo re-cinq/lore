@@ -1,38 +1,54 @@
 # --------------------------------------------------------------------------
-# Lore Event Router — GitHub webhook ingress (ADR-044)
+# The GitHub webhook hostname (lore_event_router_hostname)
 #
-# The workload itself is deployed by the umbrella Helm release
-# (`helm_release.lore_platform` in lore-platform.tf) under the
-# `lore-event-router` subchart, as a ClusterIP Service on :8080 in the
-# lore-event-router namespace. Like every other ingress, the public one lives
-# here.
+# This host carried the event-router's one front door until 2026-10-02 (ADR-044
+# and its amendment). The router is deleted; lore-api serves GitHub's
+# deliveries at `POST /api/webhook/github`. The hostname and the `/api/events`
+# path do not change, so no repository's hook is registered again: nginx
+# rewrites the public path onto lore-api's route.
 #
-# Only GitHub reaches the router from outside. Every other producer (the Floor,
-# lore-api) is an ordinary in-cluster Deployment and uses the ClusterIP via
-# `local.event_router_in_cluster`.
-#
-# CUTOVER (done 2026-09-08): the Floor's /api/webhook/github route is gone, and
-# lore-api installs hooks at <lore_event_router_hostname>/api/events. Repos not
-# yet re-pointed keep delivering to the old URL, which the Floor ingress
-# rewrites onto this Service (see lore-floor.tf) — so a hook is never wrong,
-# only legacy, and GitHub never 404s a delivery it would not redeliver.
-#
-# The path is `/api/events`, not `/api/webhook/github`: the router has one front
-# door and GitHub is simply one of the callers through it.
+# The ingress lives in the lore-api namespace, beside the Service it names.
+# Its certificate is a Certificate resource rather than the usual cert-manager
+# annotation: it was issued before the ingress moved here, because an ingress
+# that arrives with no certificate serves nginx's default one for as long as
+# issuance takes, and GitHub does not redeliver what fails TLS.
 # --------------------------------------------------------------------------
 
-resource "kubernetes_ingress_v1" "lore_event_router" {
+resource "kubectl_manifest" "lore_webhook_certificate" {
+  count = var.lore_event_router_hostname != "" ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "cert-manager.io/v1"
+    kind       = "Certificate"
+    metadata = {
+      name      = "lore-webhook"
+      namespace = "lore-api"
+    }
+    spec = {
+      secretName = "lore-webhook-tls"
+      dnsNames   = [var.lore_event_router_hostname]
+      issuerRef = {
+        kind = "ClusterIssuer"
+        name = "letsencrypt-prod"
+      }
+    }
+  })
+
+  depends_on = [kubernetes_namespace.lore_api]
+}
+
+resource "kubernetes_ingress_v1" "lore_webhook" {
   count = var.lore_event_router_hostname != "" ? 1 : 0
 
   metadata {
-    name      = "lore-event-router"
-    namespace = "lore-event-router"
+    name      = "lore-webhook"
+    namespace = "lore-api"
     annotations = {
-      "cert-manager.io/cluster-issuer"            = "letsencrypt-prod"
       "external-dns.alpha.kubernetes.io/hostname" = var.lore_event_router_hostname
       # A GitHub push delivery can reach 25MB; nginx's 1MB default would refuse
-      # it before the router ever verifies the signature.
+      # it before lore-api ever verifies the signature.
       "nginx.ingress.kubernetes.io/proxy-body-size" = "25m"
+      "nginx.ingress.kubernetes.io/rewrite-target"  = "/api/webhook/github"
     }
   }
 
@@ -40,19 +56,19 @@ resource "kubernetes_ingress_v1" "lore_event_router" {
     ingress_class_name = "nginx-ingress"
     tls {
       hosts       = [var.lore_event_router_hostname]
-      secret_name = "lore-event-router-tls"
+      secret_name = "lore-webhook-tls"
     }
     rule {
       host = var.lore_event_router_hostname
       http {
         path {
           path      = "/api/events"
-          path_type = "Prefix"
+          path_type = "Exact"
           backend {
             service {
-              name = "lore-event-router"
+              name = "lore-api"
               port {
-                number = 8080
+                number = 3000
               }
             }
           }
@@ -61,5 +77,5 @@ resource "kubernetes_ingress_v1" "lore_event_router" {
     }
   }
 
-  depends_on = [kubernetes_namespace.lore_event_router]
+  depends_on = [kubectl_manifest.lore_webhook_certificate]
 }

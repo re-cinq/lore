@@ -1,4 +1,4 @@
-// Hub every producer reports through (bounded queue, retry ladder, credential rotation). insert() is sync+throws (drop-in EventReporter, preserves at-least-once ingress semantics); emit() queues+blocks when full (for producers with no one to report to). Delivery is serial (no batch endpoint); queue is in-memory and not durable — everything on it is deduped/re-derivable, and stop() must be awaited on shutdown or the backlog is lost.
+// Hub every producer reports through (bounded queue, retry ladder). insert() is sync+throws (drop-in EventReporter, preserves at-least-once ingress semantics); emit() queues+blocks when full (for producers with no one to report to). Delivery is serial (no batch endpoint); queue is in-memory and not durable — everything on it is deduped/re-derivable, and stop() must be awaited on shutdown or the backlog is lost.
 
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { EventInsert } from "../../events.js";
@@ -12,8 +12,6 @@ export interface EventProxyDeps {
   /** How many messages may wait before producers block. */
   capacity: number;
   retry: { attempts: number; delayMs: number };
-  /** Rotate the credential when a sink refuses it (satellite passes its re-registration; central leaves unset). */
-  onUnauthorized?: () => Promise<unknown>;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   log?: (line: string) => void;
@@ -133,7 +131,7 @@ export class EventProxy implements EventReporter {
     }
   }
 
-  /** Reacts to one failed attempt — reauth, then either back off or give up; `drop` means the caller stops retrying. */
+  /** Reacts to one failed attempt — either back off or give up; `drop` means the caller stops retrying. */
   private async afterFailure(
     message: ProxyMessage,
     failure: { error: unknown; attempt: number },
@@ -141,18 +139,14 @@ export class EventProxy implements EventReporter {
     const { attempts, delayMs } = this.deps.retry;
     const step = nextDeliveryStep({ ...failure, attempts, delayMs });
 
-    if (step.reauth) {
-      await this.deps.onUnauthorized?.();
-    }
-
-    if (step.next.kind === "drop") {
+    if (step.kind === "drop") {
       this.log(
         `[events] dropped ${describe(message)} after ${attempts} attempts: ${(failure.error as Error).message}`,
       );
 
       return "drop";
     }
-    await this.sleep(step.next.delayMs);
+    await this.sleep(step.delayMs);
 
     return "retry";
   }

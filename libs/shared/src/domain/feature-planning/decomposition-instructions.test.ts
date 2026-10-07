@@ -21,6 +21,7 @@ const ISSUE_DETAIL = [
   "acceptance_criteria",
   "test_plan",
   "references",
+  "plan_quotes",
 ] as const;
 
 function isBlank(value: unknown): boolean {
@@ -83,6 +84,7 @@ describe("DECOMPOSITION_EXAMPLE", () => {
         "acceptance_criteria",
         "test_plan",
         "references",
+        "plan_quotes",
       ].every((field) => DECOMPOSITION_INSTRUCTIONS.includes(`"${field}"`)),
     }).toEqual({ ownIssue: true, fields: true });
   });

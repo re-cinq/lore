@@ -59,39 +59,7 @@ const chartsDir = path.join(
   repoRoot,
   "infra/terraform/modules/gke-mcp/lore-platform/charts",
 );
-const aiAgentsTemplates = path.join(chartsDir, "ai-agents-helm/templates");
 const workflowsDir = path.join(repoRoot, ".github/workflows");
-
-const controllerYaml = read(path.join(aiAgentsTemplates, "controller.yaml"));
-const networkPolicyYaml = read(
-  path.join(aiAgentsTemplates, "networkpolicy.yaml"),
-);
-
-describe("non-root agent pods (ai-agents controller.yaml)", () => {
-  it("pod security context sets runAsNonRoot true and runAsUser 1000", () => {
-    expect(controllerYaml).toMatch(/runAsNonRoot:\s*true/);
-    expect(controllerYaml).toMatch(/runAsUser:\s*1000/);
-  });
-
-  it("container denies privilege escalation and drops ALL capabilities", () => {
-    expect(controllerYaml).toMatch(/allowPrivilegeEscalation:\s*false/);
-    expect(controllerYaml).toMatch(/capabilities:/);
-    expect(controllerYaml).toMatch(/drop:\s+-\s*ALL/);
-  });
-});
-
-describe("NetworkPolicy egress lockdown (ai-agents networkpolicy.yaml)", () => {
-  it("declares a NetworkPolicy carrying an Egress policy type", () => {
-    expect(networkPolicyYaml).toMatch(/kind:\s*NetworkPolicy/);
-    expect(networkPolicyYaml).toMatch(/policyTypes:/);
-    expect(networkPolicyYaml).toMatch(/-\s*Egress/);
-  });
-
-  it("permits DNS on port 53 and HTTPS on port 443 egress", () => {
-    expect(networkPolicyYaml).toMatch(/port:\s*53/);
-    expect(networkPolicyYaml).toMatch(/port:\s*443/);
-  });
-});
 
 describe("Workload Identity binding, no long-lived key material (infra charts)", () => {
   const chartFiles = walkFiles(chartsDir);

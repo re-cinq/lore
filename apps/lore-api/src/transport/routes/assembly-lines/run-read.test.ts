@@ -1,10 +1,10 @@
 import Hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
-import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { runReadRoute } from "./run-read.js";
 
-async function serve(runs: InMemoryAssemblyRuns, lines: AssemblyLine[] = []) {
+async function serve(runs: InMemoryAssemblyRuns) {
   const server = Hapi.server();
 
   server.auth.scheme("stub", () => ({
@@ -12,13 +12,7 @@ async function serve(runs: InMemoryAssemblyRuns, lines: AssemblyLine[] = []) {
   }));
   server.auth.strategy("bearer-scope", "stub");
   server.auth.default("bearer-scope");
-  server.route(
-    runReadRoute(
-      () => null,
-      async () => new Map(lines.map((l) => [l.name, l])),
-      runs,
-    ),
-  );
+  server.route(runReadRoute(() => null, runs));
 
   return server;
 }
@@ -31,7 +25,7 @@ describe("GET /api/assembly-runs/{id}", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("reports definitionKnown false when the run carries no graph and its blueprint is gone", async () => {
+  it("reports definitionKnown false when the run carries no graph", async () => {
     const runs = new InMemoryAssemblyRuns();
     const id = await runs.start({ blueprintName: "vanished", repo: "o/r" });
     const res = await injectOk(runs, id);
@@ -39,7 +33,7 @@ describe("GET /api/assembly-runs/{id}", () => {
     expect(res.definitionKnown).toBe(false);
   });
 
-  it("enriches each node from the run's blueprint — type, promptRef, station and inheritance", async () => {
+  it("enriches each node from the graph the run stored — type, promptRef, station and inheritance", async () => {
     const runs = new InMemoryAssemblyRuns();
     const id = await runs.start({ blueprintName: "code-review", repo: "o/r" });
 
@@ -49,15 +43,22 @@ describe("GET /api/assembly-runs/{id}", () => {
       iteration: 0,
     });
 
-    const body = await injectOk(runs, id, [
-      {
-        name: "code-review",
-        entry: "review",
-        exit: "review",
-        nodes: [{ id: "review", type: "agent", prompt_ref: "code-review" }],
-        edges: [],
-      } as unknown as AssemblyLine,
-    ]);
+    await runs.stampBlueprint(id, "hash", {
+      name: "code-review",
+      entry: "review",
+      exit: "review",
+      nodes: [
+        {
+          id: "review",
+          type: "agent",
+          prompt_ref: "code-review",
+          station: "code-review",
+          station_inherited: true,
+        },
+      ],
+      edges: [],
+    } as unknown as RunGraph);
+    const body = await injectOk(runs, id);
 
     expect(body.definitionKnown).toBe(true);
     expect(body.nodes[0]).toMatchObject({
@@ -83,21 +84,20 @@ describe("GET /api/assembly-runs/{id}", () => {
       iteration: 0,
     });
 
-    const body = await injectOk(runs, id, [
-      {
-        name: "feature-planning",
-        entry: "feature-review",
-        exit: "feature-review",
-        nodes: [
-          {
-            id: "feature-review",
-            type: "human_review",
-            route: "/features/{args.feature_id}",
-          },
-        ],
-        edges: [],
-      } as unknown as AssemblyLine,
-    ]);
+    await runs.stampBlueprint(id, "hash", {
+      name: "feature-planning",
+      entry: "feature-review",
+      exit: "feature-review",
+      nodes: [
+        {
+          id: "feature-review",
+          type: "human_review",
+          route: "/features/{args.feature_id}",
+        },
+      ],
+      edges: [],
+    } as unknown as RunGraph);
+    const body = await injectOk(runs, id);
 
     expect(body.nodes[0].route).toBe("/features/f-42");
   });
@@ -115,21 +115,20 @@ describe("GET /api/assembly-runs/{id}", () => {
       iteration: 0,
     });
 
-    const body = await injectOk(runs, id, [
-      {
-        name: "implementation",
-        entry: "pr-review",
-        exit: "pr-review",
-        nodes: [
-          {
-            id: "pr-review",
-            type: "human_review",
-            route: "{args.pr_url}/files",
-          },
-        ],
-        edges: [],
-      } as unknown as AssemblyLine,
-    ]);
+    await runs.stampBlueprint(id, "hash", {
+      name: "implementation",
+      entry: "pr-review",
+      exit: "pr-review",
+      nodes: [
+        {
+          id: "pr-review",
+          type: "human_review",
+          route: "{args.pr_url}/files",
+        },
+      ],
+      edges: [],
+    } as unknown as RunGraph);
+    const body = await injectOk(runs, id);
 
     expect(body.nodes[0].route).toBeNull();
   });
@@ -158,12 +157,8 @@ describe("GET /api/assembly-runs/{id}", () => {
   });
 });
 
-async function injectOk(
-  runs: InMemoryAssemblyRuns,
-  id: string,
-  lines: AssemblyLine[] = [],
-) {
-  const server = await serve(runs, lines);
+async function injectOk(runs: InMemoryAssemblyRuns, id: string) {
+  const server = await serve(runs);
   const res = await server.inject(`/api/assembly-runs/${id}`);
 
   expect(res.statusCode).toBe(200);

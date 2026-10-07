@@ -1,17 +1,21 @@
 export const dynamic = "force-dynamic";
-import AssemblyRunListView from "./AssemblyRunListView";
-import { fetchAssemblyRuns } from "@/lib/assembly-runs";
+import { getFloorRuns } from "@/lib/api/floor-runs";
+import AssemblyRunsLive from "./AssemblyRunsLive";
 
 export default async function AssemblyLinesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; cluster_agent_id?: string }>;
+  searchParams: Promise<{ status?: string; cursor?: string }>;
 }) {
-  const { status, cluster_agent_id } = await searchParams;
-  const runs = await fetchAssemblyRuns({
-    status,
-    clusterAgentId: cluster_agent_id,
-  });
+  const { status, cursor } = await searchParams;
+  const initial = await getFloorRuns({ status, cursor });
 
-  return <AssemblyRunListView activeStatus={status} runs={runs} />;
+  return (
+    <AssemblyRunsLive
+      key={`${status ?? ""}:${cursor ?? ""}`}
+      activeStatus={status}
+      cursor={cursor}
+      initial={initial}
+    />
+  );
 }

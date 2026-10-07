@@ -1,83 +1,48 @@
 # Lore Assembly Lines (`@re-cinq/lore-assembly-lines`)
 
-The **assembly-line definition + transition kernel** — the declarative YAML
-graphs Lore's autonomous workflows run as, the loader that validates them, the
-pure transition replay the event-driven walk routes on, and the station
-contract's outcome parsing. Consumed by the Floor (`apps/floor`, which advances
-runs on `kubernetes.agent_node.*` events) and by the `lore-station` pods (which
-parse their own result lines). See
-[ADR-024](../../adrs/ADR-024-ubiquitous-language-execution-model.md) for the
-Factory ⊃ Floor ⊃ **AssemblyLine** ⊃ Station ⊃ Agent vocabulary,
-[ADR-031](../../adrs/ADR-031-agent-station-crds.md) for the execution model, and
-[specs/6-dark-factory/](../../specs/6-dark-factory/) for the workflow spec.
-Depends only on `@re-cinq/lore-shared` — no DB, Octokit, or K8s client.
+The **floor pipeline files** Lore's lines run from, and the few parsers Lore's
+floor stations share. Every line runs on the external floor
+([re-cinq/floor](https://github.com/re-cinq/floor),
+[ADR-049](../../adrs/ADR-049-external-floor.md)); the definition loader and the
+transition replay of the engine Lore ran itself were deleted on 2026-10-02.
+See [ADR-024](../../adrs/ADR-024-ubiquitous-language-execution-model.md) for the
+Factory ⊃ Floor ⊃ **AssemblyLine** ⊃ Station ⊃ Agent vocabulary. Depends only on
+`@re-cinq/lore-shared` — no DB, Octokit, or K8s client.
 
-## Definitions
+## Pipeline files
 
-An assembly line is a small directed graph: **nodes** (typed stations — `agent`,
-`validate`, `detect`, `merge_step`, human stations, …) joined by **edges** that
-route on the producing node's outcome (`success` / `changes_requested` /
-`failed` / `always`). Builtin definitions live in
-[`src/assembly-lines/`](./src/assembly-lines/) and are copied into `dist/` at
-build time (`loadBuiltinAssemblyLines`):
+One YAML file per line in [`src/floor-pipelines/`](./src/floor-pipelines/),
+copied into `dist/` at build time. A file has three blocks: `line` (the graph:
+`entry`, `exit`, `args`, `nodes`, `edges`), `stations` (what each station needs,
+produces and can report) and `agent_definitions` (model, image, timeout and the
+prompt, inline). lore-api puts every file to the floor at boot; a file's content
+is its version, so only a changed file becomes a new version.
 
-| Definition | Purpose |
+| File | What the line does |
 | --- | --- |
-| `gap-fill.yaml` | Draft missing docs (CLAUDE.md / ADR / runbook), validate, push |
-| `feature-planning.yaml` | One interactive planning round emitting a structured GapResult (no commit/PR) |
-| `ingest.yaml` | Project one `internal.ingest.*` payload into the spec-traceability graph |
-| `merge.yaml` | Everything that must happen once a task's PR merges, one recorded step at a time |
-| `gap-detect.yaml` | Per-repo documentation-gap detection; files gap-fill tasks |
-| `spec-drift.yaml` | Per-repo spec-drift detection; files gap-fill tasks for drifted specs |
-| `spec-coverage-validate.yaml` | Resolve every inline `([validated by])` link; file spec-link-rot issues |
-| `spec-coverage-backfill.yaml` | Judge un-linked testable statements; open link-suggestion PRs |
+| `code-review.yaml` | Reviews a pull request and posts the review |
+| `code-review-recheck.yaml` | Re-checks a pull request after a push, from the last verdict |
+| `code-review-reply.yaml` | Answers a review that requested changes |
+| `implementation-loop.yaml` | Works one backlog ticket or plan spec-task to a pull request ready for review |
+| `feature-planning.yaml` | Drafts a plan with its people, writes the specs, opens the spec PR, files the tasks |
+| `onboard.yaml` | Enrols a repository and opens its one onboarding pull request |
+| `spec-upkeep.yaml` | Fixes drifted specs and adds missing test links, weekly |
+| `daily-digest.yaml` | Writes and posts the daily Slack digest |
+| `merge.yaml` | The bookkeeping once a task's pull request has merged |
+| `lore-run-settled.yaml` | Tells Lore when a run of any line settles |
 
-The PR-review lines (`code-review`, `code-review-recheck`, `code-review-reply`) are no longer Floor-run YAMLs: they live in [`src/floor-pipelines/`](./src/floor-pipelines/) and run on the external floor.
+`src/floor-pipelines/floor-pipelines.test.ts` pins the set of files and the
+shape of each line. What a new line needs is in
+[`.lore/assembly-line-guide.md`](../../.lore/assembly-line-guide.md).
 
-## Loader (`src/loader.ts`)
+## Parsers
 
-`parseAssemblyLine` / `loadAssemblyLineDir` validate with **strict Zod objects**
-(a mistyped key is a load failure, not a silently dropped field), then check the
-graph: entry/exit and edge endpoints must name real nodes, every node must be
-reachable (BFS), only the exit node may be terminal, and every **producible
-outcome** of a node must have a matching edge. Cycles are found by **DFS
-coloring**; a back-edge without `iteration_max` is rejected unless a human
-station gates the loop. Nodes carry optional `station_ref` (custom station
-image) and `timeout_minutes`; `detect` / `merge_step` nodes
-require `job_ref` (one type, many handlers); human stations require `route`.
-
-## Transition replay (`src/transition.ts`)
-
-`getNextTransition()` is the sole definition of the walk's routing: a **pure
-replay** that derives the next step — `launch` / `await` / `finish` / `fail` —
-from nothing but the persisted `pipeline.station_runs` rows and the definition
-graph. `selectEdge` prefers the exact-outcome edge over `always`; revisits bump
-the iteration and budgeted back-edges fail the run past `iteration_max`; a
-permanently classified node failure refuses the retry and reports the real
-cause. Because the state is the rows, duplicate or concurrent advancers
-converge and a Floor restart loses nothing (spec 6-dark-factory FR6.9). The
-event-driven walk in `apps/floor/src/work/assembly-run/advance.ts` is its
-Floor-side driver; the old in-process `executeAssemblyLine` is retired.
-
-## Outcome parsing (`src/node-outcome.ts`, `src/node-types.ts`)
-
-`stationNodeOutcome()` maps a terminal Agent CR status to the node outcome the
-replay routes on, per the
-[station contract](../../specs/6-dark-factory/contracts/station-contract.md):
-CR phase `Failed` → infrastructure `failed` (with a classified
-`failureClass`/`failureDetail`); otherwise the last line-start
-**`LORE_NODE_RESULT:`** marker (`parseNodeResult`, JSON payload or the legacy
-bare word) wins, then the agent-review **`REVIEW_RESULT:`** line
-(`parseReviewVerdict`), then `success`. A marker that is present but
-unparseable fails the node instead of defaulting — a drifted recipe reports
-itself. `node-types.ts` holds the shared vocabulary (`StageOutcome`,
-`NodeResult`, `NodeContext`).
-
-## Limits
-
-Only the Floor executes these definitions today: the mcp-server local runner
-spawns Claude Code directly and does not load them, so the shared-interpretation
-goal (spec 6-dark-factory FR2.3) is aspirational until it adopts the library.
+- `parseReviewVerdict` (`src/node-outcome.ts`): the one `REVIEW_RESULT:` line a
+  review agent prints, as `success`, `changes_requested` or null.
+- `resultTextFromOutput` (`src/agent-output.ts`): the agent's text from its
+  terminal result line, reassembled from delta chunks for the Gemini shape.
+- `eventLine` (`src/agent-output.ts`): the log line a station prints.
+- `NodeResult` (`src/node-types.ts`): what a station of Lore's reports.
 
 ## Develop
 

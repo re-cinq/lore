@@ -1,12 +1,9 @@
 // One handler per subscribed event name, resolved the same way the Floor's registry does, so both drainers agree on retry, dead-lettering, and the visibility budget.
 
-import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
-import { runPublishedNode, parsePublishedNode } from "./runner/run-node.js";
 import { STATIONS } from "../work/registry.js";
 import {
   eventTriggerNames,
-  isSweepModule,
   type SweepStationModule,
 } from "../work/lib/station.js";
 import { stationHost } from "./runner/station-host.js";
@@ -29,6 +26,12 @@ import { addHandlers } from "./compose-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import { pipeline } from "../outbound/queues.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
+import {
+  floorRepoOf,
+  valueItem,
+} from "@re-cinq/lore-shared/floor/floor-items.js";
+import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
+import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { relocateOnTeamChange } from "./team-changed.js";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
@@ -50,6 +53,25 @@ const floorReviewDeps: FloorReviewDeps = {
 };
 
 const floorPlanDeps: FloorPlanDeps = { floor: floorClient };
+
+async function findParkedVisitId(
+  floor: ReturnType<typeof floorClient>,
+  run: { id: string; startItems: Record<string, { ref: string }> },
+  issueNumber: number,
+): Promise<string | null> {
+  const startItems: Partial<Record<string, { ref: string }>> = run.startItems;
+  const issueItem = startItems["issue_number"];
+
+  if (issueItem?.ref !== String(issueNumber)) {
+    return null;
+  }
+  const visits = await floor.stationRuns.list({ run: run.id });
+  const parked = visits.findLast(
+    (v) => v.nodeId === "human-gate" && v.report === null,
+  );
+
+  return parked?.id ?? null;
+}
 
 const repoEventDeps: RepoEventDeps = {
   labelDispatch: async (repo) => {
@@ -76,21 +98,38 @@ const repoEventDeps: RepoEventDeps = {
       },
       repo,
     ),
-};
+  startIssueTriage: async (repo, issueNumber, issueUrl) => {
+    const started = await startLine(floorClient().lines, "issue-triage", {
+      repo: floorRepoOf(repo),
+      startItems: {
+        issue_number: valueItem(issueNumber),
+        repo: valueItem(repo),
+        issue_url: valueItem(issueUrl),
+      },
+    });
 
-/** Published by the walk when a node's station runs here rather than in a pod. */
+    return started.run.id;
+  },
+  findParkedTriageVisit: async (repo, issueNumber) => {
+    const floor = floorClient();
+    const { items: runs } = await floor.runs.list({
+      repo: floorRepoOf(repo),
+      line: "issue-triage",
+      open: true,
+    });
 
-// Runs a node the walk published here; reports the outcome back over assembly_run.resume so the walk converges regardless of which worker ran it.
-const runNode: EventHandler = async (params) => {
-  const { reportToParkedNode } =
-    await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
-  const { eventReporter } = await import("../outbound/queues.js");
+    for (const run of runs) {
+      const visitId = await findParkedVisitId(floor, run, issueNumber);
 
-  await runPublishedNode(
-    parsePublishedNode(params),
-    (target, outcome, args, result) =>
-      reportToParkedNode(eventReporter(), target, { outcome, args, result }),
-  );
+      if (visitId !== null) {
+        return visitId;
+      }
+    }
+
+    return null;
+  },
+  reportTriageGate: (visitId) =>
+    reportToVisit(floorClient().events, visitId, { outcome: "success" }),
 };
 
 // Runs the sweep that declared this event trigger — derived from the manifests like the subscription set, so a station can't subscribe without a handler and get silently dead-lettered.
@@ -107,15 +146,11 @@ const runSweepFor =
   };
 
 export function buildStationHandlers(): Map<string, EventHandler> {
-  const handlers = new Map<string, EventHandler>([
-    [SERVICE_NODE_EVENT, runNode],
-  ]);
+  const handlers = new Map<string, EventHandler>();
 
-  const sweepBindings = Object.values(STATIONS)
-    .filter(isSweepModule)
-    .flatMap((mod) =>
-      eventTriggerNames(mod.manifest).map((eventName) => ({ mod, eventName })),
-    );
+  const sweepBindings = Object.values(STATIONS).flatMap((mod) =>
+    eventTriggerNames(mod.manifest).map((eventName) => ({ mod, eventName })),
+  );
 
   for (const { mod, eventName } of sweepBindings) {
     handlers.set(eventName, runSweepFor(mod, eventName));
