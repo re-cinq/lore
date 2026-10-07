@@ -303,7 +303,11 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       (edge) => edge.from === "close-obsolete",
     );
 
-    expect({ station: node?.station, kind: service?.body.kind, outgoing }).toEqual({
+    expect({
+      station: node?.station,
+      kind: service?.body.kind,
+      outgoing,
+    }).toEqual({
       station: "close-issue",
       kind: "service",
       outgoing: [{ from: "close-obsolete", to: "done", on: "always" }],

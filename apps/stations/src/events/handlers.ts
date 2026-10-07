@@ -100,7 +100,10 @@ const repoEventDeps: RepoEventDeps = {
       repo,
     ),
   startIssueTriage: async (repo, issueNumber, issueUrl) => {
-    const target = gitItem(repo, await (await projectFor(repo)).repo.defaultBranch());
+    const target = gitItem(
+      repo,
+      await (await projectFor(repo)).repo.defaultBranch(),
+    );
     const started = await startLine(floorClient().lines, "issue-triage", {
       repo: floorRepoOf(repo),
       startItems: {

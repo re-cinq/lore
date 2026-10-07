@@ -60,7 +60,12 @@ async function startForRepo(
     return 0;
   }
 
-  return startIssuesForRepo(repo, qualifying, await deps.defaultBranch(repo), deps);
+  return startIssuesForRepo(
+    repo,
+    qualifying,
+    await deps.defaultBranch(repo),
+    deps,
+  );
 }
 
 async function startIssuesForRepo(
