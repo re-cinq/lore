@@ -61,7 +61,7 @@ interface StationBody {
 }
 
 interface LineBody {
-  nodes: Array<{ id: string }>;
+  nodes: Array<{ id: string; station?: string }>;
   edges: Array<{ from: string; to: string; on: string }>;
 }
 
@@ -233,12 +233,15 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   });
 
   it("close-obsolete station uses the close-issue service", () => {
-    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
-    const closeObsolete = issueTriage?.stations.find(
-      (s) => s.id === "close-obsolete",
+    const closeObsolete = issueTriageLine().nodes.find(
+      (node) => node.id === "close-obsolete",
+    );
+    const closeIssue = issueTriage()?.stations.find(
+      (station) => station.id === "close-issue",
     );
 
-    expect(closeObsolete?.body.station).toBe("close-issue");
+    expect(closeObsolete?.station).toBe("close-issue");
+    expect(closeIssue?.body.kind).toBe("service");
   });
 
   it("close-obsolete's only outgoing edge is always → done", () => {
