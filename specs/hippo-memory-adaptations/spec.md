@@ -188,6 +188,10 @@ repo B
   before invalidating.
 - FR-4.3: `lore_assemble_context` checks for conflicts on assembled
   facts and prefixes with `[CONFLICT]` annotation.
+- FR-4.4: The decay job's invalidated-fact purge deletes the
+  `memory.fact_conflicts` rows and clears the `invalidated_by`
+  references that point at the facts it removes, and a failing purge does
+  not stop the memory eviction or the stale transition. ([validated by `memory-lifecycle.test.ts:623`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L623), [`memory-lifecycle.contract.test.ts:59`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L59), [`memory-lifecycle.contract.test.ts:47`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L47), [`importance-decay.test.ts:154`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L154))
 
 ### FR-5: Transfer Scoring
 
