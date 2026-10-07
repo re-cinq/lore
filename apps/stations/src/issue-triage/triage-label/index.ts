@@ -7,6 +7,23 @@ import { projectFor } from "../../outbound/project-boot.js";
 /** What each label node of the issue-triage line applies, and whether the verify pass's verdict is posted with it (specs/issue-triage FR17, FR23). A node absent here is not a label node, and the station says so rather than labelling the wrong thing. */
 const TRIAGE_LABELS: Record<string, { label: string; postsVerdict: boolean }> =
   {
+    "label-reproduced": {
+      label: "triage: reproduced",
+      postsVerdict: false,
+    },
+    "label-diagnosed": {
+      label: "triage: diagnosed",
+      postsVerdict: false,
+    },
+    "label-needs-repro": {
+      label: "triage: needs-reproduction",
+      postsVerdict: true,
+    },
+    "label-unable": {
+      label: "triage: unable-to-reproduce",
+      postsVerdict: true,
+    },
+    "label-skipped": { label: "triage: skipped", postsVerdict: false },
     "label-not-actionable": {
       label: "triage: not-actionable",
       postsVerdict: true,

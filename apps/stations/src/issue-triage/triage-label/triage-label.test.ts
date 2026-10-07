@@ -53,6 +53,54 @@ function scene(nodeId: string) {
 }
 
 describe("the triage-label station", () => {
+  it("applies triage: reproduced after a confirmed reproduction", async () => {
+    const { handle, labelled, commented } = scene("label-reproduced");
+
+    await handle(brief(), TOOLS);
+
+    expect({ labelled, commented }).toEqual({
+      labelled: [{ number: ISSUE_NUMBER, label: "triage: reproduced" }],
+      commented: [],
+    });
+  });
+
+  it("applies triage: diagnosed after a root cause is found", async () => {
+    const { handle, labelled, commented } = scene("label-diagnosed");
+
+    await handle(brief(), TOOLS);
+
+    expect({ labelled, commented }).toEqual({
+      labelled: [{ number: ISSUE_NUMBER, label: "triage: diagnosed" }],
+      commented: [],
+    });
+  });
+
+  it("posts the reproduction request with the needs-reproduction label", async () => {
+    const { handle, labelled, commented } = scene("label-needs-repro");
+
+    await handle(brief(), TOOLS);
+
+    expect({ labelled, commented }).toEqual({
+      labelled: [
+        { number: ISSUE_NUMBER, label: "triage: needs-reproduction" },
+      ],
+      commented: [{ number: ISSUE_NUMBER, body: VERDICT }],
+    });
+  });
+
+  it("posts the reproduction failure with the unable-to-reproduce label", async () => {
+    const { handle, labelled, commented } = scene("label-unable");
+
+    await handle(brief(), TOOLS);
+
+    expect({ labelled, commented }).toEqual({
+      labelled: [
+        { number: ISSUE_NUMBER, label: "triage: unable-to-reproduce" },
+      ],
+      commented: [{ number: ISSUE_NUMBER, body: VERDICT }],
+    });
+  });
+
   it("applies triage: not-actionable and posts the verdict on the issue", async () => {
     const { handle, labelled, commented } = scene("label-not-actionable");
 

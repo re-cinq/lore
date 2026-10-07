@@ -62,7 +62,12 @@ interface StationBody {
 
 interface LineBody {
   nodes: Array<{ id: string }>;
-  edges: Array<{ from: string; to: string; on: string }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    on: string;
+    iterationMax?: number;
+  }>;
 }
 
 describe("withEnvironment", () => {
@@ -150,9 +155,8 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       issueTriage()?.stations.find((one) => one.id === "triage-verify")
         ?.body as unknown as StationBody
     ).outcomes;
-  const edgeTarget = (line: LineBody, outcome: string) =>
-    line.edges.find((edge) => edge.from === "verify" && edge.on === outcome)
-      ?.to;
+  const edgeTarget = (line: LineBody, from: string, outcome: string) =>
+    line.edges.find((edge) => edge.from === from && edge.on === outcome)?.to;
 
   it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
@@ -197,7 +201,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     const nodes = new Set(line.nodes.map((node) => node.id));
     const routed = issueTriageOutcomes().map((outcome) => ({
       outcome,
-      to: edgeTarget(line, outcome),
+      to: edgeTarget(line, "verify", outcome),
     }));
 
     expect(routed).toEqual([
@@ -207,6 +211,56 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       { outcome: "failed", to: "label-failed" },
     ]);
     expect(routed.filter(({ to }) => !nodes.has(to ?? ""))).toEqual([]);
+  });
+
+  it("starts issue-triage at reproduce", () => {
+    expect(issueTriage()?.line?.body).toMatchObject({ entry: "reproduce" });
+  });
+
+  it("routes every reproduce outcome through its matching label node", () => {
+    const line = issueTriageLine();
+    const reproduce = issueTriage()?.stations.find(
+      (station) => station.id === "triage-reproduce",
+    )?.body as unknown as StationBody;
+    const routed = reproduce.outcomes.map((outcome) => ({
+      outcome,
+      to: edgeTarget(line, "reproduce", outcome),
+    }));
+    const failed = line.edges.find(
+      (edge) => edge.from === "reproduce" && edge.on === "failed",
+    );
+
+    expect(routed).toEqual([
+      { outcome: "success", to: "label-reproduced" },
+      { outcome: "unable-to-reproduce", to: "label-unable" },
+      { outcome: "needs-reproduction", to: "label-needs-repro" },
+      { outcome: "skipped", to: "label-skipped" },
+      { outcome: "failed", to: "label-failed" },
+    ]);
+    const nodeIds = new Set(line.nodes.map(({ id }) => id));
+
+    expect(routed.filter(({ to }) => !nodeIds.has(to ?? ""))).toEqual([]);
+    expect(failed).toMatchObject({ iterationMax: 3, to: "label-failed" });
+  });
+
+  it("routes diagnose success through label-diagnosed to verify and retries failures three times", () => {
+    const line = issueTriageLine();
+    const diagnoseSuccess = edgeTarget(line, "diagnose", "success");
+    const labelDiagnosed = edgeTarget(line, "label-diagnosed", "success");
+    const diagnoseFailure = line.edges.find(
+      (edge) => edge.from === "diagnose" && edge.on === "failed",
+    );
+
+    expect({ diagnoseSuccess, labelDiagnosed, diagnoseFailure }).toEqual({
+      diagnoseSuccess: "label-diagnosed",
+      labelDiagnosed: "verify",
+      diagnoseFailure: {
+        from: "diagnose",
+        to: "label-failed",
+        on: "failed",
+        iterationMax: 3,
+      },
+    });
   });
 
   it("give every agent definition a non-empty prompt", () => {

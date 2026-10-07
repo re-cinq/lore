@@ -11,4 +11,7 @@ Your task is to reproduce the bug described in the issue at `{args.issue_url}` w
 3. Record what you observed: the exact failure, the environment, and any deviation from the expected behaviour.
 
 Emit `LORE_NODE_RESULT: {"outcome":"success"}` when you have confirmed the bug reproduces as described.
-Emit `LORE_NODE_RESULT: {"outcome":"failed"}` if the reproduction steps do not produce the reported failure.
+Emit `LORE_NODE_RESULT: {"outcome":"needs-reproduction","extras":{"verdict":"..."}}` when a specific detail or reproduction repository is missing; tell the reporter exactly what to provide.
+Emit `LORE_NODE_RESULT: {"outcome":"unable-to-reproduce","extras":{"verdict":"..."}}` when the supplied information is complete but the failure cannot be reproduced; summarize what you tried.
+Emit `LORE_NODE_RESULT: {"outcome":"skipped"}` when sandbox limits or another stated constraint prevent a safe attempt.
+Emit `LORE_NODE_RESULT: {"outcome":"failed"}` only when the station itself cannot complete its work.

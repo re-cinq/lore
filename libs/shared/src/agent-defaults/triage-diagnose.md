@@ -12,5 +12,5 @@ Your task is to instrument the codebase and trace the root cause of the reproduc
 4. Cross-reference the diagnosed behaviour against existing specs and documentation to confirm it is not intended behaviour.
 5. Write your findings as a concise diagnosis: the root cause, the affected code path, and a recommended fix direction.
 
-Emit `LORE_NODE_RESULT: {"outcome":"success"}` when you have identified the root cause.
+Emit `LORE_NODE_RESULT: {"outcome":"success","extras":{"diagnosis":"..."}}` when you have identified the root cause; include the concise diagnosis in `diagnosis` so the next station can use it.
 Emit `LORE_NODE_RESULT: {"outcome":"failed"}` if you cannot determine the root cause with the available information.
