@@ -353,6 +353,22 @@ describe("runIssuesStation", () => {
     }).toEqual({ story: true, task: true });
   });
 
+  it("marks triage child issues with the source issue URL without adding a plan link", async () => {
+    const fake = fakeProject(LABELS);
+    const filingKey = "https://github.com/re-cinq/lore/issues/7";
+
+    await runIssuesStation(
+      input({ feature_decomposition: DECOMPOSITION, filing_key: filingKey }),
+      { project: fake.project },
+    );
+
+    expect({
+      storyMarker: fake.bodies.get(101)?.includes(storyMarker(filingKey)),
+      taskMarker: fake.bodies.get(102)?.includes(taskMarker(filingKey, "T001")),
+      hasPlanLink: fake.issues[0].body.includes("/plans/"),
+    }).toEqual({ storyMarker: true, taskMarker: true, hasPlanLink: false });
+  });
+
   it("on a rerun of plan 3b3a67af rewrites story #90 and T001's issue #91, files only T002, and closes T003's issue #92 the new decomposition dropped", async () => {
     const fake = fakeProject(LABELS, [
       { number: 90, state: "open", body: storyMarker("3b3a67af") },

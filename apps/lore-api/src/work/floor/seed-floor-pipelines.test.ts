@@ -62,7 +62,12 @@ interface StationBody {
 
 interface LineBody {
   nodes: Array<{ id: string; station?: string }>;
-  edges: Array<{ from: string; to: string; on: string }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    on: string;
+    iterationMax?: number;
+  }>;
 }
 
 describe("withEnvironment", () => {
@@ -150,9 +155,8 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       issueTriage()?.stations.find((one) => one.id === "triage-verify")
         ?.body as unknown as StationBody
     ).outcomes;
-  const edgeTarget = (line: LineBody, outcome: string) =>
-    line.edges.find((edge) => edge.from === "verify" && edge.on === outcome)
-      ?.to;
+  const edgeTarget = (line: LineBody, from: string, outcome: string) =>
+    line.edges.find((edge) => edge.from === from && edge.on === outcome)?.to;
 
   it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
@@ -197,16 +201,117 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     const nodes = new Set(line.nodes.map((node) => node.id));
     const routed = issueTriageOutcomes().map((outcome) => ({
       outcome,
-      to: edgeTarget(line, outcome),
+      to: edgeTarget(line, "verify", outcome),
     }));
 
     expect(routed).toEqual([
       { outcome: "success", to: "human-gate" },
       { outcome: "obsolete", to: "close-obsolete" },
       { outcome: "not-actionable", to: "label-not-actionable" },
+      { outcome: "large-issue", to: "decompose" },
       { outcome: "failed", to: "label-failed" },
     ]);
     expect(routed.filter(({ to }) => !nodes.has(to ?? ""))).toEqual([]);
+  });
+
+  it("starts issue-triage at reproduce", () => {
+    expect(issueTriage()?.line?.body).toMatchObject({ entry: "reproduce" });
+  });
+
+  it("routes every reproduce outcome through its matching label node", () => {
+    const line = issueTriageLine();
+    const reproduce = issueTriage()?.stations.find(
+      (station) => station.id === "triage-reproduce",
+    )?.body as unknown as StationBody;
+    const routed = reproduce.outcomes.map((outcome) => ({
+      outcome,
+      to: edgeTarget(line, "reproduce", outcome),
+    }));
+    const failed = line.edges.find(
+      (edge) => edge.from === "reproduce" && edge.on === "failed",
+    );
+
+    expect(routed).toEqual([
+      { outcome: "success", to: "label-reproduced" },
+      { outcome: "unable-to-reproduce", to: "label-unable" },
+      { outcome: "needs-reproduction", to: "label-needs-repro" },
+      { outcome: "skipped", to: "label-skipped" },
+      { outcome: "failed", to: "label-failed" },
+    ]);
+    const nodeIds = new Set(line.nodes.map(({ id }) => id));
+
+    expect(routed.filter(({ to }) => !nodeIds.has(to ?? ""))).toEqual([]);
+    expect(failed).toMatchObject({ iterationMax: 3, to: "label-failed" });
+  });
+
+  it("routes diagnose success through label-diagnosed to verify and retries failures three times", () => {
+    const line = issueTriageLine();
+    const diagnoseSuccess = edgeTarget(line, "diagnose", "success");
+    const labelDiagnosed = edgeTarget(line, "label-diagnosed", "success");
+    const diagnoseFailure = line.edges.find(
+      (edge) => edge.from === "diagnose" && edge.on === "failed",
+    );
+
+    expect({ diagnoseSuccess, labelDiagnosed, diagnoseFailure }).toEqual({
+      diagnoseSuccess: "label-diagnosed",
+      labelDiagnosed: "verify",
+      diagnoseFailure: {
+        from: "diagnose",
+        to: "label-failed",
+        on: "failed",
+        iterationMax: 3,
+      },
+    });
+  });
+
+  it("routes large issue decomposition through issue filing to done", () => {
+    const line = issueTriageLine();
+    const decompose = issueTriage()?.stations.find(
+      (station) => station.id === "triage-decompose",
+    );
+    const routes = {
+      largeIssue: line.edges.find(
+        (edge) => edge.from === "verify" && edge.on === "large-issue",
+      ),
+      decomposition: line.edges.find(
+        (edge) => edge.from === "decompose" && edge.on === "success",
+      ),
+      filed: line.edges.find(
+        (edge) => edge.from === "issues" && edge.on === "success",
+      ),
+    };
+
+    expect({ station: decompose?.body, routes }).toMatchObject({
+      station: { kind: "agent", agentDefinition: "triage-decompose" },
+      routes: {
+        largeIssue: { to: "decompose" },
+        decomposition: { to: "issues" },
+        filed: { to: "done" },
+      },
+    });
+  });
+
+  it("routes close-obsolete through the close-issue service and always to done", () => {
+    const line = issueTriageLine();
+    const node = line.nodes.find(
+      (pipelineNode) => pipelineNode.id === "close-obsolete",
+    );
+    const service = issueTriage()?.stations.find(
+      (station) => station.id === "close-issue",
+    );
+    const outgoing = line.edges.filter(
+      (edge) => edge.from === "close-obsolete",
+    );
+
+    expect({
+      station: node?.station,
+      kind: service?.body.kind,
+      outgoing,
+    }).toEqual({
+      station: "close-issue",
+      kind: "service",
+      outgoing: [{ from: "close-obsolete", to: "done", on: "always" }],
+    });
   });
 
   it("give every agent definition a non-empty prompt", () => {
@@ -230,31 +335,5 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     );
 
     expect(featurePlanning).toEqual(inline);
-  });
-
-  it("close-obsolete station uses the close-issue service", () => {
-    const closeObsolete = issueTriageLine().nodes.find(
-      (node) => node.id === "close-obsolete",
-    );
-    const closeIssue = issueTriage()?.stations.find(
-      (station) => station.id === "close-issue",
-    );
-
-    expect(closeObsolete?.station).toBe("close-issue");
-    expect(closeIssue?.body.kind).toBe("service");
-  });
-
-  it("close-obsolete's only outgoing edge is always → done", () => {
-    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
-
-    type LineBody = {
-      edges: Array<{ from: string; to: string; on: string }>;
-    };
-    const body = issueTriage?.line?.body as LineBody | undefined;
-    const outEdges =
-      body?.edges.filter((e) => e.from === "close-obsolete") ?? [];
-
-    expect(outEdges).toHaveLength(1);
-    expect(outEdges[0].on).toBe("always");
   });
 });

@@ -2,6 +2,7 @@
 import type { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   floorRepoOf,
+  gitItem,
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 
@@ -21,6 +22,8 @@ export interface IssueTriageTickDeps {
   needsTriageIssues(repo: string): Promise<IssueTriageIssue[]>;
   /** Count of currently-running issue-triage floor runs for a repo. */
   runningCount(repo: string): Promise<number>;
+  /** Default branch used by the decompose and issue-filing stations. */
+  defaultBranch(repo: string): Promise<string>;
   /** Per-repo concurrency cap. */
   cap: number;
   floor: {
@@ -53,17 +56,44 @@ async function startForRepo(
   const slots = Math.max(0, deps.cap - running);
   const qualifying = issues.slice(0, slots);
 
-  for (const issue of qualifying) {
-    await deps.floor.start(ISSUE_TRIAGE_LINE, triageStartArgs(repo, issue));
+  if (qualifying.length === 0) {
+    return 0;
   }
 
-  return qualifying.length;
+  return startIssuesForRepo(
+    repo,
+    qualifying,
+    await deps.defaultBranch(repo),
+    deps,
+  );
 }
 
-function triageStartArgs(repo: string, issue: IssueTriageIssue) {
+async function startIssuesForRepo(
+  repo: string,
+  issues: IssueTriageIssue[],
+  branch: string,
+  deps: IssueTriageTickDeps,
+): Promise<number> {
+  for (const issue of issues) {
+    await deps.floor.start(
+      ISSUE_TRIAGE_LINE,
+      triageStartArgs(repo, issue, branch),
+    );
+  }
+
+  return issues.length;
+}
+
+function triageStartArgs(
+  repo: string,
+  issue: IssueTriageIssue,
+  branch: string,
+) {
   return {
     repo: floorRepoOf(repo),
     startItems: {
+      target: gitItem(repo, branch),
+      filing_key: valueItem(issue.url),
       issue_url: valueItem(issue.url),
       issue_number: valueItem(issue.number),
     },

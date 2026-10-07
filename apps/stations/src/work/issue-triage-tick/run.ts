@@ -27,6 +27,8 @@ export async function runIssueTriageTick(
       (await settings().onboardedRepos()).map((r) => r.full_name),
     needsTriageIssues: fetchNeedsTriageIssues,
     runningCount: countRunning,
+    defaultBranch: async (repo) =>
+      (await projectFor(repo)).repo.defaultBranch(),
     cap: DEFAULT_CAP,
     floor: { start: (line, args) => floorClient().lines.start(line, args) },
   });

@@ -1,6 +1,6 @@
 line:
   id: issue-triage
-  entry: verify
+  entry: reproduce
   exit: done
   args:
     # One run per issue: the webhook starts a run the moment the label lands and the
@@ -14,9 +14,35 @@ line:
       kind: value
     repo:
       kind: value
+    target:
+      kind: git
+    filing_key:
+      kind: value
   nodes:
+    - id: reproduce
+      station: triage-reproduce
+    - id: label-reproduced
+      station: triage-label
+    - id: label-needs-repro
+      station: triage-label
+    - id: label-unable
+      station: triage-label
+    - id: label-skipped
+      station: triage-label
+    - id: diagnose
+      station: triage-diagnose
+    - id: label-diagnosed
+      station: triage-label
     - id: verify
       station: triage-verify
+    - id: decompose
+      station: triage-decompose
+      bind:
+        target: target
+    - id: issues
+      station: issues
+      bind:
+        target: target
     - id: close-obsolete
       station: close-issue
     - id: label-not-actionable
@@ -27,12 +53,53 @@ line:
       station: human-gate
     - id: done
   edges:
+    - from: reproduce
+      to: label-reproduced
+      on: success
+    - from: reproduce
+      to: label-needs-repro
+      on: needs-reproduction
+    - from: reproduce
+      to: label-unable
+      on: unable-to-reproduce
+    - from: reproduce
+      to: label-skipped
+      on: skipped
+    - from: reproduce
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: label-reproduced
+      to: diagnose
+      on: success
+    - from: label-needs-repro
+      to: done
+      on: success
+    - from: label-unable
+      to: done
+      on: success
+    - from: label-skipped
+      to: done
+      on: success
+    - from: diagnose
+      to: label-diagnosed
+      on: success
+    - from: diagnose
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: label-diagnosed
+      to: verify
+      on: success
     - from: verify
       to: human-gate
       on: success
     - from: verify
       to: close-obsolete
       on: obsolete
+    - from: verify
+      to: decompose
+      on: large-issue
     - from: verify
       to: label-not-actionable
       on: not-actionable
@@ -43,6 +110,23 @@ line:
     - from: close-obsolete
       to: done
       on: always
+    - from: decompose
+      to: issues
+      on: success
+    - from: decompose
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: issues
+      to: done
+      on: success
+    - from: issues
+      to: label-failed
+      on: changes_requested
+    - from: issues
+      to: label-failed
+      on: failed
+      iteration_max: 3
     - from: label-not-actionable
       to: done
       on: success
@@ -61,15 +145,82 @@ stations:
       - success
       - obsolete
       - not-actionable
+      - large-issue
       - failed
     needs:
       - name: issue_url
+        kind: value
+      - name: diagnosis
         kind: value
     produces:
       # One paragraph for the issue's reporter, which close-obsolete posts and
       # label-not-actionable comments; the agent sends it as the result line's extras.
       - name: verdict
         kind: value
+  triage-reproduce:
+    kind: agent
+    agent_definition: triage-reproduce
+    outcomes:
+      - success
+      - unable-to-reproduce
+      - needs-reproduction
+      - skipped
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
+    produces:
+      - name: verdict
+        kind: value
+        optional: true
+  triage-diagnose:
+    kind: agent
+    agent_definition: triage-diagnose
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
+    produces:
+      - name: diagnosis
+        kind: value
+  triage-decompose:
+    kind: agent
+    agent_definition: triage-decompose
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: issue_url
+        kind: value
+      - name: diagnosis
+        kind: value
+    produces:
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+  issues:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+      - name: filing_key
+        kind: value
+    produces: []
   close-issue:
     kind: service
     outcomes:
@@ -103,6 +254,39 @@ stations:
     needs: []
     produces: []
 agent_definitions:
+  triage-reproduce:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  triage-diagnose:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  triage-decompose:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
   triage-verify:
     settings:
       model: claude-sonnet-4-6
