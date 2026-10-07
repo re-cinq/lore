@@ -202,10 +202,6 @@ describe("redactSecrets", () => {
   });
 
   it("redacts the base64 basic-auth encoding of an x-access-token credential (the HTTP Basic form a git push prints)", () => {
-    // A GitHub installation token used as HTTP Basic credentials:
-    // Authorization: Basic base64("x-access-token:ghs_…")
-    // The resulting blob is ~68 chars — below the 100-char base64-blob floor —
-    // so it must be caught by a dedicated pattern, not the generic blob rule.
     const token = "ghs_abcdefghijklmnopqrstuvwxyz1234";
     const encoded = Buffer.from(`x-access-token:${token}`).toString("base64");
     const input = `Authorization: Basic ${encoded}`;
