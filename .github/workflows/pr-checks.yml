@@ -311,9 +311,15 @@ jobs:
 
       # The base branch reaches the binary as GITHUB_BASE_REF. A pull request from
       # a fork has no token: the binary says the links were not checked and passes.
+      #
+      # Do NOT add a `|| echo "::warning::"` here. The binary already decides
+      # what is Lore's fault and warns on it by itself — an outage, a 403 it
+      # could not outlast, a missing token — so a non-zero exit means a broken
+      # link in THIS change, which is the one thing this job exists to fail on.
+      # Swallowing it at the shell leaves the check with nothing to say (#2587).
       - name: Check spec links
         if: hashFiles('lore-code-trace') != ''
         env:
           LORE_API_URL: ${{ vars.LORE_API_URL }}
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-        run: ./lore-code-trace links || echo "::warning::Lore spec-links check was not authoritative — see lore-code-trace output above"
+        run: ./lore-code-trace links
