@@ -126,6 +126,28 @@ Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyRuns ⊃ StationRuns ⊃ Agents** 
 
 > **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator deployment was historically called "Lore Agent"; it is now the **Floor** (`apps/floor`, the `lore-floor` deployment).
 
+## Issue Triage Flow
+
+Lore automates bug triage through a dedicated assembly line that verifies, diagnoses, and routes incoming issues before they reach a human maintainer. When an issue is labeled `triage: needs-triage` (or `lore:triage`), the following automated flow occurs:
+
+1. **Bug Reproduction:** A sandboxed agent attempts to reproduce the bug by running the provided reproduction repository.
+2. **Root Cause Diagnosis & Spec Verification:** If reproduced, an agent traces the error to pinpoint the root cause and cross-references it with existing documentation and specifications to ensure it is a genuine bug.
+3. **Obsolete/Large Issue Detection:** Issues describing problems already solved are automatically closed as obsolete. Complex, multi-part issues are decomposed into smaller, linked tasks.
+4. **Human-Gated Handoff:** Once verified and diagnosed, the issue pauses for human review. A maintainer can then apply the `lore:implementation` label to transition it to the implementation loop.
+
+### Triage Label Taxonomy
+
+The triage flow is tracked via the `triage:*` label taxonomy:
+
+- `triage: needs-triage` — Initial state; triggers the automated assembly line.
+- `triage: needs-reproduction` — Applied if the reproduction step fails due to missing information.
+- `triage: reproduced` — Applied after the agent successfully reproduces the bug.
+- `triage: unable-to-reproduce` — Applied if the agent fails to reproduce the bug.
+- `triage: diagnosed` — Applied after successful root cause diagnosis and verification against specs.
+- `triage: skipped` — Applied if execution is skipped due to environment constraints (e.g., missing hardware or external services).
+- `triage: not-actionable` — Applied if the issue is deemed invalid, intended behavior, or noise.
+- `triage: failed` — Applied if the triage pipeline crashes or exhausts its retries.
+
 ## How Lore connects to Claude Code (in plain terms)
 
 When you install Lore, Claude Code starts talking to a **small Lore program

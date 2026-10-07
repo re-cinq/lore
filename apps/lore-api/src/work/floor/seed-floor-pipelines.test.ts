@@ -56,6 +56,15 @@ function fakeFloor(held: string[]) {
   return { deps, imported };
 }
 
+interface StationBody {
+  outcomes: string[];
+}
+
+interface LineBody {
+  nodes: Array<{ id: string }>;
+  edges: Array<{ from: string; to: string; on: string }>;
+}
+
 describe("withEnvironment", () => {
   it("fills ${LORE_MCP_URL} with the value given", () => {
     expect(withEnvironment("url: ${LORE_MCP_URL}", FIXED_ENV)).toEqual(
@@ -132,6 +141,18 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   const pipelines = realFiles().map((file) =>
     pipelineOfText(file.text, FIXED_ENV),
   );
+  const issueTriage = () =>
+    pipelines.find((one) => one.line?.id === "issue-triage");
+  const issueTriageLine = () =>
+    issueTriage()?.line?.body as unknown as LineBody;
+  const issueTriageOutcomes = () =>
+    (
+      issueTriage()?.stations.find((one) => one.id === "triage-verify")
+        ?.body as unknown as StationBody
+    ).outcomes;
+  const edgeTarget = (line: LineBody, outcome: string) =>
+    line.edges.find((edge) => edge.from === "verify" && edge.on === outcome)
+      ?.to;
 
   it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
@@ -169,6 +190,23 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     );
 
     expect(successEdge?.to).toBe("done");
+  });
+
+  it("routes every outcome triage-verify declares to a node issue-triage declares", () => {
+    const line = issueTriageLine();
+    const nodes = new Set(line.nodes.map((node) => node.id));
+    const routed = issueTriageOutcomes().map((outcome) => ({
+      outcome,
+      to: edgeTarget(line, outcome),
+    }));
+
+    expect(routed).toEqual([
+      { outcome: "success", to: "human-gate" },
+      { outcome: "obsolete", to: "close-obsolete" },
+      { outcome: "not-actionable", to: "label-not-actionable" },
+      { outcome: "failed", to: "label-failed" },
+    ]);
+    expect(routed.filter(({ to }) => !nodes.has(to ?? ""))).toEqual([]);
   });
 
   it("give every agent definition a non-empty prompt", () => {
