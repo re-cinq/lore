@@ -13,7 +13,6 @@ import {
   applyOutcomeFeedback,
   maybeFlipSpecStatus,
   promoteTrust,
-  syncSpecTasksFromMerge,
 } from "../../work/merge-check/merge-check.js";
 import {
   eventReporter,
@@ -180,11 +179,6 @@ export function mergeStepProductionDeps(): MergeStepDeps {
     curate: curateMergeEpisode,
     applyOutcomeFeedback: (id, kind) => applyOutcomeFeedback(id, kind),
     promoteTrust,
-    syncSpecTasks: (task) =>
-      syncSpecTasksFromMerge({
-        ...task,
-        target_branch: row?.target_branch ?? null,
-      } as Parameters<typeof syncSpecTasksFromMerge>[0]),
     resumePlanning: resumePlanningRun,
   };
 }
