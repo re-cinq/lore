@@ -33,44 +33,54 @@ export interface CoverageOptions {
   isGroundedLink?: (link: TestLinkRef) => boolean;
 }
 
+interface JudgedStatement {
+  statement: UnlinkedStatement;
+  hasLinks: boolean;
+  isGrounded: boolean;
+}
+
 /** Single walk of a doc's testable statements; `require-statement-links` reads `unlinked`, status rules read `testable`/`linked`. */
 export function statementCoverage(
   content: string,
   { isGroundedLink = () => true }: CoverageOptions = {},
 ): StatementCoverage {
+  const judged = testableStatements(content).map((each) =>
+    judge(each, isGroundedLink),
+  );
+  const unlinked = judged.filter(({ isGrounded }) => !isGrounded);
+
+  return {
+    testable: judged.length,
+    linked: judged.length - unlinked.length,
+    unlinked: unlinked.map(({ statement }) => statement),
+    ungrounded: unlinked
+      .filter(({ hasLinks }) => hasLinks)
+      .map(({ statement }) => statement),
+  };
+}
+
+function testableStatements(content: string) {
   const statements = segmentStatements(content);
   const introOrdinals = buildIntroOrdinals(statements);
-  const coverage: StatementCoverage = {
-    testable: 0,
-    linked: 0,
-    unlinked: [],
-    ungrounded: [],
+
+  return statements.filter(
+    (each) =>
+      classifyByHeuristic(each, introOrdinals).testability === "testable",
+  );
+}
+
+function judge(
+  { text, line }: { text: string; line?: number },
+  isGroundedLink: (link: TestLinkRef) => boolean,
+): JudgedStatement {
+  const links = parseTestLinksInStatement(text);
+
+  // `Statement.line` is optional (test doubles omit it), so fall back to line 1.
+  return {
+    statement: { text, line: line ?? 1 },
+    hasLinks: links.length > 0,
+    isGrounded: links.some(isGroundedLink),
   };
-
-  for (const statement of statements) {
-    if (
-      classifyByHeuristic(statement, introOrdinals).testability !== "testable"
-    ) {
-      continue;
-    }
-    coverage.testable++;
-    const links = parseTestLinksInStatement(statement.text);
-
-    if (links.some(isGroundedLink)) {
-      coverage.linked++;
-      continue;
-    }
-    // `Statement.line` is optional (test doubles omit it), so fall back to line 1.
-    const unlinked = { text: statement.text, line: statement.line ?? 1 };
-
-    coverage.unlinked.push(unlinked);
-
-    if (links.length > 0) {
-      coverage.ungrounded.push(unlinked);
-    }
-  }
-
-  return coverage;
 }
 
 /** Testable, unlinked statements — the `require-statement-links` view. */
