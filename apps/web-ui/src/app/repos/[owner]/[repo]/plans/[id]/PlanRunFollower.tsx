@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useRunChannel } from "@/app/assembly-runs/[id]/useRunChannel";
+import { useSettledRefresh } from "@/lib/live-socket/use-settled-refresh";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 
 interface PlanRunFollowerProps {
@@ -34,25 +33,4 @@ export default function PlanRunFollower({ runId, live }: PlanRunFollowerProps) {
   });
 
   return null;
-}
-
-function useSettledRefresh(settleMs: number): () => void {
-  const router = useRouter();
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current) {
-        clearTimeout(timer.current);
-      }
-    },
-    [],
-  );
-
-  return () => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-    }
-    timer.current = setTimeout(() => router.refresh(), settleMs);
-  };
 }
