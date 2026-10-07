@@ -85,7 +85,10 @@ describe("lore_plan_edit remote proxy", () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => applied });
 
     const result = await planEdit({ plan_id: planId, op, expect: expectHash });
-    const [calledUrl, opts] = fetchMock.mock.calls[0];
+    const editCall = fetchMock.mock.calls.find(([url]) =>
+      (url as string).endsWith("/agent-edits"),
+    );
+    const [calledUrl, opts] = editCall as [string, RequestInit];
 
     expect({
       calledUrl,
@@ -98,6 +101,54 @@ describe("lore_plan_edit remote proxy", () => {
       body: { actor: "planning-agent", ops: [op], expect: expectHash },
       answer: applied,
     });
+  });
+
+  it("opens agent presence once before the first edit of a plan", async () => {
+    const planId = "c5c3037f-aaaa-bbbb-cccc-ddddeeeeffff";
+    const op = { op: "append-to-section", slot: "intent", paragraphs: ["x"] };
+    const applied = { ok: true };
+
+    fetchMock.mockResolvedValue({ ok: true, json: async () => applied });
+
+    await planEdit({ plan_id: planId, op });
+    await planEdit({ plan_id: planId, op });
+
+    const presenceCalls = fetchMock.mock.calls.filter(([url]) =>
+      (url as string).endsWith("/agent-presence"),
+    );
+    const editCalls = fetchMock.mock.calls.filter(([url]) =>
+      (url as string).endsWith("/agent-edits"),
+    );
+    const [, presenceOpts] = presenceCalls[0] as [string, RequestInit];
+
+    expect(presenceCalls).toHaveLength(1);
+    expect(editCalls).toHaveLength(2);
+    expect(JSON.parse(presenceOpts.body as string)).toEqual({
+      user: { name: "Planning agent", color: "hsl(200 65% 45%)" },
+    });
+  });
+
+  it("still applies the edit when opening presence fails", async () => {
+    const planId = "d6d4148f-1111-2222-3333-444455556666";
+    const op = { op: "append-to-section", slot: "intent", paragraphs: ["x"] };
+    const applied = { ok: true };
+
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/agent-presence")) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          statusText: "Bad Request",
+          text: async () => "",
+        });
+      }
+
+      return Promise.resolve({ ok: true, json: async () => applied });
+    });
+
+    const result = await planEdit({ plan_id: planId, op });
+
+    expect(JSON.parse(result.content[0].text)).toEqual(applied);
   });
 
   it("tells the agent to reread and retry when the block changed under it", async () => {

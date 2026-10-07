@@ -14,6 +14,15 @@ const conflictProblemSchema = z.object({ detail: z.string() });
 // A record, not planning-document's op schema: importing it would pull a git dependency into the lean install (ADR-032).
 const agentOpSchema = z.record(z.string(), z.unknown());
 
+// Ported verbatim from the deleted apps/floor's planning-result.ts (0ed857856): same name/color an agent showed as before.
+const PLANNING_AGENT_USER = {
+  name: "Planning agent",
+  color: "hsl(200 65% 45%)",
+};
+
+// Presence is opened once per plan per process, not per edit op: the MCP server has no run-scoped lifecycle to hook, so the first edit of a pass stands in for "the agent started working".
+const presenceOpenedForPlan = new Set<string>();
+
 // The plan-reading half of the planning tool surface: an agent reads the plan it is working on before editing it.
 
 export function registerPlanTools(server: McpServer) {
@@ -66,6 +75,7 @@ type PlanEditArgs = {
 
 async function planEditHandler(args: PlanEditArgs) {
   try {
+    await ensurePresenceOpen(args.plan_id);
     const proxied = await postAgentEdit(args);
 
     return (
@@ -75,6 +85,23 @@ async function planEditHandler(args: PlanEditArgs) {
     );
   } catch (err) {
     return textResult(`Error editing plan: ${errorMessage(err)}`);
+  }
+}
+
+// Shows the agent as a live participant in the plan editor. Best-effort: a missed/failed open never blocks the edit, since presence is a UX nicety, not a correctness dependency (the edit lands either way).
+async function ensurePresenceOpen(planId: string): Promise<void> {
+  if (presenceOpenedForPlan.has(planId)) {
+    return;
+  }
+  presenceOpenedForPlan.add(planId);
+  const proxied = await proxyToApi(`/api/plans/${planId}/agent-presence`, {
+    user: PLANNING_AGENT_USER,
+  });
+
+  if (!proxied.ok) {
+    console.warn(
+      `[lore] plan-presence: open failed for plan ${planId}: ${proxied.reason}`,
+    );
   }
 }
 
