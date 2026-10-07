@@ -40,7 +40,6 @@ function scene(over: Partial<MergeStepDeps> = {}) {
     curate: record("curate"),
     applyOutcomeFeedback: record("applyOutcomeFeedback"),
     promoteTrust: record("promoteTrust"),
-    syncSpecTasks: record("syncSpecTasks"),
     resumePlanning: record("resumePlanning"),
     ...over,
   };
@@ -55,7 +54,7 @@ const brief = (taskId = "t-1") => ({
 });
 
 describe("the merge line's floor stations", () => {
-  it("serves settle, spec-status, close-issue, outcome-stats, curate, memory-feedback, trust and spec-tasks, and not resume-planning", () => {
+  it("serves settle, spec-status, close-issue, outcome-stats, curate, memory-feedback and trust, and not resume-planning", () => {
     expect(FLOOR_MERGE_STEPS.map(mergeStationName)).toEqual([
       "merge-settle",
       "merge-spec-status",
@@ -64,7 +63,6 @@ describe("the merge line's floor stations", () => {
       "merge-curate",
       "merge-memory-feedback",
       "merge-trust",
-      "merge-spec-tasks",
     ]);
   });
 

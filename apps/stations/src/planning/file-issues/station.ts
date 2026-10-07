@@ -16,7 +16,7 @@ import { projectFor } from "../../outbound/project-boot.js";
 import { runIssuesStation, type IssuesStationDeps } from "./issues.js";
 
 export interface FileIssuesDeps {
-  /** The visit's own run, carried on as the spec-task group id — stable across a re-drive of the same run. */
+  /** The visit's own run, which the station input identifies itself by. */
   runOf(visitId: string): Promise<string | null>;
   project(repo: string): Promise<NonNullable<IssuesStationDeps["project"]>>;
   uiUrl?: string;
@@ -63,7 +63,7 @@ async function stationInputOf(
     textOf(tools, "decomposition"),
     specPathOf(brief.needs, tools),
     planMarkdownOf(brief.needs, tools),
-    groupingRunOf(deps, brief.visitId),
+    runIdOf(deps, brief.visitId),
   ]);
 
   return {
@@ -97,11 +97,8 @@ async function planMarkdownOf(
   return needs.plan_md ? textOf(tools, "plan_md") : undefined;
 }
 
-/** The run's id is the spec-tasks' group id, and the merge-check reads that group to flip the spec's status. A visit id would differ on every re-drive, so the tasks would land in a group nobody counts: better to fail here than to file them wrong. */
-async function groupingRunOf(
-  deps: FileIssuesDeps,
-  visitId: string,
-): Promise<string> {
+/** The run behind the visit. A visit id would differ on every re-drive, and `StationInput` names the RUN, so a station that cannot learn it reports rather than guesses. */
+async function runIdOf(deps: FileIssuesDeps, visitId: string): Promise<string> {
   const runId = await deps.runOf(visitId);
 
   enforceTrue(

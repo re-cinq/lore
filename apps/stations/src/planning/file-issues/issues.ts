@@ -15,7 +15,6 @@ import {
   type FilingContext,
   type StationProject,
 } from "./plan-issue-filing.js";
-import { specSlugOf } from "./spec-task-inputs.js";
 import { planUrlOf } from "@re-cinq/lore-shared/feature-planning/plan-url.js";
 import {
   issueCoverage,
@@ -163,6 +162,11 @@ function storyInput(
   };
 }
 
+// The spec's directory under specs/ — what the story issue names the feature by.
+function specSlugOf(specPath: string | undefined): string | undefined {
+  return specPath?.match(/^specs\/([^/]+)/)?.[1];
+}
+
 function storyPlanUrl(
   uiUrl: string | undefined,
   repo: string,
@@ -179,7 +183,6 @@ function filed(storyNumber: number, taskCount: number): NodeResult {
     extras: {
       "Lore-Story-Issue": String(storyNumber),
       "Lore-Issues": String(1 + taskCount),
-      "Lore-Spec-Tasks": String(taskCount),
     },
   };
 }

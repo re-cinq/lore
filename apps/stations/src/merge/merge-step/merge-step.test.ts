@@ -22,7 +22,6 @@ function deps(over: Partial<MergeStepDeps> = {}): MergeStepDeps {
     curate: async () => {},
     applyOutcomeFeedback: async () => {},
     promoteTrust: async () => {},
-    syncSpecTasks: async () => {},
     resumePlanning: async () => {},
     ...over,
   };
@@ -38,7 +37,6 @@ describe("the merge line's steps", () => {
       "curate",
       "memory-feedback",
       "trust",
-      "spec-tasks",
       "resume-planning",
     ]);
   });
@@ -90,40 +88,6 @@ describe("the merge line's steps", () => {
         }),
       ),
     ).rejects.toThrow("trust ladder is down");
-  });
-
-  it("does nothing on spec-tasks for a task type that has none", async () => {
-    const synced: string[] = [];
-
-    await runMergeStep(
-      "spec-tasks",
-      "t-1",
-      deps({
-        task: async () => ({ ...TASK, task_type: "implementation" }),
-        syncSpecTasks: async (t) => {
-          synced.push(t.id);
-        },
-      }),
-    );
-
-    expect(synced).toEqual([]);
-  });
-
-  it("syncs spec-tasks for a merged feature-request, which is what produces them", async () => {
-    const synced: string[] = [];
-
-    await runMergeStep(
-      "spec-tasks",
-      "t-1",
-      deps({
-        task: async () => ({ ...TASK, task_type: "feature-request" }),
-        syncSpecTasks: async (t) => {
-          synced.push(t.id);
-        },
-      }),
-    );
-
-    expect(synced).toEqual(["t-1"]);
   });
 
   it("refuses a step the blueprint could not have named", async () => {

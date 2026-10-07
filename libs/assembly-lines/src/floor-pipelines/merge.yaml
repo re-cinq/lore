@@ -33,8 +33,6 @@ line:
       station: merge-memory-feedback
     - id: trust
       station: merge-trust
-    - id: spec-tasks
-      station: merge-spec-tasks
     - id: done
   edges:
     - from: settle
@@ -60,9 +58,6 @@ line:
       to: trust
       on: always
     - from: trust
-      to: spec-tasks
-      on: always
-    - from: spec-tasks
       to: done
       on: always
 stations:
@@ -121,15 +116,6 @@ stations:
         kind: value
     produces: []
   merge-trust:
-    kind: service
-    outcomes:
-      - success
-      - failed
-    needs:
-      - name: task_id
-        kind: value
-    produces: []
-  merge-spec-tasks:
     kind: service
     outcomes:
       - success

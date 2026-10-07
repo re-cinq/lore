@@ -391,9 +391,14 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/s
   commands and proactive guidance behaviour.
 - Decision: a SessionStart hook syncs task state automatically.
 - Decision: a Stop (session-end) hook reminds about open claimed tasks.
-- FR-4.4: `lore_sync_tasks` MCP tool converts tasks.md task output into
-  pipeline tasks with dependency relationships parsed from
-  `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/domain/tasks.test.ts#L60))
+- FR-4.4: *(rewritten 2026-10-07)* There is no `lore_sync_tasks` tool and no tasks.md
+  parser. The tool, `POST /api/spec-tasks/sync`, `parseTasks`,
+  `inferPhaseDependencies` and `specSlugFromBranch` existed to turn a feature's
+  tasks.md into spec-task rows for the spec-task executor, which is removed
+  (`specs/external-floor` FR15.0); the `[DEPENDS ON: ...]` and `[P]` markers they
+  read are now consumed only as prose, in the `Depends on #<n>` lines the `issues`
+  station writes into each task issue. A plan's tasks reach the implementation loop
+  as tickets (`specs/7-feature-planning` FR-11.13), one at a time per repository. ([validated by registers no spec-task tool, since a plan's tasks are implemented from the backlog](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L160), [validated by refuses a spec-task at trust level %s, pointing at the backlog loop](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L163))
 - FR-4.5: Concurrent task claiming uses `SELECT ... FOR UPDATE SKIP
 LOCKED` — atomically prevents duplicate work without versioning
   overhead. A claim attempt on a taken task returns an immediate
@@ -405,21 +410,6 @@ LOCKED` — atomically prevents duplicate work without versioning
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
   Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L125))
-- FR-4.8: `parseTasks` turns each `- [ ] Tnnn ...` markdown line into a task
-  record — id, description, `completed` from the checkbox, `parallelizable` with a
-  stripped description from a `[P]` marker, a `dependsOn` list from a `[DEPENDS ON: ...]`
-  marker, a plain-or-backtick file path from the trailing `|` suffix, and the phase
-  number carried from the preceding `## Phase N` header — defaulting phase to 0 and
-  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/domain/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/domain/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/domain/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/domain/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/domain/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/domain/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/domain/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/work/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/work/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/work/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/work/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/work/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/work/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/work/pipeline/tasks.test.ts#L92))
-- FR-4.9: `inferPhaseDependencies` derives dependency edges deterministically: a task
-  depends on every task of the previous phase, sequential (non-`[P]`) tasks chain within a
-  phase, `[P]` tasks stay free of intra-phase deps, explicit `[DEPENDS ON: ...]` deps are
-  preserved rather than overwritten, and task lists with no phases (or empty input) are
-  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/domain/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/domain/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/domain/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/domain/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/domain/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/domain/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/work/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/work/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/work/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/work/pipeline/tasks.test.ts#L149), [`tasks.test.ts:165`](libs/server-core/src/work/pipeline/tasks.test.ts#L165), [`tasks.test.ts:179`](libs/server-core/src/work/pipeline/tasks.test.ts#L179), [`tasks.test.ts:206`](libs/server-core/src/work/pipeline/tasks.test.ts#L206))
-- FR-4.10: `specSlugFromBranch` extracts the spec slug from a
-  `lore/feature-request/<slug>-<8hex>` branch by dropping the 8-hex task suffix, and returns
-  null for a non-feature-request branch or one that has the prefix but no slug. ([validated by `tasks.test.ts:9`](libs/shared/src/domain/tasks.test.ts#L9), [`tasks.test.ts:15`](libs/shared/src/domain/tasks.test.ts#L15), [`tasks.test.ts:19`](libs/shared/src/domain/tasks.test.ts#L19))
-
 ### FR-5: Spec-Driven Feature Workflow
 
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
@@ -610,14 +600,16 @@ The system MUST detect when specifications diverge from implementation. ([valida
 The system MUST gate task types per-repo based on demonstrated
 reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33))
 
-- FR-15.1: `settings.trust.level` controls which task types are
+- FR-15.1: *(rewritten 2026-10-07)* `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
   per ADR-027), `tests` (+review),
-  `implementation` (+implementation-loop/feature-request, and `spec-task` — the issues station's filings, which no tier listed, so
-  every one was refused until 2026-09-29),
+  `implementation` (+implementation-loop/feature-request),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
-  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
+  route's guard, not the trust ladder. `spec-task` is in no tier: it was listed at
+  `implementation` and `full` from 2026-09-29, and the type is refused outright now
+  that nothing runs one, so trust is never consulted for it.
+  ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by refuses an implementation-loop task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by refuses a spec-task at trust level %s, pointing at the backlog loop](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L163))
 - FR-15.2: Trust auto-promotes after 3 successful merges at the current level
   (overridable per repo via `auto_promote_threshold`), climbing
   `docs → tests → implementation → full` and resetting the merge counter on
@@ -679,14 +671,14 @@ Added 2026-04-17 per ADR-015.
 ### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
 
 The system MUST detect and surface pipeline tasks that are stuck in
-non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L370))
+non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
-  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L370))
+  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
-  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L370))
+  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
 - FR-18.3: The transition is idempotent — if a task completes between
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:68`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L68))
 - FR-18.4: A failure episode is written for each stuck task so the
@@ -993,15 +985,15 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   a repo when given, flips a running task to completed (reporting
   same-spec dependents it unblocks, false for unknown/non-running), and
   exposes `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
-  `findRecoverable`. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20), [`task-queue.test.ts:27`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L27), [`task-queue.test.ts:35`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L42), [`task-queue.test.ts:49`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L56), [`task-queue.test.ts:58`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L65), [`task-queue.test.ts:67`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L74), [`task-queue.test.ts:75`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L82), [`task-queue.test.ts:83`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L90), [`task-queue.test.ts:93`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L100), [`task-queue.test.ts:102`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L109), [`task-queue.test.ts:113`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L120), [`task-queue.test.ts:127`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L134), [`task-queue.test.ts:180`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L187), [`task-queue.test.ts:191`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L198), [`task-queue.test.ts:204`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L211), [`task-queue.test.ts:218`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L225), [`task-queue.test.ts:272`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L279), [`task-queue.test.ts:282`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L310), [`task-queue.test.ts:311`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L339))
+  `findRecoverable`. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20), [`task-queue.test.ts:27`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L27), [`task-queue.test.ts:35`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L42), [`task-queue.test.ts:49`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L56), [`task-queue.test.ts:180`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L56), [`task-queue.test.ts:191`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L67), [`task-queue.test.ts:204`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L80), [`task-queue.test.ts:218`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L94), [`task-queue.test.ts:272`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L148), [`task-queue.test.ts:282`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L179), [`task-queue.test.ts:311`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L208))
 - FR-20.1b: `setColumns` writes only the given allow-listed task columns
   WITHOUT touching status or updated_at, issues no SQL for an empty column
   set, and throws on any key outside `SETTABLE_TASK_COLUMNS` — identically
   in the Pg adapter and the in-memory double, so a typo'd column fails
   loudly in tests instead of silently no-oping in production; the double
   additionally assigns the columns onto the seeded row and stays a no-op
-  for an unknown task id. ([validated by `task-queue.test.ts:635`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L759), [`task-queue.test.ts:654`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L778), [`task-queue.test.ts:667`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L791), [`task-queue.test.ts:674`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L798), [`task-queue.test.ts:686`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L810), [`task-queue.test.ts:698`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L822))
-- FR-20.1c: `activeTaskByIssue` returns null for a task that no longer holds its issue: `failed`, `cancelled` or `retried`. A `retried` task handed its work to the retry, so it must not block the issue from being picked again (#2009). A `completed` task still guards it *(amended 2026-09-14, #2069)*: completed means its pull request awaits review, and treating it as terminal made the backlog loop start the same ticket again on the same branch. On 2026-09-14, re-cinq/Otto#19's second run pushed five rounds of commits onto PR #231 one minute after the first run had marked it ready for review, and #1948 was re-run fourteen minutes after its fix merged. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L732), [`task-queue.test.ts:616`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L740), [`task-queue.test.ts:624`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L748))
+  for an unknown task id. ([validated by `task-queue.test.ts:635`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L411), [`task-queue.test.ts:654`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L430), [`task-queue.test.ts:667`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L443), [`task-queue.test.ts:674`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L450), [`task-queue.test.ts:686`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L462), [`task-queue.test.ts:698`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L474))
+- FR-20.1c: `activeTaskByIssue` returns null for a task that no longer holds its issue: `failed`, `cancelled` or `retried`. A `retried` task handed its work to the retry, so it must not block the issue from being picked again (#2009). A `completed` task still guards it *(amended 2026-09-14, #2069)*: completed means its pull request awaits review, and treating it as terminal made the backlog loop start the same ticket again on the same branch. On 2026-09-14, re-cinq/Otto#19's second run pushed five rounds of commits onto PR #231 one minute after the first run had marked it ready for review, and #1948 was re-run fourteen minutes after its fix merged. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L384), [`task-queue.test.ts:616`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L392), [`task-queue.test.ts:624`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L400))
 - FR-20.1a: The `pipeline.tasks` queue, exercised end-to-end against Postgres,
   backs those port behaviors: a created task defaults to `pending` status and
   `normal` priority (accepting an explicit `immediate`); a claim is atomic (a
@@ -1028,7 +1020,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   so these port methods answer for the rows that already exist and for
   nothing new. A plan's tasks reach the implementation loop as tickets
   (`specs/7-feature-planning` FR-11.13).
-  ([validated by PgTaskQueue reads each running or queued grouped spec-task's file and whether it is parallelizable](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L605), [validated by InMemory lists running and queued spec-tasks of a group, treating one with no parallelizable mark as not parallelizable](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L619), [validated by `task-queue.test.ts:366`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L394), [`task-queue.test.ts:375`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L403), [`task-queue.test.ts:390`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L418), [`task-queue.test.ts:405`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L433), [`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L475), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L497), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L507), [`task-queue.test.ts:494`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L522), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by claims the gap-fill behind an older pending spec-task, which only the spec-task executor may take](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L289), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34)))
+  ([`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L263), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L285), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L295), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34)))
 - FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
   transitions a cancel to `cancelled`, writes `setStatus` (status +
   updated_at + only allowlisted extra columns), reads-old-then-writes-new
@@ -1051,7 +1043,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L70), [`task-store-memory.test.ts:90`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L91), [`task-store-memory.test.ts:100`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L109), [`task-store-memory.test.ts:125`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L134), [`task-store-memory.test.ts:137`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L146), [`task-store-memory.test.ts:149`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L158), [`task-store-memory.test.ts:157`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L166), [`task-store-memory.test.ts:171`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L180), [`task-store-memory.test.ts:194`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L203), [`task-store-memory.test.ts:226`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L221), [`task-store-memory.test.ts:274`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L269), [`task-store-memory.test.ts:362`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L303), [`task-store-memory.test.ts:376`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L317), [`task-store-memory.test.ts:392`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L333))
 - FR-20.4: The task-list surface returns the repo's pending tasks as
   typed `Task` wrappers and reflects the new status after `cancel()`.
-  ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L101), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L118))
+  ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L96), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L113))
 - FR-20.5: The `EventReporter` port is the produce side of `pipeline.events`
   and nothing more: `insert` writes through the shared idempotent statement
   and collapses a redelivery sharing a dedupe key. Claiming, acking,
