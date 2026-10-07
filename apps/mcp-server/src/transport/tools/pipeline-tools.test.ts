@@ -355,119 +355,6 @@ describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helper
     expect(result.content[0].text).toBe("No tasks found for group g1");
   });
 
-  it("lore_sync_tasks posts the raw markdown and summarizes the counts", async () => {
-    jsonOk({ parsed: 3, synced: 3, created: 2 });
-
-    const result = await handlers["lore_sync_tasks"]({
-      tasks_markdown: "- [ ] T001 Wire it",
-      repo: "o/r",
-      spec_slug: "widgets",
-    });
-
-    expect(callOf()).toMatchObject({
-      url: "https://lore-api.example.com/api/spec-tasks/sync",
-      body: {
-        repo: "o/r",
-        spec_slug: "widgets",
-        tasks_markdown: "- [ ] T001 Wire it",
-      },
-    });
-    expect(result.content[0].text).toBe(
-      "Synced 3 tasks (2 new) for o/r / widgets.",
-    );
-  });
-
-  it("lore_sync_tasks reports markdown with no tasks", async () => {
-    jsonOk({ parsed: 0, synced: 0, created: 0 });
-
-    const result = await handlers["lore_sync_tasks"]({
-      tasks_markdown: "# nothing",
-      repo: "o/r",
-      spec_slug: "widgets",
-    });
-
-    expect(result.content[0].text).toBe(
-      "No tasks found in the provided markdown.",
-    );
-  });
-
-  it("lore_ready_tasks renders one bullet per ready task", async () => {
-    jsonOk({
-      tasks: [
-        {
-          id: "t1",
-          description: "wire the widget",
-          context_bundle: { spec_task_id: "T001" },
-        },
-      ],
-    });
-
-    const result = await handlers["lore_ready_tasks"]({ repo: "o/r" });
-
-    expect(callOf().url).toBe(
-      "https://lore-api.example.com/api/spec-tasks/ready?repo=o%2Fr",
-    );
-    expect(result.content[0].text).toBe(
-      "## Ready tasks\n\n- **T001** (t1): wire the widget",
-    );
-  });
-
-  it("lore_ready_tasks reports an empty ready set", async () => {
-    jsonOk({ tasks: [] });
-
-    const result = await handlers["lore_ready_tasks"]({ repo: "o/r" });
-
-    expect(result.content[0].text).toBe(
-      "No ready tasks. All tasks are either completed, claimed, or blocked by dependencies.",
-    );
-  });
-
-  it("lore_claim_task posts the resolved agent id and confirms the claim", async () => {
-    jsonOk({ claimed: true, task_id: "t1", agent_id: "agent-7" });
-
-    const result = await handlers["lore_claim_task"]({ task_id: "t1" });
-
-    expect(callOf()).toMatchObject({
-      url: "https://lore-api.example.com/api/spec-tasks/claim",
-      body: { task_id: "t1", agent_id: "agent-7" },
-    });
-    expect(result.content[0].text).toBe("Task t1 claimed by agent-7.");
-  });
-
-  it("lore_claim_task reports a task that could not be claimed", async () => {
-    jsonOk({ claimed: false, task_id: "t1", agent_id: "agent-7" });
-
-    const result = await handlers["lore_claim_task"]({ task_id: "t1" });
-
-    expect(result.content[0].text).toBe(
-      "Could not claim task t1. It may already be claimed or does not exist.",
-    );
-  });
-
-  it("lore_complete_task lists the newly unblocked dependents", async () => {
-    jsonOk({ completed: true, unblocked: ["T002", "T003"] });
-
-    const result = await handlers["lore_complete_task"]({ task_id: "t1" });
-
-    expect(callOf()).toMatchObject({
-      url: "https://lore-api.example.com/api/spec-tasks/complete",
-      body: { task_id: "t1" },
-    });
-    expect(result.content[0].text).toBe(
-      "Task t1 completed.\n\nNewly unblocked tasks:\n- T002\n- T003",
-    );
-  });
-
-  it("lore_complete_task reports a task that was not running", async () => {
-    jsonOk({ completed: false, unblocked: [] });
-
-    const result = await handlers["lore_complete_task"]({ task_id: "t1" });
-
-    expect(result.content[0].text).toBe(
-      "Could not complete task t1. It may not be in 'running' state.",
-    );
-  });
-
   it("every proxied pipeline tool reports a missing API configuration", async () => {
     vi.stubEnv("LORE_API_URL", "");
     vi.stubEnv("LORE_INGEST_TOKEN", "");
@@ -476,14 +363,6 @@ describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helper
       handlers["lore_cancel_task"]({ task_id: "t1" }),
       handlers["lore_retry_task"]({ task_id: "t1" }),
       handlers["lore_list_task_group"]({ group_id: "g1" }),
-      handlers["lore_ready_tasks"]({ repo: "o/r" }),
-      handlers["lore_claim_task"]({ task_id: "t1" }),
-      handlers["lore_complete_task"]({ task_id: "t1" }),
-      handlers["lore_sync_tasks"]({
-        tasks_markdown: "- [ ] T001 x",
-        repo: "o/r",
-        spec_slug: "s",
-      }),
     ]);
 
     expect(results.map((r) => r.content[0].text)).toSatisfy((texts: string[]) =>

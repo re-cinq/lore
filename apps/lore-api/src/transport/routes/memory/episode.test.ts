@@ -15,8 +15,6 @@ vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({
 }));
 vi.mock("@re-cinq/lore-shared", () => ({
   redactSecrets: (s: string) => s,
-  parseTasks: vi.fn(),
-  inferPhaseDependencies: vi.fn(),
   parseTrailers: vi.fn(),
   parseSpecTitle: vi.fn(),
   extractSummary: vi.fn(),
