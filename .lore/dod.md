@@ -14,7 +14,7 @@
 
 ## Facets
 
-- [ ] Add `billing_mode` migration under `ui-helm/migrations/` — nullable column, default `unknown` for historical rows.
+- [x] Add `billing_mode` migration under `ui-helm/migrations/` — nullable column, default `unknown` for historical rows.
 - [ ] Extend the `by_cluster` row type (or a new `by_billing_mode` field on the API) to carry `billing_mode: 'api' | 'subscription' | 'unknown'`.
 - [ ] Set `billing_mode` at dispatch time in the write path (`agent-events-cost.ts` → `usage-pg.ts` or via station-run join).
 - [x] Rewrite `billingSourceSplit` to group by `billing_mode` when known, fall back to `cluster === null` rule for `unknown` rows.
