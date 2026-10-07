@@ -140,18 +140,22 @@ function testableStatements(specMd: string) {
   );
 }
 
-// A spec written before plan citations existed cites nothing, so it counts whole.
+// A spec written before plan citations existed cites no plan at all, so it counts whole; one citing only other plans gives this plan nothing.
 function writtenBy<T extends { text: string }>(
   statements: T[],
   planId: string | undefined,
 ): T[] {
-  const cited = planId
-    ? statements.filter((statement) =>
-        statement.text.includes(`/plans/${planId}#`),
-      )
-    : [];
+  const citesAnyPlan = statements.some((statement) =>
+    statement.text.includes("/plans/"),
+  );
 
-  return cited.length > 0 ? cited : statements;
+  if (!planId || !citesAnyPlan) {
+    return statements;
+  }
+
+  return statements.filter((statement) =>
+    statement.text.includes(`/plans/${planId}#`),
+  );
 }
 
 // The story body carries the plan and its tasks too; coverage gets this much of it, comments take the rest.

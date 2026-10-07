@@ -154,14 +154,14 @@ describe("issueCoverageHandle", () => {
     }).toEqual({ report: { outcome: "success" }, namesFr2: true });
   });
 
-  it("fails naming story coverage 0 of 1 filed when the spent run would settle but the story's comments lost FR2", async () => {
+  it("fails naming story coverage 0 of 1 filed when the spent run would settle but the story's comments lost FR1", async () => {
     const { handle, tools } = scene(
-      decomposition([7]),
+      decomposition([]),
       [handback(), handback(), handback()],
       [],
     );
 
-    const report = await handle(brief({ ...NEEDS, plan_id: "p2" }), tools);
+    const report = await handle(brief({ ...NEEDS, plan_id: "p1" }), tools);
 
     expect(report).toEqual({
       outcome: "failed",
@@ -170,16 +170,16 @@ describe("issueCoverageHandle", () => {
     });
   });
 
-  it("reports success when the spent run's story lists FR2 on line 8, the one statement no task names", async () => {
+  it("reports success when the spent run's story lists FR1 on line 7, the one statement of plan p1 no task names", async () => {
     const { handle, tools } = scene(
-      decomposition([7]),
+      decomposition([]),
       [handback(), handback(), handback()],
       [
-        "- line 8: FR2 — The graph renders each node event. — https://github.com/re-cinq/lore/blob/abc123/specs/live/spec.md#L8",
+        "- line 7: FR1 — The run page streams node events. — https://github.com/re-cinq/lore/blob/abc123/specs/live/spec.md#L7",
       ],
     );
 
-    const report = await handle(brief({ ...NEEDS, plan_id: "p2" }), tools);
+    const report = await handle(brief({ ...NEEDS, plan_id: "p1" }), tools);
 
     expect(report).toEqual({ outcome: "success" });
   });

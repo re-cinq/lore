@@ -49,8 +49,17 @@ describe("specParts", () => {
     ]);
   });
 
-  it("keeps all 4 statements for plan p9, which no statement cites", () => {
-    expect(specParts(SPEC, "p9")).toHaveLength(4);
+  it("keeps none for plan p9 when FR1 cites plan p1 and none cites p9", () => {
+    expect(specParts(SPEC, "p9")).toEqual([]);
+  });
+
+  it("keeps all 4 statements for plan p9 when no statement cites any plan", () => {
+    expect(
+      specParts(
+        SPEC.replace("[from plan](https://lore.example/plans/p1#b-1), ", ""),
+        "p9",
+      ),
+    ).toHaveLength(4);
   });
 });
 
