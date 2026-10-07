@@ -49,6 +49,8 @@ export interface IngestGraphPorts {
 /** One file-projectable kind: how to discover its files + how to project one. */
 export interface IngestKindDef {
   prefixes: string[];
+  /** File extensions this kind selects; defaults to [".md"] when absent. */
+  extensions?: string[];
   project(
     doc: SourceDocument,
     dgraph: DgraphClientPort,
@@ -66,7 +68,7 @@ export interface IngestKindDef {
   };
 }
 
-/** The seed kind registry — specs/adrs are markdown file-projectable; tests is special-cased in runIngestGraph; CodeChunks are coverage-defined (minted by ingestCoverageReport), not an ingest kind. */
+/** The seed kind registry — specs/adrs are markdown file-projectable; tests is special-cased in runIngestGraph; code is TypeScript/JavaScript source file-projectable via projectCodeFile. */
 export const INGEST_KINDS: Record<string, IngestKindDef> = {
   specs: {
     prefixes: ["specs/", ".specify/"],
@@ -85,6 +87,13 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
       listDocPaths: (dgraph, repo) => listGraphDocPaths(dgraph, "ADR", repo),
       deleteSubtree: deleteAdrSubtree,
     },
+  },
+  code: {
+    prefixes: ["src/", "lib/", "libs/", "apps/", "packages/"],
+    extensions: [".ts", ".js", ".tsx", ".jsx"],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- projectCodeFile is a separate facet; stub keeps the registry valid
+    project: async (_doc, _dgraph) => ({ projected: false }),
+    runsOn: "runner+local",
   },
 };
 
@@ -169,15 +178,17 @@ function filesMatchingPatterns(
   );
 }
 
-/** Markdown tree paths under the kind's built-in prefixes, further narrowed by the substring `glob`. */
+/** Tree paths under the kind's built-in prefixes with matching extensions, further narrowed by the substring `glob`. */
 function filesUnderKindPrefixes(
   tree: string[],
   def: IngestKindDef,
   glob?: string,
 ): string[] {
+  const exts = def.extensions ?? [".md"];
+
   return tree.filter(
     (path) =>
-      path.endsWith(".md") &&
+      exts.some((ext) => path.endsWith(ext)) &&
       def.prefixes.some((prefix) => path.startsWith(prefix)) &&
       (!glob || path.includes(glob)),
   );
