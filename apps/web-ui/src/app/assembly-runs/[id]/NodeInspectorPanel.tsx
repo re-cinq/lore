@@ -40,7 +40,7 @@ interface SelectedNodeSectionProps {
 export type NodeInspectorPanelProps = SelectedNodeSectionProps;
 
 export function NodeInspectorPanel(props: NodeInspectorPanelProps) {
-  const { selectedNodeId, runId } = props;
+  const { selectedNodeId } = props;
 
   if (selectedNodeId === null) {
     return <SelectionHint nodeCount={props.visibleNodeCount} />;
@@ -49,16 +49,29 @@ export function NodeInspectorPanel(props: NodeInspectorPanelProps) {
   return (
     <>
       <NodeInspector {...inspectorPropsFor(props, selectedNodeId)} />
-      {/* Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear. */}
-      <FullTranscriptPanel
-        key={runId}
-        runId={runId}
-        nodeId={selectedNodeId}
-        taskEvents={props.taskEvents}
-        rows={props.selectedRows}
-        liveEventId={props.liveEventId}
-      />
+      <SelectedTranscript props={props} nodeId={selectedNodeId} />
     </>
+  );
+}
+
+function SelectedTranscript({
+  props,
+  nodeId,
+}: {
+  props: SelectedNodeSectionProps;
+  nodeId: string;
+}) {
+  return (
+    // Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear.
+    <FullTranscriptPanel
+      key={props.runId}
+      runId={props.runId}
+      nodeId={nodeId}
+      taskEvents={props.taskEvents}
+      rows={props.selectedRows}
+      liveEventId={props.liveEventId}
+      nodeStatus={props.selectedState?.status}
+    />
   );
 }
 

@@ -1,5 +1,6 @@
 // The transcript as a terminal session (run-viz FR4.17): one monospace block, each entry headed by its clock, assistant prose in the open, tool calls folded to one line with their result behind it, thinking folded, task transitions as system lines, and a dim rule per visit. Pure render; the panel above owns the walk.
 import type { ReactNode } from "react";
+import type { NodeRunStatus } from "@/lib/run-event-reducer";
 import { clip } from "@/lib/agent-log-entries";
 import { clockShown, type TranscriptEntry } from "@/lib/transcript-entries";
 import { clockTime } from "./turn-transcript-presenter";
@@ -43,23 +44,31 @@ export function TranscriptCapped({
   );
 }
 
+export interface TranscriptNode {
+  id: string;
+  status?: NodeRunStatus;
+}
+
 export function TranscriptEmpty({
   show,
-  nodeId,
+  node,
 }: {
   show: boolean;
-  nodeId: string;
+  node: TranscriptNode;
 }) {
   if (!show) {
     return null;
   }
 
-  return (
-    <p className={`meta ${styles.placeholder}`}>
-      No stored turns for {nodeId}. Turns older than the retention horizon are
-      pruned.
-    </p>
-  );
+  return <p className={`meta ${styles.placeholder}`}>{emptyMessage(node)}</p>;
+}
+
+function emptyMessage({ id, status }: TranscriptNode): string {
+  if (status === "running" || status === "idle") {
+    return "No turns yet: this step is still running or queued.";
+  }
+
+  return `No stored turns for ${id}. Turns older than the retention horizon are pruned.`;
 }
 
 type Of<K extends TranscriptEntry["kind"]> = Extract<

@@ -57,3 +57,9 @@ function refusalMessage(result: OnboardRefusal): string {
     ? "Onboarding is unavailable: the web UI has no lore-api configured."
     : result.message;
 }
+
+const REPO_SLUG = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
+
+export function isRepoSlug(value: string): boolean {
+  return REPO_SLUG.test(value);
+}
