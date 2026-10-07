@@ -38,12 +38,6 @@ import { taskTurnsPostRoute } from "./routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "./routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "./routes/tasks/task-post.js";
 import { taskGroupRoute } from "./routes/tasks/task-group.js";
-import {
-  specTasksSyncRoute,
-  specTasksReadyRoute,
-  specTasksClaimRoute,
-  specTasksCompleteRoute,
-} from "./routes/spec-tasks/spec-tasks.js";
 import { memoryRoute } from "./routes/memory/memory.js";
 import { memoryBrowseRoutes } from "./routes/memory/memory-browse.js";
 import { episodeRoute } from "./routes/memory/episode.js";
@@ -178,7 +172,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
 
 /** Pipeline tasks and the assembly runs that execute them; the emitted order is the order the OpenAPI generator walks, so the two halves stay concatenated rather than interleaved. */
 function taskRoutes(getPool: PoolGetter, plans: PlanVerbSeams): ServerRoute[] {
-  return [...taskRunRoutes(getPool), ...specTaskRoutes(getPool, plans)];
+  return [...taskRunRoutes(getPool), ...backlogRoutes(getPool, plans)];
 }
 
 /** One task: its record, the runs that executed it, and the logs those runs left behind. */
@@ -201,16 +195,12 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** The spec-task DAG and the feature backlog above it, plus the transcript sinks a running node writes into. */
-function specTaskRoutes(
+/** The feature backlog, the plans above it, and the transcript sinks a running node writes into. */
+function backlogRoutes(
   getPool: PoolGetter,
   plans: PlanVerbSeams,
 ): ServerRoute[] {
   return [
-    specTasksSyncRoute(getPool),
-    specTasksReadyRoute(getPool),
-    specTasksClaimRoute(getPool),
-    specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
     ...plansRoutes(getPool, plans),

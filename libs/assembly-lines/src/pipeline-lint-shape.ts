@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export type PipelineRule =
   | "ambiguous-edge"
+  | "dangling-edge"
   | "dead-end"
   | "undeclared-bag"
   | "outcome-without-edge"
