@@ -126,3 +126,6 @@ agent_definitions:
       model: gemini-3-flash-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 10
+      config:
+        # Without it the floor serves its own /skills: the test guard never reaches the pod.
+        skills_source: ${LORE_SKILLS_URL}
