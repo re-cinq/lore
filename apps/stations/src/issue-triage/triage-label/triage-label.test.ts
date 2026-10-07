@@ -81,9 +81,7 @@ describe("the triage-label station", () => {
     await handle(brief(), TOOLS);
 
     expect({ labelled, commented }).toEqual({
-      labelled: [
-        { number: ISSUE_NUMBER, label: "triage: needs-reproduction" },
-      ],
+      labelled: [{ number: ISSUE_NUMBER, label: "triage: needs-reproduction" }],
       commented: [{ number: ISSUE_NUMBER, body: VERDICT }],
     });
   });
