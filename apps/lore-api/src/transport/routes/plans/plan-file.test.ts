@@ -14,9 +14,14 @@ function serve() {
     livePlan: async () => {
       throw new Error("no live plan in this test");
     },
+    refineAsks: {
+      pending: () => Promise.resolve(null),
+      clear: () => Promise.resolve(),
+    },
     writer: {
       applyOps: async () => [],
       proposeChanges: async () => [],
+      finishRefine: () => Promise.resolve(),
       failRefine: async (request) => {
         failed.push(request);
       },
@@ -82,9 +87,14 @@ describe("GET /api/plans/{id}/agent-view", () => {
     server.route(
       planFileRoutes({
         livePlan: async () => ({ meta, blocks }),
+        refineAsks: {
+          pending: () => Promise.resolve(null),
+          clear: () => Promise.resolve(),
+        },
         writer: {
           applyOps: async () => [],
           proposeChanges: async () => [],
+          finishRefine: () => Promise.resolve(),
           failRefine: async () => {},
         },
       }),

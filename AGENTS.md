@@ -81,8 +81,9 @@ through one of these:
 - **Code**: a ticket in the repository's backlog. Put a `priority:*` label on
   the issue (a `lore` or `lore:implementation` label gives it one) and the
   implementation loop picks it up.
-- **A feature**: a plan (`/repos/<owner>/<repo>/plans`). Its spec-tasks run on
-  the same loop once the plan is approved.
+- **A feature**: a plan (`/repos/<owner>/<repo>/plans`). Once it is approved its
+  tasks are filed as issues carrying a priority label, so the same loop picks
+  them up one at a time.
 - **A review**: opening the pull request starts one where `auto_review` is on;
   `@lore review` asks for one by hand.
 

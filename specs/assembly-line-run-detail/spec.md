@@ -58,9 +58,9 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 - `NodePodLogs.tsx` prop signature changes (FR2) but its rendering logic is unchanged.
 - `AssemblyRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
 - `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number). _Amended 2026-09-02:_ the gate moved out of `page.tsx` into `AssemblyRunOptions`, the component that decides which actions a run offers from the run itself.
-  - A `code-review` run with a PR number renders the trigger-review button. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L32))
-  - A run of another definition renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L40))
-  - A `code-review` run without a PR number renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L50))
+  - A `code-review` run with a PR number renders the trigger-review button. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L34))
+  - A run of another definition renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L42))
+  - A `code-review` run without a PR number renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L52))
 
 ## Alternatives Rejected
 

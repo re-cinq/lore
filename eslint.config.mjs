@@ -613,6 +613,17 @@ export default tseslint.config(
       "re-lint/no-ungrounded-spec-name": "warn",
     },
   },
+  // A `([validated by](test.ts#Lnn))` anchor drifts when a branch moves the test it
+  // cites. `eslint --fix` — so `npm run format`, and the CI `format` job that
+  // commits its result — repoints the links the branch's diff against the merge
+  // base with main moved; a plain `eslint` fails a branch that left one stale.
+  // Wider than the block above: tasks.md and plan siblings carry links too.
+  {
+    files: ["specs/**/*.md", "adrs/**/*.md", ".specify/spec.md"],
+    language: "markdown/gfm",
+    plugins: { markdown, "re-lint": reLint },
+    rules: { "re-lint/no-stale-spec-links": "error" },
+  },
   // Every markdown link to a repo file, wherever docs live. `require-spec-link`
   // resolves the validated-by form from the TEST's side — whether each test is
   // linked — and nothing asks whether each link lands. A rename sweep rewrites a

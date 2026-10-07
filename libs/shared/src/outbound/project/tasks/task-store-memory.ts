@@ -17,11 +17,7 @@ import type {
   TaskListResult,
   FindOpenLikeInput,
   DriftTaskRow,
-  ReconcileSpecTasksInput,
-  ReconciledSpecTasks,
 } from "./task-store-port.js";
-import { reconcileSpecTasksIn } from "./spec-task-reconcile-store.js";
-import { MemorySpecTaskRows } from "./task-store-memory-spec-task-rows.js";
 import { TaskTransitionStore } from "./task-store-memory-transitions.js";
 import { TaskQueryStore } from "./task-store-memory-queries.js";
 
@@ -198,19 +194,6 @@ export class InMemoryTaskStore implements TaskStorePort {
     });
 
     return createdFrom(fields, task.id);
-  }
-
-  reconcileSpecTasks(
-    repo: string,
-    input: ReconcileSpecTasksInput,
-  ): Promise<ReconciledSpecTasks> {
-    const rows = new MemorySpecTaskRows(
-      this.tasks,
-      (task) => this.create(task),
-      this.now,
-    );
-
-    return reconcileSpecTasksIn(rows, repo, input);
   }
 
   async retry(id: string): Promise<RetriedTask> {

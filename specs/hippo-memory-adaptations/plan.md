@@ -103,8 +103,7 @@ Add a new async function after the `searchMemories()` export:
  */
 async function strengthenRetrievals(
   pool: any,
-  results: MemorySearchResult[],
-): Promise<void> {
+  results: MemorySearchResult[]): Promise<void> {
   const factIds: string[] = [];
   const memoryKeys: { agent_id: string; key: string }[] = [];
 
@@ -128,8 +127,7 @@ async function strengthenRetrievals(
            last_retrieved_at = now(),
            half_life_days = LEAST(COALESCE(half_life_days, 60) + 2, 365)
        WHERE key = ANY($1) AND agent_id = ANY($2)`,
-      [keys, agents],
-    ).catch(() => {});
+      [keys, agents]).catch(() => {});
   }
 }
 ```
@@ -205,8 +203,7 @@ await query(
    SET confidence = 'stale'
    WHERE confidence IN ('observed', 'inferred')
      AND valid_to IS NULL
-     AND COALESCE(last_retrieved_at, created_at) < now() - interval '30 days'`,
-);
+     AND COALESCE(last_retrieved_at, created_at) < now() - interval '30 days'`);
 ```
 
 ### 3.3 Surface confidence in search results
@@ -246,8 +243,7 @@ old fact, insert a conflict record:
 await pool.query(
   `INSERT INTO memory.fact_conflicts (old_fact_id, new_fact_id, similarity)
    VALUES ($1, $2, $3)`,
-  [row.id, newFactId, row.similarity],
-);
+  [row.id, newFactId, row.similarity]);
 ```
 
 This is a ~5-line addition inside the existing `for (const row of rows)`
@@ -308,8 +304,7 @@ linked repos, filter:
 
 ```typescript
 const crossRepoFacts = results.filter(
-  r => computeTransferScore(r.value) >= 0.5,
-);
+  r => computeTransferScore(r.value) >= 0.5);
 ```
 
 Import `computeTransferScore` from `memory-search.ts`.
@@ -335,8 +330,7 @@ const contextRefs = {
 // Include in INSERT
 await pool.query(
   `UPDATE pipeline.tasks SET context_refs = $2 WHERE id = $1`,
-  [taskId, JSON.stringify(contextRefs)],
-);
+  [taskId, JSON.stringify(contextRefs)]);
 ```
 
 **Note:** The exact integration point depends on how context is
@@ -372,8 +366,7 @@ if (task.context_refs) {
         `UPDATE memory.facts
          SET half_life_days = LEAST(COALESCE(half_life_days, 30) + 5, 365)
          WHERE id = ANY($1::uuid[])`,
-        [refs.fact_ids],
-      );
+        [refs.fact_ids]);
     }
     if (refs.memory_keys?.length > 0) {
       for (const mk of refs.memory_keys) {
@@ -381,16 +374,14 @@ if (task.context_refs) {
           `UPDATE memory.memories
            SET half_life_days = LEAST(COALESCE(half_life_days, 60) + 5, 365)
            WHERE key = $1 AND agent_id = $2`,
-          [mk.key, mk.agent_id],
-        );
+          [mk.key, mk.agent_id]);
       }
     }
     // Audit log
     await query(
       `INSERT INTO memory.audit_log (agent_id, operation, metadata)
        VALUES ('merge-check', 'outcome-feedback', $1)`,
-      [JSON.stringify({ task_id: task.id, outcome: 'merged', refs })],
-    );
+      [JSON.stringify({ task_id: task.id, outcome: 'merged', refs })]);
   } catch { /* outcome feedback is best-effort */ }
 }
 ```

@@ -160,11 +160,11 @@ describe("reopenPlanAction", () => {
     });
   });
 
-  it("reports lore-api's reason for refusing to reopen while the specs are being written", async () => {
-    answer(409, { error: "the specs are being written; wait for the spec PR" });
+  it("reports lore-api's reason for refusing to reopen a plan that is not approved", async () => {
+    answer(409, { error: "the plan is not approved" });
 
     expect(await reopenPlanAction("re-cinq/lore", "p1")).toEqual({
-      error: "The specs are being written; wait for the spec PR.",
+      error: "The plan is not approved.",
     });
   });
 });
@@ -291,15 +291,15 @@ describe("refinePlanAction", () => {
     });
   });
 
-  it("reports lore-api's reason when plan p1's planning line has ended", async () => {
+  it("reports lore-api's reason when approved plan p1's sections are settled", async () => {
     answer(409, {
       error:
-        "the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
+        "the plan is approved, so its sections are settled; reopen the plan to write again",
     });
 
     expect(await refinePlanAction("re-cinq/lore", "p1", REFINE)).toEqual({
       error:
-        "The planning line has ended, so no agent is waiting to refine this plan; edit the section by hand.",
+        "The plan is approved, so its sections are settled; reopen the plan to write again.",
     });
   });
 });
@@ -369,7 +369,7 @@ describe("the user story typed on the plan page", () => {
       "https://github.com/re-cinq/lore/issues/42",
     );
 
-    expect(sentBody()).toEqual({ ...REFINE, storyIssue: 42 });
+    expect(sentBody()).toEqual({ ...REFINE, storyIssue: 42, actor: "gedaiu" });
   });
 
   it("starts plan p1's spec pass with storyIssue 42 when the story reads 42", async () => {
