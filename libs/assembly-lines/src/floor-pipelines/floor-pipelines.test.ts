@@ -1379,7 +1379,7 @@ describe("the agents of every floor pipeline", () => {
     })),
   );
 
-  it("fetch their hooks, guard and tool policy from Lore's skills registry, never the floor's own", () => {
+  it("fetch their hooks and test guard from Lore's skills registry, never the floor's own", () => {
     const elsewhere = AGENTS.filter(
       (agent) => agent.config?.skills_source !== "${LORE_SKILLS_URL}",
     ).map((agent) => agent.name);
