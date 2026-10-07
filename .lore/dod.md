@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **a partial PUT for pod_resources merges per sub-key, not replaces the whole block** — PUT with `{ requests: { "ephemeral-storage": "4Gi" } }` when the existing definition already has `limits.memory`, `limits.ephemeral-storage`, and `requests.memory` stored must result in `fakeAgents.update` receiving a `podResources` that contains all four values, not just the one named in the patch.
+- [x] **a partial PUT for pod_resources merges per sub-key, not replaces the whole block** — PUT with `{ requests: { "ephemeral-storage": "4Gi" } }` when the existing definition already has `limits.memory`, `limits.ephemeral-storage`, and `requests.memory` stored must result in `fakeAgents.update` receiving a `podResources` that contains all four values, not just the one named in the patch.
   `apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts`
 
 ## Facets
 
-- [ ] In `resolvePodResourcesUpdate` (`agent-common.ts`): read the existing `pod_resources` from the resolved definition's config and deep-merge the incoming patch into it at the `requests`/`limits` sub-key level before setting `podResources` in the returned `PodResourcesWrite`.
-- [ ] The merge must be additive: a key named in the patch overwrites, a key absent from the patch is preserved from the stored value.
-- [ ] An explicit `null` patch must still clear the override (existing behaviour, unchanged).
+- [x] In `resolvePodResourcesUpdate` (`agent-common.ts`): read the existing `pod_resources` from the resolved definition's config and deep-merge the incoming patch into it at the `requests`/`limits` sub-key level before setting `podResources` in the returned `PodResourcesWrite`.
+- [x] The merge must be additive: a key named in the patch overwrites, a key absent from the patch is preserved from the stored value.
+- [x] An explicit `null` patch must still clear the override (existing behaviour, unchanged).
 
 ## Out of scope
 
