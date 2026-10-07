@@ -256,6 +256,32 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
   });
 
+  it("tells the planning agent a finding is work to do, fixed in the section it names and never edited or removed", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      ownWork: prompt.includes("A finding is not part of the conversation"),
+      fixTheSection: prompt.includes(
+        "fix the section it names so what it says no longer holds",
+      ),
+      leaveTheBlock: prompt.includes(
+        "Never edit or remove a finding block: the check that wrote it clears it",
+      ),
+      disagree: prompt.includes(
+        "ask with `add-question` on its section and change nothing there",
+      ),
+      inTheBrief: prompt.includes(
+        "A finding reaches you in the brief, never in the plan read",
+      ),
+    }).toEqual({
+      ownWork: true,
+      fixTheSection: true,
+      leaveTheBlock: true,
+      disagree: true,
+      inTheBrief: true,
+    });
+  });
+
   it("tells the planning agent the Refine it was asked for is in the plan read, outranking the description its node started with", () => {
     const prompt = promptOnOneLine("plan-analyze");
 

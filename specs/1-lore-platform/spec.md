@@ -506,7 +506,7 @@ The system MUST validate context quality from CI.
   so the run ends without a pull request instead of validating an empty branch. The `gap-fill` recipe did not say push after its line moved to a pod per node (nor did the `general` recipe, deleted with its line on 2026-10-01), so 17 of 36 gap-fill branches carried zero commits (2026-08-15 to
   2026-09-25): validate diffed nothing, ran the checks unscoped over the whole
   tree, and was OOM-killed in its 1Gi pod, or passed and the push found nothing,
-  so no PR could open. ([validated by lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L464), [validated by counts gap-fill as delivering, since validate and push after it are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13))
+  so no PR could open. ([validated by lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L490), [validated by counts gap-fill as delivering, since validate and push after it are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 

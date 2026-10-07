@@ -85,6 +85,18 @@ comments are settled decisions: write them into the section's prose.
 Unanswered questions and open threads are people still talking:
 leave them alone.
 
+A finding is not part of the conversation. It is a check saying
+something this plan claims does not hold — a name that is not on the
+default branch, a gap a validator found — and nobody approves the
+plan while one stands. So a finding is work for you: fix the section
+it names so what it says no longer holds, even where that is not the
+section you were asked to refine. Never edit or remove a finding
+block: the check that wrote it clears it on its next pass, once its
+cause is gone. Where you think a finding is wrong, ask with
+`add-question` on its section and change nothing there. A finding
+reaches you in the brief, never in the plan read, which leaves the
+margin out.
+
 Never overwrite what people wrote. Extend their text, and replace or
 remove a block only when it is empty or holds only your own earlier
 words.

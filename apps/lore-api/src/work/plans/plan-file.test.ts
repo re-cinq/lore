@@ -104,6 +104,51 @@ describe("planSnapshot", () => {
     });
   });
 
+  it("answers the plan's unresolved findings with their slot and severity, and not the resolved one", async () => {
+    const withFindings = planWith("feature", {
+      intent: [
+        textBlock(
+          "finding",
+          {
+            findingId: "f-ground-9k2",
+            severity: "warning",
+            why: "The plan names it as code that already exists.",
+            resolved: false,
+          },
+          "This section names `ToolResponse`.",
+        ),
+        textBlock("paragraph", {}, "Checkout is slow."),
+      ],
+      scope: [
+        textBlock(
+          "finding",
+          {
+            findingId: "f-settled",
+            severity: "blocker",
+            why: "",
+            resolved: true,
+          },
+          "Already dealt with.",
+        ),
+      ],
+    });
+    const snapshot = await planSnapshot(
+      PLAN,
+      { livePlan: async () => ({ meta: META, blocks: withFindings }) },
+      "https://lore.example",
+    );
+
+    expect(snapshot.openFindings).toEqual([
+      {
+        findingId: "f-ground-9k2",
+        slot: "intent",
+        severity: "warning",
+        text: "This section names `ToolResponse`.",
+        why: "The plan names it as code that already exists.",
+      },
+    ]);
+  });
+
   it("leaves the citable blocks out when the deployment names no web UI", async () => {
     const snapshot = await planSnapshot(
       PLAN,
@@ -111,7 +156,7 @@ describe("planSnapshot", () => {
       undefined,
     );
 
-    expect(snapshot).toEqual({ planMarkdown: PLAN_MD });
+    expect(snapshot).toEqual({ planMarkdown: PLAN_MD, openFindings: [] });
   });
 });
 
