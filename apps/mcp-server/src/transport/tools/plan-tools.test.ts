@@ -151,6 +151,33 @@ describe("lore_plan_edit remote proxy", () => {
     expect(JSON.parse(result.content[0].text)).toEqual(applied);
   });
 
+  it("retries opening presence on the next edit after a failed open", async () => {
+    const planId = "e7e5259f-1111-2222-3333-444455556666";
+    const op = { op: "append-to-section", slot: "intent", paragraphs: ["x"] };
+    const applied = { ok: true };
+    let presenceAttempts = 0;
+
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/agent-presence")) {
+        presenceAttempts += 1;
+
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          statusText: "Bad Request",
+          text: async () => "",
+        });
+      }
+
+      return Promise.resolve({ ok: true, json: async () => applied });
+    });
+
+    await planEdit({ plan_id: planId, op });
+    await planEdit({ plan_id: planId, op });
+
+    expect(presenceAttempts).toBe(2);
+  });
+
   it("tells the agent to reread and retry when the block changed under it", async () => {
     const planId = "b4b2026f-1111-2222-3333-444455556666";
     const op = { op: "replace-block", blockId: "p-1", text: "new" };

@@ -37,7 +37,7 @@ const REFINE_SETTLED_OPTIONS = {
     name: "PlanRefineSettled",
     description:
       "An analyze pass ended: its person's Refine is answered or told why not, and the ask is cleared",
-    errors: [404],
+    errors: [400, 404],
   }),
   validate: { payload: zodValidate(RefineSettledBody) },
 };

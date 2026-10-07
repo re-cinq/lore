@@ -99,6 +99,8 @@ async function ensurePresenceOpen(planId: string): Promise<void> {
   });
 
   if (!proxied.ok) {
+    // Clears the de-dup guard so the next edit of this pass gets another chance to open presence, instead of a transient failure silently hiding the agent for the whole pass.
+    presenceOpenedForPlan.delete(planId);
     console.warn(
       `[lore] plan-presence: open failed for plan ${planId}: ${proxied.reason}`,
     );
