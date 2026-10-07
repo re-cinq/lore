@@ -743,11 +743,6 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
   });
 
   it("attaches a per-test Coverage node to the per-it TestChunk keyed by test name", async () => {
-    // spec: specs/spec-traceability-graph/spec.md#ac#8
-    // Coverage.xid = repo|testFile|testName. Currently coverageRecordsFor sets
-    // testName = file path (file-level), so the per-it TestChunk gets no coverage
-    // edge. The fix must emit testName = descriptor.name so findTestChunkUid
-    // resolves the per-it chunk and attaches coverage to it.
     const repo = `test-report/${randomUUID()}`;
 
     createdRepo = repo;
