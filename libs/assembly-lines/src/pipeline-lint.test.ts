@@ -262,6 +262,20 @@ describe("pipelineProblems — where a run can get to", () => {
     expect(rules(SOUND)).toEqual([]);
   });
 
+  it("reports nothing for the fail node a failed edge routes into, which ends the run as failed", () => {
+    const failingToFailNode = SOUND.replace(
+      "  exit: done\n",
+      "  exit: done\n  fail: failed\n",
+    )
+      .replace("    - id: done\n", "    - id: done\n    - id: failed\n")
+      .replace(
+        "      to: done\n      on: failed\n",
+        "      to: failed\n      on: failed\n",
+      );
+
+    expect(rules(failingToFailNode)).toEqual([]);
+  });
+
   it("reports unreachable for a node no edge and no start event reaches", () => {
     const orphan = SOUND.replace(
       "    - id: done\n",

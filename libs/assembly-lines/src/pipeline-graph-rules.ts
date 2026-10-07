@@ -135,17 +135,17 @@ function danglingEnd(
 
 // A node a run can enter and never leave.
 export function deadEnds(checked: Checked): PipelineProblem[] {
-  const { nodes, exit } = checked.line;
+  const { nodes, exit, fail } = checked.line;
 
   return nodes
-    .filter((node) => node.id !== exit)
+    .filter((node) => node.id !== exit && node.id !== fail)
     .filter((node) => outcomesLeaving(checked, node.id).size === 0)
     .map((node) =>
       problem(
         checked,
         node.id,
         "dead-end",
-        "no edge leaves it and it is not the line's exit, so a run reaching it stops with nothing to do",
+        "no edge leaves it and it is neither the line's exit nor its fail node, so a run reaching it stops with nothing to do",
       ),
     );
 }

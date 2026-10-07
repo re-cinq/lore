@@ -2,6 +2,10 @@ line:
   id: feature-planning
   entry: analyze
   exit: done
+  # A step that broke ends the run here, as failed, so the run list and the digest
+  # stop reporting a broken planning run as done. A person ending it (the author
+  # walking away, the spec PR closed) still settles at `done`: nothing broke.
+  fail: failed
   args:
     repo:
       kind: git
@@ -92,6 +96,7 @@ line:
       bind:
         target: base
     - id: done
+    - id: failed
   edges:
     - from: analyze
       to: plan-pass-end
@@ -156,7 +161,7 @@ line:
       to: author
       on: changes_requested
     - from: analyse-specs
-      to: done
+      to: failed
       on: failed
     - from: write
       to: spec-coverage
@@ -170,7 +175,7 @@ line:
       on: changes_requested
       iteration_max: 1
     - from: write
-      to: done
+      to: failed
       on: failed
     - from: spec-coverage
       to: open-spec-pr
@@ -184,13 +189,13 @@ line:
       on: changes_requested
       iteration_max: 3
     - from: spec-coverage
-      to: done
+      to: failed
       on: failed
     - from: open-spec-pr
       to: merged
       on: success
     - from: open-spec-pr
-      to: done
+      to: failed
       on: failed
     - from: merged
       to: decompose
@@ -215,12 +220,12 @@ line:
       on: success
     # decompose has no upstream NODE — its input is a spec a human merged. A spec it
     # cannot break down is a question for the author, not something to re-run, so
-    # the line ends rather than looping.
+    # the line ends rather than looping, and as failed: no issue was filed.
     - from: decompose
-      to: done
+      to: failed
       on: changes_requested
     - from: decompose
-      to: done
+      to: failed
       on: failed
     - from: issues
       to: issue-coverage
@@ -233,7 +238,7 @@ line:
       on: changes_requested
       iteration_max: 1
     - from: issues
-      to: done
+      to: failed
       on: failed
     - from: issue-coverage
       to: done
@@ -249,7 +254,7 @@ line:
       on: changes_requested
       iteration_max: 3
     - from: issue-coverage
-      to: done
+      to: failed
       on: failed
 stations:
   plan-analyze:
