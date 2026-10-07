@@ -93,6 +93,7 @@ describe("/api/plans on lore-api", () => {
       specBranch: async (plan) => specBranchOf(plan),
       baseBranch: () => Promise.resolve("main"),
       specPrState: () => Promise.resolve(null),
+      recordRefineAsk: () => Promise.resolve(),
       pulls: {
         listReviewThreads: async () => [],
         listComments: async () => [],
@@ -228,6 +229,7 @@ describe("/api/plans on lore-api", () => {
       `/api/repos/${REPO}/plans/${planId}/refine`,
       TOKEN,
       {
+        actor: "ana",
         slot: "intent",
         title: "Intent",
         baseHash: "3f9a",

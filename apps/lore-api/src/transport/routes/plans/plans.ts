@@ -195,6 +195,7 @@ function refineRoute(
 }
 
 const RefineBody = z.object({
+  actor: z.string().min(1),
   slot: z.string().min(1),
   title: z.string(),
   baseHash: z.string().min(1),

@@ -56,6 +56,15 @@ function fakeFloor(held: string[]) {
   return { deps, imported };
 }
 
+interface StationBody {
+  outcomes: string[];
+}
+
+interface LineBody {
+  nodes: Array<{ id: string }>;
+  edges: Array<{ from: string; to: string; on: string }>;
+}
+
 describe("withEnvironment", () => {
   it("fills ${LORE_MCP_URL} with the value given", () => {
     expect(withEnvironment("url: ${LORE_MCP_URL}", FIXED_ENV)).toEqual(
@@ -74,25 +83,45 @@ describe("seedFloorPipelines", () => {
   it("puts both pipelines and reports only lore-run-settled as changed when the floor holds code-review as written", async () => {
     const { deps, imported } = fakeFloor(["code-review"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([
-      "assembly-lines/lore-run-settled",
-    ]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["assembly-lines/lore-run-settled"],
+      failed: [],
+    });
     expect(imported).toEqual(["code-review", "lore-run-settled"]);
   });
 
   it("reports both lines as changed on a floor that holds neither", async () => {
     const { deps } = fakeFloor([]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([
-      "assembly-lines/code-review",
-      "assembly-lines/lore-run-settled",
-    ]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: [
+        "assembly-lines/code-review",
+        "assembly-lines/lore-run-settled",
+      ],
+      failed: [],
+    });
   });
 
   it("reports nothing changed when the floor holds every pipeline as written", async () => {
     const { deps } = fakeFloor(["code-review", "lore-run-settled"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual([]);
+    expect(await seedFloorPipelines(deps)).toEqual({ changed: [], failed: [] });
+  });
+
+  it("puts b.yaml and reports a.yaml as failed when the floor refuses a.yaml", async () => {
+    const { deps, imported } = fakeFloor([]);
+    const put = deps.importPipeline;
+
+    deps.importPipeline = (pipeline) =>
+      pipeline.line?.id === "code-review"
+        ? Promise.reject(new Error("invalid station body"))
+        : put(pipeline);
+
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["assembly-lines/lore-run-settled"],
+      failed: [{ name: "a.yaml", reason: "invalid station body" }],
+    });
+    expect(imported).toEqual(["lore-run-settled"]);
   });
 
   it("names a station two pipelines share once", async () => {
@@ -101,7 +130,10 @@ describe("seedFloorPipelines", () => {
 
     deps.importPipeline = () => Promise.resolve([shared]);
 
-    expect(await seedFloorPipelines(deps)).toEqual(["stations/post-review"]);
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["stations/post-review"],
+      failed: [],
+    });
   });
 });
 
@@ -109,6 +141,18 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   const pipelines = realFiles().map((file) =>
     pipelineOfText(file.text, FIXED_ENV),
   );
+  const issueTriage = () =>
+    pipelines.find((one) => one.line?.id === "issue-triage");
+  const issueTriageLine = () =>
+    issueTriage()?.line?.body as unknown as LineBody;
+  const issueTriageOutcomes = () =>
+    (
+      issueTriage()?.stations.find((one) => one.id === "triage-verify")
+        ?.body as unknown as StationBody
+    ).outcomes;
+  const edgeTarget = (line: LineBody, outcome: string) =>
+    line.edges.find((edge) => edge.from === "verify" && edge.on === outcome)
+      ?.to;
 
   it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
@@ -148,44 +192,21 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     expect(successEdge?.to).toBe("done");
   });
 
-  it("routes issue-triage reproduce (success) through triage-label to diagnose", () => {
-    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
+  it("routes every outcome triage-verify declares to a node issue-triage declares", () => {
+    const line = issueTriageLine();
+    const nodes = new Set(line.nodes.map((node) => node.id));
+    const routed = issueTriageOutcomes().map((outcome) => ({
+      outcome,
+      to: edgeTarget(line, outcome),
+    }));
 
-    type LineBody = {
-      edges: Array<{ from: string; to: string; on: string }>;
-    };
-    const body = issueTriage?.line?.body as LineBody | undefined;
-    const reproduceSuccess = body?.edges.find(
-      (e) => e.from === "reproduce" && e.on === "success",
-    );
-
-    expect(reproduceSuccess?.to).toBe("triage-label");
-  });
-
-  it("covers issue-triage diagnose edges: success → triage-label, failed (iteration_max: 3) → triage-label", () => {
-    const issueTriage = pipelines.find((p) => p.line?.id === "issue-triage");
-
-    enforceTrue(issueTriage, Error, "no issue-triage pipeline");
-
-    type LineBody = {
-      edges: Array<{
-        from: string;
-        to: string;
-        on: string;
-        iterationMax?: number;
-      }>;
-    };
-    const body = issueTriage.line!.body as LineBody;
-    const diagnoseSuccess = body.edges.find(
-      (e) => e.from === "diagnose" && e.on === "success",
-    );
-    const diagnoseFailed = body.edges.find(
-      (e) => e.from === "diagnose" && e.on === "failed",
-    );
-
-    expect(diagnoseSuccess?.to).toBe("triage-label");
-    expect(diagnoseFailed?.to).toBe("triage-label");
-    expect(diagnoseFailed?.iterationMax).toBe(3);
+    expect(routed).toEqual([
+      { outcome: "success", to: "human-gate" },
+      { outcome: "obsolete", to: "close-obsolete" },
+      { outcome: "not-actionable", to: "label-not-actionable" },
+      { outcome: "failed", to: "label-failed" },
+    ]);
+    expect(routed.filter(({ to }) => !nodes.has(to ?? ""))).toEqual([]);
   });
 
   it("give every agent definition a non-empty prompt", () => {

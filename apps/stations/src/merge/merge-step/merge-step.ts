@@ -22,7 +22,6 @@ export interface MergeStepDeps {
   curate(task: MergeStepTask): Promise<void>;
   applyOutcomeFeedback(taskId: string, kind: "boost"): Promise<void>;
   promoteTrust(repo: string): Promise<void>;
-  syncSpecTasks(task: MergeStepTask): Promise<void>;
   resumePlanning(repo: string, prNumber: number): Promise<void>;
 }
 
@@ -35,7 +34,6 @@ export const MERGE_STEPS = [
   "curate",
   "memory-feedback",
   "trust",
-  "spec-tasks",
   "resume-planning",
 ] as const;
 
@@ -43,9 +41,6 @@ export type MergeStep = (typeof MERGE_STEPS)[number];
 
 const isStep = (v: string): v is MergeStep =>
   (MERGE_STEPS as readonly string[]).includes(v);
-
-/** Only a merged feature-request produces the tasks.md this step reads. */
-const PRODUCES_SPEC_TASKS = "feature-request";
 
 const STEPS: Record<
   MergeStep,
@@ -67,12 +62,6 @@ const STEPS: Record<
   "memory-feedback": (task, deps) =>
     deps.applyOutcomeFeedback(task.id, "boost"),
   trust: (task, deps) => deps.promoteTrust(task.target_repo),
-  "spec-tasks": async (task, deps) => {
-    if (task.task_type !== PRODUCES_SPEC_TASKS) {
-      return;
-    }
-    await deps.syncSpecTasks(task);
-  },
   "resume-planning": (task, deps) =>
     deps.resumePlanning(task.target_repo, task.pr_number),
 };

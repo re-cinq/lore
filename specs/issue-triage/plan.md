@@ -14,7 +14,7 @@ This plan details the implementation of a new `issue-triage` assembly line on th
 | -------------------- | --------------------------------------------------------------- |
 | Language/Runtime     | TypeScript ESM / Node 22                                        |
 | Modules touched      | `apps/stations`, `libs/assembly-lines`, `libs/shared`           |
-| Storage              | `pipeline.station_runs`, `pipeline.events`                      |
+| Storage              | `pipeline.events` (event bus); external floor run store (triage node outcomes, readable via `libs/shared/src/outbound/floor/floor-client.ts`) |
 | Testing              | vitest via workspace-source aliases                             |
 | Constraints          | Strict sandboxing for untrusted code execution                  |
 
@@ -90,13 +90,19 @@ The eight `triage:*` labels must be created in each onboarded repository (as a o
 
 ### `close-obsolete` service station
 
-`close-issue` is a new service station in `apps/stations/src/work/close-issue/`, written with `@re-cinq/floor-station`. It posts a comment with the triage verdict and calls `project.issues.close(issueNumber)`. Its station type is declared in the pipeline YAML's `stations` block — no schema.ts change.
+`close-issue` is a new service station in `apps/stations/src/issue-triage/close-issue/`, written with `@re-cinq/floor-station`. It posts a comment with the triage verdict and calls `project.issues.close(issueNumber)`. Its station type is declared in the pipeline YAML's `stations` block — no schema.ts change.
 
 ### `human-gate` and handler fix
 
 `human-gate` is declared in the pipeline YAML's `stations` block as `kind: human` with `route: '{args.issue_url}'` — the GitHub issue page where a maintainer acts by applying `lore:implementation`.
 
 Handler fix in `apps/stations/src/events/repo-handlers.ts`: before the `activeTaskByIssue` active-task check in `libs/shared/src/work/backlog/label-dispatch.ts` runs, check whether a `lore:implementation` label event is arriving on an issue whose `issue-triage` run is currently parked at `human-gate`. If so: call `reportToVisit` via `libs/shared/src/outbound/floor/floor-report.ts` to report success to the parked visit, end the triage run, then fall through to dispatch the implementation task. Without this fix, the parked triage task makes the handler answer "Already being worked on" and the handoff is lost.
+
+### Triage Dashboard Tab
+
+The Triage tab is registered in `repoTabs()` in `apps/web-ui/src/app/repos/[owner]/[repo]/layout.tsx` alongside the existing Backlog tab (FR27). The page lives at `apps/web-ui/src/app/repos/[owner]/[repo]/triage/` and renders issues fetched through a typed `@/lib/api/triage` client, grouped by their current `triage:*` label; each row shows the issue title, the label as the status, and a link to the active floor run when one exists — the same run data the Assembly Runs tab reads via `GET /api/floor-runs?repo=` (FR28).
+
+Web-ui holds no database pool (`lore/no-sql-in-web-ui`), so the page reads through the typed client, following the same pattern as `@/lib/api/backlog` (FR29). The client calls a new lore-api route registered in `apps/lore-api/src/transport/routes/` and declared in `apps/lore-api/src/transport/route-list.ts`; the route calls the GitHub App client (`apps/lore-api/src/outbound/github-client.ts`) for issues carrying any `triage:*` label and joins each with its active floor run from `GET /api/floor-runs?repo=` before returning the list (FR30).
 
 ## Failure Edges & Rollback
 
@@ -125,5 +131,9 @@ Files touched:
 - `apps/stations/src/events/repo-handlers.ts` — label dispatch + human-gate resume
 - `apps/stations/src/work/issue-triage-tick/` — cron-tick batch fan-out sweep
 - `apps/stations/src/work/triage-label/` — `triage_label` service station
-- `apps/stations/src/work/close-issue/` — `close_issue` service station
+- `apps/stations/src/issue-triage/close-issue/` — `close_issue` service station
 - `specs/github-issue-dispatch/spec.md` — promote planned dispatch entries
+- `apps/web-ui/src/app/repos/[owner]/[repo]/layout.tsx` — register Triage tab in `repoTabs()`
+- `apps/web-ui/src/app/repos/[owner]/[repo]/triage/` — Triage tab page and `@/lib/api/triage` typed client
+- `apps/lore-api/src/transport/routes/` — new route for `triage:*`-labelled issues joined with active floor runs
+- `apps/lore-api/src/transport/route-list.ts` — register new triage-issues route

@@ -53,7 +53,7 @@ flowchart LR
     subgraph ticks["Ticks (stations service)"]
         direction TB
         J1["merge_check · 1m · pr_ready_check · 2m"]
-        J2["implementation_loop · 5m · spec_task_executor · 1m<br/>(start runs on the floor)"]
+        J2["implementation_loop · 5m<br/>(start runs on the floor)"]
         J3["daily_digest · 15m · spec_upkeep · Mon 10:00 UTC<br/>(start runs on the floor)"]
         J4["events_prune · hourly · telemetry_prune · daily"]
     end

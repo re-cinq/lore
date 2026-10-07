@@ -6,6 +6,7 @@ import {
   textBlock,
 } from "@re-cinq/planning-document/testing";
 import {
+  planAgentView,
   applyPlanFile,
   planMarkdown,
   planSnapshot,
@@ -19,10 +20,24 @@ const BLOCKS = planWith("feature", {
 });
 const PLAN_MD = planToMarkdown(BLOCKS, templateFor("feature"));
 
-function recordingPorts() {
+const PENDING_ASK = {
+  planId: "p1",
+  slot: "intent",
+  title: "Intent",
+  baseHash: "3f9a",
+  inputs: {},
+  uses: {},
+  brief: 'Refine the section "Intent" (<!-- slot:intent -->) of the live plan',
+};
+
+function recordingPorts(pendingAsk: typeof PENDING_ASK | null = null) {
   const writes: Array<{ call: string; request: unknown }> = [];
   const ports: PlanFilePorts = {
     livePlan: async () => ({ meta: META, blocks: BLOCKS }),
+    refineAsks: {
+      pending: () => Promise.resolve(pendingAsk),
+      clear: () => Promise.resolve(),
+    },
     writer: {
       applyOps: async (request) => {
         writes.push({ call: "applyOps", request });
@@ -32,6 +47,7 @@ function recordingPorts() {
 
         return [];
       },
+      finishRefine: () => Promise.resolve(),
       failRefine: async (request) => {
         writes.push({ call: "failRefine", request });
       },
@@ -88,6 +104,51 @@ describe("planSnapshot", () => {
     });
   });
 
+  it("answers the plan's unresolved findings with their slot and severity, and not the resolved one", async () => {
+    const withFindings = planWith("feature", {
+      intent: [
+        textBlock(
+          "finding",
+          {
+            findingId: "f-ground-9k2",
+            severity: "warning",
+            why: "The plan names it as code that already exists.",
+            resolved: false,
+          },
+          "This section names `ToolResponse`.",
+        ),
+        textBlock("paragraph", {}, "Checkout is slow."),
+      ],
+      scope: [
+        textBlock(
+          "finding",
+          {
+            findingId: "f-settled",
+            severity: "blocker",
+            why: "",
+            resolved: true,
+          },
+          "Already dealt with.",
+        ),
+      ],
+    });
+    const snapshot = await planSnapshot(
+      PLAN,
+      { livePlan: async () => ({ meta: META, blocks: withFindings }) },
+      "https://lore.example",
+    );
+
+    expect(snapshot.openFindings).toEqual([
+      {
+        findingId: "f-ground-9k2",
+        slot: "intent",
+        severity: "warning",
+        text: "This section names `ToolResponse`.",
+        why: "The plan names it as code that already exists.",
+      },
+    ]);
+  });
+
   it("leaves the citable blocks out when the deployment names no web UI", async () => {
     const snapshot = await planSnapshot(
       PLAN,
@@ -95,7 +156,7 @@ describe("planSnapshot", () => {
       undefined,
     );
 
-    expect(snapshot).toEqual({ planMarkdown: PLAN_MD });
+    expect(snapshot).toEqual({ planMarkdown: PLAN_MD, openFindings: [] });
   });
 });
 
@@ -208,5 +269,25 @@ describe("applyPlanFile", () => {
       ),
     ).rejects.toMatchObject({ output: { statusCode: 400 } });
     expect(writes).toEqual([]);
+  });
+});
+
+describe("planAgentView — the pending Refine", () => {
+  it("names the section a person is waiting on, with what the agent is told to do", async () => {
+    const { ports } = recordingPorts(PENDING_ASK);
+
+    const view = await planAgentView("p1", ports);
+
+    expect(view.refine).toEqual({
+      slot: "intent",
+      title: "Intent",
+      brief: PENDING_ASK.brief,
+    });
+  });
+
+  it("names no section when nobody asked, so a first draft reads the plan alone", async () => {
+    const { ports } = recordingPorts();
+
+    expect(await planAgentView("p1", ports)).not.toHaveProperty("refine");
   });
 });

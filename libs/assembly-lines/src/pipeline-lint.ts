@@ -3,6 +3,7 @@
 import type { AgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
 import {
   ambiguousEdges,
+  danglingEdges,
   deadEnds,
   undeclaredOutcomes,
   unreachableNodes,
@@ -39,11 +40,35 @@ export function pipelineProblems(
 
   return [
     ...unkeyedLine(checked),
+    ...undeclaredBags(checked),
     ...ambiguousEdges(checked),
     ...undeclaredOutcomes(checked),
     ...nodes.flatMap((node) => nodeProblems(checked, node, prompts)),
+    ...danglingEdges(checked),
     ...deadEnds(checked),
     ...unreachableNodes(checked),
+  ];
+}
+
+// specs/7-feature-planning FR-20: the floor refuses a station missing either array with a 400 naming none.
+function undeclaredBags(checked: Checked): PipelineProblem[] {
+  return Object.entries(checked.stations)
+    .map(([name, station]) => ({ name, missing: missingBags(station) }))
+    .filter(({ missing }) => missing.length > 0)
+    .map(({ name, missing }) =>
+      problem(
+        checked,
+        undefined,
+        "undeclared-bag",
+        `station "${name}" declares no ${missing.join(" and no ")}; the floor requires both arrays`,
+      ),
+    );
+}
+
+function missingBags(station: Station): string[] {
+  return [
+    ...(station.needs ? [] : ["needs"]),
+    ...(station.produces ? [] : ["produces"]),
   ];
 }
 
@@ -140,8 +165,8 @@ function unsuppliedPlaceholders(
 function suppliedNames(checked: Checked, station: Station): Set<string> {
   return new Set([
     ...Object.keys(checked.line.args),
-    ...namesOf(station.needs),
-    ...namesOf(station.produces),
+    ...namesOf(station.needs ?? []),
+    ...namesOf(station.produces ?? []),
   ]);
 }
 

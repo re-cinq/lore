@@ -90,6 +90,7 @@ label set, and the code that applies each label on each outcome, are tasks.
 ## Tasks that share a file
 
 Tasks that edit the same file conflict when they run side by side. Chain them
-with `(depends on …)` in the order they build on each other; the spec-task
-executor also refuses to run two tasks of a group together that edit one
-file, or where either lacks `[P]`.
+with `(depends on …)` in the order they build on each other, which a person
+reading the task issue goes by: the backlog loop works one ticket of a
+repository at a time, so nothing of a plan runs beside anything else, and it
+does not read that order itself.

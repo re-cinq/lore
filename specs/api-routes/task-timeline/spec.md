@@ -110,29 +110,29 @@ Verbatim error strings: `"database unavailable"`, `"not found"`, `"internal"`,
 
 ## Acceptance Criteria
 
-A null pool returns 503. ([validated by `timeline.test.ts:78`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L78))
+A null pool returns 503. ([validated by `timeline.test.ts:78`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L76))
 
 A path the dispatcher admits but the handler regex rejects returns 404 `not found`.
 
-A throwing task lookup returns 500. ([validated by `timeline.test.ts:84`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L84))
+A throwing task lookup returns 500. ([validated by `timeline.test.ts:84`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L82))
 
-An unknown task returns `task_not_found`. ([validated by `timeline.test.ts:93`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L93))
+An unknown task returns `task_not_found`. ([validated by `timeline.test.ts:93`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L91))
 
-A task with no branch returns `pending: no_branch` with empty commits. ([validated by `timeline.test.ts:99`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L99))
+A task with no branch returns `pending: no_branch` with empty commits. ([validated by `timeline.test.ts:99`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L97))
 
-A full run yields ordered stage commits, merged PR state, current stage, and a held lease. ([validated by `timeline.test.ts:108`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L108))
+A full run yields ordered stage commits, merged PR state, current stage, and a held lease. ([validated by `timeline.test.ts:108`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L106))
 
-A failing PR fetch and empty lease degrade to null PR state and an unheld lease. ([validated by `timeline.test.ts:163`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L163))
+A failing PR fetch and empty lease degrade to null PR state and an unheld lease. ([validated by `timeline.test.ts:163`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L161))
 
-A task with no `pr_number` skips the PR fetch. ([validated by `timeline.test.ts:184`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L184))
+A task with no `pr_number` skips the PR fetch. ([validated by `timeline.test.ts:184`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L182))
 
-Commit field fallbacks (null date, missing extras, non-finite duration) are handled. ([validated by `timeline.test.ts:196`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L196))
+Commit field fallbacks (null date, missing extras, non-finite duration) are handled. ([validated by `timeline.test.ts:196`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L194))
 
-A GitHub 404 on the branch returns `branch_deleted: true`. ([validated by `timeline.test.ts:232`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L232))
+A GitHub 404 on the branch returns `branch_deleted: true`. ([validated by `timeline.test.ts:232`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L230))
 
-A non-404 GitHub error returns 500 `github_api`. ([validated by `timeline.test.ts:245`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L245))
+A non-404 GitHub error returns 500 `github_api`. ([validated by `timeline.test.ts:245`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L243))
 
-A failing lease query leaves the lease null. ([validated by `timeline.test.ts:258`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L258))
+A failing lease query leaves the lease null. ([validated by `timeline.test.ts:258`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L256))
 
 `buildTimeline` returns empty when no commit carries trailers. ([validated by `timeline-build.test.ts:15`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L15))
 

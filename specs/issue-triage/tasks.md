@@ -17,6 +17,7 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 | US3   | Obsolete Issue Detection and Automatic Closing   | P2       |
 | US4   | Large Issue Detection and Decomposition          | P2       |
 | US5   | Human-Gated Handoff to Implementation            | P1       |
+| US6   | Triage Dashboard Tab                             | P2       |
 
 **MVP**: completing Setup + Foundational phases + US1 delivers a working reproduction sandbox.
 
@@ -71,3 +72,11 @@ A 2026-10-06 audit of this spec against its plan found four requirements no task
 ## Phase 7: Polish
 
 - [ ] T014 Update `specs/github-issue-dispatch/spec.md` to promote `lore:triage` and `triage: needs-triage` from a planned note to real dispatch-table entries in the 'What Changes' section, naming `apps/stations/src/events/repo-handlers.ts` as the implementation site. — test: verified by the handler test from T006 (`repo-handlers.test.ts` asserts `lore:triage` → issue-triage floor run)
+
+## Phase 8: Triage Dashboard Tab
+
+- [ ] T019 [P] Add a new lore-api route under `apps/lore-api/src/transport/routes/` (registered in `apps/lore-api/src/transport/route-list.ts`) that queries the GitHub App client (`apps/lore-api/src/outbound/github-client.ts`) for issues carrying any `triage:*` label and joins each with its active floor run from `GET /api/floor-runs?repo=` before returning the list (FR30). — test: a route-level test asserts the response shape includes issue title, triage label, and active run link when a run exists
+
+- [ ] T020 [P] Add the `apps/web-ui/src/app/repos/[owner]/[repo]/triage/` page and the typed `@/lib/api/triage` client it reads through, following the same pattern as `@/lib/api/backlog`; the page groups open issues by their current `triage:*` label and shows each row's title, label-as-status, and active floor run link (FR28, FR29, FR31). (depends on T019) — test: a page component test that mocks the typed client and asserts grouped rows with title, label-status, and run link when a run is active
+
+- [ ] T021 Register the Triage tab in `repoTabs()` in `apps/web-ui/src/app/repos/[owner]/[repo]/layout.tsx` beside the Backlog tab, with label "Triage" and routing to `apps/web-ui/src/app/repos/[owner]/[repo]/triage/` (FR27). (depends on T020) — test: layout test asserts "Triage" appears in the tab list alongside "Backlog"
