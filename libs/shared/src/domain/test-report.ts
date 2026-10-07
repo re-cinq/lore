@@ -66,7 +66,10 @@ function buildTestDescriptor(entry: Record<string, unknown>): TestDescriptor {
 }
 
 function parseCoveredChunks(raw: unknown): CoveredChunk[] {
-  if (raw == null) return [];
+  if (raw == null) {
+    return [];
+  }
+
   return asArray(raw, "covered chunks").map((entry) => ({
     file: requireString(entry, "file", "covered chunk"),
     startLine: requireNumber(entry, "startLine", "covered chunk"),
