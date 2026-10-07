@@ -19,10 +19,12 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/plan-issues.js";
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
-import { taskInput, type FiledIssue } from "./spec-task-inputs.js";
 import { partsNamed } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { SpecStatementLink } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
 import type { DecomposedSpec } from "./decomposed-spec.js";
+
+/** A task issue as it was filed: what the story's checklist and each task's dependency lines are written from. */
+export type FiledIssue = { number: number; url?: string };
 
 export type StationProject = ReturnType<typeof createStationProject>;
 export type ProceedWork = Extract<
@@ -70,7 +72,6 @@ export async function filePlanIssues(
 
   await closeDropped(project, work.tasks, existing);
   await rewriteStory(project, work, { ...filing, taskIssues });
-  await fileSpecTasks(project, work.tasks, { ...filing, taskIssues });
 
   return storyNumber;
 }
@@ -225,29 +226,6 @@ async function closeDropped(
     );
     await project.issues.close(number, "not_planned");
   }
-}
-
-// Only a task whose issue is open gets a spec-task: a closed one is done (or abandoned), so its spec-task is left to the reconcile to cancel.
-async function fileSpecTasks(
-  project: StationProject,
-  tasks: readonly PlannedTask[],
-  filing: FiledTasks,
-): Promise<void> {
-  const { context, existing, storyNumber, taskIssues } = filing;
-  const open = tasks.filter(
-    (planned) => filedIssue(existing, planned)?.state !== "closed",
-  );
-
-  await project.tasks.reconcileSpecTasks({
-    ...(context.planId ? { planId: context.planId } : {}),
-    groupId: context.input.assembly_run_id,
-    tasks: open.map((planned) =>
-      taskInput(planned, context.input, {
-        storyNumber,
-        issue: taskIssues.get(planned.task.id) as FiledIssue,
-      }),
-    ),
-  });
 }
 
 function numbersOf(
