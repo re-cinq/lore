@@ -164,3 +164,52 @@ describe("decideCiReady", () => {
     ).toMatchObject({ feedback: { ci_failed_checks: "lint, test:shared" } });
   });
 });
+
+describe("decideCiReady with commit statuses", () => {
+  const status = (over: Partial<CheckRun> = {}): CheckRun =>
+    check({ name: "ci/azure", ...over });
+
+  it("waits, never ready, when a repo with CI history reports neither checks nor statuses", () => {
+    expect(decideCiReady(input({ checks: [], hasCiHistory: true }))).toEqual({
+      kind: "wait",
+      reason: "ci_not_started",
+    });
+  });
+
+  it("is ready when the ref reports only commit statuses and all are success", () => {
+    expect(
+      decideCiReady(input({ checks: [status(), status({ name: "ci/lint" })] })),
+    ).toEqual({ kind: "ready" });
+  });
+
+  it("blocks naming a failing commit status", () => {
+    expect(
+      decideCiReady(input({ checks: [status({ conclusion: "failure" })] })),
+    ).toMatchObject({
+      kind: "blocked",
+      reason: "ci_red",
+      feedback: { ci_failed_checks: "ci/azure" },
+    });
+  });
+
+  it("waits on a pending commit status even when every check run passed", () => {
+    expect(
+      decideCiReady(
+        input({
+          checks: [
+            check(),
+            status({ status: "in_progress", conclusion: null }),
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "wait", reason: "ci_pending" });
+  });
+
+  it("blocks on a failing commit status beside passing check runs", () => {
+    expect(
+      decideCiReady(
+        input({ checks: [check(), status({ conclusion: "failure" })] }),
+      ),
+    ).toMatchObject({ kind: "blocked", reason: "ci_red" });
+  });
+});

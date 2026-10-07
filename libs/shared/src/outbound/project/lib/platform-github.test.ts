@@ -20,6 +20,7 @@ const state: {
     conclusion: string | null;
     output: { title: string | null; summary: string | null };
   }>;
+  statuses?: Array<{ context: string; state: string }>;
   token: string;
   labelError?: { status?: number };
   reviewCall?: Record<string, unknown>;
@@ -165,6 +166,9 @@ vi.mock("octokit", () => ({
       },
       git: { getTree: async () => ({ data: state.treeData }) },
       repos: {
+        getCombinedStatusForRef: async () => ({
+          data: { statuses: state.statuses ?? [] },
+        }),
         listCommits: async () => ({ data: state.branchCommits ?? [] }),
       },
       issues: {
@@ -211,6 +215,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
   beforeEach(() => {
     state.files = [];
     state.checkRuns = [];
+    state.statuses = undefined;
     state.token = "";
     state.labelError = undefined;
     state.reviewCall = undefined;
@@ -1070,5 +1075,47 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     await expect(
       gh().jobLog("re-cinq/lore", 102476456760),
     ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("PlatformGitHub commit statuses", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.checkRuns = [];
+    state.statuses = undefined;
+  });
+
+  it("ciConclusion reads a ref that reports only commit statuses, all success, as success", async () => {
+    state.statuses = [{ context: "ci/azure", state: "success" }];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("success");
+  });
+
+  it("ciConclusion reports failure for a failing or erroring commit status", async () => {
+    state.statuses = [
+      { context: "ci/a", state: "success" },
+      { context: "ci/b", state: "error" },
+    ];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("failure");
+  });
+
+  it("ciConclusion reports pending for a pending commit status", async () => {
+    state.statuses = [{ context: "ci/azure", state: "pending" }];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("pending");
+  });
+
+  it("ciConclusion reports none for a ref with neither check runs nor statuses", async () => {
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("none");
+  });
+
+  it("listChecks reports a pending commit status as in progress with no conclusion", async () => {
+    state.statuses = [{ context: "ci/azure", state: "pending" }];
+    expect(await gh().listChecks("re-cinq/lore", "abc")).toContainEqual(
+      expect.objectContaining({
+        name: "ci/azure",
+        status: "in_progress",
+        conclusion: null,
+      }),
+    );
   });
 });
