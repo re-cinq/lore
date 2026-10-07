@@ -265,7 +265,9 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
   it("routes close-obsolete through the close-issue service and always to done", () => {
     const line = issueTriageLine();
-    const node = line.nodes.find((pipelineNode) => pipelineNode.id === "close-obsolete");
+    const node = line.nodes.find(
+      (pipelineNode) => pipelineNode.id === "close-obsolete",
+    );
     const service = issueTriage()?.stations.find(
       (station) => station.id === "close-issue",
     );
@@ -273,7 +275,11 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       (edge) => edge.from === "close-obsolete",
     );
 
-    expect({ station: node?.station, kind: service?.body.kind, outgoing }).toEqual({
+    expect({
+      station: node?.station,
+      kind: service?.body.kind,
+      outgoing,
+    }).toEqual({
       station: "close-issue",
       kind: "service",
       outgoing: [{ from: "close-obsolete", to: "done", on: "always" }],
