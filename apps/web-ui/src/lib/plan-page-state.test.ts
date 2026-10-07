@@ -79,6 +79,24 @@ describe("planPageState for a draft plan", () => {
       ),
     ).toBe("reopened");
   });
+
+  it("is reopened once the delivered line's run is over and spec PR #7 is merged, and writing when the ended run opened none", () => {
+    expect([
+      planPageState(
+        "draft",
+        run("finished", [visit("decompose", "success")], {
+          outcome: "completed",
+          prUrl: "https://github.com/re-cinq/lore/pull/7",
+        }),
+      ),
+      planPageState(
+        "draft",
+        run("finished", [visit("plan-pass-end", "success")], {
+          outcome: "completed",
+        }),
+      ),
+    ]).toEqual(["reopened", "writing"]);
+  });
 });
 
 describe("planPageState for a plan reopened by its line", () => {
