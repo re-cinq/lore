@@ -18,6 +18,9 @@ import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
+const zCoerce = z.coerce;
+const DepthParam = zCoerce.number().int().min(1).max(10).optional();
+
 // kind: Set check (404 unknown); path: bounded to 1024 chars.
 const TraceQuery = z.object({
   path: z.string().max(1024).optional(),
@@ -25,7 +28,7 @@ const TraceQuery = z.object({
   branch: z.string().max(255).optional(),
   symbol: z.string().max(255).optional(),
   direction: z.enum(["callers", "callees"]).optional(),
-  depth: z.coerce.number().int().min(1).max(10).optional(),
+  depth: DepthParam,
 });
 
 type TraceQuery = z.infer<typeof TraceQuery>;
@@ -87,6 +90,15 @@ const PATH_KINDS: Record<
   "tests-covering": testsCoveringResult,
 };
 
+// Kinds that read the graph directly, not through the Project facade.
+const GRAPH_KINDS: Record<
+  string,
+  (repo: string, query: TraceQuery) => Promise<object>
+> = {
+  "failures-touching": failuresResult,
+  callers: callersResult,
+};
+
 export function traceRoute(): ServerRoute {
   return {
     method: "GET",
@@ -137,11 +149,9 @@ async function traceResult(
 ): Promise<object> {
   const repo = `${request.params.owner}/${request.params.repo}`;
 
-  if (kind === "failures-touching") {
-    return failuresResult(repo, query);
-  }
-  if (kind === "callers") {
-    return callersResult(repo, query);
+  const graphHandler = GRAPH_KINDS[kind];
+  if (graphHandler) {
+    return graphHandler(repo, query);
   }
   const project = await projectFor(repo);
   const trace = project.trace;
