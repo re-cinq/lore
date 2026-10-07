@@ -3,21 +3,6 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { billingSourceSplit, BillingSource } from "./SpendBillingSource";
 
-// Rows that cross-wire billing_mode against cluster to expose whether the split
-// uses the recorded mode or falls back to the cluster proxy.
-//
-// Row A: billing_mode api  + cluster satellite  → should count as api  (cluster says subscription)
-// Row B: billing_mode sub  + cluster null        → should count as sub  (cluster says api)
-// Row C: billing_mode unknown + cluster null     → fallback to cluster  → api
-// Row D: billing_mode unknown + cluster satellite → fallback to cluster → subscription
-//
-// Expected after the fix:
-//   api          = A + C = 100 + 30 = 130 calls, $13.00
-//   subscription = B + D =  50 + 20 =  70 calls, $7.00
-//
-// Current (cluster-only) behaviour produces the opposite for A and B:
-//   api          = B + C = 80 calls, $8.00   ← wrong
-//   subscription = A + D = 120 calls, $12.00 ← wrong
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rows: any = [
   { cluster: "satellite-a", billing_mode: "api", calls: 100, cost_usd: 10.0 },

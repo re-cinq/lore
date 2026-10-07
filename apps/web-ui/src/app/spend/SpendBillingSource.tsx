@@ -19,15 +19,6 @@ export interface BillingSourceSplit {
   subscription: Bucket;
 }
 
-function resolveMode(r: ClusterRow): "api" | "subscription" {
-  if (r.billing_mode === "api") return "api";
-  if (r.billing_mode === "subscription") return "subscription";
-  return r.cluster === null ? "api" : "subscription";
-}
-
-/** Which credential paid for the metered spend. When a row carries a recorded
- * billing_mode of 'api' or 'subscription', that is used directly. Rows with
- * billing_mode 'unknown' or no recorded mode fall back to cluster attribution. */
 export function billingSourceSplit(byCluster: ByCluster): BillingSourceSplit {
   return {
     api: sum(byCluster.filter((r) => resolveMode(r) === "api")),
@@ -35,6 +26,12 @@ export function billingSourceSplit(byCluster: ByCluster): BillingSourceSplit {
       byCluster.filter((r) => resolveMode(r) === "subscription"),
     ),
   };
+}
+
+function resolveMode(r: ClusterRow): "api" | "subscription" {
+  if (r.billing_mode === "api") return "api";
+  if (r.billing_mode === "subscription") return "subscription";
+  return r.cluster === null ? "api" : "subscription";
 }
 
 function sum(rows: ByCluster): Bucket {
