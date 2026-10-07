@@ -150,7 +150,7 @@ export async function decideFloorApproval(
   return approvalDecisionOf(await floorPlanLineState(deps.floor, keyOf(plan)));
 }
 
-/** Moves an approved plan on: the author visit reports success with the approved plan, or with no run open a fresh run enters at the spec analysis. A run the agent is on moves nothing, and the refusal comes back as the decision. */
+/** Moves an approved plan on: the author visit reports success with the approved plan, or with no run open a fresh run enters at the spec analysis. Either way the brief is the amendment one where the plan already has a spec PR, so a re-approval after a reopening revises those specs rather than writing over them. A run the agent is on moves nothing, and the refusal comes back as the decision. */
 export async function approveFloorPlan(
   deps: FloorPlanDeps,
   input: FloorPlanMarkdown,
@@ -158,14 +158,16 @@ export async function approveFloorPlan(
   const line = await floorPlanLineState(deps.floor, keyOf(input.plan));
   const decision = approvalDecisionOf(line);
 
-  if (line?.parkedAuthor) {
-    await reportApproved(deps, line.parkedAuthor, input);
-
+  if (decision.kind === "refused") {
     return decision;
   }
+  // Specs an earlier pass already wrote are amended, never written over, whichever way the approval moves the line on.
+  const briefed = await amended(deps, input, line);
 
-  if (decision.kind === "start-spec-work") {
-    await startSpecPass(deps, line, input);
+  if (line?.parkedAuthor) {
+    await reportApproved(deps, line.parkedAuthor, briefed);
+  } else {
+    await startSpecPass(deps, line, briefed);
   }
 
   return decision;
@@ -184,7 +186,7 @@ export async function startFloorSpecWork(
   return startSpecPass(deps, line, await amended(deps, input, line));
 }
 
-/** A pass over specs an earlier one already wrote is briefed as the amendment it is: onto the branch of a spec PR still open, or onto what reached main. A plan reaching its specs for the first time keeps the approved brief it came with. */
+/** A pass over specs an earlier one already wrote is briefed as the amendment it is: onto the branch of a spec PR still open, or onto what reached main. A plan reaching its specs for the first time keeps the approved brief it came with, and asks GitHub nothing, because the line names no PR. */
 async function amended(
   deps: FloorPlanDeps,
   input: FloorPlanMarkdown,

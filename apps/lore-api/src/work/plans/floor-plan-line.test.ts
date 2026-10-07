@@ -62,6 +62,24 @@ const ON_MERGED = [
   planVisit("merged", null),
 ];
 
+// The line that merged a spec PR and ended: what a reopened plan's next approval amends.
+const MERGED_SPEC_PR = [
+  planVisit("open-spec-pr", {
+    outcome: "success",
+    produced: { pr_url: "https://github.com/re-cinq/lore/pull/7" },
+  }),
+  planVisit("merged", SUCCESS),
+];
+// Reopened while its spec PR was still open: `merged` took the changes_requested and the line waits on its author.
+const REOPENED_WITH_OPEN_PR = [
+  planVisit("open-spec-pr", {
+    outcome: "success",
+    produced: { pr_url: "https://github.com/re-cinq/lore/pull/9" },
+  }),
+  planVisit("merged", { outcome: "changes_requested" }),
+  planVisit("author", null),
+];
+
 const REVIEWED: SpecReviewReads = {
   listReviewThreads: async () => [],
   listComments: async () => [],
@@ -90,18 +108,27 @@ function scene(
   });
   const branchesFor: string[] = [];
   const asks: RefineAsk[] = [];
+  const specPrsRead: number[] = [];
   const deps: FloorPlanDeps = {
     floor: recorded.floor,
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
     baseBranch: () => Promise.resolve("main"),
-    specPrState: () => Promise.resolve(given.specPrState ?? null),
+    specPrState: async (_repo, prNumber) => (
+      specPrsRead.push(prNumber), given.specPrState ?? null
+    ),
     pulls: given.pulls ?? REVIEWED,
     recordRefineAsk: async (ask) => {
       asks.push(ask);
     },
   };
 
-  return { deps, requests: recorded.requests, branchesFor, asks };
+  return {
+    deps,
+    requests: recorded.requests,
+    branchesFor,
+    asks,
+    specPrsRead,
+  };
 }
 
 const NO_RUN = { runs: [] };
@@ -554,6 +581,54 @@ describe("approveFloorPlan", () => {
       reason: "the planning agent is still refining a section",
     });
     expect(posts(requests)).toEqual([]);
+  });
+
+  it("briefs the fresh pass as an amendment to the specs on main when the plan was reopened after spec PR #7 merged", async () => {
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      visits: MERGED_SPEC_PR,
+      specPrState: "merged",
+    });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests)).toContain("spec PR #7");
+  });
+
+  it("hands the author visit the amendment brief while spec PR #9 is still open on the branch", async () => {
+    const { deps, requests } = scene({
+      visits: REOPENED_WITH_OPEN_PR,
+      specPrState: "open",
+    });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(reportedProduced(requests).description).toContain(
+      "Spec PR #9 is open",
+    );
+  });
+
+  it("keeps the approved brief and asks GitHub nothing when the plan reaches its specs for the first time", async () => {
+    const { deps, requests, specPrsRead } = scene(NO_RUN);
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect({ brief: startedDescription(requests), specPrsRead }).toEqual({
+      brief: BRIEF,
+      specPrsRead: [],
+    });
   });
 });
 
