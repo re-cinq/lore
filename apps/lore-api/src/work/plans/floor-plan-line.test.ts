@@ -715,12 +715,28 @@ describe("reopenFloorPlan", () => {
     expect(posts(requests)).toEqual([]);
   });
 
-  it("refuses with 409 while the specs are being written and the spec PR is not open", async () => {
-    const { deps } = scene({ visits: WHILE_WRITING });
+  it("cancels the run while the specs are being written, and while the spec-tasks are being filed", async () => {
+    const cancels = async (visits: VisitView[]) => {
+      const { deps, requests } = scene({ visits });
 
-    await expect(reopenFloorPlan(deps, APPROVED)).rejects.toMatchObject({
-      output: { statusCode: 409 },
-      message: "the specs are being written; wait for the spec PR",
+      await reopenFloorPlan(deps, APPROVED);
+
+      return posts(requests).map((request) => request.path);
+    };
+
+    expect([await cancels(WHILE_WRITING), await cancels(DECOMPOSING)]).toEqual([
+      ["/assembly-runs/run-open/cancel"],
+      ["/assembly-runs/run-open/cancel"],
+    ]);
+  });
+
+  it("gives the floor the reopening as the reason it cancelled the run", async () => {
+    const { deps, requests } = scene({ visits: WHILE_WRITING });
+
+    await reopenFloorPlan(deps, APPROVED);
+
+    expect(posts(requests).at(0)?.body).toEqual({
+      reason: "the plan was reopened for writing",
     });
   });
 });

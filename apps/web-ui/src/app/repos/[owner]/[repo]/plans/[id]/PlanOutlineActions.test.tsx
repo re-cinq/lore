@@ -97,10 +97,23 @@ describe("PlanOutlineActions", () => {
     expect(buttons()).toEqual(["Validate the plan", "Approve plan"]);
   });
 
-  it("offers only the spec PR link while the specs are being written", () => {
+  it("offers Reopen plan while the specs are being written, and while the spec-tasks are being filed", () => {
     outline("spec-work");
+    const writing = buttons();
 
-    expect(screen.queryAllByRole("button")).toEqual([]);
+    cleanup();
+    outline("delivering");
+
+    expect([writing, buttons()]).toEqual([["Reopen plan"], ["Reopen plan"]]);
+  });
+
+  it("warns that reopening stops the spec writing", () => {
+    outline("spec-work");
+    fireEvent.click(screen.getByRole("button", { name: "Reopen plan" }));
+
+    expect(
+      screen.getByText(/The spec writing stops and the plan opens for writing/),
+    ).toBeTruthy();
   });
 
   it("links spec PR #7 by its title under 'Spec waiting for review', in a new tab, and offers Reopen plan while the PR is open", () => {

@@ -160,11 +160,11 @@ describe("reopenPlanAction", () => {
     });
   });
 
-  it("reports lore-api's reason for refusing to reopen while the specs are being written", async () => {
-    answer(409, { error: "the specs are being written; wait for the spec PR" });
+  it("reports lore-api's reason for refusing to reopen a plan that is not approved", async () => {
+    answer(409, { error: "the plan is not approved" });
 
     expect(await reopenPlanAction("re-cinq/lore", "p1")).toEqual({
-      error: "The specs are being written; wait for the spec PR.",
+      error: "The plan is not approved.",
     });
   });
 });

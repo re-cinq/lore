@@ -30,7 +30,7 @@ import {
   SPEC_WORK_ENTRY,
   SPEC_WORK_RUNNING,
   approvalDecisionOf,
-  reopenTargetOf,
+  reopenActionOf,
   type ApprovalDecision,
   type PlanRef,
   type SpecPrState,
@@ -46,6 +46,8 @@ const ANALYZE_NODE = "analyze";
 const ANALYZE_EVENT = `node.${ANALYZE_NODE}.start`;
 
 export interface PlanFloor extends PlanLineFloor {
+  /** `cancel` beyond the reads: reopening a plan ends the spec work writing specs from it. */
+  runs: Pick<FloorClient["runs"], "list" | "cancel">;
   lines: Pick<FloorClient["lines"], "start">;
   events: Pick<FloorClient["events"], "post">;
   blobs: Pick<FloorClient["blobs"], "put">;
@@ -216,19 +218,25 @@ function amendmentBrief(
   return spec.merged ? revisedBrief(plan, prNumber) : null;
 }
 
-/** Sends an open spec PR back to the author: the visit parked on `merged` reports changes_requested. A run already at its author, ended or never started needs no report. */
+/** The reason the floor is given for a run the reopening ends. */
+const REOPENED = "the plan was reopened for writing";
+
+/** Sends an open spec PR back to the author: the visit parked on `merged` reports changes_requested. A run the spec work is on is cancelled instead — it writes specs from a plan that is about to change, and the floor would otherwise join that run on the next approval rather than starting a fresh pass. A run already at its author, ended or never started needs neither. */
 export async function reopenFloorPlan(
   deps: FloorPlanDeps,
   plan: PlanSubject,
 ): Promise<void> {
-  const parked = reopenTargetOf(
-    await floorPlanLineState(deps.floor, keyOf(plan)),
-  );
+  const { floor } = deps;
+  const action = reopenActionOf(await floorPlanLineState(floor, keyOf(plan)));
 
-  if (parked) {
-    await reportToVisit(deps.floor.events, parked.visitId, {
+  if (action.kind === "report") {
+    await reportToVisit(floor.events, action.parked.visitId, {
       outcome: "changes_requested",
     });
+  }
+
+  if (action.kind === "cancel") {
+    await floor.runs.cancel(action.runId, REOPENED);
   }
 }
 

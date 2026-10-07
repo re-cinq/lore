@@ -74,10 +74,10 @@ const APPROVED_RETRY =
 const APPROVED_REOPEN =
   "the plan is approved, so its sections are settled; reopen the plan to write again";
 
-// An approved plan is read-only, so its page offers Reopen, and Retry once the spec work failed; while the spec work runs, neither.
+// An approved plan is read-only, so its page offers Reopen in every state — a reopen mid spec work stops that work — and Retry once the spec work failed.
 function approvedRefusal(line: RefinableLine | null): string {
   if (line && OPEN_STATUSES.has(line.status)) {
-    return line.parkedMerged ? APPROVED_REOPEN : reopenRefusal(line);
+    return APPROVED_REOPEN;
   }
 
   return !line || endedInFailure(line) ? APPROVED_RETRY : APPROVED_REOPEN;
