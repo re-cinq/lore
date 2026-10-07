@@ -17,7 +17,8 @@ import { recordToAgentEvents } from "./floor-records.js";
 
 type RecordFrame = Extract<LiveFrame, { type: "record" }>;
 type VisitFrame = Extract<LiveFrame, { visit: unknown }>;
-type SettledFrame = Extract<LiveFrame, { type: "run_settled" }>;
+// The contracts declare run_settled and run_reopened as one shape.
+type RunFrame = Extract<LiveFrame, { run: unknown }>;
 type CaughtUpFrame = Extract<LiveFrame, { type: "caught_up" }>;
 type Translate = (frame: LiveFrame, run: AssemblyRunRecord) => RunStreamFrame[];
 
@@ -29,13 +30,14 @@ const TRANSLATIONS: Record<
   visit_opened: visitFrames,
   visit_reported: visitFrames,
   run_settled: settledFrames,
+  run_reopened: reopenedFrames,
   caught_up: (frame: CaughtUpFrame) => [
     catchupFrame(agentEventId(frame.seq, 0)),
   ],
   unsupported: () => [],
 };
 
-/** A frame type this build has no translation for is passed over, not thrown on: the floor's journal gains types on its own release train (`run_reopened` arrived in floor v0.1.9, which floor-client 0.1.6 does not declare), and a throw here takes down the viewer's whole feed — which the browser answers by reconnecting, replaying and throwing again. specs/external-floor FR18. */
+/** A frame type this build has no translation for is passed over, not thrown on: the floor's journal gains types on its own release train, and a throw here takes down the viewer's whole feed — which the browser answers by reconnecting, replaying and throwing again. specs/external-floor FR18. */
 export function floorFrames(
   frame: LiveFrame,
   run: AssemblyRunRecord,
@@ -53,7 +55,7 @@ function visitFrames(
 }
 
 function settledFrames(
-  frame: SettledFrame,
+  frame: RunFrame,
   run: AssemblyRunRecord,
 ): RunStreamFrame[] {
   const settled = floorRunToAssemblyRun({
@@ -63,6 +65,20 @@ function settledFrames(
   });
 
   return [runStatusFrame(settled)];
+}
+
+// A start by hand reopens a settled run, which already had visits, so the page goes back to running rather than queued.
+function reopenedFrames(
+  frame: RunFrame,
+  run: AssemblyRunRecord,
+): RunStreamFrame[] {
+  const reopened = floorRunToAssemblyRun({
+    run: frame.run,
+    visits: [],
+    graph: run.graph!,
+  });
+
+  return [runStatusFrame({ ...reopened, status: "running" })];
 }
 
 function agentEventFrames(
