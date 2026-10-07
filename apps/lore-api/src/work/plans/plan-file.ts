@@ -48,6 +48,8 @@ export interface PlanFilePorts {
       slot: string;
       uses: unknown;
     }): Promise<unknown>;
+    /** Withdraws the agent's presence from the plan; called once the pass that opened it ends, however it ends. */
+    closePresence(request: { planId: string }): Promise<unknown>;
   };
 }
 
