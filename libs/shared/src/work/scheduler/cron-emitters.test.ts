@@ -32,4 +32,7 @@ describe("cronTickEventNames", () => {
       cronTickEventNames().filter((name) => floorOnly.includes(name)),
     ).toEqual([]);
   });
+  it("names no tick for spec_task_executor, the second dispatcher the backlog implementation loop replaced", () => {
+    expect(cronTickEventNames()).not.toContain("cron.spec_task_executor.tick");
+  });
 });

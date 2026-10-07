@@ -5,7 +5,6 @@ import { anthropicCostSync } from "./anthropic-cost-sync/manifest.js";
 import { importanceDecayStation } from "./importance-decay/manifest.js";
 import { memoryTtl } from "./memory-ttl/manifest.js";
 import { mergeCheck } from "./merge-check/manifest.js";
-import { specTaskTickStation } from "./spec-task-tick/manifest.js";
 import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
@@ -29,7 +28,6 @@ export const STATION_NAMES = [
   "memory-ttl",
   "merge-check",
   "pr-ready-check",
-  "spec-task-tick",
   "spec-upkeep-tick",
   "telemetry-prune",
 ] as const;
@@ -48,7 +46,6 @@ export const STATIONS: Record<StationName, StationModule> = {
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
   "pr-ready-check": prReadyCheck,
-  "spec-task-tick": specTaskTickStation,
   "spec-upkeep-tick": specUpkeepTickStation,
   "telemetry-prune": telemetryPrune,
 };
