@@ -880,7 +880,11 @@ describe("GET with a parked ticket whose last attempt has a run", () => {
     vi.mocked(projectFor).mockResolvedValue({
       issues: {
         list: async () => [
-          openIssue(2, ["priority:high", "lore:blocked"], "2026-08-01T00:00:00Z"),
+          openIssue(
+            2,
+            ["priority:high", "lore:blocked"],
+            "2026-08-01T00:00:00Z",
+          ),
         ],
       },
     } as never);
