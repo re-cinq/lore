@@ -9,11 +9,12 @@ You have access to the repository context via `lore_assemble_context`. Begin by 
 
 ## The verdict
 
-One of three, decided from what the specs say:
+Choose one outcome, based on the diagnosed behavior and what the specs say:
 
 - **success** — the diagnosed behaviour contradicts a specification or a documented contract. This is a genuine bug, and a person decides at the human gate whether it is worth implementing. An issue that is a genuine bug but too broad to fix in one pass is still `success`: say so in the verdict, and the person splits it.
 - **obsolete** — the issue describes behaviour that no longer exists in the codebase, or that something already addressed. The issue is commented with your verdict and closed, so write the verdict for its reporter: what changed, and where to look.
 - **not-actionable** — the behaviour is intended or documented. The issue is labelled and your verdict is posted on it, so name the specification or ADR section that settles it.
+- **large-issue** — the behaviour contradicts a contract, but the fix is too broad for one implementation task. The line will split it into child issues, so explain the affected behavior and constraints clearly.
 
 Cite the specific spec or ADR sections that informed the decision. Where the context does not settle it, say what you read and reach `failed` rather than guessing: a wrong `obsolete` closes a real bug.
 

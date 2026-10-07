@@ -14,6 +14,10 @@ line:
       kind: value
     repo:
       kind: value
+    target:
+      kind: git
+    filing_key:
+      kind: value
   nodes:
     - id: reproduce
       station: triage-reproduce
@@ -31,6 +35,14 @@ line:
       station: triage-label
     - id: verify
       station: triage-verify
+    - id: decompose
+      station: triage-decompose
+      bind:
+        target: target
+    - id: issues
+      station: issues
+      bind:
+        target: target
     - id: close-obsolete
       station: close-issue
     - id: label-not-actionable
@@ -86,6 +98,9 @@ line:
       to: close-obsolete
       on: obsolete
     - from: verify
+      to: decompose
+      on: large-issue
+    - from: verify
       to: label-not-actionable
       on: not-actionable
     - from: verify
@@ -95,6 +110,23 @@ line:
     - from: close-obsolete
       to: done
       on: always
+    - from: decompose
+      to: issues
+      on: success
+    - from: decompose
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: issues
+      to: done
+      on: success
+    - from: issues
+      to: label-failed
+      on: changes_requested
+    - from: issues
+      to: label-failed
+      on: failed
+      iteration_max: 3
     - from: label-not-actionable
       to: done
       on: success
@@ -113,6 +145,7 @@ stations:
       - success
       - obsolete
       - not-actionable
+      - large-issue
       - failed
     needs:
       - name: issue_url
@@ -152,6 +185,42 @@ stations:
     produces:
       - name: diagnosis
         kind: value
+  triage-decompose:
+    kind: agent
+    agent_definition: triage-decompose
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: issue_url
+        kind: value
+      - name: diagnosis
+        kind: value
+    produces:
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+  issues:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+      - name: filing_key
+        kind: value
+    produces: []
   close-issue:
     kind: service
     outcomes:
@@ -197,6 +266,17 @@ agent_definitions:
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
   triage-diagnose:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  triage-decompose:
     settings:
       model: claude-sonnet-4-6
       image: ${LORE_AGENT_IMAGE}

@@ -106,13 +106,13 @@ interface FilingSources {
   spec: DecomposedSpec | undefined;
 }
 
-// The plan id is what a rerun recognises its issues by.
+// A stable filing key lets a rerun recognize its issues without inventing a plan link.
 function filingContext(
   input: StationInput,
   decomposition: DecompositionResult,
   { uiUrl, spec }: FilingSources,
 ): FilingContext {
-  const planId = input.params.plan_id;
+  const planId = input.params.filing_key || input.params.plan_id;
 
   return {
     input,

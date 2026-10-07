@@ -22,6 +22,7 @@ function scene(opts: {
       Promise.resolve((opts.issues ?? {})[repo] ?? []),
     runningCount: (repo: string) =>
       Promise.resolve((opts.running ?? {})[repo] ?? 0),
+    defaultBranch: () => Promise.resolve("main"),
     cap: opts.cap ?? 3,
     floor: {
       start: (
@@ -61,11 +62,25 @@ describe("the issue-triage-tick sweep on the external floor", () => {
     ]);
     expect(started.map((s) => s.startItems)).toMatchObject([
       {
+        target: {
+          kind: "git",
+          ref: "github.com/acme/widgets@main",
+        },
+        filing_key: expect.objectContaining({
+          ref: "https://github.com/acme/widgets/issues/1",
+        }),
         issue_url: expect.objectContaining({
           ref: "https://github.com/acme/widgets/issues/1",
         }),
       },
       {
+        target: {
+          kind: "git",
+          ref: "github.com/acme/widgets@main",
+        },
+        filing_key: expect.objectContaining({
+          ref: "https://github.com/acme/widgets/issues/2",
+        }),
         issue_url: expect.objectContaining({
           ref: "https://github.com/acme/widgets/issues/2",
         }),

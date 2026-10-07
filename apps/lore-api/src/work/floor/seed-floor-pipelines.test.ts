@@ -208,6 +208,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       { outcome: "success", to: "human-gate" },
       { outcome: "obsolete", to: "close-obsolete" },
       { outcome: "not-actionable", to: "label-not-actionable" },
+      { outcome: "large-issue", to: "decompose" },
       { outcome: "failed", to: "label-failed" },
     ]);
     expect(routed.filter(({ to }) => !nodes.has(to ?? ""))).toEqual([]);
@@ -259,6 +260,33 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
         to: "label-failed",
         on: "failed",
         iterationMax: 3,
+      },
+    });
+  });
+
+  it("routes large issue decomposition through issue filing to done", () => {
+    const line = issueTriageLine();
+    const decompose = issueTriage()?.stations.find(
+      (station) => station.id === "triage-decompose",
+    );
+    const routes = {
+      largeIssue: line.edges.find(
+        (edge) => edge.from === "verify" && edge.on === "large-issue",
+      ),
+      decomposition: line.edges.find(
+        (edge) => edge.from === "decompose" && edge.on === "success",
+      ),
+      filed: line.edges.find(
+        (edge) => edge.from === "issues" && edge.on === "success",
+      ),
+    };
+
+    expect({ station: decompose?.body, routes }).toMatchObject({
+      station: { kind: "agent", agentDefinition: "triage-decompose" },
+      routes: {
+        largeIssue: { to: "decompose" },
+        decomposition: { to: "issues" },
+        filed: { to: "done" },
       },
     });
   });
