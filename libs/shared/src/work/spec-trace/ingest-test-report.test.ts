@@ -499,13 +499,13 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     )) as {
       stmt?: {
         "Statement.validated_by"?: {
-          cov?: { covers?: Record<string, unknown>[] }[];
+          cov: { covers?: Record<string, unknown>[] }[];
         }[];
       }[];
     };
 
     expect(
-      graph.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.[0]?.covers,
+      graph.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov[0]?.covers,
     ).toEqual([{ "File.xid": `${repo}|src/a.ts` }]);
   });
 
