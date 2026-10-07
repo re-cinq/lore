@@ -1,5 +1,8 @@
 import { Alert } from "@/components/Alert";
-import { getImplementationLoop, type ImplementationLoop } from "@/lib/api/backlog";
+import {
+  getImplementationLoop,
+  type ImplementationLoop,
+} from "@/lib/api/backlog";
 import ImplementationLoopView from "./ImplementationLoopView";
 import LoopRunsFollower from "./LoopRunsFollower";
 import {

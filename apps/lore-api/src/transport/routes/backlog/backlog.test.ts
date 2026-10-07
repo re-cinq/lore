@@ -761,7 +761,11 @@ describe("floorRunContext", () => {
   function fakeFloor(overrides: {
     summaries?: Array<{ id: string; status: string; reason: string | null }>;
     graph?: { nodes: Array<{ id: string; type: string }> } | null;
-    visits?: Array<{ nodeId: string; iteration: number; outcome: string | null }>;
+    visits?: Array<{
+      nodeId: string;
+      iteration: number;
+      outcome: string | null;
+    }>;
   }) {
     return {
       listSummaries: async () => overrides.summaries ?? [],
