@@ -19,7 +19,6 @@ vi.mock("@/lib/user-repo-access", () => ({
 const {
   approvePlanAction,
   deletePlanAction,
-  openPlanSocketAction,
   refinePlanAction,
   draftAgainAction,
   reopenPlanAction,
@@ -50,37 +49,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.LORE_ADMIN_TOKEN;
-});
-
-describe("openPlanSocketAction", () => {
-  it("hands gedaiu a token minted for plan p1 and the plan's document name", async () => {
-    answer(200, { token: "t1", documentName: "plan:re-cinq/lore:p1" });
-
-    expect(await openPlanSocketAction("re-cinq/lore", "p1")).toEqual({
-      token: "t1",
-      documentName: "plan:re-cinq/lore:p1",
-    });
-  });
-
-  it("mints nothing for someone GitHub does not let see the repo", async () => {
-    canAccess.mockResolvedValue(false);
-
-    expect({
-      result: await openPlanSocketAction("re-cinq/lore", "p1"),
-      fetched: fetchMock.mock.calls.length,
-    }).toEqual({
-      result: { error: "You do not have access to this repo." },
-      fetched: 0,
-    });
-  });
-
-  it("asks a visitor without a session to sign in", async () => {
-    session.mockResolvedValue(null);
-
-    expect(await openPlanSocketAction("re-cinq/lore", "p1")).toEqual({
-      error: "Sign in to open this plan.",
-    });
-  });
 });
 
 describe("approvePlanAction", () => {

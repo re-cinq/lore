@@ -5,7 +5,6 @@ import {
   approvePlan,
   askRefine,
   deletePlan,
-  mintCollabToken,
   reopenPlan,
   startDrafting,
   startSpecWork,
@@ -14,29 +13,7 @@ import {
   validatePlan,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
-import { storyField } from "@/lib/plan-input";
-import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
-import { getSession } from "@/lib/session";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
-import type { PlanSocket } from "./plan-actions";
-
-type Allowed = { user: PlanUser } | { error: string };
-
-export async function openPlanSocketAction(
-  fullName: string,
-  planId: string,
-): Promise<PlanSocket | { error: string }> {
-  const allowed = await allowedUser(fullName);
-
-  if ("error" in allowed) {
-    return allowed;
-  }
-  const minted = await mintCollabToken(fullName, planId, allowed.user, "write");
-
-  return minted.status === "ok"
-    ? minted.data
-    : { error: "Could not open the plan." };
-}
+import { allowedUser } from "./plan-access";
 
 export async function approvePlanAction(
   fullName: string,
@@ -123,13 +100,8 @@ export async function deletePlanAction(
 export async function retrySpecWorkAction(
   fullName: string,
   planId: string,
-  story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, ({ storyIssue }) =>
-    inUsersName(fullName, planId, (repo, id, userId) =>
-      startSpecWork(repo, id, userId, storyIssue),
-    ),
-  );
+  return inUsersName(fullName, planId, startSpecWork);
 }
 
 /** The spec writer again on the same PR, reading its review; anything against the plan comes back to the plan. */
@@ -152,50 +124,35 @@ export async function refinePlanAction(
   fullName: string,
   planId: string,
   refine: RefineAsk,
-  story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, (named) =>
-    inUsersName(fullName, planId, (repo, id, userId) =>
-      askRefine(repo, id, { ...refine, ...named, actor: userId }),
-    ),
-  );
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const asked = await askRefine(fullName, planId, refine);
+
+  return asked.status === "ok" ? {} : { error: refusalOf(asked) };
 }
 
 /** A fresh draft for a plan whose planning run failed or never started — the run page cannot retry a run that failed on its first node. */
 export async function draftAgainAction(
   fullName: string,
   planId: string,
-  story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, async (named) => {
-    const allowed = await allowedUser(fullName);
+  const allowed = await allowedUser(fullName);
 
-    if ("error" in allowed) {
-      return allowed;
-    }
-    const started = await startDrafting(fullName, planId, {
-      known: "",
-      createdBy: allowed.user.id,
-      ...named,
-    });
-
-    return started.status === "ok"
-      ? {}
-      : { error: "Could not start a new draft." };
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const started = await startDrafting(fullName, planId, {
+    known: "",
+    createdBy: allowed.user.id,
   });
-}
 
-type NamedStory = { storyIssue?: number };
-
-// An action with the user story typed on the page; a story naming no issue of the repo is refused before anything is asked.
-async function withStory(
-  story: string,
-  fullName: string,
-  act: (named: NamedStory) => Promise<{ error?: string }>,
-): Promise<{ error?: string }> {
-  const named = storyField(story, fullName);
-
-  return "error" in named ? named : act(named);
+  return started.status === "ok"
+    ? {}
+    : { error: "Could not start a new draft." };
 }
 
 type PlanRoute = (
@@ -218,19 +175,4 @@ async function inUsersName(
   const answer = await route(fullName, planId, allowed.user.id);
 
   return answer.status === "ok" ? {} : { error: refusalOf(answer) };
-}
-
-// Every action is bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.
-async function allowedUser(fullName: string): Promise<Allowed> {
-  const session = (await getSession()) as
-    (PlanSession & { accessToken?: string }) | null;
-  const user = planUserOf(session);
-
-  if (!user || !session?.accessToken) {
-    return { error: "Sign in to open this plan." };
-  }
-
-  return (await userCanAccessRepo(session.accessToken, fullName))
-    ? { user }
-    : { error: "You do not have access to this repo." };
 }
