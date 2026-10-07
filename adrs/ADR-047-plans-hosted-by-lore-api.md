@@ -36,7 +36,7 @@ planning-station ships that drafting step as four packages. `planning-document` 
 ## Amendment (2026-09-22): the agent edits the plan as a file, moved by reference
 
 - **The pod edits `plan.md`**: lore-api renders the live plan as Markdown and turns an edited file back into ops for only what changed ([validated by](../apps/lore-api/src/work/plans/plan-file.test.ts#L64), [validated by](../apps/lore-api/src/work/plans/plan-file.test.ts#L75), [validated by writes a draft's plan.md into Ana's live plan as the planning agent's edits](../apps/lore-api/src/integration-tests/plan-routes.test.ts#L407)).
-- **A Refine's context lives on the run**, not in the agent's answer: lore-api records slot, hash and uses when the Refine is asked for, and when the file comes back writes the sections the agent added straight in and proposes its edits to existing sections, each under the section it touches (planning-station 0.6.0, 2026-09-24) ([validated by](../apps/lore-api/src/work/plans/plan-file.test.ts#L203)).
+- **A Refine's context lives on the run**, not in the agent's answer: lore-api records slot, hash and uses when the Refine is asked for, and when the file comes back writes the sections the agent added straight in and proposes its edits to existing sections, each under the section it touches (planning-station 0.6.0, 2026-09-24) ([validated by](../apps/lore-api/src/work/plans/plan-file.test.ts#L208)).
 - **The agent gathers before it writes**, through the Lore MCP gateway its pod already has: `lore_assemble_context`, the `lore_query_graph` knowledge graph, and `query_trace` ([validated by](../libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L246)).
 
 ### Rationale

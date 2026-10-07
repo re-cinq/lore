@@ -122,7 +122,12 @@ describe("planSnapshot", () => {
       scope: [
         textBlock(
           "finding",
-          { findingId: "f-settled", severity: "blocker", why: "", resolved: true },
+          {
+            findingId: "f-settled",
+            severity: "blocker",
+            why: "",
+            resolved: true,
+          },
           "Already dealt with.",
         ),
       ],

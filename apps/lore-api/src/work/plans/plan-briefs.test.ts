@@ -107,7 +107,9 @@ describe("plan briefs", () => {
   });
 
   it("lists finding f-ground-9k2 on scope by id with why, and says to fix the section rather than the finding block", () => {
-    expect(refineBrief(PLAN, REQUEST, [FINDING]).split("\n\n").slice(1)).toEqual([
+    expect(
+      refineBrief(PLAN, REQUEST, [FINDING]).split("\n\n").slice(1),
+    ).toEqual([
       [
         "Findings on this plan, each one something it says that does not hold. Fix the section a finding names so it no longer holds, even where that is not the section you were asked to refine. Leave the finding block itself alone: the check that wrote it clears it, not you. One you think is wrong, say so with `add-question` on its section and change nothing there.",
         "- Finding f-ground-9k2 on `scope` (warning): This section names `ToolResponse`, which is not on the default branch. — The plan names it as code that already exists.",

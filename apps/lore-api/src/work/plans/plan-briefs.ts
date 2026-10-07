@@ -65,10 +65,7 @@ export function refineBrief(
 }
 
 /** Findings are not the conversation: nobody resolves them by hand on an approved plan, whose editor is read-only, so they are work for the pass. The block itself stays — the check that wrote it reconciles its own on the next pass, which is what makes a finding disappear when its cause is gone. */
-function withFindings(
-  brief: string,
-  findings: readonly OpenFinding[],
-): string {
+function withFindings(brief: string, findings: readonly OpenFinding[]): string {
   return findings.length === 0
     ? brief
     : [brief, [FIX_EACH, ...findings.map(findingLine)].join("\n")].join("\n\n");
