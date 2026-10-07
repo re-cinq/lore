@@ -14,10 +14,7 @@ This route reads and patches a repo's dark-factory auto-merge settings for platf
 
 ## Problem Statement
 
-Dark-factory mode (ADR-016) lets a repo's Lore tasks auto-merge with no human
-PR review. Toggling it on, widening the auto-merge path allowlist, or weakening a
-`require_*` guard are exactly the changes an attacker (or a careless admin) would
-make to bypass review. An admin token alone is not enough authorization for those
+Dark-factory mode (ADR-016) lets a repo's Lore tasks auto-merge with no human PR review. Toggling it on, widening the auto-merge path allowlist, weakening a `require_*` guard, or setting `auto_merge.approver = lore-reviewer` are exactly the changes an attacker (or a careless admin) would make to bypass review. Setting `auto_merge.approver = lore-reviewer` is at least as privileged as toggling `enabled` on — it installs a second GitHub identity that can satisfy a required-approval branch rule on any Lore-authored PR. An admin token alone is not enough authorization for those
 privileged fields: the route layers a second key — an open PR labeled
 `dark-factory-approval` whose label was applied by a CODEOWNER of the repo's
 `CLAUDE.md`. `GET` reads the resolved settings; `PUT` merges a partial patch,
@@ -51,7 +48,7 @@ in; method resolved inside)
 
 ### `PUT` — patch settings
 
-- Request body (JSON, ≤1 MB): a partial `DarkFactorySettings` patch.
+- Request body (JSON, ≤1 MB): a partial `DarkFactorySettings` patch. `auto_merge.approver` (`none | lore-reviewer`) is a new field in this patch shape.
 - Optional header `X-Lore-Approval-PR: owner/repo#N` (required when the patch
   touches a privileged field).
 - Response: `200 { ok: true, applied, ceremony }`; or `400` (bad body / invalid
@@ -88,8 +85,7 @@ in; method resolved inside)
 2. `parseDarkFactorySettings(body)` (Zod) → on failure, `400 { error:
    "invalid_settings", issues }` where `issues` is the Zod `issues` array if
    present, else the error message.
-3. **Two-key gate** — `twoKey = twoKeyFieldsTouched(patch)`. Default
-   `ceremony = { tier: "admin" }`. If `twoKey.length > 0`:
+3. **Two-key gate** — `twoKey = twoKeyFieldsTouched(patch)` (includes `auto_merge.approver` alongside `enabled` and `auto_merge.paths`). Default `ceremony = { tier: "admin" }`. If `twoKey.length > 0`:
    1. Read `X-Lore-Approval-PR` header. Missing/empty → `403 { error:
       "two_key_required", field_paths: twoKey, detail: "Privileged fields require
       an X-Lore-Approval-PR header. Reference an open PR labeled
@@ -106,6 +102,8 @@ in; method resolved inside)
       `next = { ...prev, ...patch }`. If `patch.auto_merge`, deep-merge it:
       `next.auto_merge = { ...(prev.auto_merge ?? {}), ...patch.auto_merge }`.
       `settings.dark_factory = next`.
+   2a. If `patch.auto_merge?.approver === 'lore-reviewer'`: before persisting, confirm via the PR port that lore-reviewer is installed on the repo and that the branch rule requires one approval, Code Owners review, and the required CI checks. If any prerequisite is missing, return `400 { error: "approver_prerequisites_missing", detail }` naming what is absent; leave the setting at its current value.
+   2b. If `patch.auto_merge?.approver === 'none'` and the previous value was `'lore-reviewer'`: after persisting, call `disablePullRequestAutoMerge` on every open Lore-authored PR and write one `auto_merge_disarmed` audit row per PR (best-effort, after `COMMIT`).
    3. `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`.
    4. **Audit (best-effort)**: `INSERT INTO pipeline.audit_log (event_type, repo,
       payload) VALUES ('dark_factory_setting_changed', $1, $2)` with payload

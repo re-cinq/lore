@@ -50,6 +50,24 @@ an approval with no checks configured is `approved`. ([validated by `github-clie
 
 `fetchPrStatus` returns null without a network call when no GitHub token is configured; otherwise it fetches the PR, reviews, review threads and check-runs concurrently and derives `computed_status`, falling back to an empty list when the reviews or check-runs request fails, while a failure fetching the PR itself propagates; it also reports `unresolved_threads`, the count of review threads nobody resolved yet (read over GraphQL, the only place GitHub states resolution), and null rather than 0 when that read fails, so a failed read never passes for a clean PR ([validated by `github-client.test.ts:146`](apps/lore-api/src/outbound/github-client.test.ts#L146), [`github-client.test.ts:151`](apps/lore-api/src/outbound/github-client.test.ts#L151), [`github-client.test.ts:178`](apps/lore-api/src/outbound/github-client.test.ts#L178), [`github-client.test.ts:193`](apps/lore-api/src/outbound/github-client.test.ts#L193), [`github-client.test.ts:207`](apps/lore-api/src/outbound/github-client.test.ts#L207), [`github-client.test.ts:221`](apps/lore-api/src/outbound/github-client.test.ts#L221))
 
+### GitHub port — new reads and writes (protected-branch-merge plan)
+
+Three new reads are added to `libs/shared/src/outbound/project/lib/platform-github.ts`:
+
+- `getBranchRule(repo, branch)` — reads the branch's rulesets and classic branch protection: required approval count, Code Owners review required flag, and required check names. Used to decide where Lore may arm native auto-merge and to validate `auto_merge.approver = lore-reviewer` prerequisites before persisting.
+- `getMergeability(repo, prNumber)` — reads GitHub's mergeability field on a PR. Eventually consistent: GitHub computes it asynchronously after push; callers must treat a null as "not yet computed" rather than "not mergeable".
+- `getChangedFiles(repo, prNumber)` — reads the PR's file list for CODEOWNERS matching, used by the blocked-reason station to classify a PR as routine or sensitive.
+
+Three new writes are added to the same adapter:
+
+- `enablePullRequestAutoMerge(prId, mergeMethod)` — GraphQL `enablePullRequestAutoMerge` mutation. Arms GitHub's native auto-merge on the PR; always called with `mergeMethod: SQUASH`. Only callable on a PR where the branch rule requires an approval and the PR is not yet mergeable (GitHub refuses otherwise).
+- `disablePullRequestAutoMerge(prId)` — GraphQL mutation. Called on every open Lore-authored PR when `auto_merge.approver` is changed to `none`.
+- `updateIssueComment(commentId, body)` — REST `PATCH /repos/{o}/{r}/issues/comments/{id}`. Edits an existing comment in place; used by the blocked-reason station to maintain the `<!-- lore:blocked-reason -->` idempotent comment on the PR and on the backlog issue.
+
+### lore-reviewer App credentials
+
+lore-reviewer's App id and private key live in Google Cloud Secret Manager. ESO mirrors them into the `lore-stations` namespace following the ADR-046 pattern. The four-place procedure applies: (1) `local.secret_names` in `secrets.tf`; (2) an `ExternalSecret` resource per consuming namespace in `external-secrets.tf`; (3) the REQUIRED list in `scripts/infra/seed-secrets.sh`; (4) the chart's `secretKeyRef` in the stations subchart. The `terraform apply` must land before the chart change merges — a `secretKeyRef` referencing an ExternalSecret that does not yet exist causes `CreateContainerConfigError` and a hung `helm --wait`. No long-lived credential is held in the process; the App authenticates with a short-lived installation token minted from the private key on each call. See [specs/protected-branch-merge/plan.md](../protected-branch-merge/plan.md) for the full org-admin runbook.
+
 ### Repo detection
 
 `detectCurrentRepo` parses the git origin remote into `owner/repo` for both SSH

@@ -107,8 +107,8 @@ escalation produces an Issue with full context attached.
 **Session 2026-04-28**
 
 - **Q1.** Assembly line on-disk format → A: Pure YAML (matches `task-types.yaml`, single source of truth, web-ui renders directly)
-- **Q2.** Bot behavior on PRs outside the auto-merge path allowlist → A: Review-and-await-human (bot posts inline comments + verdict, PR sits open until a human merges; no time-based auto-merge fallback in v1)
-- **Q3.** Authorization required to change `dark_factory.*` settings → A: Two-key — `enabled` toggle and `auto_merge.paths` changes require admin-scope token + CODEOWNERS approval recorded in audit log; lighter sub-settings (`notify`, `create_issue`, `review`) need only admin scope
+- **Q2.** Bot behavior on PRs and sensitive-path detection → A: A PR whose changed paths do not match any CODEOWNERS entry for sensitive paths (workflow and gate files, agent instructions, escalate paths) is "routine" — lore-reviewer approves and GitHub merges it. A PR touching a sensitive path requires a human code owner's approval, which GitHub enforces through the branch rule's "Review from Code Owners" requirement; lore-reviewer cannot satisfy it. The old `auto_merge.paths` allowlist is superseded by CODEOWNERS-based detection. See [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md).
+- **Q3.** Authorization required to change `dark_factory.*` settings → A: Two-key — `enabled` toggle, `auto_merge.paths` changes, and `auto_merge.approver = lore-reviewer` require admin-scope token + CODEOWNERS approval recorded in audit log (the `dark-factory-approval` label); lighter sub-settings (`notify`, `create_issue`, `review`) need only admin scope
 - **Q4.** Concurrency control when two supervisors think they own the same task → A: DB row-level lease keyed on branch name; first action of any supervisor is `acquire_lease(branch_name)`; lease has a TTL that expires automatically for pod-death recovery
 - **Q5.** Commit-trailer behavior in opt-out repos → A: Trailers always on regardless of `dark_factory.enabled` — strictly additive, single supervisor code path, pod-death recovery works uniformly across opt-in and opt-out repos
 
@@ -186,16 +186,16 @@ ADR-031; the FRs carry the reconciled behaviour.)
 3. No GitHub Issue is created for the task.
 4. Supervisor process runs the gap-fill assembly line: draft → validate → commit → push → bot-review.
 5. Each phase commits with `Lore-Stage:` trailer.
-6. Bot review approves; CI is green; path is in `auto_merge.paths` (e.g. `runbooks/`); repo trust ≥ docs.
-7. PR auto-merges.
-8. Episode + curated memory are written. Audit log records the auto-merge with policy decision.
+6. Bot review approves; CI is green; the PR's changed paths do not match any CODEOWNERS sensitive-path entry (workflow and gate files, agent instructions, escalate paths); Lore arms GitHub's native auto-merge (`enablePullRequestAutoMerge`, `mergeMethod: SQUASH`) and submits an APPROVE as lore-reviewer. See [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md) for the replacement mechanism.
+7. GitHub merges the PR once the branch rule is satisfied (one approval, review from Code Owners, required CI checks). Lore never calls merge.
+8. Episode + curated memory are written. Audit log records `lore_reviewer_approved` and `auto_merge_armed`.
 
 **Acceptance Criteria:**
 - No GitHub Issue exists for this task at any point.
 - The branch's commit log contains, in order, `[stage:draft]`, `[stage:validate]`, `[stage:review]`, `[stage:retrospective]` trailers.
 - The PR body includes a `Lore-Task: <uuid>` line and a link to the policy that justified auto-merge.
-- The audit log entry names the rule applied (path-allowlist, trust level, CI status, bot-approval).
-- No human action occurs between push and merge: the PR merges automatically once CI is green (auto-merge engine SLA ≤ 60s per research R6), so wall-clock-to-merge is bounded by CI duration alone.
+- The audit log entry names the approver identity (`lore_reviewer_approved`) and the auto-merge arming event (`auto_merge_armed`).
+- No human action occurs between push and merge on a routine PR: GitHub merges it once the branch rule is satisfied. Wall-clock-to-merge is bounded by CI duration and GitHub's native auto-merge, not by a Lore-side SLA. See SC-001 in [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md).
 
 **Scenario 2: Implementation task survives pod death**
 
@@ -543,7 +543,7 @@ inline on each FR above (`validated by` / `implemented by`).
 | FR2.5 New flow = new graph only | — | SC1 |
 | FR3.1 `enabled` gate | 6 | SC4 |
 | FR3.2 `create_issue` | 1, 4 | SC4 |
-| FR3.3 `auto_merge` allowlist + trust | 1, 3 | SC3, SC6, SC7 |
+| FR3.3 `auto_merge` allowlist + trust | 1, 3 | SC3, SC6, SC7 | Superseded by CODEOWNERS-based detection in [specs/protected-branch-merge](../protected-branch-merge/spec.md) |
 | FR3.4 `review` gate | 3 | SC6 |
 | FR3.5 `notify` channels | 5 | SC4 |
 | FR3.6 Per-task overrides | 4 | — |
@@ -568,7 +568,7 @@ For implementation tasks, **the old 4+ CR / Issue / comment handoff chain per ta
 *(restated 2026-07)* **A Floor pod dying at ANY point leaves no assembly line stranded**: there is no walker process — transitions are event-driven over persisted node rows (FR6.9), so already-recorded nodes are never re-executed, in-flight Agent CRs keep running and their terminal events (or the FR6.10 reaper) advance the line on the next Floor instance. Measured by `kubectl rollout restart` during canary runs across all node types.
 
 **SC3 — Stale-PR elimination**
-On dark-mode-enabled repos, **no PR auto-generated by Lore stays open with green CI + bot-approved status for more than 24 hours**, measured over a rolling 30-day window.
+On dark-mode-enabled repos, **no PR auto-generated by Lore stays open with green CI + bot-approved status for more than 24 hours**, measured over a rolling 30-day window. The replacement mechanism is SC-001 in [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md), which measures the share of routine PRs merged with no human click using the `pipeline.v_auto_merge_kpis` view.
 
 **SC4 — Human notification reduction**
 For a representative onboarded repo, **the number of GitHub Issues created by Lore drops by at least 80%** when comparing the 30-day post-enable window against the 30-day pre-enable baseline (captured in `pipeline.dark_factory_baseline` per T011b), while task throughput stays equal or higher. The baseline is captured by the settings write that flips `dark_factory.enabled` on — the only moment that can guarantee the window is pre-enablement — and only on the off→on transition, since re-capturing while enabled would overwrite the comparison with a post-enable window. Built in #307 and wired in #1353; before that nothing wrote the table and this criterion was unmeasurable. ([validated by `baseline-capture.test.ts:9`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L9), [`baseline-capture.test.ts:13`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L13), [`baseline-capture.test.ts:19`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L19), [`baseline-capture.test.ts:25`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L25), [`baseline-capture.test.ts:31`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L31), [`baseline-capture.test.ts:55`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L55), [`baseline-capture.test.ts:65`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L65), [`baseline-capture.test.ts:75`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L75), [`baseline-capture.test.ts:86`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L86), [`baseline-capture.test.ts:94`](apps/lore-api/src/work/dark-factory/baseline-capture.test.ts#L94))
@@ -577,10 +577,10 @@ For a representative onboarded repo, **the number of GitHub Issues created by Lo
 **100% of Lore-authored merged PRs are resolvable to their originating task via the `Lore-Task:` trailer**, with the branch's commit log reconstructing the full phase sequence and outcomes.
 
 **SC6 — Human review focus**
-For dark-mode-enabled repos, **the share of bot-authored PRs that require human review drops to ≤ 30%** of the dark-mode total, with the remainder auto-merging on policy.
+For dark-mode-enabled repos, **the share of bot-authored PRs that require human review drops to ≤ 30%** of the dark-mode total, with the remainder auto-merging on policy. Routine PRs are now measured by SC-001 in [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md); sensitive-path PRs are measured by SC-004 there.
 
 **SC7 — Trust-based gating works**
-**Zero auto-merges occur outside the configured path allowlist** during the first 90 days post-launch. Any violation is treated as a P1 incident.
+*(superseded)* The 90-day path-allowlist safety criterion is superseded by SC-004 in [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md): sensitive-path PRs merged without a code owner's approval must hold at 0. GitHub enforces this through the branch rule's "Review from Code Owners" requirement, not Lore. The metric `k-auto-merge-escalated` is the successor to this criterion.
 
 **SC8 — Adoption gate**
 At least **three repos representing distinct trust tiers (`docs`, `tests`, `implementation`)** must be running dark mode for ≥ 14 days each before the feature can be declared general-availability.
@@ -623,7 +623,7 @@ All other principles remain intact. Specifically preserved:
 - The audit_log infrastructure — already shipped.
 - The web-ui pipeline page and task detail view — already shipped; this feature adds rendering for stage timelines and the `Lore-Task:` resolver.
 - The OpenTelemetry instrumentation — already shipped; this feature adds new span types.
-- GitHub App permissions for auto-merge — currently the App can comment and create PRs; merge permissions need verification at plan time.
+- GitHub App permissions for auto-merge — resolved: Lore arms GitHub's native auto-merge (`enablePullRequestAutoMerge` GraphQL mutation), and lore-reviewer (a second GitHub App with `pull_requests:write`) submits the APPROVE. GitHub performs the merge. See [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md) and [ADR-050](../../adrs/ADR-050-protected-branch-approver.md).
 
 ## Branch-guard exemptions and coordination-skip display (added 2026-07)
 
