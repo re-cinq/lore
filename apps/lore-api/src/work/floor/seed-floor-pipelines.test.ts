@@ -141,15 +141,18 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   const pipelines = realFiles().map((file) =>
     pipelineOfText(file.text, FIXED_ENV),
   );
-  const issueTriage = () => pipelines.find((one) => one.line?.id === "issue-triage");
-  const issueTriageLine = () => issueTriage()?.line?.body as unknown as LineBody;
+  const issueTriage = () =>
+    pipelines.find((one) => one.line?.id === "issue-triage");
+  const issueTriageLine = () =>
+    issueTriage()?.line?.body as unknown as LineBody;
   const issueTriageOutcomes = () =>
     (
       issueTriage()?.stations.find((one) => one.id === "triage-verify")
         ?.body as unknown as StationBody
     ).outcomes;
   const edgeTarget = (line: LineBody, outcome: string) =>
-    line.edges.find((edge) => edge.from === "verify" && edge.on === outcome)?.to;
+    line.edges.find((edge) => edge.from === "verify" && edge.on === outcome)
+      ?.to;
 
   it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([

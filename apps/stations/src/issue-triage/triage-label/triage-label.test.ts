@@ -79,7 +79,10 @@ describe("the triage-label station", () => {
   it("labels without a comment when the verify pass produced no verdict", async () => {
     const { handle, labelled, commented } = scene("label-not-actionable");
 
-    await handle({ ...brief(), needs: { repo: REPO, issue_number: "42" } }, TOOLS);
+    await handle(
+      { ...brief(), needs: { repo: REPO, issue_number: "42" } },
+      TOOLS,
+    );
 
     expect({ labelled, commented }).toEqual({
       labelled: [{ number: ISSUE_NUMBER, label: "triage: not-actionable" }],

@@ -5,13 +5,14 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
 /** What each label node of the issue-triage line applies, and whether the verify pass's verdict is posted with it (specs/issue-triage FR17, FR23). A node absent here is not a label node, and the station says so rather than labelling the wrong thing. */
-const TRIAGE_LABELS: Record<string, { label: string; postsVerdict: boolean }> = {
-  "label-not-actionable": {
-    label: "triage: not-actionable",
-    postsVerdict: true,
-  },
-  "label-failed": { label: "triage: failed", postsVerdict: false },
-};
+const TRIAGE_LABELS: Record<string, { label: string; postsVerdict: boolean }> =
+  {
+    "label-not-actionable": {
+      label: "triage: not-actionable",
+      postsVerdict: true,
+    },
+    "label-failed": { label: "triage: failed", postsVerdict: false },
+  };
 
 export interface TriageLabelIssues {
   comment(number: number, body: string): Promise<void>;
