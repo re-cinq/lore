@@ -62,6 +62,22 @@ const ON_MERGED = [
   planVisit("merged", null),
 ];
 
+const MERGED_SPEC_PR = [
+  planVisit("open-spec-pr", {
+    outcome: "success",
+    produced: { pr_url: "https://github.com/re-cinq/lore/pull/7" },
+  }),
+  planVisit("merged", SUCCESS),
+];
+const REOPENED_WITH_OPEN_PR = [
+  planVisit("open-spec-pr", {
+    outcome: "success",
+    produced: { pr_url: "https://github.com/re-cinq/lore/pull/9" },
+  }),
+  planVisit("merged", { outcome: "changes_requested" }),
+  planVisit("author", null),
+];
+
 const REVIEWED: SpecReviewReads = {
   listReviewThreads: async () => [],
   listComments: async () => [],
@@ -90,18 +106,28 @@ function scene(
   });
   const branchesFor: string[] = [];
   const asks: RefineAsk[] = [];
+  const specPrsRead: number[] = [];
   const deps: FloorPlanDeps = {
     floor: recorded.floor,
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
     baseBranch: () => Promise.resolve("main"),
-    specPrState: () => Promise.resolve(given.specPrState ?? null),
+    specPrState: async (_repo, prNumber) => (
+      specPrsRead.push(prNumber),
+      given.specPrState ?? null
+    ),
     pulls: given.pulls ?? REVIEWED,
     recordRefineAsk: async (ask) => {
       asks.push(ask);
     },
   };
 
-  return { deps, requests: recorded.requests, branchesFor, asks };
+  return {
+    deps,
+    requests: recorded.requests,
+    branchesFor,
+    asks,
+    specPrsRead,
+  };
 }
 
 const NO_RUN = { runs: [] };
@@ -339,7 +365,7 @@ describe("askFloorRefine", () => {
     });
   });
 
-  it("starts the station in every state but an approved plan and an open analyze visit, on draft plan p1", async () => {
+  it("starts the station in every state but an approved plan and a drafting pass still holding it, on draft plan p1", async () => {
     const scenes = {
       noRun: NO_RUN,
       specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
@@ -348,9 +374,12 @@ describe("askFloorRefine", () => {
       specPrOpen: { visits: ON_MERGED },
       whileAnalyzing: { visits: WHILE_ANALYZING },
       settlingThePass: { visits: SETTLING_PASS },
+      whileValidating: { visits: WHILE_VALIDATING },
+      writingFindings: { visits: WRITING_FINDINGS },
       writingSpecs: { visits: WHILE_WRITING },
       decomposing: { visits: DECOMPOSING },
     };
+    const held = "409: the planning agent is still working on this plan";
 
     expect(await refusalsOf(DRAFT, scenes)).toMatchObject({
       refusals: {
@@ -359,8 +388,10 @@ describe("askFloorRefine", () => {
         cancelled: "resumed",
         delivered: "resumed",
         specPrOpen: "resumed",
-        whileAnalyzing: "409: the planning agent is still working on this plan",
-        settlingThePass: "resumed",
+        whileAnalyzing: held,
+        settlingThePass: held,
+        whileValidating: held,
+        writingFindings: held,
         writingSpecs: "resumed",
         decomposing: "resumed",
       },
@@ -402,6 +433,14 @@ const DELIVERED = [
 const SETTLING_PASS = [
   planVisit("analyze", SUCCESS),
   planVisit("plan-pass-end", null),
+];
+const WHILE_VALIDATING = [
+  planVisit("author", SUCCESS),
+  planVisit("validate", null),
+];
+const WRITING_FINDINGS = [
+  planVisit("validate", SUCCESS),
+  planVisit("plan-findings", null),
 ];
 const DECOMPOSING = [
   planVisit("merged", SUCCESS),
@@ -554,6 +593,54 @@ describe("approveFloorPlan", () => {
       reason: "the planning agent is still refining a section",
     });
     expect(posts(requests)).toEqual([]);
+  });
+
+  it("briefs the fresh pass as an amendment to the specs on main when the plan was reopened after spec PR #7 merged", async () => {
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      visits: MERGED_SPEC_PR,
+      specPrState: "merged",
+    });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests)).toContain("spec PR #7");
+  });
+
+  it("hands the author visit the amendment brief while spec PR #9 is still open on the branch", async () => {
+    const { deps, requests } = scene({
+      visits: REOPENED_WITH_OPEN_PR,
+      specPrState: "open",
+    });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(reportedProduced(requests).description).toContain(
+      "Spec PR #9 is open",
+    );
+  });
+
+  it("keeps the approved brief and asks GitHub nothing when the plan reaches its specs for the first time", async () => {
+    const { deps, requests, specPrsRead } = scene(NO_RUN);
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect({ brief: startedDescription(requests), specPrsRead }).toEqual({
+      brief: BRIEF,
+      specPrsRead: [],
+    });
   });
 });
 

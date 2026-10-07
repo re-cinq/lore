@@ -242,7 +242,7 @@ describe("PlanOutlineActions", () => {
 
   it("shows why lore-api refused a Refine as an alert at the top of the outline's actions", () => {
     const refusal =
-      "The planning line has ended, so no agent is waiting to refine this plan; edit the section by hand.";
+      "The plan is approved, so its sections are settled; reopen the plan to write again.";
     const { container } = render(
       <PlanOutlineActions
         state="writing"
