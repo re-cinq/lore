@@ -186,7 +186,7 @@ function statementsForCoverage(
 
 interface GraphFootprintStatement extends GraphStatement {
   footprint?: {
-    cov?: { covers?: { "File.path"?: string; "covers|ranges"?: string }[] };
+    cov?: { covers?: { "File.path"?: string; "covers|ranges"?: string }[] }[];
   }[];
 }
 interface GraphOrphanCoverage {
@@ -297,12 +297,14 @@ function footprintIntervals(
   stmt: GraphFootprintStatement,
 ): FootprintInterval[] {
   return (stmt.footprint ?? []).flatMap((ft) =>
-    (ft.cov?.covers ?? []).flatMap((f) =>
-      parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
-        file: f["File.path"] ?? "",
-        start: s,
-        end: e,
-      })),
+    (ft.cov ?? []).flatMap((cov) =>
+      (cov.covers ?? []).flatMap((f) =>
+        parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
+          file: f["File.path"] ?? "",
+          start: s,
+          end: e,
+        })),
+      ),
     ),
   );
 }

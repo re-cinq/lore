@@ -92,7 +92,7 @@ interface DoomedChunkRow {
   uid: string;
   stmts?: UidRef[];
   acs?: UidRef[];
-  covOut?: { uid: string; covered?: UidRef[] };
+  covOut?: { uid: string; covered?: UidRef[] }[];
 }
 
 /** The doomed subtree of one test file, or null when the file has no graph presence. */
@@ -140,9 +140,7 @@ function collectCoverageUids(chunks: DoomedChunkRow[]): {
   const coveredUids = new Set<string>();
 
   for (const chunk of chunks) {
-    const covOut = chunk.covOut;
-
-    if (covOut) {
+    for (const covOut of chunk.covOut ?? []) {
       coverageUids.add(covOut.uid);
       (covOut.covered ?? []).forEach((coveredRef) =>
         coveredUids.add(coveredRef.uid),

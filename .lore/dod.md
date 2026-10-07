@@ -14,6 +14,7 @@
 - [x] Change `coverageRecordsFor` in `ingest-test-report.ts` to also emit one `CoverageRecord` per result keyed on the descriptor name (`testFile: descriptor.file, testName: descriptor.name`) so `findTestChunkUid` can match the per-`it` `TestChunk`
 - [x] Keep the existing file-level record alongside the new per-test ones (the ticket says "alongside", not "instead of")
 - [x] Update the existing test "creates one Coverage node per file and attaches HAS_COVERAGE to the file-scoped TestChunk for many per-it descriptors" which currently asserts `toHaveLength(1)` — after the fix there will be more coverage nodes per repo
+- [x] Change `TestChunk.coverage` schema from `uid` to `[uid] @reverse @count` so Dgraph returns an array — the acceptance test asserts `[{...}]`; use `replaceEdge` in `linkTestChunkCoverage` for idempotent list writes; update downstream types and traversal code in `verify-coverage.ts`, `spec-graph-flatten.ts`, and `impact-code-graph.ts`
 
 ## Out of scope
 
