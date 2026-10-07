@@ -1,6 +1,7 @@
 import { Alert } from "@/components/Alert";
-import { getImplementationLoop } from "@/lib/api/backlog";
+import { getImplementationLoop, type ImplementationLoop } from "@/lib/api/backlog";
 import ImplementationLoopView from "./ImplementationLoopView";
+import LoopRunsFollower from "./LoopRunsFollower";
 import {
   retryOnboardingAction,
   toggleImplementationLoopAction,
@@ -24,12 +25,25 @@ export default async function ImplementationLoopPage(props: LoopPageProps) {
   }
 
   return (
-    <ImplementationLoopView
-      loop={result.data}
-      toggle={toggleImplementationLoopAction.bind(null, fullName)}
-      retryOnboarding={retryOnboardingAction.bind(null, fullName)}
-    />
+    <>
+      <LoopRunsFollower runIds={runIdsOf(result.data)} />
+      <ImplementationLoopView
+        loop={result.data}
+        toggle={toggleImplementationLoopAction.bind(null, fullName)}
+        retryOnboarding={retryOnboardingAction.bind(null, fullName)}
+      />
+    </>
   );
+}
+
+/** Every run id the page currently shows a Stages column for, so the live follower watches exactly those and nothing else. */
+function runIdsOf(loop: ImplementationLoop): string[] {
+  const tickets = [loop.current, ...loop.next, ...loop.parked, ...loop.recent];
+  const ids = tickets
+    .map((t) => t?.run_id)
+    .filter((id): id is string => Boolean(id));
+
+  return [...new Set(ids)];
 }
 
 /** Names the connection rather than the symptom, because an unreachable API and an empty backlog look the same on the page. */
