@@ -36,15 +36,13 @@ export function needsWebhookSecret<T extends { state: string }>(
   return webhook !== null && webhook.state !== "configured";
 }
 
-/** The two settings keys the overview reads out of the record's opaque JSONB. */
+/** The one settings key the overview reads out of the record's opaque JSONB. */
 export function overviewSettings(settings: unknown) {
   const parsed = (settings ?? {}) as {
-    dark_factory?: { enabled?: boolean };
     trust?: { level?: string };
   };
 
   return {
-    darkFactoryEnabled: parsed.dark_factory?.enabled === true,
     trustLevel: parsed.trust?.level ?? "unset",
   };
 }

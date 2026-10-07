@@ -153,44 +153,8 @@ describe("lore_list_pending_tasks API path", () => {
 });
 
 describe("zod schema bounds", () => {
-  it("rejects a task description over 32000 chars", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "a".repeat(32001) });
-
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects an empty task description", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "" });
-
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a whitespace-only task description", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "   " });
-
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts an in-range description for a runbook task", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "wire the widget", task_type: "runbook" });
-
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects a task that names no task_type, since there is no default type", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "wire the widget" });
-
-    expect(result.success).toBe(false);
+  it("registers no lore_create_pipeline_task tool, since the API creates no typed task", () => {
+    expect(Object.keys(schemas)).not.toContain("lore_create_pipeline_task");
   });
 
   it("rejects max_tokens below the 2000 floor", () => {
@@ -264,82 +228,6 @@ describe("lore_get_pipeline_status proxy error-code selection", () => {
     expect(result.content[0].text).toContain(
       "unreachable for getting pipeline status",
     );
-  });
-});
-
-describe("lore_create_pipeline_task onboard refusal", () => {
-  it("refuses task_type onboard and names lore_onboard_repo instead", async () => {
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "onboard our new service",
-      task_type: "onboard",
-    });
-
-    expect(result.content[0].text).toContain("lore_onboard_repo");
-  });
-});
-
-describe("lore_create_pipeline_task API path", () => {
-  beforeEach(() => {
-    fetchMock.mockReset();
-    vi.stubGlobal("fetch", fetchMock);
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-  });
-
-  it("returns the not-configured message when the env is unset", async () => {
-    vi.stubEnv("LORE_API_URL", "");
-    vi.stubEnv("LORE_INGEST_TOKEN", "");
-
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "wire the widget",
-      task_type: "general",
-      target_repo: "re-cinq/lore",
-      priority: "normal",
-    });
-
-    expect(result.content[0].text).toContain("not configured");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("reports the immediate pickup hint on success", async () => {
-    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
-    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ task_id: "t1", task_type: "general" }),
-    });
-
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "wire the widget",
-      task_type: "general",
-      target_repo: "re-cinq/lore",
-      priority: "immediate",
-    });
-
-    expect(result.content[0].text).toContain(
-      "The GKE agent will pick this up within 30 seconds.",
-    );
-  });
-
-  it("reports a denied error on a 401", async () => {
-    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
-    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-    });
-
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "wire the widget",
-      task_type: "general",
-      target_repo: "re-cinq/lore",
-      priority: "normal",
-    });
-
-    expect(result.content[0].text).toContain("denied access");
   });
 });
 

@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import {
   fetchAssemblyRun,
   fetchAssemblyRunNodes,
+  fetchLatestRunForTask,
+  hasAssemblyRunUpgrade,
   isFloorEngine,
   type AssemblyRun,
 } from "@/lib/assembly-runs";
@@ -14,11 +16,12 @@ import { resolveNodeModels } from "@/lib/node-models";
 import { listAgents } from "@/lib/agents-api";
 import { fetchIssue, type Issue } from "@/lib/api/issues";
 import RunLiveShell from "./RunLiveShell";
+import TaskWithoutRun from "./TaskWithoutRun";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Resolver for `/assembly-runs/[id]`: a run renders detail; a task id redirects to `/tasks/[id]` (legacy links keep working); unknown → "Not found".
+// Resolver for `/assembly-runs/[id]`: a run renders detail; a task id redirects to the task's newest run (a task has no page of its own); unknown → "Not found".
 export default async function AssemblyLineResolverPage({
   params,
 }: {
@@ -30,39 +33,39 @@ export default async function AssemblyLineResolverPage({
     return <p>Not found.</p>;
   }
 
-  const run = await resolveRun(id);
+  const run = await fetchAssemblyRun(id);
 
   if (!run) {
-    return <p>Not found.</p>;
+    return <TaskRunResolver taskId={id} />;
   }
 
   return <RunPage run={run} view={await resolveRunView(run, id)} />;
 }
 
-// The id may be a TASK id rather than a run id — old links pointed here; redirects there and returns null.
-async function resolveRun(id: string): Promise<AssemblyRun | null> {
-  const run = await fetchAssemblyRun(id);
+/** The id named no run, so it may name a task: every link that knows only a task points here. */
+async function TaskRunResolver({ taskId }: { taskId: string }) {
+  const taskRun = await fetchLatestRunForTask(taskId);
 
-  if (run) {
-    return run;
+  if (taskRun) {
+    redirect(`/assembly-runs/${taskRun.id}`);
   }
 
-  const taskResult = await getTask(id);
+  const task = await getTask(taskId);
 
-  if (taskResult.status === "ok") {
-    redirect(`/tasks/${id}`);
-  }
-
-  return null;
+  return task.status === "ok" ? (
+    <TaskWithoutRun task={task.data} />
+  ) : (
+    <p>Not found.</p>
+  );
 }
 
 /** Everything the page renders from, resolved in one place. `agentEditHrefs` is built from RESOLVED definitions because those carry the `project_id` the "Edit agent" link routes on; `listAgents` degrades to an empty list when the API is unreachable, which costs the links and nothing else. */
-async function resolveRunView(
-  run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>,
-  id: string,
-) {
+async function resolveRunView(run: AssemblyRun, id: string) {
   const issueRead = resolveIssue(run);
-  const nodes = await fetchAssemblyRunNodes(id);
+  const [nodes, upgradeAvailable] = await Promise.all([
+    fetchAssemblyRunNodes(id),
+    hasAssemblyRunUpgrade(id),
+  ]);
   const { events, llmCalls } = await resolveTaskContext(run.taskId);
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
 
@@ -73,6 +76,7 @@ async function resolveRunView(
     definition,
     ...(await agentFacts(run, definition)),
     issue: await issueRead,
+    upgradeAvailable,
   };
 }
 
@@ -94,7 +98,7 @@ async function agentFacts(
 
 /** The run page proper, once the id has resolved to a run. */
 interface RunPageProps {
-  run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>;
+  run: AssemblyRun;
   view: Awaited<ReturnType<typeof resolveRunView>>;
 }
 
@@ -109,6 +113,7 @@ function RunPage({ run, view }: RunPageProps) {
       agentEditHrefs={view.editHrefs}
       nodeModels={view.nodeModels}
       issue={view.issue}
+      upgradeAvailable={view.upgradeAvailable}
     />
   );
 }

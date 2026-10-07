@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Brief, Tools } from "@re-cinq/floor-station";
 import { postReplyHandle } from "./station.js";
-import { stampedReply, type ReplyPoster } from "./post-reply.js";
+import {
+  stampedReply,
+  stampedThreadReply,
+  type ReplyPoster,
+} from "./post-reply.js";
 
 function toolsReading(replyOutput: string): Tools {
   return {
@@ -22,7 +26,17 @@ function fakePoster() {
     comment: async (prNumber, body) => {
       comments.push({ prNumber, body });
     },
-    listComments: async () => [],
+    listComments: async () => [
+      {
+        id: 88,
+        path: "src/a.ts",
+        line: 4,
+        body: "Rename this.",
+        user: "gedaiu",
+        created_at: "2026-10-02T09:00:00Z",
+        review_id: 99,
+      },
+    ],
     listIssueComments: async () => [],
     listReviewThreads: async () => [],
     resolveReviewThread: async () => undefined,
@@ -39,7 +53,7 @@ function briefOf(needs: Record<string, string>): Brief {
 }
 
 describe("postReplyHandle", () => {
-  it("comments on PR 412 and produces reply_url when comment_id is absent", async () => {
+  it("comments on PR 412 and produces reply_url when the agent answered no line comment", async () => {
     const { poster, comments } = fakePoster();
     const requestedRepos: string[] = [];
     const handle = postReplyHandle({
@@ -59,14 +73,26 @@ describe("postReplyHandle", () => {
     });
   });
 
-  it("replies in the thread of comment 88 when comment_id is 88", async () => {
+  it("replies under comment 88 when the run carries review_id 99, the review that comment belongs to", async () => {
     const { poster, replies } = fakePoster();
     const handle = postReplyHandle({ poster: async () => poster });
+    const threadReplies =
+      '```REVIEW_THREAD_REPLIES\n[{"comment_id": 88, "reply": "Renamed."}]\n```';
 
-    await handle(briefOf({ comment_id: "88" }), toolsReading(replyOutput));
+    await handle(
+      briefOf({ review_id: "99" }),
+      toolsReading(`${replyOutput}\n${threadReplies}`),
+    );
 
     expect(replies).toEqual([
-      { commentId: 88, body: stampedReply("Fixed.", "v-9", 1) },
+      {
+        commentId: 88,
+        body: stampedThreadReply(
+          "Renamed.",
+          { visitId: "v-9", iteration: 1 },
+          88,
+        ),
+      },
     ]);
   });
 

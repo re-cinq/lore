@@ -6,6 +6,10 @@ import type { PlanActions } from "./plan-actions";
 
 /** What reopening does from each state that offers it; a state absent here offers no Reopen. */
 export const REOPEN_BODY: Partial<Record<PlanPageState, string>> = {
+  "spec-work":
+    "The spec writing stops and the plan opens for writing. Approve it again to start a fresh spec pass.",
+  delivering:
+    "Filing the spec-tasks stops and the plan opens for writing. The tasks already filed stay. Approve it again to run the spec work from the plan you end up with.",
   "spec-pr-open":
     "The spec PR goes back to the author and the plan opens for writing. Approve it again to update the same PR.",
   question:

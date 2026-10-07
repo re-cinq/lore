@@ -1,4 +1,4 @@
-// Every analyze pass on the feature-planning line settles here before the author waits again: a draft has nothing to settle, a Refine pass that succeeded is marked done on the section it was asked for, and a dead one gets its `refine-failed` posted, so its person is told either way (see specs/external-floor/spec.md FR8.5).
+// Every analyze pass on the feature-planning line settles here before the author waits again: lore-api is told how the pass ended and answers the section its person asked about, or says why it could not. Which section that is lives in lore-api, not in the run's bag — a Refine starts the node by hand and a start by hand carries no items (see specs/7-feature-planning FR-18).
 
 import {
   defineStation,
@@ -7,14 +7,7 @@ import {
   type RunningStation,
 } from "@re-cinq/floor-station";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { bearerJsonHeaders } from "@re-cinq/lore-shared/project/lib/http-auth.js";
-
-interface RefineRequest {
-  slot: string;
-  baseHash: string;
-  uses?: unknown;
-}
+import { requestPlan } from "../plan-api.js";
 
 interface AnalyzeVisit {
   nodeId: string;
@@ -25,16 +18,11 @@ export interface PlanPassEndDeps {
   /** The visit's own run, for finding its sibling `analyze` visits. */
   runOf(visitId: string): Promise<string | null>;
   visitsOf(runId: string): Promise<AnalyzeVisit[]>;
-  refineFailed(input: {
+  /** How the pass ended; lore-api holds the ask and decides what to tell the section. */
+  passEnded(input: {
     planId: string;
-    slot: string;
-    reason: string;
-  }): Promise<void>;
-  /** The section's ask is answered: without it the section keeps saying the agent is refining it. */
-  refineDone(input: {
-    planId: string;
-    slot: string;
-    uses: unknown;
+    outcome: string;
+    reason?: string;
   }): Promise<void>;
 }
 
@@ -42,23 +30,14 @@ const SUCCESS: Report = { outcome: "success" };
 
 export function planPassEndHandle(deps: PlanPassEndDeps): Handle {
   return async (brief) => {
-    const refine = refineOf(brief.needs.refine);
-
-    if (!refine) {
-      return SUCCESS;
-    }
     const outcome = await analyzeOutcomeOf(deps, brief.visitId);
 
-    const planId = brief.needs.plan_id;
-
     return settled(() =>
-      outcome === "success"
-        ? deps.refineDone({ planId, slot: refine.slot, uses: usesOf(refine) })
-        : deps.refineFailed({
-            planId,
-            slot: refine.slot,
-            reason: stopped(outcome),
-          }),
+      deps.passEnded({
+        planId: brief.needs.plan_id,
+        outcome: outcome ?? "missing",
+        ...(outcome === "success" ? {} : { reason: stopped(outcome) }),
+      }),
     );
   };
 }
@@ -76,26 +55,6 @@ async function settled(post: () => Promise<void>): Promise<Report> {
 
 function stopped(outcome: string | undefined): string {
   return `the planning agent stopped with outcome ${outcome ?? "missing"} before it answered`;
-}
-
-// What the Refine built on, as its person settled it; an ask that named none used nothing.
-function usesOf(refine: RefineRequest): unknown {
-  return refine.uses ?? { questions: [], comments: [] };
-}
-
-/** The Refine this pass answered, or null for a draft. A value that will not parse, or names no slot, reads as a draft: there is no section to tell, and failing the node over it would say nothing to anybody. */
-function refineOf(raw: string | undefined): RefineRequest | null {
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<RefineRequest>;
-
-    return typeof parsed.slot === "string" ? (parsed as RefineRequest) : null;
-  } catch {
-    return null;
-  }
 }
 
 /** The outcome the LATEST `analyze` visit of this same run reported — there may be more than one across earlier iterations, so only the last one speaks for this pass. */
@@ -120,46 +79,13 @@ const productionDeps: PlanPassEndDeps = {
   runOf: async (visitId) =>
     (await floorClient().stationRuns.get(visitId))?.runId ?? null,
   visitsOf: (runId) => floorClient().stationRuns.list({ run: runId }),
-  refineFailed: ({ planId, ...failed }) =>
-    postToPlan(planId, "refine-failed", failed),
-  refineDone: ({ planId, ...done }) => postToPlan(planId, "refine-done", done),
+  passEnded: async ({ planId, ...pass }) => {
+    await requestPlan(`${planId}/refine-settled`, {
+      method: "POST",
+      body: pass,
+    });
+  },
 };
-
-async function postToPlan(
-  planId: string,
-  verb: "refine-failed" | "refine-done",
-  body: object,
-): Promise<void> {
-  const res = await fetch(`${requiredApiUrl()}/api/plans/${planId}/${verb}`, {
-    method: "POST",
-    signal: AbortSignal.timeout(30_000),
-    headers: bearerJsonHeaders(stationToken()),
-    body: JSON.stringify(body),
-  });
-
-  enforceTrue(
-    res.ok,
-    Error,
-    `${verb} post for plan ${planId} failed: ${res.status}`,
-  );
-}
-
-// LORE_API_URL unset is a hard failure, not a silent skip: posting this one call is this station's whole job.
-function requiredApiUrl(): string {
-  const baseUrl = process.env.LORE_API_URL;
-
-  enforceTrue(
-    baseUrl,
-    Error,
-    "plan-pass-end requires LORE_API_URL to settle a refine",
-  );
-
-  return baseUrl;
-}
-
-function stationToken(): string | undefined {
-  return process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
-}
 
 export function startPlanPassEndStation(): RunningStation {
   return defineStation("plan-pass-end", planPassEndHandle(productionDeps));

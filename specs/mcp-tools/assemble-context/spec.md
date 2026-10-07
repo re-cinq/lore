@@ -124,7 +124,7 @@ a raw chunk fetch when it is absent.
 
 The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
-([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L196), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L204))
+([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L160), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L168))
 
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a

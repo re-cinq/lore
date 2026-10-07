@@ -16,7 +16,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import type { Request } from "@hapi/hapi";
 import { OkTrue } from "../../http/ok-schema.js";
 
-// Per-repo agent definitions API; `image` is two-key gated like dark_factory.execution.image (ADR-025).
+// Per-repo agent definitions API; `image` is two-key gated (ADR-025).
 
 const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
 

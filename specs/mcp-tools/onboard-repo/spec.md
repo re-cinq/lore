@@ -71,17 +71,20 @@ case). **Never throws** — every path returns text.
   `onboard` task to `pipeline.tasks` (via `createTask`, which also records a
   `pending` task event).
 - Env: `LORE_DB_HOST` (presence gate only).
-- The actual PR creation happens later: the Floor's `handleOnboard` enrols the
-  repo and commits the verbatim scaffold, and the `onboard` assembly line's push
-  node opens the PR — never this handler.
+- The actual PR creation happens later, on the external floor: the `onboard`
+  line's `enrol` station commits the verbatim scaffold and its `open-pr` station
+  opens the PR — never this handler.
+- A deployment with no external floor refuses: the API answers 503 with
+  "onboarding needs the external floor, and this deployment has none", and the
+  tool returns that text.
 
 ## Acceptance Criteria
 
-The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:42`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L42))
+The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:42`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L43))
 
-The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:48`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L48))
+The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:48`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L49))
 
-A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:54`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L54))
+A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:54`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L55))
 
 A 409 from the route is the guard refusing a duplicate, not an outage: the tool
 returns the refusal body verbatim so the caller keeps `blocked` and the in-flight

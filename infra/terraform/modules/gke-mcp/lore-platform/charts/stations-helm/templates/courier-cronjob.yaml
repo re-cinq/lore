@@ -1,11 +1,10 @@
 {{/*
 The courier (#1357). One CronJob per entry in .Values.courierJobs. Each pod does
-exactly one thing: POST /api/assembly-runs to start an assembly line, then exit.
+exactly one thing: POST one station of the stations service, then exit.
 
 It holds NO business logic. The schedule lives in Kubernetes, the work lives in
-the assembly line — which brings run rows, retries, a timeline, and per-node
-logs that a bare CronJob pod never had. This is what replaces "a batch job lives
-in the coordinator because the coordinator's image is what the alarm launched".
+the station. This is what replaces "a batch job lives in the coordinator because
+the coordinator's image is what the alarm launched".
 
 Required per entry: .name (k8s suffix), .schedule (cron), .path (the lore-api
 path to post to).
@@ -19,10 +18,8 @@ Optional: .retries (curl's own retries of one post, default 3). Set 0 for work
 that must not run twice: curl retries a timed-out post, and by then the first
 one may already have done the work.
 
-The path is deliberately per-entry rather than fixed. Work with STEPS posts
-`/api/assembly-runs` and runs as a real line; a single data operation posts
-`/api/maintenance/<job>` and runs in lore-api. Both are "the schedule is in
-Kubernetes and the pod holds no logic" — only the URL differs.
+The path is per-entry: `/api/stations/<job>`. The schedule is in Kubernetes and
+the pod holds no logic.
 
 The token is written to a curl config file by a shell BUILTIN rather than passed
 as an argument, so it never appears in any process's argv (readable via /proc by

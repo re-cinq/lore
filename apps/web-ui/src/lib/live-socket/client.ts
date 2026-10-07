@@ -16,6 +16,7 @@ import {
   type ChannelKind,
   type LiveClientMessage,
   type LiveServerMessage,
+  type RunListFrame,
 } from "./protocol";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 
@@ -40,12 +41,15 @@ export interface ChannelSpec {
   /** Read at every open, so a resumed channel replays from the newest event seen. */
   after?: () => string;
   onFrame?: (frame: RunStreamFrame) => void;
+  onRunsFrame?: (frame: RunListFrame) => void;
   onData?: (bytes: Uint8Array) => void;
   onState?: (state: ChannelState) => void;
 }
 
 export interface ChannelHandle {
   send(bytes: Uint8Array): void;
+  /** Says which runs a list channel hears changes of; the set is remembered and sent again by itself on every re-open. */
+  watch(runIds: readonly string[]): void;
   close(): void;
 }
 
@@ -59,11 +63,16 @@ export interface LiveSocketOptions {
 
 const OPEN = 1;
 
+// Timer keys: the socket's own and a channel's are separately prefixed, so neither can spell the other.
+const SOCKET_TIMER = "socket:";
+
 export class LiveSocketClient {
   private state: MachineState = INITIAL_STATE;
   private socket: SocketLike | null = null;
-  private timer: unknown = null;
+  // One timer per waiting channel: a channel waiting 16s must hold neither the socket's reconnect nor another channel's.
+  private readonly timers = new Map<string, unknown>();
   private readonly specs = new Map<string, ChannelSpec>();
+  private readonly watched = new Map<string, readonly string[]>();
   private nextId = 0;
 
   constructor(private readonly options: LiveSocketOptions) {}
@@ -80,8 +89,13 @@ export class LiveSocketClient {
 
     return {
       send: (bytes) => this.sendOn(id, bytes),
+      watch: (runIds) => {
+        this.watched.set(id, runIds);
+        this.sendWatch(id);
+      },
       close: () => {
         this.specs.delete(id);
+        this.watched.delete(id);
         this.dispatch({ type: "channel_released", id });
       },
     };
@@ -135,6 +149,14 @@ export class LiveSocketClient {
     }
   }
 
+  sendWatch(id: string): void {
+    const runs = this.watched.get(id);
+
+    if (runs !== undefined && this.phaseOf(id) === "open") {
+      this.send({ type: "watch", channel: id, runs: [...runs] });
+    }
+  }
+
   private phaseOf(id: string): string | undefined {
     return Object.hasOwn(this.state.channels, id)
       ? this.state.channels[id].phase
@@ -160,19 +182,27 @@ export class LiveSocketClient {
     }
   }
 
-  /** One pending retry at a time: whichever fires serves both a backed-off socket and the channels waiting to re-open. */
-  scheduleRetry(delayMs: number): void {
-    if (this.timer !== null) {
+  /** One pending retry per waiting channel, and the socket's own beside them: a retry serves whoever armed it. */
+  scheduleRetry(delayMs: number, id?: string): void {
+    const key = id === undefined ? SOCKET_TIMER : `channel:${id}`;
+
+    if (this.timers.has(key)) {
       return;
     }
     const setTimer = this.options.setTimer ?? setTimeout;
 
-    this.timer = setTimer(
-      () => {
-        this.timer = null;
-        this.dispatch({ type: "retry_due" });
-      },
-      jittered(delayMs, this.options.random),
+    this.timers.set(
+      key,
+      setTimer(
+        () => {
+          this.timers.delete(key);
+          this.dispatch({
+            type: "retry_due",
+            ...(id === undefined ? {} : { id }),
+          });
+        },
+        jittered(delayMs, this.options.random),
+      ),
     );
   }
 
@@ -186,6 +216,10 @@ export class LiveSocketClient {
 
   deliverFrame(channel: string, frame: RunStreamFrame): void {
     this.specs.get(channel)?.onFrame?.(frame);
+  }
+
+  deliverRunsFrame(channel: string, frame: RunListFrame): void {
+    this.specs.get(channel)?.onRunsFrame?.(frame);
   }
 
   deliverData(channel: string, encoded: string): void {
@@ -209,11 +243,13 @@ interface ClientInternals {
   connect(): void;
   sendOpen(id: string): Promise<void>;
   send(message: LiveClientMessage): void;
-  scheduleRetry(delayMs: number): void;
+  scheduleRetry(delayMs: number, id?: string): void;
   notify(id: string, state: ChannelState): void;
   dispatch(event: MachineEvent): void;
   deliverFrame(channel: string, frame: RunStreamFrame): void;
+  deliverRunsFrame(channel: string, frame: RunListFrame): void;
   deliverData(channel: string, encoded: string): void;
+  sendWatch(id: string): void;
   onError(message: Extract<LiveServerMessage, { type: "error" }>): void;
 }
 
@@ -224,7 +260,8 @@ const EFFECTS: {
   send_open: (client, effect) => void client.sendOpen(effect.id),
   send_close: (client, effect) =>
     client.send({ type: "close", channel: effect.id }),
-  schedule_retry: (client, effect) => client.scheduleRetry(effect.delayMs),
+  schedule_retry: (client, effect) =>
+    client.scheduleRetry(effect.delayMs, effect.id),
   notify: (client, effect) => client.notify(effect.id, effect.state),
 };
 
@@ -234,10 +271,14 @@ const INBOUND: {
     message: M,
   ) => void;
 } = {
-  opened: (client, message) =>
-    client.dispatch({ type: "server_opened", id: message.channel }),
+  opened: (client, message) => {
+    client.dispatch({ type: "server_opened", id: message.channel });
+    client.sendWatch(message.channel);
+  },
   frame: (client, message) =>
     client.deliverFrame(message.channel, message.frame),
+  runs: (client, message) =>
+    client.deliverRunsFrame(message.channel, message.frame),
   data: (client, message) => client.deliverData(message.channel, message.data),
   closed: (client, message) =>
     client.dispatch({
@@ -248,21 +289,40 @@ const INBOUND: {
   error: (client, message) => client.onError(message),
 };
 
+const OPEN_MESSAGES: {
+  [K in ChannelKind]: (
+    id: string,
+    spec: ChannelSpec,
+    token: string,
+  ) => LiveClientMessage;
+} = {
+  plan: (id, spec) => ({
+    type: "open",
+    channel: id,
+    kind: "plan",
+    subject: spec.subject,
+  }),
+  run: (id, spec, token) => ({
+    type: "open",
+    channel: id,
+    kind: "run",
+    subject: spec.subject,
+    token,
+    after: spec.after?.(),
+  }),
+  runs: (id, spec, token) => ({
+    type: "open",
+    channel: id,
+    kind: "runs",
+    subject: spec.subject,
+    token,
+  }),
+};
+
 function openMessage(
   id: string,
   spec: ChannelSpec,
   token: string | undefined,
 ): LiveClientMessage {
-  if (spec.kind === "plan") {
-    return { type: "open", channel: id, kind: "plan", subject: spec.subject };
-  }
-
-  return {
-    type: "open",
-    channel: id,
-    kind: "run",
-    subject: spec.subject,
-    token: token ?? "",
-    after: spec.after?.(),
-  };
+  return OPEN_MESSAGES[spec.kind](id, spec, token ?? "");
 }

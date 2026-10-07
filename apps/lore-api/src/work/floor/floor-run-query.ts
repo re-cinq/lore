@@ -6,16 +6,14 @@ import { floorTaskSubject } from "@re-cinq/lore-shared/floor/floor-task-runs.js"
 import { floorPlanSubject } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import type {
   AssemblyRunQuery,
+  AssemblyRunStatus,
   AssemblyRunSummary,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 
 const OPEN_STATUSES: readonly string[] = ["queued", "running"];
 
-/** One floor list per line and open/finished half the query asks for, plus the lists a task's run may be in under another key; none when the floor holds nothing the query could match (it knows no cluster-agent claim). */
+/** One floor list per line and open/finished half the query asks for, plus the lists a task's run may be in under another key. */
 export function floorRunFilters(query: AssemblyRunQuery): RunFilter[] {
-  if (query.clusterAgentId !== undefined) {
-    return [];
-  }
   const subject = subjectAsked(query);
   const repo =
     query.repo === undefined ? {} : { repo: floorRepoOf(query.repo) };
@@ -143,6 +141,45 @@ function opensOf(query: AssemblyRunQuery): boolean[] {
   return [true, false].filter((open) => statusOpenness.includes(open));
 }
 
-function isOpenStatus(status: string): boolean {
+export function isOpenStatus(status: string): boolean {
   return OPEN_STATUSES.includes(status);
+}
+
+/** The floor wants a filter to list under: since the epoch is every run it holds, asked only when neither a repository nor an open/settled half narrows the list. */
+const EVERY_RUN_SINCE = new Date(0).toISOString();
+
+export function floorPageFilter(query: {
+  repo?: string;
+  status?: AssemblyRunStatus;
+}): RunFilter {
+  const { repo, status } = query;
+
+  if (repo !== undefined && status !== undefined) {
+    return { repo: floorRepoOf(repo), open: isOpenStatus(status) };
+  }
+
+  if (repo !== undefined) {
+    return { repo: floorRepoOf(repo) };
+  }
+
+  if (status !== undefined) {
+    return { open: isOpenStatus(status) };
+  }
+
+  return { since: EVERY_RUN_SINCE };
+}
+
+/** The floor cannot tell finished from failed, nor queued from running, so a status page is searched for in up to this many floor pages. */
+const STATUS_SEARCH_PAGES = 5;
+
+export function pagesToRead(status: AssemblyRunStatus | undefined): number {
+  return status === undefined ? 1 : STATUS_SEARCH_PAGES;
+}
+
+export function searchEnded(
+  found: number,
+  limit: number,
+  nextCursor: string | null,
+): boolean {
+  return found >= limit || nextCursor === null;
 }

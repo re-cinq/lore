@@ -2,6 +2,7 @@ import { defineStation } from "@re-cinq/floor-station";
 import type { Handle, RunningStation } from "@re-cinq/floor-station";
 import { projectFor } from "../../outbound/project-boot.js";
 import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { parseReviewId } from "../read-review/read-review.js";
 import { postReply, type ReplyPoster } from "./post-reply.js";
 
 export interface PostReplyDeps {
@@ -19,8 +20,7 @@ export function postReplyHandle(deps: PostReplyDeps): Handle {
       visitId: brief.visitId,
       iteration: brief.iteration,
       replyOutput,
-      commentId: Number(brief.needs.comment_id) || 0,
-      intent: brief.needs.intent,
+      reviewId: parseReviewId(brief.needs.review_id),
     });
 
     return { outcome: "success", produced: { reply_url: brief.needs.pr_url } };

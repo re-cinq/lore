@@ -210,6 +210,11 @@ describe("settlingLoopTickets", () => {
     const steps: string[] = [];
     const closed = (settled: FloorLoopRun): LoopRunClosedDeps => ({
       getTaskIssueNumber: () => Promise.resolve(7),
+      recordWhy: (taskId, why) => {
+        steps.push(`why ${taskId}: ${why}`);
+
+        return Promise.resolve();
+      },
       listStationRuns: () => Promise.resolve(settled.visits),
       addLabel: (_repo, issue, label) => {
         steps.push(`label #${issue} ${label}`);
@@ -280,6 +285,7 @@ describe("settlingLoopTickets", () => {
     await settle();
 
     expect(steps).toEqual([
+      "why task-1: the pull request was not ready: review threads stayed unresolved after the address round-trip",
       "label #7 lore:blocked",
       "comment #7",
       "tick acme/widgets",
@@ -306,7 +312,11 @@ describe("settlingLoopTickets", () => {
 
     await settle();
 
-    expect(steps).toEqual(["comment #7", "tick acme/widgets"]);
+    expect(steps).toEqual([
+      "why task-1: the run ended iteration_max",
+      "comment #7",
+      "tick acme/widgets",
+    ]);
   });
 
   it("settles no ticket for a run of another line", async () => {

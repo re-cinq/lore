@@ -7,7 +7,7 @@ import {
   saveResultToState,
   type AgentFormState,
 } from "@/lib/agents-form";
-import { DEFAULT_EXECUTION_IMAGE } from "@/lib/dark-factory-resolve";
+import { DEFAULT_EXECUTION_IMAGE } from "@/lib/agents-api";
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import AgentForm, { type AgentFormAction } from "../../AgentForm";
 

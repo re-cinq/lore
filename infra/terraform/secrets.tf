@@ -41,8 +41,10 @@ locals {
     "lore-nextauth-secret",
     # Binary/base64 .dockerconfigjson for GHCR pull access.
     "lore-ghcr-pull-secret",
-    # Every cluster-agent registers — the central one included — so this is a
-    # platform secret, not a feature gate.
+    # Nothing reads this any more: Lore's cluster agent was removed on
+    # 2026-10-02 and no ExternalSecret mirrors it. The container stays listed
+    # because it is `prevent_destroy`; delete it in Secret Manager by hand and
+    # then drop this line.
     "lore-cluster-agent-registration-token",
     ],
     var.enable_anthropic_admin_key ? ["lore-anthropic-admin-api-key"] : [],

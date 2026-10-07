@@ -44,6 +44,10 @@ env:
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
   PORT: "8080"
+  # The bus-prune sweep deletes run transcripts older than this (default 30).
+  # A year: the runs of the engine Lore ran itself get no new turns, and their
+  # run pages are what a walkthrough opens.
+  LORE_AGENT_RUN_TURN_RETENTION_DAYS: "365"
 
 # The external floor engine (its own namespace and Helm release). Off by default;
 # terraform sets enabled from var.enable_external_floor.
@@ -100,10 +104,9 @@ slackBotTokenSecret:
   name: lore-stations-slack
   key: bot-token
 
-# path is per-entry because the two kinds of scheduled work land in different
-# places: work with STEPS posts /api/assembly-runs and runs as a real assembly
-# line; a single data operation posts /api/stations/<job> and runs inside
-# lore-api. Neither runs in a coordinator, which is the point.
+# path is per-entry: each job posts /api/stations/<job>, the station that does
+# the work. Work with STEPS is not a courier job: it is a line on the external
+# floor, started by a tick in the stations service.
 courier:
   # Pinned by DIGEST, not by tag: this container is handed the org ingest token,
   # and a tag is mutable — `8.11.1` can be repointed at a different image without

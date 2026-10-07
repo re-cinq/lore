@@ -45,4 +45,4 @@ for f in "$REPO"/scripts/agent-prompts/*.md; do [ -f "$f" ] && insert doc "scrip
 # Skills
 for f in "$REPO"/.claude/skills/*/SKILL.md; do [ -f "$f" ] && skill=$(basename "$(dirname "$f")") && insert doc ".claude/skills/$skill/SKILL.md"; done
 
-echo "[lore] Done. Run scripts/infra/generate-embeddings.sh to add vector embeddings."
+echo "[lore] Done. Run scripts/infra/reembed.sh to embed the rows that have no vector yet."

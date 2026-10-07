@@ -304,4 +304,24 @@ describe("runSpecTaskExecutor", () => {
 
     expect(await runSpecTaskExecutor(deps)).toBe("No ready spec-tasks");
   });
+
+  it("briefs the agents with the plan passage task T001 was filed quoting, the plan not being in the clone", async () => {
+    const { deps, ticket } = scene({
+      ready: [
+        withBundle({
+          plan_quotes: ["Reproduction runs before any diagnosis."],
+        }),
+      ],
+    });
+
+    await runSpecTaskExecutor(deps);
+
+    expect(ticket()).toContain(
+      [
+        "## From the plan",
+        "",
+        "> Reproduction runs before any diagnosis.",
+      ].join("\n"),
+    );
+  });
 });

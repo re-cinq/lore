@@ -50,7 +50,7 @@ function chunkIndexOf(row: ChunkRow): number | null {
   return (row.metadata.chunk_index as number | undefined) ?? null;
 }
 
-/** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets context-core jobs and stations test without a live {schema}.chunks table. */
+/** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets stations test without a live {schema}.chunks table. */
 export class InMemoryChunks implements ChunksPort {
   private seq = 0;
   private readonly relocation: LegacyRelocationStore;

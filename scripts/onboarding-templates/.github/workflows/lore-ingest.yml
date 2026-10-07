@@ -161,7 +161,7 @@ jobs:
           # A binary older than the docs subcommand ignores the argument and
           # runs the repository's tests instead. Printing the selection proves
           # the subcommand exists before anything is posted.
-          if ! ./lore-code-trace docs | grep -q '"specs"'; then
+          if ! ./lore-code-trace docs | grep '"specs"' > /dev/null; then
             echo "::error::the lore-code-trace Lore serves has no docs subcommand - specs and ADRs were NOT projected"
             exit 1
           fi

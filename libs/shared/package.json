@@ -26,10 +26,6 @@
       "types": "./dist/transport/http/*.d.ts",
       "default": "./dist/transport/http/*.js"
     },
-    "./cluster/*.js": {
-      "types": "./dist/outbound/cluster/*.d.ts",
-      "default": "./dist/outbound/cluster/*.js"
-    },
     "./db/*.js": {
       "types": "./dist/outbound/db/*.d.ts",
       "default": "./dist/outbound/db/*.js"
@@ -74,10 +70,6 @@
       "types": "./dist/domain/digest-settings.d.ts",
       "default": "./dist/domain/digest-settings.js"
     },
-    "./detect/*.js": {
-      "types": "./dist/work/detect/*.d.ts",
-      "default": "./dist/work/detect/*.js"
-    },
     "./project/leases/lease-backends.js": {
       "types": "./dist/outbound/project/leases/lease-backends.d.ts",
       "default": "./dist/outbound/project/leases/lease-backends.js"
@@ -94,9 +86,13 @@
       "types": "./dist/lib/error-classify.d.ts",
       "default": "./dist/lib/error-classify.js"
     },
-    "./k8s-pod-failure.js": {
-      "types": "./dist/outbound/k8s-pod-failure.d.ts",
-      "default": "./dist/outbound/k8s-pod-failure.js"
+    "./feature-planning/spec-soundness.js": {
+      "types": "./dist/domain/feature-planning/spec-soundness.d.ts",
+      "default": "./dist/domain/feature-planning/spec-soundness.js"
+    },
+    "./feature-planning/grounding.js": {
+      "types": "./dist/domain/feature-planning/grounding.d.ts",
+      "default": "./dist/domain/feature-planning/grounding.js"
     },
     "./feature-planning/decomposition-result.js": {
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
@@ -110,13 +106,21 @@
       "types": "./dist/domain/feature-planning/spec-plan-path.d.ts",
       "default": "./dist/domain/feature-planning/spec-plan-path.js"
     },
+    "./feature-planning/plan-coverage.js": {
+      "types": "./dist/domain/feature-planning/plan-coverage.d.ts",
+      "default": "./dist/domain/feature-planning/plan-coverage.js"
+    },
+    "./feature-planning/issue-coverage.js": {
+      "types": "./dist/domain/feature-planning/issue-coverage.d.ts",
+      "default": "./dist/domain/feature-planning/issue-coverage.js"
+    },
+    "./feature-planning/plan-url.js": {
+      "types": "./dist/domain/feature-planning/plan-url.d.ts",
+      "default": "./dist/domain/feature-planning/plan-url.js"
+    },
     "./feature-planning/*.js": {
       "types": "./dist/work/feature-planning/*.d.ts",
       "default": "./dist/work/feature-planning/*.js"
-    },
-    "./github-credential/*.js": {
-      "types": "./dist/domain/github-credential/*.d.ts",
-      "default": "./dist/domain/github-credential/*.js"
     },
     "./github-installation/*.js": {
       "types": "./dist/domain/github-installation/*.d.ts",
@@ -196,7 +200,7 @@
     "@google-cloud/storage": "^8.0.1",
     "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
-    "@re-cinq/floor-client": "0.1.4",
+    "@re-cinq/floor-client": "0.1.6",
     "cron-parser": "^5.10.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",
@@ -210,7 +214,6 @@
     "@hapi/hapi": "21.4.10",
     "@octokit/auth-app": "^8.3.1",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
-    "@re-cinq/agent-contracts": "^0.11.7",
     "@types/node": "^22.20.1",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^5.0.0",

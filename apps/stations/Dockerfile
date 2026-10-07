@@ -16,9 +16,7 @@ COPY libs/assembly-lines/tsconfig.json ./libs/assembly-lines/
 COPY libs/assembly-lines/src ./libs/assembly-lines/src
 RUN npm run build --workspace=@re-cinq/lore-assembly-lines
 
-# The stations themselves live in this package, one folder each; the service
-# hosts the ones declaring an http trigger and the pod image (Dockerfile.pod)
-# runs the assembly-line node ones from the same source.
+# The stations themselves live in this package, one folder each.
 COPY apps/stations/tsconfig.json ./apps/stations/
 COPY apps/stations/src/ ./apps/stations/src/
 RUN npm run build --workspace=@re-cinq/lore-stations

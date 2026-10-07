@@ -72,10 +72,6 @@ describe("floorRunFilters", () => {
       { line: "implementation-loop", open: false },
     ]);
   });
-
-  it("reads nothing for a query on a cluster-agent", () => {
-    expect(floorRunFilters({ clusterAgentId: "agent-1" })).toEqual([]);
-  });
 });
 
 describe("matchesFloorQuery", () => {

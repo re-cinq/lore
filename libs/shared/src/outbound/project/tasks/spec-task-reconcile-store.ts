@@ -25,7 +25,11 @@ export interface SpecTaskRows {
   cancel(id: string): Promise<void>;
 }
 
-type Wanted = { specTaskId: string; issueNumber: number; task: SpecTaskInput };
+type Wanted = {
+  specTaskId: string;
+  issueNumber: number;
+  task: SpecTaskInput;
+};
 
 export async function reconcileSpecTasksIn(
   rows: SpecTaskRows,

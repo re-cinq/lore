@@ -46,11 +46,12 @@ export function linksForStatements(
   }));
 }
 
-/** Keeps only source-code links — excludes test files and prose docs (so ADR/docs `.md` refs don't become IMPLEMENTED_BY links). */
+/** Keeps only source-code links in the repo — excludes test files, prose docs (so ADR/docs `.md` refs don't become IMPLEMENTED_BY links) and URLs such as a plan block's. */
 export function parseCodeLinksInStatement(statement: string): CodeLinkRef[] {
   return parseLinksInStatement(
     statement,
-    (path) => !isTestFile(path) && !isDocFile(path),
+    (path) =>
+      !isTestFile(path) && !isDocFile(path) && !NON_REPO_PATH_RE.test(path),
   );
 }
 
@@ -122,28 +123,41 @@ export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
   return parseLinksInStatement(statement, isTestFile);
 }
 
+/** Every href in the statement's trailing link group, as written — a plan block's `#<id>` included, which the `#Lnn` line-anchor read would cut. */
+export function trailingLinkHrefs(statement: string): string[] {
+  return trailingLinkMatches(statement).map((match) => match[2].trim());
+}
+
+/** The statement as a reader quotes it: its trailing link group, when it has one, cut off. */
+export function withoutTrailingLinkGroup(statement: string): string {
+  const span = findTrailingParenSpan(statement);
+
+  return span && trailingLinkMatches(statement).length > 0
+    ? statement.slice(0, span.open).trimEnd()
+    : statement;
+}
+
 function parseLinksInStatement(
   statement: string,
   keepPath: (path: string) => boolean,
 ): SpecLinkRef[] {
+  return trailingLinkMatches(statement)
+    .map(linkRefFromMatch)
+    .filter((ref) => keepPath(ref.path));
+}
+
+function trailingLinkMatches(statement: string): RegExpMatchArray[] {
   const span = findTrailingParenSpan(statement);
 
   if (span === null) {
     return [];
   }
-  const inner = statement.slice(span.innerStart, span.innerEnd);
 
-  const refs: SpecLinkRef[] = [];
-
-  for (const match of inner.matchAll(LINK_INSIDE_PAREN_RE)) {
-    const ref = linkRefFromMatch(match);
-
-    if (keepPath(ref.path)) {
-      refs.push(ref);
-    }
-  }
-
-  return refs;
+  return [
+    ...statement
+      .slice(span.innerStart, span.innerEnd)
+      .matchAll(LINK_INSIDE_PAREN_RE),
+  ];
 }
 
 function findTrailingParenSpan(

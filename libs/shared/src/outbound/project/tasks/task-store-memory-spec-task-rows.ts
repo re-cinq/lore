@@ -30,6 +30,7 @@ export class MemorySpecTaskRows implements SpecTaskRows {
         status: t.status ?? "pending",
         issueNumber: t.issue_number ?? null,
         specTaskId: t.context_bundle?.spec_task_id as string | undefined,
+        prNumber: (t.pr_number as number | null | undefined) ?? null,
       }));
   }
 
@@ -48,7 +49,12 @@ export class MemorySpecTaskRows implements SpecTaskRows {
 
   async requeue(id: string, input: SpecTaskInput): Promise<void> {
     await this.update(id, input);
-    Object.assign(this.row(id), { status: "pending", failure_reason: null });
+    Object.assign(this.row(id), {
+      status: "pending",
+      failure_reason: null,
+      pr_number: null,
+      pr_url: null,
+    });
   }
 
   async cancel(id: string): Promise<void> {

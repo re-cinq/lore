@@ -13,7 +13,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { mintLiveToken } from "../../../work/assembly-line-station/live-tokens.js";
 
-const StreamTokenBody = z.object({
+export const StreamTokenBody = z.object({
   user: z.object({ id: z.string().min(1), name: z.string().min(1) }),
 });
 

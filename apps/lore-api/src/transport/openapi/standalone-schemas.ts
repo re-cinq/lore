@@ -5,11 +5,13 @@ import {
   LIVE_SOCKET_PATH,
   LiveClientMessageSchema,
   LiveServerMessageSchema,
+  RunListFrameSchema,
 } from "../../work/assembly-line-station/protocol.js";
 import { RunStreamFrameSchema } from "../../work/assembly-line-station/run-stream-frame.js";
 
 export const STANDALONE_SCHEMAS: Record<string, ZodType> = {
   RunStreamFrame: RunStreamFrameSchema,
+  RunListFrame: RunListFrameSchema,
   LiveClientMessage: LiveClientMessageSchema,
   LiveServerMessage: LiveServerMessageSchema,
 };
@@ -18,7 +20,7 @@ export const STANDALONE_SCHEMAS: Record<string, ZodType> = {
 export const WEBSOCKET_EXTENSION = {
   path: LIVE_SOCKET_PATH,
   description:
-    "The browser's one live socket: JSON text frames, client-chosen channel ids; a `run` channel carries RunStreamFrame envelopes, a `plan` channel tunnels the plan collaboration protocol as base64.",
+    "The browser's one live socket: JSON text frames, client-chosen channel ids; a `run` channel carries RunStreamFrame envelopes, a `runs` channel carries the RunListFrame envelopes of the floor's run list, a `plan` channel tunnels the plan collaboration protocol as base64.",
   client: { $ref: "#/components/schemas/LiveClientMessage" },
   server: { $ref: "#/components/schemas/LiveServerMessage" },
 };

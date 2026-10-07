@@ -6,8 +6,6 @@ vi.mock("server-only", () => ({}));
 const {
   getTask,
   cancelTask,
-  runTaskNow,
-  getTaskRuns,
   getTaskLogs,
   getRepoTasks,
   getTaskStats,
@@ -85,23 +83,6 @@ describe("cancelTask", () => {
       message: "Cannot cancel task in merged state",
       code: 409,
     });
-  });
-});
-
-describe("runTaskNow", () => {
-  it("posts the run-now action", async () => {
-    await runTaskNow("t1");
-
-    expect(url()).toEqual("http://api:3000/api/task");
-    expect(body()).toEqual({ action: "run-now", task_id: "t1" });
-  });
-});
-
-describe("getTaskRuns", () => {
-  it("reads the task's assembly-line runs", async () => {
-    await getTaskRuns("t1");
-
-    expect(url()).toEqual("http://api:3000/api/tasks/t1/runs");
   });
 });
 

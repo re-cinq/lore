@@ -1,4 +1,4 @@
-// Adapts the floor's Brief into the StationInput runIssuesStation already reads (apps/stations/src/work/issues/), unchanged — see specs/external-floor/spec.md FR8.7.
+// Adapts the floor's Brief into the StationInput runIssuesStation already reads (apps/stations/src/planning/file-issues/), unchanged — see specs/external-floor/spec.md FR8.7.
 
 import {
   defineStation,
@@ -13,10 +13,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { specPathOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import {
-  runIssuesStation,
-  type IssuesStationDeps,
-} from "../../work/issues/issues.js";
+import { runIssuesStation, type IssuesStationDeps } from "./issues.js";
 
 export interface FileIssuesDeps {
   /** The visit's own run, carried on as the spec-task group id — stable across a re-drive of the same run. */
@@ -62,9 +59,10 @@ async function stationInputOf(
   deps: FileIssuesDeps,
   { repo, branch, brief, tools }: TargetBrief,
 ): Promise<StationInput> {
-  const [decomposition, specPlan, runId] = await Promise.all([
+  const [decomposition, specPath, planMarkdown, runId] = await Promise.all([
     textOf(tools, "decomposition"),
-    textOf(tools, "spec_plan"),
+    specPathOf(brief.needs, tools),
+    planMarkdownOf(brief.needs, tools),
     groupingRunOf(deps, brief.visitId),
   ]);
 
@@ -75,8 +73,28 @@ async function stationInputOf(
     repo,
     branch,
     task_id: null,
-    params: paramsOf(brief.needs, decomposition, specPlan),
+    params: paramsOf(brief.needs, { decomposition, specPath, planMarkdown }),
   };
+}
+
+// Serves runs started before #2502, whose line declares spec_plan rather than spec_path; can go once none remain.
+async function specPathOf(
+  needs: Record<string, string>,
+  tools: Parameters<Handle>[1],
+): Promise<string | undefined> {
+  if (needs.spec_path || !needs.spec_plan) {
+    return needs.spec_path;
+  }
+
+  return specPathOfPlan(await textOf(tools, "spec_plan"));
+}
+
+// A run started before the line declared plan_md files its story without the plan.
+async function planMarkdownOf(
+  needs: Record<string, string>,
+  tools: Parameters<Handle>[1],
+): Promise<string | undefined> {
+  return needs.plan_md ? textOf(tools, "plan_md") : undefined;
 }
 
 /** The run's id is the spec-tasks' group id, and the merge-check reads that group to flip the spec's status. A visit id would differ on every re-drive, so the tasks would land in a group nobody counts: better to fail here than to file them wrong. */
@@ -95,18 +113,22 @@ async function groupingRunOf(
   return runId;
 }
 
+interface ReadNeeds {
+  decomposition: string;
+  specPath: string | undefined;
+  planMarkdown: string | undefined;
+}
+
 function paramsOf(
   needs: Record<string, string>,
-  decomposition: string,
-  specPlan: string,
+  { decomposition, specPath, planMarkdown }: ReadNeeds,
 ): Record<string, string> {
-  const specPath = specPathOfPlan(specPlan);
-
   return {
     feature_decomposition: decomposition,
     plan_id: needs.plan_id,
     ...(needs.plan_title ? { plan_title: needs.plan_title } : {}),
     ...(specPath ? { spec_path: specPath } : {}),
+    ...(planMarkdown ? { plan_md: planMarkdown } : {}),
   };
 }
 

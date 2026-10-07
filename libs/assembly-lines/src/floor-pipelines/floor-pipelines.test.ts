@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
+import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
+import { COVERAGE_ROUNDS } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 
 interface Arg {
   kind: string;
@@ -25,6 +27,7 @@ interface Need {
 
 interface Station {
   kind: string;
+  agent_definition?: string;
   outcomes: string[];
   needs: Need[];
   produces: Array<{ name: string; kind: string; path?: string }>;
@@ -32,6 +35,10 @@ interface Station {
 
 interface AgentSettings {
   model: string;
+  prices?: Record<
+    string,
+    { input_per_million: number; output_per_million: number }
+  >;
   prompt: string;
   config: {
     env: Record<string, string>;
@@ -50,7 +57,7 @@ interface Pipeline {
     start?: { on: string[] };
     files?: Record<string, string>;
     args: Record<string, Arg>;
-    nodes: { id: string; station?: string }[];
+    nodes: { id: string; station?: string; bind?: Record<string, string> }[];
     edges: Edge[];
   };
   stations: Record<string, Station>;
@@ -84,7 +91,7 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -94,6 +101,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "daily-digest",
       "feature-planning",
       "implementation-loop",
+      "issue-triage",
       "lore-run-settled",
       "merge",
       "onboard",
@@ -181,6 +189,28 @@ describe("the floor pipelines shipped in this folder", () => {
       "task_id",
       "ticket",
     ]);
+  });
+
+  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value instead of the spec plan", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const openSpecPr = stations["open-spec-pr"];
+    const issues = stations["issues"];
+
+    expect({
+      openSpecPrReads: needOf(openSpecPr, "spec_plan")?.kind,
+      openSpecPrProduces: openSpecPr.produces,
+      issuesReads: needOf(issues, "spec_path"),
+      issuesReadsPlan: needOf(issues, "spec_plan"),
+    }).toEqual({
+      openSpecPrReads: "file",
+      openSpecPrProduces: [
+        { name: "pr_url", kind: "value" },
+        { name: "spec_path", kind: "value" },
+        { name: "issue_coverage", kind: "file" },
+      ],
+      issuesReads: { name: "spec_path", kind: "value", optional: true },
+      issuesReadsPlan: undefined,
+    });
   });
 
   it("makes both loop waits human stations that produce the three CI values and the round brief as a file", () => {
@@ -612,7 +642,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("marks pr_url as the subject of code-review and head_sha as the subject of code-review-recheck, so a re-check never joins an open review and two re-checks of one sha are one run", () => {
+  it("keys code-review on pr_url, code-review-recheck on head_sha and code-review-reply on review_id, so a re-check never joins an open review, two re-checks of one sha are one run, and one review is answered once", () => {
     const subjectArgs = (id: string): string[] =>
       Object.entries(pipelineOf(id).line.args)
         .filter(([, arg]) => arg.subject)
@@ -622,7 +652,11 @@ describe("the floor pipelines shipped in this folder", () => {
       review: subjectArgs("code-review"),
       recheck: subjectArgs("code-review-recheck"),
       reply: subjectArgs("code-review-reply"),
-    }).toEqual({ review: ["pr_url"], recheck: ["head_sha"], reply: [] });
+    }).toEqual({
+      review: ["pr_url"],
+      recheck: ["head_sha"],
+      reply: ["review_id"],
+    });
   });
 
   it("enters code-review-reply at read-review and clones the repository with write access for its code-review-refine station", () => {
@@ -634,6 +668,43 @@ describe("the floor pipelines shipped in this folder", () => {
     }).toMatchObject({
       entry: "read-review",
       target: { kind: "git", access: "write" },
+    });
+  });
+
+  it("starts code-review-reply from the repository, the pull request and the review alone, and gives post-reply the review id so each answer lands under a comment of that review", () => {
+    const { line, stations } = pipelineOf("code-review-reply");
+
+    expect({
+      args: Object.keys(line.args),
+      readReview: stations["read-review"]?.needs.map((need) => need.name),
+      postReply: stations["post-reply"]?.needs.map((need) => need.name),
+    }).toEqual({
+      args: ["repo", "pr_url", "review_id"],
+      readReview: ["pr_url", "review_id"],
+      postReply: ["reply_output", "pr_url", "review_id"],
+    });
+  });
+
+  it("tells the reply agent to answer each line comment by its id, shows both reply blocks whole, and promises it no intent and no thread it was not given", () => {
+    const prompt = promptOnOneLine("code-review-refine");
+
+    expect({
+      answersById: prompt.includes("`inline comment <id> on <path>`"),
+      replyBlock: prompt.includes("```REVIEW_REPLY"),
+      threadBlock: [
+        "```REVIEW_THREAD_REPLIES",
+        '"comment_id"',
+        '"reply"',
+        '"resolved"',
+      ].every((part) => prompt.includes(part)),
+      namesAnIntent: /intent/i.test(prompt),
+      postsItself: prompt.includes("post one clarifying question"),
+    }).toEqual({
+      answersById: true,
+      replyBlock: true,
+      threadBlock: true,
+      namesAnIntent: false,
+      postsItself: false,
     });
   });
 
@@ -668,6 +739,27 @@ describe("the floor pipelines shipped in this folder", () => {
 });
 
 describe("the feature-planning pipeline", () => {
+  it("grounds the plan between plan-pass-end and author, reading the default branch and nothing from the bag", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+    const node = line.nodes.find((each) => each.id === "plan-grounding");
+
+    expect({
+      station: node?.station,
+      base: node?.bind,
+      from: edgesOn(line, "plan-pass-end").map((edge) => [edge.to, edge.on]),
+      to: edgesOn(line, "plan-grounding").map((edge) => [edge.to, edge.on]),
+      planMd: needOf(stations["plan-grounding"], "plan_md"),
+      target: needOf(stations["plan-grounding"], "target"),
+    }).toEqual({
+      station: "plan-grounding",
+      base: { target: "base" },
+      from: [["plan-grounding", "always"]],
+      to: [["author", "always"]],
+      planMd: undefined,
+      target: { name: "target", kind: "git", path: "target", access: "read" },
+    });
+  });
+
   it("walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event", () => {
     const { line } = pipelineOf("feature-planning");
 
@@ -685,14 +777,117 @@ describe("the feature-planning pipeline", () => {
         "author",
         "decompose",
         "done",
+        "issue-coverage",
         "issues",
         "merged",
         "open-spec-pr",
+        "plan-findings",
+        "plan-grounding",
         "plan-pass-end",
+        "spec-coverage",
         "validate",
         "write",
       ].sort(),
       validateStart: "plan-validate",
+    });
+  });
+
+  it("checks plan coverage between write and open-spec-pr, sending write back at most COVERAGE_ROUNDS times", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect({
+      fromWrite: edgesOn(line, "write").find((edge) => edge.on === "success"),
+      fromCoverage: edgesOn(line, "spec-coverage"),
+    }).toEqual({
+      fromWrite: { from: "write", to: "spec-coverage", on: "success" },
+      fromCoverage: [
+        { from: "spec-coverage", to: "open-spec-pr", on: "success" },
+        {
+          from: "spec-coverage",
+          to: "write",
+          on: "changes_requested",
+          iteration_max: COVERAGE_ROUNDS,
+        },
+        { from: "spec-coverage", to: "done", on: "failed" },
+      ],
+    });
+  });
+
+  it("checks issue coverage after issues, sending decompose back at most COVERAGE_ROUNDS times", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect({
+      fromIssues: edgesOn(line, "issues").find((edge) => edge.on === "success"),
+      fromCoverage: edgesOn(line, "issue-coverage"),
+    }).toEqual({
+      fromIssues: { from: "issues", to: "issue-coverage", on: "success" },
+      fromCoverage: [
+        { from: "issue-coverage", to: "done", on: "success" },
+        {
+          from: "issue-coverage",
+          to: "decompose",
+          on: "changes_requested",
+          iteration_max: COVERAGE_ROUNDS,
+        },
+        { from: "issue-coverage", to: "done", on: "failed" },
+      ],
+    });
+  });
+
+  it("hands feature-decompose its last decomposition and issue coverage as optional files its prompt names", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      decomposition: needOf(decompose, "decomposition"),
+      coverage: needOf(decompose, "issue_coverage"),
+      named: [
+        prompt.includes("/workspace/decomposition.json"),
+        prompt.includes("/workspace/issue-coverage.md"),
+      ],
+    }).toEqual({
+      named: [true, true],
+      decomposition: {
+        name: "decomposition",
+        kind: "file",
+        path: "decomposition.json",
+        optional: true,
+      },
+      coverage: {
+        name: "issue_coverage",
+        kind: "file",
+        path: "issue-coverage.md",
+        optional: true,
+      },
+    });
+  });
+
+  it("hands spec-write the citable plan blocks and the last coverage as optional files its prompt names", () => {
+    const write = pipelineOf("feature-planning").stations["spec-write"];
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      blocks: needOf(write, "plan_blocks"),
+      coverage: needOf(write, "plan_coverage"),
+      named: [
+        prompt.includes("/workspace/plan-blocks.json"),
+        prompt.includes("/workspace/plan-coverage.md"),
+      ],
+    }).toEqual({
+      named: [true, true],
+      blocks: {
+        name: "plan_blocks",
+        kind: "file",
+        path: "plan-blocks.json",
+        optional: true,
+      },
+      coverage: {
+        name: "plan_coverage",
+        kind: "file",
+        path: "plan-coverage.md",
+        optional: true,
+      },
     });
   });
 
@@ -715,6 +910,38 @@ describe("the feature-planning pipeline", () => {
     }).toEqual({
       target: { name: "target", kind: "git", path: "target", access: "write" },
       pushes: true,
+    });
+  });
+
+  it("has validate read the default branch as it stands when the visit opens, not the spec branch cut when the run started", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect(line.nodes.find((node) => node.id === "validate")?.bind).toEqual({
+      target: "base",
+    });
+  });
+
+  it("hands every validate visit to plan-findings, which writes the findings into the plan before the author waits again", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+
+    expect({
+      fromValidate: edgesOn(line, "validate"),
+      fromFindings: edgesOn(line, "plan-findings"),
+      station: line.nodes.find((node) => node.id === "plan-findings")?.station,
+      findings: stations["plan-findings"],
+    }).toEqual({
+      fromValidate: [{ from: "validate", to: "plan-findings", on: "always" }],
+      fromFindings: [{ from: "plan-findings", to: "author", on: "always" }],
+      station: "plan-findings",
+      findings: {
+        kind: "service",
+        outcomes: ["success", "failed"],
+        needs: [
+          { name: "plan_id", kind: "value" },
+          { name: "plan_validation", kind: "file", optional: true },
+        ],
+        produces: [],
+      },
     });
   });
 
@@ -746,6 +973,73 @@ describe("the feature-planning pipeline", () => {
         ),
       ),
     ).toEqual(agents.map(() => true));
+  });
+
+  it("gives feature-decompose the approved plan as plan.md and the spec_path value, and names both in its prompt", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      planMd: needOf(decompose, "plan_md"),
+      specPath: needOf(decompose, "spec_path"),
+      namesPlan: prompt.includes("{plan_md_path}"),
+      namesSpecPath: prompt.includes("{spec_path}"),
+    }).toEqual({
+      planMd: { name: "plan_md", kind: "file", path: "plan.md" },
+      specPath: { name: "spec_path", kind: "value" },
+      namesPlan: true,
+      namesSpecPath: true,
+    });
+  });
+
+  it("gives feature-decompose every spec the plan touched as spec-plan.json and the citable plan blocks, and names both in its prompt", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      specPlan: needOf(decompose, "spec_plan"),
+      blocks: needOf(decompose, "plan_blocks"),
+      named: [
+        prompt.includes("{spec_plan_path}"),
+        prompt.includes("/workspace/plan-blocks.json"),
+      ],
+    }).toEqual({
+      specPlan: { name: "spec_plan", kind: "file", path: "spec-plan.json" },
+      blocks: {
+        name: "plan_blocks",
+        kind: "file",
+        path: "plan-blocks.json",
+        optional: true,
+      },
+      named: [true, true],
+    });
+  });
+
+  it("runs feature-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const { settings } =
+      pipelineOf("feature-planning").agent_definitions!["feature-decompose"]!;
+
+    expect({ model: settings.model, prices: settings.prices }).toEqual({
+      model: "gemini-3.1-pro-preview",
+      prices: {
+        "gemini-3.1-pro-preview": {
+          input_per_million: 2,
+          output_per_million: 12,
+        },
+      },
+    });
+  });
+
+  it("gives the issues station the approved plan as an optional plan_md, to fold into the story issue", () => {
+    const issues = pipelineOf("feature-planning").stations["issues"];
+
+    expect(needOf(issues, "plan_md")).toEqual({
+      name: "plan_md",
+      kind: "file",
+      optional: true,
+    });
   });
 });
 
@@ -994,8 +1288,10 @@ function loadPipelines(): Map<string, Pipeline> {
   const folder = new URL("./", import.meta.url);
   const pipelines = readdirSync(folder)
     .filter((file) => file.endsWith(".yaml"))
-    .map(
-      (file) => parse(readFileSync(new URL(file, folder), "utf8")) as Pipeline,
+    .map((file) =>
+      withAgentPrompts(
+        parse(readFileSync(new URL(file, folder), "utf8")) as Pipeline,
+      ),
     );
 
   return new Map(pipelines.map((pipeline) => [pipeline.line.id, pipeline]));
@@ -1036,3 +1332,42 @@ function settingsOf(name: string): AgentSettings {
 function promptOnOneLine(name: string): string {
   return settingsOf(name).prompt.replace(/\s+/g, " ");
 }
+
+describe("the files the floor agents produce", () => {
+  it("lists no agent file under the target/ clone, so no git add in it can commit one", () => {
+    const insideClone = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.entries(pipeline.stations))
+      .filter(([, station]) => station.kind === "agent")
+      .flatMap(([name, station]) =>
+        station.produces.map((output) => `${name}:${output.path ?? ""}`),
+      )
+      .filter((entry) => entry.includes(":target/"));
+
+    expect(insideClone).toEqual([]);
+  });
+
+  it("names every agent's produced file by its path placeholder and never the current directory, which is the root in the pod", () => {
+    const agentStations = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.values(pipeline.stations))
+      .filter((station) => station.kind === "agent");
+    const unnamed = agentStations.flatMap((station) =>
+      station.produces
+        .filter((output) => output.path !== undefined)
+        .filter(
+          (output) =>
+            !promptOnOneLine(station.agent_definition ?? "").includes(
+              `{${output.name}_path}`,
+            ),
+        )
+        .map((output) => `${station.agent_definition}:${output.name}`),
+    );
+    const sayCurrentDirectory = agentStations
+      .map((station) => station.agent_definition ?? "")
+      .filter((name) => promptOnOneLine(name).includes("current directory"));
+
+    expect({ unnamed, sayCurrentDirectory }).toEqual({
+      unnamed: [],
+      sayCurrentDirectory: [],
+    });
+  });
+});

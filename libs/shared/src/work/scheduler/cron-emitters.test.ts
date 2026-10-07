@@ -18,4 +18,18 @@ describe("cronTickEventNames", () => {
   it("still names cron.spec_upkeep.tick, the weekly line that replaced the drift and backfill fan-outs", () => {
     expect(cronTickEventNames()).toContain("cron.spec_upkeep.tick");
   });
+
+  it("names no tick that only the old Floor answered: stale_task_check, assembly_line_reaper, agent_watcher_reconcile, lease_reaper, llm_credit_probe", () => {
+    const floorOnly = [
+      "cron.stale_task_check.tick",
+      "cron.assembly_line_reaper.tick",
+      "cron.agent_watcher_reconcile.tick",
+      "cron.lease_reaper.tick",
+      "cron.llm_credit_probe.tick",
+    ];
+
+    expect(
+      cronTickEventNames().filter((name) => floorOnly.includes(name)),
+    ).toEqual([]);
+  });
 });

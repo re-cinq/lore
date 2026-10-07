@@ -55,7 +55,7 @@ function draftState(run: RunFacts): PlanPageState {
     return "refining";
   }
 
-  if (open === "validate") {
+  if (open === "validate" || open === "plan-findings") {
     return "validating";
   }
 

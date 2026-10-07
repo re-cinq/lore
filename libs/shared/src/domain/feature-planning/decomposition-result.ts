@@ -17,6 +17,10 @@ export interface DecompTask {
   acceptance_criteria?: string[];
   test_plan?: string;
   references?: string[];
+  /** The spec.md lines where the statements this task implements begin; its issue links each, and the issue-coverage check counts them. */
+  spec_lines?: number[];
+  /** The approved plan's passages the task comes from, quoted as written: the plan is not in the repository. */
+  plan_quotes?: string[];
 }
 
 export interface UserStory {
@@ -29,6 +33,8 @@ export interface UserStory {
 }
 
 export interface DecompositionResult {
+  /** The commit the spec was read at, so its line numbers mean what decompose saw. */
+  spec_commit?: string;
   stories: UserStory[];
 }
 
@@ -47,7 +53,14 @@ export function parseDecomposition(raw: unknown): DecompositionResult {
     "decomposition: stories must be an array",
   );
 
-  return { stories: stories.map(normalizeStory) };
+  const specCommit = (raw as Record<string, unknown>).spec_commit;
+
+  return {
+    ...(typeof specCommit === "string" && specCommit
+      ? { spec_commit: specCommit }
+      : {}),
+    stories: stories.map(normalizeStory),
+  };
 }
 
 function normalizeStory(raw: unknown): UserStory {
@@ -175,6 +188,11 @@ function applyTaskOptionals(
   if (labels.length) {
     task.labels = labels;
   }
+  const specLines = asLineList(t.spec_lines);
+
+  if (specLines.length) {
+    task.spec_lines = specLines;
+  }
   Object.assign(task, taskIssueDetail(t));
 }
 
@@ -187,6 +205,7 @@ export type TaskIssueDetail = Pick<
   | "acceptance_criteria"
   | "test_plan"
   | "references"
+  | "plan_quotes"
 >;
 
 export function taskIssueDetail(source: object): TaskIssueDetail {
@@ -202,6 +221,7 @@ export function taskIssueDetail(source: object): TaskIssueDetail {
       t.acceptance_criteria ?? t.acceptanceCriteria,
     ),
     ...listField("references", t.references),
+    ...listField("plan_quotes", t.plan_quotes),
   };
 }
 
@@ -247,4 +267,10 @@ function asStringList(v: unknown): string[] {
   }
 
   return [];
+}
+
+function asLineList(v: unknown): number[] {
+  const lines = Array.isArray(v) ? v.map(Number) : [];
+
+  return lines.filter((line) => Number.isInteger(line) && line > 0);
 }
