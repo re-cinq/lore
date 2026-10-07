@@ -1,6 +1,6 @@
 line:
   id: issue-triage
-  entry: verify
+  entry: reproduce
   exit: done
   args:
     # One run per issue: the webhook starts a run the moment the label lands and the
@@ -15,6 +15,20 @@ line:
     repo:
       kind: value
   nodes:
+    - id: reproduce
+      station: triage-reproduce
+    - id: label-reproduced
+      station: triage-label
+    - id: label-needs-repro
+      station: triage-label
+    - id: label-unable
+      station: triage-label
+    - id: label-skipped
+      station: triage-label
+    - id: diagnose
+      station: triage-diagnose
+    - id: label-diagnosed
+      station: triage-label
     - id: verify
       station: triage-verify
     - id: close-obsolete
@@ -27,6 +41,44 @@ line:
       station: human-gate
     - id: done
   edges:
+    - from: reproduce
+      to: label-reproduced
+      on: success
+    - from: reproduce
+      to: label-needs-repro
+      on: needs-reproduction
+    - from: reproduce
+      to: label-unable
+      on: unable-to-reproduce
+    - from: reproduce
+      to: label-skipped
+      on: skipped
+    - from: reproduce
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: label-reproduced
+      to: diagnose
+      on: success
+    - from: label-needs-repro
+      to: done
+      on: success
+    - from: label-unable
+      to: done
+      on: success
+    - from: label-skipped
+      to: done
+      on: success
+    - from: diagnose
+      to: label-diagnosed
+      on: success
+    - from: diagnose
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: label-diagnosed
+      to: verify
+      on: success
     - from: verify
       to: human-gate
       on: success
@@ -65,10 +117,40 @@ stations:
     needs:
       - name: issue_url
         kind: value
+      - name: diagnosis
+        kind: value
     produces:
       # One paragraph for the issue's reporter, which close-obsolete posts and
       # label-not-actionable comments; the agent sends it as the result line's extras.
       - name: verdict
+        kind: value
+  triage-reproduce:
+    kind: agent
+    agent_definition: triage-reproduce
+    outcomes:
+      - success
+      - unable-to-reproduce
+      - needs-reproduction
+      - skipped
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
+    produces:
+      - name: verdict
+        kind: value
+        optional: true
+  triage-diagnose:
+    kind: agent
+    agent_definition: triage-diagnose
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
+    produces:
+      - name: diagnosis
         kind: value
   close-issue:
     kind: service
@@ -103,6 +185,28 @@ stations:
     needs: []
     produces: []
 agent_definitions:
+  triage-reproduce:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  triage-diagnose:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
   triage-verify:
     settings:
       model: claude-sonnet-4-6
