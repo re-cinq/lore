@@ -54,6 +54,7 @@ interface Pipeline {
     id: string;
     entry: string;
     exit: string;
+    fail?: string;
     start?: { on: string[] };
     files?: Record<string, string>;
     args: Record<string, Arg>;
@@ -764,17 +765,20 @@ describe("the feature-planning pipeline", () => {
     expect({
       entry: line.entry,
       exit: line.exit,
+      fail: line.fail,
       nodes: line.nodes.map((node) => node.id).sort(),
       validateStart: line.nodes.find((node) => node.id === "validate")?.station,
     }).toEqual({
       entry: "analyze",
       exit: "done",
+      fail: "failed",
       nodes: [
         "analyse-specs",
         "analyze",
         "author",
         "decompose",
         "done",
+        "failed",
         "issue-coverage",
         "issues",
         "merged",
@@ -787,6 +791,29 @@ describe("the feature-planning pipeline", () => {
         "write",
       ].sort(),
       validateStart: "plan-validate",
+    });
+  });
+
+  it("ends the run failed when analyse-specs, write, spec-coverage, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+    const { line } = pipelineOf("feature-planning");
+    const settledBy = (to: string) =>
+      line.edges
+        .filter((edge) => edge.to === to && edge.on !== "success")
+        .map((edge) => `${edge.from}:${edge.on}`)
+        .sort();
+
+    expect({ failed: settledBy("failed"), done: settledBy("done") }).toEqual({
+      failed: [
+        "analyse-specs:failed",
+        "decompose:changes_requested",
+        "decompose:failed",
+        "issue-coverage:failed",
+        "issues:failed",
+        "open-spec-pr:failed",
+        "spec-coverage:failed",
+        "write:failed",
+      ],
+      done: ["author:failed", "merged:failed"],
     });
   });
 
@@ -806,7 +833,7 @@ describe("the feature-planning pipeline", () => {
           on: "changes_requested",
           iteration_max: COVERAGE_ROUNDS,
         },
-        { from: "spec-coverage", to: "done", on: "failed" },
+        { from: "spec-coverage", to: "failed", on: "failed" },
       ],
     });
   });
@@ -827,7 +854,7 @@ describe("the feature-planning pipeline", () => {
           on: "changes_requested",
           iteration_max: COVERAGE_ROUNDS,
         },
-        { from: "issue-coverage", to: "done", on: "failed" },
+        { from: "issue-coverage", to: "failed", on: "failed" },
       ],
     });
   });
