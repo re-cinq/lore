@@ -19,11 +19,10 @@ implemented and live — some stale for months. The header is now surfaced
 as a status pill in the web-ui spec lists, which makes staleness visible
 but not self-correcting.
 
-Two convention layers already exist (shipped alongside this draft): the
-repo CLAUDE.md instructs sessions to flip the header in the same branch
-that completes a spec, and the `implementation` task prompt in
-The shipped agent prompts (`libs/shared/src/agent-defaults/`) carry the same rule. Conventions rot without
-enforcement; the rule below closes the loop.
+The repo CLAUDE.md and the shipped agent prompts (`libs/shared/src/agent-defaults/`)
+instruct authors to update the header in the same branch that completes a spec.
+The lint rule enforces that convention in CI; the proposed weekly detector below
+would catch stale statuses outside the normal review path.
 
 ## The status ladder
 
@@ -51,27 +50,10 @@ Specs and ADRs ride the same ladder. `libs/shared/src/work/spec-status-coverage.
 is the single source for the linter (FR1), so the status row is enforced in the
 same pull request that changes the statements or their links.
 
-## FR2 — Status-staleness detector (everything else)
-
-Human-driven and interactive work bypass the normal review path, so a weekly
-safety net catches what the convention misses. Add a
-`status-staleness` detect assembly line to the existing detect family
-(`spec_drift`, `gap_detect` pattern: `cron.<job>.tick` → one repo-less
-per-repo line, deterministic detect node):
-
-- For each spec whose parsed status is `draft` or `in-progress`
-  (`apps/web-ui/src/lib/spec-status.ts` normalization, hoisted to
-  shared), gather implementation evidence: all linked pipeline tasks
-  merged; inline `([validated by ...])` links resolving to real tests;
-  files/routes the spec names existing on the default branch.
-- Evidence above threshold → open an issue naming the evidence.
-- Zero findings is the healthy steady state; the detector exists so a
-  stale header survives at most one week, not one quarter.
-
 ## FR1 — `re-lint/require-status-matches-coverage` (CI enforcement)
 
 The `re-lint/require-status-matches-coverage`
-ESLint rule closes that at review time, over `specs/**/spec.md` + `adrs/**/*.md`
+ESLint rule enforces the status ladder at review time, over `specs/**/spec.md` + `adrs/**/*.md`
 (the repo's markdown-language config block), at `error`:
 
 - Report a doc whose declared status disagrees with the status its test-link coverage entitles it to claim, naming both the coverage tally and the label to write. ([validated by `status-coverage.test.mjs:104`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L104), [`status-coverage.test.mjs:115`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L115), [`status-coverage.test.mjs:126`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L126), [`status-coverage.test.mjs:137`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L137), [`status-coverage.test.mjs:177`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L177))
@@ -97,6 +79,18 @@ described intent, not validation. `Shipped` is now a high bar reachable only by
 fully-linked docs, and the expected path back up is adding links (via
 `/lore-suggest-links` or `spec-coverage-backfill`), not editing the row.
 
+## FR2 — Status-staleness detector (proposed follow-up)
+
+Human-driven and interactive work bypasses the normal review path, so a weekly
+safety net would catch what the convention misses. This detector is not implemented.
+
+- For each spec whose parsed status is `draft` or `in-progress`, gather
+  implementation evidence: inline `([validated by ...])` links resolving to real
+  tests and files/routes the spec names existing on the default branch.
+- Evidence above threshold → open an issue naming the evidence.
+- Zero findings is the healthy steady state; the detector would keep a stale
+  header from surviving longer than one week.
+
 ## Out of Scope
 
 - Rewriting historical statuses beyond the header row (amendment
@@ -110,8 +104,8 @@ fully-linked docs, and the expected path back up is adding links (via
 
 ## Verification
 
-- FR2: seeding a repo with an implemented-but-Draft spec yields one
-  detector finding; a repo with honest headers yields zero.
 - FR1: `npx eslint specs adrs` reports zero errors on a reconciled corpus;
   editing any status row away from its coverage tier reproduces exactly one
   error, anchored on that row.
+- FR2 (when implemented): seeding a repo with an implemented-but-Draft spec
+  yields one detector finding; a repo with honest headers yields zero.

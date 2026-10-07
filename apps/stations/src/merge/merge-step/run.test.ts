@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import {
-  hasMergeStepFields,
-  toMergeStepTask,
-} from "./run.js";
+import { hasMergeStepFields, toMergeStepTask } from "./run.js";
 
 const row = (over: Partial<PipelineTask> = {}): PipelineTask => ({
   id: "t-1",

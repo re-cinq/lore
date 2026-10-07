@@ -159,7 +159,10 @@ export function mergeStepProductionDeps(): MergeStepDeps {
 }
 
 // The task-row reads and writes.
-function taskPorts(): Pick<MergeStepDeps, "task" | "setStatus" | "recordEvent"> {
+function taskPorts(): Pick<
+  MergeStepDeps,
+  "task" | "setStatus" | "recordEvent"
+> {
   return {
     task: async (id) => {
       const row = await taskStore().getById(id);
