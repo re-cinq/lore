@@ -21,6 +21,11 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
   },
   { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9_\-.]{20,}/g },
   { name: "github-token", re: /x-access-token:[A-Za-z0-9_-]{20,}/g },
+  // Catches Authorization: Basic base64("x-access-token:ghs_…") — ~68 chars, below the base64-blob 100-char floor.
+  {
+    name: "basic-x-access-token",
+    re: /Basic eC1hY2Nlc3MtdG9rZW46[A-Za-z0-9+/]+={0,2}/g,
+  },
   { name: "base64-blob", re: /[A-Za-z0-9+/]{100,}={0,2}/g },
 ];
 

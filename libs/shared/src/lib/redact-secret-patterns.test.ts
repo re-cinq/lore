@@ -200,4 +200,14 @@ describe("redactSecrets", () => {
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).toContain("https://api.example.com");
   });
+
+  it("redacts the base64 basic-auth encoding of an x-access-token credential (the HTTP Basic form a git push prints)", () => {
+    const token = "ghs_abcdefghijklmnopqrstuvwxyz1234";
+    const encoded = Buffer.from(`x-access-token:${token}`).toString("base64");
+    const input = `Authorization: Basic ${encoded}`;
+    const result = redactSecrets(input);
+
+    expect(result).not.toContain(token);
+    expect(result).not.toContain(encoded);
+  });
 });
