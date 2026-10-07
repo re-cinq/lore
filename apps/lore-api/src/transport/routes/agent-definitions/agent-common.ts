@@ -123,8 +123,13 @@ function mergePodResourcesSubKeys(
   const mergedLimits = { ...stored.limits, ...patch.limits };
   const mergedRequests = { ...stored.requests, ...patch.requests };
 
-  if (Object.keys(mergedLimits).length > 0) result.limits = mergedLimits;
-  if (Object.keys(mergedRequests).length > 0) result.requests = mergedRequests;
+  if (Object.keys(mergedLimits).length > 0) {
+    result.limits = mergedLimits;
+  }
+
+  if (Object.keys(mergedRequests).length > 0) {
+    result.requests = mergedRequests;
+  }
 
   return result;
 }
