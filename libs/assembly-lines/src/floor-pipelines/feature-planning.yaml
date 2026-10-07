@@ -609,20 +609,6 @@ agent_definitions:
             transport: http
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
-        disallowed_tools:
-          - Bash(npm:*)
-          - Bash(npx:*)
-          - Bash(yarn:*)
-          - Bash(pnpm:*)
-          - Bash(bun:*)
-          - Bash(pip:*)
-          - Bash(pip3:*)
-          - Bash(uv:*)
-          - Bash(cargo:*)
-          - Bash(go:*)
-          - Bash(make:*)
-          - Bash(bash:*)
-          - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
   plan-validate:
@@ -647,20 +633,6 @@ agent_definitions:
             transport: http
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
-        disallowed_tools:
-          - Bash(npm:*)
-          - Bash(npx:*)
-          - Bash(yarn:*)
-          - Bash(pnpm:*)
-          - Bash(bun:*)
-          - Bash(pip:*)
-          - Bash(pip3:*)
-          - Bash(uv:*)
-          - Bash(cargo:*)
-          - Bash(go:*)
-          - Bash(make:*)
-          - Bash(bash:*)
-          - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
   spec-analysis:
@@ -685,20 +657,6 @@ agent_definitions:
             transport: http
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
-        disallowed_tools:
-          - Bash(npm:*)
-          - Bash(npx:*)
-          - Bash(yarn:*)
-          - Bash(pnpm:*)
-          - Bash(bun:*)
-          - Bash(pip:*)
-          - Bash(pip3:*)
-          - Bash(uv:*)
-          - Bash(cargo:*)
-          - Bash(go:*)
-          - Bash(make:*)
-          - Bash(bash:*)
-          - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
   spec-write:
@@ -723,20 +681,6 @@ agent_definitions:
             transport: http
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
-        disallowed_tools:
-          - Bash(npm:*)
-          - Bash(npx:*)
-          - Bash(yarn:*)
-          - Bash(pnpm:*)
-          - Bash(bun:*)
-          - Bash(pip:*)
-          - Bash(pip3:*)
-          - Bash(uv:*)
-          - Bash(cargo:*)
-          - Bash(go:*)
-          - Bash(make:*)
-          - Bash(bash:*)
-          - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
   feature-decompose:
@@ -766,19 +710,5 @@ agent_definitions:
             transport: http
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
-        disallowed_tools:
-          - Bash(npm:*)
-          - Bash(npx:*)
-          - Bash(yarn:*)
-          - Bash(pnpm:*)
-          - Bash(bun:*)
-          - Bash(pip:*)
-          - Bash(pip3:*)
-          - Bash(uv:*)
-          - Bash(cargo:*)
-          - Bash(go:*)
-          - Bash(make:*)
-          - Bash(bash:*)
-          - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
