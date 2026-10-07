@@ -7,9 +7,9 @@ import { firstOf } from "./uid-refs.js";
 type StatementVerification = {
   validated_by?: Array<{
     uid: string;
-    "TestChunk.coverage"?: {
+    "TestChunk.coverage"?: Array<{
       "Coverage.covers"?: Array<{ "File.path"?: string }>;
-    };
+    }>;
   }>;
   implemented?: Array<{ "CodeChunk.file_path"?: string }>;
 };
@@ -58,7 +58,11 @@ function coveredFilePaths(
 ): Set<string> {
   return new Set(
     validatingTests
-      .flatMap((test) => test["TestChunk.coverage"]?.["Coverage.covers"] ?? [])
+      .flatMap((test) =>
+        (test["TestChunk.coverage"] ?? []).flatMap(
+          (cov) => cov["Coverage.covers"] ?? [],
+        ),
+      )
       .flatMap((file) => (file["File.path"] ? [file["File.path"]] : [])),
   );
 }

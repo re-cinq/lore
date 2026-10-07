@@ -290,10 +290,10 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         }
       }`,
       { $xid: `${repo}|tc1` },
-    )) as { tc?: { "TestChunk.coverage"?: { "Coverage.xid": string } }[] };
+    )) as { tc?: { "TestChunk.coverage"?: { "Coverage.xid": string }[] }[] };
 
-    expect(graph.tc?.[0]?.["TestChunk.coverage"]).toEqual({
-      "Coverage.xid": `${repo}|t.test.ts|renders`,
-    });
+    expect(graph.tc?.[0]?.["TestChunk.coverage"]).toEqual([
+      { "Coverage.xid": `${repo}|t.test.ts|renders` },
+    ]);
   });
 });

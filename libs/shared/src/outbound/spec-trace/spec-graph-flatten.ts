@@ -10,14 +10,13 @@ interface OwnerLinks {
     "TestChunk.test_name"?: string;
     "TestChunk.start_line"?: number;
     "TestChunk.end_line"?: number;
-    // TestChunk.coverage is single-cardinality; Coverage.covers is a set of File targets with intervals on the `ranges` facet.
-    cov?: {
+    cov?: Array<{
       covers?: Array<{
         uid: string;
         "File.path"?: string;
         "Coverage.covers|ranges"?: string;
       }>;
-    };
+    }>;
   }>;
   ib?: Array<{
     uid: string;
@@ -87,9 +86,7 @@ function emitUnlinkedTests(
 function coversSomething(
   chunk: NonNullable<OwnerLinks["vb"]>[number],
 ): boolean {
-  const covers = chunk.cov?.covers ?? [];
-
-  return covers.length > 0;
+  return (chunk.cov ?? []).some((c) => (c.covers ?? []).length > 0);
 }
 
 /** "specs/1-lore-platform/spec.md" → "1-lore-platform (spec)"; ".specify/spec.md" → "spec". */
@@ -260,7 +257,7 @@ function emitCoveredFileNodes(
   nodes: Map<string, SpecGraphNode>,
   links: SpecGraphLink[],
 ): void {
-  for (const f of testChunk.cov?.covers ?? []) {
+  for (const f of (testChunk.cov ?? []).flatMap((c) => c.covers ?? [])) {
     const fp = f["File.path"] ?? f.uid;
     const fileId = `file|${fp}`;
 
