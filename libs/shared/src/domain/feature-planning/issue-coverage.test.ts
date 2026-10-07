@@ -161,7 +161,8 @@ describe("coverageSections", () => {
     const { body, comments } = coverageSections(OTTO_COVERAGE, "p1");
 
     expect({
-      longest: Math.max(body.length, ...comments.map((c) => c.length)) <= 65_536,
+      longest:
+        Math.max(body.length, ...comments.map((c) => c.length)) <= 65_536,
       entries: storyCoverageOf(body, comments, "p1"),
     }).toEqual({ longest: true, entries: OTTO_ENTRIES });
   });

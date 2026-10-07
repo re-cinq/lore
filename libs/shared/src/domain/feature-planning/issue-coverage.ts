@@ -15,16 +15,7 @@ export interface SpecPart {
 }
 
 export function specParts(specMd: string, planId?: string): SpecPart[] {
-  const statements = segmentStatements(specMd);
-  const introOrdinals = buildIntroOrdinals(statements);
-  const testable = writtenBy(
-    statements.filter(
-      (statement) =>
-        classifyByHeuristic(statement, introOrdinals).testability ===
-        "testable",
-    ),
-    planId,
-  );
+  const testable = writtenBy(testableStatements(specMd), planId);
 
   const textsByLine = new Map<number, string[]>();
 
@@ -139,6 +130,16 @@ export function issueCoverageBrief(
   ].join("\n");
 }
 
+function testableStatements(specMd: string) {
+  const statements = segmentStatements(specMd);
+  const introOrdinals = buildIntroOrdinals(statements);
+
+  return statements.filter(
+    (statement) =>
+      classifyByHeuristic(statement, introOrdinals).testability === "testable",
+  );
+}
+
 // A spec written before plan citations existed cites nothing, so it counts whole.
 function writtenBy<T extends { text: string }>(
   statements: T[],
@@ -177,22 +178,22 @@ export function coverageSections(
   const lines = coverage.split("\n");
   const head = lines.filter((line) => !ENTRY.test(line) && line !== "");
   const entries = lines.filter((line) => ENTRY.test(line));
-  const [inBody, ...overflow] = chunked(entries, BODY_COVERAGE_BUDGET);
+  const [inBody = [], ...overflow] = chunked(entries, BODY_COVERAGE_BUDGET);
   const rest = overflow.flat();
   const pointer = rest.length
     ? [`*${rest.length} more statements are listed in the comments below.*`, ""]
     : [];
 
   return {
-    body: [...headOf(head), ...(inBody ?? []), "", ...pointer].join("\n"),
+    body: [...headOf(head), ...inBody, "", ...pointer].join("\n"),
     comments: chunked(rest, COMMENT_BUDGET).map((chunk, index) =>
       [coverageCommentMarker(planId, index + 1), "", ...chunk, ""].join("\n"),
     ),
   };
 }
 
-function headOf([heading, summary]: string[]): string[] {
-  return [heading ?? "", "", summary ?? "", ""];
+function headOf([heading = "", summary = ""]: string[]): string[] {
+  return [heading, "", summary, ""];
 }
 
 function chunked(entries: readonly string[], budget: number): string[][] {
@@ -229,4 +230,45 @@ export function storyCoverageOf(
   return [body, ...marked.map(({ comment }) => comment)].flatMap((text) =>
     text.split("\n").filter((line) => ENTRY.test(line)),
   );
+}
+
+export type CoverageCommentWrite =
+  | { kind: "create"; body: string }
+  | { kind: "update"; id: number; body: string };
+
+/** The writes that leave the story's coverage comments saying `comments`: a right one untouched, a missing one created, a leftover from a longer list emptied. */
+export function coverageCommentWrites(
+  filed: readonly { id: number; body: string }[],
+  comments: readonly string[],
+  planId: string,
+): CoverageCommentWrite[] {
+  const filedAt = (ordinal: number) =>
+    filed.find((comment) =>
+      comment.body.startsWith(coverageCommentMarker(planId, ordinal)),
+    );
+  const leftovers = filed.filter((comment) =>
+    comment.body.startsWith(`<!-- lore-plan-coverage: ${planId}/`),
+  ).length;
+
+  return Array.from(
+    { length: Math.max(comments.length, leftovers) },
+    (_, index) => comments[index] ?? emptied(planId, index + 1),
+  ).flatMap((body, index) => writeFor(filedAt(index + 1), body));
+}
+
+function emptied(planId: string, ordinal: number): string {
+  return `${coverageCommentMarker(planId, ordinal)}\n\n*No more statements.*\n`;
+}
+
+function writeFor(
+  existing: { id: number; body: string } | undefined,
+  body: string,
+): CoverageCommentWrite[] {
+  if (!existing) {
+    return [{ kind: "create", body }];
+  }
+
+  return existing.body === body
+    ? []
+    : [{ kind: "update", id: existing.id, body }];
 }

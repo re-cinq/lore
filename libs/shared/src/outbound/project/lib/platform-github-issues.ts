@@ -269,8 +269,9 @@ export async function updateIssueComment(
   body: string,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
-  await ok.rest.issues.updateComment({
+  await issues.updateComment({
     owner,
     repo: name,
     comment_id: id,

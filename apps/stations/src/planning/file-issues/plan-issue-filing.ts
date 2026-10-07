@@ -20,7 +20,7 @@ import {
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import {
-  coverageCommentMarker,
+  coverageCommentWrites,
   coverageSections,
   partsNamed,
   type CoverageSections,
@@ -88,15 +88,12 @@ async function rewriteStory(
   { context, existing, storyNumber, taskIssues }: FiledTasks,
 ): Promise<void> {
   const coverage = storyCoverageSections(context);
+  const story = { ...context.story, coverage: coverage.body };
 
   await project.issues.update(storyNumber, {
     ...(existing.story ? { title: work.story.title } : {}),
     body: marked(
-      storyIssueBody({
-        ...context.story,
-        coverage: coverage.body,
-        taskIssues: numbersOf(taskIssues),
-      }),
+      storyIssueBody({ ...story, taskIssues: numbersOf(taskIssues) }),
       context.planId && storyMarker(context.planId),
     ),
   });
@@ -124,35 +121,17 @@ interface CoverageComments {
   comments: readonly string[];
 }
 
-// Every comment is rewritten from the fresh split; one already right is left alone, and one an earlier, longer list needed is emptied.
 async function rewriteCoverageComments(
   project: StationProject,
   storyNumber: number,
   { planId, comments }: CoverageComments,
 ): Promise<void> {
   const filed = await project.issues.listComments(storyNumber);
-  const filedAt = (ordinal: number) =>
-    filed.find((comment) =>
-      comment.body.startsWith(coverageCommentMarker(planId, ordinal)),
-    );
-  const leftovers = filed.filter((comment) =>
-    comment.body.startsWith(`<!-- lore-plan-coverage: ${planId}/`),
-  ).length;
-  const wanted = Array.from(
-    { length: Math.max(comments.length, leftovers) },
-    (_, index) =>
-      comments[index] ??
-      `${coverageCommentMarker(planId, index + 1)}\n\n*No more statements.*\n`,
-  );
 
-  for (const [index, body] of wanted.entries()) {
-    const existing = filedAt(index + 1);
-
-    if (!existing) {
-      await project.issues.comment(storyNumber, body);
-    } else if (existing.body !== body) {
-      await project.issues.updateComment(existing.id, body);
-    }
+  for (const write of coverageCommentWrites(filed, comments, planId)) {
+    await (write.kind === "create"
+      ? project.issues.comment(storyNumber, write.body)
+      : project.issues.updateComment(write.id, write.body));
   }
 }
 
