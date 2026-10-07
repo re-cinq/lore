@@ -92,6 +92,7 @@ function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
       ...visits,
       { nodeId: "spec-coverage", report: null },
     ],
+    filedCoverage: async () => null,
   };
 
   return { handle: specCoverageHandle(deps), tools, produced, reads };
