@@ -14,12 +14,16 @@ export interface SpecPart {
   text: string;
 }
 
-export function specParts(specMd: string): SpecPart[] {
+export function specParts(specMd: string, planId?: string): SpecPart[] {
   const statements = segmentStatements(specMd);
   const introOrdinals = buildIntroOrdinals(statements);
-  const testable = statements.filter(
-    (statement) =>
-      classifyByHeuristic(statement, introOrdinals).testability === "testable",
+  const testable = writtenBy(
+    statements.filter(
+      (statement) =>
+        classifyByHeuristic(statement, introOrdinals).testability ===
+        "testable",
+    ),
+    planId,
   );
 
   const textsByLine = new Map<number, string[]>();
@@ -133,4 +137,18 @@ export function issueCoverageBrief(
     ),
     "",
   ].join("\n");
+}
+
+// A spec written before plan citations existed cites nothing, so it counts whole.
+function writtenBy<T extends { text: string }>(
+  statements: T[],
+  planId: string | undefined,
+): T[] {
+  const cited = planId
+    ? statements.filter((statement) =>
+        statement.text.includes(`/plans/${planId}#`),
+      )
+    : [];
+
+  return cited.length > 0 ? cited : statements;
 }

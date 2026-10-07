@@ -40,6 +40,16 @@ describe("specParts", () => {
       { line: 14, text: "The run settles once. It never files twice." },
     ]);
   });
+
+  it("keeps only FR1 for plan p1, the one statement citing it", () => {
+    expect(specParts(SPEC, "p1")).toEqual([
+      { line: 7, text: "FR1 — The station files one issue per task." },
+    ]);
+  });
+
+  it("keeps all 4 statements for plan p9, which no statement cites", () => {
+    expect(specParts(SPEC, "p9")).toHaveLength(4);
+  });
 });
 
 describe("partAt", () => {
