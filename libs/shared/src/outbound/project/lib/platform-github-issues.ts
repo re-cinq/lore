@@ -262,6 +262,22 @@ export async function commentOnIssue(
   });
 }
 
+export async function updateIssueComment(
+  ok: Octokit,
+  repo: string,
+  id: number,
+  body: string,
+): Promise<void> {
+  const [owner, name] = split(repo);
+
+  await ok.rest.issues.updateComment({
+    owner,
+    repo: name,
+    comment_id: id,
+    body,
+  });
+}
+
 export async function closeIssue(
   ok: Octokit,
   repo: string,

@@ -130,6 +130,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return issues.commentOnIssue(await this.octo(), repo, number, body);
   }
 
+  async updateIssueComment(
+    repo: string,
+    id: number,
+    body: string,
+  ): Promise<void> {
+    return issues.updateIssueComment(await this.octo(), repo, id, body);
+  }
+
   async closeIssue(
     repo: string,
     number: number,
