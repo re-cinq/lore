@@ -1,22 +1,24 @@
-// The spec a decomposition names statements of, read at the commit decompose read it, so the lines its tasks name are the lines decompose saw.
+// The specs a decomposition names statements of, read at the commit decompose read them, so the lines its tasks name are the lines decompose saw.
 
 import {
-  specFileOf,
   specParts,
   statementLink,
-  type SpecPart,
+  type SpecFile,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
+import type { SpecLine } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 
-export interface DecomposedSpec {
-  parts: SpecPart[];
-  linkOf(line: number): string;
+export interface DecomposedSpecs {
+  /** The spec the plan is chiefly about first, then every other one its spec PR wrote. */
+  specs: SpecFile[];
+  linkOf(cited: SpecLine): string;
 }
 
 export interface SpecWhere {
   repo: string;
   /** Read at when the decomposition names no commit. */
   branch: string;
-  specPath?: string;
+  /** The spec.md files, the main one first. */
+  specFiles: readonly string[];
   commit?: string;
   /** Narrows the count to the statements this plan wrote. */
   planId?: string;
@@ -24,22 +26,25 @@ export interface SpecWhere {
 
 export type ReadSpec = (path: string, ref: string) => Promise<string | null>;
 
-/** Undefined when the plan names no spec, or the branch holds no such file: then there is nothing to cite. */
-export async function decomposedSpec(
+/** Undefined when the plan names no spec, or the branch holds no main spec: then there is nothing to cite. Another spec missing from the branch is left out. */
+export async function decomposedSpecs(
   read: ReadSpec,
-  { repo, branch, specPath, commit, planId }: SpecWhere,
-): Promise<DecomposedSpec | undefined> {
-  if (!specPath) {
-    return undefined;
-  }
-  const file = specFileOf(specPath);
+  { repo, branch, specFiles, commit, planId }: SpecWhere,
+): Promise<DecomposedSpecs | undefined> {
   const ref = commit ?? branch;
-  const text = await read(file, ref);
+  const texts = await Promise.all(specFiles.map((file) => read(file, ref)));
+  const specs = specFiles.flatMap((file, index) => {
+    const text = texts[index];
 
-  return text === null
-    ? undefined
-    : {
-        parts: specParts(text, planId),
-        linkOf: (line) => statementLink({ repo, file, ref, line }),
-      };
+    return text === null ? [] : [{ file, parts: specParts(text, planId) }];
+  });
+  const main = specs.at(0);
+
+  return main && main.file === specFiles[0]
+    ? {
+        specs,
+        linkOf: ({ file = main.file, line }) =>
+          statementLink({ repo, file, ref, line }),
+      }
+    : undefined;
 }

@@ -1,3 +1,5 @@
+import { specFileOf } from "./issue-coverage.js";
+
 // The specs a spec-plan.json names: every one it creates, then every one it updates; the first of them is the one the plan is chiefly about.
 
 interface SpecPlanPaths {
@@ -27,4 +29,17 @@ function pathsOf(entries: SpecPlanPaths["creates"]): string[] {
   const paths = (entries ?? []).map((entry) => entry.path);
 
   return paths.filter((path): path is string => typeof path === "string");
+}
+
+/** Every spec.md a run's spec PR wrote, `spec_path`'s first; just `spec_path`'s for a run whose line reads no spec plan. */
+export function specFilesOfRun(
+  specPath: string | undefined,
+  specPlan: string | undefined,
+): string[] {
+  const paths = [
+    ...(specPath ? [specPath] : []),
+    ...(specPlan ? specPathsOfPlan(specPlan) : []),
+  ];
+
+  return [...new Set(paths.map(specFileOf))];
 }

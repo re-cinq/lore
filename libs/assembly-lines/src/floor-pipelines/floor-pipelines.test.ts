@@ -191,7 +191,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value instead of the spec plan", () => {
+  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value beside the spec plan as an optional file", () => {
     const { stations } = pipelineOf("feature-planning");
     const openSpecPr = stations["open-spec-pr"];
     const issues = stations["issues"];
@@ -209,7 +209,7 @@ describe("the floor pipelines shipped in this folder", () => {
         { name: "issue_coverage", kind: "file" },
       ],
       issuesReads: { name: "spec_path", kind: "value", optional: true },
-      issuesReadsPlan: undefined,
+      issuesReadsPlan: { name: "spec_plan", kind: "file", optional: true },
     });
   });
 

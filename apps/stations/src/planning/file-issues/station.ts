@@ -61,9 +61,9 @@ async function stationInputOf(
   deps: FileIssuesDeps,
   { repo, branch, brief, tools }: TargetBrief,
 ): Promise<StationInput> {
-  const [decomposition, specPath, planMarkdown, runId] = await Promise.all([
+  const [decomposition, specPlan, planMarkdown, runId] = await Promise.all([
     textOf(tools, "decomposition"),
-    specPathOf(brief.needs, tools),
+    specPlanOf(brief.needs, tools),
     planMarkdownOf(brief.needs, tools),
     runIdOf(deps, brief.visitId),
   ]);
@@ -75,20 +75,16 @@ async function stationInputOf(
     repo,
     branch,
     task_id: null,
-    params: paramsOf(brief.needs, { decomposition, specPath, planMarkdown }),
+    params: paramsOf(brief.needs, { decomposition, specPlan, planMarkdown }),
   };
 }
 
-// Serves runs started before #2502, whose line declares spec_plan rather than spec_path; can go once none remain.
-async function specPathOf(
+// Every spec the plan's spec PR wrote; a run started before the line gave issues the spec plan files against spec_path alone.
+async function specPlanOf(
   needs: Record<string, string>,
   tools: Parameters<Handle>[1],
 ): Promise<string | undefined> {
-  if (needs.spec_path || !needs.spec_plan) {
-    return needs.spec_path;
-  }
-
-  return specPathOfPlan(await textOf(tools, "spec_plan"));
+  return needs.spec_plan ? textOf(tools, "spec_plan") : undefined;
 }
 
 // A run started before the line declared plan_md files its story without the plan.
@@ -114,21 +110,32 @@ async function runIdOf(deps: FileIssuesDeps, visitId: string): Promise<string> {
 
 interface ReadNeeds {
   decomposition: string;
-  specPath: string | undefined;
+  specPlan: string | undefined;
   planMarkdown: string | undefined;
 }
 
 function paramsOf(
   needs: Record<string, string>,
-  { decomposition, specPath, planMarkdown }: ReadNeeds,
+  { decomposition, specPlan, planMarkdown }: ReadNeeds,
 ): Record<string, string> {
+  const specPath = specPathOf(needs, specPlan);
+
   return {
     feature_decomposition: decomposition,
     plan_id: needs.plan_id,
     ...(needs.plan_title ? { plan_title: needs.plan_title } : {}),
     ...(specPath ? { spec_path: specPath } : {}),
+    ...(specPlan ? { spec_plan: specPlan } : {}),
     ...(planMarkdown ? { plan_md: planMarkdown } : {}),
   };
+}
+
+// A run started before #2502 declares spec_plan rather than spec_path.
+function specPathOf(
+  needs: Record<string, string>,
+  specPlan: string | undefined,
+): string | undefined {
+  return needs.spec_path || (specPlan ? specPathOfPlan(specPlan) : undefined);
 }
 
 function textOf(tools: Parameters<Handle>[1], need: string): Promise<string> {
