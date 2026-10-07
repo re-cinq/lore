@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **attaches a per-test Coverage node to the per-it TestChunk keyed by test name** — after `ingestTestReport` with one per-`it` descriptor and a covered range, the per-`it` `TestChunk` (xid `repo|a.test.ts::A > x`) has a `TestChunk.coverage` edge pointing to a `Coverage` node with `xid = repo|a.test.ts|x` (testFile|testName). Currently fails because `coverageRecordsFor` emits `testName = file` (file path), so `findTestChunkUid` resolves the file-scoped chunk instead of the per-`it` one, and the per-`it` TestChunk gets no coverage edge.
+- [x] **attaches a per-test Coverage node to the per-it TestChunk keyed by test name** — after `ingestTestReport` with one per-`it` descriptor and a covered range, the per-`it` `TestChunk` (xid `repo|a.test.ts::A > x`) has a `TestChunk.coverage` edge pointing to a `Coverage` node with `xid = repo|a.test.ts|x` (testFile|testName). Currently fails because `coverageRecordsFor` emits `testName = file` (file path), so `findTestChunkUid` resolves the file-scoped chunk instead of the per-`it` one, and the per-`it` TestChunk gets no coverage edge.
   `libs/shared/src/work/spec-trace/ingest-test-report.test.ts`
 
 ## Facets
 
-- [ ] Change `coverageRecordsFor` in `ingest-test-report.ts` to also emit one `CoverageRecord` per result keyed on the descriptor name (`testFile: descriptor.file, testName: descriptor.name`) so `findTestChunkUid` can match the per-`it` `TestChunk`
-- [ ] Keep the existing file-level record alongside the new per-test ones (the ticket says "alongside", not "instead of")
-- [ ] Update the existing test "creates one Coverage node per file and attaches HAS_COVERAGE to the file-scoped TestChunk for many per-it descriptors" which currently asserts `toHaveLength(1)` — after the fix there will be more coverage nodes per repo
+- [x] Change `coverageRecordsFor` in `ingest-test-report.ts` to also emit one `CoverageRecord` per result keyed on the descriptor name (`testFile: descriptor.file, testName: descriptor.name`) so `findTestChunkUid` can match the per-`it` `TestChunk`
+- [x] Keep the existing file-level record alongside the new per-test ones (the ticket says "alongside", not "instead of")
+- [x] Update the existing test "creates one Coverage node per file and attaches HAS_COVERAGE to the file-scoped TestChunk for many per-it descriptors" which currently asserts `toHaveLength(1)` — after the fix there will be more coverage nodes per repo
 
 ## Out of scope
 
