@@ -77,6 +77,7 @@ function specOfRun(
     branch: input.branch,
     specPath: input.params.spec_path,
     commit: decomposition.spec_commit,
+    planId: input.params.plan_id,
   });
 }
 

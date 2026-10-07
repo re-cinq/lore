@@ -67,6 +67,8 @@ export interface AssemblyRunNode {
   nodeId: string;
   iteration: number;
   outcome: string | null;
+  /** The node's own words about why it stopped; optional so test doubles need not set it. */
+  failureDetail?: string | null;
   agentCrName: string | null;
   /** Null for a visit dispatched before input was recorded; optional so test doubles need not set it (the mapper always does). */
   input?: StationRunInput | null;
@@ -149,6 +151,7 @@ export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
     nodeId: row.node_id,
     iteration: row.iteration,
     outcome: row.outcome,
+    failureDetail: row.failure_detail,
     agentCrName: row.agent_cr_name,
     input: row.input ?? null,
     commitSha: row.commit_sha,

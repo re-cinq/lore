@@ -357,6 +357,7 @@ describe("maybePostReview", () => {
 
 describe("reviewAlreadyPosted", () => {
   const issueComment = (body: string) => ({
+    id: 1,
     body,
     user: "lore-agent[bot]",
     created_at: "2026-07-30T00:00:00Z",

@@ -1,3 +1,4 @@
+import type { IssueComment } from "../pulls/pull-requests-port.js";
 /** GitHub port: structural subset of agent's CodePlatform. */
 
 export type IssueState = "open" | "closed";
@@ -102,6 +103,8 @@ export interface GitHubPort {
   ): Promise<void>;
   updateIssue(repo: string, number: number, edit: IssueEdit): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
+  listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
+  updateIssueComment(repo: string, id: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;
   removeIssueLabel(repo: string, number: number, label: string): Promise<void>;

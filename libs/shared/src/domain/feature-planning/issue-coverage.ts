@@ -14,13 +14,8 @@ export interface SpecPart {
   text: string;
 }
 
-export function specParts(specMd: string): SpecPart[] {
-  const statements = segmentStatements(specMd);
-  const introOrdinals = buildIntroOrdinals(statements);
-  const testable = statements.filter(
-    (statement) =>
-      classifyByHeuristic(statement, introOrdinals).testability === "testable",
-  );
+export function specParts(specMd: string, planId?: string): SpecPart[] {
+  const testable = writtenBy(testableStatements(specMd), planId);
 
   const textsByLine = new Map<number, string[]>();
 
@@ -133,4 +128,151 @@ export function issueCoverageBrief(
     ),
     "",
   ].join("\n");
+}
+
+function testableStatements(specMd: string) {
+  const statements = segmentStatements(specMd);
+  const introOrdinals = buildIntroOrdinals(statements);
+
+  return statements.filter(
+    (statement) =>
+      classifyByHeuristic(statement, introOrdinals).testability === "testable",
+  );
+}
+
+// A spec written before plan citations existed cites no plan at all, so it counts whole; one citing only other plans gives this plan nothing.
+function writtenBy<T extends { text: string }>(
+  statements: T[],
+  planId: string | undefined,
+): T[] {
+  const citesAnyPlan = statements.some((statement) =>
+    statement.text.includes("/plans/"),
+  );
+
+  if (!planId || !citesAnyPlan) {
+    return statements;
+  }
+
+  return statements.filter((statement) =>
+    statement.text.includes(`/plans/${planId}#`),
+  );
+}
+
+// The story body carries the plan and its tasks too; coverage gets this much of it, comments take the rest.
+const BODY_COVERAGE_BUDGET = 20_000;
+// GitHub refuses a comment over 65,536 chars; the marker fits in what is left.
+const COMMENT_BUDGET = 60_000;
+const ENTRY = /^- line \d+: /;
+
+export interface CoverageSections {
+  /** The coverage as it goes in the story body. */
+  body: string;
+  /** The entries that did not fit, one marked comment each, in order. */
+  comments: string[];
+}
+
+export function coverageCommentMarker(planId: string, ordinal: number): string {
+  return `<!-- lore-plan-coverage: ${planId}/${ordinal} -->`;
+}
+
+export function coverageSections(
+  coverage: string,
+  planId: string,
+): CoverageSections {
+  const lines = coverage.split("\n");
+  const head = lines.filter((line) => !ENTRY.test(line) && line !== "");
+  const entries = lines.filter((line) => ENTRY.test(line));
+  const [inBody = [], ...overflow] = chunked(entries, BODY_COVERAGE_BUDGET);
+  const rest = overflow.flat();
+  const pointer = rest.length
+    ? [`*${rest.length} more statements are listed in the comments below.*`, ""]
+    : [];
+
+  return {
+    body: [...headOf(head), ...inBody, "", ...pointer].join("\n"),
+    comments: chunked(rest, COMMENT_BUDGET).map((chunk, index) =>
+      [coverageCommentMarker(planId, index + 1), "", ...chunk, ""].join("\n"),
+    ),
+  };
+}
+
+function headOf([heading = "", summary = ""]: string[]): string[] {
+  return [heading, "", summary, ""];
+}
+
+function chunked(entries: readonly string[], budget: number): string[][] {
+  const chunks: string[][] = [];
+  let size = budget;
+
+  for (const entry of entries) {
+    if (size + entry.length + 1 > budget) {
+      chunks.push([]);
+      size = 0;
+    }
+    chunks.at(-1)?.push(entry);
+    size += entry.length + 1;
+  }
+
+  return chunks;
+}
+
+/** The coverage entries the story issue lists: its body's, then its marked comments' in order. */
+export function storyCoverageOf(
+  body: string,
+  comments: readonly string[],
+  planId: string,
+): string[] {
+  const ordinalOf = (comment: string) =>
+    comment.match(
+      new RegExp(`^<!-- lore-plan-coverage: ${planId}/(\\d+) -->`),
+    )?.[1];
+  const marked = comments
+    .map((comment) => ({ comment, ordinal: ordinalOf(comment) }))
+    .filter((found) => found.ordinal !== undefined)
+    .sort((a, b) => Number(a.ordinal) - Number(b.ordinal));
+
+  return [body, ...marked.map(({ comment }) => comment)].flatMap((text) =>
+    text.split("\n").filter((line) => ENTRY.test(line)),
+  );
+}
+
+export type CoverageCommentWrite =
+  | { kind: "create"; body: string }
+  | { kind: "update"; id: number; body: string };
+
+/** The writes that leave the story's coverage comments saying `comments`: a right one untouched, a missing one created, a leftover from a longer list emptied. */
+export function coverageCommentWrites(
+  filed: readonly { id: number; body: string }[],
+  comments: readonly string[],
+  planId: string,
+): CoverageCommentWrite[] {
+  const filedAt = (ordinal: number) =>
+    filed.find((comment) =>
+      comment.body.startsWith(coverageCommentMarker(planId, ordinal)),
+    );
+  const leftovers = filed.filter((comment) =>
+    comment.body.startsWith(`<!-- lore-plan-coverage: ${planId}/`),
+  ).length;
+
+  return Array.from(
+    { length: Math.max(comments.length, leftovers) },
+    (_, index) => comments[index] ?? emptied(planId, index + 1),
+  ).flatMap((body, index) => writeFor(filedAt(index + 1), body));
+}
+
+function emptied(planId: string, ordinal: number): string {
+  return `${coverageCommentMarker(planId, ordinal)}\n\n*No more statements.*\n`;
+}
+
+function writeFor(
+  existing: { id: number; body: string } | undefined,
+  body: string,
+): CoverageCommentWrite[] {
+  if (!existing) {
+    return [{ kind: "create", body }];
+  }
+
+  return existing.body === body
+    ? []
+    : [{ kind: "update", id: existing.id, body }];
 }
