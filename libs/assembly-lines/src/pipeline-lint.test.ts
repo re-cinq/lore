@@ -282,6 +282,38 @@ describe("pipelineProblems — where a run can get to", () => {
     ]);
   });
 
+  it("reports dangling-edge for an edge to a node the line never declares, as issue-triage's verify named decompose", () => {
+    const dangling = SOUND.replace(
+      "    - from: work\n      to: done\n      on: failed\n",
+      "    - from: work\n      to: decompose\n      on: failed\n",
+    );
+
+    expect(problems(dangling)).toMatchObject([
+      {
+        line: "sound",
+        node: "work",
+        rule: "dangling-edge",
+        detail: expect.stringContaining("decompose"),
+      },
+    ]);
+  });
+
+  it("reports dangling-edge for an edge from a node the line never declares", () => {
+    const dangling = SOUND.replace(
+      "    - from: work\n      to: done\n      on: failed\n",
+      "    - from: work\n      to: done\n      on: failed\n    - from: verify\n      to: done\n      on: always\n",
+    );
+
+    expect(problems(dangling)).toMatchObject([
+      {
+        line: "sound",
+        node: "verify",
+        rule: "dangling-edge",
+        detail: expect.stringContaining("verify"),
+      },
+    ]);
+  });
+
   it("reports nothing for a node its own start event reaches, as feature-planning's validate is entered", () => {
     const byHand = SOUND.replace(
       "    - id: done\n",
