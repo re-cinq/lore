@@ -58,6 +58,13 @@ function run(overrides: Partial<RunView> = {}): RunView {
   };
 }
 
+function judging(sha: string): RunView["startItems"] {
+  return {
+    pr_url: { kind: "value", ref: PR_URL, by: "lore" },
+    head_sha: { kind: "value", ref: sha, by: "lore" },
+  };
+}
+
 interface Scene {
   pr?: PullRef | null;
   runs?: RunView[];
@@ -328,6 +335,78 @@ describe("reviewOrRecheck", () => {
     });
   });
 
+  it("names sha-a, not sha-b, as the last judged commit when the re-check of sha-b was cancelled as superseded", async () => {
+    const { deps, requests } = scene({
+      runs: [
+        run({
+          id: "run-b",
+          lineId: "code-review-recheck",
+          outcome: "cancelled",
+          reason: "superseded",
+          startItems: judging("sha-b"),
+        }),
+        run({ id: "run-a", startItems: judging("sha-a") }),
+      ],
+      commits: [
+        { sha: "sha-a", message: "first", date: "2026-09-30T09:00:00Z" },
+        { sha: "sha-b", message: "second", date: "2026-09-30T09:30:00Z" },
+        { sha: "sha-new", message: "third", date: "2026-09-30T09:31:00Z" },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests)[0].body).toMatchObject({
+      startItems: {
+        description: {
+          ref: expect.stringContaining(
+            "diff --no-ext-diff sha-a..HEAD",
+          ) as string,
+        },
+      },
+    });
+  });
+
+  it("names no sha when the only review of the pull request failed, so the re-check reads the whole pull request", async () => {
+    const { deps, requests } = scene({
+      runs: [run({ outcome: "failed", reason: "agent failed twice" })],
+      commits: [
+        { sha: "sha-old", message: "first", date: "2026-09-30T09:00:00Z" },
+        { sha: "sha-new", message: "second", date: "2026-09-30T09:30:00Z" },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests)[0].body).toMatchObject({
+      startItems: {
+        description: {
+          ref: "Re-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.",
+        },
+      },
+    });
+  });
+
+  it("names no sha while the first review of sha-old is still open, since it has posted no verdict", async () => {
+    const { deps, requests } = scene({
+      runs: [run({ outcome: null, finishedAt: null })],
+      commits: [
+        { sha: "sha-old", message: "first", date: "2026-09-30T09:00:00Z" },
+        { sha: "sha-new", message: "second", date: "2026-09-30T09:30:00Z" },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests)[0].body).toMatchObject({
+      startItems: {
+        description: {
+          ref: "Re-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.",
+        },
+      },
+    });
+  });
+
   it("starts no re-check on a pull request the lore bot authored", async () => {
     const { deps, requests } = scene({
       pr: pull({ author: "lore[bot]" }),
@@ -374,19 +453,21 @@ describe("reviewOrRecheck", () => {
 });
 
 describe("startReply", () => {
-  it("starts code-review-reply for review 99 with the address intent", async () => {
+  it("starts code-review-reply for review 99 with the repository, the pull request and the review, and no intent: the agent reads what each comment asks", async () => {
     const { deps, requests } = scene();
 
     await startReply(deps, { ...TARGET, reviewId: 99, reviewAuthor: "gedaiu" });
+    const { path, body } = started(requests)[0];
+    const { startItems } = body as { startItems: Record<string, unknown> };
 
-    expect(started(requests)[0]).toMatchObject({
+    expect({
+      path,
+      items: Object.keys(startItems),
+      review: startItems.review_id,
+    }).toEqual({
       path: "/assembly-lines/code-review-reply/start",
-      body: {
-        startItems: {
-          review_id: { kind: "value", ref: "99", by: "lore" },
-          intent: { kind: "value", ref: "address", by: "lore" },
-        },
-      },
+      items: ["repo", "pr_url", "review_id"],
+      review: { kind: "value", ref: "99", by: "lore" },
     });
   });
 

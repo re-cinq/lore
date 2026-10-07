@@ -37,6 +37,8 @@ export interface RunVisualizationPanelProps {
   nodes: readonly AssemblyRunNode[];
   repo: string;
   reason: string | null;
+  /** How the run ended, for the chip; null while it runs. Optional so a page that predates it reads as still unknown. */
+  runOutcome?: string | null;
   // nodeId → agents-editor href for each agent node the catalog holds; resolved server-side, the panel only renders what it is handed.
   agentEditHrefs?: Record<string, string>;
   /** nodeId → the model an agent node runs on, resolved server-side against the catalog. */
@@ -47,7 +49,7 @@ export interface RunVisualizationPanelProps {
   onFrame?: (frame: RunStreamFrame) => void;
   /** The run's pull request, which the per-file diff drawer reads; null when the run opened none. */
   prNumber?: number | null;
-  /** Which engine walks the run; a run on the external floor can be read and watched here but only retried from the floor. */
+  /** Which engine walks the run; a node of a run on the external floor can be run again from here. */
   engine?: string;
 }
 
@@ -59,12 +61,21 @@ export default function RunVisualizationPanel(
   return (
     <section className={styles.panel}>
       <RunWorkbenchLayout
-        graph={<RunGraph view={view} definition={props.definition} />}
+        graph={<RunGraph view={view} {...graphProps(props)} />}
         inspector={<NodeInspectorPanel {...inspectorProps(view, props)} />}
         below={<RunFilesSection {...filesProps(view, props)} />}
       />
     </section>
   );
+}
+
+/** The run facts the graph section shows beside the view: the definition, how the run ended, and why it is where it is. */
+function graphProps(props: RunVisualizationPanelProps) {
+  return {
+    definition: props.definition,
+    runOutcome: props.runOutcome ?? null,
+    reason: props.reason,
+  };
 }
 
 type RunVisualizationInput = Pick<
@@ -98,12 +109,16 @@ type RunView = ReturnType<typeof useRunVisualization>;
 interface RunGraphProps {
   view: RunView;
   definition: RunVisualizationPanelProps["definition"];
+  runOutcome: string | null;
+  reason: string | null;
 }
 
-function RunGraph({ view, definition }: RunGraphProps) {
+function RunGraph({ view, definition, runOutcome, reason }: RunGraphProps) {
   return (
     <RunGraphSection
       chipState={view.chipState}
+      runOutcome={runOutcome}
+      reason={reason}
       graph={view.graph.visibleGraph}
       definition={definition}
       onSelectNode={view.setSelectedNodeId}

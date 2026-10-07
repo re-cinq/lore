@@ -223,26 +223,6 @@ One-line purpose: report one agent's combined memory health and learning statist
 
 ### Task pipeline
 
-#### `lore_create_pipeline_task`
-
-One-line purpose: register a new server-side pipeline task (backlog by default; `immediate` is auto-executed by the GKE agent).
-
-- **When to use:** delegate brand-new work to the server. This tool only enqueues — it never runs anything on your machine.
-- **When not to use:** to start a brand-new ad-hoc task NOW in a local worktree use `lore_run_task_locally`; to claim and locally run a task that ALREADY exists use `lore_claim_and_run_locally`; to turn a `tasks.md` checklist into spec-tasks use `lore_sync_tasks`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `description` | yes | — | Primary instruction for the agent; non-empty (whitespace-only rejected); max 32000 chars. |
-| `task_type` | no | `general` | One of `feature-request`, `onboard`, `general`, `runbook`, `implementation`, `gap-fill`, `review`. Unknown values fall back to `general`. |
-| `target_repo` | no | auto-detect | Target repo as `owner/repo`; falls back to git remote, then a task-type default. |
-| `priority` | no | `normal` | `normal` = backlog (claimed/run later); `immediate` = GKE agent auto-executes within ~30s. |
-| `group_id` | no | — | Task-group UUID linking this task to others in a multi-repo feature (see `lore_list_task_group`). |
-| `context` | no | — | Object `{spec_file?: boolean, branch?: string, seed_query?: string}` passed through to the agent. |
-
-- **Returns:** text with the new UUID, type, priority, resolved repo, and a pickup hint.
-- **Where it runs:** direct Postgres when `LORE_DB_HOST` is set; else `POST /api/task` over `LORE_API_URL` (requires `LORE_INGEST_TOKEN`).
-- **Cache/mutation:** WRITE. Inserts a `pipeline.tasks` row + `pending` event, enforces the repo's trust gate, and invalidates task-list read caches (`lore_list_pipeline_tasks`, `lore_list_pending_tasks`, `lore_get_pipeline_status`).
-
 #### `lore_get_pipeline_status`
 
 One-line purpose: return one pipeline task's full record by UUID — current status plus the ordered event timeline.
@@ -314,7 +294,7 @@ One-line purpose: the tail of one GitHub Actions job's log, timestamps stripped,
 One-line purpose: list pipeline tasks newest-first, optionally filtered to one status. The general browse view.
 
 - **When to use:** browse across ALL tasks and statuses.
-- **When not to use:** unclaimed runnable work → `lore_list_pending_tasks`; dependency-ready spec-tasks → `lore_ready_tasks`; one feature's group → `lore_list_task_group`; tasks on YOUR machine → `lore_list_local_tasks`.
+- **When not to use:** unclaimed runnable work → `lore_list_pending_tasks`; one feature's group → `lore_list_task_group`; tasks on YOUR machine → `lore_list_local_tasks`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -329,7 +309,7 @@ One-line purpose: list pipeline tasks newest-first, optionally filtered to one s
 
 One-line purpose: cancel a SERVER-SIDE pipeline task by UUID.
 
-- **When to use:** tasks tracked in the Lore pipeline (created via `lore_create_pipeline_task` / UI).
+- **When to use:** tasks tracked in the Lore pipeline (a backlog ticket, an onboarding).
 - **When not to use:** a task running in a worktree on YOUR machine → `lore_cancel_local_task`; to re-run a failed task → `lore_retry_task`.
 
 | Parameter | Required | Default | Description |
@@ -364,74 +344,11 @@ One-line purpose: list every task sharing one `task_group_id`, with a completed/
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `group_id` | yes | — | Task-group UUID (the value passed as `group_id` to `lore_create_pipeline_task`). |
+| `group_id` | yes | — | Task-group UUID. |
 
 - **Returns:** a `completed/total` summary line plus rows as JSON (`id, description, task_type, status, target_repo, pr_url, created_at`); `No tasks found for group {id}` when empty.
 - **Where it runs:** proxies `GET /api/task-groups/{id}` (read scope); the rollup is computed server-side.
 - **Cache/mutation:** read-only.
-
-#### `lore_sync_tasks`
-
-One-line purpose: parse a speckit `tasks.md` and idempotently upsert each item as a spec-task row.
-
-- **When to use:** the START of spec-driven multi-agent work — once per spec, before any claiming.
-- **When not to use:** this does NOT claim, run, or evaluate readiness — find workable items with `lore_ready_tasks`, lock with `lore_claim_task`, finish with `lore_complete_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `tasks_markdown` | yes | — | Full markdown text of the `tasks.md` (the document, not a path). Parsed for phases, `[P]` parallel markers, `[DEPENDS ON: …]` dependencies, and file-path suffixes. |
-| `repo` | no | auto-detect | Target repo as `owner/repo`. |
-| `spec_slug` | yes | — | Feature slug grouping these spec-tasks within the repo (disambiguates on re-sync). |
-
-- **Returns:** a `Synced N tasks (M new)` summary. Re-running after edits updates rows in place rather than duplicating.
-- **Where it runs:** proxies `POST /api/spec-tasks/sync` (task scope) with the raw markdown — the `tasks.md` grammar is parsed server-side. The repo is auto-detected locally.
-- **Cache/mutation:** WRITE (upserts spec-task rows).
-
-#### `lore_ready_tasks`
-
-One-line purpose: list the repo's spec-tasks that are `pending` AND whose every dependency has completed/merged.
-
-- **When to use:** dependency-aware "what can I start right now" for one repo.
-- **When not to use:** general status listing → `lore_list_pipeline_tasks`; unclaimed tasks across repos → `lore_list_pending_tasks`. Spec-tasks must first be materialized with `lore_sync_tasks`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `repo` | no | auto-detect | Repo to scan as `owner/repo`. |
-
-- **Returns:** a markdown bullet list of `spec_task_id (uuid): description`; `No ready tasks…` when nothing qualifies.
-- **Where it runs:** proxies `GET /api/spec-tasks/ready` (read scope). The repo is auto-detected locally.
-- **Cache/mutation:** read-only.
-
-#### `lore_claim_task`
-
-One-line purpose: atomically lock one `pending` spec-task and flip it to `running`.
-
-- **When to use:** right before you start working a specific spec-task (typically one from `lore_ready_tasks`).
-- **When not to use:** pick WHICH task → `lore_ready_tasks`; mark done afterward → `lore_complete_task`; dismiss a local pending NOTIFICATION → `lore_skip_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `task_id` | yes | — | UUID of the pending spec-task to claim. |
-| `agent_id` | no | resolved | Identifier of the claiming agent, recorded as owner; resolved from `LORE_AGENT_ID` / `~/.lore/agent-id` / generated when omitted. |
-
-- **Returns:** a claim-success message, or already-claimed/not-found text.
-- **Where it runs:** proxies `POST /api/spec-tasks/claim` (task scope); the claiming agent id is resolved on your machine and sent with the request.
-- **Cache/mutation:** WRITE. Locks via `SELECT … FOR UPDATE SKIP LOCKED` inside a transaction (status + `agent_id`), best-effort records a `running` event.
-
-#### `lore_complete_task`
-
-One-line purpose: mark a `running` spec-task `completed` and report which dependents it unblocks.
-
-- **When to use:** you finished a task claimed with `lore_claim_task`; pick the next with `lore_ready_tasks`.
-- **When not to use:** local notification dismissal → `lore_skip_task`; cancelling → `lore_cancel_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `task_id` | yes | — | UUID of the running spec-task to mark completed. |
-
-- **Returns:** a completion message plus newly-unblocked `spec_task_id: description` entries. Only `running` tasks complete (others: `Could not complete…it may not be in running state`).
-- **Where it runs:** proxies `POST /api/spec-tasks/complete` (task scope).
-- **Cache/mutation:** WRITE. Sets `status='completed'`, best-effort records a `completed` event.
 
 #### `lore_get_task_logs`
 
@@ -453,12 +370,12 @@ One-line purpose: fetch the execution transcript of one pipeline TASK by UUID (N
 
 One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RUN.
 
-- **When to use:** scheduled jobs like `eval_runner` or `spec_test_linker`.
+- **When to use:** scheduled jobs like `daily_digest` or `spec_upkeep`.
 - **When not to use:** for a user-created pipeline task's logs use `lore_get_task_logs` (by task UUID).
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `job_name` | yes | — | Name of the scheduled job (e.g. `eval_runner`, `spec_test_linker`). |
+| `job_name` | yes | — | Name of the scheduled job (e.g. `daily_digest`, `spec_upkeep`). |
 | `run_id` | yes | — | UUID of the specific run, from `pipeline.job_runs.id`. |
 
 - **Returns:** JSON `{logs, complete:true}` — the whole body, no offset slicing (runs are bounded). A missing object returns empty logs.
@@ -470,7 +387,7 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 One-line purpose: show unclaimed `pending` backlog tasks you could pick up and run locally, grouped by repo.
 
 - **When to use:** the "what can I grab" view before the GKE agent takes them.
-- **When not to use:** general status-filterable listing → `lore_list_pipeline_tasks`; dependency-ready spec-tasks → `lore_ready_tasks`. After choosing one, run it with `lore_claim_and_run_locally`.
+- **When not to use:** general status-filterable listing → `lore_list_pipeline_tasks`. After choosing one, run it with `lore_claim_and_run_locally`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -485,7 +402,7 @@ One-line purpose: show unclaimed `pending` backlog tasks you could pick up and r
 One-line purpose: dismiss one pending-task notification LOCALLY.
 
 - **When to use:** stop a pending task from showing in your statusline so GKE picks it up after its grace period.
-- **When not to use:** cancel server-side → `lore_cancel_task`; mark a claimed spec-task done → `lore_complete_task`.
+- **When not to use:** cancel server-side → `lore_cancel_task`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -505,7 +422,7 @@ One-line purpose: start a local 30s background poller that surfaces new `pending
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `repos` | no | current repo | List of repos to watch, each `owner/repo`. Defaults to the git-remote-detected repo. |
-| `task_types` | no | `['implementation','general','runbook','gap-fill']` | List of task types to surface. |
+| `task_types` | no | `['runbook','gap-fill']` | List of task types to surface. |
 
 - **Returns:** a watching-confirmation message; `already active` (without spawning a second interval) when a notifier is already running.
 - **Where it runs:** local sandbox; starts a `setInterval` and writes the local cache file (the poll itself reads the API or DB).
@@ -535,12 +452,11 @@ One-line purpose: stop the local pending-task notifier and clear its cache.
 One-line purpose: start a BRAND-NEW ad-hoc task running now as a detached background Claude Code process in an isolated worktree.
 
 - **When to use:** YOU supply a free-text description for new work.
-- **When not to use:** run an EXISTING pending task by id → `lore_claim_and_run_locally`; register a server-side task without running locally → `lore_create_pipeline_task`.
+- **When not to use:** run an EXISTING pending task by id → `lore_claim_and_run_locally`. Work the org should track starts from a backlog ticket with a `priority:*` label, not from this tool.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `description` | yes | — | Free-text instruction for what to implement/do. If it references an `owner/repo` other than the current repo, the call is refused with a wrong-repo warning. |
-| `task_type` | no | `implementation` | One of `implementation`, `general`, `runbook`, `gap-fill`. |
 | `model` | no | runner default | Anthropic model id override; falls back to the configured default, then `claude-sonnet-4-6`. |
 
 - **Returns:** immediately with the task id, branch name, worktree path, log file path, and PID. The background process later validates, commits, pushes, and opens a PR.
@@ -552,7 +468,7 @@ One-line purpose: start a BRAND-NEW ad-hoc task running now as a detached backgr
 One-line purpose: claim an EXISTING pending pipeline task by id and run it on YOUR machine.
 
 - **When to use:** pick up a pre-existing pending task surfaced by `lore_list_pending_tasks`.
-- **When not to use:** start a brand-new task from free text → `lore_run_task_locally`; register for the GKE agent → `lore_create_pipeline_task`.
+- **When not to use:** start a brand-new task from free text → `lore_run_task_locally`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -568,7 +484,7 @@ One-line purpose: claim an EXISTING pending pipeline task by id and run it on YO
 One-line purpose: list every background task tracked on YOUR machine — running, completed, or failed.
 
 - **When to use:** status of locally-spawned worktree tasks (PIDs, branches, PR URLs).
-- **When not to use:** server-side pipeline tasks → `lore_list_pipeline_tasks`; unclaimed pickups → `lore_list_pending_tasks`; dependency-ready spec-tasks → `lore_ready_tasks`; group rollup → `lore_list_task_group`.
+- **When not to use:** server-side pipeline tasks → `lore_list_pipeline_tasks`; unclaimed pickups → `lore_list_pending_tasks`; group rollup → `lore_list_task_group`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -787,7 +703,6 @@ Quick-reference for the confusable clusters.
 |---|---|
 | General, status-filterable listing of ALL pipeline tasks newest-first. The default browse view. | `lore_list_pipeline_tasks` |
 | Unclaimed pending tasks across repos you could pick up and run locally, grouped by repo. The "what can I grab" view. | `lore_list_pending_tasks` |
-| Spec-tasks for one repo whose dependencies are satisfied (ready to claim). Dependency-aware, not status-aware. | `lore_ready_tasks` |
 | Every task sharing a `group_id` with a completed/total rollup. Scoped to a single group. | `lore_list_task_group` |
 | Background tasks running on YOUR machine (worktrees/PIDs/PR URLs), not server-side. | `lore_list_local_tasks` |
 
@@ -796,13 +711,12 @@ Quick-reference for the confusable clusters.
 | Use | Tool |
 |---|---|
 | Execution transcript of a specific pipeline TASK (by task UUID), with code-unit-offset polling for a still-running task. | `lore_get_task_logs` |
-| Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `eval_runner` or `spec_test_linker`. | `lore_get_job_logs` |
+| Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `daily_digest` or `spec_upkeep`. | `lore_get_job_logs` |
 
 ### Running work
 
 | Use | Tool |
 |---|---|
-| Register a NEW task for the server side — backlog by default, or `priority=immediate` for the GKE agent. Runs nothing on your machine. | `lore_create_pipeline_task` |
 | Start a BRAND-NEW ad-hoc task running now in a background worktree on your machine (you supply the description; also registers a pipeline task). | `lore_run_task_locally` |
 | An EXISTING pending pipeline task already exists — claim it (by `task_id`) and run it locally. | `lore_claim_and_run_locally` |
 
@@ -810,9 +724,6 @@ Quick-reference for the confusable clusters.
 
 | Use | Tool |
 |---|---|
-| START — materialize a `tasks.md`'s spec-tasks (with dependencies) into the pipeline DB. One-time per spec, before any claiming. | `lore_sync_tasks` |
-| About to WORK a specific spec-task — atomically lock it so no other agent takes it. Server-side DB lock. | `lore_claim_task` |
-| FINISHED a claimed/running spec-task — mark it done and unblock its dependents. Server-side DB state transition. | `lore_complete_task` |
 | See a pending-task NOTIFICATION locally — dismiss it so GKE handles it instead. Local-only notification dismissal, not a server completion. | `lore_skip_task` |
 
 ### Spec-traceability

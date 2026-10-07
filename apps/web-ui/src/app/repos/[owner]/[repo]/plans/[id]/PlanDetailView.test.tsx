@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import PlanDetailView from "./PlanDetailView";
+import type { PlanRun } from "./PlanRunCard";
 
+vi.mock("@/components/Icon", () => ({
+  default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
+}));
 vi.mock("./PlanWorkspace", () => ({
   default: ({ user }: { user: { name: string } }) => (
     <p>editor for {user.name}</p>
@@ -36,6 +40,56 @@ const actions = {
   deletePlan: vi.fn(async () => ({})),
 };
 
+const QUEUED_RUN: PlanRun = {
+  id: "r1",
+  status: "queued",
+  outcome: null,
+  reason: null,
+  issueUrl: null,
+  issueNumber: null,
+  prUrl: null,
+  prNumber: null,
+  prTitle: null,
+  prUnresolvedThreads: null,
+  specPlanSummary: null,
+  nodes: [],
+};
+
+const STORY_URL = "https://github.com/re-cinq/lore/issues/42";
+
+function storyLink(): HTMLElement {
+  render(
+    <PlanDetailView
+      meta={META}
+      run={{ ...QUEUED_RUN, issueUrl: STORY_URL, issueNumber: 42 }}
+      user={null}
+      {...actions}
+    />,
+  );
+
+  return screen.getByRole("link", { name: "User story #42" });
+}
+
+describe("the user story in the plan's header", () => {
+  it("links User story #42 to re-cinq/lore issue 42 when the run carries it", () => {
+    expect(storyLink()).toHaveAttribute("href", STORY_URL);
+  });
+
+  it("marks the User story #42 link as leaving the page with the external icon", () => {
+    expect(
+      within(storyLink()).getByTestId("icon-external"),
+    ).toBeInTheDocument();
+  });
+
+  it("links no user story when the run carries none", () => {
+    render(
+      <PlanDetailView meta={META} run={QUEUED_RUN} user={null} {...actions} />,
+    );
+
+    expect(screen.queryByRole("link", { name: /User story/ })).toBeNull();
+  });
+});
+
 describe("PlanDetailView", () => {
   it("opens the editor for the signed-in Bogdan", () => {
     render(
@@ -54,18 +108,7 @@ describe("PlanDetailView", () => {
     render(
       <PlanDetailView
         meta={META}
-        run={{
-          id: "r1",
-          status: "queued",
-          outcome: null,
-          reason: null,
-          prUrl: null,
-          prNumber: null,
-          prTitle: null,
-          prUnresolvedThreads: null,
-          specPlanSummary: null,
-          nodes: [],
-        }}
+        run={QUEUED_RUN}
         user={{ id: "gedaiu", name: "Bogdan" }}
         {...actions}
       />,
@@ -159,3 +202,55 @@ describe("PlanDetailView", () => {
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
+
+describe("the user story field in the plan's header", () => {
+  const storyField = (value: string, run: PlanRun | null = null) => {
+    const onChange = vi.fn();
+
+    render(
+      <PlanDetailView
+        meta={META}
+        run={run}
+        user={null}
+        story={{ value, onChange }}
+        {...actions}
+      />,
+    );
+
+    return onChange;
+  };
+
+  it("says a story typed for a run with none applies from the next draft or refine", () => {
+    storyField("");
+
+    expect(
+      screen.getByRole("textbox", { name: "User story" }),
+    ).toHaveAccessibleDescription("Applies from the next draft or refine.");
+  });
+
+  it("hands #42 typed into the User story field to the page", () => {
+    const onChange = storyField("");
+
+    fireEvent.change(screen.getByRole("textbox", { name: "User story" }), {
+      target: { value: "#42" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith("#42");
+  });
+
+  it("describes issue 42 of other/repo as not an issue of re-cinq/lore", () => {
+    storyField("https://github.com/other/repo/issues/42");
+
+    expect(
+      screen.getByRole("textbox", { name: "User story" }),
+    ).toHaveAccessibleDescription(
+      "The user story must be an issue of re-cinq/lore.",
+    );
+  });
+
+  it("shows no User story field once the run carries story 42", () => {
+    storyField("", { ...QUEUED_RUN, issueUrl: STORY_URL, issueNumber: 42 });
+
+    expect(screen.queryByRole("textbox", { name: "User story" })).toBeNull();
+  });
+});

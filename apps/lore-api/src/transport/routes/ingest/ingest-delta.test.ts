@@ -10,24 +10,33 @@ interface Issued {
   params: unknown[];
 }
 
-function fakeDeps(): IngestDeltaDeps & {
+function fakeDeps(
+  graph: { specs?: string[]; adrs?: string[] } = {},
+): IngestDeltaDeps & {
   calls: Array<[string, ...unknown[]]>;
 } {
   const calls: Array<[string, ...unknown[]]> = [];
+  const recordProjection =
+    (name: string): IngestDeltaDeps["projectSpec"] =>
+    async (repo, path, content, projection) => {
+      calls.push([
+        name,
+        repo,
+        path,
+        content,
+        ...(projection.force ? ["forced"] : []),
+      ]);
+
+      return { projected: true };
+    };
 
   return {
     calls,
     dgraph: () => ({}) as never,
-    projectSpec: async (repo, path, content) => {
-      calls.push(["projectSpec", repo, path, content]);
-
-      return { projected: true };
-    },
-    projectAdr: async (repo, path, content) => {
-      calls.push(["projectAdr", repo, path, content]);
-
-      return { projected: true };
-    },
+    projectSpec: recordProjection("projectSpec"),
+    projectAdr: recordProjection("projectAdr"),
+    listSpecs: async () => graph.specs ?? [],
+    listAdrs: async () => graph.adrs ?? [],
     deleteSpec: async (repo, path) => {
       calls.push(["deleteSpec", repo, path]);
     },
@@ -392,6 +401,106 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
 
     expect(deps.projectSpec).toHaveBeenCalledTimes(2);
     expect(JSON.parse(res.payload)).toMatchObject({ projected: 1 });
+  });
+});
+
+describe("POST /api/repos/{owner}/{repo}/ingest with a forced or full doc delta", () => {
+  const fullSpecs = (extra: Record<string, unknown>) => ({
+    kind: "specs",
+    commit: SHA_B,
+    base_commit: null,
+    files: [{ path: "specs/a/spec.md", content: "a" }],
+    ...extra,
+  });
+
+  it("tells the projector to re-project when the delta is forced", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, fullSpecs({ force: true }));
+
+    expect(deps.calls).toEqual([
+      ["projectSpec", "re-cinq/lore", "specs/a/spec.md", "a", "forced"],
+    ]);
+  });
+
+  it("prunes specs/gone/spec.md when the graph holds it and present does not", async () => {
+    const deps = fakeDeps({
+      specs: ["specs/a/spec.md", "specs/b/spec.md", "specs/gone/spec.md"],
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(
+      server,
+      fullSpecs({ present: ["specs/a/spec.md", "specs/b/spec.md"] }),
+    );
+
+    expect(deps.calls).toEqual([
+      ["projectSpec", "re-cinq/lore", "specs/a/spec.md", "a"],
+      ["deleteSpec", "re-cinq/lore", "specs/gone/spec.md"],
+    ]);
+    expect(JSON.parse(res.payload)).toMatchObject({ projected: 1, deleted: 1 });
+  });
+
+  it("prunes adrs/ADR-009.md through the adr prune when present omits it", async () => {
+    const deps = fakeDeps({ adrs: ["adrs/ADR-001.md", "adrs/ADR-009.md"] });
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, {
+      kind: "adrs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [],
+      present: ["adrs/ADR-001.md"],
+    });
+
+    expect(deps.calls).toEqual([
+      ["deleteAdr", "re-cinq/lore", "adrs/ADR-009.md"],
+    ]);
+  });
+
+  it("prunes nothing when 5 of the graph's 6 specs are missing from present", async () => {
+    const deps = fakeDeps({
+      specs: ["a", "b", "c", "d", "e", "f"].map((n) => `specs/${n}/spec.md`),
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(server, fullSpecs({ present: ["specs/a/spec.md"] }));
+
+    expect(deps.calls).toEqual([
+      ["projectSpec", "re-cinq/lore", "specs/a/spec.md", "a"],
+    ]);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      state: "advanced",
+      deleted: 0,
+    });
+  });
+
+  it("prunes nothing when present is empty, forced or not", async () => {
+    const deps = fakeDeps({ specs: ["specs/a/spec.md", "specs/b/spec.md"] });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [],
+      present: [],
+      force: true,
+    });
+
+    expect(deps.calls).toEqual([]);
+    expect(JSON.parse(res.payload)).toMatchObject({ deleted: 0 });
+  });
+
+  it("prunes 5 of the graph's 6 specs when the delta is forced", async () => {
+    const deps = fakeDeps({
+      specs: ["a", "b", "c", "d", "e", "f"].map((n) => `specs/${n}/spec.md`),
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(
+      server,
+      fullSpecs({ present: ["specs/a/spec.md"], force: true }),
+    );
+
+    expect(JSON.parse(res.payload)).toMatchObject({ deleted: 5 });
   });
 });
 

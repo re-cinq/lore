@@ -45,14 +45,10 @@ export function getJobRun(id: string): Promise<ApiResult<JobRunRow>> {
   return apiFetch("lore-api", `/api/job-runs/${encodeURIComponent(id)}`);
 }
 
-/** Repo dashboard's 7-day counters — an unanswerable figure is null, not zero, so an unmigrated cluster doesn't read as "nothing happened". */
-export function getRepoActivityCounts(repo: string): Promise<
-  ApiResult<{
-    tasks: number | null;
-    auto_merged: number | null;
-    escalations: number | null;
-  }>
-> {
+/** Repo dashboard's 7-day task count — an unanswerable figure is null, not zero, so an unmigrated cluster doesn't read as "nothing happened". */
+export function getRepoActivityCounts(
+  repo: string,
+): Promise<ApiResult<{ tasks: number | null }>> {
   return apiFetch("lore-api", `/api/repos/${repo}/activity-counts`);
 }
 

@@ -6,6 +6,8 @@ import { MAX_CHANNELS_PER_SOCKET, type LiveErrorCode } from "./protocol.js";
 export interface ChannelHandle {
   receive(bytes: Uint8Array): void;
   close(): void;
+  /** Replaces the runs a list channel hears changes of; only the runs channel takes it. */
+  watch?(runIds: readonly string[]): void;
 }
 
 export class ChannelRegistry {

@@ -98,11 +98,33 @@ describe("lineBodyToRunGraph", () => {
       ],
     });
   });
+
+  it("carries the line's fail node gave-up onto the graph", () => {
+    const failing = lineBodyToRunGraph(
+      "code-review",
+      { ...line, fail: "gave-up" },
+      stationKinds,
+    );
+
+    expect(failing.fail).toBe("gave-up");
+  });
 });
 
 describe("floorRunToAssemblyRun", () => {
   const convert = (run: RunView, visits: VisitView[] = []) =>
     floorRunToAssemblyRun({ run, visits, graph });
+
+  it("carries task-1 as the task of a run started with task_id task-1", () => {
+    const started = {
+      ...openRun,
+      startItems: {
+        ...openRun.startItems,
+        task_id: { kind: "value" as const, ref: "task-1", by: "lore" },
+      },
+    };
+
+    expect(convert(started).taskId).toBe("task-1");
+  });
 
   it("maps an open run with no visits to a queued record", () => {
     expect(convert(openRun)).toEqual({
@@ -168,6 +190,54 @@ describe("floorRunToAssemblyRun", () => {
       branch: null,
       args: { engine: "floor" },
     });
+  });
+});
+
+describe("a visit waiting on a person", () => {
+  const authored = lineBodyToRunGraph(
+    "feature-planning",
+    {
+      entry: "author",
+      exit: "done",
+      args: {},
+      nodes: [
+        { id: "author", station: "plan-author" },
+        { id: "merged", station: "spec-pr-merged" },
+        { id: "analyze", station: "plan-analyze" },
+        { id: "done" },
+      ],
+      edges: [],
+    },
+    {
+      "plan-author": "author",
+      "spec-pr-merged": "human",
+      "plan-analyze": "agent",
+    },
+  );
+  const run = {
+    id: "run-1",
+    repo: "re-cinq/lore",
+    createdAt: CREATED_AT,
+    graph: authored,
+  };
+
+  it("draws the human station that produces something as feature_review and the one that waits outside as pr_review, neither naming a station", () => {
+    expect(authored.nodes.slice(0, 2)).toMatchObject([
+      { id: "author", type: "feature_review", station: null },
+      { id: "merged", type: "pr_review", station: null },
+    ]);
+  });
+
+  it("gives the author visit no pod name, since no pod runs it", () => {
+    expect(
+      visitToStationRun({ ...visit, nodeId: "author" }, run).agentCrName,
+    ).toBeNull();
+  });
+
+  it("keeps the pod name floor-visit-1 on the analyze visit of the same run", () => {
+    expect(
+      visitToStationRun({ ...visit, nodeId: "analyze" }, run).agentCrName,
+    ).toBe("floor-visit-1");
   });
 });
 

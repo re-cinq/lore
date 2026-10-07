@@ -43,8 +43,6 @@ async function trustLevelForRepo(
 /** Trust level → allowed task types (createTask gate reads lore.repos.settings.trust.level). */
 // Feature planning is allowed from the docs tier up (ADR-027 / specs/7-feature-planning) — analysis + a spec-doc PR only, no code.
 const FEATURE_PLANNING = ["feature-planning"];
-// A spec-task is one implementation step of a planned feature (the issues station files them from a merged spec), so it sits where implementation does — absent from every tier, the queue refused them all and no decomposition ever reached it (plan 3b3a67af, 2026-09-29).
-const SPEC_TASK = "spec-task";
 
 // Onboarding is allowed at every tier (docs-only PR, deduped by onboard-guard.ts) — restricting to `full` 500s reonboard on auto-demoted repos.
 export const TRUST_LEVELS: Record<string, string[] | undefined> = {
@@ -55,23 +53,17 @@ export const TRUST_LEVELS: Record<string, string[] | undefined> = {
     "runbook",
     "onboard",
     "review",
-    "implementation",
     "implementation-loop",
     "feature-request",
-    "general",
-    SPEC_TASK,
     ...FEATURE_PLANNING,
   ],
   full: [
     "gap-fill",
     "runbook",
     "review",
-    "implementation",
     "implementation-loop",
     "feature-request",
-    "general",
     "onboard",
-    SPEC_TASK,
     ...FEATURE_PLANNING,
   ],
 };

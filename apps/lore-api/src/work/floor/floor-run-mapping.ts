@@ -1,3 +1,4 @@
+import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import type {
   Item,
   LineBody,
@@ -17,29 +18,41 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 
-type StationKindName = "agent" | "service" | "human";
+/** A station's kind as the floor names it, with the human station that produces something told apart: there a person writes what the line runs on, where a plain human station waits on something outside it. */
+export type StationKindName = "agent" | "service" | "human" | "author";
 
 const NODE_TYPE_BY_STATION_KIND: Record<StationKindName, string> = {
   agent: "agent",
   service: "validate",
   human: "pr_review",
+  author: "feature_review",
 };
+const HUMAN_NODE_TYPES: ReadonlySet<string> = new Set([
+  "pr_review",
+  "feature_review",
+]);
 const MARKER_NODE_TYPE = "retrospective";
-const FAILED_OUTCOMES = new Set(["error", "failed", "cancelled"]);
 const GITHUB_PREFIX = /^github\.com\//;
 const PULL_REQUEST_URL = /\/pull\/(\d+)$/;
 const MILLIS_PER_MINUTE = 60_000;
 const EVENT_ID_ROW_SPAN = 100;
 
+/** A line as the floor sends it. floor-client 0.1.6 does not type `fail` yet; the floor sends it for a line that has one. */
+export type FloorLineBody = LineBody & { fail?: string };
+
+export const AGENT_CR_PREFIX = "floor-";
+export const FAILED_OUTCOMES = new Set(["error", "failed", "cancelled"]);
+
 export function lineBodyToRunGraph(
   lineId: string,
-  body: LineBody,
+  body: FloorLineBody,
   stationKinds: Record<string, StationKindName>,
 ): RunGraph {
   return {
     name: lineId,
     entry: body.entry,
     exit: body.exit,
+    fail: body.fail,
     nodes: body.nodes.map((node) => graphNodeOf(node, stationKinds)),
     edges: body.edges.map((edge) => ({
       from: edge.from,
@@ -79,14 +92,23 @@ export function floorRunToSummary(input: {
   };
 }
 
+/** The run a visit is read against: its start, and its graph when the caller holds one, which is what tells a visit waiting on a person from one a pod runs. */
+export interface VisitRun {
+  id: string;
+  repo: string;
+  createdAt: Date;
+  graph?: Pick<RunGraph, "nodes"> | null;
+}
+
 export function visitToStationRun(
   visit: VisitView,
-  run: { id: string; repo: string; createdAt: Date },
+  run: VisitRun,
 ): StationRunRecord {
   const claimedAt = claimedAtOf(visit);
 
   return {
     ...visitIdentityOf(visit),
+    ...podNameOf(visit, run),
     status: stationRunStatusOf(visit),
     clusterAgentId: visit.worker,
     requiredTags: visit.agentSettings?.tags ?? [],
@@ -151,7 +173,9 @@ function nodePlacementOf(
 
   return {
     type: NODE_TYPE_BY_STATION_KIND[kind],
-    station: kind === "human" ? null : name,
+    station: HUMAN_NODE_TYPES.has(NODE_TYPE_BY_STATION_KIND[kind])
+      ? null
+      : name,
   };
 }
 
@@ -175,7 +199,8 @@ function runIdentityOf(run: RunView): RunIdentity {
   return {
     id: run.id,
     blueprintName: run.lineId,
-    taskId: null,
+    // A line that keeps a `pipeline.tasks` row is started with it as `task_id`.
+    taskId: startValue(run, "task_id") ?? null,
     repo: run.repo.replace(GITHUB_PREFIX, ""),
     branch: branchOf(run.startItems),
     subjectKey: run.subjectKey,
@@ -222,16 +247,23 @@ function runStatusOf(
   return visits.length > 0 ? "running" : "queued";
 }
 
+// A visit of a human station has no pod behind it, so it carries no pod name: the page offers logs and a "running" pod only for a name.
+function podNameOf(
+  visit: VisitView,
+  run: VisitRun,
+): Pick<StationRunRecord, "agentCrName"> {
+  const nodes = run.graph?.nodes ?? [];
+  const node = nodes.find((known) => known.id === visit.nodeId);
+  const onPerson = node !== undefined && HUMAN_NODE_TYPES.has(node.type);
+
+  return { agentCrName: onPerson ? null : agentCrNameOf(visit.id) };
+}
+
 function visitIdentityOf(
   visit: VisitView,
 ): Pick<
   StationRunRecord,
-  | "id"
-  | "stationRunId"
-  | "assemblyRunId"
-  | "nodeId"
-  | "iteration"
-  | "agentCrName"
+  "id" | "stationRunId" | "assemblyRunId" | "nodeId" | "iteration"
 > {
   return {
     id: visit.id,
@@ -239,7 +271,6 @@ function visitIdentityOf(
     assemblyRunId: visit.runId,
     nodeId: visit.nodeId,
     iteration: visit.iteration,
-    agentCrName: agentCrNameOf(visit.id),
   };
 }
 
@@ -253,8 +284,8 @@ function visitVerdictOf(
   };
 }
 
-function agentCrNameOf(visitId: string): string {
-  return `floor-${visitId}`;
+export function agentCrNameOf(visitId: string): string {
+  return `${AGENT_CR_PREFIX}${visitId}`;
 }
 
 function claimedAtOf(visit: VisitView): Date | null {

@@ -6,7 +6,11 @@ export const prReadyCheck: SweepStationModule = {
     name: "pr-ready-check",
     description:
       "Resume implementation-loop runs whose PR is green and thread-clean (or blocked).",
-    triggers: [{ kind: "cron", schedule: "*/2 * * * *" }, { kind: "http" }],
+    // Every two minutes, on the tick this service emits (specs/external-floor FR16).
+    triggers: [
+      { kind: "event", eventNames: ["cron.pr_ready_check.tick"] },
+      { kind: "http" },
+    ],
     requires: ["repoFor"],
   },
   run: async () => (await import("./pr-ready-check.js")).prReadyCheckJob(),

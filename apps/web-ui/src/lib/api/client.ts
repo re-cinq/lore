@@ -1,16 +1,12 @@
 import "server-only";
 import { toApiResult, type ApiResult } from "./result";
 
-// One fetch wrapper for both Lore services (base URL, token, error mapping in one place); services are a TABLE, not a branch chain, so adding one is a row.
+// One fetch wrapper for the Lore services (base URL, token, error mapping in one place); services are a TABLE, not a branch chain, so adding one is a row.
 const SERVICES = {
   "lore-api": () => ({
     baseUrl: process.env.LORE_API_URL,
     // Admin first: the UI performs privileged writes the ingest token cannot.
     token: process.env.LORE_ADMIN_TOKEN ?? process.env.LORE_INGEST_TOKEN,
-  }),
-  floor: () => ({
-    baseUrl: process.env.LORE_FLOOR_URL,
-    token: process.env.LORE_INGEST_TOKEN,
   }),
 } as const;
 

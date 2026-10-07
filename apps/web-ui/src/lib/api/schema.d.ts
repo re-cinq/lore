@@ -218,8 +218,7 @@ export interface paths {
     /** GET /api/assembly-runs */
     get: operations["get_api_assembly-runs"];
     put?: never;
-    /** POST /api/assembly-runs */
-    post: operations["post_api_assembly-runs"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -260,6 +259,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/events */
+    get: operations["get_api_assembly-runs_id_events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/nodes": {
     parameters: {
       query?: never;
@@ -277,7 +293,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/assembly-runs/{id}/run-station": {
+  "/api/assembly-runs/{id}/nodes/{name}/logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/nodes/{name}/logs */
+    get: operations["get_api_assembly-runs_id_nodes_name_logs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/nodes/{node}/run": {
     parameters: {
       query?: never;
       header?: never;
@@ -286,8 +319,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/assembly-runs/{id}/run-station */
-    post: operations["post_api_assembly-runs_id_run-station"];
+    /** POST /api/assembly-runs/{id}/nodes/{node}/run */
+    post: operations["post_api_assembly-runs_id_nodes_node_run"];
     delete?: never;
     options?: never;
     head?: never;
@@ -339,6 +372,24 @@ export interface paths {
     get: operations["get_api_assembly-runs_id_turns"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/upgrade */
+    get: operations["get_api_assembly-runs_id_upgrade"];
+    put?: never;
+    /** POST /api/assembly-runs/{id}/upgrade */
+    post: operations["post_api_assembly-runs_id_upgrade"];
     delete?: never;
     options?: never;
     head?: never;
@@ -413,193 +464,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/cluster-agents": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/cluster-agents */
-    get: operations["get_api_cluster-agents"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/install-info": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/cluster-agents/install-info */
-    get: operations["get_api_cluster-agents_install-info"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/install.sh": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/cluster-agents/install.sh */
-    get: operations["get_api_cluster-agents_install.sh"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/register": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/cluster-agents/register */
-    post: operations["post_api_cluster-agents_register"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/catalog-events": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/cluster-agents/{id}/catalog-events */
-    get: operations["get_api_cluster-agents_id_catalog-events"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/catalog-status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/cluster-agents/{id}/catalog-status */
-    post: operations["post_api_cluster-agents_id_catalog-status"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/cluster-agents/{id}/claim */
-    post: operations["post_api_cluster-agents_id_claim"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/heartbeat": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/cluster-agents/{id}/heartbeat */
-    post: operations["post_api_cluster-agents_id_heartbeat"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/paused": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** PUT /api/cluster-agents/{id}/paused */
-    put: operations["put_api_cluster-agents_id_paused"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/release": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/cluster-agents/{id}/release */
-    post: operations["post_api_cluster-agents_id_release"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/restart": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/cluster-agents/{id}/restart */
-    post: operations["post_api_cluster-agents_id_restart"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/context": {
     parameters: {
       query?: never;
@@ -609,6 +473,40 @@ export interface paths {
     };
     /** GET /api/context */
     get: operations["get_api_context"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/context-evals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/context-evals */
+    post: operations["post_api_context-evals"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/context-evals/documents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/context-evals/documents */
+    get: operations["get_api_context-evals_documents"];
     put?: never;
     post?: never;
     delete?: never;
@@ -702,6 +600,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/floor-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/floor-runs */
+    get: operations["get_api_floor-runs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/floor-runs/stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/floor-runs/stream-token */
+    post: operations["post_api_floor-runs_stream-token"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/floor/git-credential": {
     parameters: {
       query?: never;
@@ -713,23 +645,6 @@ export interface paths {
     put?: never;
     /** POST /api/floor/git-credential */
     post: operations["post_api_floor_git-credential"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/github-credentials": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/github-credentials */
-    post: operations["post_api_github-credentials"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1646,24 +1561,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/settings/dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/settings/dark-factory */
-    get: operations["get_api_repos_owner_repo_settings_dark-factory"];
-    /** PUT /api/repos/{owner}/{repo}/settings/dark-factory */
-    put: operations["put_api_repos_owner_repo_settings_dark-factory"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/repos/{owner}/{repo}/tasks": {
     parameters: {
       query?: never;
@@ -1715,7 +1612,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/tasks/spec-tasks": {
+  "/api/repos/{owner}/{repo}/trace/overlay-drop": {
     parameters: {
       query?: never;
       header?: never;
@@ -1723,9 +1620,9 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** PUT /api/repos/{owner}/{repo}/tasks/spec-tasks */
-    put: operations["put_api_repos_owner_repo_tasks_spec-tasks"];
-    post?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/trace/overlay-drop */
+    post: operations["post_api_repos_owner_repo_trace_overlay-drop"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1869,7 +1766,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/spec-tasks/claim": {
+  "/api/spec-links/parse": {
     parameters: {
       query?: never;
       header?: never;
@@ -1878,59 +1775,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/spec-tasks/claim */
-    post: operations["post_api_spec-tasks_claim"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/complete": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/complete */
-    post: operations["post_api_spec-tasks_complete"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/ready": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/spec-tasks/ready */
-    get: operations["get_api_spec-tasks_ready"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/sync": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/sync */
-    post: operations["post_api_spec-tasks_sync"];
+    /** POST /api/spec-links/parse */
+    post: operations["post_api_spec-links_parse"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2077,23 +1923,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tasks/{id}/runs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/tasks/{id}/runs */
-    get: operations["get_api_tasks_id_runs"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/tasks/{id}/runtime": {
     parameters: {
       query?: never;
@@ -2191,6 +2020,26 @@ export interface paths {
     get: operations["get_api_usage"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/webhook/github": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * POST /api/webhook/github
+     * @description Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.
+     */
+    post: operations["post_api_webhook_github"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2385,14 +2234,6 @@ export interface components {
           inherited: boolean;
         }[];
       }[];
-      applied: {
-        name: string;
-        project_id: string | null;
-        cluster: string;
-        /** @enum {string} */
-        state: "applied" | "refused" | "skipped" | "deleted";
-        reason: string | null;
-      }[];
     };
     AgentDefinitionWritten: {
       /** @constant */
@@ -2563,17 +2404,17 @@ export interface components {
         [key: string]: unknown;
       }[];
     };
-    AssemblyRunStarted: {
-      id: string;
-    };
-    AssemblyRunStationRequested: {
-      id: string;
-    };
     AssemblyRunTokenUsage: {
       input_tokens: number;
       output_tokens: number;
       cache_creation_tokens: number;
       cache_read_tokens: number;
+    };
+    AssemblyRunUpgrade: {
+      available: boolean;
+    };
+    AssemblyRunUpgraded: {
+      run_id: string;
     };
     AuditLogPage: {
       entries: {
@@ -2647,170 +2488,18 @@ export interface components {
       total: number;
       truncated: boolean;
     };
-    ClusterAgentCatalogEvents: {
-      /** @enum {string} */
-      mode: "snapshot" | "tail";
-      cursor: string;
-      entries: {
-        name: string;
-        project_id: string | null;
-        definition: {
-          name: string;
-          model: string | null;
-          timeout_minutes: number | null;
-          prompt: string | null;
-          image: string | null;
-          execution_mode: string;
-          review_required: boolean;
-          project_id: string | null;
-          config:
-            | ({
-                skills?: string[];
-                pod_resources?: {
-                  requests?: {
-                    [key: string]: string;
-                  };
-                  limits?: {
-                    [key: string]: string;
-                  };
-                };
-                disallowed_tools?: string[];
-                watch?: {
-                  event: string;
-                  path: string;
-                  upload?: boolean;
-                };
-                inputs?: {
-                  path: string;
-                  /** @enum {string} */
-                  source: "plan" | "digest-draft";
-                }[];
-                repo_workdir?: boolean;
-                command?: string[];
-                env?: {
-                  [key: string]: string;
-                };
-                pod_labels?: {
-                  [key: string]: string;
-                };
-                needs_model?: boolean;
-              } & {
-                [key: string]: unknown;
-              })
-            | null;
-        } | null;
-      }[];
-    };
-    ClusterAgentCatalogStatus: {
-      /** @constant */
-      ok: true;
-      recorded: number;
-    };
-    ClusterAgentClaim: {
-      station_run_id: string;
-      node_row_id: string;
-      assembly_run_id: string;
-      node_id: string;
-      iteration: number;
-      agent_cr_name: string | null;
-      spec: unknown;
-      git_credential: string;
-    };
-    ClusterAgentHeartbeat: {
-      /** @constant */
-      status: "ok";
-    };
-    ClusterAgentInstallInfo: {
-      available: boolean;
-      reason: string | null;
-      api_url: string | null;
-      event_router_url: string | null;
-      registration_token: string | null;
-      repo_url: string;
-    };
-    ClusterAgentList: {
-      agents: {
-        id: string;
-        name: string;
-        tags: string[];
-        /** @enum {string} */
-        status: "active" | "offline";
-        paused: boolean;
-        last_seen_at: string;
-        running_claims: number;
-      }[];
-      offline_events: {
-        created_at: string;
-        cluster_agent_id: string | null;
-        station_run_id: string | null;
-        assembly_run_id: string | null;
-        node_id: string | null;
-        elapsed_since_claim_ms: number | null;
-      }[];
-    };
-    ClusterAgentPause: {
-      id: string;
-      name: string;
-      paused: boolean;
-    };
-    ClusterAgentRegistration: {
-      id: string;
-      name: string;
-      tags: string[];
-      token: string;
-    };
-    ClusterAgentRelease: {
-      /** @enum {string} */
-      status: "requeued" | "failed" | "settled";
-    };
-    ClusterAgentRestart: {
-      id: string;
-      name: string;
-      restarted: boolean;
-    };
     CommitCreated: {
       /** @constant */
       ok: true;
     };
-    DarkFactorySettings: {
-      enabled: boolean;
-      /** @enum {string} */
-      create_issue: "never" | "on_gate" | "always";
-      auto_merge: {
-        paths: string[];
-        /** @enum {string} */
-        min_trust: "docs" | "tests" | "implementation" | "full";
-        require_green_ci: boolean;
-        require_bot_approval: boolean;
-      };
-      /** @enum {string} */
-      review: "trust_based" | "always" | "never";
-      notify: ("escalation" | "watched" | "all")[];
-    };
-    DarkFactorySettingsApplied: {
-      /** @constant */
-      ok: true;
-      applied: {
-        enabled: boolean;
-        /** @enum {string} */
-        create_issue: "never" | "on_gate" | "always";
-        auto_merge: {
-          paths: string[];
-          /** @enum {string} */
-          min_trust: "docs" | "tests" | "implementation" | "full";
-          require_green_ci: boolean;
-          require_bot_approval: boolean;
-        };
-        /** @enum {string} */
-        review: "trust_based" | "always" | "never";
-        notify: ("escalation" | "watched" | "all")[];
-      };
-      ceremony: {
-        /** @enum {string} */
-        tier: "two_key" | "admin";
-        pr_ref?: string;
-        approver?: string;
-      };
+    DocumentEval: {
+      path: string;
+      question: string;
+      found: boolean;
+      answered: boolean;
+      useful_share: number;
+      reason: string;
+      model: string;
     };
     DodProgress: {
       present: boolean;
@@ -2854,9 +2543,6 @@ export interface components {
           [key: string]: unknown;
         } | null;
         context_refs?: {
-          [key: string]: unknown;
-        } | null;
-        dark_factory_overrides?: {
           [key: string]: unknown;
         } | null;
         failure_reason?: string | null;
@@ -2904,6 +2590,9 @@ export interface components {
     Error: {
       error: string;
     };
+    EvalDocuments: {
+      documents: string[];
+    };
     EventPayload: {
       [key: string]: unknown;
     };
@@ -2911,13 +2600,46 @@ export interface components {
       username: string;
       password: string;
     };
-    FloorRunTurns: {
-      turns: unknown[];
-      hasMore: boolean;
+    FloorRunPage: {
+      runs: {
+        id: string;
+        blueprint_name: string;
+        definition_name: string;
+        task_id: string | null;
+        repo: string;
+        branch: string | null;
+        subject_key: string | null;
+        engine: string;
+        graph?: unknown;
+        status: string;
+        outcome: string | null;
+        reason: string | null;
+        created_at: string;
+        started_at: string | null;
+        finished_at: string | null;
+        args_pr_number: number | null;
+        spec_plan_summary: string | null;
+        pr_url: string | null;
+        task_pr_number: number | null;
+        issue_url: string | null;
+        issue_number: number | null;
+        created_by: string | null;
+        cost_usd: number | null;
+        pipeline: {
+          node_id: string;
+          state: string;
+        }[];
+      }[];
+      next_cursor: string | null;
     };
-    GitCredential: {
-      username: string;
-      password: string;
+    FloorRunsStreamToken: {
+      token: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    GitHubDeliveryCaptured: {
+      captured: number;
+      events: string[];
     };
     GithubInstallation: {
       installation_id: string;
@@ -3003,7 +2725,17 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
-        error: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
         run_id: string | null;
         pipeline:
           | {
@@ -3011,7 +2743,6 @@ export interface components {
               state: string;
             }[]
           | null;
-        text_too_long: boolean;
       } | null;
       current_run_id: string | null;
       next: {
@@ -3022,7 +2753,17 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
-        error: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
         run_id: string | null;
         pipeline:
           | {
@@ -3030,7 +2771,33 @@ export interface components {
               state: string;
             }[]
           | null;
-        text_too_long: boolean;
+      }[];
+      parked: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+        created_at: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
       }[];
       recent: {
         issue_number: number;
@@ -3040,7 +2807,17 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
-        error: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
         run_id: string | null;
         pipeline:
           | {
@@ -3048,7 +2825,6 @@ export interface components {
               state: string;
             }[]
           | null;
-        text_too_long: boolean;
       }[];
     };
     ImplementationLoopToggle: {
@@ -3125,6 +2901,21 @@ export interface components {
           /** @constant */
           kind: "plan";
           subject: string;
+        }
+      | {
+          /** @constant */
+          type: "open";
+          channel: string;
+          /** @constant */
+          kind: "runs";
+          subject: string;
+          token: string;
+        }
+      | {
+          /** @constant */
+          type: "watch";
+          channel: string;
+          runs: string[];
         }
       | {
           /** @constant */
@@ -3253,6 +3044,54 @@ export interface components {
         }
       | {
           /** @constant */
+          type: "runs";
+          channel: string;
+          frame:
+            | {
+                /** @constant */
+                type: "run_started";
+                run_id: string;
+              }
+            | {
+                /** @constant */
+                type: "run_row";
+                run: {
+                  id: string;
+                  blueprint_name: string;
+                  definition_name: string;
+                  task_id: string | null;
+                  repo: string;
+                  branch: string | null;
+                  subject_key: string | null;
+                  engine: string;
+                  graph?: unknown;
+                  status: string;
+                  outcome: string | null;
+                  reason: string | null;
+                  created_at: string;
+                  started_at: string | null;
+                  finished_at: string | null;
+                  args_pr_number: number | null;
+                  spec_plan_summary: string | null;
+                  pr_url: string | null;
+                  task_pr_number: number | null;
+                  issue_url: string | null;
+                  issue_number: number | null;
+                  created_by: string | null;
+                  cost_usd: number | null;
+                  pipeline: {
+                    node_id: string;
+                    state: string;
+                  }[];
+                };
+              }
+            | {
+                /** @constant */
+                type: "resync";
+              };
+        }
+      | {
+          /** @constant */
           type: "data";
           channel: string;
           data: string;
@@ -3353,6 +3192,19 @@ export interface components {
         [key: string]: unknown;
       }[];
     };
+    NodeLogs: {
+      available: boolean;
+      logs: string | null;
+      phase: string;
+      podName: null;
+      archived: boolean;
+      /** @constant */
+      reason?: "no-records";
+    };
+    NodeRunAsked: {
+      run_id: string;
+      pending: boolean;
+    };
     OnboardResult:
       | {
           repo_id: string;
@@ -3393,9 +3245,6 @@ export interface components {
           [key: string]: unknown;
         } | null;
         context_refs?: {
-          [key: string]: unknown;
-        } | null;
-        dark_factory_overrides?: {
           [key: string]: unknown;
         } | null;
         failure_reason?: string | null;
@@ -3520,6 +3369,9 @@ export interface components {
       /** @constant */
       ok: true;
     };
+    OverlayDrop: {
+      dropped: boolean;
+    };
     PipelineAnalytics: {
       [key: string]: unknown;
     };
@@ -3618,24 +3470,6 @@ export interface components {
       onboarding_pr_merged: boolean;
       settings:
         | ({
-            dark_factory?: {
-              enabled?: boolean;
-              /** @enum {string} */
-              create_issue?: "never" | "on_gate" | "always";
-              auto_merge?: {
-                paths?: string[];
-                /** @enum {string} */
-                min_trust?: "docs" | "tests" | "implementation" | "full";
-                require_green_ci?: boolean;
-                require_bot_approval?: boolean;
-              };
-              /** @enum {string} */
-              review?: "trust_based" | "always" | "never";
-              notify?: ("escalation" | "watched" | "all")[];
-              execution?: {
-                image?: string;
-              };
-            };
             trust?: {
               /** @enum {string} */
               level?: "docs" | "tests" | "implementation" | "full";
@@ -3645,19 +3479,6 @@ export interface components {
               [key: string]: unknown;
             };
             task_types?: string[];
-            task_overrides?: {
-              [key: string]: {
-                model?: string;
-                timeout_minutes?: number;
-                system_prompt_suffix?: string;
-                review_required?: boolean;
-                execution?: {
-                  image?: string;
-                };
-              } & {
-                [key: string]: unknown;
-              };
-            };
             auto_review?: boolean;
             implementation_loop?: {
               enabled?: boolean;
@@ -3691,8 +3512,6 @@ export interface components {
     };
     RepoActivityCounts: {
       tasks: number | null;
-      auto_merged: number | null;
-      escalations: number | null;
     };
     RepoChunkSummary: {
       count: number;
@@ -3755,24 +3574,6 @@ export interface components {
         onboarding_pr_merged: boolean;
         settings:
           | ({
-              dark_factory?: {
-                enabled?: boolean;
-                /** @enum {string} */
-                create_issue?: "never" | "on_gate" | "always";
-                auto_merge?: {
-                  paths?: string[];
-                  /** @enum {string} */
-                  min_trust?: "docs" | "tests" | "implementation" | "full";
-                  require_green_ci?: boolean;
-                  require_bot_approval?: boolean;
-                };
-                /** @enum {string} */
-                review?: "trust_based" | "always" | "never";
-                notify?: ("escalation" | "watched" | "all")[];
-                execution?: {
-                  image?: string;
-                };
-              };
               trust?: {
                 /** @enum {string} */
                 level?: "docs" | "tests" | "implementation" | "full";
@@ -3782,19 +3583,6 @@ export interface components {
                 [key: string]: unknown;
               };
               task_types?: string[];
-              task_overrides?: {
-                [key: string]: {
-                  model?: string;
-                  timeout_minutes?: number;
-                  system_prompt_suffix?: string;
-                  review_required?: boolean;
-                  execution?: {
-                    image?: string;
-                  };
-                } & {
-                  [key: string]: unknown;
-                };
-              };
               auto_review?: boolean;
               implementation_loop?: {
                 enabled?: boolean;
@@ -3893,6 +3681,54 @@ export interface components {
     ReviewStarted: {
       started: string | null;
     };
+    RunEvents: {
+      events: {
+        [key: string]: unknown;
+      }[];
+    };
+    RunListFrame:
+      | {
+          /** @constant */
+          type: "run_started";
+          run_id: string;
+        }
+      | {
+          /** @constant */
+          type: "run_row";
+          run: {
+            id: string;
+            blueprint_name: string;
+            definition_name: string;
+            task_id: string | null;
+            repo: string;
+            branch: string | null;
+            subject_key: string | null;
+            engine: string;
+            graph?: unknown;
+            status: string;
+            outcome: string | null;
+            reason: string | null;
+            created_at: string;
+            started_at: string | null;
+            finished_at: string | null;
+            args_pr_number: number | null;
+            spec_plan_summary: string | null;
+            pr_url: string | null;
+            task_pr_number: number | null;
+            issue_url: string | null;
+            issue_number: number | null;
+            created_by: string | null;
+            cost_usd: number | null;
+            pipeline: {
+              node_id: string;
+              state: string;
+            }[];
+          };
+        }
+      | {
+          /** @constant */
+          type: "resync";
+        };
     RunStreamFrame:
       | {
           /** @constant */
@@ -4001,6 +3837,10 @@ export interface components {
       /** Format: date-time */
       expires_at: string;
     };
+    RunTurns: {
+      turns: unknown[];
+      hasMore: boolean;
+    };
     SearchContextResults: {
       results: {
         content: string;
@@ -4058,33 +3898,20 @@ export interface components {
       blocks?: unknown[];
     };
     SlackEventAck: string;
+    SpecLinksParseResult: {
+      links: {
+        doc_path: string;
+        statement_line: number | null;
+        label: string;
+        path: string;
+        line: number | null;
+        misplaced: boolean;
+      }[];
+    };
     SpecList: {
       specs: {
         [key: string]: unknown;
       }[];
-    };
-    SpecTaskClaimed: {
-      claimed: boolean;
-      task_id: string;
-      agent_id: string;
-    };
-    SpecTaskCompleted: {
-      [key: string]: unknown;
-    };
-    SpecTasksReady: {
-      tasks: {
-        [key: string]: unknown;
-      }[];
-    };
-    SpecTasksReconciled: {
-      created: number;
-      updated: number;
-      cancelled: number;
-    };
-    SpecTasksSynced: {
-      parsed: number;
-      synced: number;
-      created: number;
     };
     SpendWindow: {
       interval: {
@@ -4189,18 +4016,6 @@ export interface components {
           est_usd: number;
         }[];
         est_total_usd: number;
-        live_pods: {
-          name: string;
-          phase: string;
-          started_at: string | null;
-          requests: {
-            [key: string]: string;
-          };
-          usd_per_hour: number;
-          usd_so_far: number;
-          station_run_id: string | null;
-        }[];
-        live_usd_per_hour: number;
       };
       unit_costs: {
         tickets: {
@@ -4318,9 +4133,6 @@ export interface components {
       context_refs: {
         [key: string]: unknown;
       } | null;
-      dark_factory_overrides: {
-        [key: string]: unknown;
-      } | null;
       failure_reason: string | null;
       created_by: string;
       /** Format: date-time */
@@ -4372,16 +4184,6 @@ export interface components {
       total: number;
       limit: number;
       offset: number;
-    };
-    TaskRunList: {
-      runs: {
-        id: string;
-        /** @enum {string} */
-        status: "queued" | "running" | "finished" | "failed";
-        outcome: string | null;
-        /** Format: date-time */
-        created_at: string;
-      }[];
     };
     TaskRuntime: {
       events: {
@@ -4601,7 +4403,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Every station name a builtin blueprint node dispatches, with the nodes that reference it */
+      /** @description Which lines use each stored definition (none: a floor pipeline carries its agents inline) */
       200: {
         headers: {
           [name: string]: unknown;
@@ -4893,49 +4695,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "post_api_assembly-runs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          definition: string;
-          repo: string;
-          branch?: string;
-          args?: {
-            [key: string]: unknown;
-          };
-          resume_from?: {
-            run_id: string;
-            node_id: string;
-            iteration?: number;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description Run started */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   "get_api_assembly-runs_id": {
     parameters: {
       query?: never;
@@ -4990,6 +4749,32 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunEvents"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_assembly-runs_id_nodes": {
     parameters: {
       query?: never;
@@ -5016,31 +4801,59 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "post_api_assembly-runs_id_run-station": {
+  "get_api_assembly-runs_id_nodes_name_logs": {
     parameters: {
       query?: never;
       header?: never;
       path: {
         id: string;
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NodeLogs"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs_id_nodes_node_run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        node: string;
       };
       cookie?: never;
     };
     requestBody: {
       content: {
         "application/json": {
-          node_id: string;
-          actor: string;
+          requested_by: string;
         };
       };
     };
     responses: {
-      /** @description The station's next iteration was asked for in the same run, which is reopened if it had ended; the Floor launches it */
+      /** @description The floor was asked to run the node again in its run, in the person's name; pending when it had not taken the ask within a few seconds. 400 for the line's exit or fail node or a node it does not have, 404 for a run the floor does not have, 409 with the floor's reason when it refused */
       202: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["AssemblyRunStationRequested"];
+          "application/json": components["schemas"]["NodeRunAsked"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -5128,17 +4941,74 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have */
+      /** @description One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FloorRunTurns"];
+          "application/json": components["schemas"]["RunTurns"];
         };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Whether a newer version of the run's assembly line is available. 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunUpgrade"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs_id_upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A new run on the latest version of the assembly line, retaining the source run's inputs; the source run is cancelled when it is still open. 404 for a run the floor does not have, 409 for a run already on the latest version */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunUpgraded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -5239,320 +5109,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "get_api_cluster-agents": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every registered cluster-agent with its open-claim count, plus recent offline events */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_cluster-agents_install-info": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description What this deployment can hand a satellite installer — URLs and the registration token, or why not */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentInstallInfo"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_cluster-agents_install.sh": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_cluster-agents_register": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          name: string;
-          /** @default [] */
-          tags?: string[];
-          /** @default null */
-          cluster_info?: {
-            [key: string]: unknown;
-          } | null;
-          current_token?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The registered identity with its per-agent token — served once and never again */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentRegistration"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "get_api_cluster-agents_id_catalog-events": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentCatalogEvents"];
-        };
-      };
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "post_api_cluster-agents_id_catalog-status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          reports: {
-            name: string;
-            project_id: string | null;
-            /** @enum {string} */
-            state: "applied" | "refused" | "skipped" | "deleted";
-            reason: string | null;
-          }[];
-        };
-      };
-    };
-    responses: {
-      /** @description Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentCatalogStatus"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "post_api_cluster-agents_id_claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentClaim"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "post_api_cluster-agents_id_heartbeat": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Liveness acknowledgement; last_seen_at was bumped */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentHeartbeat"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "put_api_cluster-agents_id_paused": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          paused: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description The cluster-agent's new paused state — paused agents are passed over when work is handed out, but stay alive and finish what they hold */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentPause"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_cluster-agents_id_release": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          node_row_id: string;
-          reason: string;
-        };
-      };
-    };
-    responses: {
-      /** @description Whether the unlaunched visit went back on the queue, failed because no retry can launch it, or had already settled */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentRelease"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "post_api_cluster-agents_id_restart": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentRestart"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   get_api_context: {
     parameters: {
       query?: never;
@@ -5571,6 +5127,66 @@ export interface operations {
           "application/json": components["schemas"]["AssembledContext"];
         };
       };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_context-evals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo: string;
+          path: string;
+          question?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description One document's context eval */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DocumentEval"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_context-evals_documents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The paths a context eval samples from */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EvalDocuments"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
@@ -5714,6 +5330,65 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_floor-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One page of the external floor's runs, newest first, each with its mini pipeline */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorRunPage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_floor-runs_stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          user: {
+            id: string;
+            name: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorRunsStreamToken"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_floor_git-credential": {
     parameters: {
       query?: never;
@@ -5742,37 +5417,6 @@ export interface operations {
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "post_api_github-credentials": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          repo: string;
-        };
-      };
-    };
-    responses: {
-      /** @description A freshly minted installation token for the run's repo, as the git credential-helper username/password pair */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GitCredential"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
     };
@@ -6806,7 +6450,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep */
+      /** @description The tail of one GitHub Actions job's log, timestamps stripped. With grep, only the lines containing it are kept and the tail is taken from those */
       200: {
         headers: {
           [name: string]: unknown;
@@ -7042,6 +6686,8 @@ export interface operations {
             content: string;
           }[];
           deleted?: string[];
+          present?: string[];
+          force?: boolean;
           report?: unknown;
         };
       };
@@ -7086,7 +6732,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The projections this push started */
+      /** @description Never answered: the route refuses with 410 */
       200: {
         headers: {
           [name: string]: unknown;
@@ -7466,6 +7112,7 @@ export interface operations {
         "application/json": {
           known: string;
           createdBy: string;
+          storyIssue?: number;
         };
       };
     };
@@ -7502,11 +7149,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          actor: string;
           slot: string;
           title: string;
           baseHash: string;
           inputs: unknown;
           uses: unknown;
+          storyIssue?: number;
         };
       };
     };
@@ -7664,84 +7313,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "get_api_repos_owner_repo_settings_dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every dark-factory knob, resolved */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DarkFactorySettings"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "put_api_repos_owner_repo_settings_dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          enabled?: boolean;
-          /** @enum {string} */
-          create_issue?: "never" | "on_gate" | "always";
-          auto_merge?: {
-            paths?: string[];
-            /** @enum {string} */
-            min_trust?: "docs" | "tests" | "implementation" | "full";
-            require_green_ci?: boolean;
-            require_bot_approval?: boolean;
-          };
-          /** @enum {string} */
-          review?: "trust_based" | "always" | "never";
-          notify?: ("escalation" | "watched" | "all")[];
-          execution?: {
-            image?: string;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description What the write applied, and under whose authority */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DarkFactorySettingsApplied"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   post_api_repos_owner_repo_tasks: {
     parameters: {
       query?: never;
@@ -7839,7 +7410,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "put_api_repos_owner_repo_tasks_spec-tasks": {
+  "post_api_repos_owner_repo_trace_overlay-drop": {
     parameters: {
       query?: never;
       header?: never;
@@ -7852,30 +7423,18 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          planId?: string;
-          groupId?: string;
-          tasks: {
-            description: string;
-            taskType: string;
-            createdBy?: string;
-            contextBundle?: {
-              [key: string]: unknown;
-            };
-            taskGroupId?: string;
-            issueNumber: number;
-            issueUrl?: string;
-          }[];
+          branch: string;
         };
       };
     };
     responses: {
-      /** @description How many spec-tasks were created, reused and cancelled */
+      /** @description Whether the graph was asked to drop the branch's overlay; false when no graph is configured */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SpecTasksReconciled"];
+          "application/json": components["schemas"]["OverlayDrop"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -8156,7 +7715,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "post_api_spec-tasks_claim": {
+  "post_api_spec-links_parse": {
     parameters: {
       query?: never;
       header?: never;
@@ -8166,109 +7725,21 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          task_id: string;
-          agent_id: string;
+          docs: {
+            path: string;
+            content: string;
+          }[];
         };
       };
     };
     responses: {
-      /** @description Whether the claim succeeded */
+      /** @description The test links the posted specs and ADRs carry */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SpecTaskClaimed"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_complete": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          task_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The completed task's new state */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTaskCompleted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_spec-tasks_ready": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Spec tasks whose dependencies have merged */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTasksReady"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_sync": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          repo: string;
-          spec_slug: string;
-          tasks_markdown: string;
-        };
-      };
-    };
-    responses: {
-      /** @description How many spec tasks the sync parsed and created */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTasksSynced"];
+          "application/json": components["schemas"]["SpecLinksParseResult"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -8295,18 +7766,11 @@ export interface operations {
           priority?: string;
           pr_url?: string;
           error?: string;
-          description?: string;
-          created_by?: string;
-          feedback?: string;
-          task_type?: string;
-          target_repo?: string;
-          group_id?: string;
-          context?: unknown;
         };
       };
     };
     responses: {
-      /** @description The created task, or the transition's acknowledgement */
+      /** @description The transition's acknowledgement */
       200: {
         headers: {
           [name: string]: unknown;
@@ -8546,33 +8010,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_tasks_id_runs: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The task's per-attempt runs, newest first */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskRunList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   get_api_tasks_id_runtime: {
     parameters: {
       query?: never;
@@ -8752,6 +8189,30 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_webhook_github: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The bus events the delivery was mapped to */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GitHubDeliveryCaptured"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
     };
   };
   post_api_webhook_incident: {

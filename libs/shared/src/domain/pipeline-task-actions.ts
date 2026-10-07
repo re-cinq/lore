@@ -1,4 +1,4 @@
-/** Task lifecycle actions layered on pipeline-tasks.ts's core CRUD: retry, cancel, escalate, revise, mark-merged. */
+/** Task lifecycle actions layered on pipeline-tasks.ts's core CRUD: retry, cancel, escalate, mark-merged. */
 
 import { enforceTrue } from "../lib/enforce.js";
 import type { PgPool } from "./memory-store-types.js";
@@ -103,87 +103,6 @@ async function applyEscalation(
       action: "run-now",
       previous_priority: task.priority,
     },
-  );
-}
-
-/** Queues a revision of a task from human feedback: a follow-up task on the SAME branch/PR at immediate priority, with the parent moved to `revision-requested`. */
-export async function reviseTask(
-  pool: PgPool,
-  taskId: string,
-  feedback: string,
-): Promise<{ task_id: string; revision_task_id: string }> {
-  const task = await getTask(pool, taskId);
-
-  enforceTrue(task, Error, "Task not found");
-  enforceTrue(Boolean(feedback.trim()), Error, "Feedback is required");
-
-  const revisionTaskId = await insertRevisionTask(pool, task, taskId, feedback);
-
-  await recordRevisionRequested(pool, task, {
-    taskId,
-    feedback,
-    revisionTaskId,
-  });
-
-  return { task_id: taskId, revision_task_id: revisionTaskId };
-}
-
-/** The follow-up task, at `immediate` priority and pointed at the SAME branch and PR — a revision continues the existing work rather than opening a second PR beside it. */
-async function insertRevisionTask(
-  pool: PgPool,
-  task: LoadedTask,
-  taskId: string,
-  feedback: string,
-): Promise<string> {
-  const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
-     VALUES ($1, $2, $3, $4, $5, 'immediate') RETURNING id`,
-    revisionTaskParams(task, taskId, feedback),
-  );
-
-  return rows[0].id;
-}
-
-/** Everything but a feature-request revises as an `implementation`: the feedback is on code, whatever produced it. */
-function revisionTaskParams(
-  task: LoadedTask,
-  taskId: string,
-  feedback: string,
-): unknown[] {
-  return [
-    `Revise based on feedback: ${feedback.substring(0, 200)}`,
-    task.task_type === "feature-request" ? "feature-request" : "implementation",
-    task.target_repo,
-    "ui-feedback",
-    JSON.stringify({
-      parent_task_id: taskId,
-      branch: task.target_branch,
-      pr_number: task.pr_number,
-      feedback,
-    }),
-  ];
-}
-
-/** Logs the feedback event against the parent task and moves it to `revision-requested`. */
-async function recordRevisionRequested(
-  pool: PgPool,
-  task: LoadedTask,
-  revision: { taskId: string; feedback: string; revisionTaskId: string },
-): Promise<void> {
-  const { taskId, feedback, revisionTaskId } = revision;
-
-  await recordEvent(
-    pool,
-    taskId,
-    { from: task.status, to: "revision-requested" },
-    {
-      feedback,
-      revision_task_id: revisionTaskId,
-    },
-  );
-  await pool.query(
-    `UPDATE pipeline.tasks SET status = 'revision-requested', updated_at = now() WHERE id = $1`,
-    [taskId],
   );
 }
 

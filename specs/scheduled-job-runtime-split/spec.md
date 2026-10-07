@@ -25,8 +25,8 @@ The agent now registers **16** jobs (`agent/src/index.ts`), and they fall into
 two profiles the single in-process scheduler serves equally badly at the heavy
 end:
 
-- **Hot-path ticks** — `merge_check`, `approval_check`, `loretask_watcher`,
-  `spec_task_executor` run `*/1 * * * *`; `review_reactor` / `stale_task_check`
+- **Hot-path ticks** — `merge_check`, `approval_check` and `loretask_watcher`
+  run `*/1 * * * *`; `review_reactor` / `stale_task_check`
   are frequent safety nets. These belong in-process: a pod-per-tick is pure
   churn, and several are coupled to the agent's webhook trigger endpoints and
   warm in-memory state (DB pool, Octokit client, prompt-cache break tracker).
@@ -88,11 +88,11 @@ resident process.
 
 | Job | Schedule | Runtime | Folder |
 |-----|----------|---------|--------|
-| `eval_runner` | `0 3 * * *` | **CronJob** | `cron/` |
-| `context_core_builder` | `0 4 * * *` | **CronJob** | `cron/` |
+| `eval_runner` | `0 3 * * *` | **deleted 2026-10-02** with Lore's own Floor; context evals are a nightly GitHub Actions job that asks lore-api (#2443) | — |
+| `context_core_builder` | `0 4 * * *` | **deleted 2026-10-02** with Lore's own Floor; the new evals keep no stored baseline (migration 0101 dropped its tables) | — |
 | `importance_decay` | `0 5 * * *` | **CronJob** | `cron/` |
 | `consolidation` | `30 5 * * *` | **CronJob** | `cron/` |
-| `autoresearch` | `0 6 * * 1` | **CronJob** | `cron/` |
+| `autoresearch` | `0 6 * * 1` | **deleted** with the eval jobs it depended on | — |
 | `gap_detection` | `0 9 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
 | `spec_drift` | `0 10 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
 | `spec_test_linker` | `0 11 * * 1` | **event-driven assembly line** (2026-07 amendment; split into `spec_coverage_validate` daily + `spec_coverage_backfill` weekly by spec-test-coverage v3) | `jobs/detect/` |
@@ -100,7 +100,6 @@ resident process.
 | `merge_check` | `*/1 * * * *` | in-process | `scheduled/` |
 | `approval_check` | `*/1 * * * *` | in-process | `scheduled/` |
 | `loretask_watcher` | `*/1 * * * *` | in-process | `scheduled/` |
-| `spec_task_executor` | `*/1 * * * *` | in-process | `scheduled/` |
 | `review_reactor` | `7 7-17 * * 1-5` | in-process (webhook safety net) | `scheduled/` |
 | `stale_task_check` | `17 * * * *` | in-process | `scheduled/` |
 
@@ -182,9 +181,10 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   resource `requests` **and** `limits` (CPU + memory) and an
   `activeDeadlineSeconds` wall-clock cap so a hung or runaway LLM-heavy run is
   killed rather than consuming the node indefinitely. A default block lives in
-  `values.yaml`, **per-job overridable** (the LLM/embedding-heavy jobs —
-  `eval_runner`, `autoresearch` — get higher memory/longer
-  deadlines than the lightweight cleanups like `memory_ttl`). No CronJob ships
+  `values.yaml`, **per-job overridable** (the LLM/embedding-heavy jobs get
+  higher memory/longer deadlines than the lightweight cleanups like
+  `memory_ttl`; `eval_runner` and `autoresearch` were the examples until they
+  were deleted on 2026-10-02). No CronJob ships
   without explicit `limits` — the migration must not leave an unbounded pod on
   the cluster. `backoffLimit` caps retries.
 - **FR3 — No env drift.** CronJob pods reuse the agent image and the *same*
@@ -211,21 +211,12 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   between them carries one message and holds no business logic. This removes the
   reason four batch jobs live in `apps/floor`: they were there because the Floor's
   image was what the alarm launched, not because the Floor coordinates them.
-- **FR8.1 — `POST /api/assembly-runs` starts one run of a blueprint.** The body is
-  `{ definition, repo, branch?, args? }`; the response is `201` with the minted
-  run id. Before this, `assemblyRuns.start()` was reachable only in-process from
-  the Floor, so anything wanting to start a line had to be the Floor. The write is
-  `start()`'s existing atomic CTE — the `pipeline.assembly_runs` row and its
-  `assembly_run.start` event land together — and the Floor's event loop claims the
-  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L78), [`start-run.test.ts:88`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L90), [`start-run.test.ts:108`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L110))
-- **FR8.2 — The start endpoint refuses a body it cannot act on.** A missing
-  `definition` or a `repo` that is not `owner/name` is rejected `400` and starts
-  nothing; a run row minted from a malformed body would be walked by the Floor and
-  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L123), [`start-run.test.ts:131`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L133))
-- **FR8.3 — The endpoint is authenticated.** It is registered on the built server
-  under the `task` bearer scope; an unauthenticated post is rejected `401`. Starting
-  arbitrary assembly lines is a privileged capability — the courier holds a token
-  like any other client. ([validated by `start-run.test.ts:109`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L147))
+- **FR8.1 to FR8.3** *(retired 2026-10-02)*: `POST /api/assembly-runs`, the
+  endpoint a courier posted to start a line, is removed. No courier job ever
+  posted to it, and the engine that walked the run it queued is deleted. A
+  scheduled line is started on the external floor by a tick in the stations
+  service (`specs/external-floor` FR7.13, FR16.2); a courier posts a station
+  (FR9).
 
 - **FR9 — A scheduled job with no steps runs in lore-api, not in a line.** The
   assembly-line node types are a closed set (`agent`, `validate`, `gate`,
@@ -280,7 +271,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   that pulled the image, requested bumped resources, and exited on
   `Unknown job: autoresearch` — while a dispatch entry with no CronJob would
   simply never run and never say so. A scheduled failure and a silent no-op are
-  both worse than a build error. ([validated by `job-runner.test.ts:72`](apps/floor/src/transport/job-runner.test.ts#L67), [`job-runner.test.ts:83`](apps/floor/src/transport/job-runner.test.ts#L78))
+  both worse than a build error.
 
 ## Acceptance Criteria
 
@@ -288,30 +279,29 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
    null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-   ([`job-runner.test.ts:39`](apps/floor/src/transport/job-runner.test.ts#L34), [`job-runner.test.ts:43`](apps/floor/src/transport/job-runner.test.ts#L38), [`job-runner.test.ts:50`](apps/floor/src/transport/job-runner.test.ts#L45), [validated by `resolves %s to a handler function`](apps/floor/src/transport/job-runner.test.ts#L22))
+  
 
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
    CronJob run appears in the web-ui `/analytics` view identically to an
    in-process run. `startJobRun` opens a `running` row and returns the run id, `completeJobRun`
    stamps `completed` with the `result_summary`, and `failJobRun` stamps `failed` with the error.
-   ([`job-run.test.ts:6`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L6), [`job-run.test.ts:18`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L18), [`job-run.test.ts:51`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L51))
+  
 
 1b. A completed or failed CronJob run's full output is retained in GCS (redacted,
    CMEK-encrypted) and retrievable via the UI / MCP, referenced by
    `pipeline.job_runs.log_path` — not lost to ephemeral pod stdout. `jobRunLogKey` builds the
    `__job_runs__/<job>/<runId>/output.log` key, and both `completeJobRun` and `failJobRun` persist
-   the `log_path` when provided. ([validated by `log-storage.test.ts:42`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L31), [`log-storage.test.ts:10`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L10), [`job-run.test.ts:64`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L64))
+   the `log_path` when provided.
 
 1c. The in-process scheduler clears a job's in-flight marker on every failure
-   path: a rejected `startJobRun` (`pipeline.job_runs` insert failure) is logged
-   without a phantom `failJobRun` call and the job runs again on the next tick
+   path: a rejected run start (`pipeline.job_runs` insert failure) is logged
+   without a phantom failure record and the job runs again on the next tick
    instead of staying wedged for the process lifetime; a handler failure passes
-   its message to `failJobRun` and likewise leaves the job re-eligible; a
-   successful run passes the handler result to `completeJobRun`; and
-   `getJobStatus` reports `idle` plus the in-memory last-attempt timestamp
-   (`null` before the first attempt in this process).
-   ([validated by `scheduler.test.ts:45`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L45), [`scheduler.test.ts:69`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L70), [`scheduler.test.ts:82`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L83), [`scheduler.test.ts:98`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L99), [`scheduler.test.ts:114`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L115), [`scheduler.test.ts:129`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L130))
+   its message to the run's failure and likewise leaves the job re-eligible; a
+   successful run completes with the handler result. Since 2026-10-02 the
+   scheduler is shared code run by the stations service (`specs/external-floor` FR16).
+   ([validated by runs the job again on the next tick after starting its run rejects](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114), [validated by completes the run with the handler result on success](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
@@ -328,7 +318,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:28`](apps/floor/src/transport/job-runner.test.ts#L28))
+8. No job is scheduled both in-process and as a CronJob in any release.
 
 9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,
@@ -346,7 +336,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    (team schemas ∪ org_shared), not a fixed org_shared: the schema list intersects
    `information_schema` with `lore.repos.team` behind a schema-name injection gate, one grouped
    UNION ALL query spans all schemas, and the active variant gates each repo on a code chunk
-   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/work/detect/fan-out.test.ts#L34), [`fan-out.test.ts:42`](apps/floor/src/work/detect/fan-out.test.ts#L42), [`fan-out.test.ts:87`](apps/floor/src/work/detect/fan-out.test.ts#L87), [`fan-out.test.ts:110`](apps/floor/src/work/detect/fan-out.test.ts#L110), [`fan-out.test.ts:180`](apps/floor/src/work/detect/fan-out.test.ts#L180), [`fan-out.test.ts:215`](apps/floor/src/work/detect/fan-out.test.ts#L215), [`fan-out.test.ts:226`](apps/floor/src/work/detect/fan-out.test.ts#L226), [`fan-out.test.ts:240`](apps/floor/src/work/detect/fan-out.test.ts#L240), [`fan-out.test.ts:248`](apps/floor/src/work/detect/fan-out.test.ts#L248), [`fan-out.test.ts:258`](apps/floor/src/work/detect/fan-out.test.ts#L258), [`fan-out.test.ts:268`](apps/floor/src/work/detect/fan-out.test.ts#L268), [`fan-out.test.ts:282`](apps/floor/src/work/detect/fan-out.test.ts#L282))
+   ingested inside the 7-day activity window. *(Removed 2026-10-02: the fan-out and its four ticks are gone, `specs/external-floor` FR16.6. Kept as the record of what ran.)*
 
 11. `context_reindex` was retired on 2026-09-08 (ADR-019 amendment): the CronJob, the job
    code, its verification / chunker-heal / never-ingested-backfill sweeps and the stale-content

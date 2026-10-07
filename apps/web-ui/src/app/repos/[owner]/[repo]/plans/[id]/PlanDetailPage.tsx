@@ -9,7 +9,7 @@ import {
 } from "@/lib/assembly-runs";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
-import PlanDetailView from "./PlanDetailView";
+import PlanDetailStory from "./PlanDetailStory";
 import type { PlanRun } from "./PlanRunCard";
 import {
   approvePlanAction,
@@ -33,7 +33,7 @@ export default async function PlanDetailPage({
   const { meta, run, user } = await planPage(fullName, id);
 
   return (
-    <PlanDetailView
+    <PlanDetailStory
       meta={meta}
       run={run}
       user={user}
@@ -115,15 +115,17 @@ function specPrFactsOf(pr: PrStatus | null): SpecPrFacts {
 function planRunOf(
   run: AssemblyRun,
 ): Omit<PlanRun, "nodes" | "prTitle" | "prUnresolvedThreads"> {
-  const { id, status, outcome, reason, prUrl, prNumber } = run;
+  const { id, status, outcome, reason, issueUrl, issueNumber } = run;
 
   return {
     id,
     status,
     outcome,
     reason,
-    prUrl,
-    prNumber,
+    issueUrl,
+    issueNumber,
+    prUrl: run.prUrl,
+    prNumber: run.prNumber,
     specPlanSummary: run.specPlanSummary ?? null,
   };
 }

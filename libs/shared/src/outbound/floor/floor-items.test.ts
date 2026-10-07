@@ -87,4 +87,11 @@ describe("floor items", () => {
       new Error("not a git ref: github.com/re-cinq/lore"),
     );
   });
+
+  it("reads re-cinq/lore and spec/widget back from the clone url a station is handed, https://github.com/re-cinq/lore@spec/widget", () => {
+    expect(parseGitRef("https://github.com/re-cinq/lore@spec/widget")).toEqual({
+      repo: "re-cinq/lore",
+      branch: "spec/widget",
+    });
+  });
 });

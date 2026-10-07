@@ -14,7 +14,7 @@ const TOOLS: Tools = {
   signal: new AbortController().signal,
 };
 
-function brief(target = "github.com/re-cinq/lore@spec/widget") {
+function brief(target = "https://github.com/re-cinq/lore@spec/widget") {
   return { visitId: "visit-pr", iteration: 1, needs: { target } };
 }
 
@@ -22,6 +22,7 @@ function openedTitleFor(planTitle: string): Promise<string> {
   const titles: string[] = [];
   const handle = scene({
     pulls: {
+      update: () => Promise.reject(new Error("unused")),
       list: () => Promise.resolve([]),
       open: (_branch, pr) => {
         titles.push(pr.title);
@@ -39,7 +40,7 @@ function briefTitled(planTitle: string) {
     visitId: "visit-pr",
     iteration: 1,
     needs: {
-      target: "github.com/re-cinq/lore@spec/widget",
+      target: "https://github.com/re-cinq/lore@spec/widget",
       plan_title: planTitle,
     },
   };
@@ -59,7 +60,12 @@ function pullRef(overrides: Partial<PullRef> = {}): PullRef {
 }
 
 function scene(project: OpenSpecPrProject) {
-  const deps: OpenSpecPrDeps = { project: () => Promise.resolve(project) };
+  const deps: OpenSpecPrDeps = {
+    project: (repo) =>
+      repo === "re-cinq/lore"
+        ? Promise.resolve(project)
+        : Promise.reject(new Error(`Not Found: ${repo}`)),
+  };
 
   return openSpecPrHandle(deps);
 }
@@ -70,6 +76,7 @@ describe("openSpecPrHandle", () => {
     const opened: unknown[] = [];
     const handle = scene({
       pulls: {
+        update: () => Promise.reject(new Error("unused")),
         list: () => Promise.resolve([existing]),
         open: (branch, pr) => {
           opened.push({ branch, pr });
@@ -91,6 +98,7 @@ describe("openSpecPrHandle", () => {
       [];
     const handle = scene({
       pulls: {
+        update: () => Promise.reject(new Error("unused")),
         list: () => Promise.resolve([]),
         open: (branch, pr) => {
           opened.push({ branch, pr });
@@ -140,6 +148,7 @@ describe("openSpecPrHandle", () => {
   it("reports failed with the error message when opening the PR fails", async () => {
     const handle = scene({
       pulls: {
+        update: () => Promise.reject(new Error("unused")),
         list: () => Promise.resolve([]),
         open: () => Promise.reject(new Error("GitHub is down")),
       },
@@ -150,4 +159,118 @@ describe("openSpecPrHandle", () => {
       error: "GitHub is down",
     });
   });
+
+  it("produces spec_path specs/widget/spec.md beside the PR url, from the first spec spec_plan creates", async () => {
+    const handle = scene({
+      pulls: {
+        update: () => Promise.reject(new Error("unused")),
+        list: () => Promise.resolve([pullRef()]),
+        open: () => Promise.reject(new Error("unused")),
+      },
+    });
+    const specPlan = JSON.stringify({
+      creates: [{ path: "specs/widget/spec.md" }],
+      updates: [],
+    });
+
+    expect(
+      await handle(brief(), {
+        ...TOOLS,
+        read: (need) =>
+          Promise.resolve(Buffer.from(need === "spec_plan" ? specPlan : "")),
+      }),
+    ).toEqual({
+      outcome: "success",
+      produced: {
+        pr_url: "https://github.com/re-cinq/lore/pull/42",
+        spec_path: "specs/widget/spec.md",
+      },
+    });
+  });
+
+  it("produces an empty issue_coverage, so the decompose after this spec merges is not briefed with what an earlier decomposition missed", async () => {
+    const produced: Record<string, string> = {};
+    const handle = scene({
+      pulls: {
+        update: () => Promise.reject(new Error("unused")),
+        list: () => Promise.resolve([pullRef()]),
+        open: () => Promise.reject(new Error("unused")),
+      },
+    });
+
+    await handle(brief(), {
+      ...TOOLS,
+      produce: async (name, bytes) => {
+        produced[name] = bytes.toString();
+      },
+    });
+
+    expect(produced).toEqual({ issue_coverage: "" });
+  });
+
+  it("adds the plan coverage to the body of the PR it opens when the run carries one", async () => {
+    const bodies: string[] = [];
+    const handle = scene({
+      pulls: {
+        list: () => Promise.resolve([]),
+        open: (_branch, pr) => (
+          bodies.push(pr.body),
+          Promise.resolve(pullRef())
+        ),
+        update: async () => {},
+      },
+    });
+
+    await handle(coveredBrief(), coverageTools());
+
+    expect(bodies).toEqual([
+      `Opened by the Lore feature-planning line from \`spec/widget\`.\n\n${COVERAGE}`,
+    ]);
+  });
+
+  it("rewrites the body of PR 42 already open on the branch with the plan coverage", async () => {
+    const updates: unknown[] = [];
+    const handle = scene({
+      pulls: {
+        list: () => Promise.resolve([pullRef()]),
+        open: () => Promise.reject(new Error("unused")),
+        update: async (number, fields) => {
+          updates.push({ number, fields });
+        },
+      },
+    });
+
+    await handle(coveredBrief(), coverageTools());
+
+    expect(updates).toEqual([
+      {
+        number: 42,
+        fields: {
+          body: `Opened by the Lore feature-planning line from \`spec/widget\`.\n\n${COVERAGE}`,
+        },
+      },
+    ]);
+  });
 });
+
+const COVERAGE =
+  "## Plan coverage\n\n1 of 2 plan blocks are cited by a spec statement. Not cited yet:\n";
+
+function coveredBrief() {
+  return {
+    visitId: "visit-pr",
+    iteration: 1,
+    needs: {
+      target: "https://github.com/re-cinq/lore@spec/widget",
+      plan_coverage: "blob://coverage",
+    },
+  };
+}
+
+function coverageTools(): Tools {
+  return {
+    ...TOOLS,
+    read: (need) =>
+      Promise.resolve(Buffer.from(need === "plan_coverage" ? COVERAGE : "")),
+  };
+}

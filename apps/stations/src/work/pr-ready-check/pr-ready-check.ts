@@ -8,6 +8,7 @@ import {
   parkedHumanNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { floorCiWaitSweep } from "./floor-ci-wait.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
 import {
   CI_WAIT_BLUEPRINTS,
@@ -65,25 +66,65 @@ const OPEN_RUN_STATUS = ["queued", "running"] as const;
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
+  const { projectFor } = await import("../../outbound/project-boot.js");
+  const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
+  const deps: PrReadyCheckDeps = {
+    ...(await runSideDeps()),
+    ...prReads(projectOf),
+    hasCiHistory,
+  };
+  const summaries = [
+    await prReadyCheckSweep(deps),
+    ...(await floorSummary(deps, projectOf)),
+  ];
+
+  return summaries.join("; ");
+}
+
+/** The run reads and the report, bound to this process's queues. */
+async function runSideDeps(): Promise<
+  Pick<
+    PrReadyCheckDeps,
+    "listOpenLoopRuns" | "listStationRuns" | "countOpenReviewRuns" | "report"
+  >
+> {
   const { pipeline, eventProxy } = await import("../../outbound/queues.js");
   const { queuedReporter } =
     await import("@re-cinq/lore-shared/project/events/event-proxy.js");
-  const { projectFor } = await import("../../outbound/project-boot.js");
   const { reportToParkedNode } =
     await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
-  const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
 
-  return prReadyCheckSweep({
+  return {
     ...runReads(pipeline),
-    ...prReads(projectOf),
-    hasCiHistory,
     // Reported through the queue rather than inserted directly, and the sweep resolves whether or not delivery lands — a router blip must not cost the run its resume.
     report: (target, outcome, args) =>
       reportToParkedNode(queuedReporter(eventProxy()), target, {
         outcome,
         args,
       }),
-  });
+  };
+}
+
+/** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */
+async function floorSummary(
+  deps: PrReadyCheckDeps,
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
+): Promise<string[]> {
+  const floor = floorIfConfigured();
+
+  if (!floor) {
+    return [];
+  }
+
+  return [
+    await floorCiWaitSweep({
+      floor,
+      judge: (run) => ciReportForRun(run, deps),
+      judgePr: (run) => prReportForRun(run, deps),
+      prState: async (repo, prNumber) =>
+        (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
+    }),
+  ];
 }
 
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */

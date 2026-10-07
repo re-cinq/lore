@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { specPathOfPlan } from "./spec-plan-path.js";
+import { specPathOfPlan, specPathsOfPlan } from "./spec-plan-path.js";
 
 describe("specPathOfPlan", () => {
   it("names specs/checkout/spec.md, the first path a spec plan creates", () => {
@@ -23,5 +23,23 @@ describe("specPathOfPlan", () => {
 
   it("is undefined for a spec plan with neither creates nor updates", () => {
     expect(specPathOfPlan("{}")).toBeUndefined();
+  });
+});
+
+describe("specPathsOfPlan", () => {
+  it("lists every spec path the plan creates, then every one it updates, skipping entries with no path", () => {
+    const plan = {
+      creates: [{ path: "specs/checkout/spec.md" }, { title: "no path" }],
+      updates: [{ path: "specs/cart/spec.md" }],
+    };
+
+    expect(specPathsOfPlan(JSON.stringify(plan))).toEqual([
+      "specs/checkout/spec.md",
+      "specs/cart/spec.md",
+    ]);
+  });
+
+  it("is empty for a spec plan that is not JSON", () => {
+    expect(specPathsOfPlan("{oops")).toEqual([]);
   });
 });

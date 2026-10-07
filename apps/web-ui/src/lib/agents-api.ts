@@ -1,6 +1,9 @@
 import type { AgentDefinition } from "./agents-mirror";
 
 // Server-to-server client for the mcp-server agents API — image changes need the CODEOWNERS approval-PR header; admin token never reaches the browser.
+export const DEFAULT_EXECUTION_IMAGE =
+  "ghcr.io/re-cinq/lore-claude-runner:latest";
+
 export type AgentSaveResult =
   | { status: "ok"; agent: AgentDefinition }
   | { status: "two_key_required"; detail: string }
@@ -17,15 +20,6 @@ export async function listOrgAgents(): Promise<AgentDefinition[]> {
   return await fetchAgentList("/api/agent-definitions");
 }
 
-/** One cluster's verdict on one definition, from the sync loop's report. */
-export interface AgentApplyStatus {
-  name: string;
-  project_id: string | null;
-  cluster: string;
-  state: "applied" | "refused" | "skipped" | "deleted";
-  reason: string | null;
-}
-
 export interface AgentUsageRef {
   blueprint: string;
   node_id: string;
@@ -35,14 +29,11 @@ export interface AgentUsageRef {
 /** Where each catalog entry is dispatched from, keyed by name; null (not `{}`) when the endpoint is unreachable, so "unknown" never renders as "nothing references anything". */
 export interface AgentUsage {
   refs: Record<string, AgentUsageRef[]>;
-  /** Verdicts keyed by definition name — an empty list means no cluster has reported, not "applied everywhere". */
-  applied: Record<string, AgentApplyStatus[]>;
 }
 
 /** The usage endpoint's wire shape, before it is keyed by name. */
 interface AgentUsageBody {
   usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
-  applied?: AgentApplyStatus[];
 }
 
 export async function fetchAgentUsage(): Promise<AgentUsage | null> {
@@ -149,7 +140,6 @@ function buildAgentUsage(body: AgentUsageBody): AgentUsage {
     refs: Object.fromEntries(
       (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
     ),
-    applied: groupAppliedByName(body.applied ?? []),
   };
 }
 
@@ -192,18 +182,6 @@ async function deleteDefinition(
   }
 
   return res.ok ? deletedResult(name) : await readErrorBody(res);
-}
-
-function groupAppliedByName(
-  statuses: AgentApplyStatus[],
-): Record<string, AgentApplyStatus[]> {
-  const applied: Record<string, AgentApplyStatus[]> = {};
-
-  for (const status of statuses) {
-    (applied[status.name] ??= []).push(status);
-  }
-
-  return applied;
 }
 
 function cfg(): { apiUrl: string; token: string } | null {

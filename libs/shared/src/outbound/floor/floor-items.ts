@@ -10,7 +10,7 @@ export function floorRepoOf(repo: string): string {
 }
 
 export function loreRepoOf(floorRepo: string): string {
-  return floorRepo.replace(`${GITHUB_HOST}/`, "");
+  return floorRepo.replace(/^https:\/\//, "").replace(`${GITHUB_HOST}/`, "");
 }
 
 export function pullRequestUrl(repo: string, prNumber: number): string {
@@ -44,7 +44,7 @@ export interface GitRef {
   branch: string;
 }
 
-/** The inverse of `gitItem`, for a service station handed a git need's ref as `host/owner/name@branch`. Splits on the FIRST `@`: a host, owner or repository name can never hold one, while git lets a branch (`feature@v2`), so everything after the first is the branch. */
+/** The inverse of `gitItem`, for a service station handed a git need's ref as `host/owner/name@branch`, or as the floor's clone url `https://host/owner/name@branch` the station SDK builds from a dispatched brief. Splits on the FIRST `@`: a host, owner or repository name can never hold one, while git lets a branch (`feature@v2`), so everything after the first is the branch. */
 export function parseGitRef(ref: string): GitRef {
   const at = ref.indexOf("@");
 

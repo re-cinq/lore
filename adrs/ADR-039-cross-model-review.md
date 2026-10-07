@@ -13,6 +13,16 @@ This ADR proposes that the review node of every assembly line that reviews
 agent-authored code run on a different model family than the model that
 authored the change, to counter self-preference bias.
 
+> **Where the reviewer's model is set now (2026-10-02).** The code-review lines
+> moved to the external floor ([ADR-049](./ADR-049-external-floor.md)). The
+> reviewer's model is the `model` of the agent definition inside each floor
+> pipeline file (`libs/assembly-lines/src/floor-pipelines/code-review.yaml`,
+> `code-review-recheck.yaml`, `code-review-reply.yaml`), `gemini-3.1-pro-preview`
+> on all three, and no longer a `lore.agent_definitions` row. `task-types.yaml`
+> and `libs/assembly-lines/src/assembly-lines/code-review.yaml`, both named
+> below, are gone. The proposal is unchanged; where it says to pin the review
+> default, the place to pin it is those files.
+
 ## Context
 
 LLMs recognize and favor their own generations. When the same model family

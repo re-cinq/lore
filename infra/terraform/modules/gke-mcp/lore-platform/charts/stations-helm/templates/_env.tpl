@@ -60,6 +60,16 @@ Usage:
       key: {{ .Values.anthropicKeySecret.key }}
       optional: true
 {{- end }}
+{{- if .Values.slackBotTokenSecret }}
+# For the stations that post to Slack (escalation notify, the daily digest).
+# Optional: without it those stations report the missing token instead of posting.
+- name: LORE_SLACK_BOT_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.slackBotTokenSecret.name }}
+      key: {{ .Values.slackBotTokenSecret.key }}
+      optional: true
+{{- end }}
 {{- if .Values.anthropicAdminKeySecret }}
 # The Anthropic ORG admin key, for the anthropic-cost-sync station (#1348,
 # moved here from lore-api in #1522). Distinct from the API key above: it reads

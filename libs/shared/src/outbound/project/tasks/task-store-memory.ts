@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { PipelineTask } from "../../../domain/types.js";
 import { enforceDescriptionFits } from "../../../domain/task-description.js";
+import { namedTaskType } from "../../../domain/task-types/retired-task-types.js";
 import {
   enforceTrustAllowsTaskType,
   type CreateTaskInput,
@@ -16,11 +17,7 @@ import type {
   TaskListResult,
   FindOpenLikeInput,
   DriftTaskRow,
-  ReconcileSpecTasksInput,
-  ReconciledSpecTasks,
 } from "./task-store-port.js";
-import { reconcileSpecTasksIn } from "./spec-task-reconcile-store.js";
-import { MemorySpecTaskRows } from "./task-store-memory-spec-task-rows.js";
 import { TaskTransitionStore } from "./task-store-memory-transitions.js";
 import { TaskQueryStore } from "./task-store-memory-queries.js";
 
@@ -178,7 +175,7 @@ export class InMemoryTaskStore implements TaskStorePort {
 
   async create(input: CreateTaskInput): Promise<CreatedTask> {
     const fields: CreateFields = {
-      taskType: input.taskType ?? "general",
+      taskType: namedTaskType(input.taskType),
       repo: input.targetRepo,
       createdBy: input.createdBy ?? "ui",
       priority: input.priority === "immediate" ? "immediate" : "normal",
@@ -197,19 +194,6 @@ export class InMemoryTaskStore implements TaskStorePort {
     });
 
     return createdFrom(fields, task.id);
-  }
-
-  reconcileSpecTasks(
-    repo: string,
-    input: ReconcileSpecTasksInput,
-  ): Promise<ReconciledSpecTasks> {
-    const rows = new MemorySpecTaskRows(
-      this.tasks,
-      (task) => this.create(task),
-      this.now,
-    );
-
-    return reconcileSpecTasksIn(rows, repo, input);
   }
 
   async retry(id: string): Promise<RetriedTask> {

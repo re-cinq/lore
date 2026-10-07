@@ -17,7 +17,7 @@ export const OPEN_TASK_STATES = [
   "retried",
 ] as const;
 
-// Task records port; backed by pipeline.tasks (cluster) or ~/.lore/local-tasks.json (local), same surface. Record side only — execution lives behind AgentRunnerPort; pg SQL single-sourced in shared/src/pipeline-tasks.ts.
+// Task records port; backed by pipeline.tasks (cluster) or ~/.lore/local-tasks.json (local), same surface. Record side only; pg SQL single-sourced in shared/src/pipeline-tasks.ts.
 
 export type TaskAction = "claim" | "cancel" | "retry";
 
@@ -65,19 +65,6 @@ export interface TaskListResult {
   total: number;
 }
 
-/** A plan's spec-tasks as the issues station files them: one per task issue, matched against the plan's existing spec-tasks (by its plan, or the run that filed them) rather than added beside them. */
-export interface ReconcileSpecTasksInput {
-  planId?: string;
-  groupId?: string;
-  tasks: (CreateTaskInput & { issueNumber: number })[];
-}
-
-export interface ReconciledSpecTasks {
-  created: number;
-  updated: number;
-  cancelled: number;
-}
-
 export interface TaskStorePort {
   // repo-scoped reads
   pending(repo: string): Promise<PipelineTask[]>;
@@ -97,11 +84,6 @@ export interface TaskStorePort {
   ): Promise<DriftTaskRow[]>;
   // writes
   create(input: CreateTaskInput): Promise<CreatedTask>;
-  /** Files a plan's spec-tasks idempotently: reuses the one already on each task, cancels the ones the plan dropped. */
-  reconcileSpecTasks(
-    repo: string,
-    input: ReconcileSpecTasksInput,
-  ): Promise<ReconciledSpecTasks>;
   retry(id: string): Promise<RetriedTask>;
   setStatus(
     id: string,

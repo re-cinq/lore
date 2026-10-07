@@ -153,36 +153,21 @@ describe("lore_list_pending_tasks API path", () => {
 });
 
 describe("zod schema bounds", () => {
-  it("rejects a task description over 32000 chars", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "a".repeat(32001) });
-
-    expect(result.success).toBe(false);
+  it("registers no lore_create_pipeline_task tool, since the API creates no typed task", () => {
+    expect(Object.keys(schemas)).not.toContain("lore_create_pipeline_task");
   });
 
-  it("rejects an empty task description", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "" });
+  it("registers no spec-task tool, since a plan's tasks are implemented from the backlog", () => {
+    const gone = [
+      "lore_sync_tasks",
+      "lore_ready_tasks",
+      "lore_claim_task",
+      "lore_complete_task",
+    ];
 
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a whitespace-only task description", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "   " });
-
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts an in-range task description", () => {
-    const result = z
-      .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "wire the widget" });
-
-    expect(result.success).toBe(true);
+    expect(Object.keys(schemas).filter((name) => gone.includes(name))).toEqual(
+      [],
+    );
   });
 
   it("rejects max_tokens below the 2000 floor", () => {
@@ -256,82 +241,6 @@ describe("lore_get_pipeline_status proxy error-code selection", () => {
     expect(result.content[0].text).toContain(
       "unreachable for getting pipeline status",
     );
-  });
-});
-
-describe("lore_create_pipeline_task onboard refusal", () => {
-  it("refuses task_type onboard and names lore_onboard_repo instead", async () => {
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "onboard our new service",
-      task_type: "onboard",
-    });
-
-    expect(result.content[0].text).toContain("lore_onboard_repo");
-  });
-});
-
-describe("lore_create_pipeline_task API path", () => {
-  beforeEach(() => {
-    fetchMock.mockReset();
-    vi.stubGlobal("fetch", fetchMock);
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-  });
-
-  it("returns the not-configured message when the env is unset", async () => {
-    vi.stubEnv("LORE_API_URL", "");
-    vi.stubEnv("LORE_INGEST_TOKEN", "");
-
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "wire the widget",
-      task_type: "general",
-      target_repo: "re-cinq/lore",
-      priority: "normal",
-    });
-
-    expect(result.content[0].text).toContain("not configured");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("reports the immediate pickup hint on success", async () => {
-    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
-    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ task_id: "t1", task_type: "general" }),
-    });
-
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "wire the widget",
-      task_type: "general",
-      target_repo: "re-cinq/lore",
-      priority: "immediate",
-    });
-
-    expect(result.content[0].text).toContain(
-      "The GKE agent will pick this up within 30 seconds.",
-    );
-  });
-
-  it("reports a denied error on a 401", async () => {
-    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
-    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-    });
-
-    const result = await handlers["lore_create_pipeline_task"]({
-      description: "wire the widget",
-      task_type: "general",
-      target_repo: "re-cinq/lore",
-      priority: "normal",
-    });
-
-    expect(result.content[0].text).toContain("denied access");
   });
 });
 
@@ -459,119 +368,6 @@ describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helper
     expect(result.content[0].text).toBe("No tasks found for group g1");
   });
 
-  it("lore_sync_tasks posts the raw markdown and summarizes the counts", async () => {
-    jsonOk({ parsed: 3, synced: 3, created: 2 });
-
-    const result = await handlers["lore_sync_tasks"]({
-      tasks_markdown: "- [ ] T001 Wire it",
-      repo: "o/r",
-      spec_slug: "widgets",
-    });
-
-    expect(callOf()).toMatchObject({
-      url: "https://lore-api.example.com/api/spec-tasks/sync",
-      body: {
-        repo: "o/r",
-        spec_slug: "widgets",
-        tasks_markdown: "- [ ] T001 Wire it",
-      },
-    });
-    expect(result.content[0].text).toBe(
-      "Synced 3 tasks (2 new) for o/r / widgets.",
-    );
-  });
-
-  it("lore_sync_tasks reports markdown with no tasks", async () => {
-    jsonOk({ parsed: 0, synced: 0, created: 0 });
-
-    const result = await handlers["lore_sync_tasks"]({
-      tasks_markdown: "# nothing",
-      repo: "o/r",
-      spec_slug: "widgets",
-    });
-
-    expect(result.content[0].text).toBe(
-      "No tasks found in the provided markdown.",
-    );
-  });
-
-  it("lore_ready_tasks renders one bullet per ready task", async () => {
-    jsonOk({
-      tasks: [
-        {
-          id: "t1",
-          description: "wire the widget",
-          context_bundle: { spec_task_id: "T001" },
-        },
-      ],
-    });
-
-    const result = await handlers["lore_ready_tasks"]({ repo: "o/r" });
-
-    expect(callOf().url).toBe(
-      "https://lore-api.example.com/api/spec-tasks/ready?repo=o%2Fr",
-    );
-    expect(result.content[0].text).toBe(
-      "## Ready tasks\n\n- **T001** (t1): wire the widget",
-    );
-  });
-
-  it("lore_ready_tasks reports an empty ready set", async () => {
-    jsonOk({ tasks: [] });
-
-    const result = await handlers["lore_ready_tasks"]({ repo: "o/r" });
-
-    expect(result.content[0].text).toBe(
-      "No ready tasks. All tasks are either completed, claimed, or blocked by dependencies.",
-    );
-  });
-
-  it("lore_claim_task posts the resolved agent id and confirms the claim", async () => {
-    jsonOk({ claimed: true, task_id: "t1", agent_id: "agent-7" });
-
-    const result = await handlers["lore_claim_task"]({ task_id: "t1" });
-
-    expect(callOf()).toMatchObject({
-      url: "https://lore-api.example.com/api/spec-tasks/claim",
-      body: { task_id: "t1", agent_id: "agent-7" },
-    });
-    expect(result.content[0].text).toBe("Task t1 claimed by agent-7.");
-  });
-
-  it("lore_claim_task reports a task that could not be claimed", async () => {
-    jsonOk({ claimed: false, task_id: "t1", agent_id: "agent-7" });
-
-    const result = await handlers["lore_claim_task"]({ task_id: "t1" });
-
-    expect(result.content[0].text).toBe(
-      "Could not claim task t1. It may already be claimed or does not exist.",
-    );
-  });
-
-  it("lore_complete_task lists the newly unblocked dependents", async () => {
-    jsonOk({ completed: true, unblocked: ["T002", "T003"] });
-
-    const result = await handlers["lore_complete_task"]({ task_id: "t1" });
-
-    expect(callOf()).toMatchObject({
-      url: "https://lore-api.example.com/api/spec-tasks/complete",
-      body: { task_id: "t1" },
-    });
-    expect(result.content[0].text).toBe(
-      "Task t1 completed.\n\nNewly unblocked tasks:\n- T002\n- T003",
-    );
-  });
-
-  it("lore_complete_task reports a task that was not running", async () => {
-    jsonOk({ completed: false, unblocked: [] });
-
-    const result = await handlers["lore_complete_task"]({ task_id: "t1" });
-
-    expect(result.content[0].text).toBe(
-      "Could not complete task t1. It may not be in 'running' state.",
-    );
-  });
-
   it("every proxied pipeline tool reports a missing API configuration", async () => {
     vi.stubEnv("LORE_API_URL", "");
     vi.stubEnv("LORE_INGEST_TOKEN", "");
@@ -580,14 +376,6 @@ describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helper
       handlers["lore_cancel_task"]({ task_id: "t1" }),
       handlers["lore_retry_task"]({ task_id: "t1" }),
       handlers["lore_list_task_group"]({ group_id: "g1" }),
-      handlers["lore_ready_tasks"]({ repo: "o/r" }),
-      handlers["lore_claim_task"]({ task_id: "t1" }),
-      handlers["lore_complete_task"]({ task_id: "t1" }),
-      handlers["lore_sync_tasks"]({
-        tasks_markdown: "- [ ] T001 x",
-        repo: "o/r",
-        spec_slug: "s",
-      }),
     ]);
 
     expect(results.map((r) => r.content[0].text)).toSatisfy((texts: string[]) =>

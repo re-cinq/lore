@@ -19,7 +19,8 @@ import RunIssueCard from "./RunIssueCard";
 import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
-import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
+import { waitingOnPerson } from "@/lib/human-station";
+import LlmCallsTable from "./LlmCallsTable";
 
 export interface RunLiveShellProps {
   run: AssemblyRun;
@@ -31,6 +32,7 @@ export interface RunLiveShellProps {
   nodeModels?: Record<string, NodeModel>;
   /** The issue the run works on, read server-side; null when the run names none or GitHub could not answer. */
   issue?: Issue | null;
+  upgradeAvailable?: boolean;
 }
 
 export default function RunLiveShell(props: RunLiveShellProps) {
@@ -41,10 +43,10 @@ export default function RunLiveShell(props: RunLiveShellProps) {
 
   return (
     <>
-      <AssemblyRunView run={run} />
+      <RunHeader run={run} definition={props.definition} nodes={live.nodes} />
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
-      <AssemblyRunOptions run={run} />
+      <AssemblyRunOptions run={run} upgradeAvailable={props.upgradeAvailable} />
       <LiveSections
         props={props}
         run={run}
@@ -52,6 +54,20 @@ export default function RunLiveShell(props: RunLiveShellProps) {
         applyFrame={applyFrame}
       />
     </>
+  );
+}
+
+/** The run's header, reading whose move it is while only people hold the open run. */
+function RunHeader(props: {
+  run: AssemblyRun;
+  definition: RunLiveShellProps["definition"];
+  nodes: readonly AssemblyRunNode[];
+}) {
+  return (
+    <AssemblyRunView
+      run={props.run}
+      waitingOn={waitingOnPerson(props.definition, props.nodes)}
+    />
   );
 }
 
@@ -93,6 +109,7 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
     nodes: live.nodes,
     repo: run.repo,
     reason: run.reason,
+    runOutcome: run.outcome,
     prNumber: run.prNumber,
     engine: run.engine,
     agentEditHrefs: props.agentEditHrefs,

@@ -10,8 +10,10 @@ line:
       line_id: "{lineId}"
       outcome: "{outcome}"
   args:
+    # One run per settled run: the floor may report a settlement more than once.
     run_id:
       kind: value
+      subject: true
     line_id:
       kind: value
     outcome:

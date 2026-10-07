@@ -1,16 +1,16 @@
-.dfCard {
+.activityCard {
   margin-bottom: var(--space-5);
   padding: var(--space-5);
 }
 
-.dfHead {
+.activityHead {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   margin-bottom: var(--space-3);
 }
 
-.dfTitle {
+.activityTitle {
   margin: 0;
 }
 
@@ -39,12 +39,4 @@
 
 .eventsTitle {
   margin: 0;
-}
-
-.success {
-  color: var(--success);
-}
-
-.danger {
-  color: var(--danger);
 }

@@ -329,16 +329,16 @@ export default tseslint.config(
           selector:
             "JSXOpeningElement[name.name='button']:has(JSXAttribute[name.name='type'] > Literal[value='submit']):not(:has(JSXAttribute[name.name='disabled']))",
           message:
-            "A submit button needs pending/disabled feedback so a double-click can't double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type=\"submit\">.",
+            'A submit button needs pending/disabled feedback so a double-click can\'t double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type="submit">.',
         },
       ],
     },
   },
 
-  // The Floor reaches infrastructure through the shared port adapters bound
-  // in kernel/, never the vendor SDK directly.
+  // The stations service reaches infrastructure through the shared port
+  // adapters, never the vendor SDK directly.
   {
-    files: ["apps/floor/src/**/*.ts"],
+    files: ["apps/stations/src/**/*.ts"],
     rules: {
       "re-lint/no-forbidden-imports": [
         "error",
@@ -347,32 +347,10 @@ export default tseslint.config(
             {
               specifier: "@google-cloud/storage",
               message:
-                "The Floor reaches infrastructure through @re-cinq/lore-shared port adapters bound in kernel/, not @google-cloud/storage directly.",
+                "The stations service reaches infrastructure through @re-cinq/lore-shared port adapters, not @google-cloud/storage directly.",
             },
           ],
         },
-      ],
-    },
-  },
-
-  // An in-memory double restates the table it stands in for; that is its job.
-  // A contract's parameters name their shape: an inline `opts: { limit: number }`
-  // gets restated by every caller instead of imported. Scoped to cluster-agent,
-  // where it started; the rest of the repo still carries ~290 of them.
-  {
-    files: ["apps/cluster-agent/src/**/*.ts"],
-    ignores: ["**/*.test.ts"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...[
-          "TSMethodSignature > :matches(Identifier, ObjectPattern) > TSTypeAnnotation > TSTypeLiteral",
-          "ExportNamedDeclaration > FunctionDeclaration > :matches(Identifier, ObjectPattern) > TSTypeAnnotation > TSTypeLiteral",
-        ].map((selector) => ({
-          selector,
-          message:
-            "Type this parameter with a named, exported type instead of an inline object literal, so callers share one declaration.",
-        })),
       ],
     },
   },
@@ -408,7 +386,6 @@ export default tseslint.config(
             // than token similarity, so reporting them here only buries the
             // duplication that is nobody's decision.
             "apps/web-ui/src/lib/agents-mirror.ts",
-            "apps/web-ui/src/lib/dark-factory-resolve.ts",
             "apps/web-ui/src/lib/github.ts",
             "apps/web-ui/src/lib/ingest-workflow.ts",
             "apps/web-ui/src/lib/octokit-retry-policy.ts",
@@ -426,11 +403,11 @@ export default tseslint.config(
   },
 
   // An HTTP refusal is a precondition, so it goes through the same bouncer as
-  // every other guard. Scoped to the two hapi servers — the rule rewrites to
-  // `apiError`, and each server owns its own copy of that helper (shared cannot
+  // every other guard. Scoped to the hapi server — the rule rewrites to
+  // `apiError`, and the server owns its own copy of that helper (shared cannot
   // hold it without dragging @hapi/boom into the lean MCP adapter, ADR-032).
   {
-    files: ["apps/lore-api/src/**/*.ts", "apps/floor/src/**/*.ts"],
+    files: ["apps/lore-api/src/**/*.ts"],
     rules: {
       "re-lint/prefer-api-error": [
         "error",
@@ -438,7 +415,6 @@ export default tseslint.config(
           enforceModule: ENFORCE_MODULE,
           errorModules: [
             { root: "apps/lore-api/src", path: "server/api-error.js" },
-            { root: "apps/floor/src", path: "delivery/http/api-error.js" },
           ],
         },
       ],
@@ -521,6 +497,11 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-hooks/set-state-in-effect": "error",
       "re-lint/no-sql-in-web-ui": "error",
+      // Warns while the five buttons it finds are undrained: a second click on a
+      // button whose request is still in flight starts that request again, and
+      // nothing on screen says the first one is running. Promote to error once
+      // those five own their pending state.
+      "re-lint/no-unguarded-async-button": "warn",
     },
   },
 
@@ -611,15 +592,37 @@ export default tseslint.config(
   // cannot outrun what the tests actually validate — a mismatch errors. Scoped to
   // spec.md + ADR bodies — not the exploratory plan.md/tasks.md/research.md
   // siblings. First markdown-language block in the repo.
+  // `no-ungrounded-spec-name` warns, not errors: every code path in a spec is
+  // written as inline code so `no-dead-md-links` cannot see it, which is how a
+  // spec came to name three files deleted two days earlier (#2550). The corpus
+  // predates the rule, so its findings are a queue to drain, not a gate yet.
+  // The canary spec is covered too; `tools/eslint-canaries/**` is ignored
+  // repo-wide and reached only by scripts/check-eslint-canaries.sh --no-ignore.
   {
-    files: ["specs/**/spec.md", "adrs/**/*.md"],
+    files: [
+      "specs/**/spec.md",
+      "adrs/**/*.md",
+      "tools/eslint-canaries/**/spec.md",
+    ],
     language: "markdown/gfm",
     plugins: { markdown, "re-lint": reLint },
     rules: {
       "re-lint/require-statement-links": "warn",
       "re-lint/require-intro-paragraph": "error",
       "re-lint/require-status-matches-coverage": "error",
+      "re-lint/no-ungrounded-spec-name": "warn",
     },
+  },
+  // A `([validated by](test.ts#Lnn))` anchor drifts when a branch moves the test it
+  // cites. `eslint --fix` — so `npm run format`, and the CI `format` job that
+  // commits its result — repoints the links the branch's diff against the merge
+  // base with main moved; a plain `eslint` fails a branch that left one stale.
+  // Wider than the block above: tasks.md and plan siblings carry links too.
+  {
+    files: ["specs/**/*.md", "adrs/**/*.md", ".specify/spec.md"],
+    language: "markdown/gfm",
+    plugins: { markdown, "re-lint": reLint },
+    rules: { "re-lint/no-stale-spec-links": "error" },
   },
   // Every markdown link to a repo file, wherever docs live. `require-spec-link`
   // resolves the validated-by form from the TEST's side — whether each test is

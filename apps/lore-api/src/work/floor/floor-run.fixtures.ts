@@ -67,6 +67,14 @@ export const ASSISTANT_TURN: StationRunRecordView = {
   occurredAt: "2026-09-30T10:05:00.000Z",
 };
 
+export const INIT_LOG: StationRunRecordView = {
+  visitId: "visit-1",
+  kind: "log",
+  seq: 1,
+  body: { kind: "lifecycle", tool: "git", phase: "init", status: "running" },
+  occurredAt: "2026-09-30T10:01:00.000Z",
+};
+
 export function turnFrame(seq: number): Extract<LiveFrame, { type: "record" }> {
   return {
     type: "record",
@@ -108,9 +116,27 @@ const ANSWERS: Record<string, unknown> = {
     items: [ASSISTANT_TURN],
     nextCursor: null,
   },
+  "/station-runs/visit-1": FLOOR_VISIT,
+  "/station-runs/visit-1/records?kind=log&since=0&limit=1000": {
+    items: [INIT_LOG],
+    nextCursor: null,
+  },
 };
 
 /** The floor holding the one run above; any other path answers 404. */
 export function floorWithOneRun(request: FloorRequest): unknown {
   return ANSWERS[request.path];
+}
+
+/** The floor with one run on a page that has a next one, and that run's cost. */
+export function floorWithRunPage(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  if (url.pathname === "/costs") {
+    return { items: [{ key: "run-1", costUsd: 0.42 }] };
+  }
+
+  return url.pathname === "/assembly-runs"
+    ? { items: [FLOOR_RUN], nextCursor: "cursor-2" }
+    : floorWithOneRun(request);
 }

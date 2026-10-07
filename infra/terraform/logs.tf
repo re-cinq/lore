@@ -73,8 +73,13 @@ resource "google_service_account_iam_member" "ui_wi" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-ui/lore-ui]"
 }
 
-# --- Floor GCP SA: batch jobs (ingest) + on-demand task work ---
+# --- The old Floor's GCP SA ---
 #
+# Lore's own Floor is deleted (2026-10-02), and with it the Workload Identity
+# binding that let its KSA act as this SA. The SA and its two grants stay until
+# someone decides what happens to the task-log bucket: nothing can use them.
+#
+# What it was:
 # The Floor Deployment and the K8s CronJob batch pods run as KSA
 # `lore-floor` in the `lore-floor` namespace (created by the Floor Helm
 # chart) and impersonate this GCP SA via Workload Identity. Replaces the
@@ -115,10 +120,3 @@ resource "google_project_iam_member" "lore_agent_logging_viewer" {
 # --retention-days=N`) — it needs logging.admin, which the terraform deployer
 # identity intentionally lacks. The fallback works on the 30-day default; only
 # the read grant above is required.
-
-# Workload Identity: the helm-managed KSA lore-floor/lore-floor impersonates this SA.
-resource "google_service_account_iam_member" "lore_agent_wi" {
-  service_account_id = google_service_account.lore_agent.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-floor/lore-floor]"
-}

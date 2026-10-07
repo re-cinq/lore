@@ -6,18 +6,12 @@ import {
   settings,
   memoryLifecycle,
 } from "../../outbound/queues.js";
-import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { startMergeLine } from "./start-merge-line.js";
-import {} from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
+import { floorMergeLinePorts } from "./floor-merge-line.js";
+import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { nextTrust, type TrustState } from "../lib/trust-ladder.js";
-import {
-  parseTasks,
-  inferPhaseDependencies,
-  syncTasksToDb,
-  specSlugFromBranch,
-} from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import type { PendingOnboardingRepo } from "@re-cinq/lore-shared/project/settings/settings-port.js";
 
@@ -28,53 +22,6 @@ export {
   describeFlipMiss,
   maybeFlipSpecStatus,
 } from "./spec-status-flip.js";
-
-/** Fallback: sync spec-tasks when feature-request PR merges but webhook missed. */
-export async function syncSpecTasksFromMerge(task: {
-  id: string;
-  target_repo: string;
-  target_branch: string | null;
-}): Promise<void> {
-  const specSlug = specSlugFromBranch(task.target_branch || "");
-
-  if (!specSlug) {
-    return;
-  }
-
-  // Idempotency: check if spec-tasks already synced (by webhook or previous run)
-  if (
-    await pipeline().taskQueue.hasSpecTasksForSlug(task.target_repo, specSlug)
-  ) {
-    console.log(`[job] merge-check: spec-tasks already synced for ${specSlug}`);
-
-    return;
-  }
-
-  await syncSpecTasks(task.target_repo, specSlug);
-}
-
-/** Reads the merged tasks.md and files its spec-tasks as one group. The read is off the default branch, not the PR's: the PR is merged by the time this runs, so main is where the file now lives. */
-async function syncSpecTasks(repo: string, specSlug: string): Promise<void> {
-  const tasksPath = `specs/${specSlug}/tasks.md`;
-  const content = await projectFor(repo).then((p) => p.repo.read(tasksPath));
-
-  if (!content) {
-    console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
-
-    return;
-  }
-  const withDeps = inferPhaseDependencies(parseTasks(content));
-  const taskGroupId = crypto.randomUUID();
-  const { created } = await syncTasksToDb(
-    getPool(),
-    { repo, specSlug, taskGroupId },
-    withDeps,
-  );
-
-  console.log(
-    `[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`,
-  );
-}
 
 type OnboardingOutcome = "merged" | "closed" | "invalid" | "unchanged";
 
@@ -211,7 +158,8 @@ async function checkMergeableTask(
   const project = await projectFor(task.target_repo);
 
   if (await project.pulls.isMerged(task.pr_number)) {
-    await startMergeLine(task, mergeLinePorts());
+    // The merge line runs on the external floor; a deployment with none fails this task's check loudly instead of queueing a run nothing walks.
+    await startMergeLine(task, floorMergeLinePorts(floorClient()));
     console.log(
       `[job] merge-check: task ${task.id} PR #${task.pr_number} merged`,
     );
@@ -230,17 +178,6 @@ async function checkMergeableTask(
   }
 
   return "unchanged";
-}
-
-// The run store, as the merge line reads it. Thunks, not values: the pool does not exist when this module is loaded. The LINE does the work from here — its nine steps expose failures that route forward, which a single call could not.
-function mergeLinePorts(): Parameters<typeof startMergeLine>[1] {
-  return {
-    findOpenBySubject: (repo, key) =>
-      pipeline().assemblyRuns.findOpenBySubject(repo, key),
-    countBySubject: (repo, key) =>
-      pipeline().assemblyRuns.countBySubject(repo, key),
-    start: (input) => pipeline().assemblyRuns.start(input),
-  };
 }
 
 /** A merged task: mark merged, close Issue, boost memory, promote trust. */
