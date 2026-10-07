@@ -16,7 +16,6 @@ export interface MergeStepDeps {
   task(taskId: string): Promise<MergeStepTask | null>;
   setStatus(taskId: string, status: string): Promise<void>;
   recordEvent(taskId: string, from: string, to: string): Promise<void>;
-  flipSpecStatus(task: MergeStepTask): Promise<void>;
   commentAndCloseIssue(task: MergeStepTask): Promise<void>;
   recordOutcome(task: MergeStepTask): Promise<void>;
   curate(task: MergeStepTask): Promise<void>;
@@ -28,7 +27,6 @@ export interface MergeStepDeps {
 /** The steps, in the order the blueprint walks them. */
 export const MERGE_STEPS = [
   "settle",
-  "spec-status",
   "close-issue",
   "outcome-stats",
   "curate",
@@ -50,7 +48,6 @@ const STEPS: Record<
     await deps.setStatus(task.id, "merged");
     await deps.recordEvent(task.id, "pr-created", "merged");
   },
-  "spec-status": (task, deps) => deps.flipSpecStatus(task),
   "close-issue": async (task, deps) => {
     if (task.issue_number === null) {
       return;

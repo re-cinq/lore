@@ -3,7 +3,6 @@ import type { PipelineTask } from "@re-cinq/lore-shared";
 import {
   hasMergeStepFields,
   toMergeStepTask,
-  toFlipSpecStatusTask,
 } from "./run.js";
 
 const row = (over: Partial<PipelineTask> = {}): PipelineTask => ({
@@ -56,65 +55,5 @@ describe("toMergeStepTask", () => {
       toMergeStepTask(row() as PipelineTask & { pr_number: number })
         .issue_number,
     ).toBeNull();
-  });
-});
-
-describe("toFlipSpecStatusTask", () => {
-  it("passes through a row's optional fields when they are set", () => {
-    const now = "2026-09-04T00:00:00.000Z";
-
-    expect(
-      toFlipSpecStatusTask(
-        row({
-          target_branch: "spec/x",
-          pr_url: "https://example.test/pr/7",
-          task_group_id: "g1",
-          context_bundle: { feature_id: "f1" },
-          created_at: "2026-08-01T00:00:00.000Z",
-        }),
-        now,
-      ),
-    ).toMatchObject({
-      target_branch: "spec/x",
-      pr_url: "https://example.test/pr/7",
-      task_group_id: "g1",
-      context_bundle: { feature_id: "f1" },
-      created_at: "2026-08-01T00:00:00.000Z",
-    });
-  });
-
-  it("normalises undefined optional fields to null and defaults created_at to now", () => {
-    const now = "2026-09-04T00:00:00.000Z";
-
-    expect(
-      toFlipSpecStatusTask(
-        row({
-          target_branch: undefined,
-          pr_url: undefined,
-          task_group_id: undefined,
-          context_bundle: undefined,
-          created_at: undefined as unknown as string,
-        }),
-        now,
-      ),
-    ).toMatchObject({
-      target_branch: null,
-      pr_url: null,
-      task_group_id: null,
-      context_bundle: null,
-      created_at: now,
-    });
-  });
-
-  it("falls back to an all-null shape when there is no row", () => {
-    const now = "2026-09-04T00:00:00.000Z";
-
-    expect(toFlipSpecStatusTask(null, now)).toMatchObject({
-      target_branch: null,
-      pr_url: null,
-      task_group_id: null,
-      context_bundle: null,
-      created_at: now,
-    });
   });
 });
