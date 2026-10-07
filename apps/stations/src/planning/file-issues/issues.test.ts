@@ -462,4 +462,61 @@ describe("runIssuesStation with a spec too long for one issue body", () => {
       listed: storyCoverageOf(story, storyComments, "p1").length,
     }).toEqual({ fits: true, listed: 399 });
   });
+
+  it("empties the 3 filed comments and files none when a rerun lists just FR2 in the body", async () => {
+    const fake = await filedLongSpec();
+    const story = fake.bodies.get(101) ?? "";
+    const rerun = fakeProject(
+      LABELS,
+      [{ number: 101, state: "open", body: story }],
+      { "specs/live/spec.md": SPEC },
+    );
+
+    rerun.comments.push(...fake.comments);
+    await runIssuesStation(
+      input({
+        feature_decomposition: CITING_DECOMPOSITION,
+        spec_path: "specs/live/",
+        plan_id: "p1",
+      }),
+      { project: rerun.project },
+    );
+
+    expect({
+      commentWrites: rerun.steps.filter((step) => step.includes("comment")),
+      listed: storyCoverageOf(
+        rerun.bodies.get(101) ?? "",
+        rerun.comments.map((comment) => comment.body),
+        "p1",
+      ),
+    }).toEqual({
+      commentWrites: ["edit comment 1", "edit comment 2", "edit comment 3"],
+      listed: [
+        "- line 8: FR2 — The graph renders each node event. — https://github.com/re-cinq/lore/blob/abc123/specs/live/spec.md#L8",
+      ],
+    });
+  });
+});
+
+describe("runIssuesStation rerun with coverage comments", () => {
+  it("writes no comment when a rerun finds the 3 coverage comments already right", async () => {
+    const fake = await filedLongSpec();
+    const rerun = fakeProject(
+      LABELS,
+      [{ number: 101, state: "open", body: fake.bodies.get(101) ?? "" }],
+      { "specs/live/spec.md": LONG_SPEC },
+    );
+
+    rerun.comments.push(...fake.comments);
+    await runIssuesStation(
+      input({
+        feature_decomposition: CITING_DECOMPOSITION,
+        spec_path: "specs/live/",
+        plan_id: "p1",
+      }),
+      { project: rerun.project },
+    );
+
+    expect(rerun.steps.filter((step) => step.includes("comment"))).toEqual([]);
+  });
 });
