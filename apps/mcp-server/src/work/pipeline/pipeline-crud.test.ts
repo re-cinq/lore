@@ -158,7 +158,6 @@ describe("retryTask", () => {
           },
         ],
       })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
     await expect(retryTask(pool, TASK_ID)).rejects.toThrow(
       new Error(
