@@ -13,10 +13,10 @@ const INTENT = {
   uses: {},
 };
 
-const ENDED =
-  "The planning line has ended, so no agent is waiting to refine this plan; edit the section by hand.";
+const SETTLED =
+  "The plan is approved, so its sections are settled; reopen the plan to write again.";
 
-const refused: PlanActions["refine"] = async () => ({ error: ENDED });
+const refused: PlanActions["refine"] = async () => ({ error: SETTLED });
 
 const askIgnoringRefusal = (ask: (request: typeof INTENT) => Promise<void>) =>
   act(async () => {
@@ -29,17 +29,17 @@ describe("useRefineAsk", () => {
 
     await act(async () => {
       await expect(result.current.ask(INTENT)).rejects.toThrow(
-        new Error(ENDED),
+        new Error(SETTLED),
       );
     });
 
-    expect(result.current.refusal).toBe(ENDED);
+    expect(result.current.refusal).toBe(SETTLED);
   });
 
   it("clears the reason once a later Refine of the intent section is accepted", async () => {
     const refine = vi
       .fn<PlanActions["refine"]>()
-      .mockResolvedValueOnce({ error: ENDED })
+      .mockResolvedValueOnce({ error: SETTLED })
       .mockResolvedValueOnce({});
     const { result } = renderHook(() => useRefineAsk(refine, "writing"));
 
@@ -51,7 +51,7 @@ describe("useRefineAsk", () => {
     });
 
     expect({ shown, after: result.current.refusal }).toEqual({
-      shown: ENDED,
+      shown: SETTLED,
       after: null,
     });
   });
@@ -68,7 +68,7 @@ describe("useRefineAsk", () => {
     rerender({ state: "refining" });
 
     expect({ shown, after: result.current.refusal }).toEqual({
-      shown: ENDED,
+      shown: SETTLED,
       after: null,
     });
   });

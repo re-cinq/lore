@@ -35,7 +35,11 @@ import {
   type PlanRef,
   type SpecPrState,
 } from "./planning-line.js";
-import { AGENT_STILL_WORKING, refineRefusal } from "./refine-refusal.js";
+import {
+  AGENT_STILL_WORKING,
+  agentHasThePlan,
+  approvedRefineRefusal,
+} from "./refine-refusal.js";
 import { askNode } from "../floor/run-node-by-hand.js";
 import type { RefineAsk } from "./refine-asks.js";
 import { type SpecReviewReads } from "./spec-rework.js";
@@ -103,7 +107,7 @@ export async function startFloorDrafting(
   return startPlanRun(deps, line, { plan, planMd, brief, storyIssue });
 }
 
-/** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while an `analyze` visit is already open, since two agents would edit the same blocks. */
+/** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while a drafting pass still holds the plan — `analyze`, the `plan-pass-end` that settles it, or the validation and findings someone asked for — since two agents would edit the same blocks. */
 export async function askFloorRefine(
   deps: FloorPlanDeps,
   { plan, planMarkdown, brief, refine, actor }: FloorRefineInput,
@@ -113,9 +117,9 @@ export async function askFloorRefine(
   enforceTrue(
     plan.status !== "approved",
     apiError(409),
-    refineRefusal(plan, line),
+    approvedRefineRefusal(line),
   );
-  enforceTrue(line?.open !== ANALYZE_NODE, apiError(409), AGENT_STILL_WORKING);
+  enforceTrue(!agentHasThePlan(line), apiError(409), AGENT_STILL_WORKING);
 
   await deps.recordRefineAsk(askOf(plan, refine, brief));
   await (line
@@ -166,9 +170,11 @@ export async function approveFloorPlan(
 
   if (line?.parkedAuthor) {
     await reportApproved(deps, line.parkedAuthor, briefed);
-  } else {
-    await startSpecPass(deps, line, briefed);
+
+    return decision;
   }
+
+  await startSpecPass(deps, line, briefed);
 
   return decision;
 }

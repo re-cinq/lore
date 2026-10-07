@@ -62,7 +62,6 @@ const ON_MERGED = [
   planVisit("merged", null),
 ];
 
-// The line that merged a spec PR and ended: what a reopened plan's next approval amends.
 const MERGED_SPEC_PR = [
   planVisit("open-spec-pr", {
     outcome: "success",
@@ -70,7 +69,6 @@ const MERGED_SPEC_PR = [
   }),
   planVisit("merged", SUCCESS),
 ];
-// Reopened while its spec PR was still open: `merged` took the changes_requested and the line waits on its author.
 const REOPENED_WITH_OPEN_PR = [
   planVisit("open-spec-pr", {
     outcome: "success",
@@ -114,7 +112,8 @@ function scene(
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
     baseBranch: () => Promise.resolve("main"),
     specPrState: async (_repo, prNumber) => (
-      specPrsRead.push(prNumber), given.specPrState ?? null
+      specPrsRead.push(prNumber),
+      given.specPrState ?? null
     ),
     pulls: given.pulls ?? REVIEWED,
     recordRefineAsk: async (ask) => {
@@ -366,7 +365,7 @@ describe("askFloorRefine", () => {
     });
   });
 
-  it("starts the station in every state but an approved plan and an open analyze visit, on draft plan p1", async () => {
+  it("starts the station in every state but an approved plan and a drafting pass still holding it, on draft plan p1", async () => {
     const scenes = {
       noRun: NO_RUN,
       specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
@@ -375,9 +374,12 @@ describe("askFloorRefine", () => {
       specPrOpen: { visits: ON_MERGED },
       whileAnalyzing: { visits: WHILE_ANALYZING },
       settlingThePass: { visits: SETTLING_PASS },
+      whileValidating: { visits: WHILE_VALIDATING },
+      writingFindings: { visits: WRITING_FINDINGS },
       writingSpecs: { visits: WHILE_WRITING },
       decomposing: { visits: DECOMPOSING },
     };
+    const held = "409: the planning agent is still working on this plan";
 
     expect(await refusalsOf(DRAFT, scenes)).toMatchObject({
       refusals: {
@@ -386,8 +388,10 @@ describe("askFloorRefine", () => {
         cancelled: "resumed",
         delivered: "resumed",
         specPrOpen: "resumed",
-        whileAnalyzing: "409: the planning agent is still working on this plan",
-        settlingThePass: "resumed",
+        whileAnalyzing: held,
+        settlingThePass: held,
+        whileValidating: held,
+        writingFindings: held,
         writingSpecs: "resumed",
         decomposing: "resumed",
       },
@@ -429,6 +433,14 @@ const DELIVERED = [
 const SETTLING_PASS = [
   planVisit("analyze", SUCCESS),
   planVisit("plan-pass-end", null),
+];
+const WHILE_VALIDATING = [
+  planVisit("author", SUCCESS),
+  planVisit("validate", null),
+];
+const WRITING_FINDINGS = [
+  planVisit("validate", SUCCESS),
+  planVisit("plan-findings", null),
 ];
 const DECOMPOSING = [
   planVisit("merged", SUCCESS),

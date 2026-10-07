@@ -291,15 +291,15 @@ describe("refinePlanAction", () => {
     });
   });
 
-  it("reports lore-api's reason when plan p1's planning line has ended", async () => {
+  it("reports lore-api's reason when approved plan p1's sections are settled", async () => {
     answer(409, {
       error:
-        "the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
+        "the plan is approved, so its sections are settled; reopen the plan to write again",
     });
 
     expect(await refinePlanAction("re-cinq/lore", "p1", REFINE)).toEqual({
       error:
-        "The planning line has ended, so no agent is waiting to refine this plan; edit the section by hand.",
+        "The plan is approved, so its sections are settled; reopen the plan to write again.",
     });
   });
 });
