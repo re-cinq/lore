@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **redacts the base64 basic-auth encoding of an x-access-token credential** — `redactSecrets()` must strip `Authorization: Basic <base64(x-access-token:ghs_…)>` before the string reaches any store
+- [x] **redacts the base64 basic-auth encoding of an x-access-token credential** — `redactSecrets()` must strip `Authorization: Basic <base64(x-access-token:ghs_…)>` before the string reaches any store
   `libs/shared/src/lib/redact-secret-patterns.test.ts`
 
 ## Facets
 
-- [ ] Add a pattern to `PATTERNS` in `libs/shared/src/lib/redact.ts` that recognises the base64-encoded `x-access-token:…` basic-auth blob (a dedicated decode-and-match or a character-class pattern anchored after `Basic `)
-- [ ] Confirm the existing 23 pattern tests still pass after the addition
+- [x] Add a pattern to `PATTERNS` in `libs/shared/src/lib/redact.ts` that recognises the base64-encoded `x-access-token:…` basic-auth blob (a dedicated decode-and-match or a character-class pattern anchored after `Basic `)
+- [x] Confirm the existing 23 pattern tests still pass after the addition
 
 ## Out of scope
 
