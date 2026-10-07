@@ -93,6 +93,7 @@ function specOf(
     branch,
     specPath: brief.needs.spec_path,
     commit: decomposition.spec_commit,
+    planId: brief.needs.plan_id,
   });
 }
 

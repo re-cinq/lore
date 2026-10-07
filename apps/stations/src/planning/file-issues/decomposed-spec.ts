@@ -18,6 +18,8 @@ export interface SpecWhere {
   branch: string;
   specPath?: string;
   commit?: string;
+  /** Narrows the count to the statements this plan wrote. */
+  planId?: string;
 }
 
 export type ReadSpec = (path: string, ref: string) => Promise<string | null>;
@@ -25,7 +27,7 @@ export type ReadSpec = (path: string, ref: string) => Promise<string | null>;
 /** Undefined when the plan names no spec, or the branch holds no such file: then there is nothing to cite. */
 export async function decomposedSpec(
   read: ReadSpec,
-  { repo, branch, specPath, commit }: SpecWhere,
+  { repo, branch, specPath, commit, planId }: SpecWhere,
 ): Promise<DecomposedSpec | undefined> {
   if (!specPath) {
     return undefined;
@@ -37,7 +39,7 @@ export async function decomposedSpec(
   return text === null
     ? undefined
     : {
-        parts: specParts(text),
+        parts: specParts(text, planId),
         linkOf: (line) => statementLink({ repo, file, ref, line }),
       };
 }

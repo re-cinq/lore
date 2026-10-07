@@ -11,7 +11,7 @@ const SPEC = [
   "",
   "## Requirements",
   "",
-  "- FR1 — The run page streams node events.",
+  "- FR1 — The run page streams node events. ([from plan](https://lore.example/plans/p1#b-1))",
   "- FR2 — The graph renders each node event.",
   "",
 ].join("\n");
@@ -104,6 +104,20 @@ describe("issueCoverageHandle", () => {
           "## Spec coverage\n\n2 of 2 testable spec statements have a task.\n",
       },
       reads: [`re-cinq/lore:${SPEC_PATH}@abc123`],
+    });
+  });
+
+  it("reports success with 1 of 1 covered for plan p1, whose only statement is FR1", async () => {
+    const { handle, tools, produced } = scene(decomposition([7]));
+
+    const report = await handle(brief({ ...NEEDS, plan_id: "p1" }), tools);
+
+    expect({ report, produced }).toEqual({
+      report: { outcome: "success" },
+      produced: {
+        issue_coverage:
+          "## Spec coverage\n\n1 of 1 testable spec statements have a task.\n",
+      },
     });
   });
 
