@@ -20,4 +20,15 @@ describe("refineRefusal", () => {
       "the planning agent is still working on this plan",
     ]);
   });
+
+  it("tells an approved plan to reopen while the specs are being written, since reopening now stops that work", () => {
+    expect(
+      ["write", "decompose"].map((node) =>
+        refineRefusal({ status: "approved" }, openOn(node)),
+      ),
+    ).toEqual([
+      "the plan is approved, so its sections are settled; reopen the plan to write again",
+      "the plan is approved, so its sections are settled; reopen the plan to write again",
+    ]);
+  });
 });
