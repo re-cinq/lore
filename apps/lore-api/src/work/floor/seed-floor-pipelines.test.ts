@@ -265,7 +265,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
   it("routes close-obsolete through the close-issue service and always to done", () => {
     const line = issueTriageLine();
-    const node = line.nodes.find((item) => item.id === "close-obsolete");
+    const node = line.nodes.find((pipelineNode) => pipelineNode.id === "close-obsolete");
     const service = issueTriage()?.stations.find(
       (station) => station.id === "close-issue",
     );
