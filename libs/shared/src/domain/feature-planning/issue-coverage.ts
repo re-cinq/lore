@@ -7,6 +7,7 @@ import {
   type Statement,
 } from "../spec-segment.js";
 import { withoutTrailingLinkGroup } from "../spec-link-parser.js";
+import type { SpecLine } from "./decomposition-result.js";
 
 /** One testable part of the spec: the statements that start on one line, which a line link can name — a list item, or a paragraph's sentences together. */
 export interface SpecPart {
@@ -57,30 +58,65 @@ export function partsNamed(
   return parts.filter((part) => named.has(part));
 }
 
+/** One spec the plan's spec PR wrote, with its testable parts; the first of a list is the spec the plan is chiefly about. */
+export interface SpecFile {
+  file: string;
+  parts: SpecPart[];
+}
+
+/** A part no task names; `file` only when it is not in the main spec, as tasks cite it. */
+export type MissingPart = SpecPart & Pick<SpecLine, "file">;
+
 export interface IssueCoverage {
   total: number;
   covered: number;
-  missing: SpecPart[];
+  missing: MissingPart[];
 }
 
-/** Which of the spec's testable parts some task names in its `spec_lines`. */
-export function issueCoverage(
-  parts: readonly SpecPart[],
-  tasks: readonly { spec_lines?: number[] }[],
-): IssueCoverage {
-  const named = new Set(
-    partsNamed(
-      parts,
-      tasks.flatMap((task) => task.spec_lines ?? []),
-    ),
-  );
-  const missing = parts.filter((part) => !named.has(part));
+/** How tasks cite a spec of `specs`: the main one, first, by bare line; any other by its file. */
+export function citedAs(
+  specs: readonly SpecFile[],
+  index: number,
+): string | undefined {
+  return index === 0 ? undefined : specs[index]?.file;
+}
 
-  return {
-    total: parts.length,
-    covered: parts.length - missing.length,
-    missing,
-  };
+/** The file a bare cited line belongs to: the main spec's, the first. */
+export function mainFileOf(specs: readonly SpecFile[]): string {
+  return specs.at(0)?.file ?? "";
+}
+
+/** The lines among `cited` in `file`, a bare line being one of `mainFile`. */
+export function linesIn(
+  cited: readonly SpecLine[],
+  file: string,
+  mainFile: string,
+): number[] {
+  return cited
+    .filter((line) => (line.file ?? mainFile) === file)
+    .map(({ line }) => line);
+}
+
+/** Which testable parts of every spec some task names in its `spec_lines`. */
+export function issueCoverage(
+  specs: readonly SpecFile[],
+  tasks: readonly { spec_lines?: SpecLine[] }[],
+): IssueCoverage {
+  const cited = tasks.flatMap((task) => task.spec_lines ?? []);
+  const mainFile = mainFileOf(specs);
+  const missing = specs.flatMap((spec, index) => {
+    const { parts } = spec;
+    const file = citedAs(specs, index);
+    const named = new Set(
+      partsNamed(parts, linesIn(cited, spec.file, mainFile)),
+    );
+    const unnamed = parts.filter((part) => !named.has(part));
+
+    return unnamed.map((part) => (file ? { file, ...part } : part));
+  });
+  const total = specs.reduce((sum, spec) => sum + spec.parts.length, 0);
+
+  return { total, covered: total - missing.length, missing };
 }
 
 /** The spec.md a plan's `spec_path` names: the file itself, or the spec.md in the spec-kit directory. */
@@ -110,7 +146,7 @@ export function statementLink({
 /** The coverage as the story issue shows it and decompose's next round reads it. */
 export function issueCoverageBrief(
   { total, covered, missing }: IssueCoverage,
-  linkOf: (line: number) => string,
+  linkOf: (cited: SpecLine) => string,
 ): string {
   const summary = `${covered} of ${total} testable spec statements have a task.`;
 
@@ -124,7 +160,8 @@ export function issueCoverageBrief(
     `${summary} Not covered yet:`,
     "",
     ...missing.map(
-      ({ line, text }) => `- line ${line}: ${text} — ${linkOf(line)}`,
+      ({ file, line, text }) =>
+        `- ${file ? `${file} ` : ""}line ${line}: ${text} — ${linkOf({ file, line })}`,
     ),
     "",
   ].join("\n");
@@ -162,7 +199,7 @@ function writtenBy<T extends { text: string }>(
 const BODY_COVERAGE_BUDGET = 20_000;
 // GitHub refuses a comment over 65,536 chars; the marker fits in what is left.
 const COMMENT_BUDGET = 60_000;
-const ENTRY = /^- line \d+: /;
+const ENTRY = /^- (?:\S+ )?line \d+: /;
 
 export interface CoverageSections {
   /** The coverage as it goes in the story body. */

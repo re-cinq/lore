@@ -32,6 +32,22 @@ function decomposition(...specLines: number[][]): string {
   });
 }
 
+const REVIEW_PATH = "specs/review/spec.md";
+const REVIEW_SPEC = [
+  "# Reviews",
+  "",
+  "Reviewers follow runs.",
+  "",
+  "## Requirements",
+  "",
+  "- FR9 — Reviewers see each node event. ([from plan](https://lore.example/plans/p1#b-2))",
+  "",
+].join("\n");
+const SPEC_PLAN = JSON.stringify({
+  creates: [{ path: SPEC_PATH }],
+  updates: [{ path: REVIEW_PATH }],
+});
+
 const HANDLER_PATH = "libs/shared/src/work/backlog/label-dispatch.ts";
 const HANDLER =
   "const working = await deps.activeTaskByIssue(repo, issue.number);";
@@ -68,7 +84,9 @@ function scene(
   const reads: string[] = [];
   const tools: Tools = {
     read: async (need) =>
-      Buffer.from(need === "decomposition" ? decomposed : ""),
+      Buffer.from(
+        { decomposition: decomposed, spec_plan: SPEC_PLAN }[need] ?? "",
+      ),
     produce: async (name, bytes) => {
       produced[name] = bytes.toString();
     },
@@ -79,7 +97,13 @@ function scene(
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
 
-      return { [SPEC_PATH]: SPEC, [HANDLER_PATH]: HANDLER }[path] ?? null;
+      return (
+        {
+          [SPEC_PATH]: SPEC,
+          [REVIEW_PATH]: REVIEW_SPEC,
+          [HANDLER_PATH]: HANDLER,
+        }[path] ?? null
+      );
     },
     listTree: async () => [SPEC_PATH, HANDLER_PATH],
     filedCoverage: async () => filed,
@@ -109,6 +133,30 @@ describe("issueCoverageHandle", () => {
           "## Spec coverage\n\n2 of 2 testable spec statements have a task.\n",
       },
       reads: [`re-cinq/lore:${SPEC_PATH}@abc123`],
+    });
+  });
+
+  it("sends decompose back naming FR9 on line 7 of specs/review/spec.md, the second spec plan p1's spec PR wrote", async () => {
+    const { handle, tools, produced, reads } = scene(decomposition([7]));
+
+    const report = await handle(
+      brief({ ...NEEDS, plan_id: "p1", spec_plan: "blob://spec-plan" }),
+      tools,
+    );
+
+    expect({
+      report,
+      reads: reads.filter((read) => read.includes("/spec.md")),
+      namesFr9: produced.issue_coverage?.includes(
+        "1 of 2 testable spec statements have a task. Not covered yet:\n\n- specs/review/spec.md line 7: FR9 — Reviewers see each node event. — https://github.com/re-cinq/lore/blob/abc123/specs/review/spec.md#L7",
+      ),
+    }).toEqual({
+      report: { outcome: "changes_requested" },
+      reads: [
+        `re-cinq/lore:${SPEC_PATH}@abc123`,
+        `re-cinq/lore:${REVIEW_PATH}@abc123`,
+      ],
+      namesFr9: true,
     });
   });
 

@@ -634,7 +634,12 @@ describe("the planning recipes check a plan against what the platform has (issue
     const prompt = promptOnOneLine("feature-decompose");
 
     expect({
-      lines: prompt.includes('"spec_lines": [42, 57]'),
+      lines: prompt.includes(
+        '"spec_lines": { "specs/<slug>/spec.md": [42, 57], "specs/<other>/spec.md": [12] }',
+      ),
+      otherSpecs: prompt.includes(
+        "statements in every spec `{spec_plan_path}` names count",
+      ),
       commit: prompt.includes("git -C /workspace/target rev-parse HEAD"),
       everyStatement: prompt.includes(
         "Name every testable statement in at least one task",
@@ -645,6 +650,7 @@ describe("the planning recipes check a plan against what the platform has (issue
       onlyListed: prompt.includes("this round is for exactly those"),
     }).toEqual({
       lines: true,
+      otherSpecs: true,
       commit: true,
       everyStatement: true,
       keepsIds: true,

@@ -29,9 +29,10 @@ import {
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import {
-  decomposedSpec,
-  type DecomposedSpec,
+  decomposedSpecs,
+  type DecomposedSpecs,
 } from "../file-issues/decomposed-spec.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
 import { addedAcross, findingsIn, groundedText } from "../grounded-text.js";
@@ -79,7 +80,7 @@ async function coverageOfDecomposition(
 ): Promise<CountedDecomposition | undefined> {
   const { repo, branch } = parseGitRef(brief.needs.target);
   const decomposition = await decompositionOf(tools);
-  const spec = await specOf(deps, brief, decomposition);
+  const spec = await specOf(deps, brief, tools, decomposition);
 
   if (!spec) {
     return undefined;
@@ -92,18 +93,23 @@ async function coverageOfDecomposition(
   return countedIn(spec, decomposition, grounded);
 }
 
-/** The spec at the commit the decomposition read, or at the branch when it names none. */
-function specOf(
+/** Every spec the plan's spec PR wrote, at the commit the decomposition read, or at the branch when it names none. */
+async function specOf(
   deps: CoverageDeps,
   brief: Brief,
+  tools: Tools,
   decomposition: DecompositionResult,
-): Promise<DecomposedSpec | undefined> {
+): Promise<DecomposedSpecs | undefined> {
   const { repo, branch } = parseGitRef(brief.needs.target);
+  // A run started before the line gave this station the spec plan counts spec_path's spec alone.
+  const specPlan = brief.needs.spec_plan
+    ? (await tools.read("spec_plan")).toString("utf8")
+    : undefined;
 
-  return decomposedSpec((path, ref) => deps.readSpec(repo, path, ref), {
+  return decomposedSpecs((path, ref) => deps.readSpec(repo, path, ref), {
     repo,
     branch,
-    specPath: brief.needs.spec_path,
+    specFiles: specFilesOfRun(brief.needs.spec_path, specPlan),
     commit: decomposition.spec_commit,
     planId: brief.needs.plan_id,
   });
@@ -145,12 +151,12 @@ async function decompositionOf(tools: Tools): Promise<DecompositionResult> {
 }
 
 function countedIn(
-  spec: DecomposedSpec,
+  spec: DecomposedSpecs,
   decomposition: DecompositionResult,
   grounded: readonly GroundedFile[],
 ): CountedDecomposition {
   const counted = issueCoverage(
-    spec.parts,
+    spec.specs,
     decomposition.stories.flatMap((story) => story.tasks),
   );
 
