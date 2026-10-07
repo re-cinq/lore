@@ -3,6 +3,7 @@
 import type { AgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
 import {
   ambiguousEdges,
+  danglingEdges,
   deadEnds,
   undeclaredOutcomes,
   unreachableNodes,
@@ -43,6 +44,7 @@ export function pipelineProblems(
     ...ambiguousEdges(checked),
     ...undeclaredOutcomes(checked),
     ...nodes.flatMap((node) => nodeProblems(checked, node, prompts)),
+    ...danglingEdges(checked),
     ...deadEnds(checked),
     ...unreachableNodes(checked),
   ];
