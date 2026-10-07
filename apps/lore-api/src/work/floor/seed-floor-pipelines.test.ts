@@ -61,7 +61,7 @@ interface StationBody {
 }
 
 interface LineBody {
-  nodes: Array<{ id: string }>;
+  nodes: Array<{ id: string; station?: string }>;
   edges: Array<{
     from: string;
     to: string;
@@ -260,6 +260,23 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
         on: "failed",
         iterationMax: 3,
       },
+    });
+  });
+
+  it("routes close-obsolete through the close-issue service and always to done", () => {
+    const line = issueTriageLine();
+    const node = line.nodes.find((item) => item.id === "close-obsolete");
+    const service = issueTriage()?.stations.find(
+      (station) => station.id === "close-issue",
+    );
+    const outgoing = line.edges.filter(
+      (edge) => edge.from === "close-obsolete",
+    );
+
+    expect({ station: node?.station, kind: service?.body.kind, outgoing }).toEqual({
+      station: "close-issue",
+      kind: "service",
+      outgoing: [{ from: "close-obsolete", to: "done", on: "always" }],
     });
   });
 
