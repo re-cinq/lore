@@ -63,9 +63,22 @@ describe("seedFloor", () => {
     expect(logged).toEqual(["floor pipelines put: none changed"]);
   });
 
-  it("logs the failure and does not throw when the floor is out of reach", async () => {
+  it("names walk.yaml and the floor's reason when the floor refuses it", async () => {
     const { floorSeeding, logged } = seeding({
-      importPipeline: () => Promise.reject(new Error("connect ECONNREFUSED")),
+      importPipeline: () => Promise.reject(new Error("invalid station body")),
+    });
+
+    await seedFloor(floorSeeding);
+
+    expect(logged).toEqual([
+      "floor pipelines put: none changed",
+      "floor REFUSED, and keeps what it holds for: walk.yaml (invalid station body)",
+    ]);
+  });
+
+  it("logs the failure and does not throw when reading the files throws", async () => {
+    const { floorSeeding, logged } = seeding({
+      files: () => Promise.reject(new Error("connect ECONNREFUSED")),
     });
 
     await seedFloor(floorSeeding);

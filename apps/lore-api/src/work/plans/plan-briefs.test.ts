@@ -9,6 +9,23 @@ import {
 
 const PLAN = { title: "Faster checkout" };
 
+const FINDING = {
+  findingId: "f-ground-9k2",
+  slot: "scope",
+  severity: "warning" as const,
+  text: "This section names `ToolResponse`, which is not on the default branch.",
+  why: "The plan names it as code that already exists.",
+};
+
+const REQUEST = {
+  actor: "ana",
+  slot: "intent",
+  title: "Intent",
+  baseHash: "3f9a",
+  inputs: { answered: [], resolved: [] },
+  uses: { questions: [], comments: [] },
+};
+
 describe("plan briefs", () => {
   it("asks for a draft of Faster checkout in plan.md with what the author knows", () => {
     expect(draftBrief(PLAN, "Mobile users drop off.")).toEqual(
@@ -23,6 +40,7 @@ describe("plan briefs", () => {
 
   it("asks to refine the Intent section of the live plan by its slot marker, to add the sections a settled answer asks for, to follow one into the sections it makes wrong, and to contradict nothing, since its edits land unreviewed", () => {
     const request = {
+      actor: "ana",
       slot: "intent",
       title: "Intent",
       baseHash: "3f9a",
@@ -31,12 +49,13 @@ describe("plan briefs", () => {
     };
 
     expect(refineBrief(PLAN, request)).toEqual(
-      'Refine the section "Intent" (<!-- slot:intent -->) of the live plan "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections with `add-section`, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong. Your edits land in the live plan as you make them, and nobody accepts them first: never write a claim that another section or a settled answer contradicts, and ask with `add-question` where you disagree with one. Leave every other section exactly as it is.',
+      'Refine the section "Intent" (<!-- slot:intent -->) of the live plan "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections with `add-section`, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong, or where a finding listed below is on it. Your edits land in the live plan as you make them, and nobody accepts them first: never write a claim that another section or a settled answer contradicts, and ask with `add-question` where you disagree with one. Leave every other section exactly as it is.',
     );
   });
 
   it("lists answered question q-target and resolved thread c1 by id, each on one line, to write into Intent or ask about", () => {
     const request = {
+      actor: "ana",
       slot: "intent",
       title: "Intent",
       baseHash: "3f9a",
@@ -84,6 +103,27 @@ describe("plan briefs", () => {
   it("hands the approved plan to the spec work as the settled plan.md", () => {
     expect(approvedBrief(PLAN)).toEqual(
       'The approved plan "Faster checkout" is in plan.md. It is settled: map it onto this repository\'s specs; do not re-open it.',
+    );
+  });
+
+  it("lists finding f-ground-9k2 on scope by id with why, and says to fix the section rather than the finding block", () => {
+    expect(
+      refineBrief(PLAN, REQUEST, [FINDING]).split("\n\n").slice(1),
+    ).toEqual([
+      [
+        "Findings on this plan, each one something it says that does not hold. Fix the section a finding names so it no longer holds, even where that is not the section you were asked to refine. Leave the finding block itself alone: the check that wrote it clears it, not you. One you think is wrong, say so with `add-question` on its section and change nothing there.",
+        "- Finding f-ground-9k2 on `scope` (warning): This section names `ToolResponse`, which is not on the default branch. — The plan names it as code that already exists.",
+      ].join("\n"),
+    ]);
+  });
+
+  it("says nothing about findings when the plan carries none", () => {
+    expect(refineBrief(PLAN, REQUEST, [])).toEqual(refineBrief(PLAN, REQUEST));
+  });
+
+  it("gives a draft the plan's findings too, since Regenerate is the other pass its people ask for", () => {
+    expect(draftBrief(PLAN, "Mobile users drop off.", [FINDING])).toContain(
+      "- Finding f-ground-9k2 on `scope` (warning):",
     );
   });
 });

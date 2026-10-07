@@ -6,6 +6,7 @@ import { z } from "zod";
 export type PipelineRule =
   | "ambiguous-edge"
   | "dead-end"
+  | "undeclared-bag"
   | "outcome-without-edge"
   | "undeclared-outcome"
   | "unkeyed-line"
@@ -26,8 +27,8 @@ const stationSchema = z
     kind: z.string().optional(),
     agent_definition: z.string().optional(),
     outcomes: z.array(z.string()).default([]),
-    needs: z.array(bagItemSchema).default([]),
-    produces: z.array(bagItemSchema).default([]),
+    needs: z.array(bagItemSchema).optional(),
+    produces: z.array(bagItemSchema).optional(),
   })
   .loose();
 

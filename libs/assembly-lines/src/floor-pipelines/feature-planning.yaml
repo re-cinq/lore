@@ -25,7 +25,10 @@ line:
       station: plan-pass-end
     # Deterministic and modelless, so it runs on every pass rather than when
     # someone clicks Validate: a stale name costs nothing to find and reaches the
-    # plan while its people are still writing it.
+    # plan while its people are still writing it. It reads the plan live rather
+    # than from the bag: a Refine starts `analyze` by hand, a start by hand stores
+    # no fresh markdown, and grounding last round's copy re-reported every finding
+    # the pass had just fixed.
     - id: plan-grounding
       station: plan-grounding
       bind:
@@ -323,12 +326,6 @@ stations:
         kind: git
         path: target
         access: read
-      # The plan as its people last saw it. Absent on no pass that reaches here,
-      # but a pass without one has nothing to ground rather than a failure.
-      - name: plan_md
-        kind: file
-        path: plan.md
-        optional: true
     produces: []
   plan-validate:
     kind: agent

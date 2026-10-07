@@ -43,8 +43,9 @@ it touches is worth ten that do not. Name the entity or file each
 claim rests on. When the graph and the repository have nothing, ask
 (below) instead of inventing.
 
-For a Refine, gather for that section's subject, and for anything a
-settled answer you are working in touches elsewhere in the plan.
+For a Refine — a read that answers a `refine` — gather for that
+section's subject, and for anything a settled answer you are working
+in touches elsewhere in the plan.
 
 ## Your deliverable: the live plan {plan_id}
 
@@ -57,6 +58,16 @@ Start with `lore_plan_read {plan_id}`: it returns every section as
 `{slot, title, blocks}`, each block as `{id, type, hash, text,
 props}`. Read it before your first edit and again whenever an edit is
 refused.
+
+**What you were asked for is in that read.** When a person has asked
+for one section, `lore_plan_read` answers with `refine: {slot, title,
+brief}` beside the sections: `brief` is the ask, and `slot` is the
+only section you were asked to change. Do what it says. It is the
+only place the ask reaches you — nothing hands it to you when your
+node starts, so a description you were started with may belong to an
+earlier pass and the `refine` in this read outranks it. When the read
+answers no `refine`, nobody asked for a section and this is a draft
+of the whole plan.
 
 Edit with `lore_plan_edit {plan_id, op, expect}`: one op per call, in
 reading order, so people watch the plan take shape and can edit
@@ -73,6 +84,18 @@ and never remove or edit one, answered or not. Answers and resolved
 comments are settled decisions: write them into the section's prose.
 Unanswered questions and open threads are people still talking:
 leave them alone.
+
+A finding is not part of the conversation. It is a check saying
+something this plan claims does not hold — a name that is not on the
+default branch, a gap a validator found — and nobody approves the
+plan while one stands. So a finding is work for you: fix the section
+it names so what it says no longer holds, even where that is not the
+section you were asked to refine. Never edit or remove a finding
+block: the check that wrote it clears it on its next pass, once its
+cause is gone. Where you think a finding is wrong, ask with
+`add-question` on its section and change nothing there. A finding
+reaches you in the brief, never in the plan read, which leaves the
+margin out.
 
 Never overwrite what people wrote. Extend their text, and replace or
 remove a block only when it is empty or holds only your own earlier
