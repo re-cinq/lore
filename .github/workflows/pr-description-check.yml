@@ -2,10 +2,7 @@ name: PR Description Check
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
-
-env:
-  ENFORCE_MODE: "false"
+    types: [opened, edited]
 
 permissions:
   contents: read
@@ -17,20 +14,15 @@ jobs:
     steps:
       - name: Check PR description sections
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
-
-          BODY=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.body // ""')
 
           FAILED=0
           WARNINGS=""
 
           # --- Check "## Why" section ---
-          WHY_CONTENT=$(echo "$BODY" | sed -n '/^## Why/,/^## /{ /^## /d; p; }')
-          # Strip HTML comments and whitespace
+          WHY_CONTENT=$(echo "$PR_BODY" | sed -n '/^## Why/,/^## /{ /^## /d; p; }')
           WHY_STRIPPED=$(echo "$WHY_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
 
           if [ -z "$WHY_STRIPPED" ]; then
@@ -38,12 +30,21 @@ jobs:
             FAILED=1
           fi
 
-          # --- Check "## Alternatives Considered" section ---
-          ALT_CONTENT=$(echo "$BODY" | sed -n '/^## Alternatives Considered/,/^## /{ /^## /d; p; }')
-          ALT_STRIPPED=$(echo "$ALT_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
+          # --- Check "## What Changed" section ---
+          WHAT_CONTENT=$(echo "$PR_BODY" | sed -n '/^## What Changed/,/^## /{ /^## /d; p; }')
+          WHAT_STRIPPED=$(echo "$WHAT_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
 
-          if [ -z "$ALT_STRIPPED" ]; then
-            WARNINGS="${WARNINGS}MISSING: '## Alternatives Considered' section is empty or missing. Describe what you considered and why you rejected it.\n"
+          if [ -z "$WHAT_STRIPPED" ]; then
+            WARNINGS="${WARNINGS}MISSING: '## What Changed' section is empty or missing. Describe what you changed.\n"
+            FAILED=1
+          fi
+
+          # --- Check "## Testing" section ---
+          TEST_CONTENT=$(echo "$PR_BODY" | sed -n '/^## Testing/,/^## /{ /^## /d; p; }')
+          TEST_STRIPPED=$(echo "$TEST_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
+
+          if [ -z "$TEST_STRIPPED" ]; then
+            WARNINGS="${WARNINGS}MISSING: '## Testing' section is empty or missing. Describe how you tested this.\n"
             FAILED=1
           fi
 
@@ -53,14 +54,7 @@ jobs:
             echo "PR description check found issues:"
             echo "============================================"
             echo -e "$WARNINGS"
-
-            if [ "${{ env.ENFORCE_MODE }}" = "true" ]; then
-              echo "ENFORCE_MODE is enabled. Failing the check."
-              exit 1
-            else
-              echo "ENFORCE_MODE is disabled. Passing with warnings."
-              exit 0
-            fi
+            exit 1
           else
             echo "PR description looks good."
           fi
