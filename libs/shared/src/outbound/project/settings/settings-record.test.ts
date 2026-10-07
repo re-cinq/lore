@@ -57,6 +57,14 @@ describe("InMemorySettings.record", () => {
 
     expect(await settings.record("other/repo")).toBeNull();
   });
+
+  it("finds re-cinq/lore for the wrong-case re-cinq/Lore", async () => {
+    const settings = new InMemorySettings([SEEDED]);
+
+    expect(await settings.record("re-cinq/Lore")).toMatchObject({
+      fullName: "re-cinq/lore",
+    });
+  });
 });
 
 describe("PgSettings.record", () => {
@@ -94,5 +102,16 @@ describe("PgSettings.record", () => {
     const settings = new PgSettings(fakePool([], []));
 
     expect(await settings.record("gone/repo")).toBeNull();
+  });
+
+  it("matches full_name case-insensitively, so a wrong-case URL still finds the row", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const settings = new PgSettings(fakePool(capture, [DB_ROW]));
+
+    const record = await settings.record("re-cinq/Lore");
+
+    expect(record).toMatchObject({ fullName: "re-cinq/lore" });
+    expect(capture[0]).toMatchObject({ params: ["re-cinq/Lore"] });
+    expect(capture[0].text).toContain("LOWER(full_name) = LOWER($1)");
   });
 });

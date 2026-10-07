@@ -732,7 +732,7 @@ is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-r
 - FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
   null — implemented by the Pg adapter against `lore.repos` and by the
   in-memory double over its seeded rows, so a caller that needs more
-  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/outbound/project/settings/settings-record.test.ts#L44), [`settings-record.test.ts:55`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:63`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L63), [`settings-record.test.ts:81`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L81), [`settings-record.test.ts:93`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L93))
+  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/outbound/project/settings/settings-record.test.ts#L44), [`settings-record.test.ts:55`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:71`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L71), [`settings-record.test.ts:89`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L89), [`settings-record.test.ts:101`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L101))
 
 - FR-19.19: lore-api serves the run views' four reads under the `read`
   scope — `GET /api/assembly-lines` (filterable by status, repo, or a
