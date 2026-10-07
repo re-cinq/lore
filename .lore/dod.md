@@ -18,12 +18,12 @@
 ## Facets
 
 - [x] Read contracts/test-commands.md line 80 and the three example manifests
-- [ ] Rewrite the `{selector}` paragraph (line 80 area) to name both callers: CI binary substitutes the repo-relative test file; `lore_run_test` substitutes the descriptor id; `run` must accept both
-- [ ] Update the Go example — `go test -run '{selector}'` treats the selector as a test-name regex, which breaks when the binary passes a file path; replace with an approach that works with a file path (e.g. derive the package from the file)
-- [ ] Update `TEST_COMMAND_SETUP_PROMPT` — change "a **run** command taking one `id`" to clarify that `{selector}` is a repo-relative file path from CI and a descriptor id from `lore_run_test`
-- [ ] Update `.claude/skills/lore-test-commands/SKILL.md` to mirror the prompt constant (the skill-prompt test guards this)
-- [ ] Update spec statement 14 to mention both callers (binary: file path; MCP: runner-native id)
-- [ ] Run `npx prettier --write` on changed `.ts`/`.md` files; commit; push
+- [x] Rewrite the `{selector}` paragraph (line 80 area) to name both callers: CI binary substitutes the repo-relative test file; `lore_run_test` substitutes the descriptor id; `run` must accept both
+- [x] Update the Go example — `go test -run '{selector}'` treats the selector as a test-name regex, which breaks when the binary passes a file path; replace with an approach that works with a file path (e.g. derive the package from the file)
+- [x] Update `TEST_COMMAND_SETUP_PROMPT` — change "a **run** command taking one `id`" to clarify that `{selector}` is a repo-relative file path from CI and a descriptor id from `lore_run_test`
+- [x] Update `.claude/skills/lore-test-commands/SKILL.md` to mirror the prompt constant (the skill-prompt test guards this)
+- [x] Update spec statement 14 to mention both callers (binary: file path; MCP: runner-native id)
+- [x] Run `npx prettier --write` on changed `.ts`/`.md` files; commit; push
 
 ## Out of scope
 
