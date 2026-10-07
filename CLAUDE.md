@@ -24,7 +24,9 @@ PR history, and task state.
   the Bash `PreToolUse` guard and is also served as the flat `/skills/settings.json`;
   `hooks/gemini/.gemini/settings.json` wires the same script as a `BeforeTool` hook on
   `run_shell_command`, wrapped to report a refusal as the `{"decision":"block"}` document
-  gemini-cli reads instead of an exit code)
+  gemini-cli reads instead of an exit code; `hooks/gemini/.gemini/policies/lore-agent.toml` allows every
+  tool in every approval mode but `ask_user`, since headless gemini-cli otherwise denies every shell command
+  without `--yolo`, and no floor agent declares `disallowed_tools`: the guard is the only refusal)
   (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`); the
   ai-agent-subsystem init fetches these into a run's `$HOME` via the recipe's
   `resources.skills` + `skills_source` (ADR-030 skills seam).

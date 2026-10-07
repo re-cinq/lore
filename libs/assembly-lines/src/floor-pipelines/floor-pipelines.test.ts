@@ -1369,3 +1369,29 @@ describe("the files the floor agents produce", () => {
     });
   });
 });
+
+describe("the agents of every floor pipeline", () => {
+  const AGENTS = [...PIPELINES.values()].flatMap((pipeline) =>
+    Object.entries(pipeline.agent_definitions ?? {}).map(([name, agent]) => ({
+      name,
+      config: agent.settings.config as
+        { skills_source?: string; disallowed_tools?: string[] } | undefined,
+    })),
+  );
+
+  it("fetch their hooks, guard and tool policy from Lore's skills registry, never the floor's own", () => {
+    const elsewhere = AGENTS.filter(
+      (agent) => agent.config?.skills_source !== "${LORE_SKILLS_URL}",
+    ).map((agent) => agent.name);
+
+    expect(elsewhere).toEqual([]);
+  });
+
+  it("deny no tool, leaving the test guard as the only refusal", () => {
+    const denying = AGENTS.filter(
+      (agent) => agent.config?.disallowed_tools !== undefined,
+    ).map((agent) => agent.name);
+
+    expect(denying).toEqual([]);
+  });
+});

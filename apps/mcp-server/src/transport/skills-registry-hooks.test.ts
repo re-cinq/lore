@@ -32,22 +32,6 @@ async function get(path: string) {
   return { status: captured.status, body: await body };
 }
 
-// The `key = value` pairs of each `[[rule]]` table in a gemini-cli policy file.
-function policyRules(toml: string) {
-  return toml
-    .split("[[rule]]")
-    .slice(1)
-    .map((table) =>
-      Object.fromEntries(
-        table
-          .split("\n")
-          .map((line) => /^(\w+) = (.+)$/.exec(line.trim()))
-          .filter((pair) => pair !== null)
-          .map((pair) => [pair[1], pair[2]]),
-      ),
-    );
-}
-
 describe("per-vendor hook bundles", () => {
   it("serves hooks/claude.tar.gz laid out relative to HOME, carrying the settings the Bash guard is wired in", async () => {
     const { status, body } = await get("/skills/hooks/claude.tar.gz");
@@ -85,25 +69,6 @@ describe("per-vendor hook bundles", () => {
     }).toEqual({ status: 200, hasSettings: true });
   });
 
-  it("serves a Gemini policy that allows every tool in any approval mode, and refuses only ask_user", async () => {
-    const { body } = await get("/skills/hooks/gemini.tar.gz");
-    const policy = spawnSync(
-      "tar",
-      ["-xzOf", "-", "./.gemini/policies/lore-agent.toml"],
-      { input: body },
-    ).stdout.toString();
-
-    expect(policyRules(policy)).toEqual([
-      {
-        toolName: '"*"',
-        decision: '"allow"',
-        priority: "100",
-        allowRedirection: "true",
-      },
-      { toolName: '"ask_user"', decision: '"deny"', priority: "200" },
-    ]);
-  });
-
   it("404s a vendor with no bundle and a traversing vendor name alike", async () => {
     const statuses = await Promise.all(
       ["/skills/hooks/cursor.tar.gz", "/skills/hooks/..%2fclaude.tar.gz"].map(
@@ -113,4 +78,38 @@ describe("per-vendor hook bundles", () => {
 
     expect(statuses).toEqual([404, 404]);
   });
+
+  it("serves a Gemini policy that allows every tool in any approval mode, and refuses only ask_user", async () => {
+    const { body } = await get("/skills/hooks/gemini.tar.gz");
+    const policy = spawnSync(
+      "tar",
+      ["-xzOf", "-", "./.gemini/policies/lore-agent.toml"],
+      { input: body },
+    ).stdout.toString();
+
+    expect(keyValuesOfEachRuleTable(policy)).toEqual([
+      {
+        toolName: '"*"',
+        decision: '"allow"',
+        priority: "100",
+        allowRedirection: "true",
+      },
+      { toolName: '"ask_user"', decision: '"deny"', priority: "200" },
+    ]);
+  });
 });
+
+function keyValuesOfEachRuleTable(toml: string) {
+  return toml
+    .split("[[rule]]")
+    .slice(1)
+    .map((table) =>
+      Object.fromEntries(
+        table
+          .split("\n")
+          .map((line) => /^(\w+) = (.+)$/.exec(line.trim()))
+          .filter((pair) => pair !== null)
+          .map((pair) => [pair[1], pair[2]]),
+      ),
+    );
+}
