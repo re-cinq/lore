@@ -157,6 +157,19 @@ describe("zod schema bounds", () => {
     expect(Object.keys(schemas)).not.toContain("lore_create_pipeline_task");
   });
 
+  it("registers no spec-task tool, since a plan's tasks are implemented from the backlog", () => {
+    const gone = [
+      "lore_sync_tasks",
+      "lore_ready_tasks",
+      "lore_claim_task",
+      "lore_complete_task",
+    ];
+
+    expect(Object.keys(schemas).filter((name) => gone.includes(name))).toEqual(
+      [],
+    );
+  });
+
   it("rejects max_tokens below the 2000 floor", () => {
     const result = z
       .object(schemas["lore_assemble_context"])

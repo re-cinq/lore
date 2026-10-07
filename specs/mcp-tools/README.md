@@ -74,10 +74,6 @@ tool's spec + this section together are sufficient to recreate the handler.
 | `lore_get_ci_job_log` | [spec](get-ci-job-log/spec.md) | The tail of one Actions job's log, filtered. | shared |
 | `lore_get_task_logs` | [spec](get-task-logs/spec.md) | Read a task's execution transcript. | shared |
 | `lore_get_job_logs` | [spec](get-job-logs/spec.md) | Read a job run's logs from GCS. | shared |
-| `lore_sync_tasks` | [spec](sync-tasks/spec.md) | Sync task state into the DB. | shared |
-| `lore_ready_tasks` | [spec](ready-tasks/spec.md) | List tasks ready to run. | shared |
-| `lore_claim_task` | [spec](claim-task/spec.md) | Atomically claim a task. | shared |
-| `lore_complete_task` | [spec](complete-task/spec.md) | Mark a task complete. | shared |
 | `lore_list_pending_tasks` | [spec](list-pending-tasks/spec.md) | List pending local-runner tasks. | shared |
 | `lore_skip_task` | [spec](skip-task/spec.md) | Skip a pending task. | shared |
 | `lore_enable_task_notifications` | [spec](enable-task-notifications/spec.md) | Start the local task notifier. | shared |

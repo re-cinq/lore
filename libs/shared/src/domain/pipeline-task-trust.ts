@@ -43,6 +43,7 @@ async function trustLevelForRepo(
 /** Trust level → allowed task types (createTask gate reads lore.repos.settings.trust.level). */
 // Feature planning is allowed from the docs tier up (ADR-027 / specs/7-feature-planning) — analysis + a spec-doc PR only, no code.
 const FEATURE_PLANNING = ["feature-planning"];
+
 // Onboarding is allowed at every tier (docs-only PR, deduped by onboard-guard.ts) — restricting to `full` 500s reonboard on auto-demoted repos.
 export const TRUST_LEVELS: Record<string, string[] | undefined> = {
   docs: ["gap-fill", "runbook", "onboard", ...FEATURE_PLANNING],

@@ -23,7 +23,7 @@ is its version, so only a changed file becomes a new version.
 | `code-review.yaml` | Reviews a pull request and posts the review |
 | `code-review-recheck.yaml` | Re-checks a pull request after a push, from the last verdict |
 | `code-review-reply.yaml` | Answers a review that requested changes |
-| `implementation-loop.yaml` | Works one backlog ticket or plan spec-task to a pull request ready for review |
+| `implementation-loop.yaml` | Works one backlog ticket to a pull request ready for review |
 | `feature-planning.yaml` | Drafts a plan with its people, writes the specs, opens the spec PR, files the tasks |
 | `onboard.yaml` | Enrols a repository and opens its one onboarding pull request |
 | `spec-upkeep.yaml` | Fixes drifted specs and adds missing test links, weekly |

@@ -294,7 +294,7 @@ One-line purpose: the tail of one GitHub Actions job's log, timestamps stripped,
 One-line purpose: list pipeline tasks newest-first, optionally filtered to one status. The general browse view.
 
 - **When to use:** browse across ALL tasks and statuses.
-- **When not to use:** unclaimed runnable work → `lore_list_pending_tasks`; dependency-ready spec-tasks → `lore_ready_tasks`; one feature's group → `lore_list_task_group`; tasks on YOUR machine → `lore_list_local_tasks`.
+- **When not to use:** unclaimed runnable work → `lore_list_pending_tasks`; one feature's group → `lore_list_task_group`; tasks on YOUR machine → `lore_list_local_tasks`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -309,7 +309,7 @@ One-line purpose: list pipeline tasks newest-first, optionally filtered to one s
 
 One-line purpose: cancel a SERVER-SIDE pipeline task by UUID.
 
-- **When to use:** tasks tracked in the Lore pipeline (a backlog ticket, a plan's spec-task, an onboarding).
+- **When to use:** tasks tracked in the Lore pipeline (a backlog ticket, an onboarding).
 - **When not to use:** a task running in a worktree on YOUR machine → `lore_cancel_local_task`; to re-run a failed task → `lore_retry_task`.
 
 | Parameter | Required | Default | Description |
@@ -344,74 +344,11 @@ One-line purpose: list every task sharing one `task_group_id`, with a completed/
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `group_id` | yes | — | Task-group UUID (a plan's spec-tasks share one). |
+| `group_id` | yes | — | Task-group UUID. |
 
 - **Returns:** a `completed/total` summary line plus rows as JSON (`id, description, task_type, status, target_repo, pr_url, created_at`); `No tasks found for group {id}` when empty.
 - **Where it runs:** proxies `GET /api/task-groups/{id}` (read scope); the rollup is computed server-side.
 - **Cache/mutation:** read-only.
-
-#### `lore_sync_tasks`
-
-One-line purpose: parse a speckit `tasks.md` and idempotently upsert each item as a spec-task row.
-
-- **When to use:** the START of spec-driven multi-agent work — once per spec, before any claiming.
-- **When not to use:** this does NOT claim, run, or evaluate readiness — find workable items with `lore_ready_tasks`, lock with `lore_claim_task`, finish with `lore_complete_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `tasks_markdown` | yes | — | Full markdown text of the `tasks.md` (the document, not a path). Parsed for phases, `[P]` parallel markers, `[DEPENDS ON: …]` dependencies, and file-path suffixes. |
-| `repo` | no | auto-detect | Target repo as `owner/repo`. |
-| `spec_slug` | yes | — | Feature slug grouping these spec-tasks within the repo (disambiguates on re-sync). |
-
-- **Returns:** a `Synced N tasks (M new)` summary. Re-running after edits updates rows in place rather than duplicating.
-- **Where it runs:** proxies `POST /api/spec-tasks/sync` (task scope) with the raw markdown — the `tasks.md` grammar is parsed server-side. The repo is auto-detected locally.
-- **Cache/mutation:** WRITE (upserts spec-task rows).
-
-#### `lore_ready_tasks`
-
-One-line purpose: list the repo's spec-tasks that are `pending` AND whose every dependency has completed/merged.
-
-- **When to use:** dependency-aware "what can I start right now" for one repo.
-- **When not to use:** general status listing → `lore_list_pipeline_tasks`; unclaimed tasks across repos → `lore_list_pending_tasks`. Spec-tasks must first be materialized with `lore_sync_tasks`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `repo` | no | auto-detect | Repo to scan as `owner/repo`. |
-
-- **Returns:** a markdown bullet list of `spec_task_id (uuid): description`; `No ready tasks…` when nothing qualifies.
-- **Where it runs:** proxies `GET /api/spec-tasks/ready` (read scope). The repo is auto-detected locally.
-- **Cache/mutation:** read-only.
-
-#### `lore_claim_task`
-
-One-line purpose: atomically lock one `pending` spec-task and flip it to `running`.
-
-- **When to use:** right before you start working a specific spec-task (typically one from `lore_ready_tasks`).
-- **When not to use:** pick WHICH task → `lore_ready_tasks`; mark done afterward → `lore_complete_task`; dismiss a local pending NOTIFICATION → `lore_skip_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `task_id` | yes | — | UUID of the pending spec-task to claim. |
-| `agent_id` | no | resolved | Identifier of the claiming agent, recorded as owner; resolved from `LORE_AGENT_ID` / `~/.lore/agent-id` / generated when omitted. |
-
-- **Returns:** a claim-success message, or already-claimed/not-found text.
-- **Where it runs:** proxies `POST /api/spec-tasks/claim` (task scope); the claiming agent id is resolved on your machine and sent with the request.
-- **Cache/mutation:** WRITE. Locks via `SELECT … FOR UPDATE SKIP LOCKED` inside a transaction (status + `agent_id`), best-effort records a `running` event.
-
-#### `lore_complete_task`
-
-One-line purpose: mark a `running` spec-task `completed` and report which dependents it unblocks.
-
-- **When to use:** you finished a task claimed with `lore_claim_task`; pick the next with `lore_ready_tasks`.
-- **When not to use:** local notification dismissal → `lore_skip_task`; cancelling → `lore_cancel_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `task_id` | yes | — | UUID of the running spec-task to mark completed. |
-
-- **Returns:** a completion message plus newly-unblocked `spec_task_id: description` entries. Only `running` tasks complete (others: `Could not complete…it may not be in running state`).
-- **Where it runs:** proxies `POST /api/spec-tasks/complete` (task scope).
-- **Cache/mutation:** WRITE. Sets `status='completed'`, best-effort records a `completed` event.
 
 #### `lore_get_task_logs`
 
@@ -450,7 +387,7 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 One-line purpose: show unclaimed `pending` backlog tasks you could pick up and run locally, grouped by repo.
 
 - **When to use:** the "what can I grab" view before the GKE agent takes them.
-- **When not to use:** general status-filterable listing → `lore_list_pipeline_tasks`; dependency-ready spec-tasks → `lore_ready_tasks`. After choosing one, run it with `lore_claim_and_run_locally`.
+- **When not to use:** general status-filterable listing → `lore_list_pipeline_tasks`. After choosing one, run it with `lore_claim_and_run_locally`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -465,7 +402,7 @@ One-line purpose: show unclaimed `pending` backlog tasks you could pick up and r
 One-line purpose: dismiss one pending-task notification LOCALLY.
 
 - **When to use:** stop a pending task from showing in your statusline so GKE picks it up after its grace period.
-- **When not to use:** cancel server-side → `lore_cancel_task`; mark a claimed spec-task done → `lore_complete_task`.
+- **When not to use:** cancel server-side → `lore_cancel_task`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -547,7 +484,7 @@ One-line purpose: claim an EXISTING pending pipeline task by id and run it on YO
 One-line purpose: list every background task tracked on YOUR machine — running, completed, or failed.
 
 - **When to use:** status of locally-spawned worktree tasks (PIDs, branches, PR URLs).
-- **When not to use:** server-side pipeline tasks → `lore_list_pipeline_tasks`; unclaimed pickups → `lore_list_pending_tasks`; dependency-ready spec-tasks → `lore_ready_tasks`; group rollup → `lore_list_task_group`.
+- **When not to use:** server-side pipeline tasks → `lore_list_pipeline_tasks`; unclaimed pickups → `lore_list_pending_tasks`; group rollup → `lore_list_task_group`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -766,7 +703,6 @@ Quick-reference for the confusable clusters.
 |---|---|
 | General, status-filterable listing of ALL pipeline tasks newest-first. The default browse view. | `lore_list_pipeline_tasks` |
 | Unclaimed pending tasks across repos you could pick up and run locally, grouped by repo. The "what can I grab" view. | `lore_list_pending_tasks` |
-| Spec-tasks for one repo whose dependencies are satisfied (ready to claim). Dependency-aware, not status-aware. | `lore_ready_tasks` |
 | Every task sharing a `group_id` with a completed/total rollup. Scoped to a single group. | `lore_list_task_group` |
 | Background tasks running on YOUR machine (worktrees/PIDs/PR URLs), not server-side. | `lore_list_local_tasks` |
 
@@ -788,9 +724,6 @@ Quick-reference for the confusable clusters.
 
 | Use | Tool |
 |---|---|
-| START — materialize a `tasks.md`'s spec-tasks (with dependencies) into the pipeline DB. One-time per spec, before any claiming. | `lore_sync_tasks` |
-| About to WORK a specific spec-task — atomically lock it so no other agent takes it. Server-side DB lock. | `lore_claim_task` |
-| FINISHED a claimed/running spec-task — mark it done and unblock its dependents. Server-side DB state transition. | `lore_complete_task` |
 | See a pending-task NOTIFICATION locally — dismiss it so GKE handles it instead. Local-only notification dismissal, not a server completion. | `lore_skip_task` |
 
 ### Spec-traceability
