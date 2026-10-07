@@ -10,6 +10,8 @@ export const StationRunRowSchema = z.object({
   node_id: z.string(),
   iteration: z.number(),
   outcome: z.string().nullable(),
+  // The node's own words about why it stopped; null when it gave none.
+  failure_detail: z.string().nullable(),
   agent_cr_name: z.string().nullable(),
   station_run_id: z.string().nullable(),
   // What the visit was dispatched with; null for visits predating the column means "not captured", not "no input".
@@ -31,6 +33,7 @@ export function toStationRunRow(visit: StationRun): StationRunRow {
     station_run_id: visit.stationRunId,
     iteration: visit.iteration,
     outcome: visit.outcome,
+    failure_detail: visit.failureDetail,
     agent_cr_name: visit.agentCrName,
     input: visit.input,
     commit_sha: visit.commitSha,

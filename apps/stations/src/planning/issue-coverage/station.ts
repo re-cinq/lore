@@ -27,6 +27,7 @@ import {
   type GroundedFile,
 } from "@re-cinq/lore-shared/feature-planning/grounding.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
+import { eventLine } from "@re-cinq/lore-assembly-lines";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import {
   decomposedSpec,
@@ -54,6 +55,10 @@ export function issueCoverageHandle(deps: CoverageDeps): Handle {
         ? filedInFull(deps, brief, coverage.missing)
         : report;
     } catch (err) {
+      console.log(
+        eventLine(`issue-coverage failed: ${(err as Error).message}`),
+      );
+
       return { outcome: "failed", error: (err as Error).message };
     }
   };
