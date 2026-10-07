@@ -75,14 +75,14 @@ describe("InMemoryTaskStore.create", () => {
     await expect(
       store.create({
         description: "impl",
-        taskType: "spec-task",
+        taskType: "implementation-loop",
         targetRepo: "a/b",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
     await expect(
       store.create({
         description: "impl",
-        taskType: "spec-task",
+        taskType: "implementation-loop",
         targetRepo: "unseeded/repo",
       }),
     ).resolves.toMatchObject({ status: "pending" });

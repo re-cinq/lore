@@ -31,9 +31,16 @@ const CITES_BOTH = [
   `- SC-001: Drop-off stays under 5%. ([from plan](${PLAN_URL}#k-1))`,
 ].join("\n");
 const CITES_ONE = CITES_BOTH.split("\n").slice(0, 3).join("\n");
+const HANDLER_PATH = "libs/shared/src/work/backlog/label-dispatch.ts";
+const HANDLER =
+  "const working = await deps.activeTaskByIssue(repo, issue.number);";
+const NAMES_A_GONE_GUARD = [
+  CITES_BOTH,
+  `- FR-002: Checked before the \`alreadyWorkingOnIssue\` guard in \`${HANDLER_PATH}\`. ([from plan](${PLAN_URL}#b-why))`,
+].join("\n");
 
 const NEEDS = {
-  target: "github.com/re-cinq/lore@lore/feature-planning/p1",
+  target: "https://github.com/re-cinq/lore@lore/feature-planning/p1",
   spec_plan: "blob://spec-plan",
   plan_blocks: "blob://plan-blocks",
 };
@@ -43,11 +50,21 @@ const handback = (): RunVisit => ({
   report: { outcome: "changes_requested" },
 });
 
-function scene(spec: string, visits: RunVisit[] = []) {
+const PLAN_PATH = "specs/checkout/plan.md";
+const PLAN_ADDS_TICK =
+  "Files touched:\n- `apps/stations/src/work/issue-triage-tick/` — the sweep";
+const NAMES_THE_TICK = [
+  CITES_BOTH,
+  `- FR-003: A sweep under \`apps/stations/src/work/issue-triage-tick/\` picks the oldest. ([from plan](${PLAN_URL}#b-why))`,
+].join("\n");
+
+function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
   const produced: Record<string, string> = {};
   const reads: string[] = [];
   const files: Record<string, string> = {
-    spec_plan: JSON.stringify({ creates: [{ path: SPEC_PATH }] }),
+    spec_plan: JSON.stringify({
+      creates: [{ path: SPEC_PATH }, ...(plan ? [{ path: PLAN_PATH }] : [])],
+    }),
     plan_blocks: JSON.stringify(CITABLE),
   };
   const tools: Tools = {
@@ -62,8 +79,15 @@ function scene(spec: string, visits: RunVisit[] = []) {
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
 
-      return path === SPEC_PATH ? spec : null;
+      const onBranch: Record<string, string> = {
+        [SPEC_PATH]: spec,
+        [HANDLER_PATH]: HANDLER,
+        ...(plan ? { [PLAN_PATH]: plan } : {}),
+      };
+
+      return onBranch[path] ?? null;
     },
+    listTree: async () => [SPEC_PATH, HANDLER_PATH],
     visitsOf: async () => [
       ...visits,
       { nodeId: "spec-coverage", report: null },
@@ -93,6 +117,33 @@ describe("specCoverageHandle", () => {
     });
   });
 
+  it("sends the writer back naming the compound requirement and the unbacked criterion, with every plan block cited", async () => {
+    const unsound = [
+      CITES_BOTH,
+      `- **FR-002**: The \`reproduce\` station MUST run in a pod, and \`triage_label\` MUST apply the label. ([from plan](${PLAN_URL}#b-why))`,
+      `- **SC-002**: Backlog trend decreases. ([from plan](${PLAN_URL}#k-1))`,
+    ].join("\n");
+    const { handle, tools, produced } = scene(unsound);
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      compound: produced.plan_coverage?.includes("## Compound requirements"),
+      carries: produced.plan_coverage?.includes("carries 2 MUSTs"),
+      unbacked: produced.plan_coverage?.includes(
+        "## Unbacked success criteria",
+      ),
+      measurable: produced.plan_coverage?.includes("names nothing measurable"),
+    }).toEqual({
+      report: { outcome: "changes_requested" },
+      compound: true,
+      carries: true,
+      unbacked: true,
+      measurable: true,
+    });
+  });
+
   it("sends the writer back with the uncited KPI when no coverage round was spent yet", async () => {
     const { handle, tools, produced } = scene(CITES_ONE);
 
@@ -117,6 +168,27 @@ describe("specCoverageHandle", () => {
       report,
       namesKpi: produced.plan_coverage?.includes(`cite ${PLAN_URL}#k-1`),
     }).toEqual({ report: { outcome: "success" }, namesKpi: true });
+  });
+
+  it("sends the writer back naming alreadyWorkingOnIssue, absent from the file its statement names, with activeTaskByIssue as the hint", async () => {
+    const { handle, tools, produced } = scene(NAMES_A_GONE_GUARD);
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      namesGuard: produced.plan_coverage?.includes(
+        "`alreadyWorkingOnIssue` (line 5) is not in the files the line names; closest: `activeTaskByIssue`",
+      ),
+    }).toEqual({ report: { outcome: "changes_requested" }, namesGuard: true });
+  });
+
+  it("reports success when the spec names a folder its plan.md's files-touched list adds", async () => {
+    const { handle, tools } = scene(NAMES_THE_TICK, [], PLAN_ADDS_TICK);
+
+    const report = await handle(brief(), tools);
+
+    expect(report).toEqual({ outcome: "success" });
   });
 
   it("reports success and produces nothing when the run carries no citable blocks", async () => {

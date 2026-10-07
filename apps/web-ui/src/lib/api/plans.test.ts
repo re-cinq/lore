@@ -179,6 +179,7 @@ describe("plans client", () => {
       baseHash: "3f9a",
       inputs: {},
       uses: {},
+      actor: "ana",
     };
 
     await askRefine("re-cinq/lore", "p1", refine);

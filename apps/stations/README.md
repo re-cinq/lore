@@ -35,7 +35,7 @@ written with `@re-cinq/floor-station`.
 | --- | --- | --- |
 | `merge-check` | sweep | cron `*/1 * * * *` + http |
 | `pr-ready-check` | sweep | cron + http |
-| `loop-tick`, `spec-task-tick`, `spec-upkeep-tick`, `digest-tick` | sweep | cron (start runs on the external floor) |
+| `loop-tick`, `spec-upkeep-tick`, `digest-tick` | sweep | cron (start runs on the external floor) |
 | `bus-prune`, `telemetry-prune` | sweep | cron |
 | `memory-ttl` | sweep | cron hourly (courier CronJob) + http |
 | `importance-decay` | sweep | cron 05:00 (courier CronJob) + http |

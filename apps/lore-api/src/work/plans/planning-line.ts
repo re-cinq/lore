@@ -1,8 +1,5 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { type PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 import { type ParkedTarget } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { reopenRefusal } from "./refine-refusal.js";
 
 /** A plan's planning line (ADR-047): the agent drafts, people refine and approve, and approval moves the plan on to its spec PR and spec-tasks. */
 
@@ -49,26 +46,38 @@ function refusalFor(open: string): string {
   return PLANNING_NODES.has(open) ? STILL_REFINING : WRITING_SPECS;
 }
 
-const PLANNING_NODES = new Set(["analyze", "plan-pass-end", "validate"]);
+const PLANNING_NODES = new Set([
+  "analyze",
+  "plan-pass-end",
+  "validate",
+  "plan-findings",
+]);
 
-/** A line for `reopenTargetOf`, whichever engine read it: the park it may report to is typed by that engine. */
+/** A line for `reopenActionOf`, whichever engine read it: the park it may report to is typed by that engine. */
 export interface ReopenableLine<Parked extends ParkedTarget> extends Pick<
   PlanLine,
-  "open" | "parkedAuthor" | "merged"
+  "lineId" | "open" | "parkedAuthor" | "merged"
 > {
   parkedMerged: Parked | null;
 }
 
-/** The spec-PR park a reopen reports to; null when the line needs no report. A line the spec work is on is refused. */
-export function reopenTargetOf<Parked extends ParkedTarget>(
-  line: ReopenableLine<Parked> | null,
-): Parked | null {
-  if (!line || line.open === null || line.parkedAuthor) {
-    return null;
-  }
-  enforceTrue(line.parkedMerged, apiError(409), reopenRefusal(line));
+/** What reopening the plan does to its line. */
+export type ReopenAction<Parked extends ParkedTarget> =
+  | { kind: "report"; parked: Parked }
+  | { kind: "cancel"; runId: string }
+  | { kind: "nothing" };
 
-  return line.parkedMerged;
+/** A line waiting on the spec PR is reported to; one the spec work is on is cancelled, since the plan its people are about to rewrite is no longer the plan that work is writing specs from. A line already at the author, ended or never started needs neither. */
+export function reopenActionOf<Parked extends ParkedTarget>(
+  line: ReopenableLine<Parked> | null,
+): ReopenAction<Parked> {
+  if (!line || line.open === null || line.parkedAuthor) {
+    return { kind: "nothing" };
+  }
+
+  return line.parkedMerged
+    ? { kind: "report", parked: line.parkedMerged }
+    : { kind: "cancel", runId: line.lineId };
 }
 
 /** `openForAuthor` for a line already read, whichever engine read it. */

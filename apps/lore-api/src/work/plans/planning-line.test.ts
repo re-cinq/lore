@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 import {
   approvalDecisionOf,
-  reopenTargetOf,
+  reopenActionOf,
   reopenWhenAuthorWaits,
 } from "./planning-line.js";
 
@@ -50,31 +50,37 @@ describe("approvalDecisionOf", () => {
       { kind: "refused", reason: "the specs are being written" },
     ]);
   });
+
+  it("refuses with 'still refining' while plan-findings writes the validator's findings, which come before any spec work", () => {
+    expect(approvalDecisionOf(lineOn("plan-findings"))).toEqual({
+      kind: "refused",
+      reason: "the planning agent is still refining a section",
+    });
+  });
 });
 
-describe("reopenTargetOf", () => {
-  it("returns the spec-PR park of a line waiting on its merge", () => {
+describe("reopenActionOf", () => {
+  it("reports to the spec-PR park of a line waiting on its merge", () => {
     expect(
-      reopenTargetOf(lineOn("await-merge", { parkedMerged: PARK as never })),
-    ).toEqual(PARK);
+      reopenActionOf(lineOn("await-merge", { parkedMerged: PARK as never })),
+    ).toEqual({ kind: "report", parked: PARK });
   });
 
-  it("returns null for no line, an ended line and a line waiting on the author", () => {
+  it("does nothing for no line, an ended line and a line waiting on the author", () => {
     expect(
       [
         null,
         lineOn(null),
         lineOn("author", { parkedAuthor: PARK as never }),
-      ].map(reopenTargetOf),
-    ).toEqual([null, null, null]);
+      ].map(reopenActionOf),
+    ).toEqual([{ kind: "nothing" }, { kind: "nothing" }, { kind: "nothing" }]);
   });
 
-  it("refuses with 409 a line the spec work is on", () => {
-    expect(() => reopenTargetOf(lineOn("write"))).toThrow(
-      expect.objectContaining({
-        output: expect.objectContaining({ statusCode: 409 }),
-      }),
-    );
+  it("cancels run-1 while the spec work is on write, and while the spec-tasks are being filed", () => {
+    expect([lineOn("write"), lineOn("issues")].map(reopenActionOf)).toEqual([
+      { kind: "cancel", runId: "run-1" },
+      { kind: "cancel", runId: "run-1" },
+    ]);
   });
 });
 

@@ -256,6 +256,52 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
   });
 
+  it("tells the planning agent a finding is work to do, fixed in the section it names and never edited or removed", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      ownWork: prompt.includes("A finding is not part of the conversation"),
+      fixTheSection: prompt.includes(
+        "fix the section it names so what it says no longer holds",
+      ),
+      leaveTheBlock: prompt.includes(
+        "Never edit or remove a finding block: the check that wrote it clears it",
+      ),
+      disagree: prompt.includes(
+        "ask with `add-question` on its section and change nothing there",
+      ),
+      inTheBrief: prompt.includes(
+        "A finding reaches you in the brief, never in the plan read",
+      ),
+    }).toEqual({
+      ownWork: true,
+      fixTheSection: true,
+      leaveTheBlock: true,
+      disagree: true,
+      inTheBrief: true,
+    });
+  });
+
+  it("tells the planning agent the Refine it was asked for is in the plan read, outranking the description its node started with", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      inTheRead: prompt.includes(
+        "`lore_plan_read` answers with `refine: {slot, title, brief}`",
+      ),
+      onlySection: prompt.includes("the only section you were asked to change"),
+      outranks: prompt.includes("the `refine` in this read outranks it"),
+      noneIsADraft: prompt.includes(
+        "answers no `refine`, nobody asked for a section and this is a draft",
+      ),
+    }).toEqual({
+      inTheRead: true,
+      onlySection: true,
+      outranks: true,
+      noneIsADraft: true,
+    });
+  });
+
   it("tells the planning agent that Open questions holds only questions, so it never restates its questions there as a list", () => {
     const prompt = promptOnOneLine("plan-analyze");
 
@@ -265,6 +311,26 @@ describe("the feature-planning recipe", () => {
       ),
       noRestating: prompt.includes("never a list, a paragraph, or a copy"),
     }).toEqual({ onlyQuestions: true, noRestating: true });
+  });
+
+  it("tells the planning agent its edits land unreviewed, so it checks each claim against the plan's other sections and settled answers and asks rather than contradict one", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      unreviewed: prompt.includes("nobody accepts them first"),
+      checkFirst: prompt.includes(
+        "check it against what the plan already decides",
+      ),
+      askInstead: prompt.includes("ask with `add-question` instead"),
+      everyInput: prompt.includes(
+        "Write in every settled input the brief lists",
+      ),
+    }).toEqual({
+      unreviewed: true,
+      checkFirst: true,
+      askInstead: true,
+      everyInput: true,
+    });
   });
 
   it("edits the live plan through lore_plan_read and lore_plan_edit instead of uploading a file", () => {
@@ -500,6 +566,58 @@ describe("the planning recipes check a plan against what the platform has (issue
       named: paths.length > 5,
       missing: paths.filter((p) => !existsSync(`${root}${p}`)),
     }).toEqual({ named: true, missing: [] });
+  });
+
+  it("has spec-write rewrite every statement listed under Not on main from the code on its branch", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      heading: prompt.includes('lists names under "Not on main"'),
+      fromCode: prompt.includes(
+        "read the file it names, or search the clone, and rewrite the statement from what the code says",
+      ),
+      neverKeep: prompt.includes("Never keep a name the code does not have"),
+    }).toEqual({ heading: true, fromCode: true, neverKeep: true });
+  });
+
+  it("has spec-write split a compound requirement one MUST per statement and back an unbacked success criterion", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      compound: prompt.includes(
+        'lists statements under "Compound requirements"',
+      ),
+      perMust: prompt.includes(
+        "Split each listed statement into one requirement per MUST",
+      ),
+      claimsByLine: prompt.includes("A task claims a statement by"),
+      unbacked: prompt.includes(
+        'lists statements under "Unbacked success criteria"',
+      ),
+      defineIt: prompt.includes(
+        "add the requirement that defines what it counts",
+      ),
+    }).toEqual({
+      compound: true,
+      perMust: true,
+      claimsByLine: true,
+      unbacked: true,
+      defineIt: true,
+    });
+  });
+
+  it("has feature-decompose rewrite each task listed under Not on main from the code and drop the plan quotes naming what is gone", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      heading: prompt.includes('lists task ids under "Not on main"'),
+      fromCode: prompt.includes(
+        "rewrite that task from the code on the branch",
+      ),
+      dropQuote: prompt.includes(
+        "drop a plan quote that names something the code lacks",
+      ),
+    }).toEqual({ heading: true, fromCode: true, dropQuote: true });
   });
 
   it("has feature-decompose read the spec its spec_path value names beside the approved plan, and take context from that plan", () => {

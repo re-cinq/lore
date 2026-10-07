@@ -362,7 +362,7 @@ nothing. ([validated by replaces main's answer for the file when the overlay cov
 The stations service answers a closing PR and holds no graph client, so it does
 not delete the branch's overlay itself: it asks lore-api, which does
 (`POST /api/repos/{owner}/{repo}/trace/overlay-drop`). Until 2026-10-02 the old
-Floor sent the drop through the `ingest` assembly line as a pod per drop. ([validated by drops the graph overlay of branch feat/x when its pull request closes](apps/stations/src/events/repo-handlers.test.ts#L80), [validated by posts branch feat/x to /trace/overlay-drop of o/r](libs/shared/src/outbound/project/lib/station-http.test.ts#L250), [validated by drops the overlay of branch lore/implementation-loop/issue-7 for o/r and answers dropped](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L40), [validated by answers dropped false and writes nothing when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L57), [validated by answers 400 when no branch is named](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L50))
+Floor sent the drop through the `ingest` assembly line as a pod per drop. ([validated by drops the graph overlay of branch feat/x when its pull request closes](apps/stations/src/events/repo-handlers.test.ts#L146), [validated by posts branch feat/x to /trace/overlay-drop of o/r](libs/shared/src/outbound/project/lib/station-http.test.ts#L227), [validated by drops the overlay of branch lore/implementation-loop/issue-7 for o/r and answers dropped](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L40), [validated by answers dropped false and writes nothing when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L57), [validated by answers 400 when no branch is named](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L50))
 
 The drop follows the PR, not a run: review, triage and reply runs all work on
 the PR's head branch, so the first of them to finish would otherwise wipe an
@@ -370,7 +370,7 @@ overlay the implementation loop is still writing. A PR closed without merging
 drops its overlay the same way, and the stations service claims the close
 whether or not an external floor is configured. ([validated by claims only the closed pull request, for its overlay drop, when no floor is configured](apps/stations/src/events/subscriptions.test.ts#L60))
 
-A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch](apps/stations/src/events/repo-handlers.test.ts#L92))
+A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch](apps/stations/src/events/repo-handlers.test.ts#L158))
 
 The drop can still be missed — a branch that never opened a PR, a lost event —
 so a retention sweep reaps every overlay a repo has not restamped since a

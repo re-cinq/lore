@@ -310,6 +310,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/nodes/{node}/run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/assembly-runs/{id}/nodes/{node}/run */
+    post: operations["post_api_assembly-runs_id_nodes_node_run"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/stream-token": {
     parameters: {
       query?: never;
@@ -355,6 +372,24 @@ export interface paths {
     get: operations["get_api_assembly-runs_id_turns"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/upgrade */
+    get: operations["get_api_assembly-runs_id_upgrade"];
+    put?: never;
+    /** POST /api/assembly-runs/{id}/upgrade */
+    post: operations["post_api_assembly-runs_id_upgrade"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1577,23 +1612,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/tasks/spec-tasks": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** PUT /api/repos/{owner}/{repo}/tasks/spec-tasks */
-    put: operations["put_api_repos_owner_repo_tasks_spec-tasks"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/repos/{owner}/{repo}/trace/overlay-drop": {
     parameters: {
       query?: never;
@@ -1759,74 +1777,6 @@ export interface paths {
     put?: never;
     /** POST /api/spec-links/parse */
     post: operations["post_api_spec-links_parse"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/claim */
-    post: operations["post_api_spec-tasks_claim"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/complete": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/complete */
-    post: operations["post_api_spec-tasks_complete"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/ready": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/spec-tasks/ready */
-    get: operations["get_api_spec-tasks_ready"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/sync": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/sync */
-    post: operations["post_api_spec-tasks_sync"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2459,6 +2409,12 @@ export interface components {
       output_tokens: number;
       cache_creation_tokens: number;
       cache_read_tokens: number;
+    };
+    AssemblyRunUpgrade: {
+      available: boolean;
+    };
+    AssemblyRunUpgraded: {
+      run_id: string;
     };
     AuditLogPage: {
       entries: {
@@ -3245,6 +3201,10 @@ export interface components {
       /** @constant */
       reason?: "no-records";
     };
+    NodeRunAsked: {
+      run_id: string;
+      pending: boolean;
+    };
     OnboardResult:
       | {
           repo_id: string;
@@ -3952,29 +3912,6 @@ export interface components {
       specs: {
         [key: string]: unknown;
       }[];
-    };
-    SpecTaskClaimed: {
-      claimed: boolean;
-      task_id: string;
-      agent_id: string;
-    };
-    SpecTaskCompleted: {
-      [key: string]: unknown;
-    };
-    SpecTasksReady: {
-      tasks: {
-        [key: string]: unknown;
-      }[];
-    };
-    SpecTasksReconciled: {
-      created: number;
-      updated: number;
-      cancelled: number;
-    };
-    SpecTasksSynced: {
-      parsed: number;
-      synced: number;
-      created: number;
     };
     SpendWindow: {
       interval: {
@@ -4892,6 +4829,43 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "post_api_assembly-runs_id_nodes_node_run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        node: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          requested_by: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The floor was asked to run the node again in its run, in the person's name; pending when it had not taken the ask within a few seconds. 400 for the line's exit or fail node or a node it does not have, 404 for a run the floor does not have, 409 with the floor's reason when it refused */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NodeRunAsked"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_assembly-runs_id_stream-token": {
     parameters: {
       query?: never;
@@ -4978,6 +4952,63 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Whether a newer version of the run's assembly line is available. 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunUpgrade"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs_id_upgrade": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A new run on the latest version of the assembly line, retaining the source run's inputs; the source run is cancelled when it is still open. 404 for a run the floor does not have, 409 for a run already on the latest version */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunUpgraded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7118,11 +7149,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          actor: string;
           slot: string;
           title: string;
           baseHash: string;
           inputs: unknown;
           uses: unknown;
+          storyIssue?: number;
         };
       };
     };
@@ -7373,53 +7406,6 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "put_api_repos_owner_repo_tasks_spec-tasks": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          planId?: string;
-          groupId?: string;
-          tasks: {
-            description: string;
-            taskType: string;
-            createdBy?: string;
-            contextBundle?: {
-              [key: string]: unknown;
-            };
-            taskGroupId?: string;
-            issueNumber: number;
-            issueUrl?: string;
-          }[];
-        };
-      };
-    };
-    responses: {
-      /** @description How many spec-tasks were created, reused and cancelled */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTasksReconciled"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7754,129 +7740,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SpecLinksParseResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          task_id: string;
-          agent_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description Whether the claim succeeded */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTaskClaimed"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_complete": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          task_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The completed task's new state */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTaskCompleted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_spec-tasks_ready": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Spec tasks whose dependencies have merged */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTasksReady"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_sync": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          repo: string;
-          spec_slug: string;
-          tasks_markdown: string;
-        };
-      };
-    };
-    responses: {
-      /** @description How many spec tasks the sync parsed and created */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTasksSynced"];
         };
       };
       400: components["responses"]["BadRequest"];

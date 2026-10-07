@@ -8,6 +8,9 @@ export const PRIORITY_LABELS = [
 
 export type PriorityLabel = (typeof PRIORITY_LABELS)[number];
 
+/** The priority a ticket gets when nobody chose one: what `queueTicket` applies, and what the planning line stamps on the task issues it files. */
+export const DEFAULT_PRIORITY: PriorityLabel = "priority:medium";
+
 export const LORE_BLOCKED_LABEL = "lore:blocked";
 
 /** Seed set for `createLabels` (create-or-ignore-existing) — onboarding. */

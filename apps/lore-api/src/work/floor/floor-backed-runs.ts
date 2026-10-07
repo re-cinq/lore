@@ -23,9 +23,6 @@ const DEFAULT_LIST_LIMIT = 50;
 
 export const FLOOR_ENGINE = "floor";
 
-export const FLOOR_RUN_REFUSAL =
-  "this run is on the external floor; retry it from the floor";
-
 /** True for a run the floor answered: its `args.engine` is stamped by the mapping. */
 export function runsOnFloor(run: { args: Record<string, unknown> }): boolean {
   return run.args.engine === FLOOR_ENGINE;

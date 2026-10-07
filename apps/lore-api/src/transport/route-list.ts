@@ -38,12 +38,6 @@ import { taskTurnsPostRoute } from "./routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "./routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "./routes/tasks/task-post.js";
 import { taskGroupRoute } from "./routes/tasks/task-group.js";
-import {
-  specTasksSyncRoute,
-  specTasksReadyRoute,
-  specTasksClaimRoute,
-  specTasksCompleteRoute,
-} from "./routes/spec-tasks/spec-tasks.js";
 import { memoryRoute } from "./routes/memory/memory.js";
 import { memoryBrowseRoutes } from "./routes/memory/memory-browse.js";
 import { episodeRoute } from "./routes/memory/episode.js";
@@ -94,6 +88,11 @@ import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
+import { runNodeRoute } from "./routes/floor/run-node.js";
+import {
+  upgradeStateRoute,
+  upgradeRunRoute,
+} from "./routes/floor/upgrade-run.js";
 import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
 import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
@@ -123,11 +122,14 @@ export function routeList(
   ];
 }
 
-/** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review the run page starts. */
+/** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review and the stations the run page starts. */
 function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     floorGitCredentialRoute(),
     reviewStartRoute(),
+    runNodeRoute(),
+    upgradeStateRoute(),
+    upgradeRunRoute(),
     floorRunsRoute(floorRunPages),
     ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),
@@ -170,7 +172,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
 
 /** Pipeline tasks and the assembly runs that execute them; the emitted order is the order the OpenAPI generator walks, so the two halves stay concatenated rather than interleaved. */
 function taskRoutes(getPool: PoolGetter, plans: PlanVerbSeams): ServerRoute[] {
-  return [...taskRunRoutes(getPool), ...specTaskRoutes(getPool, plans)];
+  return [...taskRunRoutes(getPool), ...backlogRoutes(getPool, plans)];
 }
 
 /** One task: its record, the runs that executed it, and the logs those runs left behind. */
@@ -193,16 +195,12 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** The spec-task DAG and the feature backlog above it, plus the transcript sinks a running node writes into. */
-function specTaskRoutes(
+/** The feature backlog, the plans above it, and the transcript sinks a running node writes into. */
+function backlogRoutes(
   getPool: PoolGetter,
   plans: PlanVerbSeams,
 ): ServerRoute[] {
   return [
-    specTasksSyncRoute(getPool),
-    specTasksReadyRoute(getPool),
-    specTasksClaimRoute(getPool),
-    specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
     ...plansRoutes(getPool, plans),

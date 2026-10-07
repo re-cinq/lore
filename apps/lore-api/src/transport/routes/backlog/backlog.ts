@@ -14,7 +14,13 @@ import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import {
+  floorClient,
+  floorConfigured,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
+import { openFloorLoopRun } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import { projectFor } from "../../../outbound/project-boot.js";
+import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -27,6 +33,7 @@ import {
 } from "./backlog-schema.js";
 import {
   fetchRunContext,
+  fillFromFloor,
   LOOP_TASK_COLUMNS,
   taskTicket,
   waitingTicket,
@@ -130,7 +137,7 @@ async function loadBacklogState(
     taskRows,
     ...(await readIssues(repo)),
     currentRunId: await readCurrentRunId(pool, repo),
-    ...(await readRunIndex(pool, taskRows)),
+    ...(await readRunIndex(pool, repo, taskRows)),
   };
 }
 
@@ -173,7 +180,7 @@ async function readIssues(
   };
 }
 
-/** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. */
+/** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. Postgres only ever held this for Lore's own retired engine (ADR-049), so an open run today is answered by the floor. */
 async function readCurrentRunId(
   pool: Pool,
   repo: string,
@@ -186,23 +193,36 @@ async function readCurrentRunId(
     [repo],
   );
 
-  return rows[0]?.id ?? null;
+  if (rows[0]) {
+    return rows[0].id;
+  }
+
+  if (!floorConfigured()) {
+    return null;
+  }
+
+  const open = await openFloorLoopRun(floorClient(), repo);
+
+  return open?.id ?? null;
 }
 
-// Last, and in this order: the node read is scoped to the task ids above, and the run lookup shares its cursor.
+// Last, and in this order: the node read is scoped to the task ids above, and the run lookup shares its cursor. A task the Postgres read found nothing for is tried on the floor instead (FR17/ADR-049): every implementation-loop run has lived there since the external-floor cutover.
 async function readRunIndex(
   pool: Pool,
+  repo: string,
   taskRows: LoopTaskRow[],
 ): Promise<Pick<BacklogState, "runByTask" | "nodeRows">> {
   const { taskRuns, nodeRows } = await fetchRunContext(
     pool,
     taskRows.map((t) => t.id),
   );
+  const runByTask = new Map(taskRuns.map((r) => [r.task_id, r] as const));
+  const missing = taskRows.filter((t) => !runByTask.has(t.id));
+  const extraNodeRows = floorConfigured()
+    ? await fillFromFloor(floorRunReader(), repo, missing, runByTask)
+    : [];
 
-  return {
-    runByTask: new Map(taskRuns.map((r) => [r.task_id, r] as const)),
-    nodeRows,
-  };
+  return { runByTask, nodeRows: [...nodeRows, ...extraNodeRows] };
 }
 
 function projectBacklog(state: BacklogState): {

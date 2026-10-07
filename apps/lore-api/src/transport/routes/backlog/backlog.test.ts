@@ -756,3 +756,79 @@ describe("GET with tickets the loop is not working", () => {
     });
   });
 });
+
+describe("floorRunContext", () => {
+  function fakeFloor(overrides: {
+    summaries?: Array<{ id: string; status: string; reason: string | null }>;
+    graph?: { nodes: Array<{ id: string; type: string }> } | null;
+    visits?: Array<{
+      nodeId: string;
+      iteration: number;
+      outcome: string | null;
+    }>;
+  }) {
+    return {
+      listSummaries: async () => overrides.summaries ?? [],
+      getById: async () => ({ graph: overrides.graph ?? null }),
+      listStationRuns: async () => overrides.visits ?? [],
+    };
+  }
+
+  it("is null when the floor has no run for the task", async () => {
+    const { floorRunContext } = await import("./backlog-ticket.js");
+
+    expect(
+      await floorRunContext(fakeFloor({}) as never, "re-cinq/lore", "task-1"),
+    ).toBeNull();
+  });
+
+  it("carries the run's status and reason even with no graph yet", async () => {
+    const { floorRunContext } = await import("./backlog-ticket.js");
+    const floor = fakeFloor({
+      summaries: [{ id: "run-9", status: "running", reason: null }],
+      graph: null,
+    });
+
+    expect(
+      await floorRunContext(floor as never, "re-cinq/lore", "task-1"),
+    ).toEqual({
+      run: {
+        id: "run-9",
+        task_id: "task-1",
+        status: "running",
+        reason: null,
+        graph: null,
+      },
+      nodeRows: [],
+    });
+  });
+
+  it("maps the floor's visits into the pipeline's node rows", async () => {
+    const { floorRunContext } = await import("./backlog-ticket.js");
+    const floor = fakeFloor({
+      summaries: [{ id: "run-9", status: "failed", reason: "iteration_max" }],
+      graph: { nodes: [{ id: "implement", type: "agent" }] },
+      visits: [{ nodeId: "implement", iteration: 1, outcome: "failed" }],
+    });
+
+    expect(
+      await floorRunContext(floor as never, "re-cinq/lore", "task-1"),
+    ).toEqual({
+      run: {
+        id: "run-9",
+        task_id: "task-1",
+        status: "failed",
+        reason: "iteration_max",
+        graph: { nodes: [{ id: "implement", type: "agent" }] },
+      },
+      nodeRows: [
+        {
+          assembly_run_id: "run-9",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "failed",
+        },
+      ],
+    });
+  });
+});

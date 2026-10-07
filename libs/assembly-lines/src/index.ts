@@ -9,3 +9,9 @@ export {
 export { parseReviewVerdict } from "./node-outcome.js";
 
 export { resultTextFromOutput, eventLine } from "./agent-output.js";
+
+export {
+  pipelineProblems,
+  type PipelineProblem,
+  type PipelineRule,
+} from "./pipeline-lint.js";

@@ -7,10 +7,12 @@ import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 import type { NodeModel } from "@/lib/node-models";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
+import { isFloorEngine } from "@/lib/assembly-run-rows";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
 import NodeInputCard from "./NodeInputCard";
 import RunNodeDetail from "./RunNodeDetail";
+import { RunNodeButton } from "./RunNodeButton";
 import styles from "./RunVisualizationPanel.module.css";
 
 /** Everything shown about the currently selected node — or the hint to pick one when nothing is selected. */
@@ -102,7 +104,7 @@ function NodeInspector(props: NodeInspectorProps) {
         repo={props.repo}
         attempts={props.attempts}
         model={props.model}
-        actions={<EditAgentSlot href={props.agentEditHref} />}
+        actions={<NodeActions {...props} />}
       />
       <NodeInputCard inputs={props.inputs} />
       <AttemptLogPanels runId={runId} rows={rows} engine={props.engine} />
@@ -158,6 +160,32 @@ function AttemptLogPanels({ runId, rows, engine }: AttemptLogPanelsProps) {
         label={`Pod logs · attempt ${attempt.iteration}`}
       />
     ));
+}
+
+/** The card header's actions: run the node again, and edit its agent. */
+function NodeActions(props: NodeInspectorProps) {
+  return (
+    <>
+      <RunNodeSlot {...props} />
+      <EditAgentSlot href={props.agentEditHref} />
+    </>
+  );
+}
+
+/** "Run this station" on a floor run's node. The exit and fail nodes end the run, so they have no station to run. */
+function RunNodeSlot({
+  nodeId,
+  runId,
+  engine,
+  definition,
+}: NodeInspectorProps) {
+  const endsRun = nodeId === definition?.exit || nodeId === definition?.fail;
+
+  if (!isFloorEngine(engine) || endsRun) {
+    return null;
+  }
+
+  return <RunNodeButton runId={runId} nodeId={nodeId} />;
 }
 
 /** The link to this node's agent definition, absent when the node has no editable agent. It sits inside a <summary>, so it stops propagation — without it the card toggles shut behind the click. */

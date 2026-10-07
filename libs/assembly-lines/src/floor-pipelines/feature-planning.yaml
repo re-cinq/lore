@@ -23,15 +23,32 @@ line:
     # plan that will never answer. See the plan-pass-end station.
     - id: plan-pass-end
       station: plan-pass-end
+    # Deterministic and modelless, so it runs on every pass rather than when
+    # someone clicks Validate: a stale name costs nothing to find and reaches the
+    # plan while its people are still writing it. It reads the plan live rather
+    # than from the bag: a Refine starts `analyze` by hand, a start by hand stores
+    # no fresh markdown, and grounding last round's copy re-reported every finding
+    # the pass had just fixed.
+    - id: plan-grounding
+      station: plan-grounding
+      bind:
+        target: base
     - id: author
       station: plan-author
     # No inbound edge — the plan page's own Validate button fires this event while
-    # the line waits on `author`; every outcome hands straight back to the author.
+    # the line waits on `author`; every outcome goes through plan-findings back to
+    # the author. It reads `base`, cloned as the default branch stands when the
+    # visit opens: `repo` is the spec branch, cut from main when the run started
+    # and untouched until `write` pushes, so a Validate days later read deleted code.
     - id: validate
       station: plan-validate
       start: manual.plan.validate
       bind:
-        target: repo
+        target: base
+    # Writes the validator's findings into the plan, or a blocker when the visit
+    # delivered none. See the plan-findings station.
+    - id: plan-findings
+      station: plan-findings
     - id: analyse-specs
       station: spec-analysis
       bind:
@@ -96,6 +113,11 @@ line:
     # success or failed of its own (posting the Refine-failure notice, or not), and
     # either way the plan waits on its author next.
     - from: plan-pass-end
+      to: plan-grounding
+      on: always
+    # Grounding never holds the plan back: its findings are on the plan, and the
+    # blockers among them are what Approve already refuses on.
+    - from: plan-grounding
       to: author
       on: always
     # Unbounded on purpose. The back-edge rule exists to stop two agents arguing
@@ -115,9 +137,14 @@ line:
       to: done
       on: failed
     # Validate reports only `success` in practice (the findings are the delivery,
-    # not the outcome) but a pod can still fail outright, so `always` catches both
-    # and hands the plan straight back to the people reading it.
+    # not the outcome) but a pod can still fail outright, so `always` catches both.
+    # plan-findings tells the two apart by whether the visit produced its file.
     - from: validate
+      to: plan-findings
+      on: always
+    # A visit that delivered nothing has already put a blocker on the plan, so
+    # either way the plan goes back to the people reading it.
+    - from: plan-findings
       to: author
       on: always
     - from: analyse-specs
@@ -285,6 +312,21 @@ stations:
         kind: value
         optional: true
     produces: []
+  plan-grounding:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # The default branch as it stands when the visit opens, never the plan's spec
+      # branch: that one is cut when the run starts and a name may have gone since.
+      - name: target
+        kind: git
+        path: target
+        access: read
+    produces: []
   plan-validate:
     kind: agent
     agent_definition: plan-validate
@@ -306,6 +348,20 @@ stations:
       - name: plan_validation
         kind: file
         path: plan-validation.json
+  plan-findings:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # Optional: a visit that wrote nothing leaves the bag without one, or with
+      # an earlier visit's, which the station refuses to read as this one's.
+      - name: plan_validation
+        kind: file
+        optional: true
+    produces: []
   spec-analysis:
     kind: agent
     agent_definition: spec-analysis
@@ -682,9 +738,14 @@ agent_definitions:
           LORE_TEST_POLICY: none
   feature-decompose:
     settings:
-      model: claude-sonnet-4-6
+      # Tried beside claude-sonnet-4-6 and gemini-3-flash-preview on three of this repository's specs (2026-10-06): it named the most spec statements, at no more than Sonnet's cost.
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 15
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:

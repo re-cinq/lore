@@ -27,6 +27,7 @@ interface Need {
 
 interface Station {
   kind: string;
+  agent_definition?: string;
   outcomes: string[];
   needs: Need[];
   produces: Array<{ name: string; kind: string; path?: string }>;
@@ -34,6 +35,10 @@ interface Station {
 
 interface AgentSettings {
   model: string;
+  prices?: Record<
+    string,
+    { input_per_million: number; output_per_million: number }
+  >;
   prompt: string;
   config: {
     env: Record<string, string>;
@@ -52,7 +57,7 @@ interface Pipeline {
     start?: { on: string[] };
     files?: Record<string, string>;
     args: Record<string, Arg>;
-    nodes: { id: string; station?: string }[];
+    nodes: { id: string; station?: string; bind?: Record<string, string> }[];
     edges: Edge[];
   };
   stations: Record<string, Station>;
@@ -86,7 +91,7 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -96,6 +101,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "daily-digest",
       "feature-planning",
       "implementation-loop",
+      "issue-triage",
       "lore-run-settled",
       "merge",
       "onboard",
@@ -535,7 +541,7 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(prompt).not.toContain("clone");
   });
 
-  it("walks merge from settle through spec-status, close-issue, outcome-stats, curate, memory-feedback, trust and spec-tasks to done", () => {
+  it("walks merge from settle through spec-status, close-issue, outcome-stats, curate, memory-feedback and trust to done", () => {
     const { line } = pipelineOf("merge");
 
     expect(line.nodes).toEqual([
@@ -546,7 +552,6 @@ describe("the floor pipelines shipped in this folder", () => {
       { id: "curate", station: "merge-curate" },
       { id: "memory-feedback", station: "merge-memory-feedback" },
       { id: "trust", station: "merge-trust" },
-      { id: "spec-tasks", station: "merge-spec-tasks" },
       { id: "done" },
     ]);
   });
@@ -562,8 +567,7 @@ describe("the floor pipelines shipped in this folder", () => {
       { from: "outcome-stats", to: "curate", on: "always" },
       { from: "curate", to: "memory-feedback", on: "always" },
       { from: "memory-feedback", to: "trust", on: "always" },
-      { from: "trust", to: "spec-tasks", on: "always" },
-      { from: "spec-tasks", to: "done", on: "always" },
+      { from: "trust", to: "done", on: "always" },
     ]);
   });
 
@@ -572,7 +576,7 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect(line.args).toEqual({ task_id: { kind: "value", subject: true } });
     expect(Object.values(stations)).toEqual(
-      Array.from({ length: 8 }, () => ({
+      Array.from({ length: 7 }, () => ({
         kind: "service",
         outcomes: ["success", "failed"],
         needs: [{ name: "task_id", kind: "value" }],
@@ -636,7 +640,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("marks pr_url as the subject of code-review and head_sha as the subject of code-review-recheck, so a re-check never joins an open review and two re-checks of one sha are one run", () => {
+  it("keys code-review on pr_url, code-review-recheck on head_sha and code-review-reply on review_id, so a re-check never joins an open review, two re-checks of one sha are one run, and one review is answered once", () => {
     const subjectArgs = (id: string): string[] =>
       Object.entries(pipelineOf(id).line.args)
         .filter(([, arg]) => arg.subject)
@@ -646,7 +650,11 @@ describe("the floor pipelines shipped in this folder", () => {
       review: subjectArgs("code-review"),
       recheck: subjectArgs("code-review-recheck"),
       reply: subjectArgs("code-review-reply"),
-    }).toEqual({ review: ["pr_url"], recheck: ["head_sha"], reply: [] });
+    }).toEqual({
+      review: ["pr_url"],
+      recheck: ["head_sha"],
+      reply: ["review_id"],
+    });
   });
 
   it("enters code-review-reply at read-review and clones the repository with write access for its code-review-refine station", () => {
@@ -729,6 +737,27 @@ describe("the floor pipelines shipped in this folder", () => {
 });
 
 describe("the feature-planning pipeline", () => {
+  it("grounds the plan between plan-pass-end and author, reading the default branch and nothing from the bag", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+    const node = line.nodes.find((each) => each.id === "plan-grounding");
+
+    expect({
+      station: node?.station,
+      base: node?.bind,
+      from: edgesOn(line, "plan-pass-end").map((edge) => [edge.to, edge.on]),
+      to: edgesOn(line, "plan-grounding").map((edge) => [edge.to, edge.on]),
+      planMd: needOf(stations["plan-grounding"], "plan_md"),
+      target: needOf(stations["plan-grounding"], "target"),
+    }).toEqual({
+      station: "plan-grounding",
+      base: { target: "base" },
+      from: [["plan-grounding", "always"]],
+      to: [["author", "always"]],
+      planMd: undefined,
+      target: { name: "target", kind: "git", path: "target", access: "read" },
+    });
+  });
+
   it("walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event", () => {
     const { line } = pipelineOf("feature-planning");
 
@@ -750,6 +779,8 @@ describe("the feature-planning pipeline", () => {
         "issues",
         "merged",
         "open-spec-pr",
+        "plan-findings",
+        "plan-grounding",
         "plan-pass-end",
         "spec-coverage",
         "validate",
@@ -880,6 +911,38 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
+  it("has validate read the default branch as it stands when the visit opens, not the spec branch cut when the run started", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect(line.nodes.find((node) => node.id === "validate")?.bind).toEqual({
+      target: "base",
+    });
+  });
+
+  it("hands every validate visit to plan-findings, which writes the findings into the plan before the author waits again", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+
+    expect({
+      fromValidate: edgesOn(line, "validate"),
+      fromFindings: edgesOn(line, "plan-findings"),
+      station: line.nodes.find((node) => node.id === "plan-findings")?.station,
+      findings: stations["plan-findings"],
+    }).toEqual({
+      fromValidate: [{ from: "validate", to: "plan-findings", on: "always" }],
+      fromFindings: [{ from: "plan-findings", to: "author", on: "always" }],
+      station: "plan-findings",
+      findings: {
+        kind: "service",
+        outcomes: ["success", "failed"],
+        needs: [
+          { name: "plan_id", kind: "value" },
+          { name: "plan_validation", kind: "file", optional: true },
+        ],
+        produces: [],
+      },
+    });
+  });
+
   it("has the validation read the live plan through lore_plan_read rather than a plan.md snapshot", () => {
     const { stations } = pipelineOf("feature-planning");
 
@@ -949,6 +1012,21 @@ describe("the feature-planning pipeline", () => {
         optional: true,
       },
       named: [true, true],
+    });
+  });
+
+  it("runs feature-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const { settings } =
+      pipelineOf("feature-planning").agent_definitions!["feature-decompose"]!;
+
+    expect({ model: settings.model, prices: settings.prices }).toEqual({
+      model: "gemini-3.1-pro-preview",
+      prices: {
+        "gemini-3.1-pro-preview": {
+          input_per_million: 2,
+          output_per_million: 12,
+        },
+      },
     });
   });
 
@@ -1264,5 +1342,30 @@ describe("the files the floor agents produce", () => {
       .filter((entry) => entry.includes(":target/"));
 
     expect(insideClone).toEqual([]);
+  });
+
+  it("names every agent's produced file by its path placeholder and never the current directory, which is the root in the pod", () => {
+    const agentStations = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.values(pipeline.stations))
+      .filter((station) => station.kind === "agent");
+    const unnamed = agentStations.flatMap((station) =>
+      station.produces
+        .filter((output) => output.path !== undefined)
+        .filter(
+          (output) =>
+            !promptOnOneLine(station.agent_definition ?? "").includes(
+              `{${output.name}_path}`,
+            ),
+        )
+        .map((output) => `${station.agent_definition}:${output.name}`),
+    );
+    const sayCurrentDirectory = agentStations
+      .map((station) => station.agent_definition ?? "")
+      .filter((name) => promptOnOneLine(name).includes("current directory"));
+
+    expect({ unnamed, sayCurrentDirectory }).toEqual({
+      unnamed: [],
+      sayCurrentDirectory: [],
+    });
   });
 });

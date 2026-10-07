@@ -19,7 +19,6 @@ export const CRON_EMITTERS: CronEmitter[] = [
     schedule: "*/2 * * * *",
     note: "resume implementation-loop runs parked at await-pr once the PR is green and thread-clean",
   },
-  { name: "spec_task_executor", schedule: "*/1 * * * *" },
   {
     name: "telemetry_prune",
     schedule: "43 3 * * *",
@@ -39,6 +38,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     name: "spec_upkeep",
     schedule: "0 10 * * 1",
     note: "one spec-upkeep run per onboarded repo on the external floor, started by the stations service; it replaced the spec_drift and spec_coverage_backfill fan-outs",
+  },
+  {
+    name: "issue_triage",
+    schedule: "*/2 * * * *",
+    note: "batch sweep that starts one issue-triage floor run per qualifying triage: needs-triage issue per repo, oldest first, up to the per-repo concurrency cap (specs/issue-triage FR9)",
   },
 ];
 

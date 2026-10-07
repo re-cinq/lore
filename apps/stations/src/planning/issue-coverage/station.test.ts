@@ -32,8 +32,24 @@ function decomposition(...specLines: number[][]): string {
   });
 }
 
+const HANDLER_PATH = "libs/shared/src/work/backlog/label-dispatch.ts";
+const HANDLER =
+  "const working = await deps.activeTaskByIssue(repo, issue.number);";
+
+function decompositionWith(task: Record<string, unknown>): string {
+  return JSON.stringify({
+    spec_commit: "abc123",
+    stories: [
+      {
+        title: "Hand off",
+        tasks: [{ id: "T006", description: "d", spec_lines: [7, 8], ...task }],
+      },
+    ],
+  });
+}
+
 const NEEDS = {
-  target: "github.com/re-cinq/lore@main",
+  target: "https://github.com/re-cinq/lore@main",
   decomposition: "blob://decomposition",
   spec_path: SPEC_PATH,
 };
@@ -59,8 +75,9 @@ function scene(decomposed: string, visits: RunVisit[] = []) {
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
 
-      return path === SPEC_PATH ? SPEC : null;
+      return { [SPEC_PATH]: SPEC, [HANDLER_PATH]: HANDLER }[path] ?? null;
     },
+    listTree: async () => [SPEC_PATH, HANDLER_PATH],
     visitsOf: async () => [
       ...visits,
       { nodeId: "issue-coverage", report: null },
@@ -116,6 +133,76 @@ describe("issueCoverageHandle", () => {
       report,
       namesFr2: produced.issue_coverage?.includes("- line 8: FR2"),
     }).toEqual({ report: { outcome: "success" }, namesFr2: true });
+  });
+
+  it("sends decompose back naming T006's alreadyWorkingOnIssue, absent from the file it names, with activeTaskByIssue as the hint", async () => {
+    const { handle, tools, produced } = scene(
+      decompositionWith({
+        changes: `Check before the \`alreadyWorkingOnIssue\` guard in \`${HANDLER_PATH}\`.`,
+      }),
+    );
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      namesGuard: produced.issue_coverage?.includes(
+        "- `T006`: `alreadyWorkingOnIssue` (line 1) is not in the files the line names; closest: `activeTaskByIssue`",
+      ),
+    }).toEqual({ report: { outcome: "changes_requested" }, namesGuard: true });
+  });
+
+  it("sends decompose back when T006 quotes a plan block naming the retired apps/floor", async () => {
+    const { handle, tools, produced } = scene(
+      decompositionWith({
+        plan_quotes: [
+          "in `issuesLabeled` (`apps/floor/src/events/handlers/github.ts`), before the guard",
+        ],
+      }),
+    );
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      namesRetired: produced.issue_coverage?.includes(
+        "- `T006`: `apps/floor` (line 1) is retired",
+      ),
+    }).toEqual({
+      report: { outcome: "changes_requested" },
+      namesRetired: true,
+    });
+  });
+
+  it("reports success when T002 names the pipeline file T001 adds", async () => {
+    const { handle, tools } = scene(
+      JSON.stringify({
+        spec_commit: "abc123",
+        stories: [
+          {
+            title: "Triage",
+            tasks: [
+              {
+                id: "T001",
+                description:
+                  "Add `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml`.",
+                spec_lines: [7],
+              },
+              {
+                id: "T002",
+                description:
+                  "Wire reproduce into `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml`.",
+                spec_lines: [8],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const report = await handle(brief(), tools);
+
+    expect(report).toEqual({ outcome: "success" });
   });
 
   it("reports success and produces nothing when the run names no spec", async () => {

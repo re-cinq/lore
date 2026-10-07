@@ -7,8 +7,11 @@ line:
       kind: git
     pr_url:
       kind: value
+    # One run per review: a second request for changes on the same review is the
+    # same work, and two replies in one thread read as the bot arguing with itself.
     review_id:
       kind: value
+      subject: true
   nodes:
     - id: read-review
       station: read-review

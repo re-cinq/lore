@@ -14,7 +14,7 @@ const TOOLS: Tools = {
   signal: new AbortController().signal,
 };
 
-function brief(target = "github.com/re-cinq/lore@spec/widget") {
+function brief(target = "https://github.com/re-cinq/lore@spec/widget") {
   return { visitId: "visit-pr", iteration: 1, needs: { target } };
 }
 
@@ -40,7 +40,7 @@ function briefTitled(planTitle: string) {
     visitId: "visit-pr",
     iteration: 1,
     needs: {
-      target: "github.com/re-cinq/lore@spec/widget",
+      target: "https://github.com/re-cinq/lore@spec/widget",
       plan_title: planTitle,
     },
   };
@@ -60,7 +60,12 @@ function pullRef(overrides: Partial<PullRef> = {}): PullRef {
 }
 
 function scene(project: OpenSpecPrProject) {
-  const deps: OpenSpecPrDeps = { project: () => Promise.resolve(project) };
+  const deps: OpenSpecPrDeps = {
+    project: (repo) =>
+      repo === "re-cinq/lore"
+        ? Promise.resolve(project)
+        : Promise.reject(new Error(`Not Found: ${repo}`)),
+  };
 
   return openSpecPrHandle(deps);
 }
@@ -256,7 +261,7 @@ function coveredBrief() {
     visitId: "visit-pr",
     iteration: 1,
     needs: {
-      target: "github.com/re-cinq/lore@spec/widget",
+      target: "https://github.com/re-cinq/lore@spec/widget",
       plan_coverage: "blob://coverage",
     },
   };

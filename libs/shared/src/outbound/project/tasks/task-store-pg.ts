@@ -29,11 +29,7 @@ import {
   type TaskListResult,
   type FindOpenLikeInput,
   type DriftTaskRow,
-  type ReconcileSpecTasksInput,
-  type ReconciledSpecTasks,
 } from "./task-store-port.js";
-import { reconcileSpecTasksIn } from "./spec-task-reconcile-store.js";
-import { PgSpecTaskRows } from "./spec-task-rows-pg.js";
 
 /** TaskStorePort over pipeline.tasks; status updates via transition(). */
 
@@ -62,15 +58,6 @@ export class PgTaskStore implements TaskStorePort {
   }
 
   // ── ops delegating to the single-source pipeline-tasks functions ──
-
-  reconcileSpecTasks(
-    repo: string,
-    input: ReconcileSpecTasksInput,
-  ): Promise<ReconciledSpecTasks> {
-    const rows = new PgSpecTaskRows(this.pool, (task) => this.create(task));
-
-    return reconcileSpecTasksIn(rows, repo, input);
-  }
 
   create(input: CreateTaskInput): Promise<CreatedTask> {
     return createTask(this.pool, input);

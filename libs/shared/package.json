@@ -50,10 +50,6 @@
       "types": "./dist/work/housekeeping/*.d.ts",
       "default": "./dist/work/housekeeping/*.js"
     },
-    "./spec-task/*.js": {
-      "types": "./dist/work/spec-task/*.d.ts",
-      "default": "./dist/work/spec-task/*.js"
-    },
     "./backlog/*.js": {
       "types": "./dist/work/backlog/*.d.ts",
       "default": "./dist/work/backlog/*.js"
@@ -85,6 +81,14 @@
     "./error-classify.js": {
       "types": "./dist/lib/error-classify.d.ts",
       "default": "./dist/lib/error-classify.js"
+    },
+    "./feature-planning/spec-soundness.js": {
+      "types": "./dist/domain/feature-planning/spec-soundness.d.ts",
+      "default": "./dist/domain/feature-planning/spec-soundness.js"
+    },
+    "./feature-planning/grounding.js": {
+      "types": "./dist/domain/feature-planning/grounding.d.ts",
+      "default": "./dist/domain/feature-planning/grounding.js"
     },
     "./feature-planning/decomposition-result.js": {
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",

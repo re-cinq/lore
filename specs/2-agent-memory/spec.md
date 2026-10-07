@@ -148,7 +148,7 @@ available to agents — the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`facts.test.ts:5`](libs/server-core/src/work/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/work/memory/graph.test.ts#L5))
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82), [`facts.test.ts:5`](libs/server-core/src/work/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/work/memory/graph.test.ts#L5))
 
 ### Knowledge Graph
 
@@ -260,7 +260,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 Raw text blobs ingested via `lore_write_episode` are the source of truth for
 passive knowledge capture; fact and graph extraction runs asynchronously
-after write. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84))
+after write. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82))
 
 Episode inserts are idempotent — deduplicated on `(agent_id, content_hash)`,
 returning the new id or null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts:271`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L280), [`memory-lifecycle.test.ts:289`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L298), [`memory-lifecycle.test.ts:518`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L527))
@@ -295,7 +295,7 @@ with timestamp and agent ID. ([validated by `memory.test.ts:258`](libs/server-co
 ## Fact Extraction
 
 Triggered by `extract_facts=true` on `lore_write_memory`, or automatically
-on all `lore_write_episode` calls. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84))
+on all `lore_write_episode` calls. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82))
 
 Extraction is asynchronous and non-blocking: if the LLM is unreachable the
 memory write succeeds immediately and the memory stays searchable as raw text,
@@ -396,7 +396,7 @@ Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
 `lore_query_graph` (`GET /api/graph`, so the live knowledge graph is readable
 without a direct DB); `lore_agent_stats` has neither a file fallback nor a
-proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L72))
+proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L72))
 
 ## Transfer Scoring (Cross-Repo Context)
 

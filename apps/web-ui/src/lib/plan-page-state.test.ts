@@ -53,6 +53,18 @@ describe("planPageState for a draft plan", () => {
     ).toBe("validating");
   });
 
+  it("stays validating while plan-findings writes the validator's findings into the plan", () => {
+    expect(
+      planPageState(
+        "draft",
+        run("running", [
+          visit("validate", "success"),
+          visit("plan-findings", null),
+        ]),
+      ),
+    ).toBe("validating");
+  });
+
   it("is reopened while the line waits on the author with spec PR #7 already open", () => {
     expect(
       planPageState(
@@ -66,6 +78,24 @@ describe("planPageState for a draft plan", () => {
         ),
       ),
     ).toBe("reopened");
+  });
+
+  it("is reopened once the delivered line's run is over and spec PR #7 is merged, and writing when the ended run opened none", () => {
+    expect([
+      planPageState(
+        "draft",
+        run("finished", [visit("decompose", "success")], {
+          outcome: "completed",
+          prUrl: "https://github.com/re-cinq/lore/pull/7",
+        }),
+      ),
+      planPageState(
+        "draft",
+        run("finished", [visit("plan-pass-end", "success")], {
+          outcome: "completed",
+        }),
+      ),
+    ]).toEqual(["reopened", "writing"]);
   });
 });
 

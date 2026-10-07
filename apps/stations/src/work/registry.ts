@@ -5,7 +5,6 @@ import { anthropicCostSync } from "./anthropic-cost-sync/manifest.js";
 import { importanceDecayStation } from "./importance-decay/manifest.js";
 import { memoryTtl } from "./memory-ttl/manifest.js";
 import { mergeCheck } from "./merge-check/manifest.js";
-import { specTaskTickStation } from "./spec-task-tick/manifest.js";
 import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
@@ -14,6 +13,7 @@ import { telemetryPrune } from "./telemetry-prune/manifest.js";
 import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { consolidationStation } from "./consolidation/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
+import { issueTriageTickStation } from "./issue-triage-tick/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
@@ -23,11 +23,11 @@ export const STATION_NAMES = [
   "digest-tick",
   "gcp-cost-sync",
   "importance-decay",
+  "issue-triage-tick",
   "loop-tick",
   "memory-ttl",
   "merge-check",
   "pr-ready-check",
-  "spec-task-tick",
   "spec-upkeep-tick",
   "telemetry-prune",
 ] as const;
@@ -41,11 +41,11 @@ export const STATIONS: Record<StationName, StationModule> = {
   "digest-tick": digestTickStation,
   "gcp-cost-sync": gcpCostSync,
   "importance-decay": importanceDecayStation,
+  "issue-triage-tick": issueTriageTickStation,
   "loop-tick": loopTickStation,
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
   "pr-ready-check": prReadyCheck,
-  "spec-task-tick": specTaskTickStation,
   "spec-upkeep-tick": specUpkeepTickStation,
   "telemetry-prune": telemetryPrune,
 };

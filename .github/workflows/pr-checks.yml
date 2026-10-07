@@ -39,8 +39,9 @@ jobs:
           # prettier/eslint run third-party code (#1062) — the push step below
           # re-authenticates explicitly, after all of that has finished.
           persist-credentials: false
-          # Full history: the re-anchor step of `npm run format` scopes itself
-          # to the test files changed against the merge base with main.
+          # Full history: `re-lint/no-stale-spec-links`, which `npm run format`
+          # runs under `eslint --fix`, scopes itself to the test files changed
+          # against the merge base with main.
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -311,6 +312,12 @@ jobs:
 
       # The base branch reaches the binary as GITHUB_BASE_REF. A pull request from
       # a fork has no token: the binary says the links were not checked and passes.
+      #
+      # Do NOT add a `|| echo "::warning::"` here. The binary already decides
+      # what is Lore's fault and warns on it by itself — an outage, a 403 it
+      # could not outlast, a missing token — so a non-zero exit means a broken
+      # link in THIS change, which is the one thing this job exists to fail on.
+      # Swallowing it at the shell leaves the check with nothing to say (#2587).
       - name: Check spec links
         if: hashFiles('lore-code-trace') != ''
         env:
