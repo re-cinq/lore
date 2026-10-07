@@ -8,8 +8,6 @@ import type {
   RetriedTask,
   DriftTaskRow,
   FindOpenLikeInput,
-  ReconcileSpecTasksInput,
-  ReconciledSpecTasks,
 } from "./task-store-port.js";
 import { Task } from "./task.js";
 
@@ -48,13 +46,6 @@ export class TaskList {
       ...input,
       targetRepo: input.targetRepo ?? this.repo,
     });
-  }
-
-  /** A plan's spec-tasks, filed once: reruns reuse and cancel rather than add. */
-  reconcileSpecTasks(
-    input: ReconcileSpecTasksInput,
-  ): Promise<ReconciledSpecTasks> {
-    return this.store.reconcileSpecTasks(this.repo, input);
   }
 
   retry(id: string): Promise<RetriedTask> {
