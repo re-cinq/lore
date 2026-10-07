@@ -573,7 +573,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $r: repo },
     )) as { cov?: { uid: string }[]; fileChunk?: { hasCov?: number }[] };
 
-    expect(graph.cov ?? []).toHaveLength(1);
+    expect(graph.cov ?? []).toHaveLength(3);
     expect(graph.fileChunk?.[0]?.hasCov).toBe(1);
   });
 

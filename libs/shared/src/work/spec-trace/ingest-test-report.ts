@@ -155,11 +155,41 @@ async function ingestReportCoverage(
 }
 
 function coverageRecordsFor(report: TestReport): CoverageRecord[] {
-  return [...coveredRangesByFile(report)].map(([file, ranges]) => ({
-    testFile: file,
-    testName: file,
-    covered: [...ranges.values()],
-  }));
+  const fileLevelRecords = [...coveredRangesByFile(report)].map(
+    ([file, ranges]) => ({
+      testFile: file,
+      testName: file,
+      covered: [...ranges.values()],
+    }),
+  );
+
+  return [...fileLevelRecords, ...perTestCoverageRecords(report)];
+}
+
+/** Emits one CoverageRecord per result that has covered ranges, keyed by the descriptor's name so findTestChunkUid resolves the per-it TestChunk. */
+function perTestCoverageRecords(report: TestReport): CoverageRecord[] {
+  const descriptorById = new Map(
+    report.tests.map((descriptor) => [descriptor.id, descriptor]),
+  );
+  const records: CoverageRecord[] = [];
+
+  for (const result of report.results) {
+    if (!result.covered?.length) {
+      continue;
+    }
+    const descriptor = descriptorById.get(result.id);
+
+    if (!descriptor) {
+      continue;
+    }
+    records.push({
+      testFile: descriptor.file,
+      testName: descriptor.name,
+      covered: result.covered,
+    });
+  }
+
+  return records;
 }
 
 /** Joins run results to their descriptors and merges covered ranges per test FILE (coverage is file-level), so a Coverage node attaches to the file-scoped TestChunk. */
