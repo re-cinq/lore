@@ -42,7 +42,7 @@ line:
       iteration_max: 3
     - from: close-obsolete
       to: done
-      on: success
+      on: always
     - from: label-not-actionable
       to: done
       on: success
