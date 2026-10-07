@@ -28,7 +28,7 @@ export async function openRunChannelAction(
   const user = planUserOf((await getSession()) as PlanSession | null);
 
   if (!user) {
-    return { error: REFUSALS[401] };
+    return { error: REFUSALS[401] ?? "Sign in to follow this run." };
   }
   const minted = await mintRunStreamToken(runId, {
     id: user.id,
