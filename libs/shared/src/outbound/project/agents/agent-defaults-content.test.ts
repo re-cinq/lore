@@ -260,9 +260,7 @@ describe("the feature-planning recipe", () => {
     const prompt = promptOnOneLine("plan-analyze");
 
     expect({
-      notConversation: prompt.includes(
-        "A finding is not part of the conversation",
-      ),
+      ownWork: prompt.includes("A finding is not part of the conversation"),
       fixTheSection: prompt.includes(
         "fix the section it names so what it says no longer holds",
       ),
@@ -276,7 +274,7 @@ describe("the feature-planning recipe", () => {
         "A finding reaches you in the brief, never in the plan read",
       ),
     }).toEqual({
-      notConversation: true,
+      ownWork: true,
       fixTheSection: true,
       leaveTheBlock: true,
       disagree: true,

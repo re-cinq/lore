@@ -21,7 +21,6 @@ function scene(
   carried: { findingId: string; resolved: boolean }[] = [],
 ) {
   const edits: PlanEdit[] = [];
-  // Nothing in the bag is read: the pass grounds the plan as it stands.
   const tools: Tools = {
     read: async () => Promise.reject(new Error("the bag is never read")),
     produce: async () => {},

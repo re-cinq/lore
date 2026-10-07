@@ -1,6 +1,11 @@
 // The plan routes' verbs over the floor (ADR-049): each one briefs the round it asks for and hands the plan's markdown to it, then the line verbs report to wherever the run is waiting.
 
-import { approvedBrief, draftBrief, refineBrief } from "./plan-briefs.js";
+import {
+  approvedBrief,
+  draftBrief,
+  refineBrief,
+  type RefineRequest,
+} from "./plan-briefs.js";
 import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import { reopenWhenAuthorWaits } from "./planning-line.js";
@@ -54,21 +59,27 @@ function draftingVerbs(
   return {
     draft: async (plan, request) =>
       startFloorDrafting(deps, {
-        ...(await briefed(plan, (seen) =>
-          draftBrief(plan, request.known, seen.openFindings),
-        )),
+        ...(await briefed(plan, draftBriefOf(plan, request.known))),
         storyIssue: request.storyIssue,
       }),
     refine: async (plan, refine) =>
       askFloorRefine(deps, {
-        ...(await briefed(plan, (seen) =>
-          refineBrief(plan, refine, seen.openFindings),
-        )),
+        ...(await briefed(plan, refineBriefOf(plan, refine))),
         refine,
         actor: refine.actor,
       }),
   };
 }
+
+const draftBriefOf =
+  (plan: PlanSubject, known: string): BriefOf =>
+  (seen) =>
+    draftBrief(plan, known, seen.openFindings);
+
+const refineBriefOf =
+  (plan: PlanSubject, refine: RefineRequest): BriefOf =>
+  (seen) =>
+    refineBrief(plan, refine, seen.openFindings);
 
 /** The two verbs an approved plan's own brief serves: handing it over, and a fresh pass over specs it already has. */
 function approvalVerbs(
@@ -77,7 +88,10 @@ function approvalVerbs(
 ): Pick<PlanContentVerbs, "handOverApproved" | "startSpecWork"> {
   return {
     handOverApproved: async (plan) => {
-      await approveFloorPlan(deps, await briefed(plan, () => approvedBrief(plan)));
+      await approveFloorPlan(
+        deps,
+        await briefed(plan, () => approvedBrief(plan)),
+      );
     },
     startSpecWork: async (plan, _createdBy, storyIssue) =>
       startFloorSpecWork(deps, {
