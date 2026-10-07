@@ -84,9 +84,9 @@ opt into a third form so the spec-traceability runner links it to that statement
 automatically — no inline `([validated by])` edit, no anchors. Nest three levels:
 
 ```ts
-describe("<spec H1 title>", () => {          // matched as a substring of Spec.title
-  describe("<verbatim success-criterion sentence>", () => {  // matched against the statement text
-    it("<label>", () => { /* asserts */ });
+describe("<spec H1 title>", => {          // matched as a substring of Spec.title
+  describe("<verbatim success-criterion sentence>", => {  // matched against the statement text
+    it("<label>", => { /* asserts */ });
   });
 });
 ```

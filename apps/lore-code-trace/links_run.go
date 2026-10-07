@@ -116,9 +116,28 @@ func parseSpecLinks(ctx context.Context, apiBase, token string, docs []docFile, 
 	return links, err
 }
 
-// sendSpecLinksParse is one attempt. A transport error, a 5xx, a 429 and a 404
-// (a lore-api older than the route) are Lore's to answer for; any other 4xx is
-// a misconfiguration worth failing on.
+// loreSideStatus says whether a status is Lore's to answer for rather than the
+// repository's, and whether another attempt could help. A 403 is in here
+// because lore-api answers "insufficient scope" to a perfectly good token
+// whenever it cannot look the token up at all — a revision without a pool, or
+// a secret read mid-rotation — so a deploy window must not red-X every
+// spec-touching pull request. It is retried first, and only warned about once
+// the refusal outlasts the window.
+func loreSideStatus(status int) (loreSide, retry bool) {
+	switch {
+	case retryable(status) || status == http.StatusForbidden:
+		return true, true
+	case status == http.StatusNotFound:
+		// A lore-api older than the route; retrying cannot conjure it.
+		return true, false
+	default:
+		return false, false
+	}
+}
+
+// sendSpecLinksParse is one attempt. A transport error and the statuses
+// loreSideStatus owns are Lore's to answer for; any other 4xx — a 401 above
+// all — is a misconfiguration worth failing on.
 func sendSpecLinksParse(ctx context.Context, apiBase, token string, body []byte, client *http.Client) ([]docLink, error, bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiBase+"/api/spec-links/parse", bytes.NewReader(body))
 	if err != nil {
@@ -131,6 +150,7 @@ func sendSpecLinksParse(ctx context.Context, apiBase, token string, body []byte,
 		return nil, fmt.Errorf("%w: %v", errLoreUnavailable, err), true
 	}
 	defer resp.Body.Close()
+	loreSide, retry := loreSideStatus(resp.StatusCode)
 	switch {
 	case resp.StatusCode < 300:
 		var answer struct {
@@ -140,9 +160,9 @@ func sendSpecLinksParse(ctx context.Context, apiBase, token string, body []byte,
 			return nil, fmt.Errorf("decoding spec links: %w", err), false
 		}
 		return answer.Links, nil, false
-	case resp.StatusCode == http.StatusNotFound || retryable(resp.StatusCode):
+	case loreSide:
 		io.Copy(io.Discard, resp.Body)
-		return nil, fmt.Errorf("%w: %s", errLoreUnavailable, resp.Status), retryable(resp.StatusCode)
+		return nil, fmt.Errorf("%w: %s", errLoreUnavailable, resp.Status), retry
 	default:
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return nil, fmt.Errorf("spec-links parse returned %s: %s", resp.Status, bytes.TrimSpace(msg)), false

@@ -97,6 +97,42 @@ function declares(
     : station.outcomes.includes(outcome ?? "");
 }
 
+// An edge naming a node the file never declares: the floor refuses the whole pipeline.
+export function danglingEdges(checked: Checked): PipelineProblem[] {
+  const { nodes, edges } = checked.line;
+  const declared = new Set(nodes.map((node) => node.id));
+
+  return edges.flatMap((edge) => danglingEnds(checked, edge, declared));
+}
+
+type Edge = Checked["line"]["edges"][number];
+
+function danglingEnds(
+  checked: Checked,
+  edge: Edge,
+  declared: Set<string>,
+): PipelineProblem[] {
+  return [
+    ...(declared.has(edge.from) ? [] : [danglingEnd(checked, edge, edge.from)]),
+    ...(declared.has(edge.to) ? [] : [danglingEnd(checked, edge, edge.to)]),
+  ];
+}
+
+function danglingEnd(
+  checked: Checked,
+  edge: Edge,
+  missing: string,
+): PipelineProblem {
+  const where = missing === edge.from ? "leaves" : "leaves it to";
+
+  return problem(
+    checked,
+    edge.from,
+    "dangling-edge",
+    `an edge ${where} ${missing}, which this line does not declare`,
+  );
+}
+
 // A node a run can enter and never leave.
 export function deadEnds(checked: Checked): PipelineProblem[] {
   const { nodes, exit } = checked.line;

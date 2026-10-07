@@ -1,11 +1,10 @@
-// Every name the plan puts in backticks, checked against the default branch before anyone approves it (specs/7-feature-planning FR-22). Deterministic, so it runs on every pass of the plan rather than when someone clicks Validate.
+// Every name the plan puts in backticks, checked against the default branch before anyone approves it (specs/7-feature-planning FR-22). Deterministic, so it runs on every pass of the plan rather than when someone clicks Validate. It grounds the plan as it stands, read live: a Refine starts `analyze` by hand and a start by hand stores no fresh markdown, so grounding the bag's copy re-reported every finding the pass had just fixed.
 
 import {
   defineStation,
   type Handle,
   type Report,
   type RunningStation,
-  type Tools,
 } from "@re-cinq/floor-station";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -28,13 +27,9 @@ export interface PlanGroundingDeps extends PlanEditor {
 }
 
 export function planGroundingHandle(deps: PlanGroundingDeps): Handle {
-  return async (brief, tools) => {
+  return async (brief) => {
     const planId = brief.needs.plan_id;
-    const planMd = await planMarkdown(tools);
-
-    if (!planMd) {
-      return SUCCESS;
-    }
+    const planMd = await deps.markdownOf(planId);
     const findings = await groundedPlan(deps, brief.needs.target, planMd);
     const plan = await deps.planOf(planId);
 
@@ -45,15 +40,6 @@ export function planGroundingHandle(deps: PlanGroundingDeps): Handle {
 
     return SUCCESS;
   };
-}
-
-/** The plan as its people last saw it; a pass whose bag carries none has nothing to ground. */
-async function planMarkdown(tools: Tools): Promise<string | null> {
-  try {
-    return (await tools.read("plan_md")).toString("utf8");
-  } catch {
-    return null;
-  }
 }
 
 async function groundedPlan(

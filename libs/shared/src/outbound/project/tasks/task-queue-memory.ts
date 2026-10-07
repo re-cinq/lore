@@ -4,9 +4,6 @@ import type {
   TaskQueueRepository,
   RecoverableTask,
   StaleTask,
-  ReadySpecTask,
-  CompletedSpecTask,
-  RunningSpecTask,
   AwaitingApprovalTask,
   TaskPrInfo,
   ReviewableTask,
@@ -14,7 +11,6 @@ import type {
   TaskContextRefs,
   InsertTaskInput,
 } from "./task-queue-port.js";
-import { SpecTaskStore } from "./task-queue-memory-spec-tasks.js";
 
 /** Seed row for {@link InMemoryTaskQueue}: a loose superset of the pipeline.tasks columns the queue mechanics read; tests set only the fields they exercise. */
 export interface SeedTask {
@@ -97,14 +93,10 @@ function mergeableBundle(t: SeedTask) {
 }
 
 export class InMemoryTaskQueue implements TaskQueueRepository {
-  private readonly specTasks: SpecTaskStore;
-
   constructor(
     public readonly tasks: SeedTask[] = [],
     private readonly now: () => number = () => Date.now(),
-  ) {
-    this.specTasks = new SpecTaskStore(this.tasks);
-  }
+  ) {}
 
   async claimNextPending(): Promise<PipelineTask | null> {
     const now = this.now();
@@ -146,28 +138,16 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
         created_at: t.created_at ?? "",
         issue_number: t.issue_number ?? null,
         age_hours: (now - ms(t.created_at)) / 3_600_000,
-        // eslint-disable-next-line re-lint/no-duplicate-code -- the in-memory half of TaskQueueRepository; what matches the pg adapter is the method run the port makes both declare, and no-forwarding-class bans the base class TypeScript would share it in
       }));
   }
 
-  findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
-    return this.specTasks.findReadySpecTasks(repo);
-  }
-
-  runningSpecTasks(): Promise<RunningSpecTask[]> {
-    return this.specTasks.runningSpecTasks();
-  }
-
-  countUnmergedInGroup(groupId: string): Promise<number> {
-    return this.specTasks.countUnmergedInGroup(groupId);
-  }
-
-  claimSpecTask(id: string, agentId = "spec-task-executor"): Promise<boolean> {
-    return this.specTasks.claimSpecTask(id, agentId);
-  }
-
-  completeSpecTask(id: string): Promise<CompletedSpecTask> {
-    return this.specTasks.completeSpecTask(id);
+  async countUnmergedInGroup(groupId: string): Promise<number> {
+    return this.tasks.filter(
+      (t) =>
+        t.task_group_id === groupId &&
+        t.status !== "merged" &&
+        t.status !== "cancelled",
+    ).length;
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {
@@ -268,10 +248,6 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
 
   async mergeableTasks(): Promise<MergeableTask[]> {
     return this.tasks.filter(isMergeable).map(toMergeableTask);
-  }
-
-  hasSpecTasksForSlug(repo: string, slug: string): Promise<boolean> {
-    return this.specTasks.hasSpecTasksForSlug(repo, slug);
   }
 
   async contextRefs(taskId: string): Promise<TaskContextRefs | null> {

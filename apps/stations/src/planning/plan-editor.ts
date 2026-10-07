@@ -6,6 +6,8 @@ import type { PlanEdit, PlanSections } from "./plan-findings-ops.js";
 
 export interface PlanEditor {
   planOf(planId: string): Promise<PlanSections>;
+  /** The plan as markdown, as it stands right now. A pass started by hand is handed no fresh blob, so a station that grounds the bag's copy would read the round before it. */
+  markdownOf(planId: string): Promise<string>;
   edit(edit: PlanEdit): Promise<void>;
 }
 
@@ -47,6 +49,8 @@ export function planEditorAs(actor: string): PlanEditor {
   return {
     planOf: async (planId) =>
       sectionsOf(await (await requestPlan(planId, { method: "GET" })).json()),
+    markdownOf: async (planId) =>
+      (await requestPlan(`${planId}/markdown`, { method: "GET" })).text(),
     edit: async ({ planId, ops }) => {
       await requestPlan(`${planId}/agent-edits`, {
         method: "POST",

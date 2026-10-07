@@ -256,6 +256,52 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
   });
 
+  it("tells the planning agent a finding is work to do, fixed in the section it names and never edited or removed", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      ownWork: prompt.includes("A finding is not part of the conversation"),
+      fixTheSection: prompt.includes(
+        "fix the section it names so what it says no longer holds",
+      ),
+      leaveTheBlock: prompt.includes(
+        "Never edit or remove a finding block: the check that wrote it clears it",
+      ),
+      disagree: prompt.includes(
+        "ask with `add-question` on its section and change nothing there",
+      ),
+      inTheBrief: prompt.includes(
+        "A finding reaches you in the brief, never in the plan read",
+      ),
+    }).toEqual({
+      ownWork: true,
+      fixTheSection: true,
+      leaveTheBlock: true,
+      disagree: true,
+      inTheBrief: true,
+    });
+  });
+
+  it("tells the planning agent the Refine it was asked for is in the plan read, outranking the description its node started with", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      inTheRead: prompt.includes(
+        "`lore_plan_read` answers with `refine: {slot, title, brief}`",
+      ),
+      onlySection: prompt.includes("the only section you were asked to change"),
+      outranks: prompt.includes("the `refine` in this read outranks it"),
+      noneIsADraft: prompt.includes(
+        "answers no `refine`, nobody asked for a section and this is a draft",
+      ),
+    }).toEqual({
+      inTheRead: true,
+      onlySection: true,
+      outranks: true,
+      noneIsADraft: true,
+    });
+  });
+
   it("tells the planning agent that Open questions holds only questions, so it never restates its questions there as a list", () => {
     const prompt = promptOnOneLine("plan-analyze");
 

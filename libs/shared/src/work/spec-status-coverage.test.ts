@@ -55,6 +55,7 @@ describe("statementCoverage", () => {
         { text: "The system returns a receipt for every payment.", line: 11 },
         { text: "The system emails the receipt to the payer.", line: 13 },
       ],
+      ungrounded: [],
     });
   });
 
@@ -65,6 +66,7 @@ describe("statementCoverage", () => {
       unlinked: [
         { text: "The system emails the receipt to the payer.", line: 13 },
       ],
+      ungrounded: [],
     });
   });
 
@@ -73,6 +75,7 @@ describe("statementCoverage", () => {
       testable: 2,
       linked: 2,
       unlinked: [],
+      ungrounded: [],
     });
   });
 
@@ -81,7 +84,44 @@ describe("statementCoverage", () => {
       testable: 0,
       linked: 0,
       unlinked: [],
+      ungrounded: [],
     });
+  });
+
+  it("counts the statement linked at L99 as unlinked and ungrounded when the predicate accepts only L10", () => {
+    const hollow = linkSecond(linkFirst(spec("Draft"))).replace(
+      "payment. ([validated by](payments.test.ts#L10))",
+      "payment. ([validated by](payments.test.ts#L99))",
+    );
+
+    expect(
+      statementCoverage(hollow, {
+        isGroundedLink: (link) => link.line === 10,
+      }),
+    ).toEqual({
+      testable: 2,
+      linked: 1,
+      unlinked: [
+        {
+          text: "The system returns a receipt for every payment. ([validated by](payments.test.ts#L99))",
+          line: 11,
+        },
+      ],
+      ungrounded: [
+        {
+          text: "The system returns a receipt for every payment. ([validated by](payments.test.ts#L99))",
+          line: 11,
+        },
+      ],
+    });
+  });
+
+  it("leaves a statement with no link unlinked but not ungrounded", () => {
+    expect(
+      statementCoverage(linkFirst(spec("Draft")), {
+        isGroundedLink: (link) => link.line === 10,
+      }).ungrounded,
+    ).toEqual([]);
   });
 });
 

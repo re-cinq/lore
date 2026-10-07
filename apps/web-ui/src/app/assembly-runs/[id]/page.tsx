@@ -5,6 +5,7 @@ import {
   fetchAssemblyRun,
   fetchAssemblyRunNodes,
   fetchLatestRunForTask,
+  hasAssemblyRunUpgrade,
   isFloorEngine,
   type AssemblyRun,
 } from "@/lib/assembly-runs";
@@ -61,7 +62,10 @@ async function TaskRunResolver({ taskId }: { taskId: string }) {
 /** Everything the page renders from, resolved in one place. `agentEditHrefs` is built from RESOLVED definitions because those carry the `project_id` the "Edit agent" link routes on; `listAgents` degrades to an empty list when the API is unreachable, which costs the links and nothing else. */
 async function resolveRunView(run: AssemblyRun, id: string) {
   const issueRead = resolveIssue(run);
-  const nodes = await fetchAssemblyRunNodes(id);
+  const [nodes, upgradeAvailable] = await Promise.all([
+    fetchAssemblyRunNodes(id),
+    hasAssemblyRunUpgrade(id),
+  ]);
   const { events, llmCalls } = await resolveTaskContext(run.taskId);
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
 
@@ -72,6 +76,7 @@ async function resolveRunView(run: AssemblyRun, id: string) {
     definition,
     ...(await agentFacts(run, definition)),
     issue: await issueRead,
+    upgradeAvailable,
   };
 }
 
@@ -108,6 +113,7 @@ function RunPage({ run, view }: RunPageProps) {
       agentEditHrefs={view.editHrefs}
       nodeModels={view.nodeModels}
       issue={view.issue}
+      upgradeAvailable={view.upgradeAvailable}
     />
   );
 }

@@ -9,7 +9,9 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { pgPlanStore } from "../outbound/plans/plan-store-pg.js";
 import { livePlanOf } from "../outbound/plans/live-plan.js";
+import { pgRefineAsks } from "../work/plans/refine-asks-pg.js";
 import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
+import type { PlanFilePorts } from "../work/plans/plan-file.js";
 import { planLifecycleRoutes } from "../transport/routes/plans/plan-lifecycle.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
 import {
@@ -34,7 +36,7 @@ export function registerPlanning(
   floorDeps?: PlanVerbSeams["floorDeps"],
 ): RegisteredPlanning {
   const pool = livePool(getPool);
-  const seams: PlanVerbSeams = { floorDeps };
+  const seams: PlanVerbSeams = { floorDeps, pool };
 
   const sync = registerPlanningSync(server, {
     store: pgPlanStore(pool),
@@ -45,7 +47,7 @@ export function registerPlanning(
   // onApproved reaches the library before the sync it reads the plan through exists, so the seams are filled once it does.
   seams.livePlan = livePlanOf(sync);
   server.route([
-    ...planFileRoutes({ livePlan: seams.livePlan, writer: sync.writer }),
+    ...planFileRoutes(filePorts(seams.livePlan, sync, pool)),
     ...planLifecycleRoutes({ service: sync.service, getPool, ...seams }),
   ]);
   server.ext("onPreHandler", planRouteGuard(server));
@@ -97,3 +99,11 @@ const planRouteGuard =
 
     return h.continue;
   };
+
+function filePorts(
+  livePlan: PlanFilePorts["livePlan"],
+  sync: { writer: PlanFilePorts["writer"] },
+  pool: () => Pool,
+): PlanFilePorts {
+  return { livePlan, writer: sync.writer, refineAsks: pgRefineAsks(pool) };
+}

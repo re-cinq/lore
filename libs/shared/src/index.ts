@@ -63,13 +63,6 @@ export type {
   LlmUsage,
 } from "./outbound/llm/llm-provider.js";
 export {
-  parseTasks,
-  inferPhaseDependencies,
-  syncTasksToDb,
-  specSlugFromBranch,
-  type ParsedTask,
-} from "./domain/tasks.js";
-export {
   insertEvent,
   eventRepo,
   SOURCES,

@@ -8,12 +8,23 @@ line:
     issue_url:
       kind: value
       subject: true
+    # Both sent by the dispatch that starts the run (apps/stations/src/events/handlers.ts);
+    # the label and close stations need them to reach the issue.
+    issue_number:
+      kind: value
+    repo:
+      kind: value
   nodes:
     - id: verify
+      station: triage-verify
+    - id: close-obsolete
+      station: close-issue
+    - id: label-not-actionable
+      station: triage-label
+    - id: label-failed
+      station: triage-label
     - id: human-gate
       station: human-gate
-    - id: close-obsolete
-      station: close-obsolete
     - id: done
   edges:
     - from: verify
@@ -22,19 +33,95 @@ line:
     - from: verify
       to: close-obsolete
       on: obsolete
+    - from: verify
+      to: label-not-actionable
+      on: not-actionable
+    - from: verify
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: close-obsolete
+      to: done
+      on: success
+    - from: label-not-actionable
+      to: done
+      on: success
+    - from: label-failed
+      to: done
+      on: success
     - from: human-gate
       to: done
       on: success
-    - from: close-obsolete
-      to: done
-      on: always
 stations:
+  triage-verify:
+    kind: agent
+    agent_definition: triage-verify
+    conversation: new
+    outcomes:
+      - success
+      - obsolete
+      - not-actionable
+      - failed
+    needs:
+      - name: issue_url
+        kind: value
+    produces:
+      # One paragraph for the issue's reporter, which close-obsolete posts and
+      # label-not-actionable comments; the agent sends it as the result line's extras.
+      - name: verdict
+        kind: value
+  close-issue:
+    kind: service
+    outcomes:
+      - success
+    needs:
+      - name: repo
+        kind: value
+      - name: issue_number
+        kind: value
+      - name: verdict
+        kind: value
+    produces: []
+  triage-label:
+    kind: service
+    outcomes:
+      - success
+    needs:
+      - name: repo
+        kind: value
+      - name: issue_number
+        kind: value
+      - name: verdict
+        kind: value
+        optional: true
+    produces: []
   human-gate:
     kind: human
     route: "{args.issue_url}"
     outcomes:
       - success
-  close-obsolete:
-    kind: service
-    station: close-issue
-agent_definitions: {}
+    needs: []
+    produces: []
+agent_definitions:
+  triage-verify:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
