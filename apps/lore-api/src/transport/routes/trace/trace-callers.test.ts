@@ -16,8 +16,6 @@ const get = (url: string) =>
     headers: AUTH,
   });
 
-// #1768 unmet criterion: GET /api/repos/:o/:r/trace/callers must exist.
-// "callers" is absent from TRACE_KINDS today, so every request returns 404.
 describe("GET /api/repos/:owner/:repo/trace/callers", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

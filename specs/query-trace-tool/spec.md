@@ -170,6 +170,16 @@ The requested path reaches the proxied URL url-encoded. ([validated by proxies a
 An unreachable API is reported as prose rather than thrown, like every other
 shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
 
+## The `callers` shape
+
+The tool's fourth query (issue #1768): which production symbols call a named symbol.
+
+The read is served by `GET /api/repos/{owner}/{repo}/trace/callers`, which names the
+target in `symbol` and walks the reverse `CodeChunk.references` edge. With no graph
+configured it degrades to an empty list rather than failing.
+
+The `callers` kind is registered in `TRACE_KINDS` and the route returns a non-404 response when a `?symbol=` parameter is given. ([validated by `callers is a recognised trace kind and does not return 404`](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L29))
+
 ## Out of Scope
 
 - The test-rooted direction ("what does test Y cover") — the `/trace/document`

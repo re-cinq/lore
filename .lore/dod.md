@@ -17,6 +17,13 @@
 - [x] Add `callers` to `TRACE_KINDS` in `apps/lore-api/src/transport/routes/trace/trace.ts` and implement the handler (query `CodeChunk.references` in Dgraph; degrade to empty when no Dgraph client is configured, mirroring the `failures-touching` pattern).
 - [x] Add a `code` kind to `INGEST_KINDS` in `libs/shared/src/work/spec-trace/ingest-graph-registry.ts` with a `prefixes` or glob that selects TypeScript/JavaScript source files (excluding test files).
 - [ ] Implement `projectCodeFile` (or wire the code kind's `project` function) to call `extractImportedCallSites(ext, content)` and write the results as `CodeChunk.references` edges in Dgraph.
+
+**CI format failures fixed this round:**
+- Removed comments from test files (ingest-code-kind.test.ts, trace-callers.test.ts)
+- Reduced ingest-code-kind.test.ts to 1 expect (was 4, max 3)
+- Added spec links for both tests in specs/spec-traceability-graph/spec.md and specs/query-trace-tool/spec.md
+- Extracted `z.coerce.number()...` 6-hop chain in trace.ts to avoid Law of Demeter violation
+- Reduced `traceResult` function from 22 to 20 lines via GRAPH_KINDS dispatch map
 - [x] Update the stale comment at `ingest-graph-registry.ts:69` — "CodeChunks are coverage-defined (minted by `ingestCoverageReport`)" is no longer accurate once a code kind exists.
 - [ ] Add `~CodeChunk.references` to `CHUNK_OWNER_EDGES['CodeChunk']` in `gc-orphan-chunks.ts` so that a chunk that is only referenced by another chunk's `references` edge is GC'd when the referencing chunk is deleted.
 
