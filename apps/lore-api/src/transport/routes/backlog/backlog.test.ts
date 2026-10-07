@@ -832,3 +832,72 @@ describe("floorRunContext", () => {
     });
   });
 });
+
+describe("GET with a parked ticket whose last attempt has a run", () => {
+  it("shows the parked ticket's Stages from its last attempt, same as a working one", async () => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-2",
+            created_at: "2026-08-26T06:00:00.000Z",
+            status: "completed",
+            description: "Ticket 2",
+            issue_number: 2,
+            issue_url: "https://gh/i/2",
+            pr_url: "https://gh/pr/20",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "run-2",
+            task_id: "task-2",
+            status: "completed",
+            reason: null,
+            graph: { nodes: [{ id: "implement", type: "agent" }] },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            assembly_run_id: "run-2",
+            node_id: "implement",
+            iteration: 1,
+            outcome: "success",
+          },
+        ],
+      });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(2, ["priority:high", "lore:blocked"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+
+    expect(JSON.parse(res.payload).parked).toMatchObject([
+      {
+        issue_number: 2,
+        state: "parked",
+        run_id: "run-2",
+        pipeline: [{ node_id: "implement", state: "success" }],
+      },
+    ]);
+  });
+});

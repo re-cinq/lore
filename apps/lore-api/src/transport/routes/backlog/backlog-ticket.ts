@@ -100,9 +100,10 @@ export interface WaitingContext {
   openBlockers: ReadonlyMap<number, number[]>;
   taskRows: readonly LoopTaskRow[];
   runByTask: ReadonlyMap<string, LoopRunRow>;
+  nodeRows: readonly NodeRow[];
 }
 
-/** A ticket read from its issue: `queued` when the picker will take it, `parked` when it will not. The pull request and run of its newest attempt ride along, since that is where its reader goes next. */
+/** A ticket read from its issue: `queued` when the picker will take it, `parked` when it will not. The pull request, run and Stages of its newest attempt ride along, since that is where its reader goes next. */
 export function waitingTicket(
   issue: IssueRef,
   state: "queued" | "parked",
@@ -120,7 +121,7 @@ export function waitingTicket(
       openBlockers: context.openBlockers.get(issue.number) ?? [],
       lastAttempt: last && attemptOf(last, run),
     }),
-    pipeline: null,
+    pipeline: pipelineOf(run, context.nodeRows),
   };
 }
 
