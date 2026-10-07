@@ -176,7 +176,7 @@ function perTestCoverageRecords(report: TestReport): CoverageRecord[] {
   for (const result of report.results) {
     const descriptor = descriptorById.get(result.id);
 
-    if (!descriptor || !result.covered.length) {
+    if (!descriptor || !(result.covered ?? []).length) {
       continue;
     }
     records.push({
