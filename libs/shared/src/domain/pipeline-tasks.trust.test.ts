@@ -45,13 +45,13 @@ describe("createTask trust gate", () => {
     },
   );
 
-  it("still refuses a spec-task at trust level docs", async () => {
+  it("refuses an implementation-loop task at trust level docs", async () => {
     const { pool } = poolWithTrust("docs");
 
     await expect(
       createTask(pool, {
         description: "build it",
-        taskType: "spec-task",
+        taskType: "implementation-loop",
         targetRepo: "o/r",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
@@ -122,12 +122,12 @@ describe("createTask group linking", () => {
 });
 
 describe("createTask issue linking", () => {
-  it("records spec-task issue #2261 and its url on the task it creates", async () => {
+  it("records issue #2261 and its url on the task it creates", async () => {
     const { pool, query } = poolWithTrust("full");
 
     await createTask(pool, {
       description: "T001",
-      taskType: "spec-task",
+      taskType: "onboard",
       targetRepo: "o/r",
       issueNumber: 2261,
       issueUrl: "https://github.com/o/r/issues/2261",
@@ -159,34 +159,17 @@ describe("createTask issue linking", () => {
   });
 });
 
-function specTaskAt(level: string) {
-  return createTask(poolWithTrust(level).pool, {
-    description: "T001 add the issue-triage line",
-    taskType: "spec-task",
-    targetRepo: "o/r",
-  });
-}
-
-describe("spec-task trust", () => {
-  it("allows a spec-task at trust level implementation", async () => {
-    expect(await specTaskAt("implementation")).toMatchObject({
-      task_id: "task-1",
-    });
-  });
-
-  it("allows a spec-task at trust level full", async () => {
-    expect(await specTaskAt("full")).toMatchObject({ task_id: "task-1" });
-  });
-
-  it("refuses a spec-task at trust level tests", async () => {
-    const { pool } = poolWithTrust("tests");
-
-    await expect(
-      createTask(pool, {
-        description: "T001 add the issue-triage line",
-        taskType: "spec-task",
-        targetRepo: "o/r",
-      }),
-    ).rejects.toThrow(/not allowed at trust level "tests"/);
-  });
+describe("spec-task is refused at every trust level, since nothing runs one", () => {
+  it.each(["docs", "tests", "implementation", "full"])(
+    "refuses a spec-task at trust level %s, pointing at the backlog loop",
+    async (level) => {
+      await expect(
+        createTask(poolWithTrust(level).pool, {
+          description: "T001 add the issue-triage line",
+          taskType: "spec-task",
+          targetRepo: "o/r",
+        }),
+      ).rejects.toThrow(/The "spec-task" task type was removed/);
+    },
+  );
 });

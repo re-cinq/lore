@@ -30,7 +30,7 @@ describe("PgTaskQueue.claimNextPending", () => {
     expect(await new PgTaskQueue(pool).claimNextPending()).toBeNull();
   });
 
-  it("leaves spec-tasks to the spec-task executor", async () => {
+  it("never claims a spec-task, a type nothing runs and this claim holds no recipe for", async () => {
     const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgTaskQueue(pool).claimNextPending();
@@ -155,7 +155,7 @@ describe("InMemoryTaskQueue.claimNextPending", () => {
     }
   });
 
-  it("claims the gap-fill behind an older pending spec-task, which only the spec-task executor may take", async () => {
+  it("claims the gap-fill behind an older pending spec-task, which this claim passes over", async () => {
     const q = queue([
       {
         id: "spec-t001",
