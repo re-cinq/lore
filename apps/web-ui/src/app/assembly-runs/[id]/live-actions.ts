@@ -11,7 +11,7 @@ import { getSession } from "@/lib/session";
 
 export type RunChannelGrant = { token: string } | { error: string };
 
-const REFUSALS: Record<number, string> = {
+const REFUSALS: Partial<Record<number, string>> = {
   401: "Sign in to follow this run.",
   403: "You do not have access to this run's repo.",
   404: "This run was not found.",
