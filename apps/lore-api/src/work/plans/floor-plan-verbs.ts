@@ -1,6 +1,11 @@
 // The plan routes' verbs over the floor (ADR-049): each one briefs the round it asks for and hands the plan's markdown to it, then the line verbs report to wherever the run is waiting.
 
-import { approvedBrief, draftBrief, refineBrief } from "./plan-briefs.js";
+import {
+  approvedBrief,
+  draftBrief,
+  refineBrief,
+  type RefineRequest,
+} from "./plan-briefs.js";
 import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import { reopenWhenAuthorWaits } from "./planning-line.js";
@@ -36,11 +41,12 @@ function markdownVerbs(
   deps: FloorPlanDeps,
   snapshotOf: SnapshotOf,
 ): PlanContentVerbs {
-  const briefed = async (plan: PlanSubject, brief: string) => ({
-    plan,
-    ...(await snapshotOf(plan)),
-    brief,
-  });
+  // The brief is written FROM the snapshot the run is handed, so what it says of the plan's findings and what the pod downloads are the one read.
+  const briefed = async (plan: PlanSubject, briefOf: BriefOf) => {
+    const snapshot = await snapshotOf(plan);
+
+    return { plan, ...snapshot, brief: briefOf(snapshot) };
+  };
 
   return { ...draftingVerbs(deps, briefed), ...approvalVerbs(deps, briefed) };
 }
@@ -53,17 +59,27 @@ function draftingVerbs(
   return {
     draft: async (plan, request) =>
       startFloorDrafting(deps, {
-        ...(await briefed(plan, draftBrief(plan, request.known))),
+        ...(await briefed(plan, draftBriefOf(plan, request.known))),
         storyIssue: request.storyIssue,
       }),
     refine: async (plan, refine) =>
       askFloorRefine(deps, {
-        ...(await briefed(plan, refineBrief(plan, refine))),
+        ...(await briefed(plan, refineBriefOf(plan, refine))),
         refine,
         actor: refine.actor,
       }),
   };
 }
+
+const draftBriefOf =
+  (plan: PlanSubject, known: string): BriefOf =>
+  (seen) =>
+    draftBrief(plan, known, seen.openFindings);
+
+const refineBriefOf =
+  (plan: PlanSubject, refine: RefineRequest): BriefOf =>
+  (seen) =>
+    refineBrief(plan, refine, seen.openFindings);
 
 /** The two verbs an approved plan's own brief serves: handing it over, and a fresh pass over specs it already has. */
 function approvalVerbs(
@@ -72,17 +88,26 @@ function approvalVerbs(
 ): Pick<PlanContentVerbs, "handOverApproved" | "startSpecWork"> {
   return {
     handOverApproved: async (plan) => {
-      await approveFloorPlan(deps, await briefed(plan, approvedBrief(plan)));
+      await approveFloorPlan(
+        deps,
+        await briefed(plan, () => approvedBrief(plan)),
+      );
     },
     startSpecWork: async (plan, _createdBy, storyIssue) =>
       startFloorSpecWork(deps, {
-        ...(await briefed(plan, approvedBrief(plan))),
+        ...(await briefed(plan, () => approvedBrief(plan))),
         storyIssue,
       }),
   };
 }
 
-type Briefed = (plan: PlanSubject, brief: string) => Promise<FloorPlanMarkdown>;
+/** The round's brief, written from the plan as this read found it. */
+type BriefOf = (snapshot: PlanSnapshot) => string;
+
+type Briefed = (
+  plan: PlanSubject,
+  briefOf: BriefOf,
+) => Promise<FloorPlanMarkdown>;
 
 function lineVerbs(
   deps: FloorPlanDeps,

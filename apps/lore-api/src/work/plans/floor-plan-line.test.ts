@@ -569,6 +569,37 @@ describe("the round's brief the floor's planning agent is given", () => {
     expect(asks.at(0)?.brief).toContain("<!-- slot:intent -->");
   });
 
+  it("lists the plan's unresolved finding in the brief a Refine gives the agent, and in a draft's", async () => {
+    const snapshot = async () => ({
+      planMarkdown: MARKDOWN,
+      openFindings: [
+        {
+          findingId: "f-ground-9k2",
+          slot: "scope",
+          severity: "warning",
+          text: "This section names `ToolResponse`.",
+          why: "It is not on the default branch.",
+        },
+      ],
+    });
+    const refined = scene({ visits: ON_AUTHOR });
+    const drafted = scene({ visits: ON_AUTHOR });
+
+    await floorPlanVerbs(refined.deps, snapshot).refine(DRAFT, REFINE);
+    await floorPlanVerbs(drafted.deps, snapshot).draft(DRAFT, {
+      known: "checkout drops carts",
+      createdBy: "gedaiu",
+    });
+
+    expect([
+      refined.asks.at(0)?.brief,
+      reportedProduced(drafted.requests).description,
+    ]).toEqual([
+      expect.stringContaining("- Finding f-ground-9k2 on `scope` (warning):"),
+      expect.stringContaining("- Finding f-ground-9k2 on `scope` (warning):"),
+    ]);
+  });
+
   it("tells the agent what the plan's author already knows on a first draft", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
     const verbs = floorPlanVerbs(deps, async () => ({

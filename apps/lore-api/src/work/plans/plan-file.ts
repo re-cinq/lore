@@ -1,8 +1,11 @@
 // The plan as the file its planning pod edits (ADR-047): rendered from the live document when the pod asks, and turned back into agent ops when the edited file returns — a draft and the sections a Refine adds are written straight in, and a Refine's edits to existing sections are proposed one paragraph at a time, each read and taken under the paragraph it is about.
 
 import {
+  blocksOfType,
   markdownToOps,
+  partitionSections,
   planToMarkdown,
+  plainText,
   readView,
   refineUsesSchema,
   templateFor,
@@ -10,6 +13,7 @@ import {
   type MarkdownProblem,
   type ReadView,
 } from "@re-cinq/planning-document";
+import type { BlockJson } from "@re-cinq/planning-document";
 import type {
   FailRequest,
   OpsRequest,
@@ -18,6 +22,7 @@ import type {
 import type { LivePlan } from "../../outbound/plans/live-plan.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import type { OpenFinding } from "./plan-briefs.js";
 import type { RefineAsk, RefineAsks } from "./refine-asks.js";
 import {
   citablePlan,
@@ -71,6 +76,8 @@ export async function planMarkdown(
 
 export interface PlanSnapshot {
   planMarkdown: string;
+  /** The findings standing on the plan, which the pass is asked to fix. Absent where the caller read the plan before this existed. */
+  openFindings?: readonly OpenFinding[];
   /** Absent where the deployment names no web UI: a citation needs the plan's page to point at. */
   citablePlan?: CitablePlan;
 }
@@ -85,9 +92,38 @@ export async function planSnapshot(
   const planMarkdown = planToMarkdown(blocks, templateFor(meta.type));
   const planUrl = planUrlOf(uiUrl, plan.repo, plan.id);
 
+  const openFindings = openFindingsOf(blocks);
+
   return planUrl
-    ? { planMarkdown, citablePlan: citablePlan(readView(blocks), planUrl) }
-    : { planMarkdown };
+    ? {
+        planMarkdown,
+        openFindings,
+        citablePlan: citablePlan(readView(blocks), planUrl),
+      }
+    : { planMarkdown, openFindings };
+}
+
+/** The findings nobody has resolved, read off the blocks rather than the agent view: `readView` drops margin notes, so a finding is invisible to every reader that goes through it. */
+function openFindingsOf(blocks: readonly BlockJson[]): OpenFinding[] {
+  return partitionSections(blocks).flatMap(({ slot, blocks: inSection }) =>
+    blocksOfType(inSection, "finding")
+      .filter((finding) => !finding.props.resolved)
+      .map((finding) => openFinding(slot, finding)),
+  );
+}
+
+type FindingBlock = ReturnType<typeof blocksOfType<"finding">>[number];
+
+function openFinding(slot: string, finding: FindingBlock): OpenFinding {
+  const { findingId, severity, why } = finding.props;
+
+  return {
+    findingId,
+    slot,
+    severity,
+    text: plainText(finding.content),
+    why,
+  };
 }
 
 export async function planAgentView(
