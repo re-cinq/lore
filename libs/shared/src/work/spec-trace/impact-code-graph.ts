@@ -292,17 +292,6 @@ function orphanKey(
   );
 }
 
-function intervalsFromCoverageNode(f: {
-  "File.path"?: string;
-  "covers|ranges"?: string;
-}): FootprintInterval[] {
-  return parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
-    file: f["File.path"] ?? "",
-    start: s,
-    end: e,
-  }));
-}
-
 /** Every line range this statement's coverage footprint touches. */
 function footprintIntervals(
   stmt: GraphFootprintStatement,
@@ -312,6 +301,17 @@ function footprintIntervals(
       (cov.covers ?? []).flatMap(intervalsFromCoverageNode),
     ),
   );
+}
+
+function intervalsFromCoverageNode(f: {
+  "File.path"?: string;
+  "covers|ranges"?: string;
+}): FootprintInterval[] {
+  return parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
+    file: f["File.path"] ?? "",
+    start: s,
+    end: e,
+  }));
 }
 
 function isFootprintKilled(
