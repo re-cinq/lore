@@ -10,6 +10,7 @@ import {
   parseAgentInput,
   parseAgentPatch,
   configWithPodResources,
+  type PodResources,
 } from "../../../work/agents/agents-schema.js";
 
 /** The definitions surface of one repo's project facade — the thing every write here goes through. */
@@ -94,10 +95,32 @@ export async function resolvePodResourcesUpdate(
     return undefined;
   }
 
+  const resolved = await agentDefs.resolve(name);
+  const storedConfig = resolved?.config ?? null;
+  const storedPodResources = storedConfig?.pod_resources as
+    PodResources | null | undefined;
+
   return {
-    podResources,
-    inheritedConfig: (await agentDefs.resolve(name))?.config ?? null,
+    podResources:
+      podResources !== null && storedPodResources
+        ? mergePodResourcesSubKeys(storedPodResources, podResources)
+        : podResources,
+    inheritedConfig: storedConfig,
   };
+}
+
+function mergePodResourcesSubKeys(
+  stored: PodResources,
+  patch: PodResources,
+): PodResources {
+  const result: PodResources = {};
+  const mergedLimits = { ...stored.limits, ...patch.limits };
+  const mergedRequests = { ...stored.requests, ...patch.requests };
+
+  if (Object.keys(mergedLimits).length > 0) result.limits = mergedLimits;
+  if (Object.keys(mergedRequests).length > 0) result.requests = mergedRequests;
+
+  return result;
 }
 
 export function issuesOf(err: unknown): unknown {
