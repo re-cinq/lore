@@ -219,6 +219,45 @@ describe("LiveSocketClient", () => {
     });
   });
 
+  it("delivers a runs frame and re-sends the watch of run-1 on its own after a drop and reconnect", async () => {
+    const { client, fireTimers } = harness();
+    const frames: unknown[] = [];
+
+    const handle = client.open({
+      kind: "runs",
+      subject: "floor",
+      token: async () => "t-1",
+      onRunsFrame: (frame) => frames.push(frame),
+    });
+    const first = FakeWebSocket.latest;
+
+    first.accept();
+    await flush();
+    first.receive({ type: "opened", channel: "c1" });
+    handle.watch(["run-1"]);
+    first.receive({ type: "runs", channel: "c1", frame: { type: "resync" } });
+    first.drop();
+    fireTimers();
+    const second = FakeWebSocket.latest;
+
+    second.accept();
+    await flush();
+    second.receive({ type: "opened", channel: "c1" });
+
+    const withoutOpens = (socket: FakeWebSocket) =>
+      socket.sent.filter((message) => message.type !== "open");
+
+    expect({
+      frames,
+      firstSocket: withoutOpens(first),
+      secondSocket: withoutOpens(second),
+    }).toEqual({
+      frames: [{ type: "resync" }],
+      firstSocket: [{ type: "watch", channel: "c1", runs: ["run-1"] }],
+      secondSocket: [{ type: "watch", channel: "c1", runs: ["run-1"] }],
+    });
+  });
+
   it("ignores events from a socket it has already replaced", async () => {
     const { client, fireTimers } = harness();
 

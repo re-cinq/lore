@@ -48,19 +48,17 @@ Terraform removes the second source of truth, which removes the failure.
 
    | Change | Restart |
    |---|---|
-   | Anthropic key | `lore-floor`, `lore-api`, `lore-stations` |
-   | DB password | `lore-floor`, `lore-api`, `lore-ui` |
-   | Ingest / internal token | `lore-floor`, `lore-api`, `lore-ui` |
-   | Slack credentials | `lore-floor`, `lore-api` |
+   | Anthropic key | `lore-api`, `lore-stations` |
+   | DB password | `lore-api`, `lore-ui`, `lore-stations` |
+   | Ingest / internal token | `lore-api`, `lore-ui`, `lore-stations` |
+   | Slack credentials | `lore-api`, `lore-stations` |
    | OAuth / NextAuth | `lore-ui` |
-   | GitHub App | `lore-floor`, `lore-api` |
+   | GitHub App | `lore-api`, `lore-ui`, `lore-stations` |
    | GHCR pull secret | none — read at image-pull time |
 
-   The ai-agents controller needs no restart; agent pods re-read `agent-secrets`
-   when they spawn.
 
    ```bash
-   kubectl rollout restart deployment -n lore-floor
+   kubectl rollout restart deployment -n lore-api
    ```
 
 3. **Re-sign anything that holds the other half.** A shared secret is two-sided.
@@ -274,8 +272,7 @@ Then rename your local `secrets.tfvars` to `terraform.tfvars` and delete every
 secret variable from it; what remains is identifiers and hostnames. Set the two
 `enable_*` gates to match what you had (`enable_anthropic_admin_key`,
 `enable_ui_admin_token`) — these replaced the old "is this variable non-empty"
-checks. (`enable_cluster_agent_registration` was a third until 2026-08-29; every
-cluster-agent registers now, so its token is an unconditional platform secret.)
+checks.
 
 **Land the whole change before anyone applies.** In the window between step 1 and
 the merge, a stale checkout running the old code will rewrite the versions from

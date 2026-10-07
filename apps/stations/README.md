@@ -17,59 +17,44 @@ first two — `merge-check` and `approval-check` — here verbatim.
 a name with no module is a **compile error**, replacing three hand-kept maps
 that could not check each other. Each station's `manifest.ts` declares its
 triggers, and every surface below is **derived** from the manifests, so the URL
-map, the drain subscriptions, and the pod runner can never drift:
+map and the drain subscriptions can never drift:
 
 - **Sweeps** (`http` + `cron` triggers) — served at `POST /api/stations/{name}`
   (synchronous; returns `{ summary }`; 404 unknown name, 409 already running via
   an in-process latch, hence `replicaCount: 1`).
-- **Service nodes** (`node`, `runtime: "service"`) — assembly-line nodes run
-  in-process: the walk publishes the node onto the bus and this service's
-  **drain loop** (`src/drain/`) claims it from `pipeline.event_deliveries` as
-  subscriber `stations` (ADR-044 amendment), alongside any `event` triggers.
-- **Pod nodes** (`node`, `runtime: "pod"`) — run one-per-pod by the
-  `lore-station <type> '<station_input>'` CLI (`src/cli/main.ts`), dispatched by
-  the ai-agent-subsystem's exec vendor; it prints the `LORE_NODE_RESULT`
-  terminal line.
-- **Human stations** (`human`) — manifest-only; a person behind a route, no
-  `run`.
+- **Event sweeps** (`event` triggers) — the **drain loop** claims the event from
+  `pipeline.event_deliveries` as subscriber `stations` (ADR-044 amendment) and
+  runs the sweep that declared it.
+
+Lore's stations for the external floor are not in this registry: they live one
+folder each under `src/code-review/`, `src/planning/`, `src/merge/`,
+`src/onboard/`, `src/implementation-loop/`, `src/spec-upkeep/` and `src/digest/`,
+written with `@re-cinq/floor-station`.
 
 | Station | Form | Trigger / runtime |
 | --- | --- | --- |
-| `merge-check` | sweep | cron `*/1 * * * *` (Floor tick) + http |
-| `approval-check` | sweep | event `github.issues.labeled` + cron `23 * * * *` + http |
-| `backfill-scan` | sweep | cron Mon 11:00 + http |
-| `memory-ttl` | sweep | cron hourly (chart courier CronJob) + http |
+| `merge-check` | sweep | cron `*/1 * * * *` + http |
+| `pr-ready-check` | sweep | cron + http |
+| `loop-tick`, `spec-task-tick`, `spec-upkeep-tick`, `digest-tick` | sweep | cron (start runs on the external floor) |
+| `bus-prune`, `telemetry-prune` | sweep | cron |
+| `memory-ttl` | sweep | cron hourly (courier CronJob) + http |
 | `importance-decay` | sweep | cron 05:00 (courier CronJob) + http |
-| `anthropic-cost-sync` | sweep | cron 07:00 (courier CronJob) + http |
-| `escalation-step` | node | service, 5m |
-| `issues` | node | service, 10m |
-| `merge-step` | node | service, 5m |
-| `retrospective` | node | service, 10m |
-| `detect` | node | pod, 30m |
-| `ingest` | node | pod (clone), 10m |
-| `validate` | node | pod (clone), 15m |
-| `feature-review` | human | node type `feature_review` |
-| `pr-review` | human | node type `pr_review` |
+| `consolidation` | sweep | cron 05:30 (courier CronJob) + http |
+| `anthropic-cost-sync`, `gcp-cost-sync` | sweep | cron (courier CronJob) + http |
 
-## `lore-stations` vs `lore-station` (one letter, two images)
-
-Both images build from **this package** — there is no separate
-`apps/lore-station` directory. [`Dockerfile`](./Dockerfile) builds
-`ghcr.io/re-cinq/lore-stations`, the pooled HTTP service described here.
-[`Dockerfile.pod`](./Dockerfile.pod) builds `ghcr.io/re-cinq/lore-station`, the
-pod image whose entrypoint is the `lore-station` CLI shim running one non-agent
-assembly-line node per pod. A station change rebuilds both
-(`build-stations.yml` / `build-lore-station.yml`).
+The node stations the old walk dispatched (`detect`, `ingest`, `validate`,
+`retrospective`, `feature-review`, `pr-review`, `ci-check`), the
+`approval-check` sweep and the `lore-station` pod image that ran one node per
+pod were deleted on 2026-10-02 with the engine that started them.
 
 ## Boundaries
 
-- **Schedules nothing itself.** Cron ticks come from the Floor's scheduler or
-  the chart's courier CronJobs; this process only answers, drains, and serves.
+- **It is the scheduler.** It emits the `cron.*.tick` events and answers them;
+  the daily data jobs are the chart's courier CronJobs posting a station.
 - Sweeps are synchronous on purpose: the caller opens a `pipeline.job_runs` row
   and closes it with the returned summary. A refusal throws — a sweep that did
   not run is never logged as one that did.
-- Holds a Postgres pool and a GitHub App (unlike the pod form, which reaches
-  data over HTTP) — `/healthz` answers 503 while Postgres is unreachable.
+- Holds a Postgres pool and a GitHub App — `/healthz` answers 503 while Postgres is unreachable.
 
 ## Develop
 

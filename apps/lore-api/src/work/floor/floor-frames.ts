@@ -35,11 +35,14 @@ const TRANSLATIONS: Record<
   unsupported: () => [],
 };
 
+/** A frame type this build has no translation for is passed over, not thrown on: the floor's journal gains types on its own release train (`run_reopened` arrived in floor v0.1.9, which floor-client 0.1.6 does not declare), and a throw here takes down the viewer's whole feed — which the browser answers by reconnecting, replaying and throwing again. specs/external-floor FR18. */
 export function floorFrames(
   frame: LiveFrame,
   run: AssemblyRunRecord,
 ): RunStreamFrame[] {
-  return (TRANSLATIONS[frame.type] as Translate)(frame, run);
+  const translate = TRANSLATIONS[frame.type] as Translate | undefined;
+
+  return translate ? translate(frame, run) : [];
 }
 
 function visitFrames(

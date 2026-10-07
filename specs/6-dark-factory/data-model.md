@@ -196,7 +196,7 @@ The four dark-factory `event_type` values populate the `payload` JSONB:
 }
 ```
 
-### `escalation_issued`
+### `escalation_issued` (retired 2026-10-01, #2330: nothing writes this event)
 
 ```json
 {

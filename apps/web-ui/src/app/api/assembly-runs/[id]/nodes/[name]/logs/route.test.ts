@@ -30,7 +30,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.LORE_FLOOR_URL = "http://floor:3000";
+  process.env.LORE_API_URL = "http://api:3000";
   process.env.LORE_INGEST_TOKEN = "tok";
   fetchMock = vi.fn().mockResolvedValue(
     new Response(JSON.stringify({ available: true, logs: "" }), {
@@ -44,7 +44,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("surfaces a Floor 401 as 502 so it cannot masquerade as the proxy's own auth ladder", async () => {
+it("surfaces an upstream 401 as 502 so it cannot masquerade as the proxy's own auth ladder", async () => {
   authorized();
   fetchMock.mockResolvedValue(
     new Response(JSON.stringify({ error: "bad token" }), { status: 401 }),
@@ -56,7 +56,7 @@ it("surfaces a Floor 401 as 502 so it cannot masquerade as the proxy's own auth 
   expect(await res.json()).toEqual({ error: "bad token" });
 });
 
-it("surfaces a Floor 403 as 502 so NodeLogPanel does not render access denied for an authorized viewer", async () => {
+it("surfaces an upstream 403 as 502 so NodeLogPanel does not render access denied for an authorized viewer", async () => {
   authorized();
   fetchMock.mockResolvedValue(new Response("{}", { status: 403 }));
 
@@ -65,7 +65,7 @@ it("surfaces a Floor 403 as 502 so NodeLogPanel does not render access denied fo
   expect(res.status).toBe(502);
 });
 
-it("passes a non-auth Floor error like 500 through unchanged", async () => {
+it("passes a non-auth upstream error like 500 through unchanged", async () => {
   authorized();
   fetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
 
@@ -85,24 +85,17 @@ it("returns 403 when the user cannot access the run repo", async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it("requests the floor visit's log on lore-api for a run on the floor engine", async () => {
+it("requests the node's log on lore-api under the run and the node's name, with the tail", async () => {
   authorized();
-  fetchAssemblyRun.mockResolvedValue({
-    id: "run-1",
-    repo: "re-cinq/lore",
-    engine: "floor",
-  });
-  process.env.LORE_API_URL = "http://api:3000";
 
   await GET(new Request("http://ui/x?tail=50"), { params });
 
   expect(fetchMock.mock.calls[0][0]).toBe(
     "http://api:3000/api/assembly-runs/run-1/nodes/cr-implement/logs?tail=50",
   );
-  delete process.env.LORE_API_URL;
 });
 
-it("returns the Floor status and body verbatim on success", async () => {
+it("returns the upstream status and body verbatim on success", async () => {
   authorized();
   fetchMock.mockResolvedValue(
     new Response(JSON.stringify({ available: true, logs: "line" }), {

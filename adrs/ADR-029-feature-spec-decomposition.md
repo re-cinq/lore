@@ -24,7 +24,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > never starts** — silently, with nothing logged. Every feature planned on the merged line
 > is affected.
 >
-> **The replacement.** [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> **The replacement.** feature-planning.yaml
 > gains a `merged` node of type `wait` with `signal: pr_merged`, followed by the
 > `decompose` and `issues` nodes lifted from
 > `feature-decompose.yaml`,
@@ -37,7 +37,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Why a wait node rather than a fixed predicate.** The `pr_merged` signal is already
 > declared in the loader's `WaitSignal` union
-> ([loader.ts](../libs/assembly-lines/src/loader.ts)) and already rendered by the run
+> and already rendered by the run
 > visualization as "Waiting for the spec PR"
 > ([run-node-status.ts](../apps/web-ui/src/lib/run-node-status.ts)) — no definition had
 > ever used it. The seam existed; this uses it. A person merging a PR is a station in
@@ -48,7 +48,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > [merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts) resolves the line via
 > `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/outbound/project/assembly-runs/assembly-runs-port.ts))
 > and reports to the parked node with an `assembly_run.resume` event, handled by the
-> existing [resume-event-handler.ts](../apps/floor/src/work/assembly-run/resume-event-handler.ts).
+> existing resume-event-handler.ts.
 > That is the same mechanism finalize already uses, so no new event type is introduced and
 > `decompose-kick.ts` is deleted rather than corrected. This depends on the `push` node
 > stamping `pr_number` on the line — `findOpenByPr` cannot resolve a line whose PR was
@@ -56,7 +56,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Execution moved to a pod.** "In-process in the coordinator" was superseded by the
 > station cutover (ADR-031): `decompose` is an agent node and `issues` is a station
-> ([issues.ts](../apps/stations/src/work/issues/issues.ts)) reaching the database over
+> ([issues.ts](../apps/stations/src/planning/file-issues/issues.ts)) reaching the database over
 > HTTP, so the coordinator-credentials argument below no longer applies.
 >
 > **Alternative rejected.** Keep two lines and widen the kick predicate to also match a

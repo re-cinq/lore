@@ -30,7 +30,7 @@ export function readConfig(): LocalRunnerConfig {
       enabled: false,
       max_concurrent: 2,
       repos: [],
-      task_types: ["implementation", "general", "runbook", "gap-fill"],
+      task_types: ["runbook", "gap-fill"],
       model: "claude-sonnet-4-6",
     };
   }

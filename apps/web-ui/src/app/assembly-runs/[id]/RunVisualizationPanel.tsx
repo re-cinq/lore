@@ -49,7 +49,7 @@ export interface RunVisualizationPanelProps {
   onFrame?: (frame: RunStreamFrame) => void;
   /** The run's pull request, which the per-file diff drawer reads; null when the run opened none. */
   prNumber?: number | null;
-  /** Which engine walks the run; a run on the external floor can be read and watched here but only retried from the floor. */
+  /** Which engine walks the run; a node of a run on the external floor can be run again from here. */
   engine?: string;
 }
 

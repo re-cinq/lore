@@ -7,7 +7,7 @@ set -euo pipefail
 # re-running after adding one tool or one token costs nothing.
 #
 # Deliberately touches NOTHING outside this machine. Cluster bootstrap stays in
-# `npm start` (scripts/dev-local.sh → setup-minikube-agents.sh), which is
+# `npm start` (scripts/dev-local.sh), which is
 # unattended and re-runnable; keeping the interactive half separate is what lets
 # the other half stay that way.
 #
@@ -27,9 +27,6 @@ missing=()
 check_tool() { command -v "$1" >/dev/null 2>&1 || missing+=("$1 — $2"); }
 
 check_tool docker "https://docs.docker.com/engine/install/"
-check_tool minikube "https://minikube.sigs.k8s.io/docs/start/"
-check_tool kubectl "https://kubernetes.io/docs/tasks/tools/"
-check_tool helm "https://helm.sh/docs/intro/install/"
 check_tool claude "https://claude.com/claude-code"
 
 if ! docker compose version >/dev/null 2>&1; then
@@ -41,7 +38,7 @@ if [ ${#missing[@]} -gt 0 ]; then
   printf '         %s\n' "${missing[@]}"
   fail "install the above, then re-run: npm run dev-setup"
 fi
-log "Tools: docker, docker compose, minikube, kubectl, helm, claude — all present"
+log "Tools: docker, docker compose, claude — all present"
 
 # ---------------------------------------------------------------- .env.local
 
@@ -99,8 +96,8 @@ prompt_secret() {
 # secret material (secrets.tf owns the containers, GSM owns the values), so the
 # ~50 lines of HCL heredoc-and-escape parsing went with it.
 #
-# lore-anthropic-api-key is deliberately NOT imported. setup-minikube-agents.sh
-# prefers an API key when both are present, so importing it would silently move a
+# lore-anthropic-api-key is deliberately NOT imported. An API key outranks the
+# subscription token when both are present, so importing it would silently move a
 # laptop run onto org billing — the exact thing a subscription token avoids.
 
 gsm() { gcloud secrets versions access latest --secret="$1" 2>/dev/null; }
@@ -156,9 +153,8 @@ fi
 
 log "Filling gaps in .env.local (existing values are never overwritten)"
 
-# The agent pods' LLM credential. A subscription token is the laptop default: it
-# needs no org API credit. setup-minikube-agents.sh reads whichever of the two is
-# present and wires that key name through agent-secrets AND the recipes.
+# The agent LLM credential. A subscription token is the laptop default: it
+# needs no org API credit.
 if [ -n "$(env_value CLAUDE_CODE_OAUTH_TOKEN)" ] || [ -n "$(env_value ANTHROPIC_API_KEY)" ]; then
   log "Agent LLM credential — already set, skipping"
 else
@@ -193,17 +189,6 @@ else
   log "GHCR_USER — already set, skipping"
 fi
 
-# Pods, not the host. Without this the Floor keeps the in-process planning path
-# and no run is ever isolated — which is the whole reason to do any of the above.
-if [ -z "$(env_value LORE_STATION_BACKEND)" ]; then
-  set_env LORE_STATION_BACKEND k8s
-  log "LORE_STATION_BACKEND=k8s — agent runs go to minikube pods"
-else
-  log "LORE_STATION_BACKEND=$(env_value LORE_STATION_BACKEND) — already set, skipping"
-fi
-
 log ""
 log "Ready. Next: npm start"
-log "  It brings up Postgres + Dgraph, bootstraps the ai-agent-subsystem on"
-log "  minikube (pinned to that context), and runs the stack with live reload."
-log "  Watch runs with: kubectl -n ai-agents get agents -w"
+log "  It brings up Postgres + Dgraph and runs the stack with live reload."

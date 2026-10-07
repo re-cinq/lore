@@ -54,20 +54,29 @@ describe("AssemblyRunView", () => {
     expect(screen.getByText("no edge")).toBeInTheDocument();
   });
 
-  it("links the backing task when task_id is set, omits it otherwise", () => {
-    const { rerender } = render(
-      <AssemblyRunView run={run({ taskId: "task-9" })} />,
+  it("offers to cancel the task of a running run", () => {
+    render(
+      <AssemblyRunView run={run({ taskId: "task-9", status: "running" })} />,
     );
 
-    expect(screen.getByRole("link", { name: "View task →" })).toHaveAttribute(
-      "href",
-      "/tasks/task-9",
-    );
-
-    rerender(<AssemblyRunView run={run({ taskId: null })} />);
     expect(
-      screen.queryByRole("link", { name: "View task →" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Cancel Task" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a finished run", { taskId: "task-9", status: "finished" }],
+    ["a running run with no task", { taskId: null, status: "running" }],
+  ] as const)("offers no cancel on %s", (_name, over) => {
+    render(<AssemblyRunView run={run(over)} />);
+
+    expect(screen.queryByRole("button", { name: "Cancel Task" })).toBeNull();
+  });
+
+  it("links to no task page", () => {
+    render(<AssemblyRunView run={run({ taskId: "task-9" })} />);
+
+    expect(screen.queryByRole("link", { name: "View task →" })).toBeNull();
   });
 
   it("builds the PR link for a code-review run with no task", () => {

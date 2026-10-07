@@ -5,6 +5,7 @@ import {
   floorRunReader,
   runsOnFloor,
 } from "../../../work/floor/floor-backed-runs.js";
+import { floorEnrichmentOf } from "../../../work/floor/floor-run-rows.js";
 import { enrichmentById, type RunEnrichment } from "./run-row.js";
 
 type CostsByRun = (
@@ -42,20 +43,4 @@ async function floorEnrichmentById(
   return new Map(
     runs.map((run) => [run.id, floorEnrichmentOf(run, costs.get(run.id))]),
   );
-}
-
-function floorEnrichmentOf(
-  run: AssemblyRunSummary,
-  costUsd: number | undefined,
-): RunEnrichment {
-  const prUrl = run.args["pr_url"];
-
-  return {
-    pr_url: typeof prUrl === "string" ? prUrl : null,
-    task_pr_number: null,
-    issue_url: null,
-    issue_number: null,
-    created_by: null,
-    cost_usd: costUsd ?? null,
-  };
 }

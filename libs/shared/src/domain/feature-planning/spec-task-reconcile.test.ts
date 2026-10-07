@@ -68,6 +68,56 @@ describe("planSpecTaskReconcile", () => {
     });
   });
 
+  it("re-queues completed T010 on issue #2261 whose PR was never recorded, since nothing says its work exists", () => {
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "old",
+            status: "completed",
+            issueNumber: 2261,
+            specTaskId: "T010",
+            prNumber: null,
+          },
+        ],
+        [wanted("T010", 2261)],
+      ).requeue,
+    ).toEqual([{ id: "old", wanted: wanted("T010", 2261) }]);
+  });
+
+  it("re-queues completed T010 read without a PR field at all, the same as one read with none", () => {
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "old",
+            status: "completed",
+            issueNumber: 2261,
+            specTaskId: "T010",
+          },
+        ],
+        [wanted("T010", 2261)],
+      ).requeue,
+    ).toEqual([{ id: "old", wanted: wanted("T010", 2261) }]);
+  });
+
+  it("keeps completed T001's status while its PR #2271 is open, whatever the rerun's wording", () => {
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "done",
+            status: "completed",
+            issueNumber: 2258,
+            specTaskId: "T001",
+            prNumber: 2271,
+          },
+        ],
+        [wanted("T001", 2258)],
+      ).update,
+    ).toEqual([{ id: "done", wanted: wanted("T001", 2258) }]);
+  });
+
   it("leaves merged T001 alone and files nothing for it", () => {
     expect(
       planSpecTaskReconcile(

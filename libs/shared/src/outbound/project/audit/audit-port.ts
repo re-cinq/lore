@@ -1,4 +1,4 @@
-/** One row in `pipeline.audit_log`. Dark-factory events: `auto_merge_decision`, `dark_factory_setting_changed`, `lease_expired`, `escalation_issued`. Payload shapes documented in `specs/6-dark-factory/data-model.md`. */
+/** One row in `pipeline.audit_log`. Dark-factory events: `auto_merge_decision`, `dark_factory_setting_changed`, `lease_expired`. Payload shapes documented in `specs/6-dark-factory/data-model.md`. */
 export interface AuditLogEntry {
   event_type: string;
   task_id?: string | null;

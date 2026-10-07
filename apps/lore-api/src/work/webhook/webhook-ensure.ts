@@ -1,6 +1,6 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 
-/** Ensures the repo's GitHub webhook points at the event-router front door (ADR-044) with the HMAC secret (best-effort, never throws). */
+/** Ensures the repo's GitHub webhook points at the public `/api/events` URL (ADR-044) with the HMAC secret (best-effort, never throws). */
 
 import { ensureRepoWebhook } from "./webhook-manage.js";
 import { REQUIRED_EVENTS } from "./webhook-status.js";

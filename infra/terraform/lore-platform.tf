@@ -2,10 +2,11 @@
 # Lore platform — ONE Helm release for all five application workloads.
 #
 # Replaces the former per-service releases (lore-floor, lore-mcp, lore-ui,
-# lore-db extras, ai-agents). The umbrella chart vendors them as subcharts and
+# lore-db extras). The umbrella chart vendors them as subcharts and
 # stamps each resource with its own namespace, so this single release spans
-# lore-floor / lore-api / lore-ui / lore-db / ai-agents. The release record
-# lives in the `lore-floor` home namespace.
+# lore-api / lore-ui / lore-db and the others. The release record
+# lives in the `lore-floor` home namespace, which is all that is left of the
+# Floor Lore ran itself (deleted 2026-10-02).
 #
 # Deploy ownership: Terraform owns config (the `values` below); CI owns image
 # tags. `reuse_values = true` means a `terraform apply` MERGES this config on
@@ -14,7 +15,7 @@
 # <svc>.image.tag=<sha> --reset-then-reuse-values`).
 #
 # Values are nested under each subchart's chart name:
-#   lore-floor / lore-api / lore-ui / lore-db-helm / ai-agents
+#   lore-api / lore-ui / lore-db-helm / ...
 # Cluster, namespaces, ESO ExternalSecrets, the 2 ingresses, the CNPG cluster
 # CR, and Dgraph remain Terraform-owned (see the other *.tf files).
 # --------------------------------------------------------------------------
@@ -24,14 +25,8 @@ locals {
   # lore-api namespace, ClusterIP :8080). Agent run pods MUST use this rather than the
   # public host in var.lore_mcp_url: Dataplane V2 short-circuits a VIP whose backend
   # lives in this cluster, and the post-DNAT 10.x address is dropped by the run-pod
-  # egress policy's RFC1918 except-list. Host/port must stay in step with the
-  # ai-agents-helm `mcpSink` values that open the matching NetworkPolicy hole.
+  # egress policy's RFC1918 except-list.
   lore_mcp_in_cluster = "http://lore-mcp-gateway.lore-api.svc.cluster.local:8080"
-
-  # In-cluster base URL of the event-router (ADR-044). Producers are ordinary
-  # Deployments, not run pods, so the ClusterIP is reachable and no public hop
-  # is involved — only GitHub reaches the router from outside, via its ingress.
-  event_router_in_cluster = "http://lore-event-router.lore-event-router.svc.cluster.local:8080"
 
   # In-cluster base URL of the stations service (ADR-024 service stations). Only
   # the Floor calls it — nothing reaches it from outside, so there is no ingress.
@@ -40,11 +35,6 @@ locals {
   # The Lore API as its in-cluster peers reach it. The web-ui already hardcoded
   # this string; naming it once stops the two drifting.
   lore_api_in_cluster = "http://lore-api.lore-api.svc.cluster.local:3000"
-
-  # In-cluster base URL of the cluster agent (ADR-024). Only the Floor and
-  # lore-api call it, and its NetworkPolicy allows ingress from those two
-  # namespaces only — nothing reaches it from outside, so there is no ingress.
-  cluster_agent_in_cluster = "http://lore-cluster-agent.lore-cluster-agent.svc.cluster.local:8080"
 }
 
 resource "helm_release" "lore_platform" {
@@ -57,50 +47,6 @@ resource "helm_release" "lore_platform" {
   reuse_values = true
 
   values = [yamlencode({
-    # ---- Floor (lore-floor namespace) ----
-    "lore-floor" = {
-      gcpProject = var.project_id
-      floor      = { enabled = var.enable_external_floor }
-      env = {
-        LORE_DB_HOST     = "lore-db-rw.lore-db.svc.cluster.local"
-        LORE_DB_PORT     = "5432"
-        LORE_DB_NAME     = "lore"
-        LORE_DB_USER     = "lore"
-        LORE_DGRAPH_HTTP = local.dgraph_http_url
-        ANTHROPIC_MODEL  = "claude-haiku-4-5-20251001"
-        PORT             = "8080"
-        LORE_INGEST_URL  = var.lore_api_url
-        LORE_LOG_BUCKET  = "lore-task-logs-${var.project_id}"
-        # Web-UI base: the "Lore review has started — <id>" comment (loreTaskRef)
-        # links the run id to /assembly-lines/<id>, which the resolver renders.
-        LORE_UI_URL = var.lore_ui_url
-        # Where this Floor REPORTS events (ADR-044). Unset would silently fall
-        # back to writing pipeline.events directly, which is right on a laptop
-        # and wrong here — the fallback logs which way it resolved.
-        EVENT_ROUTER_URL = local.event_router_in_cluster
-        # Where the Floor RUNS a station (ADR-024). It keeps the schedule and the
-        # job_runs row; the work is over there.
-        STATIONS_URL = local.stations_in_cluster
-        # The Floor performs no Kubernetes operation itself any more; it asks
-        # the cluster agent (ADR-024).
-        CLUSTER_AGENT_URL = local.cluster_agent_in_cluster
-        # Where the Floor writes a planning agent's result into its plan
-        # (ADR-047); lore-api hosts plans.
-        LORE_API_URL = local.lore_api_in_cluster
-      }
-      dbPasswordSecret        = { name = "lore-db-password", key = "password" }
-      anthropicKeySecret      = { name = "lore-anthropic-key", key = "anthropic-api-key" }
-      anthropicAdminKeySecret = { name = "lore-anthropic-key", key = "anthropic-admin-key" }
-      githubAppSecret = {
-        name              = "github-app-credentials"
-        appIdKey          = "app-id"
-        privateKeyKey     = "private-key"
-        installationIdKey = "installation-id"
-      }
-      ingestTokenSecret   = { name = "lore-ingest-token", key = "token" }
-      internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
-    }
-
     # ---- Lore API (lore-api namespace) ----
     "lore-api" = {
       replicaCount = 1
@@ -115,29 +61,24 @@ resource "helm_release" "lore_platform" {
         LORE_DB_NAME     = "lore"
         LORE_DB_USER     = "lore"
         LORE_DGRAPH_HTTP = local.dgraph_http_url
-        LORE_AGENT_URL   = "http://lore-floor.lore-floor.svc.cluster.local:8080"
-        # The /agents editor's catalog saves land through the cluster agent —
-        # lore-api holds no Kubernetes client (ADR-024).
-        CLUSTER_AGENT_URL = local.cluster_agent_in_cluster
         # Rendered onto UI-authored agent recipes (#1080): the live Lore MCP gateway
         # and the run-telemetry sink, so a repo that overrides its recipe through
         # /agents keeps the mid-run memory/context access and the cost accounting a
-        # seeded recipe has. IN-CLUSTER for the same reason as ai-agents' loreMcpUrl
+        # seeded recipe has. IN-CLUSTER:
         # — Dataplane V2 short-circuits the public VIP and the post-DNAT 10.x address
         # hits the run-pod egress policy's except-list, so the public host hangs.
         # Empty leaves the fields off entirely rather than pointing a pod at nothing.
         LORE_MCP_URL = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/mcp" : ""
-        # LORE_AGENT_EVENTS_URL was read by the code and set NOWHERE, so the http sink
-        # never materialised on a UI-authored recipe.
-        LORE_AGENT_EVENTS_URL = "http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events"
-        # The canonical repo-hook URL lore-api installs and classifies against
-        # (ADR-044 step 2): the event-router front door. lore_webhook_hostname
-        # still serves /api/webhook/ci-ingest|ci-tests and the legacy hook alias.
+        # The canonical repo-hook URL lore-api installs and classifies against:
+        # the public webhook hostname, which the ingress rewrites onto this
+        # service's POST /api/webhook/github. lore_webhook_hostname still
+        # serves the legacy hook alias.
         LORE_WEBHOOK_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
-        # The connect-a-cluster hand-out (#1572): lore-api serves its own
-        # public URL + the event-router front door to satellite installers.
-        LORE_API_URL                 = var.lore_api_url
-        LORE_EVENT_ROUTER_PUBLIC_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}" : ""
+        LORE_API_URL     = var.lore_api_url
+        # The web UI's base address: a spec statement cites the plan block it
+        # came from under the plan's page there, and a review's start comment
+        # links the plan. The stations already read it.
+        LORE_UI_URL = var.lore_ui_url
         # /spend's compute ESTIMATE prices pod-hours at these rates. The code
         # defaults to an e2 on-demand ballpark ($0.022/cpu-h), but this platform
         # runs on GKE AUTOPILOT, which bills the pod's own requests at roughly
@@ -212,45 +153,6 @@ resource "helm_release" "lore_platform" {
       ownershipReconciler = { enabled = true }
     }
 
-    # ai-agents: 1 controller replica (leader-election still elects the sole pod);
-    # other config (image digests, cross-ns refs) stays subchart default. The
-    # AgentDefinition/Station catalog is NOT this chart's: the cluster-agent's sync
-    # loop renders it from lore.agent_definitions (specs/catalog-db-sync), with the
-    # MCP/skills/events URLs from its own `catalog:` values.
-    "ai-agents" = {
-      controller = { replicas = 1 }
-    }
-
-    # ---- Cluster agent (lore-cluster-agent namespace) ----
-    # The only process that talks to this cluster's Kubernetes API. Holds no
-    # database; holds the GitHub App triple, because it mints the per-task token
-    # itself so no token crosses the network.
-    "lore-cluster-agent" = {
-      agentsNamespace = "ai-agents"
-      env = {
-        PORT = "8080"
-        # This process also PUSHES: it owns the Agent-CR watch (a WATCH is the one
-        # cluster capability that cannot be a request — Kubernetes streams down a
-        # connection opened outward) and reports terminal phases to the router.
-        # Unset, the watch does not start and says so; the symptom would otherwise
-        # be silence — no terminal event on the bus, every node waiting for the
-        # reaper.
-        EVENT_ROUTER_URL = local.event_router_in_cluster
-      }
-      # Which credential each model FAMILY rides on this cluster (specs/
-      # catalog-db-sync FR8): the sync loop's render mounts the named key from
-      # agent-secrets, and validateCatalogEntry accepts only families listed
-      # here — an unlisted family's recipes are refused with the reason on the
-      # /agents Rollout column, and dispatch falls back to the org default.
-      # Anthropic is implicit (the chart's llmSecretKey); this map is only for
-      # the additional families. Gated on the SAME flag that puts the key into
-      # agent-secrets, because listing a family whose key the Secret does not
-      # hold renders pods that die CreateContainerConfigError.
-      catalog = var.enable_gemini ? {
-        modelSecretKeys = { gemini = "GEMINI_API_KEY" }
-      } : {}
-    }
-
     # ---- Stations (lore-stations namespace) ----
     # Standalone units of work, one endpoint each. It holds a pool ON PURPOSE —
     # that is the point of the service form: a station beside the data asks the
@@ -269,13 +171,6 @@ resource "helm_release" "lore_platform" {
         LORE_DB_NAME = "lore"
         LORE_DB_USER = "lore"
         PORT         = "8080"
-        # This service DRAINS as well as serving: the walk publishes a node whose
-        # station runs here, and without a router to claim it from, the visit
-        # sits open until the reaper times it out. `merge_step` has no pod recipe
-        # to fall back to, so this is a prerequisite rather than a tuning knob.
-        # Unset falls back to the local pool, which is right on a laptop and
-        # wrong here — the fallback logs which way it resolved.
-        EVENT_ROUTER_URL = local.event_router_in_cluster
         # A station reads and writes through the Lore API where it holds no pool.
         # The IN-CLUSTER address, like every other in-cluster caller: the
         # external URL would leave the cluster and come back through the
@@ -299,22 +194,6 @@ resource "helm_release" "lore_platform" {
       anthropicAdminKeySecret = { name = "lore-stations-anthropic-key", key = "anthropic-admin-key" }
       floor                   = { enabled = var.enable_external_floor }
     }
-
-    # ---- Event router (lore-event-router namespace) ----
-    # The one writer of pipeline.events (ADR-044): the GitHub webhook ingress and
-    # the Agent CR watch. Its DB credentials are its own; its ingest token is the
-    # SAME secret every producer presents, so the two ends cannot drift apart.
-    "lore-event-router" = {
-      env = {
-        LORE_DB_HOST          = "lore-db-rw.lore-db.svc.cluster.local"
-        LORE_DB_PORT          = "5432"
-        LORE_DB_NAME          = "lore"
-        LORE_DB_USER          = "lore"
-        PORT                  = "8080"
-        LORE_STATION_BACKEND  = "k8s"
-        LORE_AGENTS_NAMESPACE = "ai-agents"
-      }
-    }
   })]
 
   depends_on = [
@@ -322,13 +201,8 @@ resource "helm_release" "lore_platform" {
     kubernetes_namespace.lore_api,
     kubernetes_namespace.lore_ui,
     kubernetes_namespace.lore_db,
-    kubernetes_namespace.ai_agents,
-    kubernetes_namespace.lore_event_router,
     kubernetes_namespace.lore_stations,
-    kubernetes_namespace.lore_cluster_agent,
     kubernetes_service_account.lore_ui,
     kubectl_manifest.lore_db_cluster,
-    kubectl_manifest.es_ai_agents_secrets,
-    kubectl_manifest.es_ai_agents_ghcr,
   ]
 }

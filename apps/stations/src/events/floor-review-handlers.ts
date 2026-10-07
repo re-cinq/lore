@@ -35,8 +35,10 @@ interface PullRequestParams {
   repo: string;
   pr_number: number;
 }
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 interface CommentParams extends PullRequestParams {
   comment_author: string;
+  comment_author_association?: string;
   comment_body: string;
 }
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -81,19 +83,18 @@ function onPush(deps: FloorReviewDeps): EventHandler {
   };
 }
 
-/** Only the explicit `@lore review` drives a comment, and like the run page's button it reviews a draft; a bot's own comment is dropped before any call, which is the loop breaker. */
+/** Only the explicit `@lore review` drives a comment, and like the run page's button it is asked for by hand: it reviews a draft and passes the `auto_review` opt-in. It spends a review, so only someone who may write to the repository can ask; a bot's own comment is dropped before any call, which is the loop breaker. */
 function onComment(deps: FloorReviewDeps): EventHandler {
   return async (params) => {
     const asked = params as unknown as CommentParams;
-    const autoReview = await deps.autoReview(asked.repo);
 
-    if (!autoReview || !asksForReview(asked)) {
+    if (!asksForReview(asked)) {
       return;
     }
 
     await startReview(await deps.review(asked.repo), {
       ...targetOf(asked),
-      autoReview,
+      autoReview: true,
       forced: true,
     });
   };
@@ -101,7 +102,9 @@ function onComment(deps: FloorReviewDeps): EventHandler {
 
 function asksForReview(asked: CommentParams): boolean {
   return (
-    !isBotActor(asked.comment_author) && isReviewRequest(asked.comment_body)
+    !isBotActor(asked.comment_author) &&
+    isTrustedReviewer(asked.comment_author_association ?? "") &&
+    isReviewRequest(asked.comment_body)
   );
 }
 

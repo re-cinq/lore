@@ -32,7 +32,6 @@ export async function POST(
     const fullName = `${owner}/${repo}`;
     const body = await request.json();
 
-    // lore-api owns the write incl. the privileged-field refusal; a 403 means the caller hit a dark-factory field needing the CODEOWNER approval PR.
     return await writeSettings(fullName, buildSettingsPatch(body));
   } catch (err) {
     return serverError("settings.POST", err);

@@ -14,13 +14,14 @@ import {
 /** Hybrid RRF retrieval over the repo's resolved chunk schema: pgvector cosine leg + BM25 (ts_rank) leg, same as search_context; degrades to keyword-only with no query embedding. */
 
 /** One hybrid-search HIT, not a chunk row — `score` is a ts_rank/cosine aggregate the query computes, no column holds it (the repo had three types named ChunkRow; this is the one that never described a table). */
-// eslint-disable-next-line re-lint/no-row-types-outside-models -- the search query's own projection: score is computed, content_hash is lifted out of the metadata jsonb
+
 export interface ChunkSearchHit {
   content: string;
   file_path: string;
   content_type?: string | null;
   ingested_at?: string | Date | null;
   score?: number | string | null;
+  similarity?: number | string | null;
   repo?: string;
   content_hash?: string | null;
 }
@@ -36,6 +37,9 @@ export interface Incident {
   resolved?: boolean;
   url?: string;
 }
+
+// NULL for a chunk with no embedding: `<=>` against NULL is NULL, so a keyword-only hit carries no similarity rather than a zero.
+const SIMILARITY = "1 - (embedding <=> $2::vector) AS similarity";
 
 interface ChunkQuery {
   repo: string;
@@ -56,7 +60,8 @@ export async function hybridChunkItems(
   ]);
   // Keyword leg searches distinctive terms (OR'd) rather than the whole paragraph, which would AND every filler word.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const chunkQuery = { repo, keywordQuery, contentTypes, limit };
+  // `limit` counts documents and the query returns chunks: a document may bring three (dedupeItems merges them).
+  const chunkQuery = { repo, keywordQuery, contentTypes, limit: limit * 3 };
 
   return embedding
     ? hybridRankedItems(pool, schema, embedding, chunkQuery)
@@ -88,27 +93,28 @@ function hybridSql(schema: string): string {
               COALESCE(v.content_type, k.content_type) AS content_type,
               COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
               COALESCE(v.content_hash, k.content_hash) AS content_hash,
+              COALESCE(v.similarity, k.similarity) AS similarity,
               (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
        FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
        ORDER BY score DESC LIMIT $5`;
 }
 
-/** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped at 20 candidates before fusion. */
+/** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped before fusion at 20 candidates, or at as many as the fusion is asked for when that is more, so one leg alone can fill the result. */
 function hybridLegsSql(schema: string): string {
   return `WITH vec AS (
-         SELECT id, ${HIT_COLUMNS},
+         SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
          FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
-         LIMIT 20
+         LIMIT GREATEST(20, $5)
        ),
        kw AS (
-         SELECT id, ${HIT_COLUMNS},
+         SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
                 ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $4)) DESC) AS r
          FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3)
            AND search_tsv @@ websearch_to_tsquery('english', $4)
-         LIMIT 20
+         LIMIT GREATEST(20, $5)
        )`;
 }
 
@@ -121,11 +127,18 @@ function toItems(rows: ChunkSearchHit[], contentTypes: string[]): SourceItem[] {
         source_path: r.file_path,
         content_type: r.content_type ?? contentTypes[0],
         score: toScore(r.score),
+        ...similarityOf(r),
         ingested_at: toIso(r.ingested_at),
         ...(r.content_hash ? { content_hash: r.content_hash } : {}),
       }),
     ),
   );
+}
+
+function similarityOf(hit: ChunkSearchHit): { similarity?: number } {
+  const similarity = toScore(hit.similarity);
+
+  return similarity === undefined ? {} : { similarity };
 }
 
 /** Keyword-only fallback: with no embedding the vector leg has nothing to compare against, so ranking falls back to text relevance alone. */
