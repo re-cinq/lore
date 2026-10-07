@@ -65,7 +65,7 @@ Three new writes are added to the same adapter:
 
 ### lore-reviewer App credentials
 
-lore-reviewer's App id and private key live in Google Cloud Secret Manager. ESO mirrors them into the `lore-stations` namespace following the ADR-046 pattern. The four-place procedure applies: (1) `local.secret_names` in `secrets.tf`; (2) an `ExternalSecret` resource per consuming namespace in `external-secrets.tf`; (3) the REQUIRED list in `scripts/infra/seed-secrets.sh`; (4) the chart's `secretKeyRef` in the stations subchart. The `terraform apply` must land before the chart change merges — a `secretKeyRef` referencing an ExternalSecret that does not yet exist causes `CreateContainerConfigError` and a hung `helm --wait`. No long-lived credential is held in the process; the App authenticates with a short-lived installation token minted from the private key on each call. See [specs/protected-branch-merge/plan.md](../protected-branch-merge/plan.md) for the full org-admin runbook.
+lore-reviewer's App id and private key live in Google Cloud Secret Manager. ESO mirrors them into the `lore-stations` namespace following the ADR-046 pattern. The four-place procedure applies: (1) `local.secret_names` in `secrets.tf`; (2) an `ExternalSecret` resource per consuming namespace in `external-secrets.tf`; (3) the REQUIRED list in `scripts/infra/seed-secrets.sh`; (4) the chart's `secretKeyRef` in the stations subchart. The `terraform apply` must land before the chart change merges — a `secretKeyRef` referencing an ExternalSecret that does not yet exist leaves the Pod unable to start (the Kubernetes `CreateContainerConfigError` condition) and `helm --wait` hanging. No long-lived credential is held in the process; the App authenticates with a short-lived installation token minted from the private key on each call. See [specs/protected-branch-merge/plan.md](../protected-branch-merge/plan.md) for the full org-admin runbook.
 
 ### Repo detection
 
@@ -107,7 +107,7 @@ boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:29`](apps/
 
 ## Background: retired with Lore's own Floor (2026-10-02)
 
-These statements described two stores whose only callers were nightly jobs of `apps/floor`, the assembly-line engine Lore ran itself. The `eval_runner` and `context_core_builder` jobs and the autoresearch loop were deleted with it on 2026-10-02, so the adapters and the tests that validated them went with the code, and migration 0101 dropped `pipeline.eval_runs`, `pipeline.context_core_history` and `pipeline.research_attempts`. Context evals are now a nightly GitHub Actions job that asks lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443); it keeps no stored baseline. They are kept as the record of what the old stores did.
+These statements described two stores whose only callers were nightly jobs of `apps/floor` (the assembly-line engine Lore ran itself, retired 2026-10-02). The `eval_runner` and `context_core_builder` jobs and the autoresearch loop were deleted with it on 2026-10-02, so the adapters and the tests that validated them went with the code, and migration 0101 dropped `pipeline.eval_runs`, `pipeline.context_core_history` and `pipeline.research_attempts`. Context evals are now a nightly GitHub Actions job that asks lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443); it keeps no stored baseline. They are kept as the record of what the old stores did.
 
 ### Context-core store
 
