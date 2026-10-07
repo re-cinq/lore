@@ -1,6 +1,6 @@
 /** Mirror of shared test-command prompt (byte-identical; fed to /lore-test-commands skill). */
 
 export const TEST_COMMAND_SETUP_PROMPT = `Set up the Lore test-command interface for this project. Detect the test framework and coverage tooling from the repo (build files, config, existing scripts). Implement two commands that emit the exact JSON shapes in \`.lore/test-commands.yml\`'s contract:
-1. a **list** command that prints a JSON array of \`{id, name, file, startLine, endLine, spec?}\` — one entry per test, where \`id\` is the framework's native, stable node id;
-2. a **run** command taking one \`id\` that runs only that test with coverage and prints \`{passed, covered:[{file, startLine, endLine}]}\`.
+1. a **list** command that prints a JSON array of \`{id, name, file, startLine, endLine, spec?}\` — one entry per test, where \`id\` is the framework's native, stable node id and \`file\` is repo-relative;
+2. a **run** command whose \`{selector}\` placeholder is substituted in two different ways: by the **repo-relative test file** (e.g. \`src/auth.test.ts\`) when Lore's CI binary (lore-code-trace) runs it, and by the **descriptor id** (e.g. \`src/auth.test.ts::logs in\`) when \`lore_run_test\` calls it. The command must accept both shapes and run the test with coverage, printing \`{passed, covered:[{file, startLine, endLine}]}\`.
 Add any thin wrapper scripts needed (e.g. a reporter or a small adapter) so the output is exactly those shapes with repo-relative paths. Write \`.lore/test-commands.yml\` with \`list\`, \`run\` (using \`{selector}\`), and \`coverage_format\`. Verify by running both commands and checking the JSON parses. Do not change test behaviour.`;

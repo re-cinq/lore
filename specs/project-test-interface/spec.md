@@ -337,7 +337,7 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 12. Drift re-verification dispatches a single `tests.run` for the affected test into a trusted sandbox (Claude/MCP, CI, or local) — never the long-lived services.
 13. `specs/coverage-ingestion/spec.md` is marked **Superseded by** this spec; the traceability spec + contract point at this spec as authoritative for test discovery and coverage.
 
-14. `substituteSelector` builds the concrete `tests.run` invocation by replacing every `{selector}` placeholder in the manifest's `run` command with the runner-native id, leaving a `{selector}` that occurs inside the id itself intact. ([validated by `replaces every {selector} placeholder with the runner-native id`](libs/shared/src/domain/test-command-manifest.test.ts#L194))
+14. `substituteSelector` replaces every `{selector}` placeholder in the manifest's `run` command with the given value, leaving a `{selector}` that occurs inside the substituted value itself intact. Two callers use this function with different values: the `lore-code-trace` binary (CI) passes the **repo-relative test file** (e.g. `src/auth/auth.test.ts`), running once per distinct file and fanning the result onto every descriptor in that file; `lore_run_test` (MCP) passes the **runner-native descriptor id** (e.g. `src/auth/auth.test.ts::logs in`). The `run` command must accept both shapes. ([validated by `replaces every {selector} placeholder with the runner-native id`](libs/shared/src/domain/test-command-manifest.test.ts#L194))
 
 ## Limitations & Open Questions
 
