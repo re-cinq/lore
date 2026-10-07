@@ -101,12 +101,18 @@ export async function resolvePodResourcesUpdate(
     PodResources | null | undefined;
 
   return {
-    podResources:
-      podResources !== null && storedPodResources
-        ? mergePodResourcesSubKeys(storedPodResources, podResources)
-        : podResources,
+    podResources: patchPodResources(storedPodResources, podResources),
     inheritedConfig: storedConfig,
   };
+}
+
+function patchPodResources(
+  stored: PodResources | null | undefined,
+  patch: PodResources | null,
+): PodResources | null {
+  return patch !== null && stored
+    ? mergePodResourcesSubKeys(stored, patch)
+    : patch;
 }
 
 function mergePodResourcesSubKeys(
