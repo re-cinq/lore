@@ -452,6 +452,42 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ writes: true, bounded: true, draft: true, write: true });
   });
 
+  it("has spec-write return a section result file, bring technical facts only when told they are required, and fix only the failures tagged with its section", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      result: promptOf("spec-write").includes("{section_result_path}"),
+      statuses: prompt.includes("integrated"),
+      onlyWhenRequired: prompt.includes("Technical additions: required"),
+      noFiller: prompt.includes("add no filler"),
+      ownSection: prompt.includes("tagged with your section"),
+      oldRetryRule: prompt.includes(
+        'end it with `LORE_NODE_RESULT: {"outcome":"changes_requested"}`',
+      ),
+    }).toEqual({
+      result: true,
+      statuses: true,
+      onlyWhenRequired: true,
+      noFiller: true,
+      ownSection: true,
+      oldRetryRule: false,
+    });
+  });
+
+  it("has spec-draft build the skeleton from the intent and leave technical detail to the section pods, so the draft invents none", () => {
+    const prompt = promptOnOneLine("spec-draft");
+
+    expect({
+      mandatory: prompt.includes(
+        "A draft that only restates the intent has failed",
+      ),
+      leaves: prompt.includes(
+        "the pods for the other sections bring the technical detail",
+      ),
+      noInvention: prompt.includes("name nothing that is not on main"),
+    }).toEqual({ mandatory: false, leaves: true, noInvention: true });
+  });
+
   it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
     const prompt = promptOnOneLine("spec-write");
 

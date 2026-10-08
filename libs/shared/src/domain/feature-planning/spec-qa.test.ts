@@ -4,6 +4,7 @@ import {
   evidenceHolds,
   failureBrief,
   qaGate,
+  redoRequest,
   specQaBagSchema,
   type SpecQaBag,
 } from "./spec-qa.js";
@@ -257,9 +258,59 @@ describe("qaGate with the spec text", () => {
   });
 });
 
+describe("redoRequest", () => {
+  const failure = (id: string, section: string) => ({
+    id,
+    section,
+    text: "x",
+    reason: "y",
+  });
+
+  it("names each failing section once, in the order the failures came", () => {
+    expect(
+      redoRequest(
+        [failure("q1", "risk"), failure("q2", "scope"), failure("q3", "risk")],
+        0,
+        2,
+      ),
+    ).toEqual({ round: 2, sections: ["risk", "scope"] });
+  });
+
+  it("adds the repair visit when the spec's own checks found gaps", () => {
+    expect(redoRequest([failure("q1", "scope")], 3, 1)).toEqual({
+      round: 1,
+      sections: ["scope", "*"],
+    });
+  });
+
+  it("sends a failure in a section the line does not integrate to the repair visit", () => {
+    expect(redoRequest([failure("q1", "intent")], 0, 1)).toEqual({
+      round: 1,
+      sections: ["*"],
+    });
+  });
+
+  it("asks for nothing when nothing failed", () => {
+    expect(redoRequest([], 0, 1)).toEqual({ round: 1, sections: [] });
+  });
+});
+
 describe("failureBrief", () => {
   it("returns an empty string when nothing failed", () => {
     expect(failureBrief([])).toBe("");
+  });
+
+  it("tags a failure in a section the line does not integrate with the repair visit's mark", () => {
+    expect(
+      failureBrief([
+        {
+          id: "q9",
+          section: "intent",
+          text: "Pay in euros.",
+          reason: "Silent.",
+        },
+      ]),
+    ).toContain("- q9 [*]: Pay in euros.");
   });
 
   it("lists each failure with its reason for the integrating writer", () => {
@@ -273,7 +324,7 @@ describe("failureBrief", () => {
         },
       ]),
     ).toBe(
-      "These checks failed against the spec. Fix the spec so each one holds:\n- q1: Billing is out of scope. (Spec is silent.)\n",
+      "These checks failed against the spec. Fix the spec so each one holds:\n- q1 [scope]: Billing is out of scope. (Spec is silent.)\n",
     );
   });
 });

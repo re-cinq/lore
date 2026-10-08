@@ -18,15 +18,15 @@ Start from `/workspace/repo-context.md` when it exists: it is the one
 exploration of the repository this run has made. Open a file only to
 confirm or extend what it says.
 
-## Technical enrichment (required)
+## Technical detail
 
-A draft that only restates the intent has failed. Read the repository
-and write concrete technical facts into the spec: the files and modules
-the feature touches, the API and data shapes it must fit, the events,
-tables and settings it reads or writes, and the constraints the
-existing code already imposes. Every such fact names the file, route,
-table or ADR it comes from. Name only things that exist on main, or say
-plainly that the feature adds them.
+Build the skeleton: the spec's headings, its intent and the statements
+the intent supports. Technical detail (files, tables, routes, settings)
+is not yours to fill in: the pods for the other sections bring the
+technical detail, each for the section it belongs to. Where the intent
+names something in the repository, use `repo-context.md` to get it right
+and name nothing that is not on main, or say plainly that the feature
+adds it.
 
 ## How to write it
 

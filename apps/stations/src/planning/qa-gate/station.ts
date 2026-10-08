@@ -12,11 +12,17 @@ import { coverageRoundsSpent } from "@re-cinq/lore-shared/feature-planning/plan-
 import {
   failureBrief,
   qaGate,
+  redoRequest,
   specQaBagSchema,
+  type QaVerdict,
   type SpecQaBag,
 } from "@re-cinq/lore-shared/feature-planning/spec-qa.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
-import { branchChecks, specsOfBranch } from "./branch-checks.js";
+import {
+  branchChecks,
+  specsOfBranch,
+  type BranchChecks,
+} from "./branch-checks.js";
 
 export function qaGateHandle(deps: CoverageDeps): Handle {
   return async (brief, tools) => {
@@ -42,13 +48,26 @@ async function judged(
   const texts = specs && specs.map((spec) => spec.text);
   const verdict = qaGate(bag, spent, checks?.gaps ?? 0, texts);
 
-  // The bag never drops a key: an empty file is how a round with no failures clears the last round's.
+  await deliver(tools, verdict, checks, spent);
+
+  return { outcome: verdict.outcome };
+}
+
+/** The bag never drops a key: an empty `qa_failures` is how a round with no failures clears the last round's. */
+async function deliver(
+  tools: Tools,
+  verdict: QaVerdict,
+  checks: BranchChecks | null,
+  spent: number,
+): Promise<void> {
+  const redo = redoRequest(verdict.failures, checks?.gaps ?? 0, spent + 1);
+
   await Promise.all([
     tools.produce("qa_failures", failureBrief(verdict.failures)),
     checks && tools.produce("plan_coverage", checks.brief),
+    verdict.outcome === "changes_requested" &&
+      tools.produce("redo_sections", JSON.stringify(redo)),
   ]);
-
-  return { outcome: verdict.outcome };
 }
 
 async function roundsSpent(deps: CoverageDeps, brief: Brief): Promise<number> {

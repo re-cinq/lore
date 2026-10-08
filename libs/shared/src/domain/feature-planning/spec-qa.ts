@@ -1,6 +1,7 @@
 // The blind question-and-answer check on a written spec: questions made once from the plan alone, each with the answer the plan implies, answers read from the spec alone, and the gate that sends the spec writer back with whatever failed (see specs/7-feature-planning/spec.md FR-24).
 
 import { z } from "zod";
+import { INTEGRATED_SLOTS, type RedoRequest } from "./spec-sections.js";
 
 export const SPEC_QA_ROUNDS = 5;
 
@@ -132,8 +133,26 @@ export function failureBrief(failures: QaFailure[]): string {
   }
 
   const lines = failures.map(
-    (failure) => `- ${failure.id}: ${failure.text} (${failure.reason})\n`,
+    (failure) =>
+      `- ${failure.id} [${redoSection(failure.section)}]: ${failure.text} (${failure.reason})\n`,
   );
 
   return `These checks failed against the spec. Fix the spec so each one holds:\n${lines.join("")}`;
+}
+
+/** The sections the next fix pass redoes: each section a failure belongs to, and the repair visit for gaps no question maps to a section the line integrates. */
+export function redoRequest(
+  failures: readonly QaFailure[],
+  branchGaps: number,
+  round: number,
+): RedoRequest {
+  const sections = failures.map(({ section }) => redoSection(section));
+  const unmapped = branchGaps > 0 ? ["*"] : [];
+
+  return { round, sections: [...new Set([...sections, ...unmapped])] };
+}
+
+/** The section a fix pass handles a failure under: its own when the line integrates it, else the repair visit. */
+function redoSection(section: string): string {
+  return INTEGRATED_SLOTS.includes(section) ? section : "*";
 }

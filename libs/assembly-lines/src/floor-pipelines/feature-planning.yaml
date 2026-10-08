@@ -73,6 +73,13 @@ line:
       station: spec-write
       bind:
         target: repo
+    # The same writer sent back to ONE section the gate found wanting. A node of
+    # its own so its loop back to split-sections has its own counter, apart from
+    # the first pass's and the gate's.
+    - id: fix
+      station: spec-write
+      bind:
+        target: repo
     # Written ONCE per approved plan, before the draft, and blind to the spec:
     # the questions are frozen so no fix round chases a moving target. A plan
     # comment, answer or open question becomes a `note` question.
@@ -221,17 +228,26 @@ line:
       to: write
       on: more
     - from: split-sections
+      to: fix
+      on: redo
+    - from: split-sections
       to: qa-answer
       on: done
     - from: split-sections
       to: failed
       on: failed
-    # One visit per plan section (at most eight), then a visit per qa-gate or
-    # handback; the backstop is above their sum.
+    # One visit per plan section (at most eight) plus retries of a pod that
+    # returned no usable result.
     - from: write
       to: split-sections
       on: success
-      iteration_max: 20
+      iteration_max: 12
+    # Up to five gate rounds, each redoing at most the eight sections and the
+    # repair visit.
+    - from: fix
+      to: split-sections
+      on: success
+      iteration_max: 45
     - from: qa-answer
       to: qa-gate
       on: success
@@ -246,7 +262,7 @@ line:
     # handbacks and lets the PR open with the failures listed; this
     # iteration_max is the backstop it never reaches.
     - from: qa-gate
-      to: write
+      to: split-sections
       on: changes_requested
       iteration_max: 5
     - from: qa-gate
@@ -261,6 +277,13 @@ line:
       on: changes_requested
       iteration_max: 1
     - from: write
+      to: failed
+      on: failed
+    - from: fix
+      to: analyse-specs
+      on: changes_requested
+      iteration_max: 1
+    - from: fix
       to: failed
       on: failed
     - from: open-spec-pr
@@ -519,6 +542,9 @@ stations:
       - name: spec_review
         kind: file
         path: spec-review-result.json
+      - name: section_result
+        kind: file
+        path: section-result.json
   spec-draft:
     kind: agent
     agent_definition: spec-draft
@@ -548,6 +574,7 @@ stations:
     kind: service
     outcomes:
       - more
+      - redo
       - done
       - failed
     needs:
@@ -555,14 +582,26 @@ stations:
       - name: plan_blocks
         kind: file
         optional: true
-      # Which sections earlier visits handed out; absent before the first.
-      - name: done_sections
+      # Where the section loop stands; absent before the first visit.
+      - name: section_state
+        kind: file
+        optional: true
+      # What the pod handed the last section returned; this station is the one
+      # that marks the section done.
+      - name: section_result
+        kind: file
+        optional: true
+      # The sections qa-gate sent back, with the round it asked in.
+      - name: redo_sections
         kind: file
         optional: true
     produces:
+      - name: section_state
+        kind: file
       - name: current_section
         kind: file
-      - name: done_sections
+      # Emptied on every visit, so a pod that writes none is not read as the last.
+      - name: section_result
         kind: file
   spec-qa-generate:
     kind: agent

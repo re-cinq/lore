@@ -114,8 +114,23 @@ describe("qaGateHandle", () => {
       report: { outcome: "changes_requested" },
       produced: {
         qa_failures:
-          "These checks failed against the spec. Fix the spec so each one holds:\n- q1: Billing is out of scope. (Spec is silent.)\n",
+          "These checks failed against the spec. Fix the spec so each one holds:\n- q1 [scope]: Billing is out of scope. (Spec is silent.)\n",
+        redo_sections: JSON.stringify({ round: 1, sections: ["scope"] }),
       },
+    });
+  });
+
+  it("numbers the redo request by the rounds already spent", async () => {
+    const { handle, tools, produced } = scene({
+      answers: [{ id: "q1", answer: false, reason: "Silent." }, ANSWERS[1]],
+      spent: 2,
+    });
+
+    await handle(brief, tools);
+
+    expect(JSON.parse(produced.redo_sections ?? "null")).toEqual({
+      round: 3,
+      sections: ["scope"],
     });
   });
 
@@ -169,7 +184,7 @@ describe("qaGateHandle", () => {
     expect({ report, failures: produced.qa_failures }).toEqual({
       report: { outcome: "changes_requested" },
       failures:
-        "These checks failed against the spec. Fix the spec so each one holds:\n- q2: The feature is behind a flag. (No quote from the spec supports this answer.)\n",
+        "These checks failed against the spec. Fix the spec so each one holds:\n- q2 [questions]: The feature is behind a flag. (No quote from the spec supports this answer.)\n",
     });
   });
 });

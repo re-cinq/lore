@@ -781,6 +781,7 @@ describe("the feature-planning pipeline", () => {
         "done",
         "draft",
         "failed",
+        "fix",
         "issue-coverage",
         "issues",
         "merged",
@@ -800,7 +801,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("ends the run failed when analyse-specs, draft, split-sections, write, qa-generate, qa-questions, qa-answer, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+  it("ends the run failed when analyse-specs, draft, split-sections, write, fix, qa-generate, qa-questions, qa-answer, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
     const { line } = pipelineOf("feature-planning");
     const settledBy = (to: string) =>
       line.edges
@@ -814,6 +815,7 @@ describe("the feature-planning pipeline", () => {
         "decompose:changes_requested",
         "decompose:failed",
         "draft:failed",
+        "fix:failed",
         "issue-coverage:failed",
         "issues:failed",
         "open-spec-pr:failed",
@@ -847,6 +849,7 @@ describe("the feature-planning pipeline", () => {
       fromDraft: { from: "draft", to: "split-sections", on: "success" },
       fromSplit: [
         { from: "split-sections", to: "write", on: "more" },
+        { from: "split-sections", to: "fix", on: "redo" },
         { from: "split-sections", to: "qa-answer", on: "done" },
         { from: "split-sections", to: "failed", on: "failed" },
       ],
@@ -854,12 +857,12 @@ describe("the feature-planning pipeline", () => {
         from: "write",
         to: "split-sections",
         on: "success",
-        iteration_max: 20,
+        iteration_max: 12,
       },
     });
   });
 
-  it("freezes the plan's questions once, checks them against the plan, answers them blind, and sends write back with what failed at most SPEC_QA_ROUNDS times before open-spec-pr", () => {
+  it("freezes the plan's questions once, checks them against the plan, answers them blind, and sends only the failing sections back through split-sections at most SPEC_QA_ROUNDS times before open-spec-pr", () => {
     const { line } = pipelineOf("feature-planning");
 
     expect(
@@ -882,7 +885,7 @@ describe("the feature-planning pipeline", () => {
       { from: "qa-gate", to: "open-spec-pr", on: "success" },
       {
         from: "qa-gate",
-        to: "write",
+        to: "split-sections",
         on: "changes_requested",
         iteration_max: SPEC_QA_ROUNDS,
       },
@@ -927,6 +930,63 @@ describe("the feature-planning pipeline", () => {
       produced: ["spec_plan", "repo_context"],
       draft: context,
       write: context,
+    });
+  });
+
+  it("redoes a failing section on the fix node, which runs the same writer, with the section, fix and gate loops each on their own counter", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+    const intoSplit = line.edges
+      .filter((edge) => edge.to === "split-sections")
+      .map((edge) => `${edge.from}:${edge.on}:${edge.iteration_max ?? "-"}`);
+
+    expect({
+      station: line.nodes.find((node) => node.id === "fix")?.station,
+      fromFix: edgesOn(line, "fix"),
+      intoSplit,
+      writer: stations["spec-write"].produces.map((out) => out.name),
+    }).toEqual({
+      station: "spec-write",
+      fromFix: [
+        {
+          from: "fix",
+          to: "split-sections",
+          on: "success",
+          iteration_max: 45,
+        },
+        {
+          from: "fix",
+          to: "analyse-specs",
+          on: "changes_requested",
+          iteration_max: 1,
+        },
+        { from: "fix", to: "failed", on: "failed" },
+      ],
+      intoSplit: [
+        "draft:success:-",
+        "write:success:12",
+        "fix:success:45",
+        "qa-gate:changes_requested:5",
+      ],
+      writer: ["spec_review", "section_result"],
+    });
+  });
+
+  it("has split-sections read the plan blocks, its state, the pod's result and the gate's redo request, and produce the next section, its state and an empty result", () => {
+    const split = pipelineOf("feature-planning").stations["split-sections"];
+
+    expect({
+      outcomes: split.outcomes,
+      needs: split.needs.map((need) => need.name),
+      produces: split.produces.map((out) => out.name),
+    }).toEqual({
+      outcomes: ["more", "redo", "done", "failed"],
+      needs: [
+        "plan_blocks",
+        "section_state",
+        "section_result",
+        "redo_sections",
+      ],
+      produces: ["section_state", "current_section", "section_result"],
     });
   });
 
