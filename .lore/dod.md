@@ -13,7 +13,7 @@
 
 - [x] Add `branchMerged: boolean | undefined` to `BranchResumeInput` in `resume-branch.ts`
 - [x] Return `FRESH` in `decideBranchResume` when `branchMerged === true`, before the existing `lore:blocked` check
-- [ ] Feed `branchMerged` from the GitHub port's branch-comparison call in `implementation-loop-tick.ts` (the port already has the branch name; the check is whether the branch head is an ancestor of the default branch)
+- [x] Feed `branchMerged` from the GitHub port's branch-comparison call in `implementation-loop-tick.ts` (the port already has the branch name; the check is whether the branch head is an ancestor of the default branch)
 
 ## Out of scope
 

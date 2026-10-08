@@ -41,6 +41,8 @@ export interface LoopTickDeps {
   ): Promise<void>;
   /** `undefined` when the port cannot answer — unknown must never read as "no branch". */
   branchExists(repo: string, branch: string): Promise<boolean | undefined>;
+  /** `true` when the branch's head is already an ancestor of the base — every commit is on main, a resumed run cannot push anything new. `undefined` when the port cannot answer. */
+  branchMerged(repo: string, branch: string): Promise<boolean | undefined>;
   openPrForBranch(
     repo: string,
     branch: string,
@@ -288,13 +290,15 @@ async function resolveResume(
   branch: string,
   deps: LoopTickDeps,
 ): Promise<ReturnType<typeof decideBranchResume>> {
-  const [branchExists, openPr] = await Promise.all([
+  const [branchExists, openPr, branchMerged] = await Promise.all([
     deps.branchExists(repo, branch),
     deps.openPrForBranch(repo, branch),
+    deps.branchMerged(repo, branch),
   ]);
 
   return decideBranchResume({
     branchExists,
+    branchMerged,
     issueLabels: picked.labels,
     openPr,
   });

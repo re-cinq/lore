@@ -11,6 +11,9 @@ permissions:
 jobs:
   check-pr-description:
     runs-on: ubuntu-latest
+    # Implementation-loop PRs are opened automatically by Lore with a generated body;
+    # the required sections don't apply to machine-authored drafts.
+    if: "!startsWith(github.head_ref, 'lore/implementation-loop/')"
     steps:
       - name: Check PR description sections
         env:

@@ -40,6 +40,7 @@ function deps(overrides: Partial<LoopTickDeps> = {}) {
       columns.push(cols);
     },
     branchExists: async () => false,
+    branchMerged: async () => undefined,
     openPrForBranch: async () => null,
     openBlockers: async () => [],
   };
@@ -271,6 +272,20 @@ describe("the ticket's branch", () => {
     await createImplementationLoopTickHandler(d.deps)({});
 
     expect(asked).toEqual(["lore/implementation-loop/issue-7"]);
+  });
+
+  it("starts fresh when the branch is merged into base — the resumed run would push nothing new", async () => {
+    const d = deps({
+      branchExists: async () => true,
+      branchMerged: async () => true,
+      openPrForBranch: async () => null,
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0].contextBundle).not.toMatchObject({
+      line_args: { resumed_from_branch: true },
+    });
   });
 });
 
