@@ -11223,6 +11223,9 @@
                           "outcome": {
                             "type": ["string", "null"]
                           },
+                          "failure_detail": {
+                            "type": ["string", "null"]
+                          },
                           "agent_cr_name": {
                             "type": ["string", "null"]
                           },
@@ -11297,6 +11300,7 @@
                           "node_id",
                           "iteration",
                           "outcome",
+                          "failure_detail",
                           "agent_cr_name",
                           "station_run_id",
                           "input",
@@ -13978,6 +13982,9 @@
                   "outcome": {
                     "type": ["string", "null"]
                   },
+                  "failure_detail": {
+                    "type": ["string", "null"]
+                  },
                   "agent_cr_name": {
                     "type": ["string", "null"]
                   },
@@ -14052,6 +14059,7 @@
                   "node_id",
                   "iteration",
                   "outcome",
+                  "failure_detail",
                   "agent_cr_name",
                   "station_run_id",
                   "input",
@@ -15193,6 +15201,9 @@
                 "outcome": {
                   "type": ["string", "null"]
                 },
+                "failure_detail": {
+                  "type": ["string", "null"]
+                },
                 "agent_cr_name": {
                   "type": ["string", "null"]
                 },
@@ -15267,6 +15278,7 @@
                 "node_id",
                 "iteration",
                 "outcome",
+                "failure_detail",
                 "agent_cr_name",
                 "station_run_id",
                 "input",

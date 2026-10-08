@@ -120,13 +120,17 @@ export interface SpecStatementLink {
   link: string;
 }
 
-export function taskIssueBody({
+export function taskIssueBody(input: TaskIssueInput): string {
+  return withinLimit(taskIssueLines(input).join("\n"));
+}
+
+function taskIssueLines({
   repo,
   storyNumber,
   task,
   dependsOn,
   specStatements,
-}: TaskIssueInput): string {
+}: TaskIssueInput): string[] {
   return [
     ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
     ...dependencyLine(dependsOn),
@@ -138,7 +142,15 @@ export function taskIssueBody({
     ...checklist("## Acceptance criteria", task.acceptance_criteria ?? []),
     ...section("How to test", task.test_plan),
     ...references(repo, task.references ?? []),
-  ].join("\n");
+  ];
+}
+
+const CUT_NOTE = "\n\n*Cut short: GitHub holds 65,536 characters.*\n";
+
+function withinLimit(body: string): string {
+  return body.length <= GITHUB_BODY_LIMIT
+    ? body
+    : body.slice(0, GITHUB_BODY_LIMIT - CUT_NOTE.length) + CUT_NOTE;
 }
 
 function dependencyLine(dependsOn: readonly (number | string)[]): string[] {

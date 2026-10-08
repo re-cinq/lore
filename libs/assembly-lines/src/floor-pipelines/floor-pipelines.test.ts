@@ -54,6 +54,7 @@ interface Pipeline {
     id: string;
     entry: string;
     exit: string;
+    fail?: string;
     start?: { on: string[] };
     files?: Record<string, string>;
     args: Record<string, Arg>;
@@ -191,7 +192,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value instead of the spec plan", () => {
+  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value beside the spec plan as an optional file", () => {
     const { stations } = pipelineOf("feature-planning");
     const openSpecPr = stations["open-spec-pr"];
     const issues = stations["issues"];
@@ -209,7 +210,7 @@ describe("the floor pipelines shipped in this folder", () => {
         { name: "issue_coverage", kind: "file" },
       ],
       issuesReads: { name: "spec_path", kind: "value", optional: true },
-      issuesReadsPlan: undefined,
+      issuesReadsPlan: { name: "spec_plan", kind: "file", optional: true },
     });
   });
 
@@ -764,17 +765,20 @@ describe("the feature-planning pipeline", () => {
     expect({
       entry: line.entry,
       exit: line.exit,
+      fail: line.fail,
       nodes: line.nodes.map((node) => node.id).sort(),
       validateStart: line.nodes.find((node) => node.id === "validate")?.station,
     }).toEqual({
       entry: "analyze",
       exit: "done",
+      fail: "failed",
       nodes: [
         "analyse-specs",
         "analyze",
         "author",
         "decompose",
         "done",
+        "failed",
         "issue-coverage",
         "issues",
         "merged",
@@ -787,6 +791,29 @@ describe("the feature-planning pipeline", () => {
         "write",
       ].sort(),
       validateStart: "plan-validate",
+    });
+  });
+
+  it("ends the run failed when analyse-specs, write, spec-coverage, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+    const { line } = pipelineOf("feature-planning");
+    const settledBy = (to: string) =>
+      line.edges
+        .filter((edge) => edge.to === to && edge.on !== "success")
+        .map((edge) => `${edge.from}:${edge.on}`)
+        .sort();
+
+    expect({ failed: settledBy("failed"), done: settledBy("done") }).toEqual({
+      failed: [
+        "analyse-specs:failed",
+        "decompose:changes_requested",
+        "decompose:failed",
+        "issue-coverage:failed",
+        "issues:failed",
+        "open-spec-pr:failed",
+        "spec-coverage:failed",
+        "write:failed",
+      ],
+      done: ["author:failed", "merged:failed"],
     });
   });
 
@@ -806,7 +833,7 @@ describe("the feature-planning pipeline", () => {
           on: "changes_requested",
           iteration_max: COVERAGE_ROUNDS,
         },
-        { from: "spec-coverage", to: "done", on: "failed" },
+        { from: "spec-coverage", to: "failed", on: "failed" },
       ],
     });
   });
@@ -827,7 +854,7 @@ describe("the feature-planning pipeline", () => {
           on: "changes_requested",
           iteration_max: COVERAGE_ROUNDS,
         },
-        { from: "issue-coverage", to: "done", on: "failed" },
+        { from: "issue-coverage", to: "failed", on: "failed" },
       ],
     });
   });
@@ -1367,5 +1394,31 @@ describe("the files the floor agents produce", () => {
       unnamed: [],
       sayCurrentDirectory: [],
     });
+  });
+});
+
+describe("the agents of every floor pipeline", () => {
+  const AGENTS = [...PIPELINES.values()].flatMap((pipeline) =>
+    Object.entries(pipeline.agent_definitions ?? {}).map(([name, agent]) => ({
+      name,
+      config: agent.settings.config as
+        { skills_source?: string; disallowed_tools?: string[] } | undefined,
+    })),
+  );
+
+  it("fetch their hooks and test guard from Lore's skills registry, never the floor's own", () => {
+    const elsewhere = AGENTS.filter(
+      (agent) => agent.config?.skills_source !== "${LORE_SKILLS_URL}",
+    ).map((agent) => agent.name);
+
+    expect(elsewhere).toEqual([]);
+  });
+
+  it("deny no tool, leaving the test guard as the only refusal", () => {
+    const denying = AGENTS.filter(
+      (agent) => agent.config?.disallowed_tools !== undefined,
+    ).map((agent) => agent.name);
+
+    expect(denying).toEqual([]);
   });
 });

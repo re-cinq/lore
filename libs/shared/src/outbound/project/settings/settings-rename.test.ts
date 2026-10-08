@@ -185,6 +185,10 @@ describe("PgSettings.renameRepo", () => {
         text: expect.stringContaining("cross_repo_repos"),
         params: ["re-cinq/HAL-engine", "re-cinq/HALEngine"],
       },
+      {
+        text: expect.stringContaining("UPDATE lore.plans"),
+        params: ["re-cinq/HAL-engine", "re-cinq/HALEngine"],
+      },
       { text: "COMMIT" },
     ]);
   });
@@ -218,6 +222,10 @@ describe("PgSettings.renameRepo", () => {
       },
       {
         text: expect.stringContaining("cross_repo_repos"),
+        params: ["re-cinq/HAL-engine", "re-cinq/HALEngine"],
+      },
+      {
+        text: expect.stringContaining("UPDATE lore.plans"),
         params: ["re-cinq/HAL-engine", "re-cinq/HALEngine"],
       },
       { text: "COMMIT" },

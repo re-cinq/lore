@@ -19,9 +19,18 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/plan-issues.js";
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
-import { partsNamed } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
+import {
+  coverageCommentWrites,
+  coverageSections,
+  citedAs,
+  linesIn,
+  mainFileOf,
+  partsNamed,
+  type CoverageSections,
+} from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { SpecStatementLink } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
-import type { DecomposedSpec } from "./decomposed-spec.js";
+import type { SpecLine } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import type { DecomposedSpecs } from "./decomposed-spec.js";
 
 /** A task issue as it was filed: what the story's checklist and each task's dependency lines are written from. */
 export type FiledIssue = { number: number; url?: string };
@@ -38,7 +47,7 @@ export interface FilingContext {
   /** The plan the markers name; without one every run files afresh. */
   planId?: string;
   /** The spec the tasks name statements of; without one the issues cite none. */
-  spec?: DecomposedSpec;
+  spec?: DecomposedSpecs;
 }
 
 // Lore-filed issues of either state: a closed task issue still counts as filed, so a rerun doesn't file it again.
@@ -82,13 +91,52 @@ async function rewriteStory(
   work: ProceedWork,
   { context, existing, storyNumber, taskIssues }: FiledTasks,
 ): Promise<void> {
+  const coverage = storyCoverageSections(context);
+  const story = { ...context.story, coverage: coverage.body };
+
   await project.issues.update(storyNumber, {
     ...(existing.story ? { title: work.story.title } : {}),
     body: marked(
-      storyIssueBody({ ...context.story, taskIssues: numbersOf(taskIssues) }),
+      storyIssueBody({ ...story, taskIssues: numbersOf(taskIssues) }),
       context.planId && storyMarker(context.planId),
     ),
   });
+  await rewriteCoverageComments(project, storyNumber, {
+    planId: coverageKey(context),
+    comments: coverage.comments,
+  });
+}
+
+// Without a plan id nothing is found again on a rerun, so any key does.
+function coverageKey({ planId }: FilingContext): string {
+  return planId ?? "unplanned";
+}
+
+function storyCoverageSections(context: FilingContext): CoverageSections {
+  const { coverage } = context.story;
+
+  return coverage
+    ? coverageSections(coverage, coverageKey(context))
+    : { body: "", comments: [] };
+}
+
+interface CoverageComments {
+  planId: string;
+  comments: readonly string[];
+}
+
+async function rewriteCoverageComments(
+  project: StationProject,
+  storyNumber: number,
+  { planId, comments }: CoverageComments,
+): Promise<void> {
+  const filed = await project.issues.listComments(storyNumber);
+
+  for (const write of coverageCommentWrites(filed, comments, planId)) {
+    await (write.kind === "create"
+      ? project.issues.comment(storyNumber, write.body)
+      : project.issues.updateComment(write.id, write.body));
+  }
 }
 
 async function fileStory(
@@ -99,7 +147,10 @@ async function fileStory(
   const issue = await project.issues.create(
     work.story.title,
     marked(
-      storyIssueBody(context.story),
+      storyIssueBody({
+        ...context.story,
+        coverage: storyCoverageSections(context).body,
+      }),
       context.planId && storyMarker(context.planId),
     ),
     work.story.labels,
@@ -198,15 +249,24 @@ function taskBody({ task }: PlannedTask, filing: FiledTasks): string {
 }
 
 function statementsCited(
-  spec: DecomposedSpec | undefined,
-  lines: readonly number[],
+  spec: DecomposedSpecs | undefined,
+  cited: readonly SpecLine[],
 ): SpecStatementLink[] {
-  return spec
-    ? partsNamed(spec.parts, lines).map(({ line, text }) => ({
-        text,
-        link: spec.linkOf(line),
-      }))
-    : [];
+  if (!spec) {
+    return [];
+  }
+
+  const mainFile = mainFileOf(spec.specs);
+
+  return spec.specs.flatMap(({ file: specFile, parts }, index) => {
+    const file = citedAs(spec.specs, index);
+    const named = partsNamed(parts, linesIn(cited, specFile, mainFile));
+
+    return named.map(({ line, text }) => ({
+      text,
+      link: spec.linkOf({ file, line }),
+    }));
+  });
 }
 
 async function closeDropped(

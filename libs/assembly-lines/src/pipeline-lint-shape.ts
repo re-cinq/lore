@@ -41,6 +41,7 @@ const pipelineSchema = z
         id: z.string(),
         entry: z.string().default(""),
         exit: z.string().default(""),
+        fail: z.string().optional(),
         args: z
           .record(
             z.string(),

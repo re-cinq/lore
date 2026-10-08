@@ -20,7 +20,8 @@ import {
   issueCoverage,
   issueCoverageBrief,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
-import { decomposedSpec, type DecomposedSpec } from "./decomposed-spec.js";
+import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
+import { decomposedSpecs, type DecomposedSpecs } from "./decomposed-spec.js";
 
 export interface IssuesStationDeps {
   /** Injectable project for tests; defaults to the pod's HTTP facade. */
@@ -71,12 +72,13 @@ function specOfRun(
   project: StationProject,
   input: StationInput,
   decomposition: DecompositionResult,
-): Promise<DecomposedSpec | undefined> {
-  return decomposedSpec((path, ref) => project.repo.read(path, ref), {
+): Promise<DecomposedSpecs | undefined> {
+  return decomposedSpecs((path, ref) => project.repo.read(path, ref), {
     repo: input.repo,
     branch: input.branch,
-    specPath: input.params.spec_path,
+    specFiles: specFilesOfRun(input.params.spec_path, input.params.spec_plan),
     commit: decomposition.spec_commit,
+    planId: input.params.plan_id,
   });
 }
 
@@ -103,7 +105,7 @@ function rework(objection: string): NodeResult {
 
 interface FilingSources {
   uiUrl: string | undefined;
-  spec: DecomposedSpec | undefined;
+  spec: DecomposedSpecs | undefined;
 }
 
 // The plan id is what a rerun recognises its issues by.
@@ -127,7 +129,7 @@ function filingContext(
 
 function storyCoverage(
   decomposition: DecompositionResult,
-  spec: DecomposedSpec | undefined,
+  spec: DecomposedSpecs | undefined,
 ): { coverage?: string } {
   if (!spec) {
     return {};
@@ -135,7 +137,7 @@ function storyCoverage(
   const tasks = decomposition.stories.flatMap((story) => story.tasks);
 
   return {
-    coverage: issueCoverageBrief(issueCoverage(spec.parts, tasks), spec.linkOf),
+    coverage: issueCoverageBrief(issueCoverage(spec.specs, tasks), spec.linkOf),
   };
 }
 

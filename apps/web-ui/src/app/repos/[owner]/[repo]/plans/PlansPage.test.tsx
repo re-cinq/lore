@@ -40,4 +40,38 @@ describe("PlansPage", () => {
       plans: [PLAN],
     });
   });
+
+  it("shows the failure instead of an empty plan list when lore-api errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "db unavailable" }), {
+            status: 503,
+          }),
+      ),
+    );
+    const page = await PlansPage({
+      params: Promise.resolve({ owner: "re-cinq", repo: "otto" }),
+    });
+
+    expect(page.props).toEqual({
+      message: "Couldn't load plans: db unavailable",
+    });
+  });
+
+  it("shows an unconfigured message rather than an empty plan list when lore-api has no admin token", async () => {
+    delete process.env.LORE_ADMIN_TOKEN;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ plans: [PLAN] }))),
+    );
+    const page = await PlansPage({
+      params: Promise.resolve({ owner: "re-cinq", repo: "otto" }),
+    });
+
+    expect(page.props).toEqual({
+      message: "Plans are unavailable: lore-api isn't configured.",
+    });
+  });
 });

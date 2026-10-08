@@ -382,4 +382,24 @@ describe("taskIssueBody", () => {
       ].join("\n"),
     );
   });
+
+  it("cuts a task body with 100,000 chars of context to 65,536, ending on a note", () => {
+    const body = taskIssueBody({
+      repo: REPO,
+      dependsOn: [],
+      task: {
+        id: "T001",
+        description: "File the issues",
+        context: "x".repeat(100_000),
+        depends_on: [],
+        parallelizable: false,
+        phase: 1,
+      },
+    });
+
+    expect({ length: body.length, end: body.slice(-47) }).toEqual({
+      length: 65_536,
+      end: "\n\n*Cut short: GitHub holds 65,536 characters.*\n",
+    });
+  });
 });
