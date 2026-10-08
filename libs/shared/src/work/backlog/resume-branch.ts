@@ -5,6 +5,8 @@ import { LORE_BLOCKED_LABEL } from "./labels.js";
 export interface BranchResumeInput {
   /** `undefined` when the port could not answer — unknown, never "no". */
   branchExists: boolean | undefined;
+  /** `true` when the branch head is already an ancestor of the base — every commit is on main, nothing new can be pushed. */
+  branchMerged?: boolean;
   issueLabels: readonly string[];
   openPr: { number: number; url: string } | null;
 }
@@ -17,6 +19,11 @@ const FRESH: BranchResume = { resume: false };
 export function decideBranchResume(input: BranchResumeInput): BranchResume {
   // Deleting the branch IS the restart protocol — the repo owner's only lever.
   if (input.branchExists !== true) {
+    return FRESH;
+  }
+
+  // Every commit is already on main — a resumed run can push nothing new, and the dod step's "pushed nothing" guard reads that as a failure.
+  if (input.branchMerged === true) {
     return FRESH;
   }
 
