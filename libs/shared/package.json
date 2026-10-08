@@ -82,6 +82,14 @@
       "types": "./dist/lib/error-classify.d.ts",
       "default": "./dist/lib/error-classify.js"
     },
+    "./feature-planning/spec-sections.js": {
+      "types": "./dist/domain/feature-planning/spec-sections.d.ts",
+      "default": "./dist/domain/feature-planning/spec-sections.js"
+    },
+    "./feature-planning/spec-qa.js": {
+      "types": "./dist/domain/feature-planning/spec-qa.d.ts",
+      "default": "./dist/domain/feature-planning/spec-qa.js"
+    },
     "./feature-planning/spec-soundness.js": {
       "types": "./dist/domain/feature-planning/spec-soundness.d.ts",
       "default": "./dist/domain/feature-planning/spec-soundness.js"
