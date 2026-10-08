@@ -27,30 +27,31 @@ const ANSWERS = [
   { id: "q1", answer: true, reason: "Out of scope lists billing." },
   { id: "q2", answer: true, reason: "FR-9 gates the feature." },
 ];
+const Q1_FALSE = { id: "q1", answer: false, reason: "Spec is silent." };
 const handback = () => ({
   nodeId: "qa-gate",
   report: { outcome: "changes_requested" },
 });
+const secondOpinion = () => ({
+  nodeId: "qa-recheck",
+  report: { outcome: "success" },
+});
 
 const SPEC_PATH = "specs/widget/spec.md";
 
-function scene({
-  answers = ANSWERS,
-  spent = 0,
-  raw,
-  spec,
-}: {
+interface Scene {
+  questions?: unknown[];
   answers?: unknown[];
+  recheck?: unknown[];
+  history?: number[];
   spent?: number;
   raw?: string;
   spec?: string;
-} = {}) {
+}
+
+function scene(options: Scene = {}) {
   const produced: Record<string, string> = {};
-  const files: Record<string, string> = {
-    qa_questions: JSON.stringify(QUESTIONS),
-    qa_answers: raw ?? JSON.stringify(answers),
-    spec_plan: JSON.stringify({ creates: [{ path: SPEC_PATH }] }),
-  };
+  const files = filesOf(options);
   const tools: Tools = {
     read: async (need) => Buffer.from(files[need] ?? ""),
     produce: async (name, bytes) => {
@@ -61,16 +62,38 @@ function scene({
   };
   const deps: CoverageDeps = {
     readSpec: async (_repo, path) =>
-      path === SPEC_PATH ? (spec ?? null) : null,
+      path === SPEC_PATH ? (options.spec ?? null) : null,
     listTree: async () => [],
     filedCoverage: async () => null,
-    visitsOf: async () => [
-      ...Array.from({ length: spent }, handback),
-      { nodeId: "qa-gate", report: null },
-    ],
+    visitsOf: async () => visitsOf(options),
   };
 
   return { handle: qaGateHandle(deps), tools, produced };
+}
+
+function filesOf(options: Scene): Record<string, string> {
+  const {
+    questions = QUESTIONS,
+    answers = ANSWERS,
+    recheck,
+    history,
+  } = options;
+
+  return {
+    qa_questions: JSON.stringify(questions),
+    qa_answers: options.raw ?? JSON.stringify(answers),
+    spec_plan: JSON.stringify({ creates: [{ path: SPEC_PATH }] }),
+    ...(recheck && { qa_recheck_answers: JSON.stringify(recheck) }),
+    ...(history && { qa_history: JSON.stringify(history) }),
+  };
+}
+
+function visitsOf({ spent = 0, recheck }: Scene) {
+  return [
+    ...Array.from({ length: spent }, handback),
+    ...(recheck ? [secondOpinion()] : []),
+    { nodeId: "qa-gate", report: null },
+  ];
 }
 
 const brief = {
@@ -88,6 +111,9 @@ const withSpec = {
   },
 };
 
+const FAILURE_BRIEF =
+  "These checks failed against the spec. Fix the spec so each one holds:\n- q1 [scope]: Billing is out of scope. (Spec is silent.)\n";
+
 describe("qaGateHandle", () => {
   it("reports success and clears qa_failures with an empty file when every answer and note is true", async () => {
     const { handle, tools, produced } = scene();
@@ -96,16 +122,31 @@ describe("qaGateHandle", () => {
 
     expect({ report, produced }).toEqual({
       report: { outcome: "success" },
-      produced: { qa_failures: "" },
+      produced: { qa_failures: "", qa_advisory: "", qa_history: "[0]" },
     });
   });
 
-  it("sends the writer back with the failed question in qa_failures", async () => {
+  it("asks a second pod to answer only the failed questions before it counts a failure", async () => {
     const { handle, tools, produced } = scene({
-      answers: [
-        { id: "q1", answer: false, reason: "Spec is silent." },
-        ANSWERS[1],
-      ],
+      answers: [Q1_FALSE, ANSWERS[1]],
+    });
+
+    const report = await handle(brief, tools);
+
+    expect({ report, produced }).toEqual({
+      report: { outcome: "recheck" },
+      produced: {
+        qa_recheck_blind: JSON.stringify([
+          { id: "q1", question: "Billing is out of scope." },
+        ]),
+      },
+    });
+  });
+
+  it("sends the writer back with the failure both pods agree on in qa_failures", async () => {
+    const { handle, tools, produced } = scene({
+      answers: [Q1_FALSE, ANSWERS[1]],
+      recheck: [Q1_FALSE],
     });
 
     const report = await handle(brief, tools);
@@ -113,16 +154,32 @@ describe("qaGateHandle", () => {
     expect({ report, produced }).toEqual({
       report: { outcome: "changes_requested" },
       produced: {
-        qa_failures:
-          "These checks failed against the spec. Fix the spec so each one holds:\n- q1 [scope]: Billing is out of scope. (Spec is silent.)\n",
+        qa_failures: FAILURE_BRIEF,
+        qa_advisory: "",
+        qa_history: "[1]",
         redo_sections: JSON.stringify({ round: 1, sections: ["scope"] }),
       },
     });
   });
 
+  it("drops a failure the second pod answers as expected", async () => {
+    const { handle, tools, produced } = scene({
+      answers: [Q1_FALSE, ANSWERS[1]],
+      recheck: [ANSWERS[0]],
+    });
+
+    const report = await handle(brief, tools);
+
+    expect({ report, failures: produced.qa_failures }).toEqual({
+      report: { outcome: "success" },
+      failures: "",
+    });
+  });
+
   it("numbers the redo request by the rounds already spent", async () => {
     const { handle, tools, produced } = scene({
-      answers: [{ id: "q1", answer: false, reason: "Silent." }, ANSWERS[1]],
+      answers: [Q1_FALSE, ANSWERS[1]],
+      recheck: [Q1_FALSE],
       spent: 2,
     });
 
@@ -134,7 +191,7 @@ describe("qaGateHandle", () => {
     });
   });
 
-  it("reports success with the failures listed once five rounds are spent", async () => {
+  it("reports success with the failures listed once five rounds are spent, without a second look", async () => {
     const { handle, tools, produced } = scene({
       answers: [ANSWERS[0], { id: "q2", answer: false, reason: "Not there." }],
       spent: 5,
@@ -145,6 +202,37 @@ describe("qaGateHandle", () => {
     expect({ report, listed: produced.qa_failures?.includes("q2") }).toEqual({
       report: { outcome: "success" },
       listed: true,
+    });
+  });
+
+  it("stops asking when the failures did not fall since the last round", async () => {
+    const { handle, tools, produced } = scene({
+      answers: [Q1_FALSE, ANSWERS[1]],
+      recheck: [Q1_FALSE],
+      history: [1],
+      spent: 1,
+    });
+
+    const report = await handle(brief, tools);
+
+    expect({ report, history: produced.qa_history }).toEqual({
+      report: { outcome: "success" },
+      history: "[1,1]",
+    });
+  });
+
+  it("lists a failed advisory question apart and does not hold the pull request for it", async () => {
+    const { handle, tools, produced } = scene({
+      questions: [{ ...QUESTIONS[0], severity: "advisory" }, QUESTIONS[1]],
+      answers: [Q1_FALSE, ANSWERS[1]],
+    });
+
+    const report = await handle(brief, tools);
+
+    expect({ report, advisory: produced.qa_advisory }).toEqual({
+      report: { outcome: "success" },
+      advisory:
+        "These checks failed against the spec but did not hold up the pull request:\n- q1 [scope]: Billing is out of scope. (Spec is silent.)\n",
     });
   });
 
@@ -171,12 +259,14 @@ describe("qaGateHandle", () => {
   });
 
   it("sends the writer back naming an upholding answer whose quote is not in the spec", async () => {
+    const unquoted = [
+      { ...ANSWERS[0], evidence: "Billing is out of scope." },
+      { ...ANSWERS[1], evidence: "It ships behind a flag." },
+    ];
     const { handle, tools, produced } = scene({
       spec: "- Billing is out of scope.\n",
-      answers: [
-        { ...ANSWERS[0], evidence: "Billing is out of scope." },
-        { ...ANSWERS[1], evidence: "It ships behind a flag." },
-      ],
+      answers: unquoted,
+      recheck: [unquoted[1]],
     });
 
     const report = await handle(withSpec, tools);

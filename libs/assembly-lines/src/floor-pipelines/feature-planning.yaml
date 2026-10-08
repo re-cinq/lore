@@ -94,6 +94,12 @@ line:
       station: spec-qa-answer
       bind:
         target: repo
+    # A second pod, shown only the questions the first left failing, so a flaky
+    # answer does not cost a fix round. It never sees the first pod's answers.
+    - id: qa-recheck
+      station: spec-qa-recheck
+      bind:
+        target: repo
     # Judges the pushed spec: the blind answers against the frozen questions, and the spec's
     # own checks (uncited plan blocks, names not on main, compound requirements).
     - id: qa-gate
@@ -254,9 +260,20 @@ line:
     - from: qa-answer
       to: failed
       on: failed
+    - from: qa-recheck
+      to: qa-gate
+      on: success
+      iteration_max: 5
+    - from: qa-recheck
+      to: failed
+      on: failed
     - from: qa-gate
       to: open-spec-pr
       on: success
+    - from: qa-gate
+      to: qa-recheck
+      on: recheck
+      iteration_max: 5
     # What the blind answers found missing goes back to
     # the writer, and only that. The station stops asking after SPEC_QA_ROUNDS
     # handbacks and lets the PR open with the failures listed; this
@@ -666,10 +683,29 @@ stations:
       - name: qa_answers
         kind: file
         path: qa-answers.json
+  spec-qa-recheck:
+    kind: agent
+    agent_definition: spec-qa-recheck
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: qa_recheck_blind
+        kind: file
+        path: qa-recheck-blind.json
+    produces:
+      - name: qa_recheck_answers
+        kind: file
+        path: qa-recheck-answers.json
   qa-gate:
     kind: service
     outcomes:
       - success
+      - recheck
       - changes_requested
       - failed
     needs:
@@ -688,9 +724,28 @@ stations:
         kind: file
       - name: qa_answers
         kind: file
+      # The second pod's answers; read only on the visit that follows it.
+      - name: qa_recheck_answers
+        kind: file
+        optional: true
+      # The gap count of each round so far, to stop when they stop falling.
+      - name: qa_history
+        kind: file
+        optional: true
     produces:
-      # Only when something failed; what the writer reads next.
+      # Empty when nothing failed; what the writer reads next.
       - name: qa_failures
+        kind: file
+      # Failures of questions that did not hold the pull request; listed in it.
+      - name: qa_advisory
+        kind: file
+      - name: qa_history
+        kind: file
+      # The sections to redo this round; only when it asks for changes.
+      - name: redo_sections
+        kind: file
+      # The failed questions for the second pod; only when it asks for one.
+      - name: qa_recheck_blind
         kind: file
       # Produced on every visit that counts, so the latest one is always true.
       - name: plan_coverage
@@ -722,6 +777,10 @@ stations:
         optional: true
       # What qa-gate still finds failing once its rounds are spent; empty when none.
       - name: qa_failures
+        kind: file
+        optional: true
+      # What qa-gate found but did not hold the pull request for.
+      - name: qa_advisory
         kind: file
         optional: true
     produces:
@@ -995,6 +1054,29 @@ agent_definitions:
         env:
           LORE_TEST_POLICY: none
   spec-qa-answer:
+    settings:
+      model: gemini-3.1-pro-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        env:
+          LORE_TEST_POLICY: none
+  spec-qa-recheck:
     settings:
       model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}

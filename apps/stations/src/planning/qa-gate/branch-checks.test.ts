@@ -113,6 +113,8 @@ describe("qaGateHandle on the spec branch", () => {
       report: { outcome: "success" },
       produced: {
         qa_failures: "",
+        qa_advisory: "",
+        qa_history: "[0]",
         plan_coverage:
           "## Plan coverage\n\n2 of 2 plan blocks are cited by a spec statement.\n",
       },
@@ -201,7 +203,7 @@ describe("qaGateHandle on the spec branch", () => {
 
     expect({ report, produced }).toEqual({
       report: { outcome: "success" },
-      produced: { qa_failures: "" },
+      produced: { qa_failures: "", qa_advisory: "", qa_history: "[0]" },
     });
   });
 });

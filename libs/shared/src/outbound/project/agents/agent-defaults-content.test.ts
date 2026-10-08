@@ -488,6 +488,24 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ mandatory: false, leaves: true, noInvention: true });
   });
 
+  it("has spec-qa-recheck give a second opinion on the failed statements alone, without the first answers or the plan, and quote the spec for every true", () => {
+    const prompt = promptOnOneLine("spec-qa-recheck");
+
+    expect({
+      blind: promptOf("spec-qa-recheck").includes("{qa_recheck_blind_path}"),
+      out: promptOf("spec-qa-recheck").includes("{qa_recheck_answers_path}"),
+      noFirstAnswers: prompt.includes("you have not seen its answers"),
+      noPlan: prompt.includes("must not look for it"),
+      quotes: prompt.includes('"evidence":'),
+    }).toEqual({
+      blind: true,
+      out: true,
+      noFirstAnswers: true,
+      noPlan: true,
+      quotes: true,
+    });
+  });
+
   it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
     const prompt = promptOnOneLine("spec-write");
 

@@ -793,6 +793,7 @@ describe("the feature-planning pipeline", () => {
         "qa-gate",
         "qa-generate",
         "qa-questions",
+        "qa-recheck",
         "split-sections",
         "validate",
         "write",
@@ -801,7 +802,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("ends the run failed when analyse-specs, draft, split-sections, write, fix, qa-generate, qa-questions, qa-answer, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+  it("ends the run failed when analyse-specs, draft, split-sections, write, fix, qa-generate, qa-questions, qa-answer, qa-recheck, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
     const { line } = pipelineOf("feature-planning");
     const settledBy = (to: string) =>
       line.edges
@@ -823,6 +824,7 @@ describe("the feature-planning pipeline", () => {
         "qa-gate:failed",
         "qa-generate:failed",
         "qa-questions:failed",
+        "qa-recheck:failed",
         "split-sections:failed",
         "write:failed",
       ],
@@ -866,9 +868,13 @@ describe("the feature-planning pipeline", () => {
     const { line } = pipelineOf("feature-planning");
 
     expect(
-      ["qa-generate", "qa-questions", "qa-answer", "qa-gate"].flatMap((node) =>
-        edgesOn(line, node),
-      ),
+      [
+        "qa-generate",
+        "qa-questions",
+        "qa-answer",
+        "qa-recheck",
+        "qa-gate",
+      ].flatMap((node) => edgesOn(line, node)),
     ).toEqual([
       { from: "qa-generate", to: "qa-questions", on: "success" },
       { from: "qa-generate", to: "failed", on: "failed" },
@@ -882,7 +888,20 @@ describe("the feature-planning pipeline", () => {
       { from: "qa-questions", to: "failed", on: "failed" },
       { from: "qa-answer", to: "qa-gate", on: "success" },
       { from: "qa-answer", to: "failed", on: "failed" },
+      {
+        from: "qa-recheck",
+        to: "qa-gate",
+        on: "success",
+        iteration_max: SPEC_QA_ROUNDS,
+      },
+      { from: "qa-recheck", to: "failed", on: "failed" },
       { from: "qa-gate", to: "open-spec-pr", on: "success" },
+      {
+        from: "qa-gate",
+        to: "qa-recheck",
+        on: "recheck",
+        iteration_max: SPEC_QA_ROUNDS,
+      },
       {
         from: "qa-gate",
         to: "split-sections",
@@ -893,7 +912,7 @@ describe("the feature-planning pipeline", () => {
     ]);
   });
 
-  it("gives qa-gate the spec branch, the spec plan, the citable blocks, the frozen questions and the answers, and has it produce both briefs the writer reads", () => {
+  it("gives qa-gate the spec branch, the spec plan, the citable blocks, the frozen questions, the answers, a second pod's answers and its own history, and has it produce the briefs the writer and the pull request read", () => {
     const gate = pipelineOf("feature-planning").stations["qa-gate"];
 
     expect({
@@ -907,8 +926,17 @@ describe("the feature-planning pipeline", () => {
         "plan_blocks",
         "qa_questions",
         "qa_answers",
+        "qa_recheck_answers",
+        "qa_history",
       ],
-      produces: ["qa_failures", "plan_coverage"],
+      produces: [
+        "qa_failures",
+        "qa_advisory",
+        "qa_history",
+        "redo_sections",
+        "qa_recheck_blind",
+        "plan_coverage",
+      ],
       target: { name: "target", kind: "git", path: "target", access: "read" },
     });
   });
@@ -988,6 +1016,44 @@ describe("the feature-planning pipeline", () => {
       ],
       produces: ["section_state", "current_section", "section_result"],
     });
+  });
+
+  it("has qa-recheck answer only the questions the gate failed, for a second opinion, and hand them back through qa_recheck_answers", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const recheck = stations["spec-qa-recheck"];
+
+    expect({
+      agent: recheck.agent_definition,
+      outcomes: recheck.outcomes,
+      needs: recheck.needs.map((need) => [need.name, need.path]),
+      produces: recheck.produces.map((out) => [out.name, out.path]),
+      gateOutcomes: stations["qa-gate"].outcomes,
+    }).toEqual({
+      agent: "spec-qa-recheck",
+      outcomes: ["success", "failed"],
+      needs: [
+        ["target", "target"],
+        ["qa_recheck_blind", "qa-recheck-blind.json"],
+      ],
+      produces: [["qa_recheck_answers", "qa-recheck-answers.json"]],
+      gateOutcomes: ["success", "recheck", "changes_requested", "failed"],
+    });
+  });
+
+  it("hands open-spec-pr the checks that still fail and the advisory ones as optional files for its body", () => {
+    const pr = pipelineOf("feature-planning").stations["open-spec-pr"];
+
+    expect(
+      ["qa_failures", "qa_advisory", "plan_coverage"].map((name) =>
+        needOf(pr, name),
+      ),
+    ).toEqual(
+      ["qa_failures", "qa_advisory", "plan_coverage"].map((name) => ({
+        name,
+        kind: "file",
+        optional: true,
+      })),
+    );
   });
 
   it("checks issue coverage after issues, sending decompose back at most COVERAGE_ROUNDS times", () => {
@@ -1210,7 +1276,12 @@ describe("the feature-planning pipeline", () => {
   });
 
   it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
-    const agents = ["spec-draft", "spec-qa-generate", "spec-qa-answer"];
+    const agents = [
+      "spec-draft",
+      "spec-qa-generate",
+      "spec-qa-answer",
+      "spec-qa-recheck",
+    ];
     const { agent_definitions } = pipelineOf("feature-planning");
 
     expect(

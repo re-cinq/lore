@@ -1,4 +1,4 @@
-// Judges the spec the writer pushed: the answers the Q&A agent gave from the spec alone to the questions frozen from the plan, and the spec's own checks against the branch and main. It sends the writer back with only what failed until the rounds are spent; then the spec PR opens with the failures listed (see specs/7-feature-planning/spec.md FR-24).
+// Judges the spec the writer pushed: the answers the Q&A agent gave from the spec alone to the questions frozen from the plan, and the spec's own checks against the branch and main. A failure is counted only after a second pod, shown just the failed questions, has answered them too. The writer is sent back with only what both pods failed, until the rounds are spent or the gaps stop falling; then the spec PR opens with the failures listed (see specs/7-feature-planning/spec.md FR-24).
 
 import {
   defineStation,
@@ -10,18 +10,27 @@ import {
 } from "@re-cinq/floor-station";
 import { coverageRoundsSpent } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import {
+  advisoryBrief,
   failureBrief,
   qaGate,
   redoRequest,
+  specAnswerSchema,
   specQaBagSchema,
+  withRecheck,
+  type GateOptions,
   type QaVerdict,
   type SpecQaBag,
 } from "@re-cinq/lore-shared/feature-planning/spec-qa.js";
-import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
+import {
+  coverageDeps,
+  type CoverageDeps,
+  type RunVisit,
+} from "../coverage-deps.js";
 import {
   branchChecks,
   specsOfBranch,
   type BranchChecks,
+  type SpecFile,
 } from "./branch-checks.js";
 
 export function qaGateHandle(deps: CoverageDeps): Handle {
@@ -39,39 +48,123 @@ async function judged(
   brief: Brief,
   tools: Tools,
 ): Promise<Report> {
-  const specs = await specsOfBranch(deps, brief, tools);
-  const [bag, checks, spent] = await Promise.all([
-    qaBagOf(tools),
-    branchChecks(deps, brief, tools, specs ?? []),
-    roundsSpent(deps, brief),
-  ]);
-  const texts = specs && specs.map((spec) => spec.text);
-  const verdict = qaGate(bag, spent, checks?.gaps ?? 0, texts);
+  const round = await readRound(deps, brief, tools);
+  const verdict = qaGate(await answersOf(round, tools), round.options);
 
-  await deliver(tools, verdict, checks, spent);
+  if (needsRecheck(verdict) && !round.afterRecheck) {
+    return askForRecheck(tools, verdict);
+  }
+  await deliver(tools, { ...round, verdict });
 
   return { outcome: verdict.outcome };
+}
+
+interface Round {
+  bag: SpecQaBag;
+  checks: BranchChecks | null;
+  history: number[];
+  options: GateOptions;
+  /** This visit follows the second pod's answers. */
+  afterRecheck: boolean;
+}
+
+async function readRound(
+  deps: CoverageDeps,
+  brief: Brief,
+  tools: Tools,
+): Promise<Round> {
+  const specs = await specsOfBranch(deps, brief, tools);
+  const visits = await deps.visitsOf(brief.visitId);
+  const [bag, checks, history] = await Promise.all([
+    qaBagOf(tools),
+    branchChecks(deps, brief, tools, specs ?? []),
+    readJson<number[]>(tools, "qa_history"),
+  ]);
+
+  return {
+    bag,
+    checks,
+    history: history ?? [],
+    afterRecheck: visits.at(-2)?.nodeId === "qa-recheck",
+    options: optionsOf({ checks, specs, visits, history }),
+  };
+}
+
+interface Read {
+  checks: BranchChecks | null;
+  specs: SpecFile[] | null;
+  visits: RunVisit[];
+  history: number[] | null;
+}
+
+function optionsOf({ checks, specs, visits, history }: Read): GateOptions {
+  return {
+    roundsSpent: coverageRoundsSpent(visits, "qa-gate"),
+    branchGaps: checks?.gaps ?? 0,
+    specTexts: specs && specs.map((spec) => spec.text),
+    previousGaps: history?.at(-1) ?? null,
+  };
+}
+
+/** The first pod's answers, or the two pods' merged once the second has answered. */
+async function answersOf(round: Round, tools: Tools): Promise<SpecQaBag> {
+  return round.afterRecheck
+    ? withRecheck(round.bag, await recheckAnswers(tools))
+    : round.bag;
+}
+
+function needsRecheck(verdict: QaVerdict): boolean {
+  return verdict.outcome === "changes_requested" && verdict.failures.length > 0;
+}
+
+/** Only the questions that failed, without the answers they expect, for a pod that has not seen the first answers. */
+async function askForRecheck(
+  tools: Tools,
+  verdict: QaVerdict,
+): Promise<Report> {
+  const blind = verdict.failures.map(({ id, text }) => ({
+    id,
+    question: text,
+  }));
+
+  await tools.produce("qa_recheck_blind", JSON.stringify(blind));
+
+  return { outcome: "recheck" };
+}
+
+interface Delivery {
+  verdict: QaVerdict;
+  checks: BranchChecks | null;
+  history: number[];
+  options: GateOptions;
 }
 
 /** The bag never drops a key: an empty `qa_failures` is how a round with no failures clears the last round's. */
 async function deliver(
   tools: Tools,
-  verdict: QaVerdict,
-  checks: BranchChecks | null,
-  spent: number,
+  { verdict, checks, history, options }: Delivery,
 ): Promise<void> {
-  const redo = redoRequest(verdict.failures, checks?.gaps ?? 0, spent + 1);
+  const gaps = verdict.failures.length + (options.branchGaps ?? 0);
+  const redo = redoRequest(
+    verdict.failures,
+    options.branchGaps ?? 0,
+    options.roundsSpent + 1,
+  );
 
   await Promise.all([
     tools.produce("qa_failures", failureBrief(verdict.failures)),
+    tools.produce("qa_advisory", advisoryBrief(verdict.advisory)),
+    tools.produce("qa_history", JSON.stringify([...history, gaps])),
     checks && tools.produce("plan_coverage", checks.brief),
     verdict.outcome === "changes_requested" &&
       tools.produce("redo_sections", JSON.stringify(redo)),
   ]);
 }
 
-async function roundsSpent(deps: CoverageDeps, brief: Brief): Promise<number> {
-  return coverageRoundsSpent(await deps.visitsOf(brief.visitId), "qa-gate");
+async function recheckAnswers(tools: Tools) {
+  return specAnswerSchema
+    .array()
+    .parse(await readJson(tools, "qa_recheck_answers"));
 }
 
 async function qaBagOf(tools: Tools): Promise<SpecQaBag> {
@@ -83,8 +176,13 @@ async function qaBagOf(tools: Tools): Promise<SpecQaBag> {
   return specQaBagSchema.parse({ questions, answers });
 }
 
-async function readJson(tools: Tools, need: string): Promise<unknown> {
-  return JSON.parse((await tools.read(need)).toString("utf8"));
+async function readJson<T = unknown>(
+  tools: Tools,
+  need: string,
+): Promise<T | null> {
+  const text = (await tools.read(need)).toString("utf8");
+
+  return text === "" ? null : (JSON.parse(text) as T);
 }
 
 export function startQaGateStation(): RunningStation {

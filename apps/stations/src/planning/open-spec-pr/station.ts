@@ -74,18 +74,23 @@ async function openWithCoverage(
   return pr;
 }
 
-/** What the gate last said of the spec: the QA checks it still fails and the plan blocks it cites; none on a run that carried nothing to check. */
+/** What the gate last said of the spec: the QA checks it still fails, the advisory ones that did not hold it up, and the plan blocks it cites; none on a run that carried nothing to check. */
 async function coverageOf(
   brief: Brief,
   tools: Tools,
 ): Promise<string | undefined> {
-  const [failures, coverage] = await Promise.all([
+  const [failures, advisory, coverage] = await Promise.all([
     readNeed(brief, tools, "qa_failures"),
+    readNeed(brief, tools, "qa_advisory"),
     readNeed(brief, tools, "plan_coverage"),
   ]);
-  const failing = failures && `## Spec checks still failing\n\n${failures}`;
+  const sections = [
+    failures && `## Spec checks still failing\n\n${failures}`,
+    advisory && `## Advisory checks\n\n${advisory}`,
+    coverage,
+  ];
 
-  return [failing, coverage].filter(Boolean).join("\n") || undefined;
+  return sections.filter(Boolean).join("\n") || undefined;
 }
 
 async function readNeed(

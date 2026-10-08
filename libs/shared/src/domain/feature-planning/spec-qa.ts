@@ -43,48 +43,102 @@ export interface QaFailure {
 
 export interface QaVerdict {
   outcome: "success" | "changes_requested";
+  /** The blocking failures: what sends the writer back. */
   failures: QaFailure[];
+  /** Failures of questions worth knowing about but not worth a round; listed in the pull request. */
+  advisory: QaFailure[];
   exhausted: boolean;
+  /** The gaps did not fall since the last round, so asking again would only repeat it. */
+  stalled: boolean;
 }
 
-/** `specTexts` are the spec files the answers were read from; with them, an answer that upholds a question must quote one. Null skips that check. */
-export function qaGate(
-  bag: SpecQaBag,
-  roundsSpent: number,
-  branchGaps = 0,
-  specTexts: readonly string[] | null = null,
-): QaVerdict {
-  const failures = questionFailures(bag, specTexts);
-  const gaps = failures.length + branchGaps;
-  const exhausted = gaps > 0 && roundsSpent >= SPEC_QA_ROUNDS;
+export interface GateOptions {
+  roundsSpent: number;
+  /** Gaps the spec's own checks found, which no question maps to. */
+  branchGaps?: number;
+  /** The spec files the answers were read from; with them, an answer that upholds a question must quote one. */
+  specTexts?: readonly string[] | null;
+  /** The gap count of the round before, when there was one. */
+  previousGaps?: number | null;
+}
+
+export function qaGate(bag: SpecQaBag, options: GateOptions): QaVerdict {
+  const { blocking, advisory } = questionFailures(
+    bag,
+    options.specTexts ?? null,
+  );
+  const gaps = blocking.length + (options.branchGaps ?? 0);
+  const exhausted = gaps > 0 && options.roundsSpent >= SPEC_QA_ROUNDS;
+  const stalled = stalledAt(gaps, options.previousGaps ?? null);
+
+  const settled = [gaps === 0, exhausted, stalled].some(Boolean);
 
   return {
-    outcome: gaps === 0 || exhausted ? "success" : "changes_requested",
-    failures,
+    outcome: settled ? "success" : "changes_requested",
+    failures: blocking,
+    advisory,
     exhausted,
+    stalled,
   };
+}
+
+function stalledAt(gaps: number, previousGaps: number | null): boolean {
+  return gaps > 0 && previousGaps !== null && gaps >= previousGaps;
+}
+
+/** Puts a second pod's answers in place of the first's for the questions it was asked, so the gate judges a failure only as the two pods left it. */
+export function withRecheck(
+  bag: SpecQaBag,
+  recheck: readonly SpecAnswer[],
+): SpecQaBag {
+  const second = new Map(recheck.map((answer) => [answer.id, answer]));
+
+  return {
+    ...bag,
+    answers: bag.answers.map((answer) => second.get(answer.id) ?? answer),
+  };
+}
+
+interface Found {
+  failure: QaFailure;
+  severity: SpecQuestion["severity"];
 }
 
 function questionFailures(
   { questions, answers }: SpecQaBag,
   specTexts: readonly string[] | null,
-): QaFailure[] {
+): { blocking: QaFailure[]; advisory: QaFailure[] } {
   const answered = new Map(answers.map((answer) => [answer.id, answer]));
-
-  return questions.flatMap((question) =>
+  const found = questions.flatMap((question) =>
     failureOf(question, answered.get(question.id), specTexts),
   );
+
+  return {
+    blocking: failuresOf(found, "blocking"),
+    advisory: failuresOf(found, "advisory"),
+  };
+}
+
+function failuresOf(
+  found: readonly Found[],
+  severity: Found["severity"],
+): QaFailure[] {
+  return found
+    .filter((entry) => entry.severity === severity)
+    .map((entry) => entry.failure);
 }
 
 function failureOf(
   question: SpecQuestion,
   given: SpecAnswer | undefined,
   specTexts: readonly string[] | null,
-): QaFailure[] {
+): Found[] {
   const reason = failureReason(question, given, specTexts);
-  const { id, section, question: text } = question;
+  const { id, section, question: text, severity } = question;
 
-  return reason === null ? [] : [{ id, section, text, reason }];
+  return reason === null
+    ? []
+    : [{ failure: { id, section, text, reason }, severity }];
 }
 
 const NO_QUOTE = "No quote from the spec supports this answer.";
@@ -128,16 +182,29 @@ function squash(text: string): string {
 }
 
 export function failureBrief(failures: QaFailure[]): string {
+  return briefOf(
+    "These checks failed against the spec. Fix the spec so each one holds:",
+    failures,
+  );
+}
+
+export function advisoryBrief(failures: QaFailure[]): string {
+  return briefOf(
+    "These checks failed against the spec but did not hold up the pull request:",
+    failures,
+  );
+}
+
+function briefOf(heading: string, failures: readonly QaFailure[]): string {
   if (failures.length === 0) {
     return "";
   }
-
   const lines = failures.map(
     (failure) =>
       `- ${failure.id} [${redoSection(failure.section)}]: ${failure.text} (${failure.reason})\n`,
   );
 
-  return `These checks failed against the spec. Fix the spec so each one holds:\n${lines.join("")}`;
+  return `${heading}\n${lines.join("")}`;
 }
 
 /** The sections the next fix pass redoes: each section a failure belongs to, and the repair visit for gaps no question maps to a section the line integrates. */
