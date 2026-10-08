@@ -308,5 +308,15 @@ function searchProxyArgs(args: SearchMemoryArgs) {
     limit: args.limit,
     include_invalidated: args.include_invalidated,
     graph_augment: args.graph_augment,
+    repo: resolveSearchRepo(),
   };
+}
+
+// In agent mode the gateway has no cwd, so detectCurrentRepo() returns null; fall back to the env the pod sets.
+function resolveSearchRepo(): string | undefined {
+  if (process.env.LORE_MCP_SERVER_MODE === "agent") {
+    return process.env.LORE_MCP_REPO || detectCurrentRepo() || undefined;
+  }
+
+  return detectCurrentRepo() || undefined;
 }
