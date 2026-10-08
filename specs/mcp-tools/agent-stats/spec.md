@@ -21,7 +21,7 @@ quiet or runaway agent means hand-writing SQL across several `memory.*` tables.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L557)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L566)).
 
 - **name**: `lore_agent_stats`
 - **description** (verbatim):

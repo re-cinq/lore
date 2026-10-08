@@ -317,5 +317,6 @@ function resolveSearchRepo(): string | undefined {
   if (process.env.LORE_MCP_SERVER_MODE === "agent") {
     return process.env.LORE_MCP_REPO || detectCurrentRepo() || undefined;
   }
+
   return detectCurrentRepo() || undefined;
 }
