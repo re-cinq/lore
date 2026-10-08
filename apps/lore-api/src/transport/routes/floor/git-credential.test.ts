@@ -75,6 +75,7 @@ describe("handleFloorGitCredential", () => {
         token: TOKEN,
         mint: async (repo: string, access?: "read" | "write") => {
           mintCalls.push({ repo, access });
+
           return "ghs_fresh";
         },
       },

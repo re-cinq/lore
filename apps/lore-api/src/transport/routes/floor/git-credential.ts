@@ -27,10 +27,17 @@ export async function handleFloorGitCredential(
   body: { repoUrl: string; access: "read" | "write" },
 ): Promise<FloorGitCredentialResult> {
   const authError = checkBearer(deps, bearer);
-  if (authError) return authError;
+
+  if (authError) {
+    return authError;
+  }
   const repo = repoOfUrl(body.repoUrl);
-  if (!repo) return { code: 400, body: { error: "not-a-github-repo-url" } };
+
+  if (!repo) {
+    return { code: 400, body: { error: "not-a-github-repo-url" } };
+  }
   const password = await deps.mint(repo, body.access);
+
   return { code: 200, body: { username: "x-access-token", password } };
 }
 
@@ -45,6 +52,7 @@ export function configuredToken(
 export function floorGitCredentialRoute() {
   const networkDeps = buildFloorGitCredentialNetworkDeps();
   const { body, pair } = buildFloorGitCredentialSchemas();
+
   return {
     method: "POST" as const,
     path: "/api/floor/git-credential",
@@ -66,10 +74,14 @@ function checkBearer(
   deps: FloorGitCredentialDeps,
   bearer: string,
 ): FloorGitCredentialResult | null {
-  if (!deps.token) return { code: 503, body: { error: "not-configured" } };
+  if (!deps.token) {
+    return { code: 503, body: { error: "not-configured" } };
+  }
+
   if (!bearer || !timingSafeStringEqual(bearer, deps.token)) {
     return { code: 401, body: { error: "bad-token" } };
   }
+
   return null;
 }
 
@@ -94,6 +106,7 @@ function buildFloorGitCredentialNetworkDeps() {
   const { PlatformGitHub } = req(
     "@re-cinq/lore-shared/project/lib/platform-github.js",
   ) as typeof import("@re-cinq/lore-shared/project/lib/platform-github.js");
+
   return { zodResponse, zodValidate, extractBearer, PlatformGitHub };
 }
 
@@ -108,6 +121,7 @@ function buildFloorGitCredentialSchemas() {
     username: zod.string(),
     password: zod.string(),
   });
+
   return { body, pair };
 }
 
@@ -136,7 +150,10 @@ function buildFloorGitCredentialHandler(
 export function permissionsFor(
   access: "read" | "write",
 ): Record<string, string> {
-  if (access === "read") return { contents: "read", metadata: "read" };
+  if (access === "read") {
+    return { contents: "read", metadata: "read" };
+  }
+
   return {
     contents: "write",
     pull_requests: "write",
