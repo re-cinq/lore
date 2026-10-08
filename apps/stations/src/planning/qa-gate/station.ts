@@ -32,6 +32,7 @@ import {
   type BranchChecks,
   type SpecFile,
 } from "./branch-checks.js";
+import { optionalNeedText } from "../../domain/need-text.js";
 
 export function qaGateHandle(deps: CoverageDeps): Handle {
   return async (brief, tools) => {
@@ -78,7 +79,7 @@ async function readRound(
   const [bag, checks, history] = await Promise.all([
     qaBagOf(tools),
     branchChecks(deps, brief, tools, specs ?? []),
-    readJson<number[]>(tools, "qa_history"),
+    historyOf(brief, tools),
   ]);
 
   return {
@@ -174,6 +175,13 @@ async function qaBagOf(tools: Tools): Promise<SpecQaBag> {
   ]);
 
   return specQaBagSchema.parse({ questions, answers });
+}
+
+/** The failures each earlier round counted; none before the gate's first round. */
+async function historyOf(brief: Brief, tools: Tools): Promise<number[] | null> {
+  const text = await optionalNeedText(brief.needs, tools, "qa_history");
+
+  return text ? (JSON.parse(text) as number[]) : null;
 }
 
 async function readJson<T = unknown>(
