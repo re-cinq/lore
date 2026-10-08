@@ -37,24 +37,43 @@ const REFINE_SETTLED_OPTIONS = {
     name: "PlanRefineSettled",
     description:
       "An analyze pass ended: its person's Refine is answered or told why not, and the ask is cleared",
-    errors: [404],
+    errors: [400, 404],
   }),
   validate: { payload: zodValidate(RefineSettledBody) },
 };
 
-/** The analyze pass ended: lore-api answers the section a person asked about, or says why it could not, and clears the ask. A pass nobody asked about settles nothing. */
+/** The analyze pass ended: lore-api withdraws the agent's presence, answers the section a person asked about (or says why it could not), and clears the ask. A pass nobody asked about settles nothing but still closes presence. */
 function refineSettledRoute(ports: PlanFilePorts): ServerRoute {
   return {
     method: "POST",
     path: "/api/plans/{id}/refine-settled",
     options: REFINE_SETTLED_OPTIONS,
-    handler: async (request) =>
-      settleRefine(
-        request.params.id,
+    handler: async (request) => {
+      const planId = request.params.id;
+
+      await closePresenceBestEffort(ports, planId);
+
+      return settleRefine(
+        planId,
         request.payload as z.infer<typeof RefineSettledBody>,
         ports,
-      ),
+      );
+    },
   };
+}
+
+// A presence-close hiccup must not stop the Refine from being answered or the ask from being cleared.
+async function closePresenceBestEffort(
+  ports: PlanFilePorts,
+  planId: string,
+): Promise<void> {
+  try {
+    await ports.writer.closePresence({ planId });
+  } catch (err) {
+    console.warn(
+      `[lore-api] plan-presence close failed for plan ${planId}: ${(err as Error).message}`,
+    );
+  }
 }
 
 const PlanAgentViewSchema = z.object({

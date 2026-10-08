@@ -602,6 +602,14 @@ The app is built from a shared set of presentational components. ([validated by 
   out, so the person is asked to sign in again rather than told they have no access to a repo they can see.
   ([validated by `github-session-token.test.ts:25`](apps/web-ui/src/lib/github-session-token.test.ts#L25), [`github-session-token.test.ts:39`](apps/web-ui/src/lib/github-session-token.test.ts#L39), [`github-session-token.test.ts:47`](apps/web-ui/src/lib/github-session-token.test.ts#L47), [`github-session-token.test.ts:59`](apps/web-ui/src/lib/github-session-token.test.ts#L59), [`github-session-token.test.ts:70`](apps/web-ui/src/lib/github-session-token.test.ts#L70), [`github-session-token.test.ts:95`](apps/web-ui/src/lib/github-session-token.test.ts#L95), [`auth-options.test.ts:132`](apps/web-ui/src/lib/auth-options.test.ts#L132), [`github-session-token.test.ts:108`](apps/web-ui/src/lib/github-session-token.test.ts#L108), [`github-session-token.test.ts:112`](apps/web-ui/src/lib/github-session-token.test.ts#L112), [`github-session-token.test.ts:116`](apps/web-ui/src/lib/github-session-token.test.ts#L116))
 
+- FR-7.11: A `/repos/{owner}/{repo}...` path whose casing doesn't match
+  `lore.repos.full_name` — an old bookmark, a typed URL, or one surviving a
+  repo rename — redirects to the canonically-cased path before any tab
+  renders, since every `lore.repos`/`lore.plans` lookup compares `full_name`
+  exactly and a case mismatch otherwise reads as "this repo has nothing"
+  instead of 404ing.
+  ([validated by redirects re-cinq/otto/plans to re-cinq/Otto/plans when full_name is re-cinq/Otto](apps/web-ui/src/lib/canonical-repo-path.test.ts#L5), [validated by keeps the query string on the redirect](apps/web-ui/src/lib/canonical-repo-path.test.ts#L11), [validated by returns null when the path already matches full_name's casing](apps/web-ui/src/lib/canonical-repo-path.test.ts#L21), [validated by returns null for the repo root with no trailing tab](apps/web-ui/src/lib/canonical-repo-path.test.ts#L27), [validated by returns null when lore-api names no repo (left to 404 downstream)](apps/web-ui/src/lib/canonical-repo-path.test.ts#L33), [validated by returns null for a path outside /repos](apps/web-ui/src/lib/canonical-repo-path.test.ts#L39), [validated by finds re-cinq/lore for the wrong-case re-cinq/Lore](libs/shared/src/outbound/project/settings/settings-record.test.ts#L61), [validated by matches full_name case-insensitively, so a wrong-case URL still finds the row](libs/shared/src/outbound/project/settings/settings-record.test.ts#L107))
+
 ### FR-8: Connect GitHub
 
 Lore used to act on GitHub through one App installation fixed in the
