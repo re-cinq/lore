@@ -100,7 +100,14 @@ async function assembleContext(args: {
 }
 
 function resolveRepoLabel(repo: string | undefined): string {
-  return repo || detectCurrentRepo() || "";
+  if (repo) return repo;
+  if (
+    process.env.LORE_MCP_SERVER_MODE === "agent" &&
+    process.env.LORE_MCP_REPO
+  ) {
+    return process.env.LORE_MCP_REPO;
+  }
+  return detectCurrentRepo() || "";
 }
 
 function buildAssembleExtras(

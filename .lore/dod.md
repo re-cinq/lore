@@ -6,17 +6,17 @@
 
 ## Done when these pass
 
-- [ ] **uses LORE_MCP_REPO env as default repo when repo arg is omitted** — in agent mode with `LORE_MCP_REPO=owner/testrepo`, `lore_assemble_context` called without `repo` must call the context API with `repo=owner/testrepo`, not `repo=` (today it sends the git-detected repo or empty, ignoring the env)
+- [x] **uses LORE_MCP_REPO env as default repo when repo arg is omitted** — in agent mode with `LORE_MCP_REPO=owner/testrepo`, `lore_assemble_context` called without `repo` must call the context API with `repo=owner/testrepo`, not `repo=` (today it sends the git-detected repo or empty, ignoring the env)
   `apps/mcp-server/src/transport/tools/agent-mode-repo-default.test.ts`
 
-- [ ] **includes the env-defaulted repo in the memory API call body when repo arg is omitted** — in agent mode with `LORE_MCP_REPO=owner/testrepo`, `lore_search_memory` called without a `repo` arg must include `repo: "owner/testrepo"` in the POST body sent to `/api/memory`; today `searchProxyArgs` omits `repo` entirely
+- [x] **includes the env-defaulted repo in the memory API call body when repo arg is omitted** — in agent mode with `LORE_MCP_REPO=owner/testrepo`, `lore_search_memory` called without a `repo` arg must include `repo: "owner/testrepo"` in the POST body sent to `/api/memory`; today `searchProxyArgs` omits `repo` entirely
   `apps/mcp-server/src/transport/tools/agent-mode-repo-default.test.ts`
 
 ## Facets
 
-- [ ] Add `LORE_MCP_REPO` env read in `resolveRepoLabel` (`context-tools-assemble.ts`), inserted before `detectCurrentRepo()` when `LORE_MCP_SERVER_MODE=agent`
-- [ ] Add `repo` to `searchProxyArgs` in `memory-tools.ts`, reading from `LORE_MCP_REPO` (or `detectCurrentRepo()`) in agent mode
-- [ ] Confirm the two red tests turn green; keep existing tests green
+- [x] Add `LORE_MCP_REPO` env read in `resolveRepoLabel` (`context-tools-assemble.ts`), inserted before `detectCurrentRepo()` when `LORE_MCP_SERVER_MODE=agent`
+- [x] Add `repo` to `searchProxyArgs` in `memory-tools.ts`, reading from `LORE_MCP_REPO` (or `detectCurrentRepo()`) in agent mode
+- [x] Confirm the two red tests turn green; keep existing tests green
 
 ## Out of scope
 
