@@ -41,10 +41,23 @@ const APPLY: Record<
   })),
 };
 
-/** Applies one frame. */
+/** A fresh server render replaces the whole fold — a server action (Approve, Regenerate, …) revalidated the page with a new seed, which outranks anything the socket folded in from the run that seed already reflects. */
+export interface PlanRunLiveReset {
+  type: "reset";
+  run: PlanRunLiveFacts;
+  nodes: readonly AssemblyRunNode[];
+}
+
+export type PlanRunLiveAction = RunStreamFrame | PlanRunLiveReset;
+
+/** Applies one frame, or resets to a freshly server-rendered seed. */
 export function reducePlanRunLive(
   state: PlanRunLiveState,
-  frame: RunStreamFrame,
+  action: PlanRunLiveAction,
 ): PlanRunLiveState {
-  return APPLY[frame.type](state, frame);
+  if (action.type === "reset") {
+    return initialPlanRunLive(action.run, action.nodes);
+  }
+
+  return APPLY[action.type](state, action);
 }

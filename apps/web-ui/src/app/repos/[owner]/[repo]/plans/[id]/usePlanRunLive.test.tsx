@@ -66,9 +66,9 @@ describe("usePlanRunLive", () => {
   });
 
   it("opens no channel once the seed run has already finished", () => {
-    renderHook(() =>
-      usePlanRunLive({ ...RUN, status: "finished" }, refreshStub()),
-    );
+    const finished: PlanRun = { ...RUN, status: "finished" };
+
+    renderHook(() => usePlanRunLive(finished, refreshStub()));
 
     expect(channels[0]?.enabled).toBe(false);
   });
@@ -108,6 +108,26 @@ describe("usePlanRunLive", () => {
       specPlanSummary: "CHANGES REQUESTED. Which repo?",
       refreshCalls: 1,
     });
+  });
+
+  it("adopts a freshly server-rendered seed, dropping what the socket folded in for the old one", () => {
+    const { result, rerender } = renderHook(
+      ({ seed }: { seed: PlanRun | null }) =>
+        usePlanRunLive(seed, refreshStub()),
+      { initialProps: { seed: RUN } },
+    );
+
+    act(() => channels[0]?.onFrame(nodeStatus(null)));
+    expect(result.current?.nodes).toHaveLength(1);
+
+    const approved: PlanRun = { ...RUN, status: "finished", nodes: [] };
+
+    rerender({ seed: approved });
+
+    expect({
+      status: result.current?.status,
+      nodes: result.current?.nodes,
+    }).toEqual({ status: "finished", nodes: [] });
   });
 
   it("debounces two settling frames in the same burst into a single refreshRunFacts call", async () => {

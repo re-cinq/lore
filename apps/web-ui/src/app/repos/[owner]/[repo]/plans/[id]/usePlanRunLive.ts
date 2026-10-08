@@ -1,10 +1,11 @@
 "use client";
 
-import { useReducer, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { useRunChannel } from "@/app/assembly-runs/[id]/useRunChannel";
 import {
   initialPlanRunLive,
   reducePlanRunLive,
+  type PlanRunLiveAction,
   type PlanRunLiveFacts,
 } from "@/lib/plan-run-live-reducer";
 import { useDebouncedCallback } from "@/lib/use-debounced-callback";
@@ -23,7 +24,7 @@ const EMPTY_RUN_FACTS: PlanRunLiveFacts = {
   reason: null,
 };
 
-/** Follows the plan's run on the tab's live socket, with no `router.refresh()`. */
+/** Follows the plan's run on the tab's live socket, with no `router.refresh()`. A seed the server re-rendered with (Approve, Regenerate, …) outranks whatever the socket folded in from the run it already reflects, so a changed seed resets the fold. */
 export function usePlanRunLive(
   seed: PlanRun | null,
   refreshRunFacts: PlanActions["refreshRunFacts"],
@@ -32,6 +33,8 @@ export function usePlanRunLive(
     initialPlanRunLive(run ?? EMPTY_RUN_FACTS, run?.nodes ?? []),
   );
   const [facts, setFacts] = useState(seed);
+
+  useEffect(() => adoptSeed(seed, dispatch, setFacts), [seed, dispatch]);
   const scheduleFactsRefresh = useDebouncedCallback(
     () => void refreshFacts(refreshRunFacts, setFacts),
     SETTLE_MS,
@@ -40,6 +43,19 @@ export function usePlanRunLive(
   useRunChannel(channelOptions(seed, dispatch, scheduleFactsRefresh));
 
   return facts && { ...facts, ...live.run, nodes: live.nodes };
+}
+
+function adoptSeed(
+  seed: PlanRun | null,
+  dispatch: (action: PlanRunLiveAction) => void,
+  setFacts: (run: PlanRun | null) => void,
+): void {
+  setFacts(seed);
+  dispatch({
+    type: "reset",
+    run: seed ?? EMPTY_RUN_FACTS,
+    nodes: seed?.nodes ?? [],
+  });
 }
 
 function channelOptions(

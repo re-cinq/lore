@@ -84,4 +84,18 @@ describe("reducePlanRunLive", () => {
 
     expect(reducePlanRunLive(seed, frame)).toBe(seed);
   });
+
+  it("replaces the whole fold with a reset action's run and nodes, dropping what was folded before it", () => {
+    const folded = reducePlanRunLive(seed, nodeStatus({}));
+    const reset = reducePlanRunLive(folded, {
+      type: "reset",
+      run: { status: "finished", outcome: "completed", reason: null },
+      nodes: [],
+    });
+
+    expect(reset).toEqual({
+      run: { status: "finished", outcome: "completed", reason: null },
+      nodes: [],
+    });
+  });
 });
