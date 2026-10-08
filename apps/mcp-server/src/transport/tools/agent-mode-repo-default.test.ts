@@ -1,13 +1,3 @@
-// Acceptance tests for the ticket:
-// "lore-mcp gateway: a context call without `repo` is a 400, so an agent pod's first call fails"
-//
-// The gateway has no cwd so detectCurrentRepo() returns null. In agent mode
-// (LORE_MCP_SERVER_MODE=agent) with the target repo available in LORE_MCP_REPO,
-// both lore_assemble_context and lore_search_memory should use it as the
-// default instead of sending repo= (empty) which the API rejects with 400.
-//
-// spec: specs/mcp-agent-mode-repo-default/spec.md (pending)
-
 import {
   describe,
   it,
@@ -73,8 +63,6 @@ describe("lore_assemble_context in agent mode with LORE_MCP_REPO", () => {
     const [calledUrl] = fetchMock.mock.calls[0] as [string, unknown];
     const url = new URL(calledUrl);
 
-    // Without the fix: url.searchParams.get("repo") === "" (empty string)
-    // With the fix: url.searchParams.get("repo") === "owner/testrepo"
     expect(url.searchParams.get("repo")).toBe("owner/testrepo");
   });
 });
@@ -96,8 +84,6 @@ describe("lore_search_memory in agent mode with LORE_MCP_REPO", () => {
     const [, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(opts.body as string) as Record<string, unknown>;
 
-    // Without the fix: body.repo is undefined (searchProxyArgs omits repo entirely)
-    // With the fix: body.repo === "owner/testrepo"
     expect(body["repo"]).toBe("owner/testrepo");
   });
 });

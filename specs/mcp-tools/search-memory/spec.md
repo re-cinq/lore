@@ -129,6 +129,8 @@ A single MCP text content block. Pretty-printed JSON array of
    keyword, clamped to `[0, 1]` — so portable-rich text scores above the 0.5
    passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/work/context/transfer-score.test.ts#L35), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/work/context/transfer-score.test.ts#L57), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/work/context/transfer-score.test.ts#L65))
 
+6. In agent mode (`LORE_MCP_SERVER_MODE=agent`), when `repo` is omitted and `LORE_MCP_REPO` is set, the memory API POST body includes `repo` from `LORE_MCP_REPO`. ([validated by `includes the env-defaulted repo in the memory API call body when repo arg is omitted`](apps/mcp-server/src/transport/tools/agent-mode-repo-default.test.ts#L71))
+
 ## Out of Scope
 
 - Vector embedding generation (owned by the embedding service).

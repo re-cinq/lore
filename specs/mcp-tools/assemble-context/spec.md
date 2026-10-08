@@ -122,6 +122,8 @@ from it (the pre-run fetch was removed 2026-08-28).
 The `/api/context` endpoint runs full assembly when a `query` param is present and
 a raw chunk fetch when it is absent.
 
+In agent mode (`LORE_MCP_SERVER_MODE=agent`), when `repo` is omitted and `LORE_MCP_REPO` is set, the proxy request uses `LORE_MCP_REPO` as the repo rather than `detectCurrentRepo()` (which returns null in a gateway pod with no git remote). ([validated by `uses LORE_MCP_REPO env as default repo when repo arg is omitted`](apps/mcp-server/src/transport/tools/agent-mode-repo-default.test.ts#L50))
+
 The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
 ([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L173), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L181))
