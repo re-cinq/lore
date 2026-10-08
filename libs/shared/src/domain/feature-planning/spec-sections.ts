@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import type { CitablePlan } from "./plan-coverage.js";
+import { specFileOf } from "./issue-coverage.js";
 
 /** The order sections are handed out in; the intent is the draft's and a prototype is something to look at. */
 export const INTEGRATED_SLOTS = [
@@ -300,7 +301,7 @@ function applyOps(
   let failed = 0;
 
   for (const op of ops) {
-    const file = op.file ?? defaultFile;
+    const file = op.file ? specFileOf(op.file) : defaultFile;
     const changed = file in files ? applyOp(files[file] ?? "", op) : null;
 
     if (changed === null) {

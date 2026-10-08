@@ -30,11 +30,15 @@ const STATE = {
   redoRound: 0,
 };
 
-function scene(patches: unknown[], state: object = STATE) {
+function scene(
+  patches: unknown[],
+  state: object = STATE,
+  specPlanPath = SPEC_PATH,
+) {
   const produced: Record<string, string> = {};
   const committed: Array<{ path: string; text: string; message: string }> = [];
   const files: Record<string, string> = {
-    spec_plan: JSON.stringify({ creates: [{ path: SPEC_PATH }] }),
+    spec_plan: JSON.stringify({ creates: [{ path: specPlanPath }] }),
     section_state: JSON.stringify(state),
   };
   const tools: Tools = {
@@ -205,6 +209,26 @@ describe("assembleHandle", () => {
     expect({ report, commits: committed.length }).toEqual({
       report: { outcome: "success" },
       commits: 0,
+    });
+  });
+
+  it("folds the patches into specs/widget/spec.md when the spec plan names the folder specs/widget/", async () => {
+    const { handle, tools, brief, committed, produced } = scene(
+      [scope, risk],
+      STATE,
+      "specs/widget/",
+    );
+
+    const report = await handle(brief, tools);
+
+    expect({
+      report,
+      committed: committed.map((commit) => commit.path),
+      done: stateOf(produced).done,
+    }).toEqual({
+      report: { outcome: "success" },
+      committed: [SPEC_PATH],
+      done: ["scope", "risk"],
     });
   });
 });
