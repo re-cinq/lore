@@ -3,7 +3,11 @@ import type { SpendWindow } from "./SpendView";
 import { usd, num } from "./spend-format";
 import { CostTable } from "./CostTable";
 
-type ByCluster = SpendWindow["llm"]["by_cluster"];
+type BillingMode = "api" | "subscription" | "unknown";
+
+type BaseClusterRow = SpendWindow["llm"]["by_cluster"][number];
+type ClusterRow = BaseClusterRow & { billing_mode?: BillingMode };
+type ByCluster = ClusterRow[];
 
 interface Bucket {
   calls: number;
@@ -15,12 +19,25 @@ export interface BillingSourceSplit {
   subscription: Bucket;
 }
 
-/** Which credential paid for the metered spend, read off the cluster attribution: the no-cluster bucket is the org's own API key (this is the balance's `cluster_agent_id IS NULL` rule), and every named cluster is a satellite running on its own subscription. */
 export function billingSourceSplit(byCluster: ByCluster): BillingSourceSplit {
   return {
-    api: sum(byCluster.filter((r) => r.cluster === null)),
-    subscription: sum(byCluster.filter((r) => r.cluster !== null)),
+    api: sum(byCluster.filter((r) => resolveMode(r) === "api")),
+    subscription: sum(
+      byCluster.filter((r) => resolveMode(r) === "subscription"),
+    ),
   };
+}
+
+function resolveMode(r: ClusterRow): "api" | "subscription" {
+  if (r.billing_mode === "api") {
+    return "api";
+  }
+
+  if (r.billing_mode === "subscription") {
+    return "subscription";
+  }
+
+  return r.cluster === null ? "api" : "subscription";
 }
 
 function sum(rows: ByCluster): Bucket {
@@ -45,6 +62,10 @@ export function BillingSource({ byCluster }: { byCluster: ByCluster }) {
     return null;
   }
 
+  const hasRecordedMode = byCluster.some(
+    (r) => r.billing_mode === "api" || r.billing_mode === "subscription",
+  );
+
   return (
     <>
       <CostTable
@@ -54,7 +75,7 @@ export function BillingSource({ byCluster }: { byCluster: ByCluster }) {
         rowKey={(r) => r.source}
         cells={(r) => [r.source, num(r.calls), usd(r.cost_usd)]}
       />
-      <BillingSourceNote />
+      <BillingSourceNote recorded={hasRecordedMode} />
     </>
   );
 }
@@ -66,7 +87,18 @@ function sourceRows({ api, subscription }: BillingSourceSplit): SourceRow[] {
   ];
 }
 
-function BillingSourceNote() {
+function BillingSourceNote({ recorded }: { recorded: boolean }) {
+  if (recorded) {
+    return (
+      <p className={`meta ${styles.subnote}`}>
+        Billing mode recorded at dispatch time: API key calls use the org
+        account, subscription calls bill each person&apos;s own account and
+        never reach the org invoice. Rows without a recorded mode fall back to
+        cluster attribution.
+      </p>
+    );
+  }
+
   return (
     <p className={`meta ${styles.subnote}`}>
       Derived from which cluster ran each call: no cluster is the org&apos;s own

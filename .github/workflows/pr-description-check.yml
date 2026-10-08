@@ -12,11 +12,22 @@ jobs:
   check-pr-description:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Check PR description sections
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
+
+          # Lore opens PRs programmatically with a minimal body. When the agent
+          # commits a .github/pr-description.md to the branch, that file
+          # supplements the PR body so the check can pass without a manual edit.
+          if [ -f ".github/pr-description.md" ]; then
+            PR_BODY="${PR_BODY}
+$(cat .github/pr-description.md)"
+          fi
 
           FAILED=0
           WARNINGS=""
