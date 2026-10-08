@@ -42,15 +42,15 @@ export function tickPortsOf({
 /** What the tick reads from GitHub. `branchExists` is passed straight through: `decideBranchResume` reads an undefined answer as "unknown" and starts fresh, which is the safe direction — resuming a branch that is not there produces an empty PR. */
 function repoPortsOf(projectOf: ProjectOf) {
   return {
-    listIssues: async (repo) =>
+    listIssues: async (repo: string) =>
       (await projectOf(repo)).issues.list({ state: "open" }),
-    branchExists: async (repo, branch) =>
+    branchExists: async (repo: string, branch: string) =>
       (await projectOf(repo)).repo.branchExists(branch),
-    branchMerged: async (repo, branch) =>
+    branchMerged: async (repo: string, branch: string) =>
       (await projectOf(repo)).repo.branchMerged(branch),
-    openBlockers: async (repo, issueNumber) =>
+    openBlockers: async (repo: string, issueNumber: number) =>
       (await projectOf(repo)).issues.openBlockers(issueNumber),
-    openPrForBranch: async (repo, branch) =>
+    openPrForBranch: async (repo: string, branch: string) =>
       openPrOn(await projectOf(repo), branch),
   };
 }
