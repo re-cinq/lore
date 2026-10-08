@@ -43,6 +43,13 @@ export class RepoFiles {
     return this.github.branchExists?.(this.repo, branch);
   }
 
+  branchMerged(branch: string): Promise<boolean | undefined> {
+    return (
+      this.github.branchMerged?.(this.repo, branch) ??
+      Promise.resolve(undefined)
+    );
+  }
+
   createBranch(branch: string, base?: string): Promise<void> {
     return this.github.createBranch(this.repo, branch, base);
   }

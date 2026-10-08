@@ -27,6 +27,12 @@ describe("decideBranchResume", () => {
     ).toEqual({ resume: false });
   });
 
+  it("starts fresh when the branch is merged into base — its commits are already on main and a resumed run cannot push anything new", () => {
+    expect(decideBranchResume({ ...base, branchMerged: true } as any)).toEqual({
+      resume: false,
+    });
+  });
+
   it("resumes a clean branch with no pull request yet", () => {
     expect(decideBranchResume(base)).toEqual({
       resume: true,

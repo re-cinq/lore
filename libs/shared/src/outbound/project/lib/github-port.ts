@@ -111,6 +111,8 @@ export interface GitHubPort {
   // API writes (no clone) — branch + single-file commit
   /** True when branch exists (octokit only; caller must not guess). */
   branchExists?(repo: string, branch: string): Promise<boolean>;
+  /** True when the branch head is already an ancestor of the base branch — every commit is on main, a resumed run can push nothing new. `undefined` when the adapter cannot say. */
+  branchMerged?(repo: string, branch: string): Promise<boolean | undefined>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */
