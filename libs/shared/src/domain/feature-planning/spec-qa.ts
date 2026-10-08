@@ -1,35 +1,38 @@
-// The blind question-and-answer check on a written spec: questions made from the plan alone, answers read from the spec alone, and the gate that sends the spec writer back with whatever failed (see specs/7-feature-planning/spec.md).
+// The blind question-and-answer check on a written spec: questions made once from the plan alone, each with the answer the plan implies, answers read from the spec alone, and the gate that sends the spec writer back with whatever failed (see specs/7-feature-planning/spec.md FR-17).
 
 import { z } from "zod";
 
 export const SPEC_QA_ROUNDS = 5;
 
-const questionSchema = z.object({
+export const specQuestionSchema = z.object({
   id: z.string(),
   section: z.string(),
-  kind: z.enum(["plan", "technical"]),
+  kind: z.enum(["plan", "technical", "note"]),
+  severity: z.enum(["blocking", "advisory"]),
+  /** The plan block this question was made from. */
+  source: z.string(),
   question: z.string(),
-  answer: z.boolean().optional(),
-  reason: z.string().optional(),
+  /** What a spec that keeps the plan answers: true for "the spec says X", false for a "must not". */
+  expected: z.boolean(),
 });
 
-const noteSchema = z.object({
+export const specAnswerSchema = z.object({
   id: z.string(),
-  kind: z.enum(["comment", "answer", "question"]),
-  text: z.string(),
-  satisfied: z.boolean(),
+  answer: z.boolean(),
   reason: z.string(),
 });
 
 export const specQaBagSchema = z.object({
-  questions: z.array(questionSchema),
-  notes: z.array(noteSchema),
+  questions: z.array(specQuestionSchema),
+  answers: z.array(specAnswerSchema),
 });
 
+export type SpecQuestion = z.infer<typeof specQuestionSchema>;
 export type SpecQaBag = z.infer<typeof specQaBagSchema>;
 
 export interface QaFailure {
   id: string;
+  section: string;
   text: string;
   reason: string;
 }
@@ -45,10 +48,7 @@ export function qaGate(
   roundsSpent: number,
   branchGaps = 0,
 ): QaVerdict {
-  const failures = [
-    ...questionFailures(bag.questions),
-    ...noteFailures(bag.notes),
-  ];
+  const failures = questionFailures(bag);
   const gaps = failures.length + branchGaps;
   const exhausted = gaps > 0 && roundsSpent >= SPEC_QA_ROUNDS;
 
@@ -59,20 +59,23 @@ export function qaGate(
   };
 }
 
-function questionFailures(questions: SpecQaBag["questions"]): QaFailure[] {
-  return questions
-    .filter((question) => question.answer !== true)
-    .map((question) => ({
-      id: question.id,
-      text: question.question,
-      reason: question.reason ?? "Not answered.",
-    }));
-}
+function questionFailures({ questions, answers }: SpecQaBag): QaFailure[] {
+  const answered = new Map(answers.map((answer) => [answer.id, answer]));
 
-function noteFailures(notes: SpecQaBag["notes"]): QaFailure[] {
-  return notes
-    .filter((note) => !note.satisfied)
-    .map((note) => ({ id: note.id, text: note.text, reason: note.reason }));
+  return questions.flatMap((question) => {
+    const given = answered.get(question.id);
+
+    return given?.answer === question.expected
+      ? []
+      : [
+          {
+            id: question.id,
+            section: question.section,
+            text: question.question,
+            reason: given?.reason ?? "Not answered.",
+          },
+        ];
+  });
 }
 
 export function failureBrief(failures: QaFailure[]): string {

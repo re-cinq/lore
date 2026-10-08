@@ -1,4 +1,4 @@
-// Judges the spec the writer pushed: the answers the Q&A agent gave from the spec alone, the plan notes the notes check marked, and the spec's own checks against the branch and main. It sends the writer back with only what failed until the rounds are spent; then the spec PR opens with the failures listed (see specs/7-feature-planning/spec.md FR-17).
+// Judges the spec the writer pushed: the answers the Q&A agent gave from the spec alone to the questions frozen from the plan, and the spec's own checks against the branch and main. It sends the writer back with only what failed until the rounds are spent; then the spec PR opens with the failures listed (see specs/7-feature-planning/spec.md FR-17).
 
 import {
   defineStation,
@@ -52,12 +52,12 @@ async function judged(
 }
 
 async function qaBagOf(tools: Tools): Promise<SpecQaBag> {
-  const [questions, notes] = await Promise.all([
+  const [questions, answers] = await Promise.all([
+    readJson(tools, "qa_questions"),
     readJson(tools, "qa_answers"),
-    readJson(tools, "plan_notes"),
   ]);
 
-  return specQaBagSchema.parse({ questions, notes });
+  return specQaBagSchema.parse({ questions, answers });
 }
 
 async function readJson(tools: Tools, need: string): Promise<unknown> {

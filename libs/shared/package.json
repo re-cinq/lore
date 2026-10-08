@@ -86,6 +86,10 @@
       "types": "./dist/domain/feature-planning/spec-sections.d.ts",
       "default": "./dist/domain/feature-planning/spec-sections.js"
     },
+    "./feature-planning/spec-questions.js": {
+      "types": "./dist/domain/feature-planning/spec-questions.d.ts",
+      "default": "./dist/domain/feature-planning/spec-questions.js"
+    },
     "./feature-planning/spec-qa.js": {
       "types": "./dist/domain/feature-planning/spec-qa.d.ts",
       "default": "./dist/domain/feature-planning/spec-qa.js"

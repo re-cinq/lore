@@ -43,8 +43,8 @@ const NEEDS = {
   target: "https://github.com/re-cinq/lore@lore/feature-planning/p1",
   spec_plan: "blob://spec-plan",
   plan_blocks: "blob://plan-blocks",
+  qa_questions: "blob://qa-questions",
   qa_answers: "blob://qa-answers",
-  plan_notes: "blob://plan-notes",
 };
 
 const handback = (): RunVisit => ({
@@ -68,8 +68,8 @@ function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
       creates: [{ path: SPEC_PATH }, ...(plan ? [{ path: PLAN_PATH }] : [])],
     }),
     plan_blocks: JSON.stringify(CITABLE),
+    qa_questions: "[]",
     qa_answers: "[]",
-    plan_notes: "[]",
   };
   const tools: Tools = {
     read: async (need) => Buffer.from(files[need] ?? ""),
