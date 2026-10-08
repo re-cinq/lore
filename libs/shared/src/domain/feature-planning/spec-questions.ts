@@ -1,4 +1,4 @@
-// Checks a generated question set against the plan it came from before any round uses it, because the set is frozen: a question that cites nothing, or an open plan question nobody asked about, would be chased by every fix round (see specs/7-feature-planning/spec.md FR-17).
+// Checks a generated question set against the plan it came from before any round uses it, because the set is frozen: a question that cites nothing, or an open plan question nobody asked about, would be chased by every fix round (see specs/7-feature-planning/spec.md FR-24).
 
 import type { CitablePlan } from "./plan-coverage.js";
 import type { SpecQuestion } from "./spec-qa.js";

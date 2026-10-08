@@ -1,4 +1,4 @@
-// Judges the frozen question set the generator wrote from the plan: a set that cites nothing real or skips an open plan question goes back to the generator, and a good one is published without its expected values so the answerer stays blind (see specs/7-feature-planning/spec.md FR-17).
+// Judges the frozen question set the generator wrote from the plan: a set that cites nothing real or skips an open plan question goes back to the generator, and a good one is published without its expected values so the answerer stays blind (see specs/7-feature-planning/spec.md FR-24).
 
 import {
   defineStation,

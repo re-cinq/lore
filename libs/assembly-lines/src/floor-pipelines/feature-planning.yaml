@@ -73,19 +73,21 @@ line:
       station: spec-write
       bind:
         target: repo
-    - id: notes-check
-      station: spec-notes-check
-      bind:
-        target: repo
-    # Blind to the spec: it makes its questions from the plan alone.
+    # Written ONCE per approved plan, before the draft, and blind to the spec:
+    # the questions are frozen so no fix round chases a moving target. A plan
+    # comment, answer or open question becomes a `note` question.
     - id: qa-generate
       station: spec-qa-generate
+    # Checks the frozen set against the plan's blocks and publishes it to the
+    # answerer without the answers it expects.
+    - id: qa-questions
+      station: qa-questions
     # Blind to the plan: it answers from the spec alone.
     - id: qa-answer
       station: spec-qa-answer
       bind:
         target: repo
-    # Judges the pushed spec: the blind answers, the plan's notes, and the spec's
+    # Judges the pushed spec: the blind answers against the frozen questions, and the spec's
     # own checks (uncited plan blocks, names not on main, compound requirements).
     - id: qa-gate
       station: qa-gate
@@ -177,7 +179,7 @@ line:
       to: author
       on: always
     - from: analyse-specs
-      to: draft
+      to: qa-generate
       on: success
     # analyse-specs has no upstream NODE — its input is a plan a PERSON accepted, so
     # a question about that plan can only be answered by that person.
@@ -185,6 +187,24 @@ line:
       to: author
       on: changes_requested
     - from: analyse-specs
+      to: failed
+      on: failed
+    - from: qa-generate
+      to: qa-questions
+      on: success
+    - from: qa-generate
+      to: failed
+      on: failed
+    - from: qa-questions
+      to: draft
+      on: success
+    # A set that cites no real block, repeats an id or skips an open plan
+    # question goes back to its writer once or twice; the station says why.
+    - from: qa-questions
+      to: qa-generate
+      on: changes_requested
+      iteration_max: 2
+    - from: qa-questions
       to: failed
       on: failed
     - from: draft
@@ -201,7 +221,7 @@ line:
       to: write
       on: more
     - from: split-sections
-      to: notes-check
+      to: qa-answer
       on: done
     - from: split-sections
       to: failed
@@ -212,18 +232,6 @@ line:
       to: split-sections
       on: success
       iteration_max: 20
-    - from: notes-check
-      to: qa-generate
-      on: success
-    - from: notes-check
-      to: failed
-      on: failed
-    - from: qa-generate
-      to: qa-answer
-      on: success
-    - from: qa-generate
-      to: failed
-      on: failed
     - from: qa-answer
       to: qa-gate
       on: success
@@ -233,7 +241,7 @@ line:
     - from: qa-gate
       to: open-spec-pr
       on: success
-    # What the blind questions and the plan's notes found missing goes back to
+    # What the blind answers found missing goes back to
     # the writer, and only that. The station stops asking after SPEC_QA_ROUNDS
     # handbacks and lets the PR open with the failures listed; this
     # iteration_max is the backstop it never reaches.
@@ -540,24 +548,6 @@ stations:
         kind: file
       - name: done_sections
         kind: file
-  spec-notes-check:
-    kind: agent
-    agent_definition: spec-notes-check
-    outcomes:
-      - success
-      - failed
-    needs:
-      - name: target
-        kind: git
-        path: target
-        access: read
-      - name: plan_md
-        kind: file
-        path: plan.md
-    produces:
-      - name: plan_notes
-        kind: file
-        path: plan-notes.json
   spec-qa-generate:
     kind: agent
     agent_definition: spec-qa-generate
@@ -568,10 +558,41 @@ stations:
       - name: plan_md
         kind: file
         path: plan.md
+      # The blocks the questions cite by id; absent where the deployment names
+      # no web UI.
+      - name: plan_blocks
+        kind: file
+        path: plan-blocks.json
+        optional: true
+      # What qa-questions found wrong with the last set; empty or absent on the
+      # first attempt.
+      - name: qa_question_errors
+        kind: file
+        path: qa-question-errors.md
+        optional: true
     produces:
       - name: qa_questions
         kind: file
         path: qa-questions.json
+  qa-questions:
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: qa_questions
+        kind: file
+      - name: plan_blocks
+        kind: file
+        optional: true
+    produces:
+      # The questions without what they expect; what the answerer reads.
+      - name: qa_blind
+        kind: file
+      # Empty when the set is good, so a fixed set clears the last attempt's list.
+      - name: qa_question_errors
+        kind: file
   spec-qa-answer:
     kind: agent
     agent_definition: spec-qa-answer
@@ -583,9 +604,9 @@ stations:
         kind: git
         path: target
         access: read
-      - name: qa_questions
+      - name: qa_blind
         kind: file
-        path: qa-questions.json
+        path: qa-blind.json
     produces:
       - name: qa_answers
         kind: file
@@ -604,13 +625,13 @@ stations:
       - name: spec_plan
         kind: file
       # Absent where the deployment names no web UI: then there is nothing to
-      # count against the branch, and only the blind answers and notes are judged.
+      # count against the branch, and only the blind answers are judged.
       - name: plan_blocks
         kind: file
         optional: true
-      - name: qa_answers
+      - name: qa_questions
         kind: file
-      - name: plan_notes
+      - name: qa_answers
         kind: file
     produces:
       # Only when something failed; what the writer reads next.
@@ -873,29 +894,6 @@ agent_definitions:
         env:
           LORE_TEST_POLICY: none
   spec-draft:
-    settings:
-      model: gemini-3.1-pro-preview
-      image: ${LORE_AGENT_IMAGE}
-      timeout_minutes: 15
-      prices:
-        gemini-3.1-pro-preview:
-          input_per_million: 2
-          output_per_million: 12
-      config:
-        pod_resources:
-          requests:
-            cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 2Gi
-          limits:
-            memory: 2Gi
-            ephemeral-storage: 4Gi
-        skills:
-          - lore-context
-        skills_source: ${LORE_SKILLS_URL}
-        env:
-          LORE_TEST_POLICY: none
-  spec-notes-check:
     settings:
       model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}

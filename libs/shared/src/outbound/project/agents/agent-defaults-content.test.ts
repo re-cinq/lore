@@ -395,6 +395,44 @@ describe("the feature-planning recipe", () => {
     });
   });
 
+  it("has spec-qa-generate write a frozen set once, with an expected value, a severity and a source block per question and a note question per plan comment, answer and open question", () => {
+    const prompt = promptOnOneLine("spec-qa-generate");
+
+    expect({
+      once: prompt.includes("You write the set ONCE"),
+      expected: prompt.includes(
+        "`expected` is what a spec that kept the plan answers",
+      ),
+      source: prompt.includes("`source` is the `id` of the one plan block"),
+      notes: prompt.includes(
+        "ONE statement for every plan comment, every answer and every open question",
+      ),
+      neverSeesSpec: prompt.includes("you never see the specification"),
+    }).toEqual({
+      once: true,
+      expected: true,
+      source: true,
+      notes: true,
+      neverSeesSpec: true,
+    });
+  });
+
+  it("has spec-qa-answer answer from the blind question file alone, never look for the plan, and give a reason for every answer", () => {
+    const prompt = promptOnOneLine("spec-qa-answer");
+
+    expect({
+      blind: promptOf("spec-qa-answer").includes("{qa_blind_path}"),
+      noPlan: prompt.includes("must not look for it"),
+      reasons: prompt.includes('"reason":'),
+      expectedHidden: prompt.includes("expected"),
+    }).toEqual({
+      blind: true,
+      noPlan: true,
+      reasons: true,
+      expectedHidden: false,
+    });
+  });
+
   it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
     const prompt = promptOnOneLine("spec-write");
 

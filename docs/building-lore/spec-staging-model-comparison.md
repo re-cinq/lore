@@ -2,9 +2,11 @@
 
 **For people choosing the model behind one of Lore's agents.** This records a comparison of three Gemini models on the three checking agents of the staged plan-to-spec line (`spec-notes-check`, `spec-qa-generate`, `spec-qa-answer`), run on 2026-10-08, and what it says about the choice.
 
+> **Since this was run:** `spec-notes-check` no longer exists. Plan comments, answers and open questions became `note` questions in the frozen set that `spec-qa-generate` writes once, so the notes-check results below describe a stage the line has dropped. The `qa-generate` and `qa-answer` findings still apply.
+
 ## Why we measured
 
-After a plan is approved, the feature-planning line writes the spec in stages and then tests it before the pull request opens (FR-17 in [specs/7-feature-planning](../../specs/7-feature-planning/spec.md)). Three agents do the testing:
+After a plan is approved, the feature-planning line writes the spec in stages and then tests it before the pull request opens (FR-24 in [specs/7-feature-planning](../../specs/7-feature-planning/spec.md)). Three agents do the testing:
 
 - `spec-notes-check` marks every plan comment, answer and open question as reflected in the spec or not.
 - `spec-qa-generate` reads the plan alone and writes true-or-false questions about it.
