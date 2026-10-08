@@ -3,7 +3,7 @@
 | Field   | Value                    |
 |---------|--------------------------|
 | Feature | Platform Infrastructure  |
-| Status  | Shipped                  |
+| Status  | In Progress              |
 | Owner   | Platform Engineering     |
 
 Platform Infrastructure documents the cross-cutting plumbing beneath Lore's features — health and readiness probes, the GitHub App/token client adapter, git-remote repo detection, and schema migrations — so each capability's tests trace to a written statement.
