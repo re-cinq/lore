@@ -6,16 +6,16 @@
 
 ## Done when these pass
 
-- [ ] **billingSourceSplit uses billing_mode, not cluster** — classifies rows by their recorded `billing_mode` (`api`/`subscription`) and falls back to cluster attribution only for rows where `billing_mode` is `unknown`
+- [x] **billingSourceSplit uses billing_mode, not cluster** — classifies rows by their recorded `billing_mode` (`api`/`subscription`) and falls back to cluster attribution only for rows where `billing_mode` is `unknown`
   `apps/web-ui/src/app/spend/SpendBillingSource.billing-mode.test.tsx`
 
-- [ ] **BillingSource note drops proxy language** — when rows carry recorded billing modes the note no longer says "Derived from which cluster ran each call"
+- [x] **BillingSource note drops proxy language** — when rows carry recorded billing modes the note no longer says "Derived from which cluster ran each call"
   `apps/web-ui/src/app/spend/SpendBillingSource.billing-mode.test.tsx`
 
 ## Facets
 
 - [x] Add `billing_mode` migration under `ui-helm/migrations/` — nullable column, default `unknown` for historical rows.
-- [ ] Extend the `by_cluster` row type (or a new `by_billing_mode` field on the API) to carry `billing_mode: 'api' | 'subscription' | 'unknown'`.
+- [x] Extend the `by_cluster` row type (or a new `by_billing_mode` field on the API) to carry `billing_mode: 'api' | 'subscription' | 'unknown'`.
 - [ ] Set `billing_mode` at dispatch time in the write path (`agent-events-cost.ts` → `usage-pg.ts` or via station-run join).
 - [x] Rewrite `billingSourceSplit` to group by `billing_mode` when known, fall back to `cluster === null` rule for `unknown` rows.
 - [x] Update `BillingSourceNote` to say the split comes from the recorded mode, not the cluster proxy.
