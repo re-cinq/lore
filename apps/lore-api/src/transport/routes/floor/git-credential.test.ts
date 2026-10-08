@@ -67,6 +67,25 @@ describe("handleFloorGitCredential", () => {
       minted: [],
     });
   });
+
+  it("passes the access level to mint as a second argument so the minter can narrow permissions for the pod", async () => {
+    // specs/pod-token-permissions (ticket: only repo is narrowed; permissions are not — the minter never receives access)
+    const mintCalls: Array<{ repo: string; access: string | undefined }> = [];
+    const result = await handleFloorGitCredential(
+      {
+        token: TOKEN,
+        mint: async (repo: string, access?: "read" | "write") => {
+          mintCalls.push({ repo, access });
+          return "ghs_fresh";
+        },
+      },
+      TOKEN,
+      { repoUrl: "https://github.com/re-cinq/lore", access: "read" },
+    );
+
+    expect(result.code).toBe(200);
+    expect(mintCalls).toEqual([{ repo: "re-cinq/lore", access: "read" }]);
+  });
 });
 
 describe("repoOfUrl", () => {

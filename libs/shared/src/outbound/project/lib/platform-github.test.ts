@@ -644,6 +644,28 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("getInstallationToken includes the permissions map in the auth call so a pod token is narrowed below the App's full grant", async () => {
+    // specs/pod-token-permissions (ticket: agent pods carry every App permission; only repo is narrowed)
+    await gh().getInstallationToken("re-cinq/lore", {
+      contents: "write",
+      pull_requests: "write",
+      issues: "write",
+      metadata: "read",
+    });
+
+    expect(state.authCalls.at(-1)).toMatchObject({
+      type: "installation",
+      refresh: true,
+      repositoryNames: ["lore"],
+      permissions: {
+        contents: "write",
+        pull_requests: "write",
+        issues: "write",
+        metadata: "read",
+      },
+    });
+  });
+
   it("createLabels swallows a 422 (already exists) and continues", async () => {
     state.labelError = { status: 422 };
     await expect(
