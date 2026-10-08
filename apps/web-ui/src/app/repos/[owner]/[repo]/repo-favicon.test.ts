@@ -12,4 +12,8 @@ describe("repoFavicon", () => {
     });
     expect(secondBadge).toEqual(firstBadge);
   });
+
+  it("returns empty initials for an empty owner and repo", () => {
+    expect(repoFavicon("", "")).toMatchObject({ initials: "" });
+  });
 });

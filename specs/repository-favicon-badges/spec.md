@@ -18,6 +18,8 @@ repository overview and every nested repository tab automatically.
 
 - Generating a badge for the same owner/repo pair produces the same initials
   and the same hex background color every time. ([validated by `repo-favicon.test.ts:5`](apps/web-ui/src/app/repos/[owner]/[repo]/repo-favicon.test.ts#L5))
+- An empty owner or repository name produces an empty initials string
+  instead of the literal text `undefined`. ([validated by `repo-favicon.test.ts:16`](apps/web-ui/src/app/repos/[owner]/[repo]/repo-favicon.test.ts#L16))
 
 ## Background
 

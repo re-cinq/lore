@@ -4,7 +4,7 @@ export interface RepoFavicon {
 }
 
 export function repoFavicon(owner: string, repo: string): RepoFavicon {
-  const initials = `${owner[0]}${repo[0]}`.toUpperCase();
+  const initials = `${owner.charAt(0)}${repo.charAt(0)}`.toUpperCase();
   const color = (hashRepository(owner, repo) & 0x00ffffff)
     .toString(16)
     .padStart(6, "0")
