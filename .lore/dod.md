@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **does not prefill the prompt textarea for an inherited org agent — so an unmodified save does not copy the org prompt** — renders `AgentForm` with an org agent (`project_id: null`) and asserts the prompt textarea's value is `""`, with the placeholder showing the inherited value; currently fails because `agentFormValues` returns `prompt: "base prompt"` instead of `""`
+- [x] **does not prefill the prompt textarea for an inherited org agent — so an unmodified save does not copy the org prompt** — renders `AgentForm` with an org agent (`project_id: null`) and asserts the prompt textarea's value is `""`, with the placeholder showing the inherited value; currently fails because `agentFormValues` returns `prompt: "base prompt"` instead of `""`
   `apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx`
 
 ## Facets
 
-- [ ] Fix `agentFormValues` in `agent-form-values.ts`: change `prompt: isNew ? "" : (agent?.prompt ?? "")` to `prompt: isNew || agent?.project_id == null ? "" : (agent?.prompt ?? "")` so org agents (project_id=null) yield an empty textarea
-- [ ] Verify the test turns green
+- [x] Fix `agentFormValues` in `agent-form-values.ts`: change `prompt: isNew ? "" : (agent?.prompt ?? "")` to `prompt: isNew || agent?.project_id == null ? "" : (agent?.prompt ?? "")` so org agents (project_id=null) yield an empty textarea
+- [x] Verify the test turns green
 - [ ] Consider whether `timeout_minutes` and `model` need the same treatment (the ticket calls out prompt specifically; model was intentionally set by the user in the reported incident)
 
 ## Out of scope
