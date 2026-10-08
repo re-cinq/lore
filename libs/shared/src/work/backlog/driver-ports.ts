@@ -44,13 +44,19 @@ function repoPortsOf(
   projectOf: ProjectOf,
 ): Pick<
   LoopTickDeps,
-  "listIssues" | "branchExists" | "openBlockers" | "openPrForBranch"
+  | "listIssues"
+  | "branchExists"
+  | "branchMerged"
+  | "openBlockers"
+  | "openPrForBranch"
 > {
   return {
     listIssues: async (repo) =>
       (await projectOf(repo)).issues.list({ state: "open" }),
     branchExists: async (repo, branch) =>
       (await projectOf(repo)).repo.branchExists(branch),
+    branchMerged: async (repo, branch) =>
+      (await projectOf(repo)).repo.branchMerged(branch),
     openBlockers: async (repo, issueNumber) =>
       (await projectOf(repo)).issues.openBlockers(issueNumber),
     openPrForBranch: async (repo, branch) =>

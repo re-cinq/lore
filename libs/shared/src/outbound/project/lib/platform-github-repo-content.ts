@@ -186,6 +186,27 @@ export async function branchExists(
   }
 }
 
+export async function branchMerged(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+): Promise<boolean | undefined> {
+  const [owner, name] = split(repo);
+  const { repos } = ok.rest;
+
+  try {
+    const { data } = await repos.compareCommitsWithBasehead({
+      owner,
+      repo: name,
+      basehead: `main...${branch}`,
+    });
+
+    return data.status === "behind" || data.status === "identical";
+  } catch {
+    return undefined;
+  }
+}
+
 export async function createBranch(
   ok: Octokit,
   repo: string,
