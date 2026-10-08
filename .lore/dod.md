@@ -13,7 +13,7 @@
 
 - [x] Fix `agentFormValues` in `agent-form-values.ts`: change `prompt: isNew ? "" : (agent?.prompt ?? "")` to `prompt: isNew || agent?.project_id == null ? "" : (agent?.prompt ?? "")` so org agents (project_id=null) yield an empty textarea
 - [x] Verify the test turns green
-- [ ] Consider whether `timeout_minutes` and `model` need the same treatment (the ticket calls out prompt specifically; model was intentionally set by the user in the reported incident)
+- [x] Consider whether `timeout_minutes` and `model` need the same treatment (the ticket calls out prompt specifically; model was intentionally set by the user in the reported incident) — decided out of scope per ticket; prompt is the only field with the silent-copy problem the ticket describes
 
 ## Out of scope
 

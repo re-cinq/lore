@@ -31,7 +31,7 @@ export function agentFormValues(
     executionMode,
     reviewRequired,
     timeoutMinutes,
-    prompt: isNew || agent?.project_id == null ? "" : (agent?.prompt ?? ""),
+    prompt: isNew || agent?.project_id == null ? "" : (agent.prompt ?? ""),
     promptPlaceholder: resolvePromptPlaceholder(agent),
     ...resolveModelFields(agent),
     inherited: resolveInherited(agent, { isNew }),
