@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import { qaGateHandle, type QaGateDeps } from "./station.js";
+import { qaGateHandle } from "./station.js";
+import type { CoverageDeps } from "../coverage-deps.js";
 
 const QUESTION = {
   id: "q1",
@@ -46,7 +47,10 @@ function scene({
     modelCall: async () => {},
     signal: new AbortController().signal,
   };
-  const deps: QaGateDeps = {
+  const deps: CoverageDeps = {
+    readSpec: async () => null,
+    listTree: async () => [],
+    filedCoverage: async () => null,
     visitsOf: async () => [
       ...Array.from({ length: spent }, handback),
       { nodeId: "qa-gate", report: null },

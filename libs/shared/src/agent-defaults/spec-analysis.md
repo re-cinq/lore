@@ -102,6 +102,16 @@ completely, then keep improving it in place while budget remains.
 - "summary" — two or three sentences a reviewer can read in the PR
   body.
 
+One plan becomes one spec. "creates" holds AT MOST ONE entry: a
+merged spec that already owns the area is updated, not shadowed by a
+new one, so when such a spec exists put it in "updates" and leave
+"creates" empty. Then look past the spec you chose: every OTHER
+existing spec whose statements the change contradicts or overtakes
+gets its own "updates" entry whose "reason" begins with "Conflict:"
+and whose "statements" quote what must be adapted, so the writing
+step amends the old rule in the same pull request instead of leaving
+two specs that disagree.
+
 At least one of "updates" or "creates" MUST be non-empty. A feature
 that changes no specification at all is a finding, not an empty
 answer — report it by requesting changes.

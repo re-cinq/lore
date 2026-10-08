@@ -379,6 +379,22 @@ describe("the feature-planning recipe", () => {
     });
   });
 
+  it("has spec-analysis create at most one new spec, update the merged spec that already owns the area instead, and list every older spec the change contradicts as a conflict to adapt", () => {
+    const prompt = promptOnOneLine("spec-analysis");
+
+    expect({
+      atMostOneCreate: prompt.includes('"creates" holds AT MOST ONE entry'),
+      mergedSpecWins: prompt.includes(
+        "a merged spec that already owns the area is updated, not shadowed by a new one",
+      ),
+      conflicts: prompt.includes('begins with "Conflict:"'),
+    }).toEqual({
+      atMostOneCreate: true,
+      mergedSpecWins: true,
+      conflicts: true,
+    });
+  });
+
   it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
     const prompt = promptOnOneLine("spec-write");
 

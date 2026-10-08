@@ -792,7 +792,6 @@ describe("the feature-planning pipeline", () => {
         "qa-answer",
         "qa-gate",
         "qa-generate",
-        "spec-coverage",
         "split-sections",
         "validate",
         "write",
@@ -801,7 +800,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("ends the run failed when analyse-specs, draft, split-sections, write, notes-check, qa-generate, qa-answer, qa-gate, spec-coverage, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+  it("ends the run failed when analyse-specs, draft, split-sections, write, notes-check, qa-generate, qa-answer, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
     const { line } = pipelineOf("feature-planning");
     const settledBy = (to: string) =>
       line.edges
@@ -822,7 +821,6 @@ describe("the feature-planning pipeline", () => {
         "qa-answer:failed",
         "qa-gate:failed",
         "qa-generate:failed",
-        "spec-coverage:failed",
         "split-sections:failed",
         "write:failed",
       ],
@@ -857,7 +855,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("checks the plan's notes, then asks and answers questions blind, and sends write back with what failed at most SPEC_QA_ROUNDS times before spec-coverage", () => {
+  it("checks the plan's notes, then asks and answers questions blind, and sends write back with what failed at most SPEC_QA_ROUNDS times before open-spec-pr", () => {
     const { line } = pipelineOf("feature-planning");
 
     expect(
@@ -871,7 +869,7 @@ describe("the feature-planning pipeline", () => {
       { from: "qa-generate", to: "failed", on: "failed" },
       { from: "qa-answer", to: "qa-gate", on: "success" },
       { from: "qa-answer", to: "failed", on: "failed" },
-      { from: "qa-gate", to: "spec-coverage", on: "success" },
+      { from: "qa-gate", to: "open-spec-pr", on: "success" },
       {
         from: "qa-gate",
         to: "write",
@@ -882,22 +880,17 @@ describe("the feature-planning pipeline", () => {
     ]);
   });
 
-  it("checks plan coverage between qa-gate and open-spec-pr, sending write back at most COVERAGE_ROUNDS times", () => {
-    const { line } = pipelineOf("feature-planning");
+  it("gives qa-gate the spec branch, the spec plan, the citable blocks and the answers, and has it produce both briefs the writer reads", () => {
+    const gate = pipelineOf("feature-planning").stations["qa-gate"];
 
     expect({
-      fromCoverage: edgesOn(line, "spec-coverage"),
+      needs: gate.needs.map((need) => need.name),
+      produces: gate.produces.map((produced) => produced.name),
+      target: needOf(gate, "target"),
     }).toEqual({
-      fromCoverage: [
-        { from: "spec-coverage", to: "open-spec-pr", on: "success" },
-        {
-          from: "spec-coverage",
-          to: "write",
-          on: "changes_requested",
-          iteration_max: COVERAGE_ROUNDS,
-        },
-        { from: "spec-coverage", to: "failed", on: "failed" },
-      ],
+      needs: ["target", "spec_plan", "plan_blocks", "qa_answers", "plan_notes"],
+      produces: ["qa_failures", "plan_coverage"],
+      target: { name: "target", kind: "git", path: "target", access: "read" },
     });
   });
 

@@ -40,16 +40,20 @@ export interface QaVerdict {
   exhausted: boolean;
 }
 
-export function qaGate(bag: SpecQaBag, roundsSpent: number): QaVerdict {
+export function qaGate(
+  bag: SpecQaBag,
+  roundsSpent: number,
+  branchGaps = 0,
+): QaVerdict {
   const failures = [
     ...questionFailures(bag.questions),
     ...noteFailures(bag.notes),
   ];
-  const exhausted = failures.length > 0 && roundsSpent >= SPEC_QA_ROUNDS;
+  const gaps = failures.length + branchGaps;
+  const exhausted = gaps > 0 && roundsSpent >= SPEC_QA_ROUNDS;
 
   return {
-    outcome:
-      failures.length === 0 || exhausted ? "success" : "changes_requested",
+    outcome: gaps === 0 || exhausted ? "success" : "changes_requested",
     failures,
     exhausted,
   };

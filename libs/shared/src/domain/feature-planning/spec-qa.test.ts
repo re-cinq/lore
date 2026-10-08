@@ -129,6 +129,22 @@ describe("qaGate", () => {
     });
   });
 
+  it("returns changes_requested with no listed failure when only the spec's own checks found gaps", () => {
+    expect(qaGate(PASSING_BAG, 0, 2)).toEqual({
+      outcome: "changes_requested",
+      failures: [],
+      exhausted: false,
+    });
+  });
+
+  it("returns success and exhausted when the spec's own gaps outlast the rounds", () => {
+    expect(qaGate(PASSING_BAG, SPEC_QA_ROUNDS, 2)).toEqual({
+      outcome: "success",
+      failures: [],
+      exhausted: true,
+    });
+  });
+
   it("spends five rounds before giving up", () => {
     expect(SPEC_QA_ROUNDS).toBe(5);
   });
