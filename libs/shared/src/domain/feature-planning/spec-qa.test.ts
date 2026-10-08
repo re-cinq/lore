@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   SPEC_QA_ROUNDS,
+  evidenceHolds,
   failureBrief,
   qaGate,
   specQaBagSchema,
@@ -180,6 +181,79 @@ describe("qaGate", () => {
 
   it("spends five rounds before giving up", () => {
     expect(SPEC_QA_ROUNDS).toBe(5);
+  });
+});
+
+const SPEC = "## Scope\n\n- Billing is out of scope.\n- Refunds are in.\n";
+
+describe("evidenceHolds", () => {
+  it("returns true when the quote appears verbatim in a spec", () => {
+    expect(evidenceHolds("Billing is out of scope.", [SPEC])).toBe(true);
+  });
+
+  it("returns true when the quote differs from the spec only in whitespace", () => {
+    expect(evidenceHolds("Billing  is out\nof scope.", [SPEC])).toBe(true);
+  });
+
+  it("returns false when no spec holds the quote", () => {
+    expect(evidenceHolds("Billing is in scope.", [SPEC])).toBe(false);
+  });
+
+  it("returns false for a missing or blank quote", () => {
+    expect([
+      evidenceHolds(undefined, [SPEC]),
+      evidenceHolds("  ", [SPEC]),
+    ]).toEqual([false, false]);
+  });
+});
+
+describe("qaGate with the spec text", () => {
+  const quoted = {
+    ...PASSING_BAG,
+    answers: PASSING_BAG.answers.map((answer) => ({
+      ...answer,
+      evidence: "Billing is out of scope.",
+    })),
+  };
+
+  it("returns success when every upholding answer quotes the spec", () => {
+    expect(qaGate(quoted, 0, 0, [SPEC]).outcome).toBe("success");
+  });
+
+  it("fails an upholding answer whose quote is not in the spec, naming that", () => {
+    const bag = withAnswer("q2", { answer: true, reason: "Stated." });
+
+    expect(qaGate(bag, 0, 0, [SPEC]).failures).toEqual([
+      {
+        id: "q1",
+        section: "scope",
+        text: "Billing is out of scope.",
+        reason: "No quote from the spec supports this answer.",
+      },
+      {
+        id: "q2",
+        section: "constraints",
+        text: "Plan versions are stored in lore.plan_versions.",
+        reason: "No quote from the spec supports this answer.",
+      },
+      {
+        id: "q3",
+        section: "scope",
+        text: "The feature is behind a flag.",
+        reason: "No quote from the spec supports this answer.",
+      },
+    ]);
+  });
+
+  it("asks for no quote from a must-not question answered false", () => {
+    const bag = {
+      questions: [{ ...PASSING_BAG.questions[0]!, expected: false }],
+      answers: [
+        { id: "q1", answer: false, reason: "Billing is not mentioned." },
+      ],
+    };
+
+    expect(qaGate(bag, 0, 0, [SPEC]).outcome).toBe("success");
   });
 });
 

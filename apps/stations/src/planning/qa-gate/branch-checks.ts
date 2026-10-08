@@ -27,16 +27,32 @@ export interface BranchChecks {
   gaps: number;
 }
 
+/** Every spec the plan creates or updates, as the branch holds them; null where the run carries no spec plan to find them by. */
+export async function specsOfBranch(
+  deps: CoverageDeps,
+  brief: Brief,
+  tools: Tools,
+): Promise<SpecFile[] | null> {
+  if (!brief.needs.spec_plan) {
+    return null;
+  }
+  const { repo, branch } = parseGitRef(brief.needs.target);
+  const specPlan = (await tools.read("spec_plan")).toString("utf8");
+
+  return specsOnBranch(specPlan, (path) => deps.readSpec(repo, path, branch));
+}
+
 /** Null where the deployment hands the run no blocks to cite: then there is nothing to count. */
 export async function branchChecks(
   deps: CoverageDeps,
   brief: Brief,
   tools: Tools,
+  specs: readonly SpecFile[],
 ): Promise<BranchChecks | null> {
   if (!brief.needs.plan_blocks) {
     return null;
   }
-  const found = await coverageOnBranch(deps, brief, tools);
+  const found = await coverageOnBranch(deps, brief, tools, specs);
 
   return { brief: briefOf(found), gaps: gapsOf(found) };
 }
@@ -62,22 +78,21 @@ interface BranchRead {
   tools: Tools;
   repo: string;
   branch: string;
-  read: (path: string) => Promise<string | null>;
 }
 
 async function coverageOnBranch(
   deps: CoverageDeps,
   brief: Brief,
   tools: Tools,
+  specs: readonly SpecFile[],
 ): Promise<SpecsOnBranch> {
   const { repo, branch } = parseGitRef(brief.needs.target);
   const read = (path: string) => deps.readSpec(repo, path, branch);
-  const [citable, tree, specs] = await readBranch({
+  const [citable, tree] = await readBranch({
     deps,
     tools,
     repo,
     branch,
-    read,
   });
 
   return countsOf(citable, specs, await groundedSpecs(specs, tree, read));
@@ -98,20 +113,16 @@ function countsOf(
   };
 }
 
-/** The plan's blocks, the tree the names are checked against, and the specs as the branch holds them. */
+/** The plan's blocks and the tree the names are checked against. */
 function readBranch({
   deps,
   tools,
   repo,
   branch,
-  read,
-}: BranchRead): Promise<[CitablePlan, string[], SpecFile[]]> {
+}: BranchRead): Promise<[CitablePlan, string[]]> {
   return Promise.all([
     readJson<CitablePlan>(tools, "plan_blocks"),
     deps.listTree(repo, branch),
-    tools
-      .read("spec_plan")
-      .then((specPlan) => specsOnBranch(specPlan.toString("utf8"), read)),
   ]);
 }
 
@@ -128,7 +139,7 @@ function groundedSpecs(
   );
 }
 
-interface SpecFile {
+export interface SpecFile {
   path: string;
   text: string;
 }

@@ -417,18 +417,22 @@ describe("the feature-planning recipe", () => {
     });
   });
 
-  it("has spec-qa-answer answer from the blind question file alone, never look for the plan, and give a reason for every answer", () => {
+  it("has spec-qa-answer answer from the blind question file alone, never look for the plan, give a reason for every answer, and quote the spec for every answer that upholds a statement", () => {
     const prompt = promptOnOneLine("spec-qa-answer");
 
     expect({
       blind: promptOf("spec-qa-answer").includes("{qa_blind_path}"),
       noPlan: prompt.includes("must not look for it"),
       reasons: prompt.includes('"reason":'),
+      quotes: prompt.includes('"evidence":'),
+      verbatim: prompt.includes("copied character for character from the spec"),
       expectedHidden: prompt.includes("expected"),
     }).toEqual({
       blind: true,
       noPlan: true,
       reasons: true,
+      quotes: true,
+      verbatim: true,
       expectedHidden: false,
     });
   });

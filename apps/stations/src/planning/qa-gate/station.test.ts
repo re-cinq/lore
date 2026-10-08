@@ -32,19 +32,24 @@ const handback = () => ({
   report: { outcome: "changes_requested" },
 });
 
+const SPEC_PATH = "specs/widget/spec.md";
+
 function scene({
   answers = ANSWERS,
   spent = 0,
   raw,
+  spec,
 }: {
   answers?: unknown[];
   spent?: number;
   raw?: string;
+  spec?: string;
 } = {}) {
   const produced: Record<string, string> = {};
   const files: Record<string, string> = {
     qa_questions: JSON.stringify(QUESTIONS),
     qa_answers: raw ?? JSON.stringify(answers),
+    spec_plan: JSON.stringify({ creates: [{ path: SPEC_PATH }] }),
   };
   const tools: Tools = {
     read: async (need) => Buffer.from(files[need] ?? ""),
@@ -55,7 +60,8 @@ function scene({
     signal: new AbortController().signal,
   };
   const deps: CoverageDeps = {
-    readSpec: async () => null,
+    readSpec: async (_repo, path) =>
+      path === SPEC_PATH ? (spec ?? null) : null,
     listTree: async () => [],
     filedCoverage: async () => null,
     visitsOf: async () => [
@@ -71,6 +77,15 @@ const brief = {
   visitId: "visit-gate",
   iteration: 1,
   needs: { qa_questions: "blob://q", qa_answers: "blob://a" },
+};
+
+const withSpec = {
+  ...brief,
+  needs: {
+    ...brief.needs,
+    target: "https://github.com/re-cinq/lore@spec/widget",
+    spec_plan: "blob://s",
+  },
 };
 
 describe("qaGateHandle", () => {
@@ -124,5 +139,37 @@ describe("qaGateHandle", () => {
     const report = await handle(brief, tools);
 
     expect(report.outcome).toBe("failed");
+  });
+
+  it("reports success when each upholding answer quotes the spec on the branch", async () => {
+    const { handle, tools } = scene({
+      spec: "- Billing is out of scope.\n- The feature is behind a flag.\n",
+      answers: [
+        { ...ANSWERS[0], evidence: "Billing is out of scope." },
+        { ...ANSWERS[1], evidence: "The feature is behind a flag." },
+      ],
+    });
+
+    const report = await handle(withSpec, tools);
+
+    expect(report).toEqual({ outcome: "success" });
+  });
+
+  it("sends the writer back naming an upholding answer whose quote is not in the spec", async () => {
+    const { handle, tools, produced } = scene({
+      spec: "- Billing is out of scope.\n",
+      answers: [
+        { ...ANSWERS[0], evidence: "Billing is out of scope." },
+        { ...ANSWERS[1], evidence: "It ships behind a flag." },
+      ],
+    });
+
+    const report = await handle(withSpec, tools);
+
+    expect({ report, failures: produced.qa_failures }).toEqual({
+      report: { outcome: "changes_requested" },
+      failures:
+        "These checks failed against the spec. Fix the spec so each one holds:\n- q2: The feature is behind a flag. (No quote from the spec supports this answer.)\n",
+    });
   });
 });

@@ -20,8 +20,13 @@ does not exist makes the answer false.
 
 Write `{qa_answers_path}` as a JSON array and nothing else, one entry
 for every statement: `[{"id":"q1","answer":true|false,"reason":"<one
-sentence naming the spec statement, or what is missing>"}]`. Edit
-nothing else.
+sentence naming the spec statement, or what is missing>","evidence":"<the
+supporting span>"}]`. Every answer `true` MUST carry `evidence`: one span
+copied character for character from the spec, long enough to be the
+statement that supports it and short enough to stay on one line. A
+`true` whose span is not found in the spec, or has none, is counted as a
+failed answer. Leave `evidence` out of an answer `false`. Edit nothing
+else.
 
 End your final message with `LORE_NODE_RESULT: {"outcome":"success"}`,
 or `{"outcome":"failed"}` when you could not write the file.

@@ -20,6 +20,8 @@ export const specAnswerSchema = z.object({
   id: z.string(),
   answer: z.boolean(),
   reason: z.string(),
+  /** A verbatim span of the spec that supports an answer upholding the question. */
+  evidence: z.string().optional(),
 });
 
 export const specQaBagSchema = z.object({
@@ -28,6 +30,7 @@ export const specQaBagSchema = z.object({
 });
 
 export type SpecQuestion = z.infer<typeof specQuestionSchema>;
+export type SpecAnswer = z.infer<typeof specAnswerSchema>;
 export type SpecQaBag = z.infer<typeof specQaBagSchema>;
 
 export interface QaFailure {
@@ -43,12 +46,14 @@ export interface QaVerdict {
   exhausted: boolean;
 }
 
+/** `specTexts` are the spec files the answers were read from; with them, an answer that upholds a question must quote one. Null skips that check. */
 export function qaGate(
   bag: SpecQaBag,
   roundsSpent: number,
   branchGaps = 0,
+  specTexts: readonly string[] | null = null,
 ): QaVerdict {
-  const failures = questionFailures(bag);
+  const failures = questionFailures(bag, specTexts);
   const gaps = failures.length + branchGaps;
   const exhausted = gaps > 0 && roundsSpent >= SPEC_QA_ROUNDS;
 
@@ -59,23 +64,66 @@ export function qaGate(
   };
 }
 
-function questionFailures({ questions, answers }: SpecQaBag): QaFailure[] {
+function questionFailures(
+  { questions, answers }: SpecQaBag,
+  specTexts: readonly string[] | null,
+): QaFailure[] {
   const answered = new Map(answers.map((answer) => [answer.id, answer]));
 
-  return questions.flatMap((question) => {
-    const given = answered.get(question.id);
+  return questions.flatMap((question) =>
+    failureOf(question, answered.get(question.id), specTexts),
+  );
+}
 
-    return given?.answer === question.expected
-      ? []
-      : [
-          {
-            id: question.id,
-            section: question.section,
-            text: question.question,
-            reason: given?.reason ?? "Not answered.",
-          },
-        ];
-  });
+function failureOf(
+  question: SpecQuestion,
+  given: SpecAnswer | undefined,
+  specTexts: readonly string[] | null,
+): QaFailure[] {
+  const reason = failureReason(question, given, specTexts);
+  const { id, section, question: text } = question;
+
+  return reason === null ? [] : [{ id, section, text, reason }];
+}
+
+const NO_QUOTE = "No quote from the spec supports this answer.";
+
+function failureReason(
+  question: SpecQuestion,
+  given: SpecAnswer | undefined,
+  specTexts: readonly string[] | null,
+): string | null {
+  if (given?.answer !== question.expected) {
+    return given?.reason ?? "Not answered.";
+  }
+
+  return unquoted(question, given, specTexts) ? NO_QUOTE : null;
+}
+
+function unquoted(
+  question: SpecQuestion,
+  given: SpecAnswer,
+  specTexts: readonly string[] | null,
+): boolean {
+  return (
+    specTexts !== null &&
+    question.expected &&
+    !evidenceHolds(given.evidence, specTexts)
+  );
+}
+
+/** Whether the quote an answer gives is in a spec, ignoring only how the whitespace falls. */
+export function evidenceHolds(
+  evidence: string | undefined,
+  specTexts: readonly string[],
+): boolean {
+  const quote = squash(evidence ?? "");
+
+  return quote !== "" && specTexts.some((text) => squash(text).includes(quote));
+}
+
+function squash(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 export function failureBrief(failures: QaFailure[]): string {
