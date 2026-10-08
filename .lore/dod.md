@@ -17,6 +17,7 @@
 - [x] Add `LORE_MCP_REPO` env read in `resolveRepoLabel` (`context-tools-assemble.ts`), inserted before `detectCurrentRepo()` when `LORE_MCP_SERVER_MODE=agent`
 - [x] Add `repo` to `searchProxyArgs` in `memory-tools.ts`, reading from `LORE_MCP_REPO` (or `detectCurrentRepo()`) in agent mode
 - [x] Confirm the two red tests turn green; keep existing tests green
+- [x] Fix CI: skip `check-pr-description` for draft PRs — Lore opens PRs as drafts with a minimal body; `mark-ready` fills the description before marking ready
 
 ## Out of scope
 
