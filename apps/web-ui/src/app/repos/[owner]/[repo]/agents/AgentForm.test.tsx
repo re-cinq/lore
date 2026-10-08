@@ -225,4 +225,21 @@ describe("AgentForm", () => {
     expect(img.value).toBe("");
     expect(img.placeholder).toBe("ghcr.io/re-cinq/lore-claude-runner:latest");
   });
+
+  it("does not prefill the prompt textarea for an inherited org agent — so an unmodified save does not copy the org prompt", () => {
+    const { container } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={agent}
+        action={noop}
+        isNew={false}
+      />,
+    );
+    const textarea = container.querySelector(
+      'textarea[name="prompt"]',
+    ) as HTMLTextAreaElement;
+
+    expect(textarea.value).toBe("");
+    expect(textarea.placeholder).toBe(agent.prompt!);
+  });
 });
