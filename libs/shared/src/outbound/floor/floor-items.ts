@@ -10,7 +10,11 @@ export function floorRepoOf(repo: string): string {
 }
 
 export function loreRepoOf(floorRepo: string | null): string {
-  enforceTrue(floorRepo, Error, "a floor run with no repository has no Lore repository");
+  enforceTrue(
+    floorRepo,
+    Error,
+    "a floor run with no repository has no Lore repository",
+  );
 
   return floorRepo.replace(/^https:\/\//, "").replace(`${GITHUB_HOST}/`, "");
 }

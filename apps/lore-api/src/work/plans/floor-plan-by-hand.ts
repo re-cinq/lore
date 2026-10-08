@@ -14,7 +14,7 @@ import {
 } from "./spec-rework.js";
 
 const VALIDATE_EVENT = "manual.plan.validate";
-const REWRITE_EVENT = "node.write.start";
+const REWRITE_EVENT = "node.rework.start";
 
 export interface FloorPlanAsk {
   plan: PlanSubject;

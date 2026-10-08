@@ -1,9 +1,9 @@
-// The plan sections folded into the spec one pod at a time, after the draft took the intent: which section is handed out next, how a pod's returned result settles it, and which sections the gate sends back (see specs/7-feature-planning/spec.md FR-24).
+// The plan sections folded into the spec after the draft took the intent: a round hands every pending section to its own pod at once, each pod returns a patch, and a deterministic step applies the patches, so no two pods ever write the same file (see specs/7-feature-planning/spec.md FR-24).
 
 import { z } from "zod";
 import type { CitablePlan } from "./plan-coverage.js";
 
-/** The order sections are integrated in; the intent is the draft's and a prototype is something to look at. */
+/** The order sections are handed out in; the intent is the draft's and a prototype is something to look at. */
 export const INTEGRATED_SLOTS = [
   "scope",
   "kpis",
@@ -31,11 +31,34 @@ export const sectionResultSchema = z.object({
     .default([]),
 });
 
+export const sectionOpSchema = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("append"),
+    /** The spec file; the line's first spec when absent. */
+    file: z.string().optional(),
+    heading: z.string(),
+    text: z.string(),
+  }),
+  z.object({
+    op: z.literal("amend"),
+    file: z.string().optional(),
+    find: z.string(),
+    replace: z.string(),
+  }),
+]);
+
+/** What a section's pod returns: whether it integrated the section, the technical facts it added, and the edits to make. */
+export const sectionPatchSchema = sectionResultSchema.extend({
+  ops: z.array(sectionOpSchema).default([]),
+});
+
 export type SectionResult = z.infer<typeof sectionResultSchema>;
+export type SectionOp = z.infer<typeof sectionOpSchema>;
+export type SectionPatch = z.infer<typeof sectionPatchSchema>;
 
 export interface SectionState {
-  /** The section a pod was last handed and has not settled yet. */
-  handed: string | null;
+  /** The sections the pods of the round in flight were handed, in the order of their items. */
+  handed: string[];
   done: string[];
   failed: string[];
   attempts: Record<string, number>;
@@ -49,15 +72,9 @@ export interface RedoRequest {
   sections: string[];
 }
 
-export interface Step {
-  outcome: "more" | "redo" | "done";
-  text: string;
-  state: SectionState;
-}
-
 export function emptySectionState(): SectionState {
   return {
-    handed: null,
+    handed: [],
     done: [],
     failed: [],
     attempts: {},
@@ -66,27 +83,52 @@ export function emptySectionState(): SectionState {
   };
 }
 
-export function nextStep(plan: CitablePlan, state: SectionState): Step {
-  const slot = state.handed ?? pendingSlot(plan, state) ?? state.redo.at(0);
-
-  if (slot === undefined) {
-    return { outcome: "done", text: "", state };
-  }
+/** Every section a round hands out, as the items its fan-out runs a pod for: the sections the gate sent back when it did, else the ones not yet done or failed. */
+export function startRound(
+  plan: CitablePlan,
+  state: SectionState,
+  request: RedoRequest | null,
+): { items: string[]; state: SectionState } {
+  const taken = takeRedo(state, request);
+  const slots = taken.redo.length > 0 ? taken.redo : pendingSlots(plan, taken);
 
   return {
-    outcome: state.redo.includes(slot) ? "redo" : "more",
-    text: sectionText(plan, slot),
-    state: { ...state, handed: slot },
+    items: slots.map((slot) => sectionItem(plan, slot)),
+    state: { ...taken, handed: slots },
   };
 }
 
-function pendingSlot(plan: CitablePlan, state: SectionState) {
-  return INTEGRATED_SLOTS.find(
+/** Takes the sections of a gate round once; a failed one gets its attempts again. */
+function takeRedo(
+  state: SectionState,
+  request: RedoRequest | null,
+): SectionState {
+  if (request === null || request.round <= state.redoRound) {
+    return state;
+  }
+  const sections = [...new Set(request.sections)];
+
+  return {
+    ...state,
+    done: sections.reduce(added, state.done),
+    failed: state.failed.filter((slot) => !sections.includes(slot)),
+    attempts: withoutAttempts(state.attempts, sections),
+    redo: sections,
+    redoRound: request.round,
+  };
+}
+
+function pendingSlots(plan: CitablePlan, state: SectionState): string[] {
+  return INTEGRATED_SLOTS.filter(
     (slot) =>
       !state.done.includes(slot) &&
       !state.failed.includes(slot) &&
       plan.blocks.some((block) => block.slot === slot),
   );
+}
+
+function sectionItem(plan: CitablePlan, slot: string): string {
+  return JSON.stringify({ slot, text: sectionText(plan, slot) });
 }
 
 function sectionText(plan: CitablePlan, slot: string): string {
@@ -110,92 +152,110 @@ function blocksOf(blocks: CitablePlan["blocks"], slot: string) {
   return blocks.filter((block) => block.slot === slot);
 }
 
-/** Folds in what the pod handed the section returned; a section whose result is missing, failed or empty where it needs technical detail is tried again, then recorded as failed. */
-export function settle(
-  state: SectionState,
-  result: SectionResult | null,
-): SectionState {
-  const slot = state.handed;
-
-  if (slot === null) {
-    return state;
-  }
-
-  // A section sent back to be redone has its technical facts already.
-  const owing = TECHNICAL_SLOTS.filter((owed) => !state.redo.includes(owed));
-
-  return accepted(slot, result, owing)
-    ? finished(state, slot)
-    : retried(state, slot);
+/** The patches in the order the sections were handed: each at its own section's place, whatever order the pods finished in, and none where a pod returned nothing. */
+export function alignPatches(
+  handed: readonly string[],
+  patches: readonly SectionPatch[],
+): (SectionPatch | null)[] {
+  return handed.map(
+    (slot) => patches.find((patch) => patch.section === slot) ?? null,
+  );
 }
 
-function accepted(
+export interface Settled {
+  state: SectionState;
+  /** The patches whose sections are done, in the order they were handed, ready to apply. */
+  accepted: SectionPatch[];
+  /** Some section was neither done nor given up on, so another round should run. */
+  retry: boolean;
+}
+
+/** Folds in the patches the round's pods returned, by position: a section whose patch is missing, failed, for another section, empty where it needs technical detail, or has an operation that could not be applied is tried again, then recorded as failed. */
+export function settleRound(
+  state: SectionState,
+  patches: readonly (SectionPatch | null)[],
+  failedOps: Record<string, number>,
+): Settled {
+  const owing = TECHNICAL_SLOTS.filter((owed) => !state.redo.includes(owed));
+  const start: Settled = { state, accepted: [], retry: false };
+
+  return state.handed.reduce<Settled>(
+    (settled, slot, index) => {
+      const patch = patches[index] ?? null;
+      const taken = isAccepted(slot, patch, owing, failedOps);
+
+      return taken && patch
+        ? accept(settled, slot, patch)
+        : giveBack(settled, slot);
+    },
+    { ...start, state: { ...state, handed: [] } },
+  );
+}
+
+function isAccepted(
   slot: string,
-  result: SectionResult | null,
+  patch: SectionPatch | null,
   owing: readonly string[],
+  failedOps: Record<string, number>,
 ): boolean {
-  return result?.section === slot && usable(slot, result, owing);
+  return (
+    patch?.section === slot &&
+    usable(slot, patch, owing) &&
+    (failedOps[slot] ?? 0) === 0
+  );
 }
 
 function usable(
   slot: string,
-  result: SectionResult,
+  patch: SectionPatch,
   owing: readonly string[],
 ): boolean {
-  if (result.status === "failed") {
+  if (patch.status === "failed") {
     return false;
   }
 
   return (
-    result.status === "nothing_relevant" ||
+    patch.status === "nothing_relevant" ||
     !owing.includes(slot) ||
-    result.technical_additions.length > 0
+    patch.technical_additions.length > 0
   );
 }
 
-function finished(state: SectionState, slot: string): SectionState {
+function accept(settled: Settled, slot: string, patch: SectionPatch): Settled {
+  const { state } = settled;
+
   return {
-    ...state,
-    handed: null,
-    done: added(state.done, slot),
-    redo: state.redo.filter((redone) => redone !== slot),
-    attempts: withoutAttempts(state.attempts, [slot]),
+    ...settled,
+    accepted: [...settled.accepted, patch],
+    state: {
+      ...state,
+      done: added(state.done, slot),
+      redo: state.redo.filter((redone) => redone !== slot),
+      attempts: withoutAttempts(state.attempts, [slot]),
+    },
   };
 }
 
-function retried(state: SectionState, slot: string): SectionState {
+function giveBack(settled: Settled, slot: string): Settled {
+  const { state } = settled;
   const attempts = (state.attempts[slot] ?? 0) + 1;
 
   if (attempts < MAX_SECTION_ATTEMPTS) {
-    return { ...state, attempts: { ...state.attempts, [slot]: attempts } };
+    return {
+      ...settled,
+      retry: true,
+      state: { ...state, attempts: { ...state.attempts, [slot]: attempts } },
+    };
   }
 
   return {
-    ...state,
-    handed: null,
-    failed: added(state.failed, slot),
-    redo: state.redo.filter((redone) => redone !== slot),
-    attempts: withoutAttempts(state.attempts, [slot]),
-  };
-}
-
-/** Takes the sections the gate sent back, once per round; a failed one gets its attempts again. */
-export function absorbRedo(
-  state: SectionState,
-  request: RedoRequest | null,
-): SectionState {
-  if (request === null || request.round <= state.redoRound) {
-    return state;
-  }
-  const sections = [...new Set(request.sections)];
-
-  return {
-    ...state,
-    done: sections.reduce(added, state.done),
-    failed: state.failed.filter((slot) => !sections.includes(slot)),
-    attempts: withoutAttempts(state.attempts, sections),
-    redo: sections,
-    redoRound: request.round,
+    ...settled,
+    state: {
+      ...state,
+      failed: added(state.failed, slot),
+      redo: state.redo.filter((redone) => redone !== slot),
+      attempts: withoutAttempts(state.attempts, [slot]),
+    },
   };
 }
 
@@ -210,4 +270,103 @@ function withoutAttempts(
   return Object.fromEntries(
     Object.entries(attempts).filter(([slot]) => !slots.includes(slot)),
   );
+}
+
+export interface Applied {
+  files: Record<string, string>;
+  /** How many of each section's operations could not be applied. */
+  failedOps: Record<string, number>;
+}
+
+/** Applies the patches in order to the spec files, so two sections never write one file at once. An amend needs its text to stand exactly once; an append goes to the end of its heading's body, or under a new heading at the end. */
+export function applyPatches(
+  files: Record<string, string>,
+  patches: readonly SectionPatch[],
+  defaultFile: string,
+): Applied {
+  const applied: Applied = { files: { ...files }, failedOps: {} };
+
+  for (const patch of patches) {
+    applied.failedOps[patch.section] =
+      (applied.failedOps[patch.section] ?? 0) +
+      applyOps(applied.files, patch.ops, defaultFile);
+  }
+
+  return applied;
+}
+
+/** Applies a patch's operations in place; the number that could not be applied. */
+function applyOps(
+  files: Record<string, string>,
+  ops: readonly SectionOp[],
+  defaultFile: string,
+): number {
+  let failed = 0;
+
+  for (const op of ops) {
+    const file = op.file ?? defaultFile;
+    const changed = file in files ? applyOp(files[file] ?? "", op) : null;
+
+    if (changed === null) {
+      failed += 1;
+      continue;
+    }
+    files[file] = changed;
+  }
+
+  return failed;
+}
+
+function applyOp(text: string, op: SectionOp): string | null {
+  if (op.op === "append") {
+    return appendUnder(text, op.heading, op.text);
+  }
+
+  return text.split(op.find).length === 2 && op.find !== ""
+    ? text.replace(op.find, () => op.replace)
+    : null;
+}
+
+function appendUnder(spec: string, heading: string, text: string): string {
+  const lines = spec.split("\n");
+  const start = lines.findIndex((line) => line.trim() === heading.trim());
+
+  if (start < 0) {
+    return `${spec.trimEnd()}\n\n${heading}\n\n${text.trim()}\n`;
+  }
+  const end = endOfBody(lines, start, levelOf(heading));
+  const body = lines.slice(start + 1, end);
+
+  while (body.at(-1)?.trim() === "") {
+    body.pop();
+  }
+
+  return [
+    ...lines.slice(0, start + 1),
+    ...body,
+    "",
+    text.trim(),
+    "",
+    ...lines.slice(end),
+  ].join("\n");
+}
+
+function levelOf(heading: string): number {
+  const marks = /^#+/.exec(heading.trim());
+
+  return marks?.[0].length ?? 0;
+}
+
+function endOfBody(lines: readonly string[], start: number, level: number) {
+  const next = lines.findIndex(
+    (line, index) => index > start && headingLevel(line) <= level,
+  );
+
+  return next < 0 ? lines.length : next;
+}
+
+function headingLevel(line: string): number {
+  const marks = /^(#+)\s/.exec(line);
+
+  return marks?.[1]?.length ?? Infinity;
 }

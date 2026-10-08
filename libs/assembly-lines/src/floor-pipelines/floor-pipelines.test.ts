@@ -59,7 +59,12 @@ interface Pipeline {
     start?: { on: string[] };
     files?: Record<string, string>;
     args: Record<string, Arg>;
-    nodes: { id: string; station?: string; bind?: Record<string, string> }[];
+    nodes: {
+      id: string;
+      station?: string;
+      fanout?: { over: string; to: string };
+      bind?: Record<string, string>;
+    }[];
     edges: Edge[];
   };
   stations: Record<string, Station>;
@@ -797,12 +802,12 @@ describe("the feature-planning pipeline", () => {
       nodes: [
         "analyse-specs",
         "analyze",
+        "assemble",
         "author",
         "decompose",
         "done",
         "draft",
         "failed",
-        "fix",
         "issue-coverage",
         "issues",
         "merged",
@@ -815,6 +820,7 @@ describe("the feature-planning pipeline", () => {
         "qa-generate",
         "qa-questions",
         "qa-recheck",
+        "rework",
         "split-sections",
         "validate",
         "write",
@@ -823,7 +829,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("ends the run failed when analyse-specs, draft, split-sections, write, fix, qa-generate, qa-questions, qa-answer, qa-recheck, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+  it("ends the run failed when analyse-specs, draft, split-sections, write, assemble, rework, qa-generate, qa-questions, qa-answer, qa-recheck, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
     const { line } = pipelineOf("feature-planning");
     const settledBy = (to: string) =>
       line.edges
@@ -834,10 +840,10 @@ describe("the feature-planning pipeline", () => {
     expect({ failed: settledBy("failed"), done: settledBy("done") }).toEqual({
       failed: [
         "analyse-specs:failed",
+        "assemble:failed",
         "decompose:changes_requested",
         "decompose:failed",
         "draft:failed",
-        "fix:failed",
         "issue-coverage:failed",
         "issues:failed",
         "open-spec-pr:failed",
@@ -846,6 +852,7 @@ describe("the feature-planning pipeline", () => {
         "qa-generate:failed",
         "qa-questions:failed",
         "qa-recheck:failed",
+        "rework:failed",
         "split-sections:failed",
         "write:failed",
       ],
@@ -853,35 +860,40 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("freezes the questions first, then drafts the spec from the intent and folds in one plan section per write visit through split-sections until it reports done", () => {
+  it("freezes the questions first, then drafts the spec from the intent, lists the sections, fans a write pod out over them and joins them at assemble", () => {
     const { line } = pipelineOf("feature-planning");
+    const success = (node: string) =>
+      edgesOn(line, node).find((edge) => edge.on === "success");
 
     expect({
-      fromAnalysis: edgesOn(line, "analyse-specs").find(
-        (edge) => edge.on === "success",
-      ),
-      fromQuestions: edgesOn(line, "qa-questions").find(
-        (edge) => edge.on === "success",
-      ),
-      fromDraft: edgesOn(line, "draft").find((edge) => edge.on === "success"),
+      fromAnalysis: success("analyse-specs"),
+      fromQuestions: success("qa-questions"),
+      fromDraft: success("draft"),
       fromSplit: edgesOn(line, "split-sections"),
-      fromWrite: edgesOn(line, "write").find((edge) => edge.on === "success"),
+      fromWrite: edgesOn(line, "write"),
+      fromAssemble: edgesOn(line, "assemble"),
     }).toEqual({
       fromAnalysis: { from: "analyse-specs", to: "qa-generate", on: "success" },
       fromQuestions: { from: "qa-questions", to: "draft", on: "success" },
       fromDraft: { from: "draft", to: "split-sections", on: "success" },
       fromSplit: [
-        { from: "split-sections", to: "write", on: "more" },
-        { from: "split-sections", to: "fix", on: "redo" },
-        { from: "split-sections", to: "qa-answer", on: "done" },
+        { from: "split-sections", to: "write", on: "success" },
         { from: "split-sections", to: "failed", on: "failed" },
       ],
-      fromWrite: {
-        from: "write",
-        to: "split-sections",
-        on: "success",
-        iteration_max: 12,
-      },
+      fromWrite: [
+        { from: "write", to: "assemble", on: "success" },
+        { from: "write", to: "failed", on: "failed" },
+      ],
+      fromAssemble: [
+        {
+          from: "assemble",
+          to: "split-sections",
+          on: "retry",
+          iteration_max: 2,
+        },
+        { from: "assemble", to: "qa-answer", on: "success" },
+        { from: "assemble", to: "failed", on: "failed" },
+      ],
     });
   });
 
@@ -982,60 +994,66 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("redoes a failing section on the fix node, which runs the same writer, with the section, fix and gate loops each on their own counter", () => {
-    const { line, stations } = pipelineOf("feature-planning");
+  it("fans split-sections out over its sections list to write, and sends a retry and a failing gate back through it on separate counters", () => {
+    const { line } = pipelineOf("feature-planning");
     const intoSplit = line.edges
       .filter((edge) => edge.to === "split-sections")
       .map((edge) => `${edge.from}:${edge.on}:${edge.iteration_max ?? "-"}`);
 
     expect({
-      station: line.nodes.find((node) => node.id === "fix")?.station,
-      fromFix: edgesOn(line, "fix"),
+      fanout: line.nodes.find((node) => node.id === "split-sections")?.fanout,
+      body: line.nodes.find((node) => node.id === "write")?.station,
       intoSplit,
-      writer: stations["spec-write"].produces.map((out) => out.name),
     }).toEqual({
-      station: "spec-write",
-      fromFix: [
-        {
-          from: "fix",
-          to: "split-sections",
-          on: "success",
-          iteration_max: 45,
-        },
-        {
-          from: "fix",
-          to: "analyse-specs",
-          on: "changes_requested",
-          iteration_max: 1,
-        },
-        { from: "fix", to: "failed", on: "failed" },
-      ],
+      fanout: { over: "sections", to: "write" },
+      body: "spec-write",
       intoSplit: [
         "draft:success:-",
-        "write:success:12",
-        "fix:success:45",
+        "assemble:retry:2",
         "qa-gate:changes_requested:5",
       ],
-      writer: ["spec_review", "section_result"],
     });
   });
 
-  it("has split-sections read the plan blocks, its state, the pod's result and the gate's redo request, and produce the next section, its state and an empty result", () => {
+  it("has write read the target without writing it, take its section as the item, and produce a section patch the assemble join collects", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const assemble = stations.assemble;
+
+    expect({
+      target: needOf(stations["spec-write"], "target"),
+      item: needOf(stations["spec-write"], "item"),
+      produces: stations["spec-write"].produces,
+      collects: needOf(assemble, "section_patches"),
+      assembleOutcomes: assemble.outcomes,
+    }).toEqual({
+      target: { name: "target", kind: "git", path: "target", access: "read" },
+      item: { name: "item", kind: "value" },
+      produces: [
+        { name: "section_patch", kind: "file", path: "section-patch.json" },
+      ],
+      collects: {
+        name: "section_patches",
+        kind: "value",
+        collect: "section_patch",
+      },
+      assembleOutcomes: ["success", "retry", "failed"],
+    });
+  });
+
+  it("has split-sections read the plan blocks, its state and the gate's redo request, and produce the sections value it fans out over and its state", () => {
     const split = pipelineOf("feature-planning").stations["split-sections"];
 
     expect({
       outcomes: split.outcomes,
       needs: split.needs.map((need) => need.name),
-      produces: split.produces.map((out) => out.name),
+      produces: split.produces.map((out) => [out.name, out.kind]),
     }).toEqual({
-      outcomes: ["more", "redo", "done", "failed"],
-      needs: [
-        "plan_blocks",
-        "section_state",
-        "section_result",
-        "redo_sections",
+      outcomes: ["success", "failed"],
+      needs: ["plan_blocks", "section_state", "redo_sections"],
+      produces: [
+        ["sections", "value"],
+        ["section_state", "file"],
       ],
-      produces: ["section_state", "current_section", "section_result"],
     });
   });
 
@@ -1127,9 +1145,9 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("hands spec-write the citable plan blocks and the last coverage as optional files its prompt names", () => {
-    const write = pipelineOf("feature-planning").stations["spec-write"];
-    const prompt = promptOnOneLine("spec-write");
+  it("hands spec-rework the citable plan blocks and the last coverage as optional files its prompt names", () => {
+    const write = pipelineOf("feature-planning").stations["spec-rework"];
+    const prompt = promptOnOneLine("spec-rework");
 
     expect({
       blocks: needOf(write, "plan_blocks"),
@@ -1163,12 +1181,12 @@ describe("the feature-planning pipeline", () => {
     expect(subjectArgs).toEqual(["plan_id"]);
   });
 
-  it("gives spec-write git write access to target, guarded by the author node on every path in, and tells it to push its own commit", () => {
+  it("gives spec-rework git write access to target, guarded by the author node on every path in, and tells it to push its own commit", () => {
     const { stations } = pipelineOf("feature-planning");
 
     expect({
-      target: needOf(stations["spec-write"], "target"),
-      pushes: promptOnOneLine("spec-write").includes(
+      target: needOf(stations["spec-rework"], "target"),
+      pushes: promptOnOneLine("spec-rework").includes(
         "git -C /workspace/target push origin HEAD",
       ),
     }).toEqual({
@@ -1226,7 +1244,7 @@ describe("the feature-planning pipeline", () => {
       "plan-analyze",
       "plan-validate",
       "spec-analysis",
-      "spec-write",
+      "spec-rework",
       "feature-decompose",
     ];
 

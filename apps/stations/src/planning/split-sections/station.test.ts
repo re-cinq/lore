@@ -23,19 +23,12 @@ const CITABLE = {
   ],
 };
 const EMPTY_STATE = {
-  handed: null,
+  handed: [],
   done: [],
   failed: [],
   attempts: {},
   redo: [],
   redoRound: 0,
-};
-const INTEGRATED_SCOPE = {
-  section: "scope",
-  status: "integrated",
-  technical_additions: [
-    { claim: "Refunds use lore.refunds.", source: "db/0001.sql#L4" },
-  ],
 };
 
 function sceneOf(files: Record<string, unknown>) {
@@ -63,108 +56,97 @@ const brief = {
   needs: { plan_blocks: "blob://plan-blocks" },
 };
 
+const entriesOf = (report: { produced?: Record<string, string> }): string[] =>
+  JSON.parse(report.produced?.sections ?? "[]") as string[];
+
+const slotsOf = (report: { produced?: Record<string, string> }): string[] =>
+  entriesOf(report).map(
+    (entry) => (JSON.parse(entry) as { slot: string }).slot,
+  );
+
 const stateOf = (produced: Record<string, string>) =>
   JSON.parse(produced.section_state ?? "null");
 
 describe("splitSectionsHandle", () => {
-  it("reports more and hands over the scope section on the first visit", async () => {
+  it("lists every section with blocks as one entry each, in line order, and remembers what it handed out", async () => {
     const { tools, produced } = withBlocks();
 
     const report = await splitSectionsHandle()(brief, tools);
 
     expect({
-      report,
-      section: produced.current_section,
-      state: stateOf(produced),
+      outcome: report.outcome,
+      slots: slotsOf(report),
+      handed: stateOf(produced).handed,
     }).toEqual({
-      report: { outcome: "more" },
-      section: `## scope\n\nTechnical additions: required.\n\n- Billing is out. ([plan](${PLAN_URL}#b1))\n`,
-      state: { ...EMPTY_STATE, handed: "scope" },
+      outcome: "success",
+      slots: ["scope", "risk"],
+      handed: ["scope", "risk"],
     });
   });
 
-  it("clears section_result on every visit, so a pod that writes none is not read as the last one's", async () => {
-    const { tools, produced } = withBlocks();
+  it("gives each entry the section's text with the technical rule", async () => {
+    const { tools } = withBlocks();
 
-    await splitSectionsHandle()(brief, tools);
+    const [scope] = entriesOf(await splitSectionsHandle()(brief, tools));
 
-    expect(produced.section_result).toBe("");
-  });
-
-  it("settles the returned result and hands the risk section next", async () => {
-    const { tools, produced } = withBlocks({
-      section_state: { ...EMPTY_STATE, handed: "scope" },
-      section_result: INTEGRATED_SCOPE,
-    });
-
-    const report = await splitSectionsHandle()(brief, tools);
-
-    expect({ report, state: stateOf(produced) }).toEqual({
-      report: { outcome: "more" },
-      state: { ...EMPTY_STATE, done: ["scope"], handed: "risk" },
+    expect(JSON.parse(scope!)).toEqual({
+      slot: "scope",
+      text: `## scope\n\nTechnical additions: required.\n\n- Billing is out. ([plan](${PLAN_URL}#b1))\n`,
     });
   });
 
-  it("hands the same section again when the pod returned no result", async () => {
-    const { tools, produced } = withBlocks({
-      section_state: { ...EMPTY_STATE, handed: "scope" },
-    });
-
-    const report = await splitSectionsHandle()(brief, tools);
-
-    expect({ report, state: stateOf(produced) }).toEqual({
-      report: { outcome: "more" },
-      state: { ...EMPTY_STATE, handed: "scope", attempts: { scope: 1 } },
-    });
-  });
-
-  it("reports done once every section is settled", async () => {
-    const { tools, produced } = withBlocks({
-      section_state: { ...EMPTY_STATE, handed: "risk", done: ["scope"] },
-      section_result: { section: "risk", status: "nothing_relevant" },
-    });
-
-    const report = await splitSectionsHandle()(brief, tools);
-
-    expect({ report, state: stateOf(produced) }).toEqual({
-      report: { outcome: "done" },
-      state: { ...EMPTY_STATE, done: ["scope", "risk"] },
-    });
-  });
-
-  it("reports redo with the section the gate sent back", async () => {
-    const { tools, produced } = withBlocks({
-      section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
-      redo_sections: { round: 1, sections: ["scope"] },
-    });
-
-    const report = await splitSectionsHandle()(brief, tools);
-
-    expect({
-      report,
-      section: produced.current_section?.startsWith("## scope"),
-      state: stateOf(produced),
-    }).toEqual({
-      report: { outcome: "redo" },
-      section: true,
-      state: {
+  it("lists only the sections not yet done when a section had to be tried again", async () => {
+    const { tools } = withBlocks({
+      section_state: {
         ...EMPTY_STATE,
-        done: ["scope", "risk"],
-        redo: ["scope"],
-        redoRound: 1,
-        handed: "scope",
+        done: ["risk"],
+        attempts: { scope: 1 },
       },
     });
-  });
-
-  it("reports done and produces nothing when the deployment hands the run no plan blocks", async () => {
-    const { tools, produced } = sceneOf({});
 
     const report = await splitSectionsHandle()(brief, tools);
 
-    expect({ report, produced }).toEqual({
-      report: { outcome: "done" },
-      produced: {},
+    expect(slotsOf(report)).toEqual(["scope"]);
+  });
+
+  it("lists only the sections the gate sent back, and remembers its round", async () => {
+    const { tools, produced } = withBlocks({
+      section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
+      redo_sections: { round: 1, sections: ["risk"] },
+    });
+
+    const report = await splitSectionsHandle()(brief, tools);
+
+    expect({
+      slots: slotsOf(report),
+      round: stateOf(produced).redoRound,
+    }).toEqual({
+      slots: ["risk"],
+      round: 1,
+    });
+  });
+
+  it("lists nothing when every section is settled", async () => {
+    const { tools } = withBlocks({
+      section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
+    });
+
+    const report = await splitSectionsHandle()(brief, tools);
+
+    expect(report).toEqual({
+      outcome: "success",
+      produced: { sections: "[]" },
+    });
+  });
+
+  it("lists nothing when the deployment hands the run no plan blocks", async () => {
+    const { tools } = sceneOf({});
+
+    const report = await splitSectionsHandle()(brief, tools);
+
+    expect(report).toEqual({
+      outcome: "success",
+      produced: { sections: "[]" },
     });
   });
 });

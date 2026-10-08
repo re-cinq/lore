@@ -357,11 +357,11 @@ describe("the feature-planning recipe", () => {
     });
   });
 
-  it("hands the spec-write recipe the analysis through a {spec_plan} slot and tells it to amend the statements named there rather than guess from plan.md (#2175)", () => {
-    const prompt = promptOnOneLine("spec-write");
+  it("hands the spec-rework recipe the analysis through a {spec_plan} slot and tells it to amend the statements named there rather than guess from plan.md (#2175)", () => {
+    const prompt = promptOnOneLine("spec-rework");
 
     expect({
-      slot: promptOf("spec-write").includes("{spec_plan_path}"),
+      slot: promptOf("spec-rework").includes("{spec_plan_path}"),
       amendInPlace: prompt.includes(
         "amend that statement rather than adding a rival beside it",
       ),
@@ -452,24 +452,31 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ writes: true, bounded: true, draft: true, write: true });
   });
 
-  it("has spec-write return a section result file, bring technical facts only when told they are required, and fix only the failures tagged with its section", () => {
+  it("has spec-write return a patch for its one section and edit nothing, bring technical facts only when told they are required, and fix only the failures tagged with its section", () => {
     const prompt = promptOnOneLine("spec-write");
 
     expect({
-      result: promptOf("spec-write").includes("{section_result_path}"),
-      statuses: prompt.includes("integrated"),
-      onlyWhenRequired: prompt.includes("Technical additions: required"),
+      item: promptOf("spec-write").includes("{item}"),
+      patchFile: promptOf("spec-write").includes("{section_patch_path}"),
+      patch: prompt.includes("you return a PATCH"),
+      readOnly: prompt.includes("read-only") && !prompt.includes("git push"),
+      required: prompt.includes("Technical additions: required"),
       noFiller: prompt.includes("add no filler"),
       ownSection: prompt.includes("tagged with your section"),
+      operations:
+        prompt.includes('"op":"append"') && prompt.includes('"op":"amend"'),
       oldRetryRule: prompt.includes(
         'end it with `LORE_NODE_RESULT: {"outcome":"changes_requested"}`',
       ),
     }).toEqual({
-      result: true,
-      statuses: true,
-      onlyWhenRequired: true,
+      item: true,
+      patchFile: true,
+      patch: true,
+      readOnly: true,
+      required: true,
       noFiller: true,
       ownSection: true,
+      operations: true,
       oldRetryRule: false,
     });
   });
@@ -506,8 +513,8 @@ describe("the feature-planning recipe", () => {
     });
   });
 
-  it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
-    const prompt = promptOnOneLine("spec-write");
+  it("has the spec-rework recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
+    const prompt = promptOnOneLine("spec-rework");
 
     expect({
       specTemplate: prompt.includes(".specify/templates/spec-template.md"),
@@ -554,8 +561,8 @@ describe("the feature-planning recipe", () => {
     });
   });
 
-  it("tells the spec-write recipe to answer a spec review item by item — amend what the plan settled, send what contradicts it to the plan as a question — and to always write spec-review-result.json", () => {
-    const prompt = promptOnOneLine("spec-write");
+  it("tells the spec-rework recipe to answer a spec review item by item — amend what the plan settled, send what contradicts it to the plan as a question — and to always write spec-review-result.json", () => {
+    const prompt = promptOnOneLine("spec-rework");
 
     expect({
       addressed: prompt.includes('"action": "addressed"'),
@@ -634,8 +641,8 @@ describe("the planning recipes check a plan against what the platform has (issue
     }).toEqual({ category: true, searched: true, guide: true, blocker: true });
   });
 
-  it("has spec-write commit only when every named mechanism exists or is tasked, every listed file has a task, same-file tasks chain and each task names its test", () => {
-    const prompt = promptOnOneLine("spec-write");
+  it("has spec-rework commit only when every named mechanism exists or is tasked, every listed file has a task, same-file tasks chain and each task names its test", () => {
+    const prompt = promptOnOneLine("spec-rework");
 
     expect({
       readsGuide: prompt.includes("4. `.lore/assembly-line-guide.md`"),
@@ -695,8 +702,8 @@ describe("the planning recipes check a plan against what the platform has (issue
     }).toEqual({ named: true, missing: [] });
   });
 
-  it("has spec-write rewrite every statement listed under Not on main from the code on its branch", () => {
-    const prompt = promptOnOneLine("spec-write");
+  it("has spec-rework rewrite every statement listed under Not on main from the code on its branch", () => {
+    const prompt = promptOnOneLine("spec-rework");
 
     expect({
       heading: prompt.includes('lists names under "Not on main"'),
@@ -707,8 +714,8 @@ describe("the planning recipes check a plan against what the platform has (issue
     }).toEqual({ heading: true, fromCode: true, neverKeep: true });
   });
 
-  it("has spec-write split a compound requirement one MUST per statement and back an unbacked success criterion", () => {
-    const prompt = promptOnOneLine("spec-write");
+  it("has spec-rework split a compound requirement one MUST per statement and back an unbacked success criterion", () => {
+    const prompt = promptOnOneLine("spec-rework");
 
     expect({
       compound: prompt.includes(
