@@ -67,14 +67,14 @@ const brief = {
 };
 
 describe("qaGateHandle", () => {
-  it("reports success and produces no failures when every answer and note is true", async () => {
+  it("reports success and clears qa_failures with an empty file when every answer and note is true", async () => {
     const { handle, tools, produced } = scene();
 
     const report = await handle(brief, tools);
 
     expect({ report, produced }).toEqual({
       report: { outcome: "success" },
-      produced: {},
+      produced: { qa_failures: "" },
     });
   });
 

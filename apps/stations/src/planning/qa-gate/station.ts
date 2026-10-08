@@ -42,9 +42,9 @@ async function judged(
   ]);
   const verdict = qaGate(bag, spent, checks?.gaps ?? 0);
 
+  // The bag never drops a key: an empty file is how a round with no failures clears the last round's.
   await Promise.all([
-    verdict.failures.length > 0 &&
-      tools.produce("qa_failures", failureBrief(verdict.failures)),
+    tools.produce("qa_failures", failureBrief(verdict.failures)),
     checks && tools.produce("plan_coverage", checks.brief),
   ]);
 

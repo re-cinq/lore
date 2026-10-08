@@ -49,7 +49,7 @@ out of bounds.
 
 Write the specs it calls for. Do not implement code.
 
-## Staged writing (when `/workspace/current-section.md` or `/workspace/qa-failures.md` exists)
+## Staged writing (when `/workspace/current-section.md` or a non-empty `/workspace/qa-failures.md` exists)
 
 The draft already exists on the branch, written from the plan's
 intent; you are now improving it, one step at a time, and the rules
@@ -67,7 +67,7 @@ above apply to everything you write. Read the spec as it stands first.
   stated as added by this feature). A visit that adds none and does
   not say why has not done its job: end it with
   `LORE_NODE_RESULT: {"outcome":"changes_requested"}`.
-- `/workspace/qa-failures.md` lists blind checks the spec failed:
+- `/workspace/qa-failures.md`, when it has content (an empty file means nothing failed), lists blind checks the spec failed:
   questions its answerer could not confirm from the spec, and plan
   comments or questions it does not reflect. Fix the spec so each one
   holds, with the facts from the plan, and ignore `current-section.md`

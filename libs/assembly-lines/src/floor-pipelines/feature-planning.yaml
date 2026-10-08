@@ -644,6 +644,10 @@ stations:
       - name: plan_coverage
         kind: file
         optional: true
+      # What qa-gate still finds failing once its rounds are spent; empty when none.
+      - name: qa_failures
+        kind: file
+        optional: true
     produces:
       - name: pr_url
         kind: value
