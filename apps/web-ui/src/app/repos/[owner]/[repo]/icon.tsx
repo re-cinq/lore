@@ -13,23 +13,21 @@ export default async function Icon({ params }: RepoIconProps) {
   const { initials, backgroundColor } = repoFavicon(owner, repo);
 
   return new ImageResponse(
-    (
-      <div
-        style={{
-          alignItems: "center",
-          background: backgroundColor,
-          color: "white",
-          display: "flex",
-          fontSize: 30,
-          fontWeight: 700,
-          height: "100%",
-          justifyContent: "center",
-          width: "100%",
-        }}
-      >
-        {initials}
-      </div>
-    ),
+    <div style={badgeStyle(backgroundColor)}>{initials}</div>,
     size,
   );
+}
+
+function badgeStyle(backgroundColor: string) {
+  return {
+    alignItems: "center",
+    background: backgroundColor,
+    color: "white",
+    display: "flex",
+    fontSize: 30,
+    fontWeight: 700,
+    height: "100%",
+    justifyContent: "center",
+    width: "100%",
+  } as const;
 }

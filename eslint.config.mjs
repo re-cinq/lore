@@ -423,7 +423,9 @@ export default tseslint.config(
 
   // SVG transforms and measured iframe heights are computed per render — there is
   // no class that can express them, so these turn the style rule off by path
-  // rather than accumulating inline disables.
+  // rather than accumulating inline disables. Next.js `icon.tsx` metadata routes
+  // are the same situation: `next/og`'s `ImageResponse` renders through Satori,
+  // which only accepts inline style objects — there is no stylesheet it can read.
   {
     files: [
       "apps/web-ui/src/app/repos/**/graph/**",
@@ -431,6 +433,7 @@ export default tseslint.config(
       // class, so the bracketed form silently matched nothing and the file kept
       // reporting.
       "apps/web-ui/src/app/repos/**/features/*/MockupSection.tsx",
+      "apps/web-ui/src/app/**/icon.tsx",
     ],
     rules: { "re-lint/no-inline-styles": "off" },
   },
