@@ -37,7 +37,7 @@ COPY --from=builder /app/libs/assembly-lines/package.json ./libs/assembly-lines/
 COPY --from=builder /app/libs/shared ./libs/shared
 # The whole package for the same reason: npm nests a dependency under
 # apps/stations/node_modules when the root holds another version of it
-# (@re-cinq/floor-station 0.1.9 beside the client's 0.1.11, 2026-10-08).
+# (e.g. @re-cinq/floor-station, #2638).
 COPY --from=builder /app/apps/stations ./apps/stations
 
 # node:22-slim ships the `node` user at uid 1000 (matches the pod securityContext).
