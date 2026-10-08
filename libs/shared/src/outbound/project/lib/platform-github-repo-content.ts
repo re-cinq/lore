@@ -195,13 +195,13 @@ export async function branchMerged(
   const { repos } = ok.rest;
 
   try {
-    const { data } = await repos.compareCommitsWithBasehead({
+    const { data: comparison } = await repos.compareCommitsWithBasehead({
       owner,
       repo: name,
       basehead: `main...${branch}`,
     });
 
-    return data.status === "behind" || data.status === "identical";
+    return comparison.status === "behind" || comparison.status === "identical";
   } catch {
     return undefined;
   }
