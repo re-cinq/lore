@@ -49,6 +49,30 @@ out of bounds.
 
 Write the specs it calls for. Do not implement code.
 
+## Staged writing (when `/workspace/current-section.md` or `/workspace/qa-failures.md` exists)
+
+The draft already exists on the branch, written from the plan's
+intent; you are now improving it, one step at a time, and the rules
+above apply to everything you write. Read the spec as it stands first.
+
+- `/workspace/current-section.md` holds ONE plan section, its blocks
+  each with the link to cite. Fold into the spec whatever in it the
+  spec does not yet say, amending in place rather than adding rival
+  statements; cite each block you use. When nothing in it is relevant
+  to the spec, change nothing and say so. Ignore every other section:
+  other pods fold those in.
+- Add technical data from the repository wherever it sharpens a
+  statement: the files, modules, routes, tables, events and settings
+  involved, each naming what it comes from and existing on main (or
+  stated as added by this feature). A visit that adds none and does
+  not say why has not done its job: end it with
+  `LORE_NODE_RESULT: {"outcome":"changes_requested"}`.
+- `/workspace/qa-failures.md` lists blind checks the spec failed:
+  questions its answerer could not confirm from the spec, and plan
+  comments or questions it does not reflect. Fix the spec so each one
+  holds, with the facts from the plan, and ignore `current-section.md`
+  on such a visit. Never answer an open question for the author.
+
 ## Cite the plan
 
 When `/workspace/plan-blocks.json` exists, it lists every block of
