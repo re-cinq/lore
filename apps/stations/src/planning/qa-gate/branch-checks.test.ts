@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Tools } from "@re-cinq/floor-station";
+import type { Handle } from "@re-cinq/floor-station";
+import { visitBag } from "../visit-bag.fixtures.js";
 import { qaGateHandle } from "./station.js";
 import type { CoverageDeps, RunVisit } from "../coverage-deps.js";
 
@@ -61,7 +62,6 @@ const NAMES_THE_TICK = [
 ].join("\n");
 
 function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
-  const produced: Record<string, string> = {};
   const reads: string[] = [];
   const files: Record<string, string> = {
     spec_plan: JSON.stringify({
@@ -71,14 +71,7 @@ function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
     qa_questions: "[]",
     qa_answers: "[]",
   };
-  const tools: Tools = {
-    read: async (need) => Buffer.from(files[need] ?? ""),
-    produce: async (name, bytes) => {
-      produced[name] = bytes.toString();
-    },
-    modelCall: async () => {},
-    signal: new AbortController().signal,
-  };
+  const { tools, produced, given } = visitBag(files);
   const deps: CoverageDeps = {
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
@@ -96,7 +89,10 @@ function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
     filedCoverage: async () => null,
   };
 
-  return { handle: qaGateHandle(deps), tools, produced, reads };
+  const gate = qaGateHandle(deps);
+  const handle: Handle = (brief, visitTools) => gate(given(brief), visitTools);
+
+  return { handle, tools, produced, reads };
 }
 
 function brief(needs: Record<string, string> = NEEDS) {

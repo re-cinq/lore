@@ -2,6 +2,7 @@
 
 import {
   defineStation,
+  type Brief,
   type Handle,
   type RunningStation,
   type Tools,
@@ -13,13 +14,14 @@ import {
   type RedoRequest,
   type SectionState,
 } from "@re-cinq/lore-shared/feature-planning/spec-sections.js";
+import { optionalNeedText } from "../../domain/need-text.js";
 
 export function splitSectionsHandle(): Handle {
-  return async (_brief, tools) => {
+  return async (brief, tools) => {
     const [plan, state, redo] = await Promise.all([
-      readJson<CitablePlan>(tools, "plan_blocks"),
-      readJson<SectionState>(tools, "section_state"),
-      readJson<RedoRequest>(tools, "redo_sections"),
+      readJson<CitablePlan>(brief, tools, "plan_blocks"),
+      readJson<SectionState>(brief, tools, "section_state"),
+      readJson<RedoRequest>(brief, tools, "redo_sections"),
     ]);
     const round = plan
       ? startRound(plan, state ?? emptySectionState(), redo)
@@ -35,11 +37,16 @@ export function splitSectionsHandle(): Handle {
   };
 }
 
-async function readJson<T>(tools: Tools, need: string): Promise<T | null> {
-  const text = (await tools.read(need)).toString("utf8");
+/** An optional need, as JSON; null when the bag holds none yet (the first round) or it is not JSON. */
+async function readJson<T>(
+  brief: Brief,
+  tools: Tools,
+  need: string,
+): Promise<T | null> {
+  const text = await optionalNeedText(brief.needs, tools, need);
 
   try {
-    return text === "" ? null : (JSON.parse(text) as T);
+    return text ? (JSON.parse(text) as T) : null;
   } catch {
     return null;
   }

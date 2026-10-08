@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Tools } from "@re-cinq/floor-station";
+import { visitBag } from "../visit-bag.fixtures.js";
 import { splitSectionsHandle } from "./station.js";
 
 const PLAN_URL = "https://lore.example/plans/p1";
@@ -32,29 +32,22 @@ const EMPTY_STATE = {
 };
 
 function sceneOf(files: Record<string, unknown>) {
-  const produced: Record<string, string> = {};
   const text = (value: unknown) =>
     typeof value === "string" ? value : JSON.stringify(value);
-  const tools: Tools = {
-    read: async (need) => Buffer.from(need in files ? text(files[need]) : ""),
-    produce: async (name, bytes) => {
-      produced[name] = bytes.toString();
-    },
-    modelCall: async () => {},
-    signal: new AbortController().signal,
-  };
+  const bag = visitBag(
+    {},
+    Object.fromEntries(
+      Object.entries(files).map(([name, value]) => [name, text(value)]),
+    ),
+  );
 
-  return { tools, produced };
+  return { ...bag, brief: bag.given(BRIEF) };
 }
 
 const withBlocks = (files: Record<string, unknown> = {}) =>
   sceneOf({ plan_blocks: CITABLE, ...files });
 
-const brief = {
-  visitId: "visit-split",
-  iteration: 1,
-  needs: { plan_blocks: "blob://plan-blocks" },
-};
+const BRIEF = { visitId: "visit-split", iteration: 1, needs: {} };
 
 const entriesOf = (report: { produced?: Record<string, string> }): string[] =>
   JSON.parse(report.produced?.sections ?? "[]") as string[];
@@ -69,7 +62,7 @@ const stateOf = (produced: Record<string, string>) =>
 
 describe("splitSectionsHandle", () => {
   it("lists every section with blocks as one entry each, in line order, and remembers what it handed out", async () => {
-    const { tools, produced } = withBlocks();
+    const { tools, produced, brief } = withBlocks();
 
     const report = await splitSectionsHandle()(brief, tools);
 
@@ -85,7 +78,7 @@ describe("splitSectionsHandle", () => {
   });
 
   it("gives each entry the section's text with the technical rule", async () => {
-    const { tools } = withBlocks();
+    const { tools, brief } = withBlocks();
 
     const [scope] = entriesOf(await splitSectionsHandle()(brief, tools));
 
@@ -96,7 +89,7 @@ describe("splitSectionsHandle", () => {
   });
 
   it("lists only the sections not yet done when a section had to be tried again", async () => {
-    const { tools } = withBlocks({
+    const { tools, brief } = withBlocks({
       section_state: {
         ...EMPTY_STATE,
         done: ["risk"],
@@ -110,7 +103,7 @@ describe("splitSectionsHandle", () => {
   });
 
   it("lists only the sections the gate sent back, and remembers its round", async () => {
-    const { tools, produced } = withBlocks({
+    const { tools, produced, brief } = withBlocks({
       section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
       redo_sections: { round: 1, sections: ["risk"] },
     });
@@ -127,7 +120,7 @@ describe("splitSectionsHandle", () => {
   });
 
   it("lists nothing when every section is settled", async () => {
-    const { tools } = withBlocks({
+    const { tools, brief } = withBlocks({
       section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
     });
 
@@ -140,7 +133,7 @@ describe("splitSectionsHandle", () => {
   });
 
   it("lists nothing when the deployment hands the run no plan blocks", async () => {
-    const { tools } = sceneOf({});
+    const { tools, brief } = sceneOf({});
 
     const report = await splitSectionsHandle()(brief, tools);
 

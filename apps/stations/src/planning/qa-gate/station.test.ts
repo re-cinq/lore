@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Tools } from "@re-cinq/floor-station";
+import type { Handle } from "@re-cinq/floor-station";
+import { visitBag } from "../visit-bag.fixtures.js";
 import { qaGateHandle } from "./station.js";
 import type { CoverageDeps } from "../coverage-deps.js";
 
@@ -50,16 +51,10 @@ interface Scene {
 }
 
 function scene(options: Scene = {}) {
-  const produced: Record<string, string> = {};
-  const files = filesOf(options);
-  const tools: Tools = {
-    read: async (need) => Buffer.from(files[need] ?? ""),
-    produce: async (name, bytes) => {
-      produced[name] = bytes.toString();
-    },
-    modelCall: async () => {},
-    signal: new AbortController().signal,
-  };
+  const { tools, produced, given } = visitBag(
+    filesOf(options),
+    optionalFilesOf(options),
+  );
   const deps: CoverageDeps = {
     readSpec: async (_repo, path) =>
       path === SPEC_PATH ? (options.spec ?? null) : null,
@@ -68,21 +63,24 @@ function scene(options: Scene = {}) {
     visitsOf: async () => visitsOf(options),
   };
 
-  return { handle: qaGateHandle(deps), tools, produced };
+  const gate = qaGateHandle(deps);
+  const handle: Handle = (brief, visitTools) => gate(given(brief), visitTools);
+
+  return { handle, tools, produced };
 }
 
 function filesOf(options: Scene): Record<string, string> {
-  const {
-    questions = QUESTIONS,
-    answers = ANSWERS,
-    recheck,
-    history,
-  } = options;
+  const { questions = QUESTIONS, answers = ANSWERS } = options;
 
   return {
     qa_questions: JSON.stringify(questions),
     qa_answers: options.raw ?? JSON.stringify(answers),
     spec_plan: JSON.stringify({ creates: [{ path: SPEC_PATH }] }),
+  };
+}
+
+function optionalFilesOf({ recheck, history }: Scene): Record<string, string> {
+  return {
     ...(recheck && { qa_recheck_answers: JSON.stringify(recheck) }),
     ...(history && { qa_history: JSON.stringify(history) }),
   };
