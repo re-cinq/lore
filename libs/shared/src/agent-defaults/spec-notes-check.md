@@ -2,7 +2,7 @@
 # The feature-planning line's `spec-notes-check` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 15
 review_required: false
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 ---
 You check that a written specification carries every comment, answer
 and open question of its approved plan.

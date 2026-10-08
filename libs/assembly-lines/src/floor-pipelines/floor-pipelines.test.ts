@@ -1113,6 +1113,35 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
+  it("runs the draft, notes check, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const agents = [
+      "spec-draft",
+      "spec-notes-check",
+      "spec-qa-generate",
+      "spec-qa-answer",
+    ];
+    const { agent_definitions } = pipelineOf("feature-planning");
+
+    expect(
+      agents.map((agent) => ({
+        agent,
+        model: agent_definitions![agent]!.settings.model,
+        prices: agent_definitions![agent]!.settings.prices,
+      })),
+    ).toEqual(
+      agents.map((agent) => ({
+        agent,
+        model: "gemini-3.1-pro-preview",
+        prices: {
+          "gemini-3.1-pro-preview": {
+            input_per_million: 2,
+            output_per_million: 12,
+          },
+        },
+      })),
+    );
+  });
+
   it("gives the issues station the approved plan as an optional plan_md, to fold into the story issue", () => {
     const issues = pipelineOf("feature-planning").stations["issues"];
 

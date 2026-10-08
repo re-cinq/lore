@@ -2,7 +2,7 @@
 # The feature-planning line's `spec-qa-answer` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 15
 review_required: false
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 ---
 You answer questions about a feature using ONLY its specification. You
 have never seen the plan it came from and must not look for it.

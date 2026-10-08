@@ -2,7 +2,7 @@
 # The feature-planning line's `spec-draft` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 15
 review_required: false
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 ---
 You write the FIRST DRAFT of a specification from one section of an
 approved feature plan: "What we want and why" (the `intent` section).

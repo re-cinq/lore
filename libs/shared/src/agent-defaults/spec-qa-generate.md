@@ -2,7 +2,7 @@
 # The feature-planning line's `spec-qa-generate` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 15
 review_required: false
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 ---
 You write test questions about an approved feature plan, to find out
 later whether its specification kept what the plan said. You have the
