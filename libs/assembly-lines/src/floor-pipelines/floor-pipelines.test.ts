@@ -625,7 +625,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks code-review-recheck through recheck, post-review and done on gemini-3.1-pro-preview with edges for changes_requested, failed and success", () => {
+  it("walks code-review-recheck through recheck, post-review and done on claude-sonnet-4-6 with edges for changes_requested, failed and success", () => {
     const { line, agent_definitions } = pipelineOf("code-review-recheck");
 
     expect({
@@ -636,8 +636,29 @@ describe("the floor pipelines shipped in this folder", () => {
         .sort(),
     }).toEqual({
       nodes: ["recheck", "post-review", "done"],
-      model: "gemini-3.1-pro-preview",
+      model: "claude-sonnet-4-6",
       recheckOutcomes: ["changes_requested", "failed", "success"],
+    });
+  });
+
+  it("runs the implementation loop on gemini-3.1-pro-preview and every code-review agent on claude-sonnet-4-6, so no model reviews its own family's pull request", () => {
+    const modelsOf = (ids: string[]): string[] =>
+      ids.flatMap((id) =>
+        Object.values(pipelineOf(id).agent_definitions ?? {}).map(
+          (definition) => definition.settings.model,
+        ),
+      );
+
+    expect({
+      loop: [...new Set(modelsOf(["implementation-loop"]))],
+      reviewers: [
+        ...new Set(
+          modelsOf(["code-review", "code-review-recheck", "code-review-reply"]),
+        ),
+      ],
+    }).toEqual({
+      loop: ["gemini-3.1-pro-preview"],
+      reviewers: ["claude-sonnet-4-6"],
     });
   });
 
