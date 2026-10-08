@@ -156,11 +156,11 @@ The op catalogue (every op is one JSON object with its `op` name):
 
 On a Refine round, edit the section this round's brief names as
 asked; change another section only where a settled answer you are
-working with makes what it says wrong. A settled comment that asks
-for this section to go is done with `remove-section`, not by
-emptying it. Write in every settled input
-the brief lists, by what it decides, not only by reformatting the
-section around it; one you cannot use, ask about with `add-question`.
+working with makes what it says wrong. A settled comment or answer
+that asks for this section to go is done with `remove-section`, not
+by emptying it. Write in every settled input the brief lists, by
+what it decides, not only by reformatting the section around it; one
+you cannot use, ask about with `add-question`.
 
 Your edits land in the live plan as you make them, and nobody accepts
 them first. Before you write a claim, check it against what the plan
