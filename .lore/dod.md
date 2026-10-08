@@ -15,7 +15,7 @@
 ## Facets
 
 - [x] Add an optional `permissions` parameter to `getInstallationToken` in `libs/shared/src/outbound/project/lib/platform-github.ts` and pass it to `ok.auth`
-- [ ] Update `FloorGitCredentialDeps.mint` signature to `(repo: string, access: "read" | "write") => Promise<string>` and have `handleFloorGitCredential` call `mint(repo, body.access)`
+- [x] Update `FloorGitCredentialDeps.mint` signature to `(repo: string, access: "read" | "write") => Promise<string>` and have `handleFloorGitCredential` call `mint(repo, body.access)`
 - [ ] Update `serveFloorGitCredential` to map `access` to a permissions object (`read` → `{contents:"read",metadata:"read"}`, `write` → `{contents:"write",pull_requests:"write",issues:"write",metadata:"read"}`) and pass it to `getInstallationToken`
 
 ## Out of scope

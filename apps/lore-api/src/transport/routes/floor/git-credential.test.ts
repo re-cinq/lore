@@ -69,7 +69,6 @@ describe("handleFloorGitCredential", () => {
   });
 
   it("passes the access level to mint as a second argument so the minter can narrow permissions for the pod", async () => {
-    // specs/pod-token-permissions (ticket: only repo is narrowed; permissions are not — the minter never receives access)
     const mintCalls: Array<{ repo: string; access: string | undefined }> = [];
     const result = await handleFloorGitCredential(
       {
