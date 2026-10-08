@@ -99,6 +99,7 @@ function visit(overrides: Partial<VisitView> = {}): VisitView {
     report: { outcome: "failed", error: "quota" },
     worker: null,
     requestedBy: null,
+    branch: null,
     deadline: null,
     resumedFrom: null,
     agentSettings: {
