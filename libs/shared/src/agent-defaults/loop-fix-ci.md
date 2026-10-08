@@ -3,7 +3,7 @@
 timeout_minutes: 45
 review_required: false
 execution_mode: claude-code
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 ---
 The pull request for this ticket has a RED build. Your job is to make it
 green, on the branch you are already on, and nothing else.

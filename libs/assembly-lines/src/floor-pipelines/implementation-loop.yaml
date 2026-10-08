@@ -387,9 +387,13 @@ stations:
 agent_definitions:
   loop-dod:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 60
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:
@@ -411,9 +415,13 @@ agent_definitions:
             headers_secret: lore-mcp-auth
   loop-tdd-round:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 60
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:
@@ -434,9 +442,13 @@ agent_definitions:
             headers_secret: lore-mcp-auth
   loop-pr-ready:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 20
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:
@@ -459,9 +471,13 @@ agent_definitions:
           LORE_TEST_POLICY: none
   loop-fix-ci:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 45
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:
