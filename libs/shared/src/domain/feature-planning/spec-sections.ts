@@ -42,7 +42,7 @@ export const sectionOpSchema = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("amend"),
     file: z.string().optional(),
-    find: z.string(),
+    find: z.string().min(1),
     replace: z.string(),
   }),
 ]);
@@ -164,8 +164,6 @@ export function alignPatches(
 
 export interface Settled {
   state: SectionState;
-  /** The patches whose sections are done, in the order they were handed, ready to apply. */
-  accepted: SectionPatch[];
   /** Some section was neither done nor given up on, so another round should run. */
   retry: boolean;
 }
@@ -177,15 +175,14 @@ export function settleRound(
   failedOps: Record<string, number>,
 ): Settled {
   const owing = TECHNICAL_SLOTS.filter((owed) => !state.redo.includes(owed));
-  const start: Settled = { state, accepted: [], retry: false };
+  const start: Settled = { state, retry: false };
 
   return state.handed.reduce<Settled>(
     (settled, slot, index) => {
       const patch = patches[index] ?? null;
-      const taken = isAccepted(slot, patch, owing, failedOps);
 
-      return taken && patch
-        ? accept(settled, slot, patch)
+      return isAccepted(slot, patch, owing, failedOps)
+        ? accept(settled, slot)
         : giveBack(settled, slot);
     },
     { ...start, state: { ...state, handed: [] } },
@@ -221,12 +218,11 @@ function usable(
   );
 }
 
-function accept(settled: Settled, slot: string, patch: SectionPatch): Settled {
+function accept(settled: Settled, slot: string): Settled {
   const { state } = settled;
 
   return {
     ...settled,
-    accepted: [...settled.accepted, patch],
     state: {
       ...state,
       done: added(state.done, slot),
@@ -322,7 +318,7 @@ function applyOp(text: string, op: SectionOp): string | null {
     return appendUnder(text, op.heading, op.text);
   }
 
-  return text.split(op.find).length === 2 && op.find !== ""
+  return text.split(op.find).length === 2
     ? text.replace(op.find, () => op.replace)
     : null;
 }

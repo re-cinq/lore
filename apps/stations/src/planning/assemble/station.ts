@@ -162,8 +162,7 @@ async function commitChanged(
   }: { before: Record<string, string>; after: Record<string, string> },
   patches: readonly (SectionPatch | null)[],
 ): Promise<void> {
-  const sections = present(patches).map((patch) => patch.section);
-  const message = `Fold plan sections into the spec: ${sections.join(", ")}`;
+  const message = commitMessage(present(patches));
   const changed = Object.keys(after).filter(
     (path) => after[path] !== before[path],
   );
@@ -171,6 +170,15 @@ async function commitChanged(
   for (const path of changed) {
     await deps.commitSpec(repo, branch, { path, text: after[path]! }, message);
   }
+}
+
+/** Names the sections that had something to fold in; one that found nothing relevant changed nothing. */
+function commitMessage(patches: readonly SectionPatch[]): string {
+  const changing = patches.filter(
+    (patch) => patch.status !== "nothing_relevant",
+  );
+
+  return `Fold plan sections into the spec: ${changing.map((patch) => patch.section).join(", ")}`;
 }
 
 export function startAssembleStation(): RunningStation {

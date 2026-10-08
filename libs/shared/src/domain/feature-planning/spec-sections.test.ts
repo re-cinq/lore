@@ -63,6 +63,16 @@ describe("sectionPatchSchema", () => {
     });
   });
 
+  it("rejects an amend that has nothing to find", () => {
+    expect(() =>
+      sectionPatchSchema.parse({
+        section: "risk",
+        status: "integrated",
+        ops: [{ op: "amend", find: "", replace: "x" }],
+      }),
+    ).toThrow();
+  });
+
   it("rejects an operation that is neither append nor amend", () => {
     expect(() =>
       sectionPatchSchema.parse({
@@ -174,14 +184,9 @@ describe("settleRound", () => {
   it("marks a section done when its pod integrated it with technical additions", () => {
     const settled = settleRound(handed("scope"), [patch()], {});
 
-    expect({
-      done: settled.state.done,
-      retry: settled.retry,
-      accepted: settled.accepted.length,
-    }).toEqual({
+    expect({ done: settled.state.done, retry: settled.retry }).toEqual({
       done: ["scope"],
       retry: false,
-      accepted: 1,
     });
   });
 

@@ -103,6 +103,17 @@ describe("assembleHandle", () => {
     });
   });
 
+  it("leaves a section that found nothing relevant out of the commit message", async () => {
+    const quiet = patch("risk", [], { status: "nothing_relevant" });
+    const { handle, tools, brief, committed } = scene([scope, quiet]);
+
+    await handle(brief, tools);
+
+    expect(committed[0]?.message).toBe(
+      "Fold plan sections into the spec: scope",
+    );
+  });
+
   it("marks the settled sections done and clears what was handed", async () => {
     const { handle, tools, brief, produced } = scene([scope, risk]);
 
