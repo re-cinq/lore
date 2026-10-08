@@ -437,6 +437,21 @@ describe("the feature-planning recipe", () => {
     });
   });
 
+  it("has spec-analysis write one bounded repo-context file, and draft and write start from it instead of exploring the repository again", () => {
+    const analysis = promptOnOneLine("spec-analysis");
+
+    expect({
+      writes: promptOf("spec-analysis").includes("{repo_context_path}"),
+      bounded: analysis.includes("at most 24,000 characters"),
+      draft: promptOnOneLine("spec-draft").includes(
+        "Start from `/workspace/repo-context.md`",
+      ),
+      write: promptOnOneLine("spec-write").includes(
+        "Start from `/workspace/repo-context.md`",
+      ),
+    }).toEqual({ writes: true, bounded: true, draft: true, write: true });
+  });
+
   it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
     const prompt = promptOnOneLine("spec-write");
 

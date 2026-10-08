@@ -29,6 +29,16 @@ The file `spec-plan.json`, written at exactly `{spec_plan_path}`. Nothing
 you print is read except the outcome line below; the FILE is the
 deliverable, and a run that ends without a valid one has failed.
 
+You are also the ONE exploration of the repository this run makes: the
+agents after you start from what you found instead of exploring again.
+Write it as `repo-context.md` at exactly `{repo_context_path}`: at most
+24,000 characters, one heading per plan section that touches the code
+(`scope`, `constraints`, `delivery`, `risk`, `trigger`), and under each
+the files, modules, routes, tables, events and settings the plan's
+points concern, each as `path#Lnn — what it is`. Name only what exists
+on main; mark anything the plan expects to add as "(not on main)". Facts
+and locations only: no opinions, and nothing the plan does not touch.
+
 After EVERY write, run:
 
     jq empty {spec_plan_path}

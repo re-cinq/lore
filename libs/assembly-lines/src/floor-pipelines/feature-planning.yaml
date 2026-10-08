@@ -463,6 +463,10 @@ stations:
       - name: spec_plan
         kind: file
         path: spec-plan.json
+      # The one exploration of the repository the later agents start from.
+      - name: repo_context
+        kind: file
+        path: repo-context.md
   spec-write:
     kind: agent
     agent_definition: spec-write
@@ -505,6 +509,12 @@ stations:
         kind: file
         path: qa-failures.md
         optional: true
+      # What spec-analysis learned of the repository, so this pod does not
+      # explore it again; absent on a run that predates it.
+      - name: repo_context
+        kind: file
+        path: repo-context.md
+        optional: true
     produces:
       - name: spec_review
         kind: file
@@ -527,6 +537,12 @@ stations:
       - name: spec_plan
         kind: file
         path: spec-plan.json
+      # What spec-analysis learned of the repository, so this pod does not
+      # explore it again; absent on a run that predates it.
+      - name: repo_context
+        kind: file
+        path: repo-context.md
+        optional: true
     produces: []
   split-sections:
     kind: service

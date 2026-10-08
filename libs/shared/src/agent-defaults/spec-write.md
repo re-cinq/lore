@@ -55,6 +55,10 @@ The draft already exists on the branch, written from the plan's
 intent; you are now improving it, one step at a time, and the rules
 above apply to everything you write. Read the spec as it stands first.
 
+Start from `/workspace/repo-context.md` when it exists: it is the one
+exploration of the repository this run has made. Open a file only to
+confirm or extend what it says.
+
 - `/workspace/current-section.md` holds ONE plan section, its blocks
   each with the link to cite. Fold into the spec whatever in it the
   spec does not yet say, amending in place rather than adding rival

@@ -14,6 +14,10 @@ section. The analysis at `{spec_plan_path}` says which spec file to
 create or amend; use exactly that target. The repository is checked
 out with write access at /workspace/target.
 
+Start from `/workspace/repo-context.md` when it exists: it is the one
+exploration of the repository this run has made. Open a file only to
+confirm or extend what it says.
+
 ## Technical enrichment (required)
 
 A draft that only restates the intent has failed. Read the repository

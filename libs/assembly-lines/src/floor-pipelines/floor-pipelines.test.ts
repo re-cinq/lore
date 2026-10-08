@@ -910,6 +910,26 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
+  it("has spec-analysis produce repo-context.md, and hands it to draft and write as an optional file", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const context = {
+      name: "repo_context",
+      kind: "file",
+      path: "repo-context.md",
+      optional: true,
+    };
+
+    expect({
+      produced: stations["spec-analysis"].produces.map((out) => out.name),
+      draft: needOf(stations["spec-draft"], "repo_context"),
+      write: needOf(stations["spec-write"], "repo_context"),
+    }).toEqual({
+      produced: ["spec_plan", "repo_context"],
+      draft: context,
+      write: context,
+    });
+  });
+
   it("checks issue coverage after issues, sending decompose back at most COVERAGE_ROUNDS times", () => {
     const { line } = pipelineOf("feature-planning");
 
