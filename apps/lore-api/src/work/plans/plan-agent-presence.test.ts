@@ -114,16 +114,27 @@ interface Scene {
   calls: string[];
 }
 
-function sceneOf(open: string[] = [], failingOpens = 0) {
+interface SceneOptions {
+  open?: string[];
+  failingOpens?: number;
+  failingCloses?: number;
+}
+
+function sceneOf({
+  open = [],
+  failingOpens = 0,
+  failingCloses = 0,
+}: SceneOptions = {}) {
   const floor = controllableWatch();
   const scene: Scene = { runs: new Map(), calls: [] };
-  let failuresLeft = failingOpens;
+  const failuresLeft = { opens: failingOpens, closes: failingCloses };
   const writer: PresenceWriter = {
     openPresence: async ({ planId, user }) => {
-      enforceTrue(failuresLeft-- <= 0, Error, "collab down");
+      enforceTrue(failuresLeft.opens-- <= 0, Error, "collab down");
       scene.calls.push(`open ${planId} ${user.name}`);
     },
     closePresence: async ({ planId }) => {
+      enforceTrue(failuresLeft.closes-- <= 0, Error, "collab down");
       scene.calls.push(`close ${planId}`);
     },
   };
@@ -203,7 +214,7 @@ describe("PlanAgentPresence", () => {
   });
 
   it("finds the agents already at work when the floor says resync", async () => {
-    const { floor, scene, presence } = sceneOf(["run-1"]);
+    const { floor, scene, presence } = sceneOf({ open: ["run-1"] });
 
     scene.runs.set("run-1", {
       run: planningRun(),
@@ -219,7 +230,7 @@ describe("PlanAgentPresence", () => {
   });
 
   it("takes off a shown agent whose run the floor no longer lists as open on resync", async () => {
-    const { floor, scene, presence } = sceneOf([]);
+    const { floor, scene, presence } = sceneOf();
 
     scene.runs.set("run-1", { run: planningRun(), visits: [visit("analyze")] });
     floor.say({ type: "run_changed", runId: "run-1" });
@@ -233,7 +244,7 @@ describe("PlanAgentPresence", () => {
   });
 
   it("opens again on the next change after an open failed", async () => {
-    const { floor, scene, presence } = sceneOf([], 1);
+    const { floor, scene, presence } = sceneOf({ failingOpens: 1 });
 
     scene.runs.set("run-1", { run: planningRun(), visits: [visit("analyze")] });
     floor.say({ type: "run_changed", runId: "run-1" });
@@ -243,5 +254,39 @@ describe("PlanAgentPresence", () => {
     presence.stop();
 
     expect(scene.calls).toEqual(["open p1 Planning agent (writing the plan)"]);
+  });
+
+  it("takes the agent off the plan when the floor no longer holds its run", async () => {
+    const { floor, scene, presence } = sceneOf();
+
+    scene.runs.set("run-1", { run: planningRun(), visits: [visit("analyze")] });
+    floor.say({ type: "run_changed", runId: "run-1" });
+    await until(() => scene.calls.length === 1);
+    scene.runs.delete("run-1");
+    floor.say({ type: "run_changed", runId: "run-1" });
+    await until(() => scene.calls.length === 2);
+    presence.stop();
+
+    expect(scene.calls[1]).toBe("close p1");
+  });
+
+  it("closes again on the next change after a close failed", async () => {
+    const { floor, scene, presence } = sceneOf({ failingCloses: 1 });
+    const idle = { run: planningRun(), visits: [reported("analyze")] };
+
+    scene.runs.set("run-1", { run: planningRun(), visits: [visit("analyze")] });
+    floor.say({ type: "run_changed", runId: "run-1" });
+    await until(() => scene.calls.length === 1);
+    scene.runs.set("run-1", idle);
+    floor.say({ type: "run_changed", runId: "run-1" });
+    await presence.settled();
+    floor.say({ type: "run_changed", runId: "run-1" });
+    await until(() => scene.calls.length === 2);
+    presence.stop();
+
+    expect(scene.calls).toEqual([
+      "open p1 Planning agent (writing the plan)",
+      "close p1",
+    ]);
   });
 });

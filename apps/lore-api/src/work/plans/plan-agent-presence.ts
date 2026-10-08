@@ -123,24 +123,34 @@ export class PlanAgentPresence {
     });
   }
 
+  /** A run the floor no longer holds shows nobody on the plan it showed the agent on. */
   private async refresh(runId: string): Promise<void> {
     const read = await this.deps.readRun(runId);
-    const shown = read ? agentShownOn(read.run, read.visits) : null;
+
+    if (!read) {
+      await this.leaveRuns((shownBy) => shownBy === runId);
+
+      return;
+    }
+    const shown = agentShownOn(read.run, read.visits);
 
     if (shown) {
       await this.show(runId, shown);
     }
   }
 
-  private async resync(): Promise<void> {
-    const open = await this.deps.openPlanningRuns();
-    const gone = [...this.shown].filter(
-      ([, { runId }]) => !open.includes(runId),
-    );
+  private async leaveRuns(gone: (runId: string) => boolean): Promise<void> {
+    const plans = [...this.shown].filter(([, { runId }]) => gone(runId));
 
-    for (const [planId] of gone) {
+    for (const [planId] of plans) {
       await this.leave(planId);
     }
+  }
+
+  private async resync(): Promise<void> {
+    const open = await this.deps.openPlanningRuns();
+
+    await this.leaveRuns((runId) => !open.includes(runId));
 
     for (const runId of open) {
       await this.refresh(runId);
@@ -170,7 +180,8 @@ export class PlanAgentPresence {
     if (!this.shown.has(planId)) {
       return;
     }
-    this.shown.delete(planId);
+    // Forgotten only once closed: a close that failed is tried again on the run's next change.
     await this.deps.writer.closePresence({ planId });
+    this.shown.delete(planId);
   }
 }
