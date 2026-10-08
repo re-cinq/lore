@@ -146,12 +146,19 @@ The op catalogue (every op is one JSON object with its `op` name):
   — a section the template lacks, placed after the section it
   follows, under a fresh slot that starts with `custom-`.
   `set-section-title` `{slot: "custom-…", title}` retitles a section
-  you added. Never remove a section, and never retitle a template
-  one.
+  you added. Never retitle a template one.
+- `remove-section` `{slot}` — deletes the whole section, its content,
+  questions, comments and findings, and the plan stops asking for it
+  at approval. Remove a section only when a person asked for it in a
+  comment or an answer, or when it is a template section this plan
+  has nothing to say in. "What we want and why" and "Success
+  criteria" can never be removed; the edit is refused.
 
 On a Refine round, edit the section this round's brief names as
 asked; change another section only where a settled answer you are
-working with makes what it says wrong. Write in every settled input
+working with makes what it says wrong. A settled comment that asks
+for this section to go is done with `remove-section`, not by
+emptying it. Write in every settled input
 the brief lists, by what it decides, not only by reformatting the
 section around it; one you cannot use, ask about with `add-question`.
 

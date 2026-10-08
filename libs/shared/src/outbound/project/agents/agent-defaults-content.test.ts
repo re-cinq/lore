@@ -801,4 +801,22 @@ describe("the planning recipes check a plan against what the platform has (issue
       quotes: prompt.includes("`plan_quotes`"),
     }).toEqual({ everySpec: true, cites: true, quotes: true });
   });
+
+  it("lists remove-section in the plan-analyze op catalogue, only on a person's ask or an empty template section, never for intent or success criteria", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      op: prompt.includes("`remove-section` `{slot}`"),
+      onRequest: prompt.includes("only when a person asked for it"),
+      protectedSections: prompt.includes(
+        '"What we want and why" and "Success criteria" can never be removed',
+      ),
+      noLongerForbidden: prompt.includes("Never remove a section"),
+    }).toEqual({
+      op: true,
+      onRequest: true,
+      protectedSections: true,
+      noLongerForbidden: false,
+    });
+  });
 });
