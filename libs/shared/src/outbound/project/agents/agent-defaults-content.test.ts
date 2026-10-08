@@ -379,6 +379,133 @@ describe("the feature-planning recipe", () => {
     });
   });
 
+  it("has spec-analysis create at most one new spec, update the merged spec that already owns the area instead, and list every older spec the change contradicts as a conflict to adapt", () => {
+    const prompt = promptOnOneLine("spec-analysis");
+
+    expect({
+      atMostOneCreate: prompt.includes('"creates" holds AT MOST ONE entry'),
+      mergedSpecWins: prompt.includes(
+        "a merged spec that already owns the area is updated, not shadowed by a new one",
+      ),
+      conflicts: prompt.includes('begins with "Conflict:"'),
+    }).toEqual({
+      atMostOneCreate: true,
+      mergedSpecWins: true,
+      conflicts: true,
+    });
+  });
+
+  it("has spec-qa-generate write a frozen set once, with an expected value, a severity and a source block per question and a note question per plan comment, answer and open question", () => {
+    const prompt = promptOnOneLine("spec-qa-generate");
+
+    expect({
+      once: prompt.includes("You write the set ONCE"),
+      expected: prompt.includes(
+        "`expected` is what a spec that kept the plan answers",
+      ),
+      source: prompt.includes("`source` is the `id` of the one plan block"),
+      notes: prompt.includes(
+        "ONE statement for every plan comment, every answer and every open question",
+      ),
+      neverSeesSpec: prompt.includes("you never see the specification"),
+    }).toEqual({
+      once: true,
+      expected: true,
+      source: true,
+      notes: true,
+      neverSeesSpec: true,
+    });
+  });
+
+  it("has spec-qa-answer answer from the blind question file alone, never look for the plan, give a reason for every answer, and quote the spec for every answer that upholds a statement", () => {
+    const prompt = promptOnOneLine("spec-qa-answer");
+
+    expect({
+      blind: promptOf("spec-qa-answer").includes("{qa_blind_path}"),
+      noPlan: prompt.includes("must not look for it"),
+      reasons: prompt.includes('"reason":'),
+      quotes: prompt.includes('"evidence":'),
+      verbatim: prompt.includes("copied character for character from the spec"),
+      expectedHidden: prompt.includes("expected"),
+    }).toEqual({
+      blind: true,
+      noPlan: true,
+      reasons: true,
+      quotes: true,
+      verbatim: true,
+      expectedHidden: false,
+    });
+  });
+
+  it("has spec-analysis write one bounded repo-context file, and draft and write start from it instead of exploring the repository again", () => {
+    const analysis = promptOnOneLine("spec-analysis");
+
+    expect({
+      writes: promptOf("spec-analysis").includes("{repo_context_path}"),
+      bounded: analysis.includes("at most 24,000 characters"),
+      draft: promptOnOneLine("spec-draft").includes(
+        "Start from `/workspace/repo-context.md`",
+      ),
+      write: promptOnOneLine("spec-write").includes(
+        "Start from `/workspace/repo-context.md`",
+      ),
+    }).toEqual({ writes: true, bounded: true, draft: true, write: true });
+  });
+
+  it("has spec-write return a section result file, bring technical facts only when told they are required, and fix only the failures tagged with its section", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      result: promptOf("spec-write").includes("{section_result_path}"),
+      statuses: prompt.includes("integrated"),
+      onlyWhenRequired: prompt.includes("Technical additions: required"),
+      noFiller: prompt.includes("add no filler"),
+      ownSection: prompt.includes("tagged with your section"),
+      oldRetryRule: prompt.includes(
+        'end it with `LORE_NODE_RESULT: {"outcome":"changes_requested"}`',
+      ),
+    }).toEqual({
+      result: true,
+      statuses: true,
+      onlyWhenRequired: true,
+      noFiller: true,
+      ownSection: true,
+      oldRetryRule: false,
+    });
+  });
+
+  it("has spec-draft build the skeleton from the intent and leave technical detail to the section pods, so the draft invents none", () => {
+    const prompt = promptOnOneLine("spec-draft");
+
+    expect({
+      mandatory: prompt.includes(
+        "A draft that only restates the intent has failed",
+      ),
+      leaves: prompt.includes(
+        "the pods for the other sections bring the technical detail",
+      ),
+      noInvention: prompt.includes("name nothing that is not on main"),
+    }).toEqual({ mandatory: false, leaves: true, noInvention: true });
+  });
+
+  it("has spec-qa-recheck give a second opinion on the failed statements alone, without the first answers or the plan, and quote the spec for every true", () => {
+    const prompt = promptOnOneLine("spec-qa-recheck");
+
+    expect({
+      blind: promptOf("spec-qa-recheck").includes("{qa_recheck_blind_path}"),
+      out: promptOf("spec-qa-recheck").includes("{qa_recheck_answers_path}"),
+      noFirstAnswers: prompt.includes("you have not seen its answers"),
+      noPlan: prompt.includes("must not look for it"),
+      quotes: prompt.includes('"evidence":'),
+    }).toEqual({
+      blind: true,
+      out: true,
+      noFirstAnswers: true,
+      noPlan: true,
+      quotes: true,
+    });
+  });
+
   it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
     const prompt = promptOnOneLine("spec-write");
 

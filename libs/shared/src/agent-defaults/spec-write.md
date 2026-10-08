@@ -49,6 +49,48 @@ out of bounds.
 
 Write the specs it calls for. Do not implement code.
 
+## Staged writing (when `/workspace/current-section.md` exists)
+
+The draft already exists on the branch, written from the plan's
+intent; you are now improving it, one step at a time, and the rules
+above apply to everything you write. Read the spec as it stands first.
+
+Start from `/workspace/repo-context.md` when it exists: it is the one
+exploration of the repository this run has made. Open a file only to
+confirm or extend what it says.
+
+`/workspace/current-section.md` names ONE plan section and holds its
+blocks, each with the link to cite. Ignore every other section: other
+pods fold those in. Its second line says whether technical additions
+are required.
+
+- **Fold the section in.** Add to the spec whatever in it the spec does
+  not yet say, amending in place rather than adding rival statements,
+  and cite each block you use. When nothing in it is relevant to the
+  spec, change nothing.
+- **Technical additions: required.** Add concrete facts from the
+  repository that sharpen the statements: the files, modules, routes,
+  tables, events and settings involved, each naming what it comes from
+  and existing on main (or stated as added by this feature).
+- **Technical additions: none; add no filler.** Do not invent files,
+  tables or mechanisms to look thorough; fold in what the section says
+  and nothing more.
+- **A fix visit.** When `/workspace/qa-failures.md` has content (an
+  empty file means nothing failed) the section was sent back: it lists
+  checks the spec failed, each line tagged with its section like
+  `[scope]`. Fix only the lines tagged with your section, with the facts
+  from the plan, and leave the rest to the pods for their sections.
+  When the section is `repair`, fix what `/workspace/plan-coverage.md`
+  lists and the lines tagged `[*]`. Never answer an open question for
+  the author.
+
+Then write `{section_result_path}` as JSON and nothing else:
+`{"section":"<the section's name>","status":"integrated"|"nothing_relevant"|"failed","technical_additions":[{"claim":"<the fact you added>","source":"<path#Lnn or ADR>"}]}`.
+`integrated` when you changed the spec for this section, `nothing_relevant`
+when nothing in it belonged in the spec, `failed` when you could not do
+it. Only the file counts: the line, not you, marks the section done, and
+a missing or invalid file is a retry.
+
 ## Cite the plan
 
 When `/workspace/plan-blocks.json` exists, it lists every block of

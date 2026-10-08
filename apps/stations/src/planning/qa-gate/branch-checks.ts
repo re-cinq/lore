@@ -1,17 +1,8 @@
-// After the spec writer pushes, counts which blocks of the approved plan no spec statement cites, and sends the writer back with only those until the coverage round budget is spent; then the spec PR opens with the gaps listed for its reviewer (see specs/external-floor/spec.md FR8.22).
+// What the spec on the branch still owes the approved plan, counted without a model: plan blocks no statement cites, names the files do not have on main, and requirements that are compound or unbacked (see specs/external-floor/spec.md FR8.22).
 
+import type { Brief, Tools } from "@re-cinq/floor-station";
 import {
-  defineStation,
-  type Brief,
-  type Handle,
-  type Report,
-  type RunningStation,
-  type Tools,
-} from "@re-cinq/floor-station";
-import {
-  COVERAGE_ROUNDS,
   coverageBrief,
-  coverageRoundsSpent,
   planCoverage,
   type CitablePlan,
   type PlanCoverage,
@@ -27,46 +18,53 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/spec-soundness.js";
 import { specPathsOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
+import type { CoverageDeps } from "../coverage-deps.js";
 import { addedAcross, findingsIn, groundedText } from "../grounded-text.js";
 
-const SUCCESS: Report = { outcome: "success" };
-
-export function specCoverageHandle(deps: CoverageDeps): Handle {
-  return async (brief, tools) => {
-    // A deployment that names no web UI hands the run no blocks to cite, so there is nothing to count.
-    if (!brief.needs.plan_blocks) {
-      return SUCCESS;
-    }
-
-    try {
-      return await counted(deps, brief, tools);
-    } catch (err) {
-      return { outcome: "failed", error: (err as Error).message };
-    }
-  };
+export interface BranchChecks {
+  /** The brief the writer reads on its next visit. */
+  brief: string;
+  gaps: number;
 }
 
-/** The brief the writer reads, and the verdict that sends it round again while the budget holds. */
-async function counted(
+/** Every spec the plan creates or updates, as the branch holds them; null where the run carries no spec plan to find them by. */
+export async function specsOfBranch(
   deps: CoverageDeps,
   brief: Brief,
   tools: Tools,
-): Promise<Report> {
-  const { coverage, grounded, unsound } = await coverageOnBranch(
-    deps,
-    brief,
-    tools,
-  );
+): Promise<SpecFile[] | null> {
+  if (!brief.needs.spec_plan) {
+    return null;
+  }
+  const { repo, branch } = parseGitRef(brief.needs.target);
+  const specPlan = (await tools.read("spec_plan")).toString("utf8");
 
-  await tools.produce(
-    "plan_coverage",
-    coverageBrief(coverage) +
-      groundingBrief(grounded) +
-      soundnessBrief(unsound),
-  );
+  return specsOnBranch(specPlan, (path) => deps.readSpec(repo, path, branch));
+}
 
-  return verdict(deps, brief.visitId, gapsIn(coverage, grounded, unsound));
+/** Null where the deployment hands the run no blocks to cite: then there is nothing to count. */
+export async function branchChecks(
+  deps: CoverageDeps,
+  brief: Brief,
+  tools: Tools,
+  specs: readonly SpecFile[],
+): Promise<BranchChecks | null> {
+  if (!brief.needs.plan_blocks) {
+    return null;
+  }
+  const found = await coverageOnBranch(deps, brief, tools, specs);
+
+  return { brief: briefOf(found), gaps: gapsOf(found) };
+}
+
+function briefOf({ coverage, grounded, unsound }: SpecsOnBranch): string {
+  return (
+    coverageBrief(coverage) + groundingBrief(grounded) + soundnessBrief(unsound)
+  );
+}
+
+function gapsOf({ coverage, grounded, unsound }: SpecsOnBranch): number {
+  return gapsIn(coverage, grounded, unsound);
 }
 
 interface SpecsOnBranch {
@@ -80,22 +78,21 @@ interface BranchRead {
   tools: Tools;
   repo: string;
   branch: string;
-  read: (path: string) => Promise<string | null>;
 }
 
 async function coverageOnBranch(
   deps: CoverageDeps,
   brief: Brief,
   tools: Tools,
+  specs: readonly SpecFile[],
 ): Promise<SpecsOnBranch> {
   const { repo, branch } = parseGitRef(brief.needs.target);
   const read = (path: string) => deps.readSpec(repo, path, branch);
-  const [citable, tree, specs] = await readBranch({
+  const [citable, tree] = await readBranch({
     deps,
     tools,
     repo,
     branch,
-    read,
   });
 
   return countsOf(citable, specs, await groundedSpecs(specs, tree, read));
@@ -116,20 +113,16 @@ function countsOf(
   };
 }
 
-/** The plan's blocks, the tree the names are checked against, and the specs as the branch holds them. */
+/** The plan's blocks and the tree the names are checked against. */
 function readBranch({
   deps,
   tools,
   repo,
   branch,
-  read,
-}: BranchRead): Promise<[CitablePlan, string[], SpecFile[]]> {
+}: BranchRead): Promise<[CitablePlan, string[]]> {
   return Promise.all([
     readJson<CitablePlan>(tools, "plan_blocks"),
     deps.listTree(repo, branch),
-    tools
-      .read("spec_plan")
-      .then((specPlan) => specsOnBranch(specPlan.toString("utf8"), read)),
   ]);
 }
 
@@ -146,7 +139,7 @@ function groundedSpecs(
   );
 }
 
-interface SpecFile {
+export interface SpecFile {
   path: string;
   text: string;
 }
@@ -176,25 +169,4 @@ function gapsIn(
 
 async function readJson<T>(tools: Tools, need: string): Promise<T> {
   return JSON.parse((await tools.read(need)).toString("utf8")) as T;
-}
-
-/** Every block cited and every name on main, or the budget spent, lets the spec PR open; otherwise the writer goes round again. */
-async function verdict(
-  deps: CoverageDeps,
-  visitId: string,
-  gaps: number,
-): Promise<Report> {
-  if (gaps === 0) {
-    return SUCCESS;
-  }
-  const spent = coverageRoundsSpent(
-    await deps.visitsOf(visitId),
-    "spec-coverage",
-  );
-
-  return spent < COVERAGE_ROUNDS ? { outcome: "changes_requested" } : SUCCESS;
-}
-
-export function startSpecCoverageStation(): RunningStation {
-  return defineStation("spec-coverage", specCoverageHandle(coverageDeps));
 }

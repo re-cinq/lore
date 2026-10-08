@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import { specCoverageHandle } from "./station.js";
+import { qaGateHandle } from "./station.js";
 import type { CoverageDeps, RunVisit } from "../coverage-deps.js";
 
 const PLAN_URL = "https://lore.example/repos/re-cinq/lore/plans/p1";
@@ -43,10 +43,12 @@ const NEEDS = {
   target: "https://github.com/re-cinq/lore@lore/feature-planning/p1",
   spec_plan: "blob://spec-plan",
   plan_blocks: "blob://plan-blocks",
+  qa_questions: "blob://qa-questions",
+  qa_answers: "blob://qa-answers",
 };
 
 const handback = (): RunVisit => ({
-  nodeId: "spec-coverage",
+  nodeId: "qa-gate",
   report: { outcome: "changes_requested" },
 });
 
@@ -66,6 +68,8 @@ function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
       creates: [{ path: SPEC_PATH }, ...(plan ? [{ path: PLAN_PATH }] : [])],
     }),
     plan_blocks: JSON.stringify(CITABLE),
+    qa_questions: "[]",
+    qa_answers: "[]",
   };
   const tools: Tools = {
     read: async (need) => Buffer.from(files[need] ?? ""),
@@ -88,21 +92,18 @@ function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
       return onBranch[path] ?? null;
     },
     listTree: async () => [SPEC_PATH, HANDLER_PATH],
-    visitsOf: async () => [
-      ...visits,
-      { nodeId: "spec-coverage", report: null },
-    ],
+    visitsOf: async () => [...visits, { nodeId: "qa-gate", report: null }],
     filedCoverage: async () => null,
   };
 
-  return { handle: specCoverageHandle(deps), tools, produced, reads };
+  return { handle: qaGateHandle(deps), tools, produced, reads };
 }
 
 function brief(needs: Record<string, string> = NEEDS) {
   return { visitId: "visit-coverage", iteration: 1, needs };
 }
 
-describe("specCoverageHandle", () => {
+describe("qaGateHandle on the spec branch", () => {
   it("reports success with 2 of 2 cited when the spec on the branch cites every plan block", async () => {
     const { handle, tools, produced, reads } = scene(CITES_BOTH);
 
@@ -111,6 +112,9 @@ describe("specCoverageHandle", () => {
     expect({ report, produced, reads }).toEqual({
       report: { outcome: "success" },
       produced: {
+        qa_failures: "",
+        qa_advisory: "",
+        qa_history: "[0]",
         plan_coverage:
           "## Plan coverage\n\n2 of 2 plan blocks are cited by a spec statement.\n",
       },
@@ -156,12 +160,11 @@ describe("specCoverageHandle", () => {
     }).toEqual({ report: { outcome: "changes_requested" }, namesKpi: true });
   });
 
-  it("reports success with the gap listed once three coverage rounds were spent", async () => {
-    const { handle, tools, produced } = scene(CITES_ONE, [
-      handback(),
-      handback(),
-      handback(),
-    ]);
+  it("reports success with the gap listed once five rounds were spent", async () => {
+    const { handle, tools, produced } = scene(
+      CITES_ONE,
+      Array.from({ length: 5 }, handback),
+    );
 
     const report = await handle(brief(), tools);
 
@@ -200,7 +203,7 @@ describe("specCoverageHandle", () => {
 
     expect({ report, produced }).toEqual({
       report: { outcome: "success" },
-      produced: {},
+      produced: { qa_failures: "", qa_advisory: "", qa_history: "[0]" },
     });
   });
 });
