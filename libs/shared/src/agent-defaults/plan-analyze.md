@@ -147,7 +147,7 @@ The op catalogue (every op is one JSON object with its `op` name):
   follows, under a fresh slot that starts with `custom-`.
   `set-section-title` `{slot: "custom-…", title}` retitles a section
   you added. Never retitle a template one.
-- `remove-section` `{slot}` — deletes the whole section, its content,
+- `remove-section` `{slot: "…"}` — deletes the whole section, its content,
   questions, comments and findings, and the plan stops asking for it
   at approval. Remove a section only when a person asked for it in a
   comment or an answer, or when it is a template section this plan

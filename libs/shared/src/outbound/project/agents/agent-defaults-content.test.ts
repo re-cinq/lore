@@ -806,7 +806,7 @@ describe("the planning recipes check a plan against what the platform has (issue
     const prompt = promptOnOneLine("plan-analyze");
 
     expect({
-      op: prompt.includes("`remove-section` `{slot}`"),
+      op: prompt.includes("`remove-section` `{slot: \"…\"}`"),
       onRequest: prompt.includes("only when a person asked for it"),
       protectedSections: prompt.includes(
         '"What we want and why" and "Success criteria" can never be removed',
