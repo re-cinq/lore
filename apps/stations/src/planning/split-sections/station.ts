@@ -15,9 +15,9 @@ export function splitSectionsHandle(): Handle {
       readJson<CitablePlan>(tools, "plan_blocks"),
       readJson<string[]>(tools, "done_sections"),
     ]);
-    const section = nextSection(plan, done ?? []);
+    const section = plan && nextSection(plan, done ?? []);
 
-    if (section === null) {
+    if (!section) {
       return { outcome: "done" };
     }
 

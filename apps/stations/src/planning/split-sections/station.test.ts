@@ -24,11 +24,14 @@ const CITABLE = {
 };
 
 function scene(doneSections?: string[]) {
-  const produced: Record<string, string> = {};
-  const files: Record<string, string> = {
+  return sceneOf({
     plan_blocks: JSON.stringify(CITABLE),
     ...(doneSections ? { done_sections: JSON.stringify(doneSections) } : {}),
-  };
+  });
+}
+
+function sceneOf(files: Record<string, string>) {
+  const produced: Record<string, string> = {};
   const tools: Tools = {
     read: async (need) => Buffer.from(files[need] ?? ""),
     produce: async (name, bytes) => {
@@ -75,6 +78,17 @@ describe("splitSectionsHandle", () => {
 
   it("reports done and produces nothing once every section is done", async () => {
     const { tools, produced } = scene(["scope", "risk"]);
+
+    const report = await splitSectionsHandle()(brief, tools);
+
+    expect({ report, produced }).toEqual({
+      report: { outcome: "done" },
+      produced: {},
+    });
+  });
+
+  it("reports done when the deployment hands the run no plan blocks", async () => {
+    const { tools, produced } = sceneOf({});
 
     const report = await splitSectionsHandle()(brief, tools);
 

@@ -39,9 +39,13 @@ export function nextSection(
 }
 
 function sectionText(plan: CitablePlan, slot: string): string {
-  const lines = plan.blocks
-    .filter((block) => block.slot === slot)
-    .map((block) => `- ${block.text} ([plan](${block.link}))\n`);
+  const lines = blocksOf(plan.blocks, slot).map(
+    (block) => `- ${block.text} ([plan](${block.link}))\n`,
+  );
 
   return `## ${slot}\n\n${lines.join("")}`;
+}
+
+function blocksOf(blocks: CitablePlan["blocks"], slot: string) {
+  return blocks.filter((block) => block.slot === slot);
 }

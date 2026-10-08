@@ -42,16 +42,8 @@ export interface QaVerdict {
 
 export function qaGate(bag: SpecQaBag, roundsSpent: number): QaVerdict {
   const failures = [
-    ...bag.questions
-      .filter((question) => question.answer !== true)
-      .map((question) => ({
-        id: question.id,
-        text: question.question,
-        reason: question.reason ?? "Not answered.",
-      })),
-    ...bag.notes
-      .filter((note) => !note.satisfied)
-      .map((note) => ({ id: note.id, text: note.text, reason: note.reason })),
+    ...questionFailures(bag.questions),
+    ...noteFailures(bag.notes),
   ];
   const exhausted = failures.length > 0 && roundsSpent >= SPEC_QA_ROUNDS;
 
@@ -61,6 +53,22 @@ export function qaGate(bag: SpecQaBag, roundsSpent: number): QaVerdict {
     failures,
     exhausted,
   };
+}
+
+function questionFailures(questions: SpecQaBag["questions"]): QaFailure[] {
+  return questions
+    .filter((question) => question.answer !== true)
+    .map((question) => ({
+      id: question.id,
+      text: question.question,
+      reason: question.reason ?? "Not answered.",
+    }));
+}
+
+function noteFailures(notes: SpecQaBag["notes"]): QaFailure[] {
+  return notes
+    .filter((note) => !note.satisfied)
+    .map((note) => ({ id: note.id, text: note.text, reason: note.reason }));
 }
 
 export function failureBrief(failures: QaFailure[]): string {
