@@ -201,7 +201,7 @@ function runIdentityOf(run: RunView): RunIdentity {
     blueprintName: run.lineId,
     // A line that keeps a `pipeline.tasks` row is started with it as `task_id`.
     taskId: startValue(run, "task_id") ?? null,
-    repo: run.repo.replace(GITHUB_PREFIX, ""),
+    repo: (run.repo ?? "").replace(GITHUB_PREFIX, ""),
     branch: branchOf(run.startItems),
     subjectKey: run.subjectKey,
     args: runArgsOf(run.startItems),

@@ -63,21 +63,28 @@ line:
       station: spec-draft
       bind:
         target: repo
-    # Hands `write` one plan section per visit and reports done when none are
-    # left; the bag's done_sections is its only memory (the floor has no fan-out).
+    # Lists the sections a round writes, one entry each. The floor runs a `write`
+    # pod per entry at once and goes on to `assemble` when every one has reported.
     - id: split-sections
       station: split-sections
-    # Folds ONE plan section into the draft per visit, and later fixes what the
-    # checks below found missing. A fresh pod each time.
+      fanout: { over: sections, to: write }
+    # One pod for ONE plan section: it reads the spec, changes nothing, and returns
+    # a patch for its section. Read-only, so the pods never write the same file.
     - id: write
       station: spec-write
       bind:
         target: repo
-    # The same writer sent back to ONE section the gate found wanting. A node of
-    # its own so its loop back to split-sections has its own counter, apart from
-    # the first pass's and the gate's.
-    - id: fix
-      station: spec-write
+    # The join: applies every pod's patch in the order the sections were listed,
+    # commits the spec once, and says whether another round is owed.
+    - id: assemble
+      station: assemble
+      bind:
+        target: repo
+    # The spec writer a person asks for again by hand while the spec PR waits on
+    # review (lore-api's rework): one pod, the whole artifact set, committed and
+    # pushed. Its answer goes through the same checks as the staged write.
+    - id: rework
+      station: spec-rework
       bind:
         target: repo
     # Written ONCE per approved plan, before the draft, and blind to the spec:
@@ -232,28 +239,28 @@ line:
       on: failed
     - from: split-sections
       to: write
-      on: more
-    - from: split-sections
-      to: fix
-      on: redo
-    - from: split-sections
-      to: qa-answer
-      on: done
+      on: success
     - from: split-sections
       to: failed
       on: failed
-    # One visit per plan section (at most eight) plus retries of a pod that
-    # returned no usable result.
     - from: write
-      to: split-sections
+      to: assemble
       on: success
-      iteration_max: 12
-    # Up to five gate rounds, each redoing at most the eight sections and the
-    # repair visit.
-    - from: fix
+    - from: write
+      to: failed
+      on: failed
+    # A section whose pod returned no usable patch, or whose patch did not all
+    # apply, goes round again: split-sections lists what is left.
+    - from: assemble
       to: split-sections
+      on: retry
+      iteration_max: 2
+    - from: assemble
+      to: qa-answer
       on: success
-      iteration_max: 45
+    - from: assemble
+      to: failed
+      on: failed
     - from: qa-answer
       to: qa-gate
       on: success
@@ -285,22 +292,18 @@ line:
     - from: qa-gate
       to: failed
       on: failed
+    - from: rework
+      to: qa-answer
+      on: success
     # The change set was unusable — a spec path that does not exist, or an
     # instruction to amend a spec that does not cover the area. One correction:
     # unlike the author's loop, which is unbounded because a person decides each
     # pass, two agents disagreeing without a referee will do so all day.
-    - from: write
+    - from: rework
       to: analyse-specs
       on: changes_requested
       iteration_max: 1
-    - from: write
-      to: failed
-      on: failed
-    - from: fix
-      to: analyse-specs
-      on: changes_requested
-      iteration_max: 1
-    - from: fix
+    - from: rework
       to: failed
       on: failed
     - from: open-spec-pr
@@ -321,6 +324,9 @@ line:
     - from: merged
       to: author
       on: changes_requested
+    - from: merged
+      to: rework
+      on: rework
     # The PR was closed without merging — abandoned or superseded. Not a failure of
     # the machine, so it settles rather than erroring, but it must be routed either
     # way.
@@ -512,12 +518,66 @@ stations:
     agent_definition: spec-write
     outcomes:
       - success
+      - failed
+    needs:
+      # Read-only: the pod returns a patch and commits nothing.
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # The one section this pod folds in: a JSON entry of split-sections' list.
+      - name: item
+        kind: value
+      # What spec-analysis learned of the repository, so this pod does not
+      # explore it again; absent on a run that predates it.
+      - name: repo_context
+        kind: file
+        path: repo-context.md
+        optional: true
+      # What qa-gate last counted; absent before its first visit.
+      - name: plan_coverage
+        kind: file
+        path: plan-coverage.md
+        optional: true
+      # What qa-gate found failing in the last round; absent before its first.
+      - name: qa_failures
+        kind: file
+        path: qa-failures.md
+        optional: true
+    produces:
+      - name: section_patch
+        kind: file
+        path: section-patch.json
+  assemble:
+    kind: service
+    outcomes:
+      - success
+      - retry
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: spec_plan
+        kind: file
+      - name: section_state
+        kind: file
+      # What each pod of the round returned, in the order the sections were listed.
+      - name: section_patches
+        kind: value
+        collect: section_patch
+    produces:
+      - name: section_state
+        kind: file
+  spec-rework:
+    kind: agent
+    agent_definition: spec-rework
+    outcomes:
+      - success
       - changes_requested
       - failed
     needs:
-      # Write access needs a human on every path in — here `author` precedes this
-      # node on every route (through `analyse-specs`), so the cycle/need-graph rule
-      # is satisfied without this node ever being the first writer.
       - name: target
         kind: git
         path: target
@@ -534,34 +594,14 @@ stations:
         kind: file
         path: plan-blocks.json
         optional: true
-      # What qa-gate last counted; absent before its first visit.
       - name: plan_coverage
         kind: file
         path: plan-coverage.md
-        optional: true
-      # The one plan section this visit folds in; set by split-sections.
-      - name: current_section
-        kind: file
-        path: current-section.md
-        optional: true
-      # What qa-gate found failing in the last round; absent before its first.
-      - name: qa_failures
-        kind: file
-        path: qa-failures.md
-        optional: true
-      # What spec-analysis learned of the repository, so this pod does not
-      # explore it again; absent on a run that predates it.
-      - name: repo_context
-        kind: file
-        path: repo-context.md
         optional: true
     produces:
       - name: spec_review
         kind: file
         path: spec-review-result.json
-      - name: section_result
-        kind: file
-        path: section-result.json
   spec-draft:
     kind: agent
     agent_definition: spec-draft
@@ -590,22 +630,15 @@ stations:
   split-sections:
     kind: service
     outcomes:
-      - more
-      - redo
-      - done
+      - success
       - failed
     needs:
       # Absent where the deployment names no web UI: then there are no sections.
       - name: plan_blocks
         kind: file
         optional: true
-      # Where the section loop stands; absent before the first visit.
+      # Where the rounds stand; absent before the first.
       - name: section_state
-        kind: file
-        optional: true
-      # What the pod handed the last section returned; this station is the one
-      # that marks the section done.
-      - name: section_result
         kind: file
         optional: true
       # The sections qa-gate sent back, with the round it asked in.
@@ -613,12 +646,11 @@ stations:
         kind: file
         optional: true
     produces:
+      # A JSON array of entries, one per section this round writes: the list the
+      # floor fans `write` out over.
+      - name: sections
+        kind: value
       - name: section_state
-        kind: file
-      - name: current_section
-        kind: file
-      # Emptied on every visit, so a pod that writes none is not read as the last.
-      - name: section_result
         kind: file
   spec-qa-generate:
     kind: agent
@@ -798,6 +830,10 @@ stations:
     outcomes:
       - success
       - changes_requested
+      # A person asked for the spec writer again while the PR waits (lore-api's
+      # rework). It is started by hand, by the node's own start event; the edge is
+      # what makes the node part of the line.
+      - rework
       - failed
     needs: []
     produces: []
@@ -984,6 +1020,30 @@ agent_definitions:
         env:
           LORE_TEST_POLICY: none
   spec-write:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        env:
+          LORE_TEST_POLICY: none
+  spec-rework:
     settings:
       model: claude-sonnet-4-6
       image: ${LORE_AGENT_IMAGE}

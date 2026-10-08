@@ -903,7 +903,7 @@ describe("validateFloorPlan", () => {
 });
 
 describe("reworkFloorSpec", () => {
-  it("posts node.write.start naming run-open and gedaiu when spec PR 12 has an unresolved review", async () => {
+  it("posts node.rework.start naming run-open and gedaiu when spec PR 12 has an unresolved review", async () => {
     const { deps, requests } = scene({ visits: ON_MERGED });
 
     const runId = await reworkFloorSpec(deps, {
@@ -917,7 +917,7 @@ describe("reworkFloorSpec", () => {
         method: "POST",
         path: "/events",
         body: {
-          name: "node.write.start",
+          name: "node.rework.start",
           payload: { runId: "run-open", requestedBy: "gedaiu" },
         },
       },

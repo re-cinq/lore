@@ -25,21 +25,37 @@ export function miniPipeline(
   return nodes.map((node) => nodeState(node, latest.get(node.id)));
 }
 
-/** Latest visit per node, later iterations winning over earlier ones. */
+/** One visit per node standing for its latest iteration: the pods of a fan-out run at once, so they read as one, running while any is open, failed once all have reported and one did not succeed. */
 function latestVisitByNode(
   visits: readonly PipelineVisit[],
 ): Map<string, PipelineVisit> {
-  const latest = new Map<string, PipelineVisit>();
+  const byNode = new Map<string, PipelineVisit[]>();
 
   for (const visit of visits) {
-    const prior = latest.get(visit.nodeId);
-
-    if (!prior || visit.iteration >= prior.iteration) {
-      latest.set(visit.nodeId, visit);
-    }
+    byNode.set(visit.nodeId, [...(byNode.get(visit.nodeId) ?? []), visit]);
   }
 
-  return latest;
+  return new Map(
+    [...byNode].map(([nodeId, all]) => [nodeId, standingFor(latestRound(all))]),
+  );
+}
+
+function latestRound(all: readonly PipelineVisit[]): PipelineVisit[] {
+  const newest = Math.max(...all.map((visit) => visit.iteration));
+
+  return all.filter((visit) => visit.iteration === newest);
+}
+
+function standingFor(round: readonly PipelineVisit[]): PipelineVisit {
+  const [first] = round as [PipelineVisit, ...PipelineVisit[]];
+  const open = round.some((visit) => visit.outcome === null);
+  const unsuccessful = round.find((visit) => visit.outcome !== "success");
+
+  return {
+    nodeId: first.nodeId,
+    iteration: first.iteration,
+    outcome: open ? null : (unsuccessful?.outcome ?? "success"),
+  };
 }
 
 /** Node types whose open row means "parked", not "working": a person, or a build, owns the next move. Mirrors HUMAN_STATION_TYPES, which lore-api does not depend on. */

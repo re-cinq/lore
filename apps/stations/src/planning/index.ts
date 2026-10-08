@@ -4,6 +4,7 @@ import { startPlanPassEndStation } from "./plan-pass-end/station.js";
 import { startPlanFindingsStation } from "./plan-findings/station.js";
 import { startPlanGroundingStation } from "./plan-grounding/station.js";
 import { startOpenSpecPrStation } from "./open-spec-pr/station.js";
+import { startAssembleStation } from "./assemble/station.js";
 import { startSplitSectionsStation } from "./split-sections/station.js";
 import { startQaQuestionsStation } from "./qa-questions/station.js";
 import { startQaGateStation } from "./qa-gate/station.js";
@@ -16,6 +17,7 @@ export function startPlanningStations(): RunningStation[] {
     startPlanFindingsStation(),
     startPlanGroundingStation(),
     startSplitSectionsStation(),
+    startAssembleStation(),
     startQaQuestionsStation(),
     startQaGateStation(),
     startOpenSpecPrStation(),
