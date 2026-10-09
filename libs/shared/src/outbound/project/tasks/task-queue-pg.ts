@@ -1,7 +1,4 @@
-import { selectList } from "../../../lib/row.js";
-import { PIPELINE_TASK_COLUMNS } from "../../../domain/models/pipeline-task.js";
 import type { PgPool } from "../../memory-store.js";
-import type { PipelineTask } from "../../../domain/types.js";
 import { enforceSettableTaskColumns } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,

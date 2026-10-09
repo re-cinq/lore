@@ -1,4 +1,3 @@
-import type { PipelineTask } from "../../../domain/types.js";
 import { enforceSettableTaskColumns } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
@@ -30,8 +29,6 @@ export interface SeedTask {
   pr_url?: string | null;
   [key: string]: unknown;
 }
-
-const GRACE_MS = 30 * 1000;
 
 const ms = (ts: string | undefined): number =>
   ts ? new Date(ts).getTime() : 0;
