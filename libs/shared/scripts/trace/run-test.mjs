@@ -52,7 +52,7 @@ try {
       cwd: join(ROOT, pkg),
       encoding: "utf-8",
       maxBuffer: 64 * 1024 * 1024,
-      stdio: ["ignore", "ignore", "ignore"],
+      stdio: "inherit",
     },
   );
 } catch {
