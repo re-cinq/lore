@@ -68,38 +68,41 @@ interface ColumnSources {
 }
 
 /** The side column (detail card, then files touched) and the center column (open diff, then the attempt on show), both reading the same focus. */
-function inspectorSlots({ view, page, focus, drawer }: ColumnSources) {
-  const inspector = inspectorProps(view, page);
+function inspectorSlots(sources: ColumnSources) {
+  return { side: sideSlot(sources), center: centerSlot(sources) };
+}
 
-  return {
-    side: (
-      <SideColumn
-        inspector={{
-          ...inspector,
-          selectedIteration: focus.attempt?.iteration,
-          onPickAttempt: focus.pickAttempt,
-        }}
-        files={{
-          touches: view.state.fileTouches,
-          showAll: view.showAllFiles,
-          onToggleShowAll: view.toggleShowAllFiles,
-          onOpenFile: drawer.openDiff,
-          activePath: drawer.openDiffPath,
-        }}
-      />
-    ),
-    center: (
-      <CenterColumn
-        diff={{
-          runId: page.runId,
-          path: drawer.openDiffPath,
-          prNumber: page.prNumber ?? null,
-          onClose: drawer.closeDiff,
-        }}
-        attempts={attemptInspectorProps(inspector, focus)}
-      />
-    ),
-  };
+function sideSlot({ view, page, focus, drawer }: ColumnSources) {
+  return (
+    <SideColumn
+      inspector={{
+        ...inspectorProps(view, page),
+        selectedIteration: focus.attempt?.iteration,
+        onPickAttempt: focus.pickAttempt,
+      }}
+      files={{
+        touches: view.state.fileTouches,
+        showAll: view.showAllFiles,
+        onToggleShowAll: view.toggleShowAllFiles,
+        onOpenFile: drawer.openDiff,
+        activePath: drawer.openDiffPath,
+      }}
+    />
+  );
+}
+
+function centerSlot({ view, page, focus, drawer }: ColumnSources) {
+  return (
+    <CenterColumn
+      diff={{
+        runId: page.runId,
+        path: drawer.openDiffPath,
+        prNumber: page.prNumber ?? null,
+        onClose: drawer.closeDiff,
+      }}
+      attempts={attemptInspectorProps(inspectorProps(view, page), focus)}
+    />
+  );
 }
 
 /** The run facts the graph section shows beside the view: the definition, how the run ended, and why it is where it is. */

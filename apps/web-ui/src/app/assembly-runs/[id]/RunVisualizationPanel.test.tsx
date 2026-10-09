@@ -1037,7 +1037,7 @@ describe("file diff drawer", () => {
         filePaths: ["src/a.ts"],
       }),
     ]);
-    useFakeSocket();
+    FakeWebSocket.reset();
 
     const view = render(
       <RunVisualizationPanel
