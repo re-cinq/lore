@@ -72,6 +72,8 @@ export interface AssemblyRunNode {
   agentCrName: string | null;
   /** Null for a visit dispatched before input was recorded; optional so test doubles need not set it (the mapper always does). */
   input?: StationRunInput | null;
+  /** The bag as the pod saw it at start — the floor brief's needs, name → ref; null for a visit Lore's own engine walked. Optional for test doubles, the mapper always sets it. */
+  needs?: Record<string, string> | null;
   commitSha: string | null;
   durationSeconds: number | null;
   /** When the node began, so a running node shows elapsed time instead of "—"; optional for test doubles, the DB mapper always sets it. */
@@ -154,6 +156,7 @@ export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
     failureDetail: row.failure_detail,
     agentCrName: row.agent_cr_name,
     input: row.input ?? null,
+    needs: row.needs ?? null,
     commitSha: row.commit_sha,
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
     startedAt: row.started_at,

@@ -131,6 +131,11 @@ option {
   padding: var(--space-6) var(--space-7);
 }
 
+/* A page that lays out its own gutters marks its root `data-flush-page`, so the shell's padding does not double them (the run page). */
+.main-content:has(> [data-flush-page]) {
+  padding: 0;
+}
+
 /* Mobile header — hidden on desktop */
 
 .mobile-header {

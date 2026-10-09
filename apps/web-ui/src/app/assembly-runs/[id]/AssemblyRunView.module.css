@@ -33,10 +33,13 @@
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: var(--space-2) var(--space-5);
-  /* The surrounding .spec-card owns the border and the 12px gap to the next
-     block; the grid only pads itself off that card's 4px edge. */
+  /* The surrounding card body owns the padding and the fold line. */
   margin: 0;
-  padding: var(--space-3) var(--space-4);
+}
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .facts dt {
   color: var(--text-muted);
@@ -48,4 +51,24 @@
 }
 .reason {
   color: var(--danger);
+}
+
+/* The run's bag, under the facts: the same name/value grid, set off by a rule. */
+.bag {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.bagHead {
+  margin-bottom: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.bagMeta {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }

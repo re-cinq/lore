@@ -17,6 +17,7 @@ const TICKET: StartedTicket = {
   branch: "lore/implementation-loop/issue-7",
   issue: { number: 7, title: "Add the export button" },
   description: "Add the export button\n\nAs a user I want to export.",
+  openPr: null,
 };
 
 function scene(overrides: Partial<Omit<FloorTicketDeps, "floor">> = {}) {
@@ -84,6 +85,25 @@ describe("startTicketOnFloor", () => {
           by: "lore",
         },
         issue_number: { kind: "value", ref: "7", by: "lore" },
+      },
+    });
+  });
+
+  it("starts the run with pull request 9's url as pr_url when the branch is resumed with one open", async () => {
+    const { deps, started } = scene();
+
+    await startTicketOnFloor(deps, {
+      ...TICKET,
+      openPr: { number: 9, url: "https://github.com/acme/widgets/pull/9" },
+    });
+
+    expect(started()[0].body).toMatchObject({
+      startItems: {
+        pr_url: {
+          kind: "value",
+          ref: "https://github.com/acme/widgets/pull/9",
+          by: "lore",
+        },
       },
     });
   });

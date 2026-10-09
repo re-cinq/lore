@@ -12,6 +12,7 @@ import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
 import { seedFloor } from "./app/seed-floor.js";
 import { seedAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-seed.js";
+import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
 
 // Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
 const state: { pool: Pool | null } = { pool: null };
@@ -48,6 +49,7 @@ function connectDatabase(dbHost: string): Pool {
   setMemoryPool(dbPool);
   setPipelinePool(dbPool);
   Llm.configure({ usage: new PgUsage(dbPool) });
+  registerBilledCostGauge(dbPool);
   console.error(`[lore-api] Database mode: PostgreSQL at ${dbHost}`);
 
   return dbPool;

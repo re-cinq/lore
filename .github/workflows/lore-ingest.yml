@@ -1,4 +1,4 @@
-# lore-ingest-version: 6
+# lore-ingest-version: 7
 name: Lore Context Ingest
 
 on:
@@ -163,4 +163,13 @@ jobs:
             echo "::error::the lore-code-trace Lore serves has no docs subcommand - specs and ADRs were NOT projected"
             exit 1
           fi
-          ./lore-code-trace docs --post
+          if ./lore-code-trace docs --post; then
+            exit 0
+          else
+            TRACE_EXIT=$?
+          fi
+          if [ "${TRACE_EXIT}" = "75" ]; then
+            echo "::warning::lore-code-trace graph projection will retry on next doc push"
+            exit 0
+          fi
+          exit "${TRACE_EXIT}"

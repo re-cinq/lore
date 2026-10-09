@@ -766,6 +766,119 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/bag": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_bag",
+        "summary": "GET /api/assembly-runs/{id}/bag",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBag"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/blobs/{hash}": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_blobs_hash",
+        "summary": "GET /api/assembly-runs/{id}/blobs/{hash}",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A blob the external floor keeps, readable only through a run that references it: text up to 1 MiB for a textual content type, metadata alone otherwise; 400 for a malformed hash, 404 for a run or blob it does not reference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBlob"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/dod": {
       "get": {
         "operationId": "get_api_assembly-runs_id_dod",
@@ -11280,6 +11393,22 @@
                               }
                             ]
                           },
+                          "needs": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "commit_sha": {
                             "type": ["string", "null"]
                           },
@@ -11304,6 +11433,7 @@
                           "agent_cr_name",
                           "station_run_id",
                           "input",
+                          "needs",
                           "commit_sha",
                           "started_at",
                           "finished_at",
@@ -13694,6 +13824,61 @@
         "required": ["started"],
         "additionalProperties": false
       },
+      "RunBag": {
+        "type": "object",
+        "properties": {
+          "bag": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["value", "file", "git"]
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "by": {
+                  "type": "string"
+                },
+                "sha": {
+                  "type": "string"
+                }
+              },
+              "required": ["kind", "ref", "by"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["bag"],
+        "additionalProperties": false
+      },
+      "RunBlob": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "number"
+          },
+          "text": {
+            "type": ["string", "null"]
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": ["hash", "contentType", "size", "text", "truncated"],
+        "additionalProperties": false
+      },
       "RunEvents": {
         "type": "object",
         "properties": {
@@ -14039,6 +14224,22 @@
                       }
                     ]
                   },
+                  "needs": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "commit_sha": {
                     "type": ["string", "null"]
                   },
@@ -14063,6 +14264,7 @@
                   "agent_cr_name",
                   "station_run_id",
                   "input",
+                  "needs",
                   "commit_sha",
                   "started_at",
                   "finished_at",
@@ -15258,6 +15460,22 @@
                     }
                   ]
                 },
+                "needs": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "commit_sha": {
                   "type": ["string", "null"]
                 },
@@ -15282,6 +15500,7 @@
                 "agent_cr_name",
                 "station_run_id",
                 "input",
+                "needs",
                 "commit_sha",
                 "started_at",
                 "finished_at",

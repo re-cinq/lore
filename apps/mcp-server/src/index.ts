@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 
-// Speaks MCP over stdio and proxies every data operation to LORE_API_URL (no DB pool, no OTel SDK); LORE_MCP_HTTP=1 serves it over Streamable HTTP instead, as a shared gateway for agent pods.
+// Speaks MCP over stdio and proxies every data operation to LORE_API_URL (no DB pool; the OTel meter is registered only as the gateway); LORE_MCP_HTTP=1 serves it over Streamable HTTP instead, as a shared gateway for agent pods.
 async function main() {
   loadDefaultTemplates();
 

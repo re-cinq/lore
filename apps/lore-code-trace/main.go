@@ -77,7 +77,7 @@ func main() {
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
 	parsed, err := parseArgs(os.Args[1:])
 	if err == nil {
@@ -85,8 +85,15 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
+}
+
+func exitCode(err error) int {
+	if errors.Is(err, errRetryExhausted) {
+		return 75
+	}
+	return 1
 }
 
 func dispatch(parsed invocation, wd string) error {

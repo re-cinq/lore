@@ -61,6 +61,14 @@ locals {
       "lore-headlamp-oauth-client-secret",
       "lore-headlamp-cookie-secret",
     ] : [],
+    # Grafana's own Google sign-in (monitoring.tf): its own OAuth web client, so a
+    # redirect URI or a rotation on one dashboard never touches the other, and its
+    # own cookie key under the same 16/24/32-byte rule.
+    var.enable_monitoring ? [
+      "lore-grafana-oauth-client-id",
+      "lore-grafana-oauth-client-secret",
+      "lore-grafana-cookie-secret",
+    ] : [],
   )
 }
 

@@ -11,7 +11,7 @@ import {
   taskEventEntries,
 } from "@/lib/transcript-entries";
 import type { AgentRunTurn } from "@/lib/run-turn-types";
-import { conversationEntries, turnsForNode } from "./turn-transcript-presenter";
+import { conversationEntries, turnsInScope } from "./turn-transcript-presenter";
 import { walkAllTurns, walkErrorMessage } from "./transcript-walk";
 import { useFollowLiveEvents, useTranscriptTail } from "./transcript-tail";
 import {
@@ -32,6 +32,8 @@ import {
 export interface FullTranscriptPanelProps {
   runId: string;
   nodeId: string;
+  /** One attempt of the node to show alone; absent, the whole node's visits are drawn. */
+  iteration?: number;
   /** The task's status transitions; the ones inside this node's visits render as system lines. */
   taskEvents?: readonly TaskRuntimeEvent[];
   /** This node's visit rows, whose span decides which task events belong to it. */
@@ -49,6 +51,7 @@ export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
   const segments = useNodeSegments({
     turns: walk.turns,
     nodeId,
+    iteration: props.iteration,
     taskEvents,
     rows,
   });
@@ -78,16 +81,17 @@ function useTranscriptWalk(runId: string, liveEventId: string | undefined) {
 interface ConversationSources {
   turns: AgentRunTurn[] | null;
   nodeId: string;
+  iteration: number | undefined;
   taskEvents: readonly TaskRuntimeEvent[];
   rows: readonly AssemblyRunNode[];
 }
 
 /** This node's turns as one terminal conversation: segmented per visit, tool calls paired with their results, the task's transitions in that window merged in by clock. */
 function useNodeSegments(sources: ConversationSources) {
-  const { turns, nodeId, taskEvents, rows } = sources;
+  const { turns, nodeId, iteration, taskEvents, rows } = sources;
   const nodeTurns = useMemo(
-    () => (turns === null ? [] : turnsForNode(turns, nodeId)),
-    [turns, nodeId],
+    () => (turns === null ? [] : turnsInScope(turns, nodeId, iteration)),
+    [turns, nodeId, iteration],
   );
   const entries = useMemo(() => {
     const agent = segmentEntries(

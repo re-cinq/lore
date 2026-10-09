@@ -1,3 +1,5 @@
+"use client";
+
 import type { PlanMeta } from "@re-cinq/planning-document";
 import { Alert } from "@/components/Alert";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
@@ -8,7 +10,7 @@ import type { PlanUser } from "@/lib/plan-user";
 import DraftingPlan from "./DraftingPlan";
 import PlanStatusBadge from "../PlanStatusBadge";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
-import PlanRunFollower from "./PlanRunFollower";
+import { usePlanRunLive } from "./usePlanRunLive";
 import PlanWorkspace from "./PlanWorkspace";
 import type { PlanActions } from "./plan-actions";
 import styles from "./PlanDetailView.module.scss";
@@ -28,40 +30,26 @@ export interface StoryInput {
   onChange: (text: string) => void;
 }
 
+// Everything below reads the live `run`, folded from the socket, never the seed the server rendered once — no router.refresh().
 export default function PlanDetailView({
   meta,
-  run,
+  run: seed,
   user,
   draftAgain,
   deletePlan,
   story,
   ...actions
 }: PlanDetailViewProps) {
+  const run = usePlanRunLive(seed, actions.refreshRunFacts);
   const state = planPageState(meta.status, run);
   const card = { run, state, draftAgain, reopen: actions.reopen };
 
   return (
     <div>
       <PlanHeader meta={meta} run={run} deletePlan={deletePlan} story={story} />
-      <PlanRunPanel {...card} />
+      <PlanRunCard {...card} />
       <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
     </div>
-  );
-}
-
-type PlanRunPanelProps = Parameters<typeof PlanRunCard>[0];
-
-// The run card, and behind it the follower that re-reads the page whenever the run's line moves.
-function PlanRunPanel(props: PlanRunPanelProps) {
-  const { run } = props;
-
-  return (
-    <>
-      {run && (
-        <PlanRunFollower runId={run.id} live={OPEN_RUN.has(run.status)} />
-      )}
-      <PlanRunCard {...props} />
-    </>
   );
 }
 
@@ -92,8 +80,6 @@ function PlanBody({ meta, run, user, state, ...actions }: PlanBodyProps) {
     />
   );
 }
-
-const OPEN_RUN: ReadonlySet<string> = new Set(["queued", "running"]);
 
 const NO_PR: Pick<
   PlanRun,

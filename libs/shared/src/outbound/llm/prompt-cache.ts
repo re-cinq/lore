@@ -1,4 +1,5 @@
 /** Prompt-caching helpers (Anthropic-specific): cache-control markers on system+tools, optional 1h TTL gated per job, and a djb2-hash break classifier explaining WHY a cache miss happened. */
+import { djb2Hash } from "../../lib/djb2.js";
 
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -69,16 +70,7 @@ export function getCacheControl(jobName?: string): CacheControl {
 
 // ── Hashing ────────────────────────────────────────────────────────
 
-/** djb2 — deterministic across runs and runtime-independent. */
-export function djb2Hash(str: string): string {
-  let hash = 5381;
-
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
-  }
-
-  return (hash >>> 0).toString(16);
-}
+export { djb2Hash } from "../../lib/djb2.js";
 
 interface ToolShape {
   name: string;

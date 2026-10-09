@@ -21,8 +21,6 @@ line:
   nodes:
     - id: settle
       station: merge-settle
-    - id: spec-status
-      station: merge-spec-status
     - id: close-issue
       station: merge-close-issue
     - id: outcome-stats
@@ -36,15 +34,12 @@ line:
     - id: done
   edges:
     - from: settle
-      to: spec-status
+      to: close-issue
       on: success
     - from: settle
       to: settle
       on: failed
       iteration_max: 1
-    - from: spec-status
-      to: close-issue
-      on: always
     - from: close-issue
       to: outcome-stats
       on: always
@@ -62,15 +57,6 @@ line:
       on: always
 stations:
   merge-settle:
-    kind: service
-    outcomes:
-      - success
-      - failed
-    needs:
-      - name: task_id
-        kind: value
-    produces: []
-  merge-spec-status:
     kind: service
     outcomes:
       - success

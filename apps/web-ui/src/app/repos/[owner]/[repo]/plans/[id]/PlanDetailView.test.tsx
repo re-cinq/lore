@@ -38,6 +38,7 @@ const actions = {
   reworkSpecs: async () => ({}),
   validate: async () => ({}),
   deletePlan: vi.fn(async () => ({})),
+  refreshRunFacts: async () => ({ run: null }),
 };
 
 const QUEUED_RUN: PlanRun = {

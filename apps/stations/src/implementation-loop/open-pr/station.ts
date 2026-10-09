@@ -12,15 +12,26 @@ import {
   ensurePull,
   type PullOpener,
 } from "@re-cinq/lore-shared/project/pulls/ensure-pull.js";
-import type { PullDraft } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type {
+  PullDraft,
+  PullRef,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { pipeline } from "../../outbound/queues.js";
 
 export interface OpenLoopPrDeps {
   pulls(repo: string): Promise<PullOpener>;
+  /** Writes the pull request onto the run's task, where the run page reads it: a value a station produces stays inside the floor. */
+  recordPr(taskId: string, pr: PullRef): Promise<void>;
 }
 
 const productionDeps: OpenLoopPrDeps = {
   pulls: async (repo) => (await projectFor(repo)).pulls,
+  recordPr: (taskId, pr) =>
+    pipeline().taskQueue.setColumns(taskId, {
+      pr_url: pr.url,
+      pr_number: pr.number,
+    }),
 };
 
 /** GitHub's refusal to open a pull request from a branch that holds nothing its base lacks. */
@@ -40,6 +51,8 @@ export function openLoopPrHandle(deps: OpenLoopPrDeps): Handle {
     try {
       const pulls = await deps.pulls(repo);
       const pr = await ensurePull(pulls, branch, draftOf(branch, ticket));
+
+      await deps.recordPr(ticket.task_id, pr);
 
       return { outcome: "success", produced: { pr_url: pr.url } };
     } catch (err) {
