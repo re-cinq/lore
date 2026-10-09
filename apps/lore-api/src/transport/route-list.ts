@@ -15,6 +15,7 @@ import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
+import { triageRoute } from "./routes/triage/triage.js";
 import { contextRoute } from "./routes/context/context.js";
 import { contextEvalRoute } from "./routes/context-evals/context-evals.js";
 import { contextEvalDocumentsRoute } from "./routes/context-evals/context-eval-documents.js";
@@ -150,7 +151,7 @@ function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** A repo and what Lore knows about it: its record, its settings, and the context and graph read off it. */
+/** A repo and what Lore knows about it: its record, its settings, and its external state. */
 function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     repoStatusRoute(getPool),
@@ -163,12 +164,20 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ciFailuresRoute(),
     ciJobLogRoute(),
     issueRoute(),
+    triageRoute(),
+    onboardRoute(getPool),
+    ...contextAndGraphRoutes(getPool),
+  ];
+}
+
+/** The context, evaluation, and graph read off a repo. */
+function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     contextRoute(getPool),
     contextEvalRoute(getPool),
     contextEvalDocumentsRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
-    onboardRoute(getPool),
   ];
 }
 
