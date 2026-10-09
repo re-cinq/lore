@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { visitBag } from "../visit-bag.fixtures.js";
+import type { RunVisit } from "../coverage-deps.js";
 import { splitSectionsHandle } from "./station.js";
 
 const PLAN_URL = "https://lore.example/plans/p1";
@@ -31,7 +32,12 @@ const EMPTY_STATE = {
   redoRound: 0,
 };
 
-function sceneOf(files: Record<string, unknown>) {
+const AFTER_DRAFT: RunVisit[] = [
+  { nodeId: "draft", report: { outcome: "success" } },
+  { nodeId: "split-sections", report: null },
+];
+
+function sceneOf(files: Record<string, unknown>, visits: RunVisit[] = []) {
   const text = (value: unknown) =>
     typeof value === "string" ? value : JSON.stringify(value);
   const bag = visitBag(
@@ -41,11 +47,15 @@ function sceneOf(files: Record<string, unknown>) {
     ),
   );
 
-  return { ...bag, brief: bag.given(BRIEF) };
+  const handle = splitSectionsHandle({ visitsOf: async () => visits });
+
+  return { ...bag, handle, brief: bag.given(BRIEF) };
 }
 
-const withBlocks = (files: Record<string, unknown> = {}) =>
-  sceneOf({ plan_blocks: CITABLE, ...files });
+const withBlocks = (
+  files: Record<string, unknown> = {},
+  visits: RunVisit[] = [],
+) => sceneOf({ plan_blocks: CITABLE, ...files }, visits);
 
 const BRIEF = { visitId: "visit-split", iteration: 1, needs: {} };
 
@@ -62,9 +72,9 @@ const stateOf = (produced: Record<string, string>) =>
 
 describe("splitSectionsHandle", () => {
   it("lists every section with blocks as one entry each, in line order, and remembers what it handed out", async () => {
-    const { tools, produced, brief } = withBlocks();
+    const { tools, produced, brief, handle } = withBlocks();
 
-    const report = await splitSectionsHandle()(brief, tools);
+    const report = await handle(brief, tools);
 
     expect({
       outcome: report.outcome,
@@ -78,9 +88,9 @@ describe("splitSectionsHandle", () => {
   });
 
   it("gives each entry the section's text with the technical rule", async () => {
-    const { tools, brief } = withBlocks();
+    const { tools, brief, handle } = withBlocks();
 
-    const [scope] = entriesOf(await splitSectionsHandle()(brief, tools));
+    const [scope] = entriesOf(await handle(brief, tools));
 
     expect(JSON.parse(scope!)).toEqual({
       slot: "scope",
@@ -89,7 +99,7 @@ describe("splitSectionsHandle", () => {
   });
 
   it("lists only the sections not yet done when a section had to be tried again", async () => {
-    const { tools, brief } = withBlocks({
+    const { tools, brief, handle } = withBlocks({
       section_state: {
         ...EMPTY_STATE,
         done: ["risk"],
@@ -97,18 +107,18 @@ describe("splitSectionsHandle", () => {
       },
     });
 
-    const report = await splitSectionsHandle()(brief, tools);
+    const report = await handle(brief, tools);
 
     expect(slotsOf(report)).toEqual(["scope"]);
   });
 
   it("lists only the sections the gate sent back, and remembers its round", async () => {
-    const { tools, produced, brief } = withBlocks({
+    const { tools, produced, brief, handle } = withBlocks({
       section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
       redo_sections: { round: 1, sections: ["risk"] },
     });
 
-    const report = await splitSectionsHandle()(brief, tools);
+    const report = await handle(brief, tools);
 
     expect({
       slots: slotsOf(report),
@@ -120,11 +130,11 @@ describe("splitSectionsHandle", () => {
   });
 
   it("lists nothing when every section is settled", async () => {
-    const { tools, brief } = withBlocks({
+    const { tools, brief, handle } = withBlocks({
       section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
     });
 
-    const report = await splitSectionsHandle()(brief, tools);
+    const report = await handle(brief, tools);
 
     expect(report).toEqual({
       outcome: "success",
@@ -133,13 +143,50 @@ describe("splitSectionsHandle", () => {
   });
 
   it("lists nothing when the deployment hands the run no plan blocks", async () => {
-    const { tools, brief } = sceneOf({});
+    const { tools, brief, handle } = sceneOf({});
 
-    const report = await splitSectionsHandle()(brief, tools);
+    const report = await handle(brief, tools);
 
     expect(report).toEqual({
       outcome: "success",
       produced: { sections: "[]" },
     });
+  });
+
+  it("lists every section again after a new draft, though the run remembers them all failed", async () => {
+    const { tools, produced, brief, handle } = withBlocks(
+      {
+        section_state: {
+          ...EMPTY_STATE,
+          failed: ["scope", "risk"],
+          redoRound: 2,
+        },
+      },
+      AFTER_DRAFT,
+    );
+
+    const report = await handle(brief, tools);
+
+    expect({
+      slots: slotsOf(report),
+      failed: stateOf(produced).failed,
+    }).toEqual({ slots: ["scope", "risk"], failed: [] });
+  });
+
+  it("takes no redo request the gate left from before a new draft", async () => {
+    const { tools, produced, brief, handle } = withBlocks(
+      {
+        section_state: { ...EMPTY_STATE, done: ["scope", "risk"] },
+        redo_sections: { round: 3, sections: ["risk"] },
+      },
+      AFTER_DRAFT,
+    );
+
+    const report = await handle(brief, tools);
+
+    expect({
+      slots: slotsOf(report),
+      round: stateOf(produced).redoRound,
+    }).toEqual({ slots: ["scope", "risk"], round: 3 });
   });
 });
