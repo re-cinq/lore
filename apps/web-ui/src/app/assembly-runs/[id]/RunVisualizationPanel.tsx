@@ -133,7 +133,7 @@ function graphProps(props: RunVisualizationPanelProps) {
 interface RunGraphProps {
   view: RunView;
   /** The page's header, above the graph it introduces. */
-  header: ReactNode;
+  header?: ReactNode;
   definition: RunVisualizationPanelProps["definition"];
   runOutcome: string | null;
   reason: string | null;
