@@ -18,9 +18,10 @@ false when the spec is silent, vague or contradicts it. Read the whole
 spec for it before you answer: a fact can sit in a table, a heading or
 a different requirement than the one a first reader looked at. Do not
 guess, do not use outside knowledge, and do not give the spec the
-benefit of the doubt. When a statement names a file, route, table or
-setting, also check it exists in the repository; a name that does not
-exist makes the answer false.
+benefit of the doubt. Whether a file, route, table or setting exists
+in the repository is not your question: a spec may name what the
+feature adds, and the line checks names against the code itself. Judge
+only what the spec text says.
 
 Write `{qa_recheck_answers_path}` as a JSON array and nothing else, one
 entry for every statement: `[{"id":"q1","answer":true|false,"reason":"<one
