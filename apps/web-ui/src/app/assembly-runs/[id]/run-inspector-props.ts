@@ -1,4 +1,6 @@
 import type { RunLiveState } from "@/lib/run-event-reducer";
+import type { AttemptInspectorProps } from "./AttemptInspector";
+import type { InspectorFocus } from "./use-inspector-focus";
 import type { RunVisualizationPanelProps } from "./RunVisualizationPanel";
 import type { useRunGraph, useSelectedNode } from "./run-visualization-hooks";
 import { transcriptFeed } from "./run-visualization-selectors";
@@ -30,6 +32,26 @@ export function inspectorProps(view: InspectorView, page: RunDetailPage) {
     ...pageFacts(page),
     ...viewFacts(view),
     ...transcriptFeed(view.state, page.taskEvents),
+  };
+}
+
+/** The center column's values: the inspector bundle narrowed to one node's attempts, plus which of them is in focus. */
+export function attemptInspectorProps(
+  inspector: ReturnType<typeof inspectorProps>,
+  focus: InspectorFocus,
+): AttemptInspectorProps {
+  return {
+    runId: inspector.runId,
+    nodeId: inspector.selectedNodeId,
+    engine: inspector.engine,
+    attempts: inspector.selectedAttempts,
+    inputs: inspector.nodeInputs,
+    taskEvents: inspector.taskEvents,
+    liveEventId: inspector.liveEventId,
+    attempt: focus.attempt,
+    kind: focus.kind,
+    onKindChange: focus.setKind,
+    onPickAttempt: focus.pickAttempt,
   };
 }
 

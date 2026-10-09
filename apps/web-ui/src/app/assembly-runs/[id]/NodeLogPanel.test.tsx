@@ -53,6 +53,25 @@ async function openPanel(container: HTMLElement) {
 }
 
 describe("NodeLogPanel", () => {
+  it("fetches on mount when opened by default", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG));
+
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <NodeLogPanel
+        assemblyLineId="run-1"
+        agentCrName="a1b2c3d4-review"
+        label="Pod logs · attempt 1"
+        defaultOpen
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("renders the collapsed label without fetching until opened", () => {
     const fetchMock = vi.fn();
 
