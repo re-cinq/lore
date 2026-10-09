@@ -116,13 +116,13 @@ The route is registered as an exact `POST /api/onboard` match. ([implemented by]
 
 `onboardRepo` ensures the Lore webhook (the public `/api/events` hook URL, served by lore-api) for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by `repo-onboard.test.ts:67`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L67), [`repo-onboard.test.ts:79`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L84))
 
-`onboardRepo` takes the per-repo advisory lock before reading the guard state and gives the task the onboarding TICKET body (`onboardTicketBody`, `libs/shared/src/work/onboard-content.ts`) rather than the bare repo name — the description becomes the Issue the `onboard` line implements, so it must carry every file owed and every rule. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L99), [validated by sends the onboarding ticket body instead of the bare repo name](apps/lore-api/src/work/repo/repo-onboard.test.ts#L135))
+`onboardRepo` takes the per-repo advisory lock before reading the guard state and gives the task the onboarding TICKET body (`onboardTicketBody`, `libs/shared/src/work/onboard-content.ts`) rather than the bare repo name — the description becomes the Issue the `onboard` line implements, so it must carry every file owed and every rule. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L99), [validated by `sends the onboarding ticket body instead of the bare repo name`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L135))
 
-`onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo. ([validated by blocks an already-onboarded repo without creating a task](apps/lore-api/src/work/repo/repo-onboard.test.ts#L166))
+`onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L166))
 
-It blocks a repo with an onboard task in flight while naming that task. ([validated by blocks a repo with an onboard task in flight and names that task](apps/lore-api/src/work/repo/repo-onboard.test.ts#L177))
+It blocks a repo with an onboard task in flight while naming that task. ([validated by `blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L177))
 
-It blocks a repo whose onboarding PR is still open while naming the PR. ([validated by blocks a repo whose onboarding PR is still open](apps/lore-api/src/work/repo/repo-onboard.test.ts#L188))
+It blocks a repo whose onboarding PR is still open while naming the PR. ([validated by `blocks a repo whose onboarding PR is still open`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L188))
 The onboarding guard blocks `re-cinq/lore` outright because it is the source of the templates. ([validated by](libs/shared/src/work/onboard-guard.test.ts#L17))
 
 A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L223), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L277))
@@ -131,7 +131,7 @@ A `reonboard` submission is queued for an already-onboarded repo but still refus
 
 `onboardRepo` takes one pooled connection and commits both the onboard task and the `lore.repos` row inside the single transaction that holds the lock — a second connection for the task would deadlock the pool once concurrent submissions reach its size, and a task committed outside the transaction would survive the rollback and then block every retry as in-flight. A failing write rolls back, creates nothing, and skips the webhook ensure. ([validated by `commits the task and the repos row on the one locked connection`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L120), [`rolls back and creates nothing when a write fails`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L152))
 
-Onboard tasks are created only here: `POST /api/task` creates no task of any type (since 2026-10-02 it only acts on an existing one). ([validated by creates nothing for a body that names neither a task nor a type](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
+Onboard tasks are created only here: `POST /api/task` creates no task of any type (since 2026-10-02 it only acts on an existing one). ([validated by `creates nothing for a body that names neither a task nor a type`](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
 
 ### What the route no longer does
 
