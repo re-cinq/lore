@@ -70,8 +70,10 @@ export interface StationRunFailure {
   failureDetail?: string;
 }
 
-/** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts). */
-export type StationRunRecord = StationRun;
+/** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts) extended with `needs` — the floor brief's bag as the pod saw it at start (name → ref), absent on a table-backed record, whose dispatch snapshot is `input`. */
+export type StationRunRecord = StationRun & {
+  needs?: Record<string, string> | null;
+};
 
 /** The overlap guard's row: everything it compares, nothing it does not. */
 export interface OpenRunSummary {

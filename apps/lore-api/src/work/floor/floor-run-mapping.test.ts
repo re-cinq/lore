@@ -47,6 +47,7 @@ const visit: VisitView = {
   brief: { needs: {}, iteration: 2 },
   report: null,
   worker: null,
+  branch: null,
   requestedBy: "alice",
   deadline: null,
   resumedFrom: null,
@@ -260,11 +261,23 @@ describe("visitToStationRun", () => {
       failureDetail: null,
       agentCrName: "floor-visit-1",
       input: null,
+      needs: {},
       commitSha: null,
       requestedBy: "alice",
       startedAt: CREATED_AT,
       finishedAt: null,
     });
+  });
+
+  it("carries the brief's needs target and pr_url as the visit's bag", () => {
+    const needs = {
+      target: "github.com/re-cinq/lore@fix/login",
+      pr_url: "https://github.com/re-cinq/lore/pull/412",
+    };
+
+    expect(
+      visitToStationRun({ ...visit, brief: { needs, iteration: 2 } }, run),
+    ).toMatchObject({ needs });
   });
 
   it("maps a visit with a deadline and no worker to claimed with tags and claim time", () => {

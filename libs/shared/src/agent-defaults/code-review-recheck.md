@@ -1,7 +1,7 @@
 ---
 # The code-review-recheck line's `code-review-recheck` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 10
-model: gemini-3.1-pro-preview
+model: claude-sonnet-4-6
 ---
 {description}
 

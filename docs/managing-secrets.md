@@ -178,6 +178,30 @@ openssl rand -base64 32 | head -c 32 \
 `head -c 32` is load-bearing: oauth2-proxy accepts a cookie secret of exactly 16,
 24 or 32 bytes and refuses to start otherwise.
 
+## The Grafana sign-in credentials (`lore-grafana-*`)
+
+The metrics stack (`infra/terraform/monitoring.tf`, `enable_monitoring`) puts its own
+oauth2-proxy in front of Grafana at `grafana_hostname`, with its OWN Google OAuth web
+client: a redirect URI or a rotation on one dashboard then never touches the other.
+Same recipe as Headlamp's, three containers behind `enable_monitoring`:
+
+1. Cloud Console → APIs & Services → **Credentials** → Create OAuth client ID →
+   *Web application*, name `grafana`.
+2. Authorized redirect URI, exactly: `https://<grafana_hostname>/oauth2/callback`
+3. Consent screen: the same **Internal** screen Headlamp uses.
+
+```bash
+printf '%s' "<client id>"     | gcloud secrets versions add lore-grafana-oauth-client-id     --data-file=-
+printf '%s' "<client secret>" | gcloud secrets versions add lore-grafana-oauth-client-secret --data-file=-
+openssl rand -base64 32 | head -c 32 \
+  | gcloud secrets versions add lore-grafana-cookie-secret --data-file=-
+```
+
+Then `kubectl -n monitoring annotate externalsecret grafana-oauth force-sync=$(date +%s)`
+and `kubectl -n monitoring rollout restart deploy/grafana-oauth2-proxy`, since the proxy
+reads the secret as environment at start. First install order is Headlamp's too:
+containers first, seed, then the rest.
+
 **Order matters here, more than for the other secrets.** The Helm provider waits
 for a release to become Ready, and oauth2-proxy cannot start without its secret, so
 a single `terraform apply` on a fresh install fails on that release's 5-minute

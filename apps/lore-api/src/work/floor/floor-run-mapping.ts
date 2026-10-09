@@ -114,7 +114,7 @@ export function visitToStationRun(
     requiredTags: visit.agentSettings?.tags ?? [],
     claimedAt,
     ...visitVerdictOf(visit),
-    input: null,
+    ...visitBagOf(visit),
     commitSha: null,
     requestedBy: visit.requestedBy,
     startedAt: claimedAt ?? run.createdAt,
@@ -201,7 +201,7 @@ function runIdentityOf(run: RunView): RunIdentity {
     blueprintName: run.lineId,
     // A line that keeps a `pipeline.tasks` row is started with it as `task_id`.
     taskId: startValue(run, "task_id") ?? null,
-    repo: run.repo.replace(GITHUB_PREFIX, ""),
+    repo: (run.repo ?? "").replace(GITHUB_PREFIX, ""),
     branch: branchOf(run.startItems),
     subjectKey: run.subjectKey,
     args: runArgsOf(run.startItems),
@@ -282,6 +282,13 @@ function visitVerdictOf(
     failureClass: null,
     failureDetail: visit.report?.error ?? null,
   };
+}
+
+/** What the visit was started with: the floor's brief holds the bag as the pod saw it, so there is no separate dispatch snapshot to record. */
+function visitBagOf(
+  visit: VisitView,
+): Pick<StationRunRecord, "input" | "needs"> {
+  return { input: null, needs: visit.brief.needs };
 }
 
 export function agentCrNameOf(visitId: string): string {
