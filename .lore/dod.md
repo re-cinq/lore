@@ -7,16 +7,16 @@
 
 ## Done when these pass
 
-- [ ] **throws when the DB lookup throws** — ensures `resolveTokenScopes` surfaces the DB error instead of suppressing it as null
+- [x] **throws when the DB lookup throws** — ensures `resolveTokenScopes` surfaces the DB error instead of suppressing it as null
   `apps/lore-api/src/transport/http/auth.test.ts`
-- [ ] **returns 503 when the token lookup query throws** — ensures the bearer-scope auth strategy returns a 503 error when a DB connection drops during token validation
+- [x] **returns 503 when the token lookup query throws** — ensures the bearer-scope auth strategy returns a 503 error when a DB connection drops during token validation
   `apps/lore-api/src/transport/http/bearer-scope.test.ts`
 
 ## Facets
 
-- [ ] Remove the empty `catch` returning `null` in `lookupTokenScopes`
-- [ ] Catch the DB error in `authenticateBearer` and map it to a 503 Boom error
-- [ ] Add logging for the DB error in `authenticateBearer` or `lookupTokenScopes`
+- [x] Remove the empty `catch` returning `null` in `lookupTokenScopes`
+- [x] Catch the DB error in `authenticateBearer` and map it to a 503 Boom error
+- [x] Add logging for the DB error in `authenticateBearer` or `lookupTokenScopes`
 
 ## Out of scope
 
