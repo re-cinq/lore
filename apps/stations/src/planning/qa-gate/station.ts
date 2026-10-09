@@ -55,7 +55,7 @@ async function judged(
   if (needsRecheck(verdict) && !round.afterRecheck) {
     return askForRecheck(tools, verdict);
   }
-  await deliver(tools, { ...round, verdict });
+  await deliver(tools, { ...round, verdict, iteration: brief.iteration });
 
   return { outcome: verdict.outcome };
 }
@@ -135,6 +135,8 @@ async function askForRecheck(
 
 interface Delivery {
   verdict: QaVerdict;
+  /** The gate visit's iteration numbers its redo request: it only grows within a run, where the rounds spent start again after a person acts, so a request left from before a restart is never taken for a new one. */
+  iteration: number;
   checks: BranchChecks | null;
   history: number[];
   options: GateOptions;
@@ -143,13 +145,13 @@ interface Delivery {
 /** The bag never drops a key: an empty `qa_failures` is how a round with no failures clears the last round's. */
 async function deliver(
   tools: Tools,
-  { verdict, checks, history, options }: Delivery,
+  { verdict, checks, history, options, iteration }: Delivery,
 ): Promise<void> {
   const gaps = verdict.failures.length + (options.branchGaps ?? 0);
   const redo = redoRequest(
     verdict.failures,
     options.branchGaps ?? 0,
-    options.roundsSpent + 1,
+    iteration,
   );
 
   await Promise.all([
