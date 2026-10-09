@@ -142,7 +142,7 @@ Any non-GET/POST verb (including an absent method) returns `405 { error: "method
 not allowed" }`. ([validated by `tokens.test.ts:148`](apps/lore-api/src/transport/routes/tokens/tokens.test.ts#L148))
 
 The route requires `admin` scope; the dispatcher 403s a read-scoped token before
-the handler runs. ([validated by `auth.test.ts:108`](apps/lore-api/src/transport/http/auth.test.ts#L108) and `returns 403 when
+the handler runs. ([validated by `auth.test.ts:108`](apps/lore-api/src/transport/http/auth.test.ts#L110) and `returns 403 when
 the DB token lacks the admin scope an admin route
 needs`](../../../apps/mcp-server/src/api/routes/dispatch.test.ts#L145))
 
