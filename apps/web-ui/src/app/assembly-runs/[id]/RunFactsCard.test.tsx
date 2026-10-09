@@ -75,6 +75,24 @@ describe("RunFactsCard", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("cancels the read still in flight when the refresh key changes", async () => {
+    const signals: AbortSignal[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        signals.push(init.signal as AbortSignal);
+
+        return new Promise<Response>(() => {});
+      }),
+    );
+    const { rerender } = render(<RunFactsCard run={run} refreshKey="a" />);
+
+    rerender(<RunFactsCard run={run} refreshKey="b" />);
+
+    expect(signals.map((signal) => signal.aborted)).toEqual([true, false]);
+  });
+
   it("shows the facts without a bag when the read fails", async () => {
     vi.stubGlobal(
       "fetch",

@@ -16,6 +16,7 @@ import { Alert } from "@/components/Alert";
 import type { Issue } from "@/lib/api/issues";
 import AssemblyRunView from "./AssemblyRunView";
 import RunFactsCard from "./RunFactsCard";
+import { bagRefreshKey } from "@/lib/run-bag";
 import RunIssueCard from "./RunIssueCard";
 import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
@@ -106,7 +107,10 @@ function panelSlots(sources: PanelSources) {
 function RunDetails({ props, run, live }: PanelSources) {
   return (
     <>
-      <RunFactsCard run={run} refreshKey={bagRefreshKey(live)} />
+      <RunFactsCard
+        run={run}
+        refreshKey={bagRefreshKey(live.run.status, live.nodes)}
+      />
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
       <AssemblyRunOptions run={run} upgradeAvailable={props.upgradeAvailable} />
@@ -131,15 +135,6 @@ function RunHeader(props: {
 /** Changes when the run's status or its CI check moved — the two moments the definition of done can read differently. */
 function dodRefreshKey(live: ReturnType<typeof initialRunLive>): string {
   return `${live.run.status}:${live.ciCheck?.observed_at ?? ""}`;
-}
-
-/** Changes when the run's status or any node's outcome moved — the moments the floor's bag can have gained an item. */
-function bagRefreshKey(live: ReturnType<typeof initialRunLive>): string {
-  const nodes = live.nodes.map(
-    (node) => `${node.nodeId}:${node.iteration}:${node.outcome ?? ""}`,
-  );
-
-  return `${live.run.status}|${nodes.join(",")}`;
 }
 
 interface TaskContextProps {

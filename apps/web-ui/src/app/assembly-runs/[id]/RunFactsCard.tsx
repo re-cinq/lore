@@ -18,24 +18,22 @@ export default function RunFactsCard({ run, refreshKey }: RunFactsCardProps) {
   return <RunFacts run={run} bag={bag} />;
 }
 
-/** The latest bag, or null until one has been read; a disposed card is told nothing. */
+/** The latest bag, or null until one has been read. A newer read cancels the one in flight, so a slow old answer can neither pile up behind it nor land after it. */
 function useRunBag(runId: string, refreshKey: string): RunBag | null {
   const [bag, setBag] = useState<RunBag | null>(null);
 
   useEffect(() => {
-    let disposed = false;
+    const read = new AbortController();
 
-    readRunBag(runId)
+    readRunBag(runId, read.signal)
       .then((next) => {
-        if (!disposed && next !== null) {
+        if (next !== null) {
           setBag(next);
         }
       })
       .catch(() => {});
 
-    return () => {
-      disposed = true;
-    };
+    return () => read.abort();
   }, [runId, refreshKey]);
 
   return bag;
