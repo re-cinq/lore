@@ -67,7 +67,12 @@ export async function commitOnboardScaffold(
   const result: OnboardScaffoldResult = { committed: [], failures: [] };
 
   for (const file of SCAFFOLD_FILES) {
-    await commitScaffoldFile(repo, branch, file, result);
+    try {
+      await commitScaffoldFile(repo, branch, file, result);
+    } catch (err) {
+      console.error(`[onboard] failed ${file.path}: ${errorMessage(err)}`);
+      result.failures.push({ step: file.path, error: errorMessage(err) });
+    }
   }
 
   return result;
@@ -79,23 +84,18 @@ async function commitScaffoldFile(
   file: ScaffoldFile,
   result: OnboardScaffoldResult,
 ): Promise<void> {
-  try {
-    const current = await repo.read(file.path, branch);
+  const current = await repo.read(file.path, branch);
 
-    if (!decideScaffoldCommit(file, current)) {
-      return handleScaffoldSkip(file, current, result);
-    }
-    await repo.commitFile(
-      branch,
-      file.path,
-      file.content,
-      `lore: update ${file.path}`,
-    );
-    result.committed.push(file.path);
-  } catch (err) {
-    console.error(`[onboard] failed ${file.path}: ${errorMessage(err)}`);
-    result.failures.push({ step: file.path, error: errorMessage(err) });
+  if (!decideScaffoldCommit(file, current)) {
+    return handleScaffoldSkip(file, current, result);
   }
+  await repo.commitFile(
+    branch,
+    file.path,
+    file.content,
+    `lore: update ${file.path}`,
+  );
+  result.committed.push(file.path);
 }
 
 function handleScaffoldSkip(
