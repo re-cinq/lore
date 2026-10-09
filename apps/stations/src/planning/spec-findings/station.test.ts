@@ -104,13 +104,13 @@ describe("specFindingsHandle", () => {
     });
   });
 
-  it("reports failed when the verdict is not one", async () => {
+  it("reports failed, editing nothing, when the verdict is not valid JSON", async () => {
     const { handle, edits } = scene();
 
     const report = await handle(brief, toolsReading("{oops"));
 
-    expect({ outcome: report.outcome, edits }).toEqual({
-      outcome: "failed",
+    expect({ report, edits }).toEqual({
+      report: { outcome: "failed", error: expect.stringContaining("JSON") },
       edits: [],
     });
   });
