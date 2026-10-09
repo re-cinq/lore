@@ -978,15 +978,9 @@ accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
 and an in-memory double per port, so Floor, mcp-server, and lore-api
 share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
 
-- FR-20.1: The `TaskQueue` port drives org-wide claim/sweep: it claims
-  one runnable pending task (immediate-first, past the minute interval,
-  without the dead `running-local` predicate) or null, CAS-updates a
-  still-pending row to a claimer (default or caller-supplied) and returns
-  false when already claimed, stays org-wide with no params but scopes to
-  a repo when given, flips a running task to completed (reporting
-  same-spec dependents it unblocks, false for unknown/non-running), and
-  exposes `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
-  `findRecoverable`. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20), [`task-queue.test.ts:27`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L27), [`task-queue.test.ts:35`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L42), [`task-queue.test.ts:49`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L56), [`task-queue.test.ts:180`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L56), [`task-queue.test.ts:191`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L67), [`task-queue.test.ts:204`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L80), [`task-queue.test.ts:218`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L94), [`task-queue.test.ts:272`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L148), [`task-queue.test.ts:282`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L179), [`task-queue.test.ts:311`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L208))
+- FR-20.1: The `TaskQueue` port drives org-wide sweep: it exposes
+  `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
+  `findRecoverable`. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7), [`task-queue.test.ts:21`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L21), [`task-queue.test.ts:32`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L32), [`task-queue.test.ts:45`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L45), [`task-queue.test.ts:59`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L59), [`task-queue.test.ts:72`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L72), [`task-queue.test.ts:127`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:149`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L149), [`task-queue.test.ts:159`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L159))
 - FR-20.1b: `setColumns` writes only the given allow-listed task columns
   WITHOUT touching status or updated_at, issues no SQL for an empty column
   set, and throws on any key outside `SETTABLE_TASK_COLUMNS` — identically
@@ -1005,20 +999,10 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `failure_reason` on failure; the review loop increments `review_iteration`;
   and run-now flips a pending task's priority from `normal` to `immediate`.
   ([validated by `creates a task in pending status`](apps/lore-api/src/integration-tests/pipeline.test.ts#L28), [validated by `claims a task atomically`](apps/lore-api/src/integration-tests/pipeline.test.ts#L38), [validated by `30s grace period excludes recently created tasks`](apps/lore-api/src/integration-tests/pipeline.test.ts#L68), [validated by `full lifecycle pending running completed`](apps/lore-api/src/integration-tests/pipeline.test.ts#L86), [validated by `records task events for audit trail`](apps/lore-api/src/integration-tests/pipeline.test.ts#L118), [validated by `handles failure with reason`](apps/lore-api/src/integration-tests/pipeline.test.ts#L149), [validated by `tracks review iterations`](apps/lore-api/src/integration-tests/pipeline.test.ts#L171), [validated by `creates tasks with default priority normal`](apps/lore-api/src/integration-tests/pipeline.test.ts#L192), [validated by `creates tasks with explicit priority immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L202), [validated by `GKE worker query picks up immediate tasks without grace`](apps/lore-api/src/integration-tests/pipeline.test.ts#L212), [validated by `run-now updates priority from normal to immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L234))
-- FR-20.2: The `TaskQueue` port also drives spec-task DAG dispatch: it
-  claims a pending spec-task once via CAS (default claimer
-  `spec-task-executor`), completes it reporting only the same-spec
-  dependents it unblocks (false when not running), exposes
-  `awaitingApproval`/`distinctTargetRepos`/`prInfo`, and returns ready
-  spec-tasks whose deps are completed/merged in the same spec — scoping
-  the returned set to one repo while still resolving deps org-wide.
-  Nothing dispatches a spec-task any more: the executor that did, and the
+- FR-20.2: Nothing dispatches a spec-task any more: the executor that did, and the
   admission rules that capped a plan's group at three concurrent tasks, are
   removed *(rewritten 2026-10-07, `specs/external-floor` FR15.0)*. The
-  generic claim still never takes one — it holds no recipe for them and
-  ignores their dependencies, and on 2026-09-29 it grabbed the tasks the
-  executor was holding back, filed an Issue for each and failed them all —
-  so these port methods answer for the rows that already exist and for
+  methods answer for the rows that already exist and for
   nothing new. A plan's tasks reach the implementation loop as tickets
   (`specs/7-feature-planning` FR-11.13).
   ([`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L263), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L285), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L295), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34)))

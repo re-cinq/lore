@@ -108,9 +108,6 @@ export type ReviewableTask = TaskColumn<
 
 /** Org-wide task-queue mechanics over pipeline.tasks (claim, crash-recovery/staleness sweeps, spec-task DAG dispatch); single-sourced from inline Floor-job SQL. Repo-scoped task record ops stay on project.tasks. */
 export interface TaskQueueRepository {
-  /** Next runnable pending task (immediate-priority first, then oldest; 30s grace before a normal task is eligible, so a local runner can claim first); null if none. */
-  claimNextPending(): Promise<PipelineTask | null>;
-
   /** running/queued tasks idle past `maxAgeMinutes` (default 30) — recovery candidates. */
   findRecoverable(maxAgeMinutes?: number): Promise<RecoverableTask[]>;
 
