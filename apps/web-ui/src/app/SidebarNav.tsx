@@ -43,9 +43,14 @@ const groups: NavGroup[] = [
 interface SidebarNavProps {
   /** The cluster dashboard's address; absent renders no link at all (lib/headlamp-url.ts). */
   headlampUrl?: string;
+  /** The metrics dashboards' address, under the same rule (ADR-050). */
+  grafanaUrl?: string;
 }
 
-export default function SidebarNav({ headlampUrl }: SidebarNavProps) {
+export default function SidebarNav({
+  headlampUrl,
+  grafanaUrl,
+}: SidebarNavProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -55,7 +60,11 @@ export default function SidebarNav({ headlampUrl }: SidebarNavProps) {
   return (
     <>
       <NavGroups pathname={pathname} collapsed={collapsed} onToggle={toggle} />
-      <NavFooter pathname={pathname} headlampUrl={headlampUrl} />
+      <NavFooter
+        pathname={pathname}
+        headlampUrl={headlampUrl}
+        grafanaUrl={grafanaUrl}
+      />
     </>
   );
 }
@@ -86,13 +95,14 @@ function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
 interface NavFooterProps {
   pathname: string;
   headlampUrl?: string;
+  grafanaUrl?: string;
 }
 
-/** The links belonging to no section of the app: settings is org-wide, adding a repo grows the list itself, and the cluster dashboard is a different application. */
-function NavFooter({ pathname, headlampUrl }: NavFooterProps) {
+/** The links belonging to no section of the app: settings is org-wide, adding a repo grows the list itself, and the cluster dashboard and Grafana are different applications. */
+function NavFooter({ pathname, headlampUrl, grafanaUrl }: NavFooterProps) {
   return (
     <div className={styles.footer}>
-      {headlampUrl && <HeadlampLink href={headlampUrl} />}
+      <ExternalApps headlampUrl={headlampUrl} grafanaUrl={grafanaUrl} />
       <NavLink
         href="/settings"
         label="Settings"
@@ -109,17 +119,47 @@ function NavFooter({ pathname, headlampUrl }: NavFooterProps) {
   );
 }
 
+type ExternalAppsProps = Pick<NavFooterProps, "headlampUrl" | "grafanaUrl">;
+
+/** Each renders only when the deployment named an address (lib/headlamp-url.ts). */
+function ExternalApps({ headlampUrl, grafanaUrl }: ExternalAppsProps) {
+  return (
+    <>
+      {grafanaUrl && (
+        <ExternalAppLink
+          href={grafanaUrl}
+          label="Grafana"
+          title="Metrics dashboards (opens in a new tab)"
+        />
+      )}
+      {headlampUrl && (
+        <ExternalAppLink
+          href={headlampUrl}
+          label="Headlamp"
+          title="Cluster dashboard (opens in a new tab)"
+        />
+      )}
+    </>
+  );
+}
+
+interface ExternalAppLinkProps {
+  href: string;
+  label: string;
+  title: string;
+}
+
 /** A plain anchor, not a NavLink: a separate application has no route to be active on and nothing for Next to prefetch. */
-function HeadlampLink({ href }: { href: string }) {
+function ExternalAppLink({ href, label, title }: ExternalAppLinkProps) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
       className={styles.footerLink}
-      title="Cluster dashboard (opens in a new tab)"
+      title={title}
     >
-      Headlamp
+      {label}
       <Icon name="external" size={12} />
     </a>
   );
