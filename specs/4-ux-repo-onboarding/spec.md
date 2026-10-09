@@ -448,7 +448,7 @@ The onboarding PR carries deterministic files committed verbatim by the Floor pl
 
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
   `.claude/settings.json` carrying the Lore MCP system-prompt suffix, and the
-  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by commits .claude/settings.json carrying the Lore MCP system-prompt suffix](libs/shared/src/work/onboard-content.test.ts#L19), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L29))
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by commits .claude/settings.json carrying the Lore MCP system-prompt suffix](libs/shared/src/work/onboard-content.test.ts#L19), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L29), [validated by](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
 - FR-5.5: The ticket owes `AGENTS.md`, the PR template, the pr-description-check
   workflow, and `.specify/spec.md` from fixed prompts — the AGENTS.md prompt
   targets the repo's own stack and the PR-template prompt names the five
