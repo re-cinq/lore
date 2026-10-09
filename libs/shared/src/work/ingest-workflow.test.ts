@@ -236,14 +236,14 @@ const runScript = (script: string, env: Record<string, string>) => {
 describe("the graph job's fetch step", () => {
   const script = extractRunBlock("Fetch lore-code-trace");
 
-  it("exits 1 with ::error when LORE_INGEST_URL is empty", () => {
+  it("fails before fetching, with ::error, when LORE_INGEST_URL is empty", () => {
     const { result } = runScript(script, { LORE_INGEST_URL: "" });
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("::error::LORE_INGEST_URL");
   });
 
-  it("exits 1 with ::error when LORE_INGEST_TOKEN is empty", () => {
+  it("fails before fetching, with ::error, when LORE_INGEST_TOKEN is empty", () => {
     const { result } = runScript(script, { LORE_INGEST_TOKEN: "" });
 
     expect(result.status).toBe(1);
