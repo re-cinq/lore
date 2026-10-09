@@ -11280,6 +11280,22 @@
                               }
                             ]
                           },
+                          "needs": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "commit_sha": {
                             "type": ["string", "null"]
                           },
@@ -11304,6 +11320,7 @@
                           "agent_cr_name",
                           "station_run_id",
                           "input",
+                          "needs",
                           "commit_sha",
                           "started_at",
                           "finished_at",
@@ -14039,6 +14056,22 @@
                       }
                     ]
                   },
+                  "needs": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "commit_sha": {
                     "type": ["string", "null"]
                   },
@@ -14063,6 +14096,7 @@
                   "agent_cr_name",
                   "station_run_id",
                   "input",
+                  "needs",
                   "commit_sha",
                   "started_at",
                   "finished_at",
@@ -15258,6 +15292,22 @@
                     }
                   ]
                 },
+                "needs": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "commit_sha": {
                   "type": ["string", "null"]
                 },
@@ -15282,6 +15332,7 @@
                 "agent_cr_name",
                 "station_run_id",
                 "input",
+                "needs",
                 "commit_sha",
                 "started_at",
                 "finished_at",
