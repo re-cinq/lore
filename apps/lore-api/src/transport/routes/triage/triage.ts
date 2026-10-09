@@ -50,7 +50,9 @@ async function serveTriage(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const { owner, repo } = request.params as unknown as typeof RepoParams._type;
+  const { owner, repo } = request.params as unknown as z.infer<
+    typeof RepoParams
+  >;
   const fullName = `${owner}/${repo}`;
 
   try {
@@ -66,7 +68,8 @@ async function serveTriage(
 
 async function fetchRuns(repo: string): Promise<FloorRun[]> {
   try {
-    return (await floorClient().listSummaries({ repo })) as FloorRun[];
+    const res = await floorClient().runs.list({ repo });
+    return res.items as FloorRun[];
   } catch {
     return [];
   }
