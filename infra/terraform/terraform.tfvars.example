@@ -78,6 +78,17 @@ enable_external_floor = false
 # the apply, or oauth2-proxy crash-loops on its missing secret.
 enable_headlamp = false
 
+# The metrics stack: Prometheus scraping every service, the floor and the agent
+# controller, and Grafana with the Lore dashboards behind the same Google sign-in
+# as Headlamp (monitoring.tf, ADR-050). Reuses the lore-headlamp-* secrets; add
+# https://<grafana_hostname>/oauth2/callback to that Google client first.
+enable_monitoring = false
+grafana_hostname  = "grafana.example.com"
+# The nginx ingress controller's namespace: the only namespace Grafana's
+# NetworkPolicy admits besides its own. A wrong value locks Grafana behind a
+# policy nothing can pass; check with `kubectl get ns | grep -i ingress`.
+ingress_controller_namespace = "ingress-nginx"
+
 # Cloud Billing budget for this project, stated per week (see budget.tf: Google
 # only resets budgets monthly, so it is applied as weekly * 52 / 12, with a
 # forecast rule that fires the moment the run rate exceeds the weekly pace).

@@ -178,6 +178,12 @@ openssl rand -base64 32 | head -c 32 \
 `head -c 32` is load-bearing: oauth2-proxy accepts a cookie secret of exactly 16,
 24 or 32 bytes and refuses to start otherwise.
 
+**Grafana shares this client.** The metrics stack (`infra/terraform/monitoring.tf`,
+`enable_monitoring`) puts its own oauth2-proxy in front of Grafana and reads the same
+three secrets, mirrored a second time into the `monitoring` namespace. The one thing
+to do by hand is add a second authorized redirect URI to the `headlamp` OAuth client:
+`https://<grafana_hostname>/oauth2/callback`. No new secret material.
+
 **Order matters here, more than for the other secrets.** The Helm provider waits
 for a release to become Ready, and oauth2-proxy cannot start without its secret, so
 a single `terraform apply` on a fresh install fails on that release's 5-minute
