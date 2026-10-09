@@ -65,21 +65,18 @@ export function floorGitCredentialRoute(
   getPool: () => import("pg").Pool | null,
 ) {
   const networkDeps = buildFloorGitCredentialNetworkDeps();
-  const { body, pair } = buildFloorGitCredentialSchemas();
+  const schemas = buildFloorGitCredentialSchemas();
+  const validate = { payload: networkDeps.zodValidate(schemas.body) };
+  const metadata = {
+    name: "FloorGitCredential",
+    description: "Minted installation token as git credential pair",
+    errors: [400, 401] as const,
+  };
 
   return {
     method: "POST" as const,
     path: "/api/floor/git-credential",
-    options: networkDeps.zodResponse(
-      { auth: false, validate: { payload: networkDeps.zodValidate(body) } },
-      pair,
-      {
-        name: "FloorGitCredential",
-        description:
-          "A freshly minted installation token for the requested repo, as the git credential-helper username/password pair",
-        errors: [400, 401] as const,
-      },
-    ),
+    options: networkDeps.zodResponse({ auth: false, validate }, schemas.pair, metadata),
     handler: buildFloorGitCredentialHandler(networkDeps, getPool),
   };
 }
@@ -96,8 +93,8 @@ function checkBearer(
     return { code: 401, body: { error: "bad-token" } };
   }
 
-  const tokens = deps.token.split(",").map((t) => t.trim());
-  const isValid = tokens.some((token) => timingSafeStringEqual(bearer, token));
+  const configuredTokens = deps.token.split(",");
+  const isValid = configuredTokens.some((t) => timingSafeStringEqual(bearer, t.trim()));
 
   if (!isValid) {
     return { code: 401, body: { error: "bad-token" } };
@@ -154,37 +151,46 @@ function buildFloorGitCredentialHandler(
     request: import("@hapi/hapi").Request,
     h: import("@hapi/hapi").ResponseToolkit,
   ) => {
-    const github = new deps.PlatformGitHub(process.env);
-    const result = await handleFloorGitCredential(
-      {
-        token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
-        mint: (repo, access) =>
-          github.getInstallationToken(repo, permissionsFor(access)),
-        isRepoOnboarded: async (repo) => {
-          const pool = getPool();
-          if (!pool) return false;
-          const res = await pool.query(
-            "SELECT 1 FROM lore.repos WHERE full_name = $1",
-            [repo],
-          );
-          return res.rowCount !== null && res.rowCount > 0;
-        },
-        audit: async (repo, access, caller) => {
-          const pool = getPool();
-          if (pool) {
-            await pool.query(
-              "INSERT INTO pipeline.audit_log (event_type, repo, actor, payload) VALUES ($1, $2, $3, $4)",
-              ["git_credential_mint", repo, caller, JSON.stringify({ access })],
-            );
-          }
-        },
-      },
-      deps.extractBearer(request.headers.authorization) ?? "",
-      request.payload as { repoUrl: string; access: "read" | "write" },
-    );
-
-    return h.response(result.body).code(result.code);
+    return handleFloorGitCredentialRequest(deps, getPool, request, h);
   };
+}
+
+async function handleFloorGitCredentialRequest(
+  deps: ReturnType<typeof buildFloorGitCredentialNetworkDeps>,
+  getPool: () => import("pg").Pool | null,
+  request: import("@hapi/hapi").Request,
+  h: import("@hapi/hapi").ResponseToolkit,
+) {
+  const github = new deps.PlatformGitHub(process.env);
+  const result = await handleFloorGitCredential(
+    {
+      token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
+      mint: (repo, access) =>
+        github.getInstallationToken(repo, permissionsFor(access)),
+      isRepoOnboarded: async (repo) => {
+        const pool = getPool();
+        if (!pool) return false;
+        const res = await pool.query(
+          "SELECT 1 FROM lore.repos WHERE full_name = $1",
+          [repo],
+        );
+        return res.rowCount !== null && res.rowCount > 0;
+      },
+      audit: async (repo, access, caller) => {
+        const pool = getPool();
+        if (pool) {
+          await pool.query(
+            "INSERT INTO pipeline.audit_log (event_type, repo, actor, payload) VALUES ($1, $2, $3, $4)",
+            ["git_credential_mint", repo, caller, JSON.stringify({ access })],
+          );
+        }
+      },
+    },
+    deps.extractBearer(request.headers.authorization) ?? "",
+    request.payload as { repoUrl: string; access: "read" | "write" },
+  );
+
+  return h.response(result.body).code(result.code);
 }
 
 export function permissionsFor(
