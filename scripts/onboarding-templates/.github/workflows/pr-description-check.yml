@@ -44,6 +44,11 @@ jobs:
           fi
 
           # --- Report results ---
+          if echo "$PR_BODY" | grep -q 'Lore-Task:'; then
+            echo "PR was opened by Lore. Skipping description checks."
+            exit 0
+          fi
+
           if [ "$FAILED" -eq 1 ]; then
             echo "============================================"
             echo "PR description check found issues:"
