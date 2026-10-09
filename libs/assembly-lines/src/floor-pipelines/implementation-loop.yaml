@@ -395,14 +395,16 @@ agent_definitions:
           input_per_million: 2
           output_per_million: 12
       config:
+        # Autopilot holds an ephemeral-storage limit to its request, so the limit
+        # is what evicts: runs aa9c26e4's dod pods were evicted at 2Gi by npm ci.
         pod_resources:
           requests:
             cpu: 500m
             memory: 512Mi
-            ephemeral-storage: 2Gi
+            ephemeral-storage: 6Gi
           limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
           - tdd-loop
@@ -427,10 +429,10 @@ agent_definitions:
           requests:
             cpu: 500m
             memory: 512Mi
-            ephemeral-storage: 2Gi
+            ephemeral-storage: 6Gi
           limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
           - tdd-loop
@@ -483,10 +485,10 @@ agent_definitions:
           requests:
             cpu: 500m
             memory: 512Mi
-            ephemeral-storage: 2Gi
+            ephemeral-storage: 6Gi
           limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
         skills_source: ${LORE_SKILLS_URL}
