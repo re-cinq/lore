@@ -211,15 +211,18 @@ line:
     - from: analyse-specs
       to: author
       on: changes_requested
+    # An agent pod can end without its file on an empty model reply; run it once more, and a second failure ends the run as iteration_max.
     - from: analyse-specs
-      to: failed
+      to: analyse-specs
       on: failed
+      iteration_max: 1
     - from: qa-generate
       to: qa-questions
       on: success
     - from: qa-generate
-      to: failed
+      to: qa-generate
       on: failed
+      iteration_max: 1
     - from: qa-questions
       to: draft
       on: success
@@ -240,8 +243,9 @@ line:
       on: changes_requested
       iteration_max: 1
     - from: draft
-      to: failed
+      to: draft
       on: failed
+      iteration_max: 1
     - from: split-sections
       to: write
       on: success
@@ -252,8 +256,9 @@ line:
       to: assemble
       on: success
     - from: write
-      to: failed
+      to: write
       on: failed
+      iteration_max: 1
     # A section whose pod returned no usable patch, or whose patch did not all
     # apply, goes round again: split-sections lists what is left.
     - from: assemble
@@ -270,15 +275,17 @@ line:
       to: qa-gate
       on: success
     - from: qa-answer
-      to: failed
+      to: qa-answer
       on: failed
+      iteration_max: 1
     - from: qa-recheck
       to: qa-gate
       on: success
       iteration_max: 5
     - from: qa-recheck
-      to: failed
+      to: qa-recheck
       on: failed
+      iteration_max: 1
     - from: qa-gate
       to: open-spec-pr
       on: success
@@ -323,8 +330,9 @@ line:
       on: changes_requested
       iteration_max: 1
     - from: rework
-      to: failed
+      to: rework
       on: failed
+      iteration_max: 1
     - from: open-spec-pr
       to: merged
       on: success
@@ -362,8 +370,9 @@ line:
       to: failed
       on: changes_requested
     - from: decompose
-      to: failed
+      to: decompose
       on: failed
+      iteration_max: 1
     - from: issues
       to: issue-coverage
       on: success
