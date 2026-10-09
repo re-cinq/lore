@@ -48,7 +48,7 @@ async function planOf(brief: Brief, tools: Tools): Promise<CitablePlan | null> {
 }
 
 const NO_SET =
-  "You wrote no /workspace/qa-questions.json: the run carries no question set. Write the whole set.";
+  "You wrote no /workspace/qa-questions.json: the run carries no question set.";
 
 async function errorsOf(brief: Brief, tools: Tools, plan: CitablePlan | null) {
   if (!brief.needs.qa_questions) {
