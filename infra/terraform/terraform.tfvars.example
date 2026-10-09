@@ -90,6 +90,15 @@ grafana_hostname  = "grafana.example.com"
 # policy nothing can pass; check with `kubectl get ns | grep -i ingress`.
 ingress_controller_namespace = "ingress-nginx"
 
+# Utopia (deeplethe/utopia), the knowledge-graph app, with its own CNPG database
+# and data disk behind a Google sign-in of its own (utopia.tf). Seed the five
+# lore-utopia-* secrets from a `utopia` OAuth web client whose redirect URI is
+# https://<utopia_hostname>/oauth2/callback (docs/managing-secrets.md) before the
+# apply. The image tag is pinned; bump it on purpose.
+enable_utopia    = false
+utopia_hostname  = "utopia.example.com"
+utopia_image_tag = "0.1.0-rc8"
+
 # Cloud Billing budget for this project, stated per week (see budget.tf: Google
 # only resets budgets monthly, so it is applied as weekly * 52 / 12, with a
 # forecast rule that fires the moment the run rate exceeds the weekly pace).
