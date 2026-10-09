@@ -170,3 +170,36 @@ variable "ingress_controller_namespace" {
   type        = string
   default     = "ingress-nginx"
 }
+
+# Gates Utopia (utopia.tf): deeplethe/utopia with its own CNPG database and data
+# disk, behind an oauth2-proxy Google sign-in of its own. An application beside
+# Lore, not a dependency of it: leaving this false changes nothing about Lore.
+variable "enable_utopia" {
+  type    = bool
+  default = false
+
+  # The same dependency Headlamp has: oauth2-proxy builds its redirect URL from
+  # the hostname and will not start without one.
+  validation {
+    condition     = !var.enable_utopia || var.utopia_hostname != ""
+    error_message = "enable_utopia = true requires a non-empty utopia_hostname: oauth2-proxy derives its OAuth redirect URL from it and will not start without one."
+  }
+}
+
+variable "utopia_hostname" {
+  description = "Hostname for the Utopia ingress (e.g. utopia.example.com). Also the OAuth redirect host on the utopia Google client (https://<host>/oauth2/callback). Required when enable_utopia is true."
+  type        = string
+  default     = ""
+}
+
+variable "utopia_image_tag" {
+  description = "The ghcr.io/deeplethe/utopia tag to run. Release candidates move fast and migrate the database on start, so a bump is a deliberate PR, never `latest`."
+  type        = string
+  default     = "0.1.0-rc8"
+}
+
+variable "utopia_data_size" {
+  description = "Size of the Utopia data disk: uploaded files and the full-text index."
+  type        = string
+  default     = "20Gi"
+}

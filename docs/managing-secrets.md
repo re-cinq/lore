@@ -227,6 +227,40 @@ Secrets) is the only thing bounding what they can read. Treat a leak of the clie
 secret as cluster-wide read exposure, and note that the Kubernetes audit log will
 name the ServiceAccount rather than the person.
 
+## The Utopia credentials (`lore-utopia-*`)
+
+Utopia (`infra/terraform/utopia.tf`, `enable_utopia`) is the deeplethe/utopia
+knowledge-graph app behind its own oauth2-proxy at `utopia_hostname`. Its OIDC
+cannot create accounts, so Google is the gate and Utopia keeps its own accounts
+inside it: the first person to register becomes the administrator. Five
+containers behind `enable_utopia`.
+
+The Google client is the Grafana recipe with the name `utopia` and the redirect
+URI `https://<utopia_hostname>/oauth2/callback`, on the same **Internal** consent
+screen. Then:
+
+```bash
+printf '%s' "<client id>"     | gcloud secrets versions add lore-utopia-oauth-client-id     --data-file=-
+printf '%s' "<client secret>" | gcloud secrets versions add lore-utopia-oauth-client-secret --data-file=-
+openssl rand -base64 32 | head -c 32 \
+  | gcloud secrets versions add lore-utopia-cookie-secret --data-file=-
+# hex, so it needs no URL-encoding inside UTOPIA_DATABASE_URL
+openssl rand -hex 24 | tr -d '\n' | gcloud secrets versions add lore-utopia-db-password --data-file=-
+# exactly 32 bytes as 64 hex digits: the key Utopia seals stored model credentials with
+openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add lore-utopia-secret-key --data-file=-
+```
+
+**The sealing key is seeded on purpose.** Left unset, Utopia generates it into
+`secret.key` on its data disk on first start, and a lost disk then loses every
+model key and source credential stored since. Seeded, the disk holds only files
+and the search index. Never rotate it: the rows it sealed become unreadable.
+
+The database password is read by Terraform into the CNPG credentials Secret, as
+`lore-db-password` is, so a rotation needs `terraform apply`, then a restart of
+`deploy/utopia` in the `utopia` namespace; the OAuth trio needs the same
+`force-sync` annotation and `rollout restart deploy/utopia-oauth2-proxy` as Grafana's.
+First install order is Headlamp's too: containers first, seed, then the rest.
+
 ## Change a non-secret value
 
 Hostnames, `project_id`, the `enable_*` gates, `log_retention_days` — these live
