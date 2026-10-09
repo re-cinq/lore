@@ -23,6 +23,9 @@ image:
 imagePullSecrets:
   - name: ghcr-pull-secret
 
+# Prometheus text on /metrics, scraped by the ServiceMonitor terraform owns (infra/terraform/monitoring.tf).
+metricsPort: 9464
+
 service:
   type: ClusterIP
   port: 3000
@@ -41,6 +44,7 @@ resources:
 
 env:
   PORT: "3000"
+  LORE_METRICS_PORT: "9464"
   # Leaves ~250 MB of the 1Gi limit for buffers, sockets and native memory.
   NODE_OPTIONS: "--max-old-space-size=768"
   CONTEXT_PATH: /context

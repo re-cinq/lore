@@ -1,37 +1,38 @@
-// Heavy OTel SDK bootstrap for remote app only; import FIRST in remote entrypoint
+// The OTel SDK of the remote app: traces to Cloud Trace, metrics served to Prometheus on the `metrics` port. Imported FIRST in the entrypoint and started before any instrument is touched.
 
 import { NodeSDK } from "@opentelemetry/sdk-node";
+import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
+import {
+  metricsPortFromEnv,
+  prometheusReader,
+} from "@re-cinq/lore-shared/otel/prometheus-metrics.js";
 
 let sdk: NodeSDK | null = null;
 
 export async function initOtel(): Promise<void> {
-  // Missing Cloud exporter packages or credentials must leave the app running untraced, never crash it.
-  try {
-    sdk = await buildCloudSdk();
-    sdk.start();
-    console.log("[otel] Tracing and metrics initialized → Cloud Monitoring");
-  } catch {
-    console.log("[otel] Cloud exporters not available, tracing disabled");
-  }
-}
+  const port = metricsPortFromEnv(process.env);
 
-// Dynamic imports — these packages may not be installed in Phase 0
-async function buildCloudSdk(): Promise<NodeSDK> {
-  const { TraceExporter } =
-    await import("@google-cloud/opentelemetry-cloud-trace-exporter");
-  const { MetricExporter } =
-    await import("@google-cloud/opentelemetry-cloud-monitoring-exporter");
-  const { PeriodicExportingMetricReader } =
-    await import("@opentelemetry/sdk-metrics");
-
-  return new NodeSDK({
-    traceExporter: new TraceExporter(),
-    metricReader: new PeriodicExportingMetricReader({
-      exporter: new MetricExporter(),
-      exportIntervalMillis: 60_000,
-    }),
+  sdk = new NodeSDK({
+    traceExporter: await cloudTraceExporter(),
+    metricReader: prometheusReader(port),
     serviceName: "lore-api",
   });
+  sdk.start();
+  console.log(`[otel] traces → Cloud Trace, metrics on :${port}/metrics`);
+}
+
+// Missing credentials or package must leave the app running untraced, never crash it; metrics need neither.
+async function cloudTraceExporter(): Promise<SpanExporter | undefined> {
+  try {
+    const { TraceExporter } =
+      await import("@google-cloud/opentelemetry-cloud-trace-exporter");
+
+    return new TraceExporter();
+  } catch {
+    console.log("[otel] Cloud Trace exporter not available, tracing disabled");
+
+    return undefined;
+  }
 }
 
 // Deliberately rejects on export failures; outer shutdownGracefully handles errors (ADR-025 or similar)
