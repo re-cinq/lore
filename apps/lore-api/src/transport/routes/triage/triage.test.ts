@@ -52,14 +52,18 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
     } as never);
 
     vi.mocked(floorClient).mockReturnValue({
-      listSummaries: async () => [
-        {
-          id: "run-42",
-          status: "running",
-          pipeline: "issue-triage",
-          args: { issue_number: 42 },
-        },
-      ],
+      runs: {
+        list: async () => ({
+          items: [
+            {
+              id: "run-42",
+              status: "running",
+              pipeline: "issue-triage",
+              args: { issue_number: 42 },
+            },
+          ],
+        }),
+      },
     } as never);
 
     const res = await buildServer(() => pool as never).inject({

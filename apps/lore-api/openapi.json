@@ -6694,6 +6694,68 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/triage": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_triage",
+        "summary": "GET /api/repos/{owner}/{repo}/triage",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Issues with triage labels and their active floor runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageIssues"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/webhook": {
       "get": {
         "operationId": "get_api_repos_owner_repo_webhook",
@@ -16137,6 +16199,25 @@
           "type": "string"
         },
         "additionalProperties": {}
+      },
+      "TriageIssues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "triage_label": {
+              "type": "string"
+            },
+            "active_run_link": {
+              "type": "string"
+            }
+          },
+          "required": ["title", "triage_label"],
+          "additionalProperties": false
+        }
       },
       "TurnsRelayed": {
         "type": "object",
