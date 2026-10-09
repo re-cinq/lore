@@ -14,6 +14,7 @@ function visit(overrides: Partial<VisitView>): VisitView {
     report: { outcome: "success" },
     worker: null,
     requestedBy: null,
+    branch: null,
     deadline: null,
     resumedFrom: null,
     agentSettings: {

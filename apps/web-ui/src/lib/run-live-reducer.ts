@@ -2,10 +2,15 @@
 
 import {
   durationSeconds,
-  toAssemblyRunNode,
   type AssemblyRun,
   type AssemblyRunNode,
 } from "./assembly-run-rows";
+import {
+  ifFrame,
+  nodeStatusBranch,
+  runStatusFacts,
+  upsertBy,
+} from "./run-stream-fold";
 import type { CiCheckFrame, RunStreamFrame } from "./run-stream-types";
 import type { TaskRuntimeEvent } from "./task-runtime";
 
@@ -72,71 +77,33 @@ export function withLiveFacts(
   };
 }
 
-/** Replaces the element `matches` picks out, or appends when none does — visit order is arrival order, which is what the graph draws. */
-function upsert<T>(rows: T[], next: T, matches: (row: T) => boolean): T[] {
-  const index = rows.findIndex(matches);
-
-  if (index === -1) {
-    return [...rows, next];
-  }
-
-  return rows.map((row, at) => (at === index ? next : row));
-}
-
 const APPLY: Record<
   RunStreamFrame["type"],
   (state: RunLiveState, frame: RunStreamFrame) => RunLiveState
 > = {
   agent_event: (state) => state,
   catchup_complete: (state) => state,
-  node_status: (state, frame) => {
-    if (frame.type !== "node_status") {
-      return state;
-    }
-    const node = toAssemblyRunNode(frame.node);
-
-    return {
-      ...state,
-      nodes: upsert(
-        state.nodes,
-        node,
-        (row) => row.nodeId === node.nodeId && row.iteration === node.iteration,
-      ),
-    };
-  },
-  run_status: (state, frame) => {
-    if (frame.type !== "run_status") {
-      return state;
-    }
-    const { status, outcome, reason } = frame.run;
-
-    return {
-      ...state,
-      run: {
-        status,
-        outcome,
-        reason,
-        startedAt: frame.run.started_at,
-        finishedAt: frame.run.finished_at,
-      },
-    };
-  },
-  task_event: (state, frame) => {
-    if (frame.type !== "task_event") {
-      return state;
-    }
-
-    return {
-      ...state,
-      taskEvents: upsert(
-        state.taskEvents,
-        frame.event,
-        (row) => row.id === frame.event.id,
-      ),
-    };
-  },
-  ci_check: (state, frame) =>
-    frame.type === "ci_check" ? { ...state, ciCheck: frame.check } : state,
+  node_status: nodeStatusBranch(),
+  run_status: ifFrame("run_status", (state, frame) => ({
+    ...state,
+    run: {
+      ...runStatusFacts(frame),
+      startedAt: frame.run.started_at,
+      finishedAt: frame.run.finished_at,
+    },
+  })),
+  task_event: ifFrame("task_event", (state, frame) => ({
+    ...state,
+    taskEvents: upsertBy(
+      state.taskEvents,
+      frame.event,
+      (row) => row.id === frame.event.id,
+    ),
+  })),
+  ci_check: ifFrame("ci_check", (state, frame) => ({
+    ...state,
+    ciCheck: frame.check,
+  })),
 };
 
 /** Applies one frame. Agent events belong to the event reducer and pass through untouched (same object identity), so a caller can route by identity as well as by type. */

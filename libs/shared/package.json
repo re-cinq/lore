@@ -82,6 +82,22 @@
       "types": "./dist/lib/error-classify.d.ts",
       "default": "./dist/lib/error-classify.js"
     },
+    "./feature-planning/spec-sections.js": {
+      "types": "./dist/domain/feature-planning/spec-sections.d.ts",
+      "default": "./dist/domain/feature-planning/spec-sections.js"
+    },
+    "./feature-planning/spec-questions.js": {
+      "types": "./dist/domain/feature-planning/spec-questions.d.ts",
+      "default": "./dist/domain/feature-planning/spec-questions.js"
+    },
+    "./feature-planning/spec-findings.js": {
+      "types": "./dist/domain/feature-planning/spec-findings.d.ts",
+      "default": "./dist/domain/feature-planning/spec-findings.js"
+    },
+    "./feature-planning/spec-qa.js": {
+      "types": "./dist/domain/feature-planning/spec-qa.d.ts",
+      "default": "./dist/domain/feature-planning/spec-qa.js"
+    },
     "./feature-planning/spec-soundness.js": {
       "types": "./dist/domain/feature-planning/spec-soundness.d.ts",
       "default": "./dist/domain/feature-planning/spec-soundness.js"
@@ -196,7 +212,7 @@
     "@google-cloud/storage": "^8.0.1",
     "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
-    "@re-cinq/floor-client": "0.1.9",
+    "@re-cinq/floor-client": "0.1.11",
     "cron-parser": "^5.10.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",

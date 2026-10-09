@@ -99,10 +99,10 @@ slackBotTokenSecret:
 floor:
   enabled: false
   apiUrl: http://floor-api.floor.svc.cluster.local:8080
-  # The image a floor agent's pod runs in — the same one Lore's own Stations run (the
-  # ai-agents Station template). The subsystem brings its own supervisor; this is only
-  # the container the agent works inside.
-  agentImage: node:22-bookworm
+  # The image a floor agent's pod runs in: node:22-bookworm plus the tools the agents
+  # lean on (jq, yq, rg, python3, make ...), built from apps/agent-image. The subsystem
+  # brings its own supervisor; this is only the container the agent works inside.
+  agentImage: ghcr.io/re-cinq/lore-agent:latest
   # In-cluster lore-mcp gateway skills registry; set by terraform.
   skillsUrl: ""
   serviceTokenSecret:

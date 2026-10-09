@@ -45,6 +45,7 @@ const UNSTARTED_VISIT: VisitView = {
   brief: { needs: {}, iteration: 1 },
   report: null,
   worker: null,
+  branch: null,
   requestedBy: null,
   deadline: null,
   resumedFrom: null,

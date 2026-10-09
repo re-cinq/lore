@@ -37,6 +37,7 @@ export const FLOOR_VISIT: VisitView = {
   brief: { needs: {}, iteration: 1 },
   report: null,
   worker: "cluster-agent-1",
+  branch: null,
   requestedBy: null,
   deadline: "2026-09-30T10:30:00.000Z",
   resumedFrom: null,

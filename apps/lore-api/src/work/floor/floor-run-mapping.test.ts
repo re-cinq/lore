@@ -47,6 +47,7 @@ const visit: VisitView = {
   brief: { needs: {}, iteration: 2 },
   report: null,
   worker: null,
+  branch: null,
   requestedBy: "alice",
   deadline: null,
   resumedFrom: null,
