@@ -108,10 +108,62 @@ describe("AssemblyRunView", () => {
 
     expect(screen.queryByRole("link", { name: "#7" })).not.toBeInTheDocument();
   });
-  it("renders the run facts inside a spec-card", () => {
+  it("renders the run facts as an open collapsible card titled Run facts", () => {
     const { container } = render(<RunFacts run={run()} />);
 
-    expect(container.querySelector(".spec-card > dl")).toBeInTheDocument();
+    expect(screen.getByText("Run facts")).toBeInTheDocument();
+    expect(container.querySelector("details[open] dl")).toBeInTheDocument();
+  });
+
+  const BAG = {
+    task_id: { kind: "value", ref: "task-1", by: "lore" },
+    issue: { kind: "file", ref: `sha256-${"ab12".repeat(16)}`, by: "lore" },
+    target: {
+      kind: "git",
+      ref: "github.com/re-cinq/lore@fix/login",
+      by: "lore",
+      sha: "9f2c1d4e5a",
+    },
+  } as const;
+
+  it("lists the bag's three items by name under the facts, with their kind and author", () => {
+    render(<RunFacts run={run()} bag={BAG} />);
+
+    expect(screen.getByText("Bag (3)")).toBeInTheDocument();
+    expect(screen.getByText("task_id").nextElementSibling).toHaveTextContent(
+      "task-1value · lore",
+    );
+  });
+
+  it("shows a git item's commit as its first seven characters", () => {
+    render(<RunFacts run={run()} bag={BAG} />);
+
+    expect(screen.getByText("target").nextElementSibling).toHaveTextContent(
+      "git · lore · 9f2c1d4",
+    );
+  });
+
+  it("links a git item to its branch on GitHub and a file item to the run's blob page", () => {
+    render(<RunFacts run={run({ id: "run-1" })} bag={BAG} />);
+
+    expect(
+      screen.getByRole("link", { name: "github.com/re-cinq/lore@fix/login" }),
+    ).toHaveAttribute("href", "https://github.com/re-cinq/lore/tree/fix/login");
+    expect(
+      screen.getByRole("link", { name: /^sha256-ab12ab12ab12/ }),
+    ).toHaveAttribute(
+      "href",
+      `/assembly-runs/run-1/blobs/sha256-${"ab12".repeat(16)}`,
+    );
+  });
+
+  it.each([
+    ["a run with no bag read", null],
+    ["a run whose bag is empty", {}],
+  ] as const)("leaves the Bag section out for %s", (_name, bag) => {
+    render(<RunFacts run={run()} bag={bag} />);
+
+    expect(screen.queryByText(/^Bag \(/)).toBeNull();
   });
 
   it("links the backing task's GitHub issue under the PR", () => {
