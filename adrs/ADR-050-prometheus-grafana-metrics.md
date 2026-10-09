@@ -1,7 +1,7 @@
 ---
 adr_number: 50
 title: "Metrics go to Prometheus and Grafana, installed by terraform"
-status: shipped
+status: in progress
 date: 2026-10-09
 deciders: ["Bogdan Szabo"]
 domains: [observability, infrastructure, terraform, lore-api, stations, floor, ai-agent-subsystem]
