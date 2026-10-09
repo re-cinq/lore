@@ -74,11 +74,13 @@ describe("resolveTokenScopes", () => {
     expect(await resolveTokenScopes(pool as never, "revoked")).toBeNull();
   });
 
-  it("returns null when the DB lookup throws", async () => {
+  it("throws when the DB lookup throws", async () => {
     const pool = makePool();
 
     pool.query.mockRejectedValue(new Error("db down"));
-    expect(await resolveTokenScopes(pool as never, "client-token")).toBeNull();
+    await expect(
+      resolveTokenScopes(pool as never, "client-token"),
+    ).rejects.toThrow("db down");
   });
 });
 

@@ -110,7 +110,7 @@ describe("bearer-scope auth scheme", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("returns 403 when the token lookup query throws", async () => {
+  it("returns 503 when the token lookup query throws", async () => {
     const pool = makePool();
 
     pool.query.mockRejectedValue(new Error("db down"));
@@ -120,7 +120,7 @@ describe("bearer-scope auth scheme", () => {
       headers: { authorization: "Bearer db-x" },
     });
 
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(503);
   });
 
   it("grants access via the legacy token without hitting the DB", async () => {
