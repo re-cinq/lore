@@ -7,9 +7,8 @@ import type { NodeModel } from "@/lib/node-models";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 import styles from "./RunVisualizationPanel.module.css";
-import { RunFilesSection } from "./RunFilesSection";
-import { NodeInspectorPanel } from "./NodeInspectorPanel";
-import { AttemptInspector } from "./AttemptInspector";
+import { CenterColumn, SideColumn } from "./RunWorkbenchColumns";
+import { useDiffDrawer } from "./use-diff-drawer";
 import { attemptInspectorProps, inspectorProps } from "./run-inspector-props";
 import { RunGraphSection } from "./RunGraphSection";
 import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
@@ -46,13 +45,13 @@ export default function RunVisualizationPanel(
   const view = useRunVisualization(props, props.nodeModels);
   const focus = useInspectorFocus(view.selectedNodeId, view.node.selectedRows);
   const side = useResizablePanelWidth();
+  const drawer = useDiffDrawer();
 
   return (
     <section className={styles.panel}>
       <RunWorkbenchLayout
         graph={<RunGraph view={view} {...graphProps(props)} />}
-        {...inspectorSlots(view, props, focus)}
-        below={<RunFilesSection {...filesProps(view, props)} />}
+        {...inspectorSlots({ view, page: props, focus, drawer })}
         sideWidth={side.width}
         onResizeSide={side.setWidth}
       />
@@ -60,23 +59,46 @@ export default function RunVisualizationPanel(
   );
 }
 
-/** The two columns about the selected node: its detail card at the side, its attempts in the center, both reading the same focus. */
-function inspectorSlots(
-  view: RunView,
-  page: RunVisualizationPanelProps,
-  focus: InspectorFocus,
-) {
+/** What the workbench's two columns read: the run's view, the page's facts, the attempt in focus and the open diff. */
+interface ColumnSources {
+  view: RunView;
+  page: RunVisualizationPanelProps;
+  focus: InspectorFocus;
+  drawer: ReturnType<typeof useDiffDrawer>;
+}
+
+/** The side column (detail card, then files touched) and the center column (open diff, then the attempt on show), both reading the same focus. */
+function inspectorSlots({ view, page, focus, drawer }: ColumnSources) {
   const inspector = inspectorProps(view, page);
 
   return {
     side: (
-      <NodeInspectorPanel
-        {...inspector}
-        selectedIteration={focus.attempt?.iteration}
-        onPickAttempt={focus.pickAttempt}
+      <SideColumn
+        inspector={{
+          ...inspector,
+          selectedIteration: focus.attempt?.iteration,
+          onPickAttempt: focus.pickAttempt,
+        }}
+        files={{
+          touches: view.state.fileTouches,
+          showAll: view.showAllFiles,
+          onToggleShowAll: view.toggleShowAllFiles,
+          onOpenFile: drawer.openDiff,
+          activePath: drawer.openDiffPath,
+        }}
       />
     ),
-    center: <AttemptInspector {...attemptInspectorProps(inspector, focus)} />,
+    center: (
+      <CenterColumn
+        diff={{
+          runId: page.runId,
+          path: drawer.openDiffPath,
+          prNumber: page.prNumber ?? null,
+          onClose: drawer.closeDiff,
+        }}
+        attempts={attemptInspectorProps(inspector, focus)}
+      />
+    ),
   };
 }
 
@@ -112,15 +134,4 @@ function RunGraph({ view, definition, runOutcome, reason }: RunGraphProps) {
       onToggleOutcomes={() => view.setShowOutcomes((shown) => !shown)}
     />
   );
-}
-
-/** The files strip's plain values: the touches the reducer folded and the run the drawer reads diffs for. */
-function filesProps(view: RunView, page: RunVisualizationPanelProps) {
-  return {
-    touches: view.state.fileTouches,
-    showAll: view.showAllFiles,
-    onToggleShowAll: view.toggleShowAllFiles,
-    runId: page.runId,
-    prNumber: page.prNumber ?? null,
-  };
 }

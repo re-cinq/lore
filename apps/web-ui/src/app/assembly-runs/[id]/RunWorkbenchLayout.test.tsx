@@ -9,7 +9,6 @@ function renderLayout(onResizeSide = vi.fn()) {
       graph={<div data-testid="graph">graph</div>}
       center={<div data-testid="center">center</div>}
       side={<div data-testid="side">side</div>}
-      below={<div data-testid="below">below</div>}
       sideWidth={420}
       onResizeSide={onResizeSide}
     />,
@@ -27,14 +26,12 @@ describe("RunWorkbenchLayout", () => {
     ).toContainElement(screen.getByTestId("side"));
   });
 
-  it("orders the graph, then the attempt column under it, then the run-wide sections", () => {
+  it("orders the graph, then the attempt column under it", () => {
     renderLayout();
     const graph = screen.getByTestId("graph");
-    const center = screen.getByTestId("center");
 
-    expect(graph.compareDocumentPosition(center) & FOLLOWS).toBe(FOLLOWS);
     expect(
-      center.compareDocumentPosition(screen.getByTestId("below")) & FOLLOWS,
+      graph.compareDocumentPosition(screen.getByTestId("center")) & FOLLOWS,
     ).toBe(FOLLOWS);
   });
 
