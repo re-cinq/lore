@@ -61,11 +61,16 @@ const NAMES_THE_TICK = [
   `- FR-003: A sweep under \`apps/stations/src/work/issue-triage-tick/\` picks the oldest. ([from plan](${PLAN_URL}#b-why))`,
 ].join("\n");
 
-function scene(spec: string, visits: RunVisit[] = [], plan?: string) {
+function scene(
+  spec: string,
+  visits: RunVisit[] = [],
+  plan?: string,
+  specPlanPath = SPEC_PATH,
+) {
   const reads: string[] = [];
   const files: Record<string, string> = {
     spec_plan: JSON.stringify({
-      creates: [{ path: SPEC_PATH }, ...(plan ? [{ path: PLAN_PATH }] : [])],
+      creates: [{ path: specPlanPath }, ...(plan ? [{ path: PLAN_PATH }] : [])],
     }),
     plan_blocks: JSON.stringify(CITABLE),
     qa_questions: "[]",
@@ -114,6 +119,24 @@ describe("qaGateHandle on the spec branch", () => {
         plan_coverage:
           "## Plan coverage\n\n2 of 2 plan blocks are cited by a spec statement.\n",
       },
+      reads: [`re-cinq/lore:${SPEC_PATH}@lore/feature-planning/p1`],
+    });
+  });
+
+  it("reads specs/checkout/spec.md and counts 2 of 2 cited when the spec plan names the folder specs/checkout/", async () => {
+    const { handle, tools, produced, reads } = scene(
+      CITES_BOTH,
+      [],
+      undefined,
+      "specs/checkout/",
+    );
+
+    const report = await handle(brief(), tools);
+
+    expect({ report, coverage: produced.plan_coverage, reads }).toEqual({
+      report: { outcome: "success" },
+      coverage:
+        "## Plan coverage\n\n2 of 2 plan blocks are cited by a spec statement.\n",
       reads: [`re-cinq/lore:${SPEC_PATH}@lore/feature-planning/p1`],
     });
   });
