@@ -548,12 +548,11 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(prompt).not.toContain("clone");
   });
 
-  it("walks merge from settle through spec-status, close-issue, outcome-stats, curate, memory-feedback and trust to done", () => {
+  it("walks merge from settle through close-issue, outcome-stats, curate, memory-feedback and trust to done", () => {
     const { line } = pipelineOf("merge");
 
     expect(line.nodes).toEqual([
       { id: "settle", station: "merge-settle" },
-      { id: "spec-status", station: "merge-spec-status" },
       { id: "close-issue", station: "merge-close-issue" },
       { id: "outcome-stats", station: "merge-outcome-stats" },
       { id: "curate", station: "merge-curate" },
@@ -567,9 +566,8 @@ describe("the floor pipelines shipped in this folder", () => {
     const { line } = pipelineOf("merge");
 
     expect(line.edges).toEqual([
-      { from: "settle", to: "spec-status", on: "success" },
+      { from: "settle", to: "close-issue", on: "success" },
       { from: "settle", to: "settle", on: "failed", iteration_max: 1 },
-      { from: "spec-status", to: "close-issue", on: "always" },
       { from: "close-issue", to: "outcome-stats", on: "always" },
       { from: "outcome-stats", to: "curate", on: "always" },
       { from: "curate", to: "memory-feedback", on: "always" },
@@ -583,7 +581,7 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect(line.args).toEqual({ task_id: { kind: "value", subject: true } });
     expect(Object.values(stations)).toEqual(
-      Array.from({ length: 7 }, () => ({
+      Array.from({ length: 6 }, () => ({
         kind: "service",
         outcomes: ["success", "failed"],
         needs: [{ name: "task_id", kind: "value" }],

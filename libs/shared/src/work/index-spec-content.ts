@@ -46,11 +46,6 @@ export {
   type UnlinkedStatement,
 } from "./spec-status-coverage.js";
 export {
-  openSpecStatusFlipPr,
-  type StatusFlipOptions,
-  type StatusFlipResult,
-} from "./spec-status-flip.js";
-export {
   isTestFile,
   isDocFile,
   normalizeTestName,

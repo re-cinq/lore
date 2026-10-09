@@ -15,14 +15,6 @@ import { nextTrust, type TrustState } from "../lib/trust-ladder.js";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import type { PendingOnboardingRepo } from "@re-cinq/lore-shared/project/settings/settings-port.js";
 
-export {
-  decideSpecStatusFlip,
-  decideSpecShipped,
-  describeFlipSuccess,
-  describeFlipMiss,
-  maybeFlipSpecStatus,
-} from "./spec-status-flip.js";
-
 type OnboardingOutcome = "merged" | "closed" | "invalid" | "unchanged";
 
 type MergeableOutcome = "merged" | "closed" | "unchanged";

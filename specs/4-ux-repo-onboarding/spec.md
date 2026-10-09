@@ -218,6 +218,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   beside the one onboarding owns. ([validated by offers a fix for an onboarded repo whose workflow is missing or stale, not an aligned one](apps/web-ui/src/lib/workflow-fix.test.ts#L10), [validated by offers no fix for a repo whose onboarding PR has not merged, whatever its workflow status](apps/web-ui/src/lib/workflow-fix.test.ts#L25), [validated by offers nothing for a repo with no status read](apps/web-ui/src/lib/workflow-fix.test.ts#L36))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
   until merged). ([validated by `onboard.test.ts:16`](apps/web-ui/src/lib/onboard.test.ts#L16))
+- The merge-check sweep reads owner, repository and PR number from an onboarding GitHub pull URL; an empty URL or a repository URL without a pull request yields no PR to check. ([validated by reads owner, repo, and PR number from a github.com pull URL](apps/stations/src/work/merge-check/merge-check.test.ts#L5), [validated by returns null for a URL that carries no pull request](apps/stations/src/work/merge-check/merge-check.test.ts#L11), [validated by returns null for an empty string](apps/stations/src/work/merge-check/merge-check.test.ts#L15))
 - FR-2.6: After merge, the merge-check station flips the repo to onboarded
   and the merged workflows ingest on their own push run — no task follows; re-onboarding creates an onboard task and
   redirects to its run (or back to the repo when none is
