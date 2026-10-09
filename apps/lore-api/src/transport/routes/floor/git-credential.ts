@@ -1,5 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
-import { createRequire } from "node:module";
+import { zodResponse } from "../../http/zod-response.js";
+import { zodValidate } from "../../http/zod-validate.js";
+import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
+import { z } from "zod";
 
 const GITHUB_REPO_URL =
   /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/;
@@ -111,33 +115,17 @@ function timingSafeStringEqual(a: string, b: string): boolean {
 }
 
 function buildFloorGitCredentialNetworkDeps() {
-  const req = createRequire(import.meta.url);
-  const { zodResponse } = req(
-    "../../http/zod-response.js",
-  ) as typeof import("../../http/zod-response.js");
-  const { zodValidate } = req(
-    "../../http/zod-validate.js",
-  ) as typeof import("../../http/zod-validate.js");
-  const { extractBearer } = req(
-    "@re-cinq/lore-shared/http/bearer.js",
-  ) as typeof import("@re-cinq/lore-shared/http/bearer.js");
-  const { PlatformGitHub } = req(
-    "@re-cinq/lore-shared/project/lib/platform-github.js",
-  ) as typeof import("@re-cinq/lore-shared/project/lib/platform-github.js");
-
   return { zodResponse, zodValidate, extractBearer, PlatformGitHub };
 }
 
 function buildFloorGitCredentialSchemas() {
-  const req = createRequire(import.meta.url);
-  const zod = (req("zod") as typeof import("zod")).z;
-  const body = zod.object({
-    repoUrl: zod.string().min(1),
-    access: zod.enum(["read", "write"]),
+  const body = z.object({
+    repoUrl: z.string().min(1),
+    access: z.enum(["read", "write"]),
   });
-  const pair = zod.object({
-    username: zod.string(),
-    password: zod.string(),
+  const pair = z.object({
+    username: z.string(),
+    password: z.string(),
   });
 
   return { body, pair };
