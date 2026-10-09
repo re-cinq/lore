@@ -766,6 +766,57 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/bag": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_bag",
+        "summary": "GET /api/assembly-runs/{id}/bag",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBag"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/blobs/{hash}": {
       "get": {
         "operationId": "get_api_assembly-runs_id_blobs_hash",
@@ -13771,6 +13822,39 @@
           }
         },
         "required": ["started"],
+        "additionalProperties": false
+      },
+      "RunBag": {
+        "type": "object",
+        "properties": {
+          "bag": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["value", "file", "git"]
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "by": {
+                  "type": "string"
+                },
+                "sha": {
+                  "type": "string"
+                }
+              },
+              "required": ["kind", "ref", "by"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["bag"],
         "additionalProperties": false
       },
       "RunBlob": {

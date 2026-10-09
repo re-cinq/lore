@@ -242,6 +242,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/bag": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/bag */
+    get: operations["get_api_assembly-runs_id_bag"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/blobs/{hash}": {
     parameters: {
       query?: never;
@@ -3702,6 +3719,17 @@ export interface components {
     ReviewStarted: {
       started: string | null;
     };
+    RunBag: {
+      bag: {
+        [key: string]: {
+          /** @enum {string} */
+          kind: "value" | "file" | "git";
+          ref: string;
+          by: string;
+          sha?: string;
+        };
+      };
+    };
     RunBlob: {
       hash: string;
       contentType: string;
@@ -4749,6 +4777,33 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AssemblyRunRead"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_bag": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunBag"];
         };
       };
       401: components["responses"]["Unauthorized"];
