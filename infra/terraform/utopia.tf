@@ -173,7 +173,7 @@ resource "kubernetes_deployment_v1" "utopia" {
 
         container {
           name              = "utopia"
-          image             = "ghcr.io/deeplethe/utopia:${var.utopia_image_tag}"
+          image             = "${var.utopia_image_repository}:${var.utopia_image_tag}"
           image_pull_policy = "IfNotPresent"
 
           port {
