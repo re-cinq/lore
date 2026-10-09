@@ -15,11 +15,9 @@ Replaces the Klaus Claude Code runtime with lore-agent, a purpose-built TypeScri
 
 ## Background
 
-### Status
+**Status:** Accepted
 
-Accepted
-
-### Context
+**Context:**
 
 Klaus (Giant Swarm's Claude Code agent runtime) was used as the cluster agent for pipeline tasks. Production use revealed several fundamental issues:
 
@@ -30,7 +28,7 @@ Klaus (Giant Swarm's Claude Code agent runtime) was used as the cluster agent fo
 
 These issues compounded in practice: 7+ manual retries were needed to onboard a single repo.
 
-### Decision
+**Decision:**
 
 Replace Klaus with **lore-agent**, a purpose-built TypeScript service that calls the Anthropic API directly via the official SDK.
 

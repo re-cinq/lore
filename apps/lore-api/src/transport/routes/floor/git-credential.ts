@@ -74,13 +74,13 @@ export function floorGitCredentialRoute(
   const metadata = {
     name: "FloorGitCredential",
     description: "Minted installation token as git credential pair",
-    errors: [400, 401] as const,
+    errors: [400, 401] as (400 | 401)[],
   };
 
   return {
     method: "POST" as const,
     path: "/api/floor/git-credential",
-    options: networkDeps.zodResponse({ auth: false, validate }, schemas.pair, metadata),
+    options: networkDeps.zodResponse({ auth: false as const, validate }, schemas.pair, metadata),
     handler: buildFloorGitCredentialHandler(networkDeps, getPool),
   };
 }
