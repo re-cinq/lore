@@ -74,14 +74,31 @@ async function openWithCoverage(
   return pr;
 }
 
-/** What the coverage check last said of the plan blocks the spec cites; none on a run that carried no blocks to cite. */
+/** What the gate last said of the spec: the QA checks it still fails, the advisory ones that did not hold it up, and the plan blocks it cites; none on a run that carried nothing to check. */
 async function coverageOf(
   brief: Brief,
   tools: Tools,
 ): Promise<string | undefined> {
-  return brief.needs.plan_coverage
-    ? (await tools.read("plan_coverage")).toString("utf8")
-    : undefined;
+  const [failures, advisory, coverage] = await Promise.all([
+    readNeed(brief, tools, "qa_failures"),
+    readNeed(brief, tools, "qa_advisory"),
+    readNeed(brief, tools, "plan_coverage"),
+  ]);
+  const sections = [
+    failures && `## Spec checks still failing\n\n${failures}`,
+    advisory && `## Advisory checks\n\n${advisory}`,
+    coverage,
+  ];
+
+  return sections.filter(Boolean).join("\n") || undefined;
+}
+
+async function readNeed(
+  brief: Brief,
+  tools: Tools,
+  need: string,
+): Promise<string> {
+  return brief.needs[need] ? (await tools.read(need)).toString("utf8") : "";
 }
 
 function prBody(branch: string, coverage: string | undefined): string {

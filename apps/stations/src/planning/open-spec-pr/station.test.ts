@@ -228,6 +228,70 @@ describe("openSpecPrHandle", () => {
     ]);
   });
 
+  it("lists the QA checks the spec still fails in the body of the PR it opens, above the plan coverage", async () => {
+    const bodies: string[] = [];
+    const handle = scene({
+      pulls: {
+        list: () => Promise.resolve([]),
+        open: (_branch, pr) => (
+          bodies.push(pr.body),
+          Promise.resolve(pullRef())
+        ),
+        update: async () => {},
+      },
+    });
+    const brief = coveredBrief();
+
+    await handle(
+      { ...brief, needs: { ...brief.needs, qa_failures: "blob://qa" } },
+      {
+        ...TOOLS,
+        read: (need) =>
+          Promise.resolve(
+            Buffer.from(
+              { qa_failures: QA_FAILURES, plan_coverage: COVERAGE }[need] ?? "",
+            ),
+          ),
+      },
+    );
+
+    expect(bodies).toEqual([
+      `Opened by the Lore feature-planning line from \`spec/widget\`.\n\n## Spec checks still failing\n\n${QA_FAILURES}\n${COVERAGE}`,
+    ]);
+  });
+
+  it("lists the advisory checks in the body of the PR it opens, apart from the ones that held it up", async () => {
+    const bodies: string[] = [];
+    const handle = scene({
+      pulls: {
+        list: () => Promise.resolve([]),
+        open: (_branch, pr) => (
+          bodies.push(pr.body),
+          Promise.resolve(pullRef())
+        ),
+        update: async () => {},
+      },
+    });
+    const brief = coveredBrief();
+
+    await handle(
+      { ...brief, needs: { ...brief.needs, qa_advisory: "blob://advisory" } },
+      {
+        ...TOOLS,
+        read: (need) =>
+          Promise.resolve(
+            Buffer.from(
+              { qa_advisory: ADVISORY, plan_coverage: COVERAGE }[need] ?? "",
+            ),
+          ),
+      },
+    );
+
+    expect(bodies).toEqual([
+      `Opened by the Lore feature-planning line from \`spec/widget\`.\n\n## Advisory checks\n\n${ADVISORY}\n${COVERAGE}`,
+    ]);
+  });
+
   it("rewrites the body of PR 42 already open on the branch with the plan coverage", async () => {
     const updates: unknown[] = [];
     const handle = scene({
@@ -252,6 +316,12 @@ describe("openSpecPrHandle", () => {
     ]);
   });
 });
+
+const QA_FAILURES =
+  "These checks failed against the spec. Fix the spec so each one holds:\n- q1: Is billing out of scope? (Spec is silent.)\n";
+
+const ADVISORY =
+  "These checks failed against the spec but did not hold up the pull request:\n- q4 [risk]: Rates may lag. (Silent.)\n";
 
 const COVERAGE =
   "## Plan coverage\n\n1 of 2 plan blocks are cited by a spec statement. Not cited yet:\n";

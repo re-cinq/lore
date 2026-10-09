@@ -19,6 +19,9 @@ image:
 imagePullSecrets:
   - name: ghcr-pull-secret
 
+# Prometheus text on /metrics, scraped by the ServiceMonitor terraform owns (infra/terraform/monitoring.tf).
+metricsPort: 9464
+
 service:
   type: ClusterIP
   port: 8080
@@ -44,6 +47,7 @@ env:
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
   PORT: "8080"
+  LORE_METRICS_PORT: "9464"
   # The bus-prune sweep deletes run transcripts older than this (default 30).
   # A year: the runs of the engine Lore ran itself get no new turns, and their
   # run pages are what a walkthrough opens.

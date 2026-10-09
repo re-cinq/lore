@@ -59,6 +59,22 @@ describe("floorEnrichmentOf", () => {
     });
   });
 
+  it("answers pull request 2629 and issue 2349 from the run's task when its start items name none", () => {
+    const task = {
+      pr_url: "https://github.com/re-cinq/lore/pull/2629",
+      task_pr_number: 2629,
+      issue_url: "https://github.com/re-cinq/lore/issues/2349",
+      issue_number: 2349,
+      created_by: "implementation-loop",
+      cost_usd: null,
+    };
+
+    expect(floorEnrichmentOf(PLANNING_RUN, 7.49, task)).toEqual({
+      ...task,
+      cost_usd: 7.49,
+    });
+  });
+
   it("answers no issue when the run names none", () => {
     expect(floorEnrichmentOf(PLANNING_RUN, undefined)).toMatchObject({
       issue_url: null,

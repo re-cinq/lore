@@ -28,13 +28,10 @@ describe("decideBranchResume", () => {
   });
 
   it("resumes a clean branch with no pull request yet", () => {
-    expect(decideBranchResume(base)).toEqual({
-      resume: true,
-      lineArgs: { resumed_from_branch: true },
-    });
+    expect(decideBranchResume(base)).toEqual({ resume: true, openPr: null });
   });
 
-  it("seeds pr_number and pr_url so the parked node's route resolves", () => {
+  it("resumes with pull request 77 so the run is started knowing it", () => {
     expect(
       decideBranchResume({
         ...base,
@@ -42,11 +39,7 @@ describe("decideBranchResume", () => {
       }),
     ).toEqual({
       resume: true,
-      lineArgs: {
-        resumed_from_branch: true,
-        pr_number: 77,
-        pr_url: "https://github.com/re-cinq/lore/pull/77",
-      },
+      openPr: { number: 77, url: "https://github.com/re-cinq/lore/pull/77" },
     });
   });
 });

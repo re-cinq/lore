@@ -16,6 +16,12 @@ vi.mock("@/lib/user-repo-access", () => ({
   userCanAccessRepo: () => canAccess(),
 }));
 
+const planRunFor = vi.fn();
+
+vi.mock("./plan-run-facts", () => ({
+  planRunFor: (...args: unknown[]) => planRunFor(...args),
+}));
+
 const {
   approvePlanAction,
   deletePlanAction,
@@ -25,6 +31,7 @@ const {
   reopenPlanAction,
   retrySpecWorkAction,
   reworkSpecsAction,
+  refreshPlanRunFactsAction,
 } = await import("./actions");
 
 const GEDAIU = {
@@ -45,6 +52,7 @@ beforeEach(() => {
   canAccess.mockResolvedValue(true);
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
+  planRunFor.mockReset();
 });
 
 afterEach(() => {
@@ -330,6 +338,31 @@ describe("draftAgainAction", () => {
     }).toEqual({
       result: { error: "You do not have access to this repo." },
       fetched: 0,
+    });
+  });
+});
+
+describe("refreshPlanRunFactsAction", () => {
+  it("hands back plan p1's freshly-read run for gedaiu", async () => {
+    const run = { id: "r1", status: "running" };
+
+    planRunFor.mockResolvedValue(run);
+
+    expect({
+      result: await refreshPlanRunFactsAction("re-cinq/lore", "p1"),
+      calledWith: planRunFor.mock.calls[0],
+    }).toEqual({ result: { run }, calledWith: ["re-cinq/lore", "p1"] });
+  });
+
+  it("reads nothing for someone GitHub does not let see the repo", async () => {
+    canAccess.mockResolvedValue(false);
+
+    expect({
+      result: await refreshPlanRunFactsAction("re-cinq/lore", "p1"),
+      calls: planRunFor.mock.calls.length,
+    }).toEqual({
+      result: { error: "You do not have access to this repo." },
+      calls: 0,
     });
   });
 });

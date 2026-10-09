@@ -16,7 +16,6 @@ function deps(over: Partial<MergeStepDeps> = {}): MergeStepDeps {
     task: async () => TASK,
     setStatus: async () => {},
     recordEvent: async () => {},
-    flipSpecStatus: async () => {},
     commentAndCloseIssue: async () => {},
     recordOutcome: async () => {},
     curate: async () => {},
@@ -31,7 +30,6 @@ describe("the merge line's steps", () => {
   it("names one step per node of the blueprint", () => {
     expect([...MERGE_STEPS]).toEqual([
       "settle",
-      "spec-status",
       "close-issue",
       "outcome-stats",
       "curate",

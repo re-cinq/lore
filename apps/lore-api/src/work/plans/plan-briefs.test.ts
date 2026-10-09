@@ -38,7 +38,7 @@ describe("plan briefs", () => {
     );
   });
 
-  it("asks to refine the Intent section of the live plan by its slot marker, to add the sections a settled answer asks for, to follow one into the sections it makes wrong, and to contradict nothing, since its edits land unreviewed", () => {
+  it("asks to refine the Intent section of the live plan by its slot marker, to add the sections a settled answer asks for, to remove the refined section with remove-section rather than empty it when a settled comment or answered question asks it to go, to follow one into the sections it makes wrong, and to contradict nothing, since its edits land unreviewed", () => {
     const request = {
       actor: "ana",
       slot: "intent",
@@ -49,7 +49,7 @@ describe("plan briefs", () => {
     };
 
     expect(refineBrief(PLAN, request)).toEqual(
-      'Refine the section "Intent" (<!-- slot:intent -->) of the live plan "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections with `add-section`, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong, or where a finding listed below is on it. Your edits land in the live plan as you make them, and nobody accepts them first: never write a claim that another section or a settled answer contradicts, and ask with `add-question` where you disagree with one. Leave every other section exactly as it is.',
+      'Refine the section "Intent" (<!-- slot:intent -->) of the live plan "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections with `add-section`, placed after this one, rather than writing them into this section. Where a settled comment or answered question asks for this section to go, remove it with `remove-section` instead of emptying it. Change another existing section ONLY where one of those settled answers makes what it says wrong, or where a finding listed below is on it. Your edits land in the live plan as you make them, and nobody accepts them first: never write a claim that another section or a settled answer contradicts, and ask with `add-question` where you disagree with one. Leave every other section exactly as it is.',
     );
   });
 

@@ -1,7 +1,39 @@
 import { describe, expect, it } from "vitest";
+import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { toStationRunRow } from "./station-run-row.js";
 
+const tableVisit: StationRunRecord = {
+  id: "1",
+  stationRunId: "visit-1",
+  assemblyRunId: "run-1",
+  nodeId: "implement",
+  iteration: 1,
+  status: "running",
+  clusterAgentId: null,
+  requiredTags: [],
+  claimedAt: null,
+  outcome: null,
+  failureClass: null,
+  failureDetail: null,
+  agentCrName: "agent-1",
+  input: null,
+  commitSha: null,
+  requestedBy: null,
+  startedAt: new Date("2026-10-07T10:00:00Z"),
+  finishedAt: null,
+};
+
 describe("toStationRunRow", () => {
+  it("carries a floor visit's needs target and pr_url", () => {
+    const needs = { target: "github.com/re-cinq/lore@main", pr_url: "u" };
+
+    expect(toStationRunRow({ ...tableVisit, needs })).toMatchObject({ needs });
+  });
+
+  it("gives a table-backed visit without needs a null needs", () => {
+    expect(toStationRunRow(tableVisit)).toMatchObject({ needs: null });
+  });
+
   it("carries the failed issues visit's failureDetail 'body is too long' as failure_detail", () => {
     const row = toStationRunRow({
       id: "1",
