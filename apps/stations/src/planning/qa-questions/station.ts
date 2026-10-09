@@ -1,4 +1,4 @@
-// Judges the frozen question set the generator wrote from the plan: a set that cites nothing real or skips an open plan question goes back to the generator, and a good one is published without its expected values so the answerer stays blind (see specs/7-feature-planning/spec.md FR-24).
+// Judges the frozen question set the generator wrote from the plan: a set that cites nothing real or skips an open plan question goes back to the generator, as does a run that carries no set at all (a pod that died before writing one), and a good one is published without its expected values so the answerer stays blind (see specs/7-feature-planning/spec.md FR-24).
 
 import {
   defineStation,
@@ -17,7 +17,7 @@ import {
 export function qaQuestionsHandle(): Handle {
   return async (brief, tools) => {
     const plan = await planOf(brief, tools);
-    const errors = await errorsOf(tools, plan);
+    const errors = await errorsOf(brief, tools, plan);
 
     if (errors.problems.length > 0 || !errors.questions) {
       await tools.produce(
@@ -47,7 +47,13 @@ async function planOf(brief: Brief, tools: Tools): Promise<CitablePlan | null> {
     : null;
 }
 
-async function errorsOf(tools: Tools, plan: CitablePlan | null) {
+const NO_SET =
+  "You wrote no /workspace/qa-questions.json: the run carries no question set.";
+
+async function errorsOf(brief: Brief, tools: Tools, plan: CitablePlan | null) {
+  if (!brief.needs.qa_questions) {
+    return { questions: null, problems: [NO_SET] };
+  }
   const parsed = specQuestionSchema
     .array()
     .safeParse(await readJson(tools, "qa_questions").catch(() => null));
