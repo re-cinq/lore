@@ -70,7 +70,8 @@ a human writes it.
 
 ### Adoption
 
-Adopting FR1 at `error` required reconciling the whole corpus in the same change
+When the lint rule was first adopted, as FR3 in an earlier change, taking it to
+`error` required reconciling the whole corpus in the same change
 — 132 of 138 in-scope docs disagreed with their coverage, because status had
 never been answerable to anything. That reconciliation demoted 27 shipped ADRs
 and 42 shipped specs, taking the corpus from 47 Shipped specs to 1. This is the
