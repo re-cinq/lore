@@ -289,7 +289,13 @@ line:
       on: stalled
     - from: spec-findings
       to: author
-      on: always
+      on: success
+    # A findings write that failed (the plan API away) ends the run failed, in
+    # the open, rather than parking on an author who sees no finding to fix;
+    # "Run this station" takes it up again once the API is back.
+    - from: spec-findings
+      to: failed
+      on: failed
     - from: qa-gate
       to: qa-recheck
       on: recheck

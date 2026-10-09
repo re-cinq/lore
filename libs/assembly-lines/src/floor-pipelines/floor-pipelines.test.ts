@@ -830,7 +830,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("ends the run failed when analyse-specs, draft, split-sections, write, assemble, rework, qa-generate, qa-questions, qa-answer, qa-recheck, qa-gate, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+  it("ends the run failed when analyse-specs, draft, split-sections, write, assemble, rework, qa-generate, qa-questions, qa-answer, qa-recheck, qa-gate, spec-findings, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
     const { line } = pipelineOf("feature-planning");
     const settledBy = (to: string) =>
       line.edges
@@ -854,6 +854,7 @@ describe("the feature-planning pipeline", () => {
         "qa-questions:failed",
         "qa-recheck:failed",
         "rework:failed",
+        "spec-findings:failed",
         "split-sections:failed",
         "write:failed",
       ],
@@ -1212,7 +1213,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("sends a gate that gave up back to the author through spec-findings, which writes the checks the spec could not uphold into the plan", () => {
+  it("sends a gate that gave up back to the author through spec-findings, which writes the checks the spec could not uphold into the plan, and ends the run failed when that write fails", () => {
     const { line, stations } = pipelineOf("feature-planning");
 
     expect({
@@ -1220,7 +1221,10 @@ describe("the feature-planning pipeline", () => {
       station: line.nodes.find((node) => node.id === "spec-findings")?.station,
       findings: stations["spec-findings"],
     }).toEqual({
-      fromFindings: [{ from: "spec-findings", to: "author", on: "always" }],
+      fromFindings: [
+        { from: "spec-findings", to: "author", on: "success" },
+        { from: "spec-findings", to: "failed", on: "failed" },
+      ],
       station: "spec-findings",
       findings: {
         kind: "service",
