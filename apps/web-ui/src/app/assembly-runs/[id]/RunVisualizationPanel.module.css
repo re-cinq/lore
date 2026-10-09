@@ -88,10 +88,17 @@
   border-left-color: var(--accent);
   outline: none;
 }
+/* Taller than the window, the side column scrolls on its own and stays in view beside the graph instead of growing the page; align-self lets it be shorter than the two rows it spans, which sticky needs. */
 .sideRegion {
   grid-column: 3;
   grid-row: 1 / span 2;
   min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: calc(100dvh - var(--space-8));
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .attempts {
   min-width: 0;
@@ -107,6 +114,9 @@
   .sideRegion {
     grid-column: 1;
     grid-row: 2;
+    position: static;
+    max-height: none;
+    overflow-y: visible;
   }
   .centerCell {
     grid-column: 1;

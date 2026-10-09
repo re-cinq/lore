@@ -1026,6 +1026,57 @@ describe("file diff drawer", () => {
 
     expect(screen.getByText("Diff · src/a.ts")).toBeInTheDocument();
   });
+
+  async function renderWithTouchedFile() {
+    stubHistory([
+      eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        filePaths: ["src/a.ts"],
+      }),
+    ]);
+    FakeWebSocket.reset();
+
+    const view = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="finished"
+        definition={definition}
+        nodes={[]}
+        repo="re-cinq/lore"
+        reason={null}
+        prNumber={42}
+      />,
+    );
+
+    await settle();
+
+    return view;
+  }
+
+  it("draws the Files touched card inside the selected-node aside", async () => {
+    await renderWithTouchedFile();
+
+    expect(
+      screen.getByRole("complementary", { name: "Selected node" }),
+    ).toContainElement(screen.getByText("Files touched"));
+  });
+
+  it("mounts the clicked file's diff outside the aside, in the center column", async () => {
+    const { container } = await renderWithTouchedFile();
+
+    await act(async () => {
+      fireEvent.click(
+        container.querySelector("[data-path='src/a.ts']") as HTMLElement,
+      );
+    });
+
+    expect(
+      screen.getByRole("complementary", { name: "Selected node" }),
+    ).not.toContainElement(screen.getByText("Diff · src/a.ts"));
+  });
 });
 
 describe("a run that ended", () => {
