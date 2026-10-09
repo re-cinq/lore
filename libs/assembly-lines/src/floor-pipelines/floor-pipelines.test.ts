@@ -821,6 +821,7 @@ describe("the feature-planning pipeline", () => {
         "qa-questions",
         "qa-recheck",
         "rework",
+        "spec-findings",
         "split-sections",
         "validate",
         "write",
@@ -929,6 +930,7 @@ describe("the feature-planning pipeline", () => {
       },
       { from: "qa-recheck", to: "failed", on: "failed" },
       { from: "qa-gate", to: "open-spec-pr", on: "success" },
+      { from: "qa-gate", to: "spec-findings", on: "stalled" },
       {
         from: "qa-gate",
         to: "qa-recheck",
@@ -968,6 +970,7 @@ describe("the feature-planning pipeline", () => {
         "qa_history",
         "redo_sections",
         "qa_recheck_blind",
+        "qa_verdict",
         "plan_coverage",
       ],
       target: { name: "target", kind: "git", path: "target", access: "read" },
@@ -1075,7 +1078,13 @@ describe("the feature-planning pipeline", () => {
         ["qa_recheck_blind", "qa-recheck-blind.json"],
       ],
       produces: [["qa_recheck_answers", "qa-recheck-answers.json"]],
-      gateOutcomes: ["success", "recheck", "changes_requested", "failed"],
+      gateOutcomes: [
+        "success",
+        "stalled",
+        "recheck",
+        "changes_requested",
+        "failed",
+      ],
     });
   });
 
@@ -1200,6 +1209,28 @@ describe("the feature-planning pipeline", () => {
 
     expect(line.nodes.find((node) => node.id === "validate")?.bind).toEqual({
       target: "base",
+    });
+  });
+
+  it("sends a gate that gave up back to the author through spec-findings, which writes the checks the spec could not uphold into the plan", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+
+    expect({
+      fromFindings: edgesOn(line, "spec-findings"),
+      station: line.nodes.find((node) => node.id === "spec-findings")?.station,
+      findings: stations["spec-findings"],
+    }).toEqual({
+      fromFindings: [{ from: "spec-findings", to: "author", on: "always" }],
+      station: "spec-findings",
+      findings: {
+        kind: "service",
+        outcomes: ["success", "failed"],
+        needs: [
+          { name: "plan_id", kind: "value" },
+          { name: "qa_verdict", kind: "file" },
+        ],
+        produces: [],
+      },
     });
   });
 

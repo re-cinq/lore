@@ -160,11 +160,11 @@ describe("qaGate", () => {
     });
   });
 
-  it("returns success with the failures and exhausted once the rounds are spent", () => {
+  it("returns stalled with the failures and exhausted once the rounds are spent", () => {
     const bag = withAnswer("q1", { answer: false, reason: "Spec is silent." });
 
     expect(qaGate(bag, { roundsSpent: SPEC_QA_ROUNDS })).toMatchObject({
-      outcome: "success",
+      outcome: "stalled",
       exhausted: true,
       failures: [{ id: "q1" }],
     });
@@ -180,11 +180,11 @@ describe("qaGate", () => {
     });
   });
 
-  it("returns success and exhausted when the spec's own gaps outlast the rounds", () => {
+  it("returns stalled and exhausted when the spec's own gaps outlast the rounds", () => {
     expect(
       qaGate(PASSING_BAG, { roundsSpent: SPEC_QA_ROUNDS, branchGaps: 2 }),
     ).toEqual({
-      outcome: "success",
+      outcome: "stalled",
       failures: [],
       advisory: [],
       exhausted: true,
@@ -299,11 +299,11 @@ describe("qaGate severity, stalling and recheck", () => {
     });
   });
 
-  it("stops asking when the gaps did not fall since the last round, and lists them", () => {
+  it("returns stalled when the gaps did not fall since the last round, and lists them", () => {
     const bag = withAnswer("q1", { answer: false, reason: "Silent." });
 
     expect(qaGate(bag, { roundsSpent: 1, previousGaps: 1 })).toMatchObject({
-      outcome: "success",
+      outcome: "stalled",
       stalled: true,
       failures: [{ id: "q1" }],
     });

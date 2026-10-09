@@ -179,7 +179,7 @@ describe("qaGateHandle on the spec branch", () => {
     }).toEqual({ report: { outcome: "changes_requested" }, namesKpi: true });
   });
 
-  it("reports success with the gap listed once five rounds were spent", async () => {
+  it("reports stalled with the gap listed once five rounds were spent", async () => {
     const { handle, tools, produced } = scene(
       CITES_ONE,
       Array.from({ length: 5 }, handback),
@@ -190,7 +190,7 @@ describe("qaGateHandle on the spec branch", () => {
     expect({
       report,
       namesKpi: produced.plan_coverage?.includes(`cite ${PLAN_URL}#k-1`),
-    }).toEqual({ report: { outcome: "success" }, namesKpi: true });
+    }).toEqual({ report: { outcome: "stalled" }, namesKpi: true });
   });
 
   it("sends the writer back naming alreadyWorkingOnIssue, absent from the file its statement names, with activeTaskByIssue as the hint", async () => {

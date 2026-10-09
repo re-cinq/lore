@@ -148,20 +148,50 @@ async function deliver(
   { verdict, checks, history, options, iteration }: Delivery,
 ): Promise<void> {
   const gaps = verdict.failures.length + (options.branchGaps ?? 0);
-  const redo = redoRequest(
-    verdict.failures,
-    options.branchGaps ?? 0,
-    iteration,
-  );
 
   await Promise.all([
     tools.produce("qa_failures", failureBrief(verdict.failures)),
     tools.produce("qa_advisory", advisoryBrief(verdict.advisory)),
     tools.produce("qa_history", JSON.stringify([...history, gaps])),
     checks && tools.produce("plan_coverage", checks.brief),
-    verdict.outcome === "changes_requested" &&
-      tools.produce("redo_sections", JSON.stringify(redo)),
+    handedBack(tools, { verdict, options, iteration }),
   ]);
+}
+
+/** Where what failed goes next: to the section writers while the gate still asks, onto the plan once it gave up. */
+function handedBack(tools: Tools, delivery: HandBack): Promise<void> | false {
+  return delivery.verdict.outcome === "stalled"
+    ? tools.produce(
+        "qa_verdict",
+        verdictFile(delivery.verdict, delivery.options),
+      )
+    : redoFile(tools, delivery);
+}
+
+type HandBack = Pick<Delivery, "verdict" | "options" | "iteration">;
+
+function redoFile(
+  tools: Tools,
+  { verdict, options, iteration }: HandBack,
+): Promise<void> | false {
+  const redo = redoRequest(
+    verdict.failures,
+    options.branchGaps ?? 0,
+    iteration,
+  );
+
+  return (
+    verdict.outcome === "changes_requested" &&
+    tools.produce("redo_sections", JSON.stringify(redo))
+  );
+}
+
+/** What the spec could not uphold, for the findings that go onto the plan when the gate gave up. */
+function verdictFile(verdict: QaVerdict, options: GateOptions): string {
+  return JSON.stringify({
+    rounds: options.roundsSpent,
+    failures: verdict.failures,
+  });
 }
 
 async function recheckAnswers(tools: Tools) {

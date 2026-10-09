@@ -10,7 +10,7 @@ export interface PipelineVisit {
 /** One node of a run, in graph order — the mini pipeline's dot. */
 export const PipelineNodeSchema = z.object({
   node_id: z.string(),
-  /** success | failed | changes_requested | running | waiting | pending */
+  /** success | failed | changes_requested | stalled | running | waiting | pending */
   state: z.string(),
 });
 

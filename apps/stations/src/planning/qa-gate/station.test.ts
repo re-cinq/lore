@@ -189,7 +189,7 @@ describe("qaGateHandle", () => {
     });
   });
 
-  it("reports success with the failures listed once five rounds are spent, without a second look", async () => {
+  it("reports stalled with the failures listed and in qa_verdict once five rounds are spent, without a second look", async () => {
     const { handle, tools, produced } = scene({
       answers: [ANSWERS[0], { id: "q2", answer: false, reason: "Not there." }],
       spent: 5,
@@ -197,13 +197,28 @@ describe("qaGateHandle", () => {
 
     const report = await handle(brief, tools);
 
-    expect({ report, listed: produced.qa_failures?.includes("q2") }).toEqual({
-      report: { outcome: "success" },
+    expect({
+      report,
+      listed: produced.qa_failures?.includes("q2"),
+      verdict: JSON.parse(produced.qa_verdict ?? "null"),
+    }).toEqual({
+      report: { outcome: "stalled" },
       listed: true,
+      verdict: {
+        rounds: 5,
+        failures: [
+          {
+            id: "q2",
+            section: "questions",
+            text: QUESTIONS[1].question,
+            reason: "Not there.",
+          },
+        ],
+      },
     });
   });
 
-  it("stops asking when the failures did not fall since the last round", async () => {
+  it("reports stalled when the failures did not fall since the last round", async () => {
     const { handle, tools, produced } = scene({
       answers: [Q1_FALSE, ANSWERS[1]],
       recheck: [Q1_FALSE],
@@ -214,7 +229,7 @@ describe("qaGateHandle", () => {
     const report = await handle(brief, tools);
 
     expect({ report, history: produced.qa_history }).toEqual({
-      report: { outcome: "success" },
+      report: { outcome: "stalled" },
       history: "[1,1]",
     });
   });
