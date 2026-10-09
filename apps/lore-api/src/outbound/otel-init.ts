@@ -9,19 +9,26 @@ import {
 
 let sdk: NodeSDK | null = null;
 
+// No telemetry failure may take the API down: a port already bound or a missing exporter leaves the app running unobserved, and says so once.
 export async function initOtel(): Promise<void> {
   const port = metricsPortFromEnv(process.env);
 
-  sdk = new NodeSDK({
-    traceExporter: await cloudTraceExporter(),
-    metricReader: prometheusReader(port),
-    serviceName: "lore-api",
-  });
-  sdk.start();
-  console.log(`[otel] traces → Cloud Trace, metrics on :${port}/metrics`);
+  try {
+    sdk = new NodeSDK({
+      traceExporter: await cloudTraceExporter(),
+      metricReader: prometheusReader(port),
+      serviceName: "lore-api",
+    });
+    sdk.start();
+    console.log(`[otel] traces → Cloud Trace, metrics on :${port}/metrics`);
+  } catch (err) {
+    sdk = null;
+    console.error(
+      `[otel] telemetry disabled: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
-// Missing credentials or package must leave the app running untraced, never crash it; metrics need neither.
 async function cloudTraceExporter(): Promise<SpanExporter | undefined> {
   try {
     const { TraceExporter } =

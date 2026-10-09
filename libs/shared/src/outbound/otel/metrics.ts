@@ -93,6 +93,26 @@ export function observeBusQueueDepth(read: () => Promise<number>): void {
 }
 
 /** `joined` is the floor's answer: true when the start landed on a run already open for the same subject. */
+export type BilledWindow = "day" | "month";
+
+export interface BilledObservation {
+  value: number;
+  attributes: { vendor: string; item: string; window: BilledWindow };
+}
+
+/** Observes what the invoices say on every scrape; a read that throws reports nothing for that scrape. */
+export function observeBilledCost(
+  read: () => Promise<BilledObservation[]>,
+): void {
+  instruments().billedCost.addCallback(async (result) => {
+    const points = await read().catch(() => null);
+
+    for (const point of points ?? []) {
+      result.observe(point.value, point.attributes);
+    }
+  });
+}
+
 export function recordFloorStart(
   line: string,
   started: { joined: boolean },
@@ -149,9 +169,11 @@ function instrumentsOf(meter: Meter) {
     ...httpInstruments(meter),
     ...toolInstruments(meter),
     ...retrievalInstruments(meter),
+    ...recordInstruments(meter),
     ...stationInstruments(meter),
     ...floorInstruments(meter),
     ...llmInstruments(meter),
+    ...billingInstruments(meter),
   };
 }
 
@@ -193,6 +215,11 @@ function retrievalInstruments(meter: Meter) {
     gapCandidates: meter.createCounter("lore.retrieval.gap_candidates", {
       description: "Low-confidence retrievals (potential gaps)",
     }),
+  };
+}
+
+function recordInstruments(meter: Meter) {
+  return {
     tasksCreated: meter.createCounter("lore.tasks.created", {
       description: "Pipeline tasks created",
     }),
@@ -245,6 +272,16 @@ function llmInstruments(meter: Meter) {
     }),
     llmCost: meter.createCounter("lore.llm.cost_usd", {
       description: "Computed cost of Lore's own model calls in USD",
+      unit: "usd",
+    }),
+  };
+}
+
+function billingInstruments(meter: Meter) {
+  return {
+    billedCost: meter.createObservableGauge("lore.billed.cost_usd", {
+      description:
+        "Billed spend from the synced Anthropic and GCP invoices, today and month to date",
       unit: "usd",
     }),
   };

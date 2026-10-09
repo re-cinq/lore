@@ -41,8 +41,12 @@ export function startPrometheusMetrics(
   return { port, stop: () => provider.shutdown() };
 }
 
-export function metricsPortFromEnv(env: NodeJS.ProcessEnv): number {
-  const raw = env.LORE_METRICS_PORT;
+const MAX_PORT = 65535;
 
-  return raw ? Number(raw) : DEFAULT_METRICS_PORT;
+/** An unreadable or out-of-range value falls back to the default rather than binding NaN. */
+export function metricsPortFromEnv(env: NodeJS.ProcessEnv): number {
+  const parsed = Number.parseInt(env.LORE_METRICS_PORT ?? "", 10);
+  const usable = Number.isInteger(parsed) && parsed > 0 && parsed <= MAX_PORT;
+
+  return usable ? parsed : DEFAULT_METRICS_PORT;
 }

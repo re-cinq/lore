@@ -36,8 +36,11 @@ describe("startPrometheusMetrics", () => {
     expect(body).toContain('service_name="lore-test"');
   });
 
-  it("reads 9500 from LORE_METRICS_PORT and falls back to 9464 without it", () => {
-    expect(metricsPortFromEnv({ LORE_METRICS_PORT: "9500" })).toEqual(9500);
-    expect(metricsPortFromEnv({})).toEqual(9464);
+  it("reads 9500 from LORE_METRICS_PORT and falls back to 9464 when it is unset or unreadable", () => {
+    expect([
+      metricsPortFromEnv({ LORE_METRICS_PORT: "9500" }),
+      metricsPortFromEnv({}),
+      metricsPortFromEnv({ LORE_METRICS_PORT: "not-a-port" }),
+    ]).toEqual([9500, 9464, 9464]);
   });
 });

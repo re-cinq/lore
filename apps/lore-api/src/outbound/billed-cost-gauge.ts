@@ -1,20 +1,16 @@
-// `lore.billed.cost_usd`: what the invoices say, as the Spend dashboard reads it. Observed from the two synced daily tables (ADR-043) on each scrape, through a short cache so a 30 s scrape does not become a query storm.
+// `lore.billed.cost_usd`: what the invoices say, as the Spend dashboard reads it. Read from the two synced daily tables (ADR-043) on each scrape, through a short cache so a 30 s scrape does not become a query storm.
 
-import { metrics, type ObservableResult } from "@opentelemetry/api";
 import type { Pool } from "pg";
-
-export type BilledWindow = "day" | "month";
+import {
+  observeBilledCost,
+  type BilledObservation,
+} from "@re-cinq/lore-shared/otel/metrics.js";
 
 export interface BilledCostRow {
   vendor: "anthropic" | "gcp";
   item: string;
   dayUsd: number;
   monthUsd: number;
-}
-
-export interface BilledObservation {
-  value: number;
-  attributes: { vendor: string; item: string; window: BilledWindow };
 }
 
 const CACHE_MS = 5 * 60_000;
@@ -45,22 +41,9 @@ export function billedObservations(rows: BilledCostRow[]): BilledObservation[] {
 }
 
 export function registerBilledCostGauge(pool: Pool): void {
-  const gauge = metrics
-    .getMeter("lore")
-    .createObservableGauge("lore.billed.cost_usd", {
-      description:
-        "Billed spend from the synced Anthropic and GCP invoices, today and month to date",
-      unit: "usd",
-    });
   const read = cachedRows(pool);
 
-  gauge.addCallback(async (result: ObservableResult) => {
-    const rows = await read().catch(() => null);
-
-    for (const point of billedObservations(rows ?? [])) {
-      result.observe(point.value, point.attributes);
-    }
-  });
+  observeBilledCost(async () => billedObservations(await read()));
 }
 
 interface BilledSqlRow {
