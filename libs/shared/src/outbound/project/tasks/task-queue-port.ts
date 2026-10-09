@@ -1,4 +1,3 @@
-import type { PipelineTask } from "../../../domain/types.js";
 import { enforceTrue } from "../../../lib/enforce.js";
 import {
   PIPELINE_TASK_COLUMNS,
