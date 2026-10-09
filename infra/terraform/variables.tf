@@ -192,6 +192,12 @@ variable "utopia_hostname" {
   default     = ""
 }
 
+variable "utopia_image_repository" {
+  description = "The image Utopia runs, without its tag. The upstream image by default; a build of our own (upstream tag plus a fix we are waiting on) goes under ghcr.io/re-cinq/utopia until the release that carries it."
+  type        = string
+  default     = "ghcr.io/deeplethe/utopia"
+}
+
 variable "utopia_image_tag" {
   description = "The ghcr.io/deeplethe/utopia tag to run. Release candidates move fast and migrate the database on start, so a bump is a deliberate PR, never `latest`."
   type        = string
