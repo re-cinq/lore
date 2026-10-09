@@ -79,9 +79,12 @@ resource "kubectl_manifest" "utopia_db_cluster" {
           database = "utopia"
           # Utopia migrates as the owner (UTOPIA_MIGRATION_URL), so `utopia` owns
           # the database; CREATE EXTENSION is the one superuser step and runs here.
+          # In the application database: postInitSQL runs in `postgres`, and the
+          # first install put the extension there, where migration 1 could not
+          # see it and the owner was refused creating its own (2026-10-09).
           owner  = "utopia"
           secret = { name = "utopia-db-credentials" }
-          postInitSQL = [
+          postInitApplicationSQL = [
             "CREATE EXTENSION IF NOT EXISTS vector",
           ]
         }
