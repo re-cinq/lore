@@ -29,22 +29,44 @@ export type FloorRunSource = Pick<
   "page" | "listing" | "costsByRun"
 >;
 
-/** What a floor run joins beyond itself: its pull request and its user story's issue number are its own start items and its cost is the floor's sum. */
+/** What a floor run joins beyond itself: its cost is the floor's sum; its pull request and issue are the task's where the run keeps one (the implementation loop's open-pr station writes the pull request there), else its own start items. */
 export function floorEnrichmentOf(
   run: AssemblyRunSummary,
   costUsd: number | undefined,
+  task: RunEnrichment = NO_TASK,
 ): RunEnrichment {
+  return {
+    pr_url: task.pr_url ?? stringArg(run, "pr_url"),
+    task_pr_number: task.task_pr_number,
+    ...storyIssueOf(run, task),
+    created_by: task.created_by,
+    cost_usd: costUsd ?? null,
+  };
+}
+
+const NO_TASK: RunEnrichment = {
+  pr_url: null,
+  task_pr_number: null,
+  issue_url: null,
+  issue_number: null,
+  created_by: null,
+  cost_usd: null,
+};
+
+/** The planning line's user story is a start item; any other issue is the task's. */
+function storyIssueOf(
+  run: AssemblyRunSummary,
+  task: RunEnrichment,
+): Pick<RunEnrichment, "issue_url" | "issue_number"> {
   const storyIssue = stringArg(run, "story_issue");
 
+  if (!storyIssue) {
+    return { issue_url: task.issue_url, issue_number: task.issue_number };
+  }
+
   return {
-    pr_url: stringArg(run, "pr_url"),
-    task_pr_number: null,
-    issue_url: storyIssue
-      ? `https://github.com/${run.repo}/issues/${storyIssue}`
-      : null,
-    issue_number: storyIssue ? Number(storyIssue) : null,
-    created_by: null,
-    cost_usd: costUsd ?? null,
+    issue_url: `https://github.com/${run.repo}/issues/${storyIssue}`,
+    issue_number: Number(storyIssue),
   };
 }
 

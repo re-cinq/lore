@@ -57,8 +57,8 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     );
   });
 
-  it("is version 6 — the template whose graph job posts specs and ADRs as a delta through lore-code-trace", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(6);
+  it("is version 7 — the template whose graph job treats exhausted transient lore-code-trace projection retries as non-fatal", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(7);
   });
 
   it("projects specs and ADRs with lore-code-trace docs --post and no longer posts to ingest-graph", () => {
@@ -193,14 +193,28 @@ printf '%s' "\${CURL_STUB_STATUS:-000}"
 exit "\${CURL_STUB_EXIT:-0}"
 `;
 
+const loreCodeTraceStub = `#!/usr/bin/env bash
+if [ "$1" = "docs" ] && [ "$2" != "--post" ]; then
+  printf '"specs"\\n'
+  exit 0
+fi
+exit "\${LORE_CODE_TRACE_POST_EXIT:-0}"
+`;
+
 const runScript = (script: string, env: Record<string, string>) => {
   const workDir = mkdtempSync(join(tmpdir(), "lore-ingest-test-"));
   const scriptPath = join(workDir, "step.sh");
   const stubPath = join(workDir, "curl");
+  const loreCodeTracePath = join(workDir, "lore-code-trace");
 
   writeFileSync(scriptPath, script);
   writeFileSync(stubPath, curlStub);
   chmodSync(stubPath, 0o755);
+
+  if ("LORE_CODE_TRACE_POST_EXIT" in env) {
+    writeFileSync(loreCodeTracePath, loreCodeTraceStub);
+    chmodSync(loreCodeTracePath, 0o755);
+  }
 
   return {
     workDir,
@@ -222,14 +236,14 @@ const runScript = (script: string, env: Record<string, string>) => {
 describe("the graph job's fetch step", () => {
   const script = extractRunBlock("Fetch lore-code-trace");
 
-  it("exits 1 with ::error when LORE_INGEST_URL is empty", () => {
+  it("fails before fetching, with ::error, when LORE_INGEST_URL is empty", () => {
     const { result } = runScript(script, { LORE_INGEST_URL: "" });
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("::error::LORE_INGEST_URL");
   });
 
-  it("exits 1 with ::error when LORE_INGEST_TOKEN is empty", () => {
+  it("fails before fetching, with ::error, when LORE_INGEST_TOKEN is empty", () => {
     const { result } = runScript(script, { LORE_INGEST_TOKEN: "" });
 
     expect(result.status).toBe(1);
@@ -373,6 +387,18 @@ describe("the ingest job's run block", () => {
 
     expect(argv).not.toContain("test-ingest-token");
     expect(argv).toMatch(/^@/m);
+  });
+});
+
+describe("the graph job's projection step", () => {
+  const script = extractRunBlock("Project specs and ADRs into the graph");
+
+  it("exits 0 with ::warning when lore-code-trace exits 75", () => {
+    const { result } = runScript(script, { LORE_CODE_TRACE_POST_EXIT: "75" });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("::warning::");
+    expect(result.stdout).toContain("projection will retry on next doc push");
   });
 });
 
