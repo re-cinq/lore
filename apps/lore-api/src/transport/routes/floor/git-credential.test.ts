@@ -89,6 +89,7 @@ describe("handleFloorGitCredential", () => {
         token: TOKEN,
         mint: async (repo) => {
           minted.push(repo);
+
           return "ghs_fresh";
         },
         isRepoOnboarded: async (repo) => repo === "re-cinq/lore",
@@ -107,6 +108,7 @@ describe("handleFloorGitCredential", () => {
 
   it("writes an audit log entry for the mint", async () => {
     const audits: Array<{ repo: string; access: string; caller: string }> = [];
+
     await handleFloorGitCredential(
       {
         token: TOKEN,

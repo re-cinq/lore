@@ -52,6 +52,7 @@ export async function handleFloorGitCredential(
   }
 
   const password = await deps.mint(repo, body.access);
+
   await deps.audit(repo, body.access, bearer);
 
   return { code: 200, body: { username: "x-access-token", password } };
@@ -80,7 +81,11 @@ export function floorGitCredentialRoute(
   return {
     method: "POST" as const,
     path: "/api/floor/git-credential",
-    options: networkDeps.zodResponse({ auth: false as const, validate }, schemas.pair, metadata),
+    options: networkDeps.zodResponse(
+      { auth: false as const, validate },
+      schemas.pair,
+      metadata,
+    ),
     handler: buildFloorGitCredentialHandler(networkDeps, getPool),
   };
 }
@@ -98,7 +103,9 @@ function checkBearer(
   }
 
   const configuredTokens = deps.token.split(",");
-  const isValid = configuredTokens.some((t) => timingSafeStringEqual(bearer, t.trim()));
+  const isValid = configuredTokens.some((t) =>
+    timingSafeStringEqual(bearer, t.trim()),
+  );
 
   if (!isValid) {
     return { code: 401, body: { error: "bad-token" } };
@@ -163,6 +170,7 @@ function buildLiveDeps(
   getPool: () => import("pg").Pool | null,
 ): FloorGitCredentialDeps {
   const github = new deps.PlatformGitHub(process.env);
+
   return {
     token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
     mint: (repo, access) =>
@@ -177,11 +185,15 @@ async function isRepoOnboardedLive(
   repo: string,
 ) {
   const pool = getPool();
-  if (!pool) return false;
+
+  if (!pool) {
+    return false;
+  }
   const res = await pool.query(
     "SELECT 1 FROM lore.repos WHERE full_name = $1",
     [repo],
   );
+
   return res.rowCount !== null && res.rowCount > 0;
 }
 
@@ -192,6 +204,7 @@ async function auditLive(
   caller: string,
 ) {
   const pool = getPool();
+
   if (pool) {
     await pool.query(
       "INSERT INTO pipeline.audit_log (event_type, repo, actor, payload) VALUES ($1, $2, $3, $4)",
