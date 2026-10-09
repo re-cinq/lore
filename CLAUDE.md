@@ -373,6 +373,7 @@ Five service workloads on GKE (one umbrella chart, `lore-platform`, spanning a n
 - lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
 - stations (service stations, `POST /api/stations/{name}`): `lore-stations` namespace
 - Web UI: `lore-ui` namespace
+- Utopia (deeplethe/utopia, behind `enable_utopia`): `utopia` namespace, its own CNPG database, data disk and oauth2-proxy Google gate (`infra/terraform/utopia.tf`); an application beside Lore, not part of it
 - Agents run in pods of the external floor (its own controller and cluster agent, namespace `floor`): Lore's `ai-agents` controller and its cluster agent were removed on 2026-10-02
 
 All secrets managed by External Secrets Operator (ESO) pulling from
