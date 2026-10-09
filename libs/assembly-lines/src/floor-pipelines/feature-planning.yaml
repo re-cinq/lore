@@ -113,6 +113,11 @@ line:
       station: qa-gate
       bind:
         target: repo
+    # A gate that gave up writes what the spec could not uphold into the plan as
+    # findings and hands the plan back to its people: the plan is what to fix. See
+    # the spec-findings station.
+    - id: spec-findings
+      station: spec-findings
     - id: open-spec-pr
       station: open-spec-pr
       bind:
@@ -277,14 +282,28 @@ line:
     - from: qa-gate
       to: open-spec-pr
       on: success
+    # The rounds are spent, or a round did not lower the gaps: no PR opens from a
+    # spec that disagrees with its plan. The checks left go onto the plan.
+    - from: qa-gate
+      to: spec-findings
+      on: stalled
+    - from: spec-findings
+      to: author
+      on: success
+    # A findings write that failed (the plan API away) ends the run failed, in
+    # the open, rather than parking on an author who sees no finding to fix;
+    # "Run this station" takes it up again once the API is back.
+    - from: spec-findings
+      to: failed
+      on: failed
     - from: qa-gate
       to: qa-recheck
       on: recheck
       iteration_max: 5
     # What the blind answers found missing goes back to
     # the writer, and only that. The station stops asking after SPEC_QA_ROUNDS
-    # handbacks and lets the PR open with the failures listed; this
-    # iteration_max is the backstop it never reaches.
+    # handbacks and reports stalled instead; this iteration_max is the backstop
+    # it never reaches.
     - from: qa-gate
       to: split-sections
       on: changes_requested
@@ -484,6 +503,20 @@ stations:
       - name: plan_validation
         kind: file
         optional: true
+    produces: []
+  # Writes the checks a spec gate that gave up could not uphold into the plan as
+  # blocker findings, one per check in its section, so Approve refuses until the
+  # plan is fixed. See apps/stations/src/planning/spec-findings.
+  spec-findings:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      - name: qa_verdict
+        kind: file
     produces: []
   spec-analysis:
     kind: agent
@@ -737,6 +770,8 @@ stations:
     kind: service
     outcomes:
       - success
+      # Gave up: rounds spent, or the gaps stopped falling. The checks left are in qa_verdict.
+      - stalled
       - recheck
       - changes_requested
       - failed
@@ -778,6 +813,9 @@ stations:
         kind: file
       # The failed questions for the second pod; only when it asks for one.
       - name: qa_recheck_blind
+        kind: file
+      # The blocking checks left, structured, for spec-findings when the gate gave up.
+      - name: qa_verdict
         kind: file
       # Produced on every visit that counts, so the latest one is always true.
       - name: plan_coverage

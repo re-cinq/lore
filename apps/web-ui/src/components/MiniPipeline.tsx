@@ -8,6 +8,7 @@ const DOT_STATES = new Set([
   "waiting",
   "pending",
   "changes_requested",
+  "stalled",
 ]);
 
 export default function MiniPipeline({

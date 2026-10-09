@@ -42,7 +42,8 @@ export interface QaFailure {
 }
 
 export interface QaVerdict {
-  outcome: "success" | "changes_requested";
+  /** `stalled`: the gate gave up, by rounds spent or by gaps that stopped falling; what is left goes back to the plan as findings. */
+  outcome: "success" | "changes_requested" | "stalled";
   /** The blocking failures: what sends the writer back. */
   failures: QaFailure[];
   /** Failures of questions worth knowing about but not worth a round; listed in the pull request. */
@@ -71,15 +72,27 @@ export function qaGate(bag: SpecQaBag, options: GateOptions): QaVerdict {
   const exhausted = gaps > 0 && options.roundsSpent >= SPEC_QA_ROUNDS;
   const stalled = stalledAt(gaps, options.previousGaps ?? null);
 
-  const settled = [gaps === 0, exhausted, stalled].some(Boolean);
-
   return {
-    outcome: settled ? "success" : "changes_requested",
+    outcome: outcomeOf({ gaps, exhausted, stalled }),
     failures: blocking,
     advisory,
     exhausted,
     stalled,
   };
+}
+
+function outcomeOf({
+  gaps,
+  exhausted,
+  stalled,
+}: Pick<QaVerdict, "exhausted" | "stalled"> & {
+  gaps: number;
+}): QaVerdict["outcome"] {
+  if (gaps === 0) {
+    return "success";
+  }
+
+  return exhausted || stalled ? "stalled" : "changes_requested";
 }
 
 function stalledAt(gaps: number, previousGaps: number | null): boolean {
