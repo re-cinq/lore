@@ -158,6 +158,20 @@ async function handleFloorGitCredentialRequest(
   return h.response(result.body).code(result.code);
 }
 
+function buildLiveDeps(
+  deps: ReturnType<typeof buildFloorGitCredentialNetworkDeps>,
+  getPool: () => import("pg").Pool | null,
+): FloorGitCredentialDeps {
+  const github = new deps.PlatformGitHub(process.env);
+  return {
+    token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
+    mint: (repo, access) =>
+      github.getInstallationToken(repo, permissionsFor(access)),
+    isRepoOnboarded: (repo) => isRepoOnboardedLive(getPool, repo),
+    audit: (repo, access, caller) => auditLive(getPool, repo, access, caller),
+  };
+}
+
 async function isRepoOnboardedLive(
   getPool: () => import("pg").Pool | null,
   repo: string,
@@ -184,20 +198,6 @@ async function auditLive(
       ["git_credential_mint", repo, caller, JSON.stringify({ access })],
     );
   }
-}
-
-function buildLiveDeps(
-  deps: ReturnType<typeof buildFloorGitCredentialNetworkDeps>,
-  getPool: () => import("pg").Pool | null,
-): FloorGitCredentialDeps {
-  const github = new deps.PlatformGitHub(process.env);
-  return {
-    token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
-    mint: (repo, access) =>
-      github.getInstallationToken(repo, permissionsFor(access)),
-    isRepoOnboarded: (repo) => isRepoOnboardedLive(getPool, repo),
-    audit: (repo, access, caller) => auditLive(getPool, repo, access, caller),
-  };
 }
 
 export function permissionsFor(

@@ -72,7 +72,7 @@ describe("handleFloorGitCredential", () => {
 
   it("answers 200 when the bearer matches any token in a comma-separated list", async () => {
     expect(
-      await ask("token2", "https://github.com/re-cinq/lore", "token1,token2")
+      await ask("token2", "https://github.com/re-cinq/lore", "token1,token2"),
     ).toEqual({
       result: {
         code: 200,
@@ -95,7 +95,10 @@ describe("handleFloorGitCredential", () => {
         audit: async () => {},
       } as any,
       TOKEN,
-      { repoUrl: "https://github.com/other/repo", access: "write" }
+      {
+        repoUrl: "https://github.com/other/repo",
+        access: "write",
+      },
     );
 
     expect(result.code).toBe(403);
@@ -114,7 +117,10 @@ describe("handleFloorGitCredential", () => {
         },
       } as any,
       TOKEN,
-      { repoUrl: "https://github.com/re-cinq/lore", access: "write" }
+      {
+        repoUrl: "https://github.com/re-cinq/lore",
+        access: "write",
+      },
     );
 
     expect(audits).toEqual([
