@@ -210,6 +210,7 @@ const runScript = (script: string, env: Record<string, string>) => {
   writeFileSync(scriptPath, script);
   writeFileSync(stubPath, curlStub);
   chmodSync(stubPath, 0o755);
+
   if ("LORE_CODE_TRACE_POST_EXIT" in env) {
     writeFileSync(loreCodeTracePath, loreCodeTraceStub);
     chmodSync(loreCodeTracePath, 0o755);
