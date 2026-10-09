@@ -38,8 +38,10 @@ export interface RunVisualizationPanelProps {
   prNumber?: number | null;
   /** Which engine walks the run; a node of a run on the external floor can be run again from here. */
   engine?: string;
-  /** The run's facts card, drawn under the graph. Handed in because the page owns the live run it reads. */
-  facts?: ReactNode;
+  /** The page's header, drawn above the graph. Handed in because the page owns the live run it reads. */
+  header?: ReactNode;
+  /** Everything about the run itself, drawn under the graph: its facts, the issue it works on, its definition of done and its options. */
+  runDetails?: ReactNode;
   /** The task's cost table or the note that the run has none, drawn after the attempt. */
   taskContext?: ReactNode;
 }
@@ -55,7 +57,7 @@ export default function RunVisualizationPanel(
   return (
     <section className={styles.panel}>
       <RunWorkbenchLayout
-        graph={<RunGraph view={view} {...graphProps(props)} />}
+        graph={<GraphWithHeader view={view} {...graphProps(props)} />}
         {...inspectorSlots({ view, page: props, focus, drawer })}
         sideWidth={side.width}
         onResizeSide={side.setWidth}
@@ -105,7 +107,7 @@ function sideSlot({ view, inspector, focus, drawer }: ColumnSources) {
 function centerSlot({ page, inspector, focus, drawer }: ColumnSources) {
   return (
     <CenterColumn
-      facts={page.facts}
+      runDetails={page.runDetails}
       taskContext={page.taskContext}
       diff={{
         runId: page.runId,
@@ -121,6 +123,7 @@ function centerSlot({ page, inspector, focus, drawer }: ColumnSources) {
 /** The run facts the graph section shows beside the view: the definition, how the run ended, and why it is where it is. */
 function graphProps(props: RunVisualizationPanelProps) {
   return {
+    header: props.header,
     definition: props.definition,
     runOutcome: props.runOutcome ?? null,
     reason: props.reason,
@@ -129,19 +132,31 @@ function graphProps(props: RunVisualizationPanelProps) {
 
 interface RunGraphProps {
   view: RunView;
+  /** The page's header, above the graph it introduces. */
+  header: ReactNode;
   definition: RunVisualizationPanelProps["definition"];
   runOutcome: string | null;
   reason: string | null;
 }
 
-function RunGraph({ view, definition, runOutcome, reason }: RunGraphProps) {
+/** The page's header and, under it, the graph it introduces. */
+function GraphWithHeader({ header, ...graph }: RunGraphProps) {
+  return (
+    <>
+      {header}
+      <RunGraph {...graph} />
+    </>
+  );
+}
+
+function RunGraph({ view, ...facts }: Omit<RunGraphProps, "header">) {
   return (
     <RunGraphSection
       chipState={view.chipState}
-      runOutcome={runOutcome}
-      reason={reason}
+      runOutcome={facts.runOutcome}
+      reason={facts.reason}
       graph={view.graph.visibleGraph}
-      definition={definition}
+      definition={facts.definition}
       onSelectNode={view.setSelectedNodeId}
       selectedNodeId={view.selectedNodeId}
       nodeMeta={view.nodeMeta}

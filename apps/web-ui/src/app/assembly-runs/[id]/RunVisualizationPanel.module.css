@@ -1,5 +1,7 @@
+/* The page carries no padding of its own (globals.css `.main-content:has(> [data-flush-page])`), so the panel is where the gutter lives. */
 .panel {
-  margin-block: var(--space-6);
+  margin: 0;
+  padding: var(--space-6);
 }
 
 .header {
@@ -95,8 +97,8 @@
   min-width: 0;
   align-self: start;
   position: sticky;
-  top: 0;
-  max-height: calc(100dvh - var(--space-8));
+  top: var(--space-6);
+  max-height: calc(100dvh - var(--space-6) * 2);
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -104,6 +106,9 @@
   min-width: 0;
 }
 @media (max-width: 900px) {
+  .panel {
+    padding: var(--space-4);
+  }
   .workbench {
     grid-template-columns: minmax(0, 1fr);
   }

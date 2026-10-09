@@ -215,6 +215,51 @@ describe("RunLiveShell", () => {
     ).toBeInTheDocument();
   });
 
+  it("marks the page flush, so the shell leaves the gutters to the panel", async () => {
+    const { container } = renderShell();
+
+    await settle();
+
+    expect(container.querySelector("[data-flush-page]")).not.toBeNull();
+  });
+
+  it("draws the header above the graph and the issue card below the facts, all outside the aside", async () => {
+    const { container } = renderShell({
+      issue: {
+        number: 42,
+        title: "Show the issue on the run page",
+        state: "open",
+        url: "https://github.com/re-cinq/lore/issues/42",
+        body: "## Why",
+      },
+    });
+
+    await settle();
+
+    const order = [
+      screen.getByRole("heading", { name: "implementation", level: 1 }),
+      container.querySelector("[data-node]") as Node,
+      screen.getByText("Branch"),
+      screen.getByText("Issue #42 · Show the issue on the run page"),
+    ];
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
+
+    expect({
+      inReadingOrder: order.every(
+        (node, i) =>
+          i === 0 ||
+          Boolean(
+            order[i - 1].compareDocumentPosition(node) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          ),
+      ),
+      inAside: order.map((node) => aside.contains(node)),
+    }).toEqual({
+      inReadingOrder: true,
+      inAside: [false, false, false, false],
+    });
+  });
+
   it("draws the run facts under the graph and the task-less notice after them, both outside the aside", async () => {
     const { container } = renderShell({ run: { ...run, taskId: null } });
 
