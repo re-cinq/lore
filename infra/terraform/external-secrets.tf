@@ -947,7 +947,7 @@ resource "kubectl_manifest" "es_grafana_oauth" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "grafana-oauth"
-      namespace = "monitoring"
+      namespace = local.monitoring_namespace
     }
     spec = {
       refreshInterval = "1h"

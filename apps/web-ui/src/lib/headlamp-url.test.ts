@@ -37,4 +37,11 @@ describe("grafanaUrl", () => {
   it("names no address when the variable is empty", () => {
     expect(grafanaUrl({ GRAFANA_URL: "" })).toBeUndefined();
   });
+
+  it("names no address when the variable is unset or holds only whitespace", () => {
+    expect([grafanaUrl({}), grafanaUrl({ GRAFANA_URL: "   " })]).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
 });

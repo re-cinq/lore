@@ -416,7 +416,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 - FR-3.20: The sidebar footer links to the metrics dashboards (Grafana,
   ADR-050) under the same rule: only when the deployment names one in
   `GRAFANA_URL`, as an external anchor in a new tab beside the Headlamp
-  link, and no link at all for an absent or empty address. ([validated by `links to the named Grafana in a new tab beside the Headlamp link`](apps/web-ui/src/app/SidebarNav.test.tsx#L393), [`renders no Grafana link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L413), [`returns the Grafana address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L31), [`names no address when the variable is empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L37))
+  link, and no link at all for an absent or empty address. ([validated by `links to the named Grafana in a new tab beside the Headlamp link`](apps/web-ui/src/app/SidebarNav.test.tsx#L393), [`renders no Grafana link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L413), [`returns the Grafana address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L31), [`names no address when the variable is empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L37), [`names no address when the variable is unset or holds only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L41))
 
 ### FR-4: Form and Input Styling
 

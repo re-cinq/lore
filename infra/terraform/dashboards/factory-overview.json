@@ -269,7 +269,7 @@
   },
   {
    "type": "stat",
-   "title": "Dead letters",
+   "title": "Dead letters 24h",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -286,7 +286,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(floor_events_dead_total) + sum(increase(lore_bus_deliveries_total{result=\"dead\"}[24h]))",
+     "expr": "sum(increase(floor_events_dead_total[24h])) + sum(increase(lore_bus_deliveries_total{result=\"dead\"}[24h]))",
      "legendFormat": "",
      "refId": "A"
     }

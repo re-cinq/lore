@@ -125,18 +125,18 @@ type ExternalAppsProps = Pick<NavFooterProps, "headlampUrl" | "grafanaUrl">;
 function ExternalApps({ headlampUrl, grafanaUrl }: ExternalAppsProps) {
   return (
     <>
-      {grafanaUrl && (
-        <ExternalAppLink
-          href={grafanaUrl}
-          label="Grafana"
-          title="Metrics dashboards (opens in a new tab)"
-        />
-      )}
       {headlampUrl && (
         <ExternalAppLink
           href={headlampUrl}
           label="Headlamp"
           title="Cluster dashboard (opens in a new tab)"
+        />
+      )}
+      {grafanaUrl && (
+        <ExternalAppLink
+          href={grafanaUrl}
+          label="Grafana"
+          title="Metrics dashboards (opens in a new tab)"
         />
       )}
     </>
