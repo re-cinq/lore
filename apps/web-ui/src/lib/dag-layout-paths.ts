@@ -28,12 +28,12 @@ export function contentBoxOf(
   };
 }
 
-/** SVG path data for one edge, or "" when either endpoint was never placed. */
+/** SVG path data for one edge, or "" when either endpoint was never placed. `floors` holds each band's floor, by band. */
 export function pathFor(
   edge: ClassifiedEdge,
   byId: Map<string, LayoutNode>,
   opts: ResolvedOptions,
-  floor: number,
+  floors: readonly number[],
 ): string {
   const from = byId.get(edge.from);
   const to = byId.get(edge.to);
@@ -42,15 +42,22 @@ export function pathFor(
     return "";
   }
 
-  return edgePath(edge.kind, { from, to, floor }, opts);
+  return edgePath(edge.kind, { from, to, floors }, opts);
 }
 
-/** Self-loops arc over the top, back-edges pass under the floor, the rest curve forward. */
+interface EdgeEnds {
+  from: LayoutNode;
+  to: LayoutNode;
+  floors: readonly number[];
+}
+
+/** Self-loops arc over the top, back-edges pass under their band's floor, the rest curve forward; an edge between two bands takes the gutters instead. */
 function edgePath(
   kind: EdgeKind,
-  { from, to, floor }: { from: LayoutNode; to: LayoutNode; floor: number },
+  ends: EdgeEnds,
   opts: ResolvedOptions,
 ): string {
+  const { from, to, floors } = ends;
   const halfW = opts.nodeWidth / 2;
   const halfH = opts.nodeHeight / 2;
 
@@ -58,11 +65,53 @@ function edgePath(
     return selfLoop(from, { halfW, halfH, arcDrop: opts.arcDrop });
   }
 
-  if (kind === "back") {
-    return backArc(from, to, halfH, floor);
+  if (from.band !== to.band) {
+    return kind === "back" ? upTheLeftGutter(ends, opts) : wrapDown(ends, opts);
   }
 
-  return forwardCurve(from, to, halfW, opts.layerGap / 3);
+  return kind === "back"
+    ? backArc(from, to, halfH, floors[from.band])
+    : forwardCurve(from, to, halfW, opts.layerGap / 3);
+}
+
+/** A forward edge onto a later band, as a line of text wraps: out of the source's right side, back along the gutter under its band, down the air just left of the target's column, and into the target's left side. */
+function wrapDown(
+  { from, to, floors }: EdgeEnds,
+  opts: ResolvedOptions,
+): string {
+  const halfW = opts.nodeWidth / 2;
+  const bend = opts.layerGap / 3;
+  const startX = from.x + halfW;
+  const gutterY = floors[from.band];
+  const entryX = to.x - halfW - (opts.layerGap - opts.nodeWidth) / 2;
+
+  return [
+    `M ${startX} ${from.y}`,
+    `C ${startX + bend} ${from.y} ${startX + bend} ${gutterY} ${startX} ${gutterY}`,
+    `L ${entryX} ${gutterY}`,
+    `L ${entryX} ${to.y}`,
+    `L ${to.x - halfW} ${to.y}`,
+  ].join(" ");
+}
+
+/** A retry onto an earlier band: down to the source band's floor, left past the first column, up the left gutter to the target band's floor, and into the target's underside. */
+function upTheLeftGutter(
+  { from, to, floors }: EdgeEnds,
+  opts: ResolvedOptions,
+): string {
+  const halfH = opts.nodeHeight / 2;
+  const gutterX = opts.originX - opts.nodeWidth / 2 - opts.layerGap / 3;
+  const fromFloor = floors[from.band];
+  const toFloor = floors[to.band];
+
+  return [
+    `M ${from.x} ${from.y + halfH}`,
+    `L ${from.x} ${fromFloor}`,
+    `L ${gutterX} ${fromFloor}`,
+    `L ${gutterX} ${toFloor}`,
+    `L ${to.x} ${toFloor}`,
+    `L ${to.x} ${to.y + halfH}`,
+  ].join(" ");
 }
 
 /** Both corners of every node box, as separate x and y lists. */

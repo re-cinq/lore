@@ -12,6 +12,8 @@ import NodeMetaLine from "./NodeMetaLine";
 import NodeOutcomeList from "./NodeOutcomeList";
 import NodePlainLabel from "./NodePlainLabel";
 import NodeRunBadge from "./NodeRunBadge";
+import TypeGlyph, { FAMILY_CLASS } from "./TypeGlyph";
+import { typeFamilyOf, type NodeTypeFamily } from "@/lib/node-type-family";
 import { NODE_WIDTH, nodeTextRows, titleCase } from "./run-graph-geometry";
 import { classes } from "./run-graph-tone-classes";
 import styles from "./run-graph.module.css";
@@ -38,10 +40,13 @@ export default function GraphNode(props: GraphNodeProps) {
   const interaction = nodeInteraction(node.id, onSelect);
   const { baselines, metaLine } = nodeLines(props, badge, leftEdge);
   const body = { node, badge, baselines, outcomes, isTerminal, top, leftEdge };
+  const family = typeFamilyOf(model?.nodeType ?? model?.type);
+  const box = { leftEdge, top, height };
 
   return (
-    <g {...groupProps({ body, interaction, selected: props.selected })}>
-      <NodeBox leftEdge={leftEdge} top={top} height={height} />
+    <g {...groupProps({ body, interaction, selected: props.selected, family })}>
+      <NodeBox {...box} />
+      <NodeTypeMarks family={family} {...box} />
       <NodeBody {...body} title={titleCase(node.id)} />
       <NodeMetaLine {...metaLine} />
     </g>
@@ -151,15 +156,14 @@ interface NodeBodyProps {
 }
 
 /** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
-function groupProps({
-  body,
-  interaction,
-  selected,
-}: {
+interface GroupInput {
   body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">;
   interaction: ReturnType<typeof nodeInteraction>;
   selected: boolean | undefined;
-}) {
+  family: NodeTypeFamily;
+}
+
+function groupProps({ body, interaction, selected, family }: GroupInput) {
   const { node, badge } = body;
   const isSelected = selected === true;
 
@@ -167,6 +171,7 @@ function groupProps({
     className: nodeClassName({ badge, selected: isSelected }),
     "data-node": node.id,
     "data-tone": badge?.tone ?? "idle",
+    "data-family": family,
     "data-selected": isSelected || undefined,
     "aria-label": nodeAriaLabel(body),
     ...interactionAttrs({ interaction, selected: isSelected }),
@@ -240,6 +245,45 @@ function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
       width={NODE_WIDTH}
       height={height}
       rx={10}
+    />
+  );
+}
+
+// The stripe sits inside the rounded corners, so it reads as a band down the box's edge rather than a second box.
+const STRIPE_INSET = 8;
+// The type mark's centre from the box's top-left: inside the corner, clear of the status glyph below it and of the text to its right.
+const GLYPH_INSET = 11;
+
+/** The step's type, apart from its status: a stripe down the box's left edge and a mark in its top-left corner, both in the family's colour (run-viz FR4.1h). */
+function NodeTypeMarks(props: NodeBoxProps & { family: NodeTypeFamily }) {
+  const { family, leftEdge, top } = props;
+
+  return (
+    <>
+      <TypeStripe {...props} />
+      <TypeGlyph
+        family={family}
+        cx={leftEdge + GLYPH_INSET}
+        cy={top + GLYPH_INSET}
+      />
+    </>
+  );
+}
+
+function TypeStripe({
+  family,
+  leftEdge,
+  top,
+  height,
+}: NodeBoxProps & { family: NodeTypeFamily }) {
+  return (
+    <rect
+      className={`${styles.typeStripe} ${FAMILY_CLASS[family]}`}
+      x={leftEdge + 1}
+      y={top + STRIPE_INSET}
+      width={3}
+      height={height - STRIPE_INSET * 2}
+      rx={1.5}
     />
   );
 }
