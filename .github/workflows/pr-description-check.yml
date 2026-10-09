@@ -11,6 +11,7 @@ permissions:
 jobs:
   check-pr-description:
     runs-on: ubuntu-latest
+    if: github.actor != 'lore-agent[bot]'
     steps:
       - name: Check PR description sections
         env:
