@@ -63,20 +63,26 @@ export default function RunVisualizationPanel(
 interface ColumnSources {
   view: RunView;
   page: RunVisualizationPanelProps;
+  inspector: ReturnType<typeof inspectorProps>;
   focus: InspectorFocus;
   drawer: ReturnType<typeof useDiffDrawer>;
 }
 
 /** The side column (detail card, then files touched) and the center column (open diff, then the attempt on show), both reading the same focus. */
-function inspectorSlots(sources: ColumnSources) {
-  return { side: sideSlot(sources), center: centerSlot(sources) };
+function inspectorSlots(sources: Omit<ColumnSources, "inspector">) {
+  const withInspector = {
+    ...sources,
+    inspector: inspectorProps(sources.view, sources.page),
+  };
+
+  return { side: sideSlot(withInspector), center: centerSlot(withInspector) };
 }
 
-function sideSlot({ view, page, focus, drawer }: ColumnSources) {
+function sideSlot({ view, inspector, focus, drawer }: ColumnSources) {
   return (
     <SideColumn
       inspector={{
-        ...inspectorProps(view, page),
+        ...inspector,
         selectedIteration: focus.attempt?.iteration,
         onPickAttempt: focus.pickAttempt,
       }}
@@ -91,7 +97,7 @@ function sideSlot({ view, page, focus, drawer }: ColumnSources) {
   );
 }
 
-function centerSlot({ view, page, focus, drawer }: ColumnSources) {
+function centerSlot({ page, inspector, focus, drawer }: ColumnSources) {
   return (
     <CenterColumn
       diff={{
@@ -100,7 +106,7 @@ function centerSlot({ view, page, focus, drawer }: ColumnSources) {
         prNumber: page.prNumber ?? null,
         onClose: drawer.closeDiff,
       }}
-      attempts={attemptInspectorProps(inspectorProps(view, page), focus)}
+      attempts={attemptInspectorProps(inspector, focus)}
     />
   );
 }

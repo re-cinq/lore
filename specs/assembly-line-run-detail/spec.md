@@ -68,7 +68,7 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 
 - **Show all nodes' pod logs simultaneously.** `NodePodLogs` already renders one collapsible `<details>` per node; the issue is not collapsed vs expanded but the section being disconnected from node selection. Showing all logs outside the graph makes the quantity of log content worse, not better, when a line has many nodes.
 
-- **Move `FileHeatmapView` into the node detail pane and scope it per-node.** The heatmap's value proposition is the run-level picture of what files the agent worked on. Scoping it per-node fragments that view into a per-node read/write count that `RunNodeDetail` already surfaces as a scalar ("files touched"). Per-node heatmap is a future affordance, not a prerequisite here.
+- **Move `FileHeatmapView` into the node detail pane and scope it per-node.** The heatmap's value proposition is the run-level picture of what files the agent worked on. Scoping it per-node fragments that view into a per-node read/write count that `RunNodeDetail` already surfaces as a scalar ("files touched"). Per-node heatmap is a future affordance, not a prerequisite here. _(The placement alone — run-level data in the side panel, not scoped per-node — was later accepted; see run-viz FR4.14.)_
 
 - **Dissolve `RunVisualizationPanel` and lift its state to `page.tsx`.** The panel's reducer, SSE connection, and clock are client-only concerns that `page.tsx` (an `async` server component) cannot hold. The panel stays as the client-side state boundary; this refactor only changes which children it renders and how it passes props.
 
