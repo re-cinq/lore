@@ -67,7 +67,7 @@ export function configuredToken(
 /** The git-credential provider an external floor engine asks for a repo token; its own shared bearer (`FLOOR_GIT_CREDENTIAL_TOKEN`) is the auth, so no bearer scope applies. */
 export function floorGitCredentialRoute(
   getPool: () => import("pg").Pool | null,
-) {
+): import("@hapi/hapi").ServerRoute {
   const networkDeps = buildFloorGitCredentialNetworkDeps();
   const schemas = buildFloorGitCredentialSchemas();
   const validate = { payload: networkDeps.zodValidate(schemas.body) };
@@ -149,36 +149,43 @@ async function handleFloorGitCredentialRequest(
   request: import("@hapi/hapi").Request,
   h: import("@hapi/hapi").ResponseToolkit,
 ) {
-  const github = new deps.PlatformGitHub(process.env);
   const result = await handleFloorGitCredential(
-    {
-      token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
-      mint: (repo, access) =>
-        github.getInstallationToken(repo, permissionsFor(access)),
-      isRepoOnboarded: async (repo) => {
-        const pool = getPool();
-        if (!pool) return false;
-        const res = await pool.query(
-          "SELECT 1 FROM lore.repos WHERE full_name = $1",
-          [repo],
-        );
-        return res.rowCount !== null && res.rowCount > 0;
-      },
-      audit: async (repo, access, caller) => {
-        const pool = getPool();
-        if (pool) {
-          await pool.query(
-            "INSERT INTO pipeline.audit_log (event_type, repo, actor, payload) VALUES ($1, $2, $3, $4)",
-            ["git_credential_mint", repo, caller, JSON.stringify({ access })],
-          );
-        }
-      },
-    },
+    buildLiveDeps(deps, getPool),
     deps.extractBearer(request.headers.authorization) ?? "",
     request.payload as { repoUrl: string; access: "read" | "write" },
   );
 
   return h.response(result.body).code(result.code);
+}
+
+function buildLiveDeps(
+  deps: ReturnType<typeof buildFloorGitCredentialNetworkDeps>,
+  getPool: () => import("pg").Pool | null,
+): FloorGitCredentialDeps {
+  const github = new deps.PlatformGitHub(process.env);
+  return {
+    token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
+    mint: (repo, access) =>
+      github.getInstallationToken(repo, permissionsFor(access)),
+    isRepoOnboarded: async (repo) => {
+      const pool = getPool();
+      if (!pool) return false;
+      const res = await pool.query(
+        "SELECT 1 FROM lore.repos WHERE full_name = $1",
+        [repo],
+      );
+      return res.rowCount !== null && res.rowCount > 0;
+    },
+    audit: async (repo, access, caller) => {
+      const pool = getPool();
+      if (pool) {
+        await pool.query(
+          "INSERT INTO pipeline.audit_log (event_type, repo, actor, payload) VALUES ($1, $2, $3, $4)",
+          ["git_credential_mint", repo, caller, JSON.stringify({ access })],
+        );
+      }
+    },
+  };
 }
 
 export function permissionsFor(
