@@ -118,7 +118,11 @@ The route is registered as an exact `POST /api/onboard` match. ([implemented by]
 
 `onboardRepo` takes the per-repo advisory lock before reading the guard state and gives the task the onboarding TICKET body (`onboardTicketBody`, `libs/shared/src/work/onboard-content.ts`) rather than the bare repo name — the description becomes the Issue the `onboard` line implements, so it must carry every file owed and every rule. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L99), [validated by sends the onboarding ticket body instead of the bare repo name](apps/lore-api/src/work/repo/repo-onboard.test.ts#L135))
 
-`onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo, blocks a repo with an onboard task in flight while naming that task, and blocks a repo whose onboarding PR is still open while naming the PR. ([validated by blocks an already-onboarded repo without creating a task](apps/lore-api/src/work/repo/repo-onboard.test.ts#L166), [validated by blocks a repo with an onboard task in flight and names that task](apps/lore-api/src/work/repo/repo-onboard.test.ts#L177), [validated by blocks a repo whose onboarding PR is still open](apps/lore-api/src/work/repo/repo-onboard.test.ts#L188))
+`onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo. ([validated by blocks an already-onboarded repo without creating a task](apps/lore-api/src/work/repo/repo-onboard.test.ts#L166))
+
+It blocks a repo with an onboard task in flight while naming that task. ([validated by blocks a repo with an onboard task in flight and names that task](apps/lore-api/src/work/repo/repo-onboard.test.ts#L177))
+
+It blocks a repo whose onboarding PR is still open while naming the PR. ([validated by blocks a repo whose onboarding PR is still open](apps/lore-api/src/work/repo/repo-onboard.test.ts#L188))
 The onboarding guard blocks `re-cinq/lore` outright because it is the source of the templates. ([validated by](libs/shared/src/work/onboard-guard.test.ts#L17))
 
 A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L223), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L277))
