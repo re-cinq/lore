@@ -78,7 +78,14 @@ function checkBearer(
     return { code: 503, body: { error: "not-configured" } };
   }
 
-  if (!bearer || !timingSafeStringEqual(bearer, deps.token)) {
+  if (!bearer) {
+    return { code: 401, body: { error: "bad-token" } };
+  }
+
+  const tokens = deps.token.split(",").map((t) => t.trim());
+  const isValid = tokens.some((token) => timingSafeStringEqual(bearer, token));
+
+  if (!isValid) {
     return { code: 401, body: { error: "bad-token" } };
   }
 
