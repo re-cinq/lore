@@ -69,6 +69,7 @@ async function serveTriage(
 async function fetchRuns(repo: string): Promise<FloorRun[]> {
   try {
     const res = await floorClient().runs.list({ repo });
+
     return res.items as FloorRun[];
   } catch {
     return [];
