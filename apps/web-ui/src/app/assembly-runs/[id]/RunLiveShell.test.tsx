@@ -215,6 +215,32 @@ describe("RunLiveShell", () => {
     ).toBeInTheDocument();
   });
 
+  it("draws the run facts under the graph and the task-less notice after them, both outside the aside", async () => {
+    const { container } = renderShell({ run: { ...run, taskId: null } });
+
+    await settle();
+
+    const graph = container.querySelector("[data-node]") as Node;
+    const facts = screen.getByText("Branch");
+    const notice = screen.getByText(/This run has no backing task/);
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
+
+    expect({
+      graphThenFacts: Boolean(
+        graph.compareDocumentPosition(facts) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+      factsThenNotice: Boolean(
+        facts.compareDocumentPosition(notice) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+      inAside: [facts, notice].map((node) => aside.contains(node)),
+    }).toEqual({
+      graphThenFacts: true,
+      factsThenNotice: true,
+      inAside: [false, false],
+    });
+  });
+
   it("says a task-less run has no cost when its cost is unknown", async () => {
     renderShell({ run: { ...run, taskId: null, costUsd: null } });
     await settle();

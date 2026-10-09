@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import AssemblyRunView from "./AssemblyRunView";
+import AssemblyRunView, { RunFacts } from "./AssemblyRunView";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 
 const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
@@ -36,8 +36,19 @@ describe("AssemblyRunView", () => {
     expect(screen.getByText("Completed")).toBeInTheDocument();
   });
 
+  it("leaves the facts card out of the header", () => {
+    const { container } = render(<AssemblyRunView run={run()} />);
+
+    expect(container.querySelector(".spec-card")).toBeNull();
+  });
+
   it("names the repo once, in the trail, rather than repeating it as a fact", () => {
-    render(<AssemblyRunView run={run()} />);
+    render(
+      <>
+        <AssemblyRunView run={run()} />
+        <RunFacts run={run()} />
+      </>,
+    );
 
     expect(screen.getAllByRole("link", { name: "re-cinq/lore" })).toHaveLength(
       1,
@@ -46,7 +57,7 @@ describe("AssemblyRunView", () => {
 
   it("shows the reason on a failed run", () => {
     render(
-      <AssemblyRunView
+      <RunFacts
         run={run({ status: "failed", outcome: "error", reason: "no edge" })}
       />,
     );
@@ -55,9 +66,7 @@ describe("AssemblyRunView", () => {
   });
 
   it("offers to cancel the task of a running run", () => {
-    render(
-      <AssemblyRunView run={run({ taskId: "task-9", status: "running" })} />,
-    );
+    render(<RunFacts run={run({ taskId: "task-9", status: "running" })} />);
 
     expect(
       screen.getByRole("button", { name: "Cancel Task" }),
@@ -68,19 +77,19 @@ describe("AssemblyRunView", () => {
     ["a finished run", { taskId: "task-9", status: "finished" }],
     ["a running run with no task", { taskId: null, status: "running" }],
   ] as const)("offers no cancel on %s", (_name, over) => {
-    render(<AssemblyRunView run={run(over)} />);
+    render(<RunFacts run={run(over)} />);
 
     expect(screen.queryByRole("button", { name: "Cancel Task" })).toBeNull();
   });
 
   it("links to no task page", () => {
-    render(<AssemblyRunView run={run({ taskId: "task-9" })} />);
+    render(<RunFacts run={run({ taskId: "task-9" })} />);
 
     expect(screen.queryByRole("link", { name: "View task →" })).toBeNull();
   });
 
   it("builds the PR link for a code-review run with no task", () => {
-    render(<AssemblyRunView run={run()} />);
+    render(<RunFacts run={run()} />);
 
     expect(screen.getByRole("link", { name: "#7" })).toHaveAttribute(
       "href",
@@ -89,24 +98,24 @@ describe("AssemblyRunView", () => {
   });
 
   it("shows an em dash for branch and outcome when both are null", () => {
-    render(<AssemblyRunView run={run({ branch: null, outcome: null })} />);
+    render(<RunFacts run={run({ branch: null, outcome: null })} />);
 
     expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
   it("omits the PR link when the run carries no PR", () => {
-    render(<AssemblyRunView run={run({ prUrl: null, prNumber: null })} />);
+    render(<RunFacts run={run({ prUrl: null, prNumber: null })} />);
 
     expect(screen.queryByRole("link", { name: "#7" })).not.toBeInTheDocument();
   });
   it("renders the run facts inside a spec-card", () => {
-    const { container } = render(<AssemblyRunView run={run()} />);
+    const { container } = render(<RunFacts run={run()} />);
 
     expect(container.querySelector(".spec-card > dl")).toBeInTheDocument();
   });
 
   it("links the backing task's GitHub issue under the PR", () => {
-    render(<AssemblyRunView run={run()} />);
+    render(<RunFacts run={run()} />);
 
     expect(screen.getByRole("link", { name: "#5" })).toHaveAttribute(
       "href",
@@ -115,9 +124,7 @@ describe("AssemblyRunView", () => {
   });
 
   it("omits the issue link when the run carries no issue", () => {
-    render(
-      <AssemblyRunView run={run({ issueUrl: null, issueNumber: null })} />,
-    );
+    render(<RunFacts run={run({ issueUrl: null, issueNumber: null })} />);
 
     expect(screen.queryByRole("link", { name: "#5" })).not.toBeInTheDocument();
   });

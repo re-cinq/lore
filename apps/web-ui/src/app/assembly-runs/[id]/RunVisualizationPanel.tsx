@@ -1,6 +1,7 @@
 "use client";
 
 // The live-run container: owns every piece of mutable state and IO here so the sections below stay pure functions of props (DDAU / lore/no-io-in-view).
+import type { ReactNode } from "react";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeModel } from "@/lib/node-models";
@@ -37,6 +38,10 @@ export interface RunVisualizationPanelProps {
   prNumber?: number | null;
   /** Which engine walks the run; a node of a run on the external floor can be run again from here. */
   engine?: string;
+  /** The run's facts card, drawn under the graph. Handed in because the page owns the live run it reads. */
+  facts?: ReactNode;
+  /** The task's cost table or the note that the run has none, drawn after the attempt. */
+  taskContext?: ReactNode;
 }
 
 export default function RunVisualizationPanel(
@@ -100,6 +105,8 @@ function sideSlot({ view, inspector, focus, drawer }: ColumnSources) {
 function centerSlot({ page, inspector, focus, drawer }: ColumnSources) {
   return (
     <CenterColumn
+      facts={page.facts}
+      taskContext={page.taskContext}
       diff={{
         runId: page.runId,
         path: drawer.openDiffPath,
