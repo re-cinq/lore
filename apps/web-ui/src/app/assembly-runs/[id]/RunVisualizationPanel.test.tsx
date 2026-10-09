@@ -667,7 +667,7 @@ describe("node inspector", () => {
     expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
   });
 
-  it("draws the facts under the graph and the task notice after the attempt, outside the aside", async () => {
+  it("draws the header above the graph, the run details under it and the task notice after the attempt, outside the aside", async () => {
     stubHistory([]);
     useFakeSocket();
 
@@ -679,7 +679,8 @@ describe("node inspector", () => {
         nodes={[walkRow({})]}
         repo="re-cinq/lore"
         reason={null}
-        facts={<p>facts slot</p>}
+        header={<p>header slot</p>}
+        runDetails={<p>details slot</p>}
         taskContext={<p>task slot</p>}
       />,
     );
@@ -688,8 +689,9 @@ describe("node inspector", () => {
     await selectNode("implement");
 
     const order = [
+      screen.getByText("header slot"),
       container.querySelector('[data-node="implement"]'),
-      screen.getByText("facts slot"),
+      screen.getByText("details slot"),
       screen.getByLabelText("Show"),
       screen.getByText("task slot"),
     ];
@@ -704,8 +706,11 @@ describe("node inspector", () => {
             Node.DOCUMENT_POSITION_FOLLOWING,
           ),
       ),
-      inAside: [order[1], order[3]].map((node) => aside.contains(node)),
-    }).toEqual({ inReadingOrder: true, inAside: [false, false] });
+      inAside: order.map((node) => aside.contains(node as Node)),
+    }).toEqual({
+      inReadingOrder: true,
+      inAside: [false, false, false, false, false],
+    });
   });
 
   it("keeps Pod logs chosen when another node is selected", async () => {
