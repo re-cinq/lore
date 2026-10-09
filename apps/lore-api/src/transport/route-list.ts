@@ -125,7 +125,7 @@ export function routeList(
 /** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review and the stations the run page starts. */
 function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    floorGitCredentialRoute(),
+    floorGitCredentialRoute(getPool),
     reviewStartRoute(),
     runNodeRoute(),
     upgradeStateRoute(),
