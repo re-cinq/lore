@@ -55,17 +55,73 @@
   border-color: var(--warning);
 }
 
-/* The graph, then the inspector for the selected node directly beneath it. */
+/* The graph over the attempt column on the left, the selected node's panel the full height on the right, its width set by the handle between them. */
 .workbench {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--space-3) var(
+      --inspector-width,
+      380px
+    );
+  grid-template-rows: auto auto;
+  column-gap: var(--space-3);
+  row-gap: var(--space-6);
 }
-.workbench > * {
+.graphCell {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
 }
-.inspectorRegion {
+.centerCell {
+  grid-column: 1;
+  grid-row: 2;
   min-width: 0;
+}
+.resizeHandle {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  cursor: col-resize;
+  border-left: 1px solid var(--border);
+  touch-action: none;
+}
+.resizeHandle:hover,
+.resizeHandle:focus-visible {
+  border-left-color: var(--accent);
+  outline: none;
+}
+/* Taller than the window, the side column scrolls on its own and stays in view beside the graph instead of growing the page; align-self lets it be shorter than the two rows it spans, which sticky needs. */
+.sideRegion {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: calc(100dvh - var(--space-8));
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.attempts {
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .resizeHandle {
+    display: none;
+  }
+  /* Stacked, the detail card reads before the attempt it describes. */
+  .sideRegion {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+  .centerCell {
+    grid-column: 1;
+    grid-row: 3;
+  }
 }
 
 .inspector {

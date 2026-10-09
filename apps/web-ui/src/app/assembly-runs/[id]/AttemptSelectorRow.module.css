@@ -1,0 +1,15 @@
+/* Two selects on one row — each field is its own .task-form column so the settings page's select styling applies unchanged. */
+.row {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+}

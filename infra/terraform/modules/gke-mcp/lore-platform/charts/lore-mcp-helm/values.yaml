@@ -13,6 +13,9 @@ image:
 imagePullSecrets:
   - name: ghcr-pull-secret
 
+# Prometheus text on /metrics, scraped by the ServiceMonitor terraform owns (infra/terraform/monitoring.tf).
+metricsPort: 9464
+
 service:
   type: ClusterIP
   port: 8080
@@ -29,6 +32,7 @@ env:
   LORE_MCP_HTTP: "1"
   LORE_MCP_SERVER_MODE: agent
   LORE_MCP_PORT: "8080"
+  LORE_METRICS_PORT: "9464"
   # In-cluster lore-api. The gateway is a normal Deployment (NOT under the
   # agent-job NetworkPolicy), so it may use the ClusterIP directly — only the
   # agent→gateway hop must be public :443 (Terraform-owned Ingress).

@@ -36,8 +36,8 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 ## FR2 — Node detail pane is the container for all per-node content
 
 - `RunVisualizationPanel` opens a node detail pane when a node is selected and closes it when the selection is cleared.
-- The node detail pane renders, in order: `RunNodeDetail` (the summary card), `NodeTranscriptView` (the agent transcript), and the pod-log section for that node.
-- The pod-log section displays the pod log for the selected node only. When no node is selected the section is absent.
+- _(Amended 2026-10-09, run-viz FR4.1g/FR4.14.)_ The pane is two columns: `RunNodeDetail` (the summary card, with the attempt history) in a right-hand panel whose left edge drags, and under the graph the attempt column — the `Show`/`Attempt` selects, then the chosen attempt's transcript or pod logs, then its Needs and Input cards. ([names the selected-node panel a complementary aside beside the graph](apps/web-ui/src/app/assembly-runs/[id]/RunWorkbenchLayout.test.tsx#L21), [shows the newest attempt's pod logs alone once Pod logs is chosen](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L628))
+- The pod-log section displays the pod log for the selected node's chosen attempt only. When no node is selected the section is absent. ([shows attempt 1's pod logs when the attempt select picks it](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L650))
 - `NodePodLogs` is no longer rendered at the `page.tsx` level. `page.tsx` passes the full `logNodes` list to `RunVisualizationPanel` so the panel can look up the selected node's `agentCrName` without an additional server round-trip.
 - `NodePodLogs` receives a single `node: NodeLogTarget | null` prop (instead of `nodes: NodeLogTarget[]`) and returns `null` when `node` is null. This change is contained inside the panel; the `NodeLogTarget` shape is unchanged.
 
@@ -68,7 +68,7 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 
 - **Show all nodes' pod logs simultaneously.** `NodePodLogs` already renders one collapsible `<details>` per node; the issue is not collapsed vs expanded but the section being disconnected from node selection. Showing all logs outside the graph makes the quantity of log content worse, not better, when a line has many nodes.
 
-- **Move `FileHeatmapView` into the node detail pane and scope it per-node.** The heatmap's value proposition is the run-level picture of what files the agent worked on. Scoping it per-node fragments that view into a per-node read/write count that `RunNodeDetail` already surfaces as a scalar ("files touched"). Per-node heatmap is a future affordance, not a prerequisite here.
+- **Move `FileHeatmapView` into the node detail pane and scope it per-node.** The heatmap's value proposition is the run-level picture of what files the agent worked on. Scoping it per-node fragments that view into a per-node read/write count that `RunNodeDetail` already surfaces as a scalar ("files touched"). Per-node heatmap is a future affordance, not a prerequisite here. _(The placement alone — run-level data in the side panel, not scoped per-node — was later accepted; see run-viz FR4.14.)_
 
 - **Dissolve `RunVisualizationPanel` and lift its state to `page.tsx`.** The panel's reducer, SSE connection, and clock are client-only concerns that `page.tsx` (an `async` server component) cannot hold. The panel stays as the client-side state boundary; this refactor only changes which children it renders and how it passes props.
 

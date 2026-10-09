@@ -1,0 +1,25 @@
+.needs {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.need {
+  display: contents;
+}
+
+.need dt {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.need dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}

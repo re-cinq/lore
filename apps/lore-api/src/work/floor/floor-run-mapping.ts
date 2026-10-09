@@ -114,7 +114,7 @@ export function visitToStationRun(
     requiredTags: visit.agentSettings?.tags ?? [],
     claimedAt,
     ...visitVerdictOf(visit),
-    input: null,
+    ...visitBagOf(visit),
     commitSha: null,
     requestedBy: visit.requestedBy,
     startedAt: claimedAt ?? run.createdAt,
@@ -282,6 +282,13 @@ function visitVerdictOf(
     failureClass: null,
     failureDetail: visit.report?.error ?? null,
   };
+}
+
+/** What the visit was started with: the floor's brief holds the bag as the pod saw it, so there is no separate dispatch snapshot to record. */
+function visitBagOf(
+  visit: VisitView,
+): Pick<StationRunRecord, "input" | "needs"> {
+  return { input: null, needs: visit.brief.needs };
 }
 
 export function agentCrNameOf(visitId: string): string {

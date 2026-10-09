@@ -47,8 +47,11 @@ the adapter in use is Vertex AI text-embedding-005 (768 dimensions).
 
 **Agents** run in pods of the external floor (ADR-049); Lore holds no Kubernetes client.
 
-**Observability**: OpenTelemetry traces + metrics → Cloud Monitoring.
-Gap signal goes to Graphiti episodes in Phase 3.
+**Observability** (ADR-050): OpenTelemetry traces → Cloud Trace (lore-api only);
+metrics → Prometheus text on every service's `metrics` port (:9464, `libs/shared/src/outbound/otel/`),
+scraped by the kube-prometheus-stack terraform installs behind `enable_monitoring` and
+shown in Grafana. Instruments are resolved lazily against the current meter provider:
+one created at import, before the SDK registers, is a no-op for good.
 
 **Task tracking**: Pipeline tasks via Lore MCP + GitHub Issues.
 

@@ -612,7 +612,11 @@ export default tseslint.config(
     rules: {
       "re-lint/require-statement-links": "warn",
       "re-lint/require-intro-paragraph": "error",
-      "re-lint/require-status-matches-coverage": "error",
+      // A link counts only when its file resolves, and the rule resolves it from the working directory by default: run from inside tools/eslint-canaries it saw no test file, found no evidence, and went quiet (#2655). The config's own folder is the repo root whatever the working directory is.
+      "re-lint/require-status-matches-coverage": [
+        "error",
+        { specsRoot: import.meta.dirname },
+      ],
       "re-lint/no-ungrounded-spec-name": "warn",
     },
   },

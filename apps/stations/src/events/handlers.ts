@@ -7,6 +7,7 @@ import {
   type SweepStationModule,
 } from "../work/lib/station.js";
 import { stationHost } from "./runner/station-host.js";
+import { timedStationRun } from "./runner/timed-station-run.js";
 import { autoReviewEnabled } from "@re-cinq/lore-shared/review/code-review-decisions.js";
 import {
   floorClient,
@@ -136,11 +137,13 @@ const repoEventDeps: RepoEventDeps = {
 const runSweepFor =
   (mod: SweepStationModule, eventName: string): EventHandler =>
   async (params, meta) => {
-    const summary = await mod.run({
-      trigger: "event",
-      event: { name: eventName, params, eventId: meta?.eventId ?? "" },
-      host: stationHost(),
-    });
+    const summary = await timedStationRun(mod.manifest.name, () =>
+      mod.run({
+        trigger: "event",
+        event: { name: eventName, params, eventId: meta?.eventId ?? "" },
+        host: stationHost(),
+      }),
+    );
 
     console.log(`[station] ${mod.manifest.name}: ${summary}`);
   };

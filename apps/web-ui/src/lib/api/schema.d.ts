@@ -242,6 +242,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/blobs/{hash}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/blobs/{hash} */
+    get: operations["get_api_assembly-runs_id_blobs_hash"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/dod": {
     parameters: {
       query?: never;
@@ -2990,6 +3007,9 @@ export interface components {
                     repo: string;
                     ref: string;
                   } | null;
+                  needs: {
+                    [key: string]: string;
+                  } | null;
                   commit_sha: string | null;
                   started_at: string;
                   finished_at: string | null;
@@ -3682,6 +3702,13 @@ export interface components {
     ReviewStarted: {
       started: string | null;
     };
+    RunBlob: {
+      hash: string;
+      contentType: string;
+      size: number;
+      text: string | null;
+      truncated: boolean;
+    };
     RunEvents: {
       events: {
         [key: string]: unknown;
@@ -3781,6 +3808,9 @@ export interface components {
               } | null;
               repo: string;
               ref: string;
+            } | null;
+            needs: {
+              [key: string]: string;
             } | null;
             commit_sha: string | null;
             started_at: string;
@@ -4095,6 +4125,9 @@ export interface components {
           } | null;
           repo: string;
           ref: string;
+        } | null;
+        needs: {
+          [key: string]: string;
         } | null;
         commit_sha: string | null;
         started_at: string;
@@ -4718,6 +4751,35 @@ export interface operations {
           "application/json": components["schemas"]["AssemblyRunRead"];
         };
       };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_blobs_hash": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        hash: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A blob the external floor keeps, readable only through a run that references it: text up to 1 MiB for a textual content type, metadata alone otherwise; 400 for a malformed hash, 404 for a run or blob it does not reference */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunBlob"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
