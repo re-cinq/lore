@@ -73,26 +73,27 @@ export async function commitOnboardScaffold(
   return result;
 }
 
+function handleScaffoldSkip(file: ScaffoldFile, current: string | null, result: OnboardScaffoldResult): void {
+  if (current !== null && current !== file.content) {
+    result.failures.push({ step: file.path, error: "drifted from canonical template" });
+  }
+}
+
 async function commitScaffoldFile(
   repo: ScaffoldRepo,
   branch: string,
   file: ScaffoldFile,
   result: OnboardScaffoldResult,
 ): Promise<void> {
-  const { path, content } = file;
-
   try {
-    const current = await repo.read(path, branch);
+    const current = await repo.read(file.path, branch);
     if (!decideScaffoldCommit(file, current)) {
-      if (current !== null && current !== content) {
-        result.failures.push({ step: path, error: "drifted from canonical template" });
-      }
-      return;
+      return handleScaffoldSkip(file, current, result);
     }
-    await repo.commitFile(branch, path, content, `lore: update ${path}`);
-    result.committed.push(path);
+    await repo.commitFile(branch, file.path, file.content, `lore: update ${file.path}`);
+    result.committed.push(file.path);
   } catch (err) {
-    console.error(`[onboard] failed ${path}: ${errorMessage(err)}`);
-    result.failures.push({ step: path, error: errorMessage(err) });
+    console.error(`[onboard] failed ${file.path}: ${errorMessage(err)}`);
+    result.failures.push({ step: file.path, error: errorMessage(err) });
   }
 }
