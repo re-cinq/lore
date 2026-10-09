@@ -828,7 +828,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("ends the run failed when analyse-specs, draft, split-sections, write, assemble, rework, qa-generate, qa-questions, qa-answer, qa-recheck, qa-gate, spec-findings, open-spec-pr, decompose, issues or issue-coverage fails, and done when the author walks away or the spec PR closes", () => {
+  it("ends the run failed when split-sections, assemble, qa-questions, qa-gate, spec-findings, open-spec-pr, issues or issue-coverage fails or decompose asks for changes, and done when the author walks away or the spec PR closes", () => {
     const { line } = pipelineOf("feature-planning");
     const settledBy = (to: string) =>
       line.edges
@@ -838,26 +838,37 @@ describe("the feature-planning pipeline", () => {
 
     expect({ failed: settledBy("failed"), done: settledBy("done") }).toEqual({
       failed: [
-        "analyse-specs:failed",
         "assemble:failed",
         "decompose:changes_requested",
-        "decompose:failed",
-        "draft:failed",
         "issue-coverage:failed",
         "issues:failed",
         "open-spec-pr:failed",
-        "qa-answer:failed",
         "qa-gate:failed",
-        "qa-generate:failed",
         "qa-questions:failed",
-        "qa-recheck:failed",
-        "rework:failed",
         "spec-findings:failed",
         "split-sections:failed",
-        "write:failed",
       ],
       done: ["author:failed", "merged:failed"],
     });
+  });
+
+  it("retries every failed planning agent once before the run fails, and no service station", () => {
+    const { line } = pipelineOf("feature-planning");
+    const retried = line.edges
+      .filter((edge) => edge.on === "failed" && edge.from === edge.to)
+      .map((edge) => `${edge.from}:${edge.iteration_max}`)
+      .sort();
+
+    expect(retried).toEqual([
+      "analyse-specs:1",
+      "decompose:1",
+      "draft:1",
+      "qa-answer:1",
+      "qa-generate:1",
+      "qa-recheck:1",
+      "rework:1",
+      "write:1",
+    ]);
   });
 
   it("freezes the questions first, then drafts the spec from the intent, lists the sections, fans a write pod out over them and joins them at assemble", () => {
@@ -882,7 +893,7 @@ describe("the feature-planning pipeline", () => {
       ],
       fromWrite: [
         { from: "write", to: "assemble", on: "success" },
-        { from: "write", to: "failed", on: "failed" },
+        { from: "write", to: "write", on: "failed", iteration_max: 1 },
       ],
       fromAssemble: [
         {
@@ -910,7 +921,12 @@ describe("the feature-planning pipeline", () => {
       ].flatMap((node) => edgesOn(line, node)),
     ).toEqual([
       { from: "qa-generate", to: "qa-questions", on: "success" },
-      { from: "qa-generate", to: "failed", on: "failed" },
+      {
+        from: "qa-generate",
+        to: "qa-generate",
+        on: "failed",
+        iteration_max: 1,
+      },
       { from: "qa-questions", to: "draft", on: "success" },
       {
         from: "qa-questions",
@@ -920,14 +936,14 @@ describe("the feature-planning pipeline", () => {
       },
       { from: "qa-questions", to: "failed", on: "failed" },
       { from: "qa-answer", to: "qa-gate", on: "success" },
-      { from: "qa-answer", to: "failed", on: "failed" },
+      { from: "qa-answer", to: "qa-answer", on: "failed", iteration_max: 1 },
       {
         from: "qa-recheck",
         to: "qa-gate",
         on: "success",
         iteration_max: SPEC_QA_ROUNDS,
       },
-      { from: "qa-recheck", to: "failed", on: "failed" },
+      { from: "qa-recheck", to: "qa-recheck", on: "failed", iteration_max: 1 },
       { from: "qa-gate", to: "open-spec-pr", on: "success" },
       { from: "qa-gate", to: "spec-findings", on: "stalled" },
       {
