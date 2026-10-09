@@ -4,7 +4,7 @@
 | ----------------- | -------------------- |
 | Feature           | Lore Platform        |
 | Branch            | 1-lore-platform      |
-| Status            | Shipped              |
+| Status            | In Progress          |
 | Created           | 2026-03-25           |
 | Updated           | 2026-04-20           |
 | Owner             | Platform Engineering |
@@ -672,14 +672,14 @@ Added 2026-04-17 per ADR-015.
 ### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
 
 The system MUST detect and surface pipeline tasks that are stuck in
-non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
+non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L103))
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
-  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
+  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L103))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
-  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
+  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L103))
 - FR-18.3: The transition is idempotent — if a task completes between
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:68`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L68))
 - FR-18.4: A failure episode is written for each stuck task so the
@@ -987,8 +987,8 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   in the Pg adapter and the in-memory double, so a typo'd column fails
   loudly in tests instead of silently no-oping in production; the double
   additionally assigns the columns onto the seeded row and stays a no-op
-  for an unknown task id. ([validated by `task-queue.test.ts:635`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L411), [`task-queue.test.ts:654`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L430), [`task-queue.test.ts:667`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L443), [`task-queue.test.ts:674`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L450), [`task-queue.test.ts:686`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L462), [`task-queue.test.ts:698`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L474))
-- FR-20.1c: `activeTaskByIssue` returns null for a task that no longer holds its issue: `failed`, `cancelled` or `retried`. A `retried` task handed its work to the retry, so it must not block the issue from being picked again (#2009). A `completed` task still guards it *(amended 2026-09-14, #2069)*: completed means its pull request awaits review, and treating it as terminal made the backlog loop start the same ticket again on the same branch. On 2026-09-14, re-cinq/Otto#19's second run pushed five rounds of commits onto PR #231 one minute after the first run had marked it ready for review, and #1948 was re-run fourteen minutes after its fix merged. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L384), [`task-queue.test.ts:616`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L392), [`task-queue.test.ts:624`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L400))
+  for an unknown task id. ([validated by `task-queue.test.ts:635`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L275), [`task-queue.test.ts:654`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L294), [`task-queue.test.ts:667`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L307), [`task-queue.test.ts:674`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L314), [`task-queue.test.ts:686`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L326), [`task-queue.test.ts:698`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L338))
+- FR-20.1c: `activeTaskByIssue` returns null for a task that no longer holds its issue: `failed`, `cancelled` or `retried`. A `retried` task handed its work to the retry, so it must not block the issue from being picked again (#2009). A `completed` task still guards it *(amended 2026-09-14, #2069)*: completed means its pull request awaits review, and treating it as terminal made the backlog loop start the same ticket again on the same branch. On 2026-09-14, re-cinq/Otto#19's second run pushed five rounds of commits onto PR #231 one minute after the first run had marked it ready for review, and #1948 was re-run fourteen minutes after its fix merged. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L248), [`task-queue.test.ts:616`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L256), [`task-queue.test.ts:624`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L264))
 - FR-20.1a: The `pipeline.tasks` queue, exercised end-to-end against Postgres,
   backs those port behaviors: a created task defaults to `pending` status and
   `normal` priority (accepting an explicit `immediate`); a claim is atomic (a
@@ -1005,7 +1005,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   methods answer for the rows that already exist and for
   nothing new. A plan's tasks reach the implementation loop as tickets
   (`specs/7-feature-planning` FR-11.13).
-  ([`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L263), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L285), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L295), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34)))
+  ([`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L149), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L159), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34)))
 - FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
   transitions a cancel to `cancelled`, writes `setStatus` (status +
   updated_at + only allowlisted extra columns), reads-old-then-writes-new
