@@ -85,6 +85,16 @@ export function decideOnboard(
   state: OnboardState,
   options: { reonboard?: boolean } = {},
 ): OnboardDecision {
+  if (repo === "re-cinq/lore") {
+    return {
+      allowed: false,
+      block: "already-onboarded",
+      taskId: null,
+      message:
+        "re-cinq/lore is a special case: it is already onboarded and is the source of the templates, so it cannot be re-onboarded.",
+    };
+  }
+
   const inFlight = inFlightBlock(repo, state);
 
   if (inFlight) {

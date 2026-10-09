@@ -82,7 +82,11 @@ async function commitScaffoldFile(
   const { path, content } = file;
 
   try {
-    if (!decideScaffoldCommit(file, await repo.read(path, branch))) {
+    const current = await repo.read(path, branch);
+    if (!decideScaffoldCommit(file, current)) {
+      if (current !== null && current !== content) {
+        result.failures.push({ step: path, error: "drifted from canonical template" });
+      }
       return;
     }
     await repo.commitFile(branch, path, content, `lore: update ${path}`);
