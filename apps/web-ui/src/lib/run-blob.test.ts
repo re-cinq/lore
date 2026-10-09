@@ -81,6 +81,8 @@ describe("fetchRunBlob", () => {
   it("is unavailable, not not-found, when lore-api answers 503", async () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 503 }));
 
-    expect(await fetchRunBlob("run-1", HASH)).toEqual({ status: "unavailable" });
+    expect(await fetchRunBlob("run-1", HASH)).toEqual({
+      status: "unavailable",
+    });
   });
 });
