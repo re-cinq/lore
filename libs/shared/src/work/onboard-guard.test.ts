@@ -14,6 +14,15 @@ const clear: OnboardState = {
 };
 
 describe("decideOnboard", () => {
+  it("blocks re-cinq/lore outright because it is the source of the templates", () => {
+    expect(decideOnboard("re-cinq/lore", clear)).toMatchObject({
+      allowed: false,
+      block: "already-onboarded",
+      taskId: null,
+      message: expect.stringContaining("special case"),
+    });
+  });
+
   it("allows a repo with no row, no PR, and no task in flight", () => {
     expect(decideOnboard("o/r", clear)).toEqual({ allowed: true });
   });

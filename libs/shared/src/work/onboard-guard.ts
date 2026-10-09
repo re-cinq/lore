@@ -85,6 +85,9 @@ export function decideOnboard(
   state: OnboardState,
   options: { reonboard?: boolean } = {},
 ): OnboardDecision {
+  if (repo === "re-cinq/lore") {
+    return reCinqLoreBlock();
+  }
   const inFlight = inFlightBlock(repo, state);
 
   if (inFlight) {
@@ -96,6 +99,16 @@ export function decideOnboard(
   }
 
   return alreadyOnboardedBlock(repo);
+}
+
+function reCinqLoreBlock(): OnboardDecision {
+  return {
+    allowed: false,
+    block: "already-onboarded",
+    taskId: null,
+    message:
+      "re-cinq/lore is a special case: it is already onboarded and is the source of the templates, so it cannot be re-onboarded.",
+  };
 }
 
 /** The two blocks that hold even for a deliberate re-onboard: work already running, and work already waiting for a human. Both mean an agent is (or was) writing this scaffolding, and a second one would fight it. */

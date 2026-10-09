@@ -242,6 +242,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   phrasings, never by bare status keying) is named for what it is, the
   failure set is recorded in the audit log as `onboard_files_failed`, and a
   task with no ticket still audits and dispatches.
+  A scaffold file that already exists but differs from the canonical template is reported as a divergence instead of overwriting the existing content. ([validated by reports a divergence and skips committing when a scaffold file already exists but differs](libs/shared/src/work/onboard/enrol-repo.test.ts#L105))
 - FR-2.8: The ingest callback config (repo variable `LORE_INGEST_URL`,
   secret `LORE_INGEST_TOKEN`) is written before the line is dispatched so
   its failures reach the ticket; an unset Floor-side value is reported
@@ -448,7 +449,7 @@ The onboarding PR carries deterministic files committed verbatim by the Floor pl
 
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
   `.claude/settings.json` carrying the Lore MCP system-prompt suffix, and the
-  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by commits .claude/settings.json carrying the Lore MCP system-prompt suffix](libs/shared/src/work/onboard-content.test.ts#L19), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L29))
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by commits .claude/settings.json carrying the Lore MCP system-prompt suffix](libs/shared/src/work/onboard-content.test.ts#L19), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L29), [validated by](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
 - FR-5.5: The ticket owes `AGENTS.md`, the PR template, the pr-description-check
   workflow, and `.specify/spec.md` from fixed prompts — the AGENTS.md prompt
   targets the repo's own stack and the PR-template prompt names the five

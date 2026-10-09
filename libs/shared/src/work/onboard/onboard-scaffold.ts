@@ -56,7 +56,7 @@ export function decideScaffoldCommit(
   file: Pick<ScaffoldFile, "owner" | "content">,
   current: string | null,
 ): boolean {
-  return file.owner === "lore" ? current !== file.content : current === null;
+  return current === null;
 }
 
 /** Brings the branch's deterministic files to today's requirements — the same rule for a first onboarding and a hand-triggered update. A failed file is recorded, never thrown: the agent still owes its half, and the ticket comment reports the gap. */
@@ -67,7 +67,12 @@ export async function commitOnboardScaffold(
   const result: OnboardScaffoldResult = { committed: [], failures: [] };
 
   for (const file of SCAFFOLD_FILES) {
-    await commitScaffoldFile(repo, branch, file, result);
+    try {
+      await commitScaffoldFile(repo, branch, file, result);
+    } catch (err) {
+      console.error(`[onboard] failed ${file.path}: ${errorMessage(err)}`);
+      result.failures.push({ step: file.path, error: errorMessage(err) });
+    }
   }
 
   return result;
@@ -79,16 +84,29 @@ async function commitScaffoldFile(
   file: ScaffoldFile,
   result: OnboardScaffoldResult,
 ): Promise<void> {
-  const { path, content } = file;
+  const current = await repo.read(file.path, branch);
 
-  try {
-    if (!decideScaffoldCommit(file, await repo.read(path, branch))) {
-      return;
-    }
-    await repo.commitFile(branch, path, content, `lore: update ${path}`);
-    result.committed.push(path);
-  } catch (err) {
-    console.error(`[onboard] failed ${path}: ${errorMessage(err)}`);
-    result.failures.push({ step: path, error: errorMessage(err) });
+  if (!decideScaffoldCommit(file, current)) {
+    return handleScaffoldSkip(file, current, result);
+  }
+  await repo.commitFile(
+    branch,
+    file.path,
+    file.content,
+    `lore: update ${file.path}`,
+  );
+  result.committed.push(file.path);
+}
+
+function handleScaffoldSkip(
+  file: ScaffoldFile,
+  current: string | null,
+  result: OnboardScaffoldResult,
+): void {
+  if (current !== null && current !== file.content) {
+    result.failures.push({
+      step: file.path,
+      error: "drifted from canonical template",
+    });
   }
 }
