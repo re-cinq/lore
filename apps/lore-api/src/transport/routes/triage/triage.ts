@@ -57,6 +57,7 @@ async function serveTriage(
     const project = await projectFor(fullName);
     const issues = (await project.issues.list()) as IssueLike[];
     const runs = await fetchRuns(fullName);
+
     return h.response(buildWireIssues(issues, runs));
   } catch (err) {
     return githubFailureResponse(err, h, "triage issues");
@@ -79,6 +80,7 @@ function buildWireIssues(issues: IssueLike[], runs: FloorRun[]) {
   return triageIssues.map((issue) => {
     const triageLabel = issue.labels?.find((l) => l.startsWith("triage:"));
     const activeRun = runs.find((r) => r.args?.issue_number === issue.number);
+
     return {
       title: issue.title,
       triage_label: triageLabel,
