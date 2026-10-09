@@ -56,7 +56,7 @@ export function decideScaffoldCommit(
   file: Pick<ScaffoldFile, "owner" | "content">,
   current: string | null,
 ): boolean {
-  return file.owner === "lore" ? current !== file.content : current === null;
+  return current === null;
 }
 
 /** Brings the branch's deterministic files to today's requirements — the same rule for a first onboarding and a hand-triggered update. A failed file is recorded, never thrown: the agent still owes its half, and the ticket comment reports the gap. */

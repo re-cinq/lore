@@ -13,7 +13,7 @@
 
 ## Facets
 
-- [ ] `decideScaffoldCommit` returns false when `current !== null` and `current !== file.content`
+- [x] `decideScaffoldCommit` returns false when `current !== null` and `current !== file.content`
 - [ ] `commitScaffoldFile` reports a divergence when the file exists and differs
 - [ ] `decideOnboard` returns an allowed: false block for `re-cinq/lore`
 
