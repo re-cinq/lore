@@ -123,6 +123,7 @@ The route is registered as an exact `POST /api/onboard` match. ([implemented by]
 It blocks a repo with an onboard task in flight while naming that task. ([validated by blocks a repo with an onboard task in flight and names that task](apps/lore-api/src/work/repo/repo-onboard.test.ts#L177))
 
 It blocks a repo whose onboarding PR is still open while naming the PR. ([validated by blocks a repo whose onboarding PR is still open](apps/lore-api/src/work/repo/repo-onboard.test.ts#L188))
+
 The onboarding guard blocks `re-cinq/lore` outright because it is the source of the templates. ([validated by](libs/shared/src/work/onboard-guard.test.ts#L17))
 
 A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by creates a task for an onboarded repo when reonboard is requested](apps/lore-api/src/work/repo/repo-onboard.test.ts#L223), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L277))
