@@ -128,7 +128,7 @@ function lineFindings(
   const found: Omit<GroundingFinding, "line">[] = [
     ...retiredNamed(line),
     ...missing,
-    ...(namesNewFile
+    ...(namesNewFile || ADDS.test(line)
       ? []
       : missingIdentifiers(names, filesNamed(context.files, paths))),
   ];
