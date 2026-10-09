@@ -934,3 +934,51 @@ resource "kubectl_manifest" "es_floor_agent_secrets" {
 
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
+
+# Grafana's sign-in proxy: its own Google OAuth web client and cookie key
+# (secrets.tf, behind enable_monitoring), mirrored into the monitoring namespace
+# under the key names the oauth2-proxy chart reads (monitoring.tf, ADR-050).
+resource "kubectl_manifest" "es_grafana_oauth" {
+  count = var.enable_monitoring ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "grafana-oauth"
+      namespace = local.monitoring_namespace
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "grafana-oauth"
+      }
+      data = [
+        {
+          secretKey = "client-id"
+          remoteRef = {
+            key = "lore-grafana-oauth-client-id"
+          }
+        },
+        {
+          secretKey = "client-secret"
+          remoteRef = {
+            key = "lore-grafana-oauth-client-secret"
+          }
+        },
+        {
+          secretKey = "cookie-secret"
+          remoteRef = {
+            key = "lore-grafana-cookie-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.monitoring]
+}

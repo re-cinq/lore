@@ -387,18 +387,24 @@ stations:
 agent_definitions:
   loop-dod:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 60
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
+        # Autopilot holds an ephemeral-storage limit to its request, so the limit
+        # is what evicts: runs aa9c26e4's dod pods were evicted at 2Gi by npm ci.
         pod_resources:
           requests:
             cpu: 500m
             memory: 512Mi
-            ephemeral-storage: 2Gi
+            ephemeral-storage: 6Gi
           limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
           - tdd-loop
@@ -411,18 +417,22 @@ agent_definitions:
             headers_secret: lore-mcp-auth
   loop-tdd-round:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 60
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:
             cpu: 500m
             memory: 512Mi
-            ephemeral-storage: 2Gi
+            ephemeral-storage: 6Gi
           limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
           - tdd-loop
@@ -434,9 +444,13 @@ agent_definitions:
             headers_secret: lore-mcp-auth
   loop-pr-ready:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 20
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:
@@ -459,18 +473,22 @@ agent_definitions:
           LORE_TEST_POLICY: none
   loop-fix-ci:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-3.1-pro-preview
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 45
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
       config:
         pod_resources:
           requests:
             cpu: 500m
             memory: 512Mi
-            ephemeral-storage: 2Gi
+            ephemeral-storage: 6Gi
           limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
         skills_source: ${LORE_SKILLS_URL}

@@ -75,6 +75,28 @@ export function turnsForNode(
   return turns.filter((turn) => turn.nodeId === nodeId);
 }
 
+/** The turns the panel draws: one attempt's when it is told which, else the whole node's. */
+export function turnsInScope(
+  turns: readonly AgentRunTurn[],
+  nodeId: string,
+  iteration: number | undefined,
+): AgentRunTurn[] {
+  return iteration === undefined
+    ? turnsForNode(turns, nodeId)
+    : turnsForAttempt(turns, nodeId, iteration);
+}
+
+/** One attempt's turns: the node's, narrowed to the visit with that iteration. */
+export function turnsForAttempt(
+  turns: readonly AgentRunTurn[],
+  nodeId: string,
+  iteration: number,
+): AgentRunTurn[] {
+  return turnsForNode(turns, nodeId).filter(
+    (turn) => turn.iteration === iteration,
+  );
+}
+
 // One classified entry from one turn, carrying that turn's stored timestamp — the per-message clock the formatted conversation renders.
 export interface TimedLogEntry {
   at: string;

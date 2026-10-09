@@ -1,6 +1,7 @@
 // A pass REPLACES the unresolved findings it owns, and only those: two producers write findings into one plan, and whoever reconciled the lot would delete the other's (specs/7-feature-planning FR-22).
 
 import { djb2Hash } from "@re-cinq/lore-shared/llm/prompt-cache.js";
+import { SPEC_FINDING_PREFIX } from "@re-cinq/lore-shared/feature-planning/spec-findings.js";
 import type { PlanValidationResult } from "@re-cinq/lore-shared/review/plan-validation.js";
 
 /** Every finding the plan-grounding station writes, so each producer reconciles its own. */
@@ -39,7 +40,12 @@ export type Owns = (findingId: string) => boolean;
 export const groundOwned: Owns = (findingId) =>
   findingId.startsWith(GROUND_PREFIX);
 
-export const validatorOwned: Owns = (findingId) => !groundOwned(findingId);
+/** The spec gate's findings: what a spec written from the plan could not uphold. */
+export const specOwned: Owns = (findingId) =>
+  findingId.startsWith(SPEC_FINDING_PREFIX);
+
+export const validatorOwned: Owns = (findingId) =>
+  !groundOwned(findingId) && !specOwned(findingId);
 
 /** The pass's findings added, and every unresolved finding it owns and did not report again removed. A resolved finding is its people's, never removed. */
 export function reconciledOps(

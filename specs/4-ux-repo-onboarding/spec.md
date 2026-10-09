@@ -218,6 +218,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   beside the one onboarding owns. ([validated by offers a fix for an onboarded repo whose workflow is missing or stale, not an aligned one](apps/web-ui/src/lib/workflow-fix.test.ts#L10), [validated by offers no fix for a repo whose onboarding PR has not merged, whatever its workflow status](apps/web-ui/src/lib/workflow-fix.test.ts#L25), [validated by offers nothing for a repo with no status read](apps/web-ui/src/lib/workflow-fix.test.ts#L36))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
   until merged). ([validated by `onboard.test.ts:16`](apps/web-ui/src/lib/onboard.test.ts#L16))
+- The merge-check sweep reads owner, repository and PR number from an onboarding GitHub pull URL; an empty URL or a repository URL without a pull request yields no PR to check. ([validated by reads owner, repo, and PR number from a github.com pull URL](apps/stations/src/work/merge-check/merge-check.test.ts#L5), [validated by returns null for a URL that carries no pull request](apps/stations/src/work/merge-check/merge-check.test.ts#L11), [validated by returns null for an empty string](apps/stations/src/work/merge-check/merge-check.test.ts#L15))
 - FR-2.6: After merge, the merge-check station flips the repo to onboarded
   and the merged workflows ingest on their own push run — no task follows; re-onboarding creates an onboard task and
   redirects to its run (or back to the repo when none is
@@ -412,6 +413,10 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   forward from the previous release. The value is read on the server and
   passed down as a prop, never through `NEXT_PUBLIC_`, which Next inlines
   at build time while the hostname is only known at deploy time. ([validated by `renders no Headlamp link when the deployment names no dashboard`](apps/web-ui/src/app/SidebarNav.test.tsx#L111), [`renders no Headlamp link when the dashboard address is empty`](apps/web-ui/src/app/SidebarNav.test.tsx#L116), [`links to the named dashboard in a new tab without leaking the referrer`](apps/web-ui/src/app/SidebarNav.test.tsx#L121), [`marks the dashboard link as leaving the app rather than as a route`](apps/web-ui/src/app/SidebarNav.test.tsx#L130), [`pins the dashboard link outside the scrollable nav, beside Settings`](apps/web-ui/src/app/SidebarNav.test.tsx#L139), [`leaves the dashboard link inert while an in-app navigation is pending`](apps/web-ui/src/app/SidebarNav.test.tsx#L147), [`adds exactly one link to the sidebar and changes no other`](apps/web-ui/src/app/SidebarNav.test.tsx#L157), [`returns the dashboard address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L5), [`names no address when the variable is unset`](apps/web-ui/src/lib/headlamp-url.test.ts#L11), [`names no address when the variable is set but empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L15), [`names no address when the variable holds only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L19), [`trims surrounding whitespace off an address`](apps/web-ui/src/lib/headlamp-url.test.ts#L23))
+- FR-3.20: The sidebar footer links to the metrics dashboards (Grafana,
+  ADR-050) under the same rule: only when the deployment names one in
+  `GRAFANA_URL`, as an external anchor in a new tab beside the Headlamp
+  link, and no link at all for an absent or empty address. ([validated by `links to the named Grafana in a new tab beside the Headlamp link`](apps/web-ui/src/app/SidebarNav.test.tsx#L393), [`renders no Grafana link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L413), [`returns the Grafana address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L31), [`names no address when the variable is empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L37), [`names no address when the variable is unset or holds only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L41))
 
 ### FR-4: Form and Input Styling
 
@@ -435,7 +440,7 @@ The onboarding PR carries deterministic files committed verbatim by the Floor pl
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
-  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ingest-workflow.test.ts:34`](libs/shared/src/work/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/work/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/work/trace-impact-workflow.test.ts#L25))
+  `.github/workflows/lore-trace-impact.yml`. ([validated by targets the workflows path](libs/shared/src/work/ingest-workflow.test.ts#L22), [validated by exposes FILES as a step-level env var, not inside the run block](libs/shared/src/work/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/work/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/work/trace-impact-workflow.test.ts#L25))
 - FR-5.2: `.github/PULL_REQUEST_TEMPLATE.md` carries the canonical PR sections —
   Why, What Changed, Alternatives Considered, ADRs & Architecture, Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
 - FR-5.3: `.github/workflows/pr-description-check.yml` enforces those PR sections
@@ -539,7 +544,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   run's PR from its task join or from `args.pr_number` for a code-review
   run without a task PR, maps a run with no task and no PR to null
   pr/creator/cost, and computes node and run durations (left null while
-  still running). ([validated by `assembly-runs.test.ts:33`](apps/web-ui/src/lib/assembly-runs.test.ts#L37), [`assembly-runs.test.ts:47`](apps/web-ui/src/lib/assembly-runs.test.ts#L64), [`assembly-runs.test.ts:67`](apps/web-ui/src/lib/assembly-runs.test.ts#L86), [`assembly-runs.test.ts:84`](apps/web-ui/src/lib/assembly-runs.test.ts#L105), [`assembly-runs.test.ts:93`](apps/web-ui/src/lib/assembly-runs.test.ts#L114), [`assembly-runs.test.ts:118`](apps/web-ui/src/lib/assembly-runs.test.ts#L143))
+  still running). ([validated by `assembly-runs.test.ts:33`](apps/web-ui/src/lib/assembly-runs.test.ts#L37), [`assembly-runs.test.ts:47`](apps/web-ui/src/lib/assembly-runs.test.ts#L64), [`assembly-runs.test.ts:67`](apps/web-ui/src/lib/assembly-runs.test.ts#L86), [`assembly-runs.test.ts:84`](apps/web-ui/src/lib/assembly-runs.test.ts#L105), [`assembly-runs.test.ts:93`](apps/web-ui/src/lib/assembly-runs.test.ts#L114), [`assembly-runs.test.ts:118`](apps/web-ui/src/lib/assembly-runs.test.ts#L145))
 
 ### FR-7: Shared UI Components
 

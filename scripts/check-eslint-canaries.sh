@@ -13,7 +13,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="tools/eslint-canaries"
-EXPECTED=("re-lint/no-cross-layer-import" "import-x/no-cycle" "re-lint/no-ungrounded-spec-name")
+EXPECTED=("re-lint/no-cross-layer-import" "import-x/no-cycle" "re-lint/no-ungrounded-spec-name" "re-lint/require-status-matches-coverage")
 
 ERR_FILE="$(mktemp)"
 trap 'rm -f "$ERR_FILE"' EXIT
