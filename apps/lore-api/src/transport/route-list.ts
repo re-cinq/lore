@@ -97,6 +97,7 @@ import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
 import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
 import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
+import { floorRunBlob, runBlobRoute } from "./routes/floor/run-blob.js";
 import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
@@ -287,7 +288,7 @@ function traceRoutes(): ServerRoute[] {
   ];
 }
 
-/** A run's turns, events and node logs, answered from Postgres for a run it has and from the external floor otherwise. */
+/** A run's turns, events, node logs and the blobs it references, answered from Postgres for a run it has and from the external floor otherwise. */
 function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
   const stored = storedRunHistoryOf(getPool);
 
@@ -295,5 +296,6 @@ function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
     runTurnsRoute(turnPageReader(stored)),
     runEventsRoute(eventPageReader(stored)),
     nodeLogsRoute(nodeLogsReader(stored)),
+    runBlobRoute(floorRunBlob),
   ];
 }
