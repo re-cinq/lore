@@ -766,6 +766,68 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/blobs/{hash}": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_blobs_hash",
+        "summary": "GET /api/assembly-runs/{id}/blobs/{hash}",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A blob the external floor keeps, readable only through a run that references it: text up to 1 MiB for a textual content type, metadata alone otherwise; 400 for a malformed hash, 404 for a run or blob it does not reference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBlob"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/dod": {
       "get": {
         "operationId": "get_api_assembly-runs_id_dod",
@@ -13709,6 +13771,28 @@
           }
         },
         "required": ["started"],
+        "additionalProperties": false
+      },
+      "RunBlob": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "number"
+          },
+          "text": {
+            "type": ["string", "null"]
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": ["hash", "contentType", "size", "text", "truncated"],
         "additionalProperties": false
       },
       "RunEvents": {

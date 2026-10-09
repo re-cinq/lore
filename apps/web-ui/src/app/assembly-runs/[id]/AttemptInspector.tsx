@@ -58,10 +58,11 @@ type AttemptCardProps = AttemptInspectorProps & {
 };
 
 /** What the attempt was started with: the floor's bag for a floor visit, the recorded dispatch input for one of Lore's own. */
-function AttemptStart({ attempt, inputs }: AttemptCardProps) {
+function AttemptStart({ runId, attempt, inputs }: AttemptCardProps) {
   return (
     <>
       <NodeNeedsCard
+        runId={runId}
         needs={attempt.needs ?? null}
         iteration={attempt.iteration}
       />

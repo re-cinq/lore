@@ -694,8 +694,8 @@ describe("node inspector", () => {
 
     expect(screen.getByText("Needs")).toBeInTheDocument();
     expect(
-      screen.getByText("github.com/re-cinq/lore@main"),
-    ).toBeInTheDocument();
+      screen.getByRole("link", { name: "github.com/re-cinq/lore@main" }),
+    ).toHaveAttribute("href", "https://github.com/re-cinq/lore/tree/main");
   });
 
   it("renders the attempts history inside the inspector for a node that looped", async () => {
