@@ -10,9 +10,13 @@ export type RunBlob = components["schemas"]["RunBlob"];
 export type RunBlobResult =
   | { status: "ok"; blob: RunBlob }
   | { status: "denied" }
-  | { status: "not-found" };
+  | { status: "not-found" }
+  | { status: "unavailable" };
 
+const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
+// lore-api calls a malformed hash 400 and a blob the run does not reference 404; to the reader both are a blob this run does not have.
+const ABSENT_BLOB = new Set([HTTP_BAD_REQUEST, HTTP_NOT_FOUND]);
 const FETCH_TIMEOUT_MS = 15_000;
 
 export async function fetchRunBlob(
@@ -30,7 +34,9 @@ export async function fetchRunBlob(
 
   return response.ok
     ? { status: "ok", blob: (await response.json()) as RunBlob }
-    : { status: "not-found" };
+    : {
+        status: ABSENT_BLOB.has(response.status) ? "not-found" : "unavailable",
+      };
 }
 
 function readBlob(

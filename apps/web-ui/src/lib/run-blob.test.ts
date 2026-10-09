@@ -69,4 +69,18 @@ describe("fetchRunBlob", () => {
 
     expect(await fetchRunBlob("run-1", HASH)).toEqual({ status: "not-found" });
   });
+
+  it("is not found for a hash lore-api calls malformed", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 400 }));
+
+    expect(await fetchRunBlob("run-1", "not-a-hash")).toEqual({
+      status: "not-found",
+    });
+  });
+
+  it("is unavailable, not not-found, when lore-api answers 503", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 503 }));
+
+    expect(await fetchRunBlob("run-1", HASH)).toEqual({ status: "unavailable" });
+  });
 });

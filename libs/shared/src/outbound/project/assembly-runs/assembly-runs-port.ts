@@ -70,7 +70,7 @@ export interface StationRunFailure {
   failureDetail?: string;
 }
 
-/** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts). A visit the external floor ran also carries `needs`: the brief's bag as the pod saw it at start (name → ref), absent on a table-backed record, whose dispatch snapshot is `input`. */
+/** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts) extended with `needs` — the floor brief's bag as the pod saw it at start (name → ref), absent on a table-backed record, whose dispatch snapshot is `input`. */
 export type StationRunRecord = StationRun & {
   needs?: Record<string, string> | null;
 };

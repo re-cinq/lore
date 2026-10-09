@@ -667,6 +667,24 @@ describe("node inspector", () => {
     expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
   });
 
+  it("keeps Pod logs chosen when another node is selected", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ agentCrName: "run1-implement" }),
+      walkRow({ nodeId: "validate", agentCrName: "run1-validate" }),
+    ]);
+    await settle();
+    await selectNode("implement");
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "pods" },
+    });
+    await selectNode("validate");
+
+    expect(screen.getByLabelText("Show")).toHaveValue("pods");
+  });
+
   it("moves the attempt select to attempt 1 when its row in the detail card is clicked", async () => {
     stubHistory([]);
     useFakeSocket();
