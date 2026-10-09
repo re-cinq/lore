@@ -43,6 +43,9 @@ export function triageRoute(): ServerRoute {
   };
 }
 
+type FloorRun = { id: string; args?: { issue_number?: number } };
+type IssueLike = { title: string; number: number; labels?: string[] };
+
 async function serveTriage(
   request: Request,
   h: ResponseToolkit,
@@ -52,39 +55,36 @@ async function serveTriage(
 
   try {
     const project = await projectFor(fullName);
-    const issues = await project.issues.list();
-
-    const triageIssues = issues.filter((i: any) =>
-      i.labels?.some((l: string) => l.startsWith("triage:")),
-    );
-
-    let runs: any[] = [];
-    try {
-      runs = await floorClient().listSummaries({ repo: fullName });
-    } catch {
-      // no floor or unreachable
-    }
-
-    const wire = triageIssues.map((issue: any) => {
-      const triageLabel = issue.labels.find((l: string) =>
-        l.startsWith("triage:"),
-      );
-
-      const activeRun = runs.find(
-        (r: any) => r.args?.issue_number === issue.number,
-      );
-
-      return {
-        title: issue.title,
-        triage_label: triageLabel,
-        ...(activeRun
-          ? { active_run_link: `/api/floor-runs/${activeRun.id}` }
-          : {}),
-      };
-    });
-
-    return h.response(wire);
+    const issues = (await project.issues.list()) as IssueLike[];
+    const runs = await fetchRuns(fullName);
+    return h.response(buildWireIssues(issues, runs));
   } catch (err) {
     return githubFailureResponse(err, h, "triage issues");
   }
+}
+
+async function fetchRuns(repo: string): Promise<FloorRun[]> {
+  try {
+    return (await floorClient().listSummaries({ repo })) as FloorRun[];
+  } catch {
+    return [];
+  }
+}
+
+function buildWireIssues(issues: IssueLike[], runs: FloorRun[]) {
+  const triageIssues = issues.filter((i) =>
+    i.labels?.some((l) => l.startsWith("triage:")),
+  );
+
+  return triageIssues.map((issue) => {
+    const triageLabel = issue.labels?.find((l) => l.startsWith("triage:"));
+    const activeRun = runs.find((r) => r.args?.issue_number === issue.number);
+    return {
+      title: issue.title,
+      triage_label: triageLabel,
+      ...(activeRun
+        ? { active_run_link: `/api/floor-runs/${activeRun.id}` }
+        : {}),
+    };
+  });
 }

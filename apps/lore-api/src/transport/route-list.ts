@@ -151,7 +151,7 @@ function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** A repo and what Lore knows about it: its record, its settings, and the context and graph read off it. */
+/** A repo and what Lore knows about it: its record, its settings, and its external state. */
 function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     repoStatusRoute(getPool),
@@ -165,12 +165,19 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ciJobLogRoute(),
     issueRoute(),
     triageRoute(),
+    onboardRoute(getPool),
+    ...contextAndGraphRoutes(getPool),
+  ];
+}
+
+/** The context, evaluation, and graph read off a repo. */
+function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     contextRoute(getPool),
     contextEvalRoute(getPool),
     contextEvalDocumentsRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
-    onboardRoute(getPool),
   ];
 }
 
