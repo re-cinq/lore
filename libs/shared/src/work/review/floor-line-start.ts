@@ -5,6 +5,7 @@ import {
   type FloorProblem,
   type StartedRun,
 } from "@re-cinq/floor-client";
+import { recordFloorStart } from "../../outbound/otel/metrics.js";
 
 type LineStarter = Pick<FloorClient["lines"], "start">;
 
@@ -19,7 +20,11 @@ export async function startLine(
   ...starting: Parameters<LineStarter["start"]>
 ): Promise<StartedRun> {
   try {
-    return await lines.start(...starting);
+    const started = await lines.start(...starting);
+
+    recordFloorStart(starting[0], started);
+
+    return started;
   } catch (err) {
     throw lineMissing(err) ? patient(err) : err;
   }
