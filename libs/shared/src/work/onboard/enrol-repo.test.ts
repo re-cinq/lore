@@ -102,6 +102,32 @@ describe("enrolRepo", () => {
     ]);
   });
 
+  it("reports a divergence and skips committing when a scaffold file already exists but differs", async () => {
+    const { deps, commits } = scene({
+      repo: {
+        read: (path) =>
+          Promise.resolve(
+            path === LORE_INGEST_WORKFLOW_PATH ? "divergent content" : null,
+          ),
+        commitFile: (branch, path) => {
+          commits.push(`${branch} ${path}`);
+          return Promise.resolve();
+        },
+      },
+    });
+
+    const { attention, committed } = await enrolRepo(deps, TARGET);
+
+    expect(commits).not.toContain(
+      `lore/onboard/1234abcd ${LORE_INGEST_WORKFLOW_PATH}`,
+    );
+    expect(committed).not.toContain(LORE_INGEST_WORKFLOW_PATH);
+    expect(attention).toContain("## Needs attention");
+    expect(attention).toContain(
+      `- \`${LORE_INGEST_WORKFLOW_PATH}\` — drifted from canonical template`,
+    );
+  });
+
   it("hands back a needs-attention section naming the file that could not be committed, and audits it against task-1", async () => {
     const { deps, audited } = scene({
       repo: {
