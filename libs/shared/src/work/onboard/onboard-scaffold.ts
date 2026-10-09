@@ -73,12 +73,6 @@ export async function commitOnboardScaffold(
   return result;
 }
 
-function handleScaffoldSkip(file: ScaffoldFile, current: string | null, result: OnboardScaffoldResult): void {
-  if (current !== null && current !== file.content) {
-    result.failures.push({ step: file.path, error: "drifted from canonical template" });
-  }
-}
-
 async function commitScaffoldFile(
   repo: ScaffoldRepo,
   branch: string,
@@ -95,5 +89,11 @@ async function commitScaffoldFile(
   } catch (err) {
     console.error(`[onboard] failed ${file.path}: ${errorMessage(err)}`);
     result.failures.push({ step: file.path, error: errorMessage(err) });
+  }
+}
+
+function handleScaffoldSkip(file: ScaffoldFile, current: string | null, result: OnboardScaffoldResult): void {
+  if (current !== null && current !== file.content) {
+    result.failures.push({ step: file.path, error: "drifted from canonical template" });
   }
 }
