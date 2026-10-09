@@ -1,11 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../../../outbound/project-boot.js", () => ({ projectFor: vi.fn() }));
-vi.mock("@re-cinq/lore-shared/floor/floor-client.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@re-cinq/lore-shared/floor/floor-client.js")>()),
-  floorClient: vi.fn(),
-  floorConfigured: () => true,
-}));
+vi.mock(
+  "@re-cinq/lore-shared/floor/floor-client.js",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@re-cinq/lore-shared/floor/floor-client.js")
+    >()),
+    floorClient: vi.fn(),
+    floorConfigured: () => true,
+  }),
+);
 
 import { buildServer } from "../../../app/build-server.js";
 import { projectFor } from "../../../outbound/project-boot.js";
