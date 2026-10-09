@@ -1005,7 +1005,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   methods answer for the rows that already exist and for
   nothing new. A plan's tasks reach the implementation loop as tickets
   (`specs/7-feature-planning` FR-11.13).
-  ([`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L149), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L159), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34)))
+  ([`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L149), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L159), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34))
 - FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
   transitions a cancel to `cancelled`, writes `setStatus` (status +
   updated_at + only allowlisted extra columns), reads-old-then-writes-new
