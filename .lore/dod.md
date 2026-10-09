@@ -15,7 +15,7 @@
 
 - [x] `decideScaffoldCommit` returns false when `current !== null` and `current !== file.content`
 - [x] `commitScaffoldFile` reports a divergence when the file exists and differs
-- [ ] `decideOnboard` returns an allowed: false block for `re-cinq/lore`
+- [x] `decideOnboard` returns an allowed: false block for `re-cinq/lore`
 
 ## Out of scope
 
