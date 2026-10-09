@@ -447,6 +447,31 @@ describe("applyPatches", () => {
     ]).toEqual([true, true]);
   });
 
+  it("writes an operation that names a spec's folder to that folder's spec.md", () => {
+    const applied = applyPatches(
+      { "specs/widget/spec.md": "# Widget\n" },
+      [
+        patch({
+          ops: [
+            {
+              op: "append",
+              file: "specs/widget/",
+              heading: "## Requirements",
+              text: "- In the spec.",
+            },
+          ],
+        }),
+      ],
+      "specs/widget/spec.md",
+    );
+
+    expect({
+      written:
+        applied.files["specs/widget/spec.md"]!.includes("- In the spec."),
+      failed: applied.failedOps,
+    }).toEqual({ written: true, failed: { scope: 0 } });
+  });
+
   it("counts an operation for a file the plan does not name as failed, and creates nothing", () => {
     const applied = applyPatches(
       { "spec.md": "# A\n" },
