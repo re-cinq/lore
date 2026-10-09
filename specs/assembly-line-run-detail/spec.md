@@ -36,8 +36,8 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 ## FR2 — Node detail pane is the container for all per-node content
 
 - `RunVisualizationPanel` opens a node detail pane when a node is selected and closes it when the selection is cleared.
-- The node detail pane renders, in order: `RunNodeDetail` (the summary card), `NodeTranscriptView` (the agent transcript), and the pod-log section for that node.
-- The pod-log section displays the pod log for the selected node only. When no node is selected the section is absent.
+- _(Amended 2026-10-09, run-viz FR4.1g/FR4.14.)_ The pane is two columns: `RunNodeDetail` (the summary card, with the attempt history) in a right-hand panel whose left edge drags, and under the graph the attempt column — the `Show`/`Attempt` selects, then the chosen attempt's transcript or pod logs, then its Needs and Input cards. ([names the selected-node panel a complementary aside beside the graph](apps/web-ui/src/app/assembly-runs/[id]/RunWorkbenchLayout.test.tsx#L22), [shows the newest attempt's pod logs alone once Pod logs is chosen](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L628))
+- The pod-log section displays the pod log for the selected node's chosen attempt only. When no node is selected the section is absent. ([shows attempt 1's pod logs when the attempt select picks it](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L650))
 - `NodePodLogs` is no longer rendered at the `page.tsx` level. `page.tsx` passes the full `logNodes` list to `RunVisualizationPanel` so the panel can look up the selected node's `agentCrName` without an additional server round-trip.
 - `NodePodLogs` receives a single `node: NodeLogTarget | null` prop (instead of `nodes: NodeLogTarget[]`) and returns `null` when `node` is null. This change is contained inside the panel; the `NodeLogTarget` shape is unchanged.
 

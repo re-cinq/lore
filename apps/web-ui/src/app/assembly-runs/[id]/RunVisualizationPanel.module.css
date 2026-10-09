@@ -55,17 +55,63 @@
   border-color: var(--warning);
 }
 
-/* The graph, then the inspector for the selected node directly beneath it. */
+/* The graph over the attempt column on the left, the selected node's panel the full height on the right, its width set by the handle between them. */
 .workbench {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--space-3) var(
+      --inspector-width,
+      380px
+    );
+  grid-template-rows: auto auto;
+  column-gap: var(--space-3);
+  row-gap: var(--space-6);
 }
-.workbench > * {
+.graphCell {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
 }
-.inspectorRegion {
+.centerCell {
+  grid-column: 1;
+  grid-row: 2;
   min-width: 0;
+}
+.resizeHandle {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  cursor: col-resize;
+  border-left: 1px solid var(--border);
+  touch-action: none;
+}
+.resizeHandle:hover,
+.resizeHandle:focus-visible {
+  border-left-color: var(--accent);
+  outline: none;
+}
+.sideRegion {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  min-width: 0;
+}
+.attempts {
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .resizeHandle {
+    display: none;
+  }
+  /* Stacked, the detail card reads before the attempt it describes. */
+  .sideRegion {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .centerCell {
+    grid-column: 1;
+    grid-row: 3;
+  }
 }
 
 .inspector {

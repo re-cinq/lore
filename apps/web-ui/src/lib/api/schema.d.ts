@@ -2990,6 +2990,9 @@ export interface components {
                     repo: string;
                     ref: string;
                   } | null;
+                  needs: {
+                    [key: string]: string;
+                  } | null;
                   commit_sha: string | null;
                   started_at: string;
                   finished_at: string | null;
@@ -3782,6 +3785,9 @@ export interface components {
               repo: string;
               ref: string;
             } | null;
+            needs: {
+              [key: string]: string;
+            } | null;
             commit_sha: string | null;
             started_at: string;
             finished_at: string | null;
@@ -4095,6 +4101,9 @@ export interface components {
           } | null;
           repo: string;
           ref: string;
+        } | null;
+        needs: {
+          [key: string]: string;
         } | null;
         commit_sha: string | null;
         started_at: string;
