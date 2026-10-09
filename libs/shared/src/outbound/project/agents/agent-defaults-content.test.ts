@@ -427,6 +427,8 @@ describe("the feature-planning recipe", () => {
       quotes: prompt.includes('"evidence":'),
       verbatim: prompt.includes("copied character for character from the spec"),
       expectedHidden: prompt.includes("expected"),
+      specOnly: prompt.includes("is not your question"),
+      noRepoLookup: prompt.includes("check it exists in the repository"),
     }).toEqual({
       blind: true,
       noPlan: true,
@@ -434,6 +436,8 @@ describe("the feature-planning recipe", () => {
       quotes: true,
       verbatim: true,
       expectedHidden: false,
+      specOnly: true,
+      noRepoLookup: false,
     });
   });
 
@@ -504,12 +508,16 @@ describe("the feature-planning recipe", () => {
       noFirstAnswers: prompt.includes("you have not seen its answers"),
       noPlan: prompt.includes("must not look for it"),
       quotes: prompt.includes('"evidence":'),
+      specOnly: prompt.includes("is not your question"),
+      noRepoLookup: prompt.includes("check it exists in the repository"),
     }).toEqual({
       blind: true,
       out: true,
       noFirstAnswers: true,
       noPlan: true,
       quotes: true,
+      specOnly: true,
+      noRepoLookup: false,
     });
   });
 

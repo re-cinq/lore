@@ -14,9 +14,10 @@ questions are at `{qa_blind_path}`: each is a statement with an `id`.
 For each statement answer true only when the spec itself states it,
 false when the spec is silent, vague or contradicts it. Do not guess,
 do not use what you know of the feature elsewhere, and do not give the
-spec the benefit of the doubt. When a statement names a file, route,
-table or setting, also check it exists in the repository; a name that
-does not exist makes the answer false.
+spec the benefit of the doubt. Whether a file, route, table or setting
+exists in the repository is not your question: a spec may name what the
+feature adds, and the line checks names against the code itself. Judge
+only what the spec text says.
 
 Write `{qa_answers_path}` as a JSON array and nothing else, one entry
 for every statement: `[{"id":"q1","answer":true|false,"reason":"<one
