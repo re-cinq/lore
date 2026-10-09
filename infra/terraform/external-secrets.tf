@@ -935,10 +935,9 @@ resource "kubectl_manifest" "es_floor_agent_secrets" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# Grafana's sign-in proxy reads the SAME Google client as Headlamp's: one OAuth
-# client may list several redirect URIs, and a cookie is scoped to its host, so the
-# three values are mirrored a second time into the monitoring namespace rather than
-# minted again (monitoring.tf, ADR-050).
+# Grafana's sign-in proxy: its own Google OAuth web client and cookie key
+# (secrets.tf, behind enable_monitoring), mirrored into the monitoring namespace
+# under the key names the oauth2-proxy chart reads (monitoring.tf, ADR-050).
 resource "kubectl_manifest" "es_grafana_oauth" {
   count = var.enable_monitoring ? 1 : 0
 
@@ -962,19 +961,19 @@ resource "kubectl_manifest" "es_grafana_oauth" {
         {
           secretKey = "client-id"
           remoteRef = {
-            key = "lore-headlamp-oauth-client-id"
+            key = "lore-grafana-oauth-client-id"
           }
         },
         {
           secretKey = "client-secret"
           remoteRef = {
-            key = "lore-headlamp-oauth-client-secret"
+            key = "lore-grafana-oauth-client-secret"
           }
         },
         {
           secretKey = "cookie-secret"
           remoteRef = {
-            key = "lore-headlamp-cookie-secret"
+            key = "lore-grafana-cookie-secret"
           }
         },
       ]

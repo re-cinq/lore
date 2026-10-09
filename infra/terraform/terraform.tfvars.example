@@ -79,9 +79,10 @@ enable_external_floor = false
 enable_headlamp = false
 
 # The metrics stack: Prometheus scraping every service, the floor and the agent
-# controller, and Grafana with the Lore dashboards behind the same Google sign-in
-# as Headlamp (monitoring.tf, ADR-050). Reuses the lore-headlamp-* secrets; add
-# https://<grafana_hostname>/oauth2/callback to that Google client first.
+# controller, and Grafana with the Lore dashboards behind a Google sign-in of its
+# own (monitoring.tf, ADR-050). Seed lore-grafana-oauth-client-id / -secret and
+# lore-grafana-cookie-secret from a `grafana` OAuth web client whose redirect URI
+# is https://<grafana_hostname>/oauth2/callback (docs/managing-secrets.md).
 enable_monitoring = false
 grafana_hostname  = "grafana.example.com"
 # The nginx ingress controller's namespace: the only namespace Grafana's

@@ -57,6 +57,11 @@ OPTIONAL=(
   lore-headlamp-oauth-client-id
   lore-headlamp-oauth-client-secret
   lore-headlamp-cookie-secret
+  # Behind enable_monitoring: Grafana's own Google OAuth web client and cookie key
+  # (monitoring.tf), same shape and the same 16/24/32-byte cookie rule.
+  lore-grafana-oauth-client-id
+  lore-grafana-oauth-client-secret
+  lore-grafana-cookie-secret
   # Behind enable_external_floor: the bearer tokens between Lore and the external
   # floor engine (its service token, and the one it presents to lore-api's
   # /api/floor/git-credential).
