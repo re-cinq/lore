@@ -14,7 +14,7 @@ import type { RunStreamFrame } from "@/lib/run-stream-types";
 import type { NodeModel } from "@/lib/node-models";
 import { Alert } from "@/components/Alert";
 import type { Issue } from "@/lib/api/issues";
-import AssemblyRunView from "./AssemblyRunView";
+import AssemblyRunView, { RunFacts } from "./AssemblyRunView";
 import RunIssueCard from "./RunIssueCard";
 import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
@@ -47,11 +47,8 @@ export default function RunLiveShell(props: RunLiveShellProps) {
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
       <AssemblyRunOptions run={run} upgradeAvailable={props.upgradeAvailable} />
-      <LiveSections
-        props={props}
-        run={run}
-        live={live}
-        applyFrame={applyFrame}
+      <RunVisualizationPanel
+        {...panelProps({ props, run, live, applyFrame })}
       />
     </>
   );
@@ -76,33 +73,20 @@ function dodRefreshKey(live: ReturnType<typeof initialRunLive>): string {
   return `${live.run.status}:${live.ciCheck?.observed_at ?? ""}`;
 }
 
-/** The live-driven half below the header: the panel that owns the socket, and the task accounting fed by the same fold. */
-interface LiveSectionsProps {
+/** What the panel is built from: the page's inputs, the live run and rows, and the fold that feeds them. */
+interface PanelSources {
   props: RunLiveShellProps;
   run: AssemblyRun;
   live: ReturnType<typeof initialRunLive>;
   applyFrame: (frame: RunStreamFrame) => void;
 }
 
-function LiveSections(sections: LiveSectionsProps) {
-  const { props, run } = sections;
-
-  return (
-    <>
-      <RunVisualizationPanel {...panelProps(sections)} />
-      <TaskContextSection
-        taskId={run.taskId}
-        llmCalls={props.llmCalls}
-        repo={run.repo}
-        costUsd={run.costUsd}
-      />
-    </>
-  );
-}
-
 /** The panel's props from the shell's facts: the page's own inputs plus the live rows and the fold that feeds them. */
-function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
+function panelProps(sources: PanelSources) {
+  const { props, run, live, applyFrame } = sources;
+
   return {
+    ...panelFacts(sources),
     runId: run.id,
     runStatus: run.status,
     definition: props.definition,
@@ -116,6 +100,21 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
     nodeModels: props.nodeModels,
     taskEvents: live.taskEvents,
     onFrame: applyFrame,
+  };
+}
+
+/** What the panel draws in its left column besides the graph and the attempt: the run's facts and the task's accounting. */
+function panelFacts({ props, run }: PanelSources) {
+  return {
+    facts: <RunFacts run={run} />,
+    taskContext: (
+      <TaskContextSection
+        taskId={run.taskId}
+        llmCalls={props.llmCalls}
+        repo={run.repo}
+        costUsd={run.costUsd}
+      />
+    ),
   };
 }
 

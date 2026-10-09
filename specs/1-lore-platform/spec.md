@@ -692,7 +692,7 @@ _(Rewritten 2026-10-05.)_ A task has no page of its own: the run detail
 page at `/assembly-runs/[id]` is where a task is read, and the
 `/tasks/[id]` lifecycle shell, which only forwarded to a run Postgres
 held and so opened empty for a task whose run is on the external floor,
-is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L76))
+is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L85))
 
 - FR-19.1: `/assembly-runs/<id>` given a task id redirects to the task's
   newest run, so every link that knows only a task (a repository's recent
@@ -706,7 +706,7 @@ is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-r
   has a task, and not on a finished run or a run with no task; the
   confirm-gated `CancelTaskButton` shows only its trigger until clicked,
   then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
-  task" backs out of. There is no "Run Now": no task is created pending. ([validated by offers to cancel the task of a running run](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L57), [validated by offers no cancel on %s](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L67), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L30))
+  task" backs out of. There is no "Run Now": no task is created pending. ([validated by offers to cancel the task of a running run](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L68), [validated by offers no cancel on %s](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L79), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L30))
 - FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L117), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L142), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [adds a task transition the stream reports to the selected node's transcript](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L162))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,

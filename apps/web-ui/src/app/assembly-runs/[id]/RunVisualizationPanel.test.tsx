@@ -667,6 +667,47 @@ describe("node inspector", () => {
     expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
   });
 
+  it("draws the facts under the graph and the task notice after the attempt, outside the aside", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    const { container } = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={definition}
+        nodes={[walkRow({})]}
+        repo="re-cinq/lore"
+        reason={null}
+        facts={<p>facts slot</p>}
+        taskContext={<p>task slot</p>}
+      />,
+    );
+
+    await settle();
+    await selectNode("implement");
+
+    const order = [
+      container.querySelector('[data-node="implement"]'),
+      screen.getByText("facts slot"),
+      screen.getByLabelText("Show"),
+      screen.getByText("task slot"),
+    ];
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
+
+    expect({
+      inReadingOrder: order.every(
+        (node, i) =>
+          i === 0 ||
+          Boolean(
+            order[i - 1]!.compareDocumentPosition(node as Node) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          ),
+      ),
+      inAside: [order[1], order[3]].map((node) => aside.contains(node)),
+    }).toEqual({ inReadingOrder: true, inAside: [false, false] });
+  });
+
   it("keeps Pod logs chosen when another node is selected", async () => {
     stubHistory([]);
     useFakeSocket();

@@ -13,7 +13,7 @@ export interface AssemblyRunViewProps {
   waitingOn?: string | null;
 }
 
-// Run header — line-level facts only; per-node state lives in the visualization panel below.
+// Run header — the trail, the line's name and its status. The facts card is `RunFacts`, drawn under the graph (run-viz FR4.14); per-node state lives in the visualization panel below.
 export default function AssemblyRunView({
   run,
   waitingOn = null,
@@ -29,8 +29,6 @@ export default function AssemblyRunView({
           {visual.label}
         </span>
       </div>
-
-      <RunFacts run={run} />
     </div>
   );
 }
@@ -47,7 +45,8 @@ function RunTrail({ run }: AssemblyRunViewProps) {
   );
 }
 
-function RunFacts({ run }: AssemblyRunViewProps) {
+/** The line-level facts as one card: branch, outcome, why, how long, and the task, PR and issue it ties to. */
+export function RunFacts({ run }: AssemblyRunViewProps) {
   return (
     <div className="spec-card">
       <dl className={styles.facts}>
