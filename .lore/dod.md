@@ -17,6 +17,7 @@
 - [x] Remove the empty `catch` returning `null` in `lookupTokenScopes`
 - [x] Catch the DB error in `authenticateBearer` and map it to a 503 Boom error
 - [x] Add logging for the DB error in `authenticateBearer` or `lookupTokenScopes`
+- [x] Fix mock pool returning undefined to correctly return 0 rows, so missing tokens yield 403 instead of 503
 
 ## Out of scope
 
