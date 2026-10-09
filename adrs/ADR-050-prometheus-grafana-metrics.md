@@ -1,7 +1,7 @@
 ---
 adr_number: 50
 title: "Metrics go to Prometheus and Grafana, installed by terraform"
-status: in progress
+status: shipped
 date: 2026-10-09
 deciders: ["Bogdan Szabo"]
 domains: [observability, infrastructure, terraform, lore-api, stations, floor, ai-agent-subsystem]
@@ -33,11 +33,16 @@ Two Prometheus flavours were weighed. Google Managed Prometheus bills $0.06 per 
   - A GitHub delivery, by the bus event it became, in the webhook route. ([validated by counts a github.push webhook event](../libs/shared/src/outbound/otel/metrics.test.ts#L108))
 - **Lore's own model calls are metered by decorating the usage sink**, so every provider is covered by one site: calls by provider, model and status; tokens by kind; computed cost in USD. ([validated by records a claude-sonnet call as 1 call, 300 input, 50 output tokens and 0.02 usd](../libs/shared/src/outbound/otel/metrics.test.ts#L119), [validated by writes the gemini-2.5-flash row through and counts one call of 10 input tokens](../libs/shared/src/outbound/project/usage/metered-usage.test.ts#L22))
 - **Billed spend is a gauge read from the synced invoices**, `lore.billed.cost_usd` by vendor, item and window (today, month to date), from the same two daily tables `/spend` reads, so the two never disagree. ([validated by turns one anthropic row of 1.5 today and 20 this month into a day point and a month point](../apps/lore-api/src/outbound/billed-cost-gauge.test.ts#L5))
-- **The floor and the agent controller keep their own `/metrics`** and are scraped as they are: the floor's numbers are fresh queries on every scrape (its rule, so two replicas agree), and the controller's are the module state of a D program with no OpenTelemetry SDK. Durations, outcomes and cost per line, station and model are added there in the same shape.
-- **terraform installs kube-prometheus-stack and Grafana behind `enable_monitoring`**, in a `monitoring` namespace, with node-exporter and the GKE-hidden control-plane targets off, PodMonitors and ServiceMonitors for every service, and Grafana behind oauth2-proxy with the same Google client as Headlamp. Grafana trusts the email header the proxy sets, which nginx overwrites on the way in, and a NetworkPolicy keeps in-cluster callers from forging it.
-- **No dashboard names an assembly line.** The per-line dashboard is one board whose `line` variable is read from the metric labels; a line added next month appears by itself.
 
 ## Consequences
+
+Applied on 2026-10-09 with `enable_monitoring = true` at `grafana.gcp.re-cinq.com`; the five dashboards opened populated on first login. Where the rest of the design lives:
+
+**The floor and the agent controller keep their own `/metrics`** and are scraped as they are: the floor's numbers are fresh queries on every scrape (its rule, so two replicas agree), and the controller's are the module state of a D program with no OpenTelemetry SDK. Durations, outcomes and cost per line, station and model are added there in the same shape.
+
+**terraform installs kube-prometheus-stack and Grafana behind `enable_monitoring`**, in a `monitoring` namespace, with node-exporter and the GKE-hidden control-plane targets off, PodMonitors and ServiceMonitors for every service, and Grafana behind oauth2-proxy with the same Google client as Headlamp. Grafana trusts the email header the proxy sets, which nginx overwrites on the way in, and a NetworkPolicy keeps in-cluster callers from forging it.
+
+**No dashboard names an assembly line.** The per-line dashboard is one board whose `line` variable is read from the metric labels; a line added next month appears by itself.
 
 - Cloud Monitoring holds no Lore metric any more; traces still go to Cloud Trace from lore-api.
 - A new instrument goes into `metrics.ts` and is recorded from one site; a module-level `createCounter` anywhere else is the bug this ADR exists to name.
