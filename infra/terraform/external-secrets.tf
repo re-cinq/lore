@@ -1068,3 +1068,44 @@ resource "kubectl_manifest" "es_utopia_app" {
 
   depends_on = [kubernetes_namespace.utopia]
 }
+
+# The GHCR pull secret, for a Utopia image of our own: a build pushed to
+# ghcr.io/re-cinq is internal to the org, which the kubelet is not.
+resource "kubectl_manifest" "es_utopia_ghcr" {
+  count = var.enable_utopia ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "ghcr-pull-secret"
+      namespace = local.utopia_namespace
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "ghcr-pull-secret"
+        template = {
+          type = "kubernetes.io/dockerconfigjson"
+          data = {
+            ".dockerconfigjson" = "{{ .dockerconfigjson }}"
+          }
+        }
+      }
+      data = [
+        {
+          secretKey = "dockerconfigjson"
+          remoteRef = {
+            key = "lore-ghcr-pull-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.utopia]
+}
