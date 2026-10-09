@@ -189,4 +189,15 @@ describe("splitSectionsHandle", () => {
       round: stateOf(produced).redoRound,
     }).toEqual({ slots: ["scope", "risk"], round: 3 });
   });
+
+  it("hands the sections of the gate's first redo after a restart, numbered by its visit, though a redo from before the restart was round 1", async () => {
+    const { tools, brief, handle } = withBlocks({
+      section_state: { ...EMPTY_STATE, done: ["scope", "risk"], redoRound: 1 },
+      redo_sections: { round: 13, sections: ["scope"] },
+    });
+
+    const report = await handle(brief, tools);
+
+    expect(slotsOf(report)).toEqual(["scope"]);
+  });
 });

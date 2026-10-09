@@ -174,17 +174,17 @@ describe("qaGateHandle", () => {
     });
   });
 
-  it("numbers the redo request by the rounds already spent", async () => {
+  it("numbers the redo request by the gate visit's iteration, 13, which only grows within a run, not by the rounds spent", async () => {
     const { handle, tools, produced } = scene({
       answers: [Q1_FALSE, ANSWERS[1]],
       recheck: [Q1_FALSE],
       spent: 2,
     });
 
-    await handle(brief, tools);
+    await handle({ ...brief, iteration: 13 }, tools);
 
     expect(JSON.parse(produced.redo_sections ?? "null")).toEqual({
-      round: 3,
+      round: 13,
       sections: ["scope"],
     });
   });
