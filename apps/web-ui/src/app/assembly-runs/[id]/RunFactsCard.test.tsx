@@ -93,6 +93,29 @@ describe("RunFactsCard", () => {
     expect(signals.map((signal) => signal.aborted)).toEqual([true, false]);
   });
 
+  it("drops an answer that arrived after the refresh key had already changed", async () => {
+    let answerFirstRead = (_response: Response) => {};
+
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockReturnValueOnce(
+          new Promise<Response>((resolve) => {
+            answerFirstRead = resolve;
+          }),
+        )
+        .mockReturnValue(new Promise<Response>(() => {})),
+    );
+    const { rerender } = render(<RunFactsCard run={run} refreshKey="a" />);
+
+    answerFirstRead(Response.json(bagOf("task-1")));
+    rerender(<RunFactsCard run={run} refreshKey="b" />);
+    await settle();
+
+    expect(screen.queryByText(/^Bag \(/)).toBeNull();
+  });
+
   it("shows the facts without a bag when the read fails", async () => {
     vi.stubGlobal(
       "fetch",

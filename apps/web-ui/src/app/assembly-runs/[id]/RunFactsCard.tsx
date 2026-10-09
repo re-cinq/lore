@@ -27,7 +27,7 @@ function useRunBag(runId: string, refreshKey: string): RunBag | null {
 
     readRunBag(runId, read.signal)
       .then((next) => {
-        if (next !== null) {
+        if (next !== null && !read.signal.aborted) {
           setBag(next);
         }
       })
