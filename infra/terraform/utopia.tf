@@ -164,6 +164,11 @@ resource "kubernetes_deployment_v1" "utopia" {
         # The image declares no USER, so it would run as root. The binary lives in
         # /usr/local/bin and the only directory it writes is the data volume, which
         # fsGroup makes writable for this uid.
+        # Upstream's image is public; one of ours on ghcr.io/re-cinq is not.
+        image_pull_secrets {
+          name = "ghcr-pull-secret"
+        }
+
         security_context {
           run_as_non_root = true
           run_as_user     = 1000
@@ -285,6 +290,7 @@ resource "kubernetes_deployment_v1" "utopia" {
   depends_on = [
     kubectl_manifest.utopia_db_cluster,
     kubectl_manifest.es_utopia_app,
+    kubectl_manifest.es_utopia_ghcr,
     kubernetes_persistent_volume_claim_v1.utopia_data,
   ]
 }
