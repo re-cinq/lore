@@ -436,7 +436,7 @@ The onboarding PR carries deterministic files committed verbatim by the Floor pl
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
-  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ingest-workflow.test.ts:34`](libs/shared/src/work/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/work/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/work/trace-impact-workflow.test.ts#L25))
+  `.github/workflows/lore-trace-impact.yml`. ([validated by targets the workflows path](libs/shared/src/work/ingest-workflow.test.ts#L22), [validated by exposes FILES as a step-level env var, not inside the run block](libs/shared/src/work/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/work/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/work/trace-impact-workflow.test.ts#L25))
 - FR-5.2: `.github/PULL_REQUEST_TEMPLATE.md` carries the canonical PR sections —
   Why, What Changed, Alternatives Considered, ADRs & Architecture, Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
 - FR-5.3: `.github/workflows/pr-description-check.yml` enforces those PR sections

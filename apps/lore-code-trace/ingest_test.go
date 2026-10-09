@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -397,6 +398,32 @@ func TestPostIngestDeltaGivesUpAfterTheAttemptBudget(t *testing.T) {
 	}
 	if calls != postAttempts {
 		t.Fatalf("calls = %d, want %d", calls, postAttempts)
+	}
+}
+
+func TestPostIngestDeltaClassifiesExhaustedRetryableFailures(t *testing.T) {
+	noRetrySleep(t)
+	for _, tc := range []struct {
+		name       string
+		status     int
+		exhausted  bool
+	}{
+		{name: "503", status: http.StatusServiceUnavailable, exhausted: true},
+		{name: "400", status: http.StatusBadRequest, exhausted: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer srv.Close()
+
+			err := postIngestDelta(context.Background(), srv.URL, "tok", "re-cinq/lore",
+				docDelta{Kind: "specs", Commit: "abc123"}, srv.Client())
+
+			if errors.Is(err, errRetryExhausted) != tc.exhausted {
+				t.Fatalf("errors.Is(err, errRetryExhausted) = %t, want %t (err = %v)", errors.Is(err, errRetryExhausted), tc.exhausted, err)
+			}
+		})
 	}
 }
 
