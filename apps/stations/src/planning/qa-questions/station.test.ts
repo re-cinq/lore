@@ -109,4 +109,20 @@ describe("qaQuestionsHandle", () => {
 
     expect(report).toEqual({ outcome: "success" });
   });
+
+  it("sends the generator back when the run carries no question set at all, naming the file it was to write", async () => {
+    const { tools, produced } = scene({ plan_blocks: JSON.stringify(PLAN) });
+
+    const report = await qaQuestionsHandle()(
+      briefOf({ plan_blocks: "blob://p" }),
+      tools,
+    );
+
+    expect({ report, errors: produced.qa_question_errors }).toEqual({
+      report: { outcome: "changes_requested" },
+      errors: expect.stringContaining(
+        "You wrote no /workspace/qa-questions.json",
+      ),
+    });
+  });
 });
