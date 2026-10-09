@@ -1,27 +1,25 @@
 # Definition of Done
 
-> Agent pods get GitHub tokens with every lore-agent App permission (workflows, secrets, hooks, checks write); only the repo is narrowed
+> Floor git-credential provider mints all-permission installation tokens for any installed repo on one static shared bearer, ignoring `access`, with no audit or rotation window
 
-**Strategy: `direct`** — The seam already exists. `getInstallationToken` is directly callable with a mocked octokit that records auth calls, and `handleFloorGitCredential` accepts an injectable `mint` function whose arguments are observable.
+**Strategy: `direct`** — The `handleFloorGitCredential` function is already the seam for git credential minting. We can test rotation, onboarding refusal, and auditing directly through its dependencies.
 
 ## Done when these pass
 
-- [ ] **getInstallationToken includes permissions in the auth call** — when a permissions map is supplied, `ok.auth` receives a `permissions` field so the minted token carries only the specified scopes instead of the full App grant
-  `libs/shared/src/outbound/project/lib/platform-github.test.ts`
-
-- [ ] **handleFloorGitCredential passes access to mint** — the `access` value from the request body is forwarded to `mint` as a second argument so the minter can choose read-only or minimum-write permissions; currently `mint` is called as `mint(repo)` only, and the captured `access` is `undefined`
+- [ ] **answers 200 when the bearer matches any token in a comma-separated list** — validates that rotation needs no downtime
+  `apps/lore-api/src/transport/routes/floor/git-credential.test.ts`
+- [ ] **answers 403 and mints nothing when the repo is not onboarded** — validates refusing unonboarded repos
+  `apps/lore-api/src/transport/routes/floor/git-credential.test.ts`
+- [ ] **writes an audit log entry for the mint** — validates that mints are audited
   `apps/lore-api/src/transport/routes/floor/git-credential.test.ts`
 
 ## Facets
 
-- [x] Add an optional `permissions` parameter to `getInstallationToken` in `libs/shared/src/outbound/project/lib/platform-github.ts` and pass it to `ok.auth`
-- [x] Update `FloorGitCredentialDeps.mint` signature to `(repo: string, access: "read" | "write") => Promise<string>` and have `handleFloorGitCredential` call `mint(repo, body.access)`
-- [x] Update `serveFloorGitCredential` to map `access` to a permissions object (`read` → `{contents:"read",metadata:"read"}`, `write` → `{contents:"write",pull_requests:"write",issues:"write",metadata:"read"}`) and pass it to `getInstallationToken`
+- [ ] Support comma-separated tokens in `checkBearer`
+- [ ] Inject a repo-onboarded check into `FloorGitCredentialDeps` and return 403 if false
+- [ ] Inject an audit sink into `FloorGitCredentialDeps` and call it on successful mint
 
 ## Out of scope
 
-- The Floor's own client token (the ticket notes it keeps the full set for onboarding hooks and secrets)
-- Secrets write, repository_hooks write, workflows write, checks write — removing these from the App registration itself is a longer-term follow-up named in the ticket
-- Repo scoping (already fixed per ticket, closes #1484)
-- Rotation window and audit logging for the floor git-credential broker (second half of the ticket's second finding)
-- Moving secrets:write and repository_hooks:write to a separate onboarding-only App (ticket's "longer term" note)
+- Moving `secrets:write` and `repository_hooks:write` into a separate onboarding-only App
+- Forwarding the visit id and run token from the floor (the "Better still" suggestion)

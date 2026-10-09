@@ -21,7 +21,9 @@ async function ask(
 
         return "ghs_fresh";
       },
-    },
+      isRepoOnboarded: async () => true,
+      audit: async () => {},
+    } as any,
     bearer,
     { repoUrl, access: "write" },
   );
@@ -68,6 +70,58 @@ describe("handleFloorGitCredential", () => {
     });
   });
 
+  it("answers 200 when the bearer matches any token in a comma-separated list", async () => {
+    expect(
+      await ask("token2", "https://github.com/re-cinq/lore", "token1,token2")
+    ).toEqual({
+      result: {
+        code: 200,
+        body: { username: "x-access-token", password: "ghs_fresh" },
+      },
+      minted: ["re-cinq/lore"],
+    });
+  });
+
+  it("answers 403 and mints nothing when the repo is not onboarded", async () => {
+    const minted: string[] = [];
+    const result = await handleFloorGitCredential(
+      {
+        token: TOKEN,
+        mint: async (repo) => {
+          minted.push(repo);
+          return "ghs_fresh";
+        },
+        isRepoOnboarded: async (repo) => repo === "re-cinq/lore",
+        audit: async () => {},
+      } as any,
+      TOKEN,
+      { repoUrl: "https://github.com/other/repo", access: "write" }
+    );
+
+    expect(result.code).toBe(403);
+    expect(minted).toEqual([]);
+  });
+
+  it("writes an audit log entry for the mint", async () => {
+    const audits: Array<{ repo: string; access: string; caller: string }> = [];
+    await handleFloorGitCredential(
+      {
+        token: TOKEN,
+        mint: async () => "ghs_fresh",
+        isRepoOnboarded: async () => true,
+        audit: async (repo, access, caller) => {
+          audits.push({ repo, access, caller });
+        },
+      } as any,
+      TOKEN,
+      { repoUrl: "https://github.com/re-cinq/lore", access: "write" }
+    );
+
+    expect(audits).toEqual([
+      { repo: "re-cinq/lore", access: "write", caller: TOKEN },
+    ]);
+  });
+
   it("passes the access level to mint as a second argument so the minter can narrow permissions for the pod", async () => {
     const mintCalls: Array<{ repo: string; access: string | undefined }> = [];
     const result = await handleFloorGitCredential(
@@ -78,7 +132,9 @@ describe("handleFloorGitCredential", () => {
 
           return "ghs_fresh";
         },
-      },
+        isRepoOnboarded: async () => true,
+        audit: async () => {},
+      } as any,
       TOKEN,
       { repoUrl: "https://github.com/re-cinq/lore", access: "read" },
     );
