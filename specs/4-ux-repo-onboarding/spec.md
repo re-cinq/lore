@@ -242,6 +242,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   phrasings, never by bare status keying) is named for what it is, the
   failure set is recorded in the audit log as `onboard_files_failed`, and a
   task with no ticket still audits and dispatches.
+  A scaffold file that already exists but differs from the canonical template is reported as a divergence instead of overwriting the existing content. ([validated by reports a divergence and skips committing when a scaffold file already exists but differs](libs/shared/src/work/onboard/enrol-repo.test.ts#L105))
 - FR-2.8: The ingest callback config (repo variable `LORE_INGEST_URL`,
   secret `LORE_INGEST_TOKEN`) is written before the line is dispatched so
   its failures reach the ticket; an unset Floor-side value is reported
