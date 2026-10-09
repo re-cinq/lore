@@ -81,10 +81,16 @@ async function commitScaffoldFile(
 ): Promise<void> {
   try {
     const current = await repo.read(file.path, branch);
+
     if (!decideScaffoldCommit(file, current)) {
       return handleScaffoldSkip(file, current, result);
     }
-    await repo.commitFile(branch, file.path, file.content, `lore: update ${file.path}`);
+    await repo.commitFile(
+      branch,
+      file.path,
+      file.content,
+      `lore: update ${file.path}`,
+    );
     result.committed.push(file.path);
   } catch (err) {
     console.error(`[onboard] failed ${file.path}: ${errorMessage(err)}`);
@@ -92,8 +98,15 @@ async function commitScaffoldFile(
   }
 }
 
-function handleScaffoldSkip(file: ScaffoldFile, current: string | null, result: OnboardScaffoldResult): void {
+function handleScaffoldSkip(
+  file: ScaffoldFile,
+  current: string | null,
+  result: OnboardScaffoldResult,
+): void {
   if (current !== null && current !== file.content) {
-    result.failures.push({ step: file.path, error: "drifted from canonical template" });
+    result.failures.push({
+      step: file.path,
+      error: "drifted from canonical template",
+    });
   }
 }

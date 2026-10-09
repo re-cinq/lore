@@ -85,10 +85,19 @@ export function decideOnboard(
   state: OnboardState,
   options: { reonboard?: boolean } = {},
 ): OnboardDecision {
-  if (repo === "re-cinq/lore") return reCinqLoreBlock();
+  if (repo === "re-cinq/lore") {
+    return reCinqLoreBlock();
+  }
   const inFlight = inFlightBlock(repo, state);
-  if (inFlight) return inFlight;
-  if (options.reonboard || !state.onboardingPrMerged) return { allowed: true };
+
+  if (inFlight) {
+    return inFlight;
+  }
+
+  if (options.reonboard || !state.onboardingPrMerged) {
+    return { allowed: true };
+  }
+
   return alreadyOnboardedBlock(repo);
 }
 

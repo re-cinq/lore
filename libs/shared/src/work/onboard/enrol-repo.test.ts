@@ -111,6 +111,7 @@ describe("enrolRepo", () => {
           ),
         commitFile: (branch, path) => {
           commits.push(`${branch} ${path}`);
+
           return Promise.resolve();
         },
       },
@@ -124,7 +125,9 @@ describe("enrolRepo", () => {
       ]),
       committed: expect.not.arrayContaining([LORE_INGEST_WORKFLOW_PATH]),
     });
-    expect(attention).toContain("## Needs attention\n\nThese files could not be committed:\n\n- `.github/workflows/lore-ingest.yml` — drifted from canonical template");
+    expect(attention).toContain(
+      "## Needs attention\n\nThese files could not be committed:\n\n- `.github/workflows/lore-ingest.yml` — drifted from canonical template",
+    );
   });
 
   it("hands back a needs-attention section naming the file that could not be committed, and audits it against task-1", async () => {
