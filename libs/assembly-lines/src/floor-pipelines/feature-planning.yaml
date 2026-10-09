@@ -718,8 +718,12 @@ stations:
       - changes_requested
       - failed
     needs:
+      # Optional: a generator pod that died before writing the set leaves the bag
+      # without one, and the station sends the generator back rather than the
+      # floor failing the run here for a need it cannot fill.
       - name: qa_questions
         kind: file
+        optional: true
       - name: plan_blocks
         kind: file
         optional: true
