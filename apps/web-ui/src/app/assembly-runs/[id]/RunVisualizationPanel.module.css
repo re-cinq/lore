@@ -103,10 +103,14 @@
   .resizeHandle {
     display: none;
   }
-  .centerCell,
+  /* Stacked, the detail card reads before the attempt it describes. */
   .sideRegion {
     grid-column: 1;
-    grid-row: auto;
+    grid-row: 2;
+  }
+  .centerCell {
+    grid-column: 1;
+    grid-row: 3;
   }
 }
 
