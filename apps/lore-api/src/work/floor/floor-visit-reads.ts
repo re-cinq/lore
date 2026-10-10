@@ -68,20 +68,25 @@ async function visitOfRun(
   return visit && visit.runId === runId ? visit : null;
 }
 
-/** Every event of the run, oldest first, read a page at a time from the floor's cursor. */
+// A bound on one request's work: past it the card shows the run's oldest events and leaves out the rest.
+const MAX_EVENT_PAGES = 25;
+
+/** The run's events, oldest first, read a page at a time from the floor's cursor, at most MAX_EVENT_PAGES pages. */
 async function runEvents(
   deps: VisitReadDeps,
   runId: string,
 ): Promise<FloorEventView[]> {
   const events: FloorEventView[] = [];
   let since: string | undefined;
+  let pages = 0;
 
   do {
     const page = await deps.eventsPage(runId, since);
 
+    pages += 1;
     events.push(...page.items);
     since = page.nextCursor ?? undefined;
-  } while (since !== undefined);
+  } while (since !== undefined && pages < MAX_EVENT_PAGES);
 
   return events;
 }

@@ -9,6 +9,8 @@ export interface VisitForEvents {
   requestedBy: string | null;
   /** The node's start event name: its `start:`, else `node.<id>.start`. */
   startEvent: string;
+  /** When the visit opened: a by-hand start is the last one posted before it. */
+  openedAt: string;
 }
 
 export interface VisitEventRow {
@@ -34,8 +36,10 @@ export function visitEventsOf(
   visit: VisitForEvents,
   events: readonly FloorEventView[],
 ): VisitEventRow[] {
+  const byHandStart = byHandStartOf(visit, events);
+
   return events.flatMap((floorEvent) => {
-    const relation = relationOf(visit, floorEvent);
+    const relation = relationOf(visit, floorEvent, byHandStart);
 
     return relation ? [rowOf(floorEvent, relation)] : [];
   });
@@ -44,6 +48,7 @@ export function visitEventsOf(
 function relationOf(
   visit: VisitForEvents,
   floorEvent: FloorEventView,
+  byHandStart: string | null,
 ): Relation | null {
   const payload = payloadOf(floorEvent);
 
@@ -59,7 +64,7 @@ function relationOf(
     return { direction: "handled", inferred: false };
   }
 
-  return startedIt(visit, floorEvent, payload)
+  return startedIt(visit, floorEvent, payload) || floorEvent.id === byHandStart
     ? { direction: "handled", inferred: true }
     : null;
 }
@@ -80,19 +85,45 @@ function idRelation(name: string): Relation | null {
     : null;
 }
 
-/** The node's start for this iteration, or, for a visit run by hand, a start that names no iteration. */
+/** The walk's start of the node for this iteration. */
 function startedIt(
   visit: VisitForEvents,
   floorEvent: FloorEventView,
   payload: Record<string, unknown>,
 ): boolean {
-  if (floorEvent.name !== visit.startEvent || payload.nodeId !== visit.nodeId) {
-    return false;
-  }
+  return (
+    startsNode(visit, floorEvent) &&
+    payload.iteration !== undefined &&
+    payload.iteration === visit.iteration
+  );
+}
 
-  return payload.iteration === undefined
-    ? visit.requestedBy !== null
-    : payload.iteration === visit.iteration;
+/** A by-hand start names no iteration, so a visit run by hand claims the last such start posted before it opened. */
+function byHandStartOf(
+  visit: VisitForEvents,
+  events: readonly FloorEventView[],
+): string | null {
+  if (visit.requestedBy === null) {
+    return null;
+  }
+  const before = events.filter(
+    (floorEvent) =>
+      startsNode(visit, floorEvent) &&
+      payloadOf(floorEvent).iteration === undefined &&
+      floorEvent.createdAt <= visit.openedAt,
+  );
+
+  return before.at(-1)?.id ?? null;
+}
+
+function startsNode(
+  visit: VisitForEvents,
+  floorEvent: FloorEventView,
+): boolean {
+  return (
+    floorEvent.name === visit.startEvent &&
+    payloadOf(floorEvent).nodeId === visit.nodeId
+  );
 }
 
 function rowOf(floorEvent: FloorEventView, relation: Relation): VisitEventRow {

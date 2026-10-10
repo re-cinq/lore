@@ -32,6 +32,7 @@ const visit = {
   iteration: 2,
   requestedBy: null,
   startEvent: "node.review.start",
+  openedAt: "2026-10-10T10:00:09.500Z",
 };
 
 const nameAndSide = (rows: ReturnType<typeof visitEventsOf>) =>
@@ -113,6 +114,24 @@ describe("visitEventsOf", () => {
     expect(
       nameAndSide(visitEventsOf({ ...visit, requestedBy: "bogdan" }, [byHand])),
     ).toEqual(["handled:node.review.start?"]);
+  });
+
+  it("counts only the by-hand start at :04 for a by-hand visit opened at :05, not those at :02 or :06", () => {
+    const starts = ["2", "4", "6"].map((id) =>
+      event(id, "node.review.start", {
+        nodeId: "review",
+        requestedBy: "bogdan",
+      }),
+    );
+    const secondByHand = {
+      ...visit,
+      requestedBy: "bogdan",
+      openedAt: "2026-10-10T10:00:05.000Z",
+    };
+
+    expect(visitEventsOf(secondByHand, starts).map((row) => row.id)).toEqual([
+      "4",
+    ]);
   });
 
   it("carries the event's attempts, error and acknowledgement onto its row", () => {
