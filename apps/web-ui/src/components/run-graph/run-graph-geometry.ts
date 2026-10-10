@@ -5,6 +5,10 @@ import type { VisibleGraph } from "@/lib/graph-view-model";
 
 // Box width, sized to the longest badge the spec puts in one ("Waiting for the spec PR", FR6.23, at 176); the layout uses this same constant as column pitch.
 export const NODE_WIDTH = 216;
+// Column pitch: a node box plus the air its connectors curve through.
+export const LAYER_GAP = 240;
+// Clear space kept around the drawing.
+export const VIEW_PADDING = 28;
 // Vertical pitch of one outcome row inside a definition-mode node.
 export const OUTCOME_ROW = 15;
 
@@ -31,13 +35,14 @@ const META_LINE_HEIGHT = 22;
 const TEXT_LINE_GAP = 16;
 const BASELINE_DROP = 4;
 const OUTCOME_TOP = 14;
-const PADDING = 28;
+const PADDING = VIEW_PADDING;
 const MIN_VIEW_WIDTH = 480;
 const MIN_VIEW_HEIGHT = 200;
 
 export interface FittedView {
   viewBox: string;
   width: number;
+  height: number;
 }
 
 // A padded viewBox around the content, floored to a natural size.
@@ -49,6 +54,7 @@ export function fitView(box: Box): FittedView {
   return {
     viewBox: `${box.minX - PADDING} ${cy - height / 2} ${width} ${height}`,
     width,
+    height,
   };
 }
 

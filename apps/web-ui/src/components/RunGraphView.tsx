@@ -3,12 +3,18 @@
 // Renders a VisibleGraph — lays out the mode-selected nodes/connectors from graph-view-model and hands drawing to ./run-graph/*; every node also carries its status as text, so meaning never rests on color alone.
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { layoutAssemblyLine } from "@/lib/dag-layout";
+import { columnsFor } from "@/lib/dag-wrap";
+import { typeFamilyOf } from "@/lib/node-type-family";
 import type { VisibleGraph } from "@/lib/graph-view-model";
 import ArrowMarkerDefs from "./run-graph/ArrowMarkerDefs";
 import GraphEdge from "./run-graph/GraphEdge";
 import GraphNode from "./run-graph/GraphNode";
+import RunGraphLegend from "./run-graph/RunGraphLegend";
+import { useElementWidth } from "./run-graph/use-element-width";
 import {
+  LAYER_GAP,
   NODE_WIDTH,
+  VIEW_PADDING,
   edgeMapKey,
   fitView,
   nodeHeightFor,
@@ -29,27 +35,56 @@ export interface RunGraphViewProps {
   heading?: string | null;
 }
 
-// The mode-selected workflow graph. Pure render of a VisibleGraph.
+// The mode-selected workflow graph: drawn at its natural size and wrapped onto as many rows as the panel's width needs.
 export default function RunGraphView(props: RunGraphViewProps) {
-  const { graph, definition, heading = "Graph", nodeMeta } = props;
+  const [panelRef, panelWidth] = useElementWidth<HTMLElement>();
+  const { graph, heading = "Graph" } = props;
 
   if (graph.nodes.length === 0) {
     return <EmptyGraph />;
   }
 
   return (
-    <section className={styles.panel}>
+    <section ref={panelRef} className={styles.panel}>
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
-      <GraphSvg
-        laid={layoutRunGraph(graph, definition, {
-          withMeta: hasMetaLine(graph, nodeMeta),
-        })}
-        mode={graph.mode}
-        onSelectNode={props.onSelectNode}
-        selectedNodeId={props.selectedNodeId}
-        nodeMeta={nodeMeta}
-      />
+      <div className={styles.scroll}>
+        <GraphSvg {...graphSvgProps(props, panelWidth)} />
+      </div>
+      <RunGraphLegend families={familiesOf(graph)} />
     </section>
+  );
+}
+
+/** Everything the drawing needs: the layout for this width, and the run's interaction and facts. */
+function graphSvgProps(props: RunGraphViewProps, panelWidth: number | null) {
+  const { graph, definition, nodeMeta } = props;
+
+  return {
+    laid: layoutRunGraph(graph, definition, {
+      withMeta: hasMetaLine(graph, nodeMeta),
+      columnsPerBand: columnsOf(panelWidth),
+    }),
+    mode: graph.mode,
+    onSelectNode: props.onSelectNode,
+    selectedNodeId: props.selectedNodeId,
+    nodeMeta,
+  };
+}
+
+/** Unmeasured (on the server, or before the first resize report), the line stays on one row. */
+function columnsOf(panelWidth: number | null): number {
+  return panelWidth === null
+    ? Number.POSITIVE_INFINITY
+    : columnsFor(panelWidth, {
+        layerGap: LAYER_GAP,
+        nodeWidth: NODE_WIDTH,
+        padding: VIEW_PADDING,
+      });
+}
+
+function familiesOf(graph: RunGraphViewProps["graph"]) {
+  return new Set(
+    graph.nodes.map((node) => typeFamilyOf(node.nodeType ?? node.type)),
   );
 }
 
@@ -75,7 +110,8 @@ function GraphSvg(props: LaidGraphProps) {
   return (
     <svg
       className={styles.svg}
-      style={{ ["--graph-width" as string]: `${view.width}px` }}
+      width={view.width}
+      height={view.height}
       role="img"
       aria-labelledby={titleId}
       viewBox={view.viewBox}
@@ -139,14 +175,13 @@ function GraphNodes(props: LaidGraphProps) {
 function layoutRunGraph(
   graph: RunGraphViewProps["graph"],
   definition: RunGraphViewProps["definition"],
-  { withMeta }: { withMeta: boolean },
+  { withMeta, columnsPerBand }: { withMeta: boolean; columnsPerBand: number },
 ) {
   const nodeHeight = nodeHeightFor(graph, { withMeta });
-  const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
-    nodeWidth: NODE_WIDTH,
-    nodeHeight,
-    rowGap: nodeHeight + 48,
-  });
+  const layout = layoutAssemblyLine(
+    toLayoutDefinition(graph, definition),
+    layoutOptions(nodeHeight, columnsPerBand),
+  );
 
   return {
     layout,
@@ -154,6 +189,17 @@ function layoutRunGraph(
     nodeHeight,
     titleId: `run-graph-title-${graph.mode}`,
     ...graphLookups(graph),
+  };
+}
+
+/** The run graph's pitch: full-size nodes, the rows of a layer a node apart, and as many columns per band as the panel holds. */
+function layoutOptions(nodeHeight: number, columnsPerBand: number) {
+  return {
+    layerGap: LAYER_GAP,
+    nodeWidth: NODE_WIDTH,
+    nodeHeight,
+    rowGap: nodeHeight + 48,
+    columnsPerBand,
   };
 }
 

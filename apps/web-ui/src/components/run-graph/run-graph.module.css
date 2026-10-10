@@ -7,13 +7,51 @@
   letter-spacing: -0.01em;
   margin-bottom: var(--space-3);
 }
+/* Drawn at its natural size and wrapped to the panel's width (run-viz FR4.1a); a single column wider than the panel scrolls rather than shrinks. */
+.scroll {
+  overflow-x: auto;
+}
 .svg {
   display: block;
-  width: 100%;
-  max-width: var(--graph-width);
-  height: auto;
-  max-height: 26rem;
   overflow: visible;
+}
+
+/* Step type (run-viz FR4.1h): a colour per family from the categorical palette, never a status colour. */
+.familyAgent {
+  --family: var(--chart-spec);
+}
+.familyService {
+  --family: var(--chart-section);
+}
+.familyPerson {
+  --family: var(--chart-feature);
+}
+.familyMarker {
+  --family: var(--chart-neutral);
+}
+.typeStripe {
+  fill: var(--family);
+}
+.typeGlyph {
+  fill: var(--family);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.legendSwatch {
+  flex: none;
 }
 .empty {
   color: var(--text-muted);

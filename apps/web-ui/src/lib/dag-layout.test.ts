@@ -114,6 +114,102 @@ describe("classifyEdges", () => {
   });
 });
 
+const chainLine: AssemblyLineDefinition = {
+  name: "chain",
+  description: "Four steps in a row, two loops back.",
+  version: 1,
+  entry: "a",
+  exit: "d",
+  nodes: [
+    { id: "a", type: "agent" },
+    { id: "b", type: "agent" },
+    { id: "c", type: "agent" },
+    { id: "d", type: "agent" },
+  ],
+  edges: [
+    { from: "a", to: "b", on: "success" },
+    { from: "b", to: "c", on: "success" },
+    { from: "c", to: "d", on: "success" },
+    { from: "d", to: "c", on: "failed" },
+    { from: "c", to: "a", on: "changes_requested" },
+  ],
+};
+
+const WRAP = { nodeWidth: 200, nodeHeight: 48, rowGap: 96, arcDrop: 56 };
+
+function pointsOf(d: string): { x: number; y: number }[] {
+  const numbers = (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+
+  return numbers.flatMap((n, i) =>
+    i % 2 === 0 ? [{ x: n, y: numbers[i + 1] }] : [],
+  );
+}
+
+describe("layoutAssemblyLine wrapped into bands", () => {
+  const wrapped = layoutAssemblyLine(chainLine, { ...WRAP, columnsPerBand: 2 });
+  const at = (id: string) => wrapped.nodes.find((n) => n.id === id)!;
+  const edge = (from: string, to: string) =>
+    wrapped.edges.find((e) => e.from === from && e.to === to)!;
+
+  it("starts the third step of a 2-column band on the next band, back in the first column", () => {
+    expect({ x: at("c").x, band: at("c").band }).toEqual({
+      x: at("a").x,
+      band: 1,
+    });
+  });
+
+  it("puts band 1 below band 0's nodes and the arc floor under them", () => {
+    expect(at("c").y - at("a").y).toBeGreaterThan(
+      WRAP.nodeHeight + WRAP.arcDrop,
+    );
+  });
+
+  it("routes b → c out of b's right side, under band 0, and into c's left side", () => {
+    const points = pointsOf(edge("b", "c").d);
+    const halfW = WRAP.nodeWidth / 2;
+    const halfH = WRAP.nodeHeight / 2;
+
+    expect({
+      start: points[0],
+      end: points.at(-1),
+      passesUnderBand0: points.some(
+        (p) => p.y > at("b").y + halfH && p.y < at("c").y - halfH,
+      ),
+    }).toEqual({
+      start: { x: at("b").x + halfW, y: at("b").y },
+      end: { x: at("c").x - halfW, y: at("c").y },
+      passesUnderBand0: true,
+    });
+  });
+
+  it("keeps the d → c retry inside band 1, below its nodes", () => {
+    const ys = pointsOf(edge("d", "c").d).map((p) => p.y);
+
+    expect({
+      belowBand1: Math.max(...ys) > at("c").y + WRAP.nodeHeight / 2,
+      neverAboveBand1: Math.min(...ys) >= at("c").y - WRAP.nodeHeight / 2,
+    }).toEqual({ belowBand1: true, neverAboveBand1: true });
+  });
+
+  it("routes the c → a restart up the left gutter into a's underside", () => {
+    const points = pointsOf(edge("c", "a").d);
+
+    expect({
+      end: points.at(-1),
+      usesLeftGutter: points.some((p) => p.x < at("a").x - WRAP.nodeWidth / 2),
+    }).toEqual({
+      end: { x: at("a").x, y: at("a").y + WRAP.nodeHeight / 2 },
+      usesLeftGutter: true,
+    });
+  });
+
+  it("keeps every node on one band when no column count is given", () => {
+    const flat = layoutAssemblyLine(chainLine, WRAP);
+
+    expect(new Set(flat.nodes.map((n) => n.y)).size).toBe(1);
+  });
+});
+
 describe("layoutAssemblyLine", () => {
   it("returns a non-zero-length path for the implement self-loop", () => {
     const loop = layoutAssemblyLine(implementationDefinition).edges.find(
