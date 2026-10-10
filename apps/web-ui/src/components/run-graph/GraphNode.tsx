@@ -168,7 +168,10 @@ function groupProps({ body, interaction, selected, family }: GroupInput) {
   const isSelected = selected === true;
 
   return {
-    className: nodeClassName({ badge, selected: isSelected }),
+    className: classes(
+      nodeClassName({ badge, selected: isSelected }),
+      FAMILY_CLASS[family],
+    ),
     "data-node": node.id,
     "data-tone": badge?.tone ?? "idle",
     "data-family": family,
@@ -249,41 +252,20 @@ function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
   );
 }
 
-// The stripe sits inside the rounded corners, so it reads as a band down the box's edge rather than a second box.
-const STRIPE_INSET = 8;
 // The type mark's centre from the box's top-left: inside the corner, clear of the status glyph below it and of the text to its right.
 const GLYPH_INSET = 11;
 
-/** The step's type, apart from its status: a stripe down the box's left edge and a mark in its top-left corner, both in the family's colour (run-viz FR4.1h). */
-function NodeTypeMarks(props: NodeBoxProps & { family: NodeTypeFamily }) {
-  const { family, leftEdge, top } = props;
-
-  return (
-    <>
-      <TypeStripe {...props} />
-      <TypeGlyph
-        family={family}
-        cx={leftEdge + GLYPH_INSET}
-        cy={top + GLYPH_INSET}
-      />
-    </>
-  );
-}
-
-function TypeStripe({
+/** The step's type mark in the box's top-left corner; the box itself wears the family's colour through the class on the group (run-viz FR4.1h). */
+function NodeTypeMarks({
   family,
   leftEdge,
   top,
-  height,
 }: NodeBoxProps & { family: NodeTypeFamily }) {
   return (
-    <rect
-      className={`${styles.typeStripe} ${FAMILY_CLASS[family]}`}
-      x={leftEdge + 1}
-      y={top + STRIPE_INSET}
-      width={3}
-      height={height - STRIPE_INSET * 2}
-      rx={1.5}
+    <TypeGlyph
+      family={family}
+      cx={leftEdge + GLYPH_INSET}
+      cy={top + GLYPH_INSET}
     />
   );
 }
