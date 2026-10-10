@@ -78,11 +78,6 @@ describe("createImplementationLoopTickHandler", () => {
           github_issue_number: 7,
           github_issue_url: "https://gh/acme/widgets/issues/7",
           branch: "lore/implementation-loop/issue-7",
-          line_args: {
-            pr_draft: true,
-            issue_number: 7,
-            issue_title: "Ticket 7",
-          },
         },
       },
     ]);
@@ -184,50 +179,15 @@ describe("the ticket's branch", () => {
     });
   });
 
-  it("asks for a draft pull request, so twelve round-pushes get no review each", async () => {
+  it("hands no pull request to started when no branch exists yet", async () => {
     const d = deps();
 
     await createImplementationLoopTickHandler(d.deps)({});
 
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { pr_draft: true },
-    });
+    expect(d.started[0].openPr).toBeNull();
   });
 
-  it("seeds the issue number so the PR closes the ticket on merge", async () => {
-    const d = deps();
-
-    await createImplementationLoopTickHandler(d.deps)({});
-
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { issue_number: 7 },
-    });
-  });
-
-  it("seeds the ticket title so the draft PR is not titled after its branch", async () => {
-    const d = deps();
-
-    await createImplementationLoopTickHandler(d.deps)({});
-
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { issue_title: "Ticket 7" },
-    });
-  });
-
-  it("seeds no resume args when no branch exists yet", async () => {
-    const d = deps();
-
-    await createImplementationLoopTickHandler(d.deps)({});
-
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { pr_draft: true },
-    });
-    expect(d.minted[0].contextBundle).not.toMatchObject({
-      line_args: { resumed_from_branch: true },
-    });
-  });
-
-  it("seeds line_args from the open pull request when the branch is being resumed", async () => {
+  it("hands pull request 77 to started when the branch is being resumed", async () => {
     const d = deps({
       branchExists: async () => true,
       openPrForBranch: async () => ({
@@ -238,12 +198,9 @@ describe("the ticket's branch", () => {
 
     await createImplementationLoopTickHandler(d.deps)({});
 
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: {
-        resumed_from_branch: true,
-        pr_number: 77,
-        pr_url: "https://gh/acme/widgets/pull/77",
-      },
+    expect(d.started[0].openPr).toEqual({
+      number: 77,
+      url: "https://gh/acme/widgets/pull/77",
     });
   });
 
@@ -420,6 +377,7 @@ describe("a ticket whose blockers are still open", () => {
         branch: "lore/implementation-loop/issue-7",
         issue: issue(7, ["priority:high"]),
         description: "Ticket 7",
+        openPr: null,
       },
     ]);
   });

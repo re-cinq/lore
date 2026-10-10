@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import RunNodeDetail from "./RunNodeDetail";
 import { implementationDefinition } from "@/lib/definition-fixtures";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
@@ -172,6 +172,31 @@ describe("RunNodeDetail", () => {
       "href",
       "https://github.com/re-cinq/lore/commit/aaa1111ffff",
     );
+  });
+
+  it("marks attempt 2 pressed and reports attempt 1 when its row is clicked", () => {
+    const onPickAttempt = vi.fn();
+
+    render(
+      <RunNodeDetail
+        nodeId="validate"
+        state={state()}
+        row={row({ nodeId: "validate", iteration: 2 })}
+        definition={implementationDefinition}
+        reason={null}
+        repo="re-cinq/lore"
+        attempts={[attempt(), attempt({ iteration: 2 })]}
+        selectedIteration={2}
+        onPickAttempt={onPickAttempt}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^attempt 1/ }));
+
+    expect(screen.getByRole("button", { name: /^attempt 2/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(onPickAttempt).toHaveBeenCalledWith(1);
   });
 
   it("omits the attempts history for a single attempt", () => {

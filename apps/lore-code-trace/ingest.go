@@ -55,7 +55,15 @@ func (e *staleStateError) Error() string {
 
 // errIngestRouteAbsent marks a lore-api that predates the incremental routes;
 // the caller falls back to the chunked webhook rather than failing CI.
-var errIngestRouteAbsent = errors.New("incremental ingest route not served by this lore-api")
+var (
+	errIngestRouteAbsent = errors.New("incremental ingest route not served by this lore-api")
+	errRetryExhausted    = errors.New("retryable ingest request exhausted")
+)
+
+type retryExhaustedError struct{ cause error }
+
+func (e retryExhaustedError) Error() string { return fmt.Sprintf("%v (after %d attempts)", e.cause, postAttempts) }
+func (e retryExhaustedError) Unwrap() []error { return []error{errRetryExhausted, e.cause} }
 
 func repoURL(apiBase, repo, tail string) string {
 	return apiBase + "/api/repos/" + repo + tail
@@ -110,7 +118,7 @@ func postIngestDelta(ctx context.Context, apiBase, token, repo string, d any, cl
 	if err != nil {
 		return fmt.Errorf("encoding delta: %w", err)
 	}
-	return retryTransient(func() (error, bool) {
+	return retryIngestTransient(func() (error, bool) {
 		return sendIngestDelta(ctx, apiBase, token, repo, b, client)
 	})
 }
@@ -118,6 +126,20 @@ func postIngestDelta(ctx context.Context, apiBase, token, repo string, d any, cl
 // retryTransient runs one attempt at a time under the webhook path's budget and
 // backoff. An attempt answers its error and whether another try could help.
 func retryTransient(attempt func() (error, bool)) error {
+	return retryWithExhaustion(attempt, func(lastErr error) error {
+		return fmt.Errorf("%w (after %d attempts)", lastErr, postAttempts)
+	})
+}
+
+// retryIngestTransient marks an exhausted request so the CLI can distinguish a
+// retryable graph-projection failure from an ordinary command failure.
+func retryIngestTransient(attempt func() (error, bool)) error {
+	return retryWithExhaustion(attempt, func(lastErr error) error {
+		return retryExhaustedError{cause: lastErr}
+	})
+}
+
+func retryWithExhaustion(attempt func() (error, bool), exhausted func(error) error) error {
 	var lastErr error
 	for n := 1; n <= postAttempts; n++ {
 		if n > 1 {
@@ -130,7 +152,7 @@ func retryTransient(attempt func() (error, bool)) error {
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("%w (after %d attempts)", lastErr, postAttempts)
+	return exhausted(lastErr)
 }
 
 // sendIngestDelta is one attempt. The second result says whether the failure is

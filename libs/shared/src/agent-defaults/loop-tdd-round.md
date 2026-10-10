@@ -3,7 +3,7 @@
 timeout_minutes: 60
 review_required: false
 execution_mode: claude-code
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 skills:
   - tdd-loop
 ---

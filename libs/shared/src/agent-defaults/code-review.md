@@ -9,7 +9,7 @@ test_policy: none
 # Pro reviews found the must-fixes the cheaper tiers approved past). If the
 # structured REVIEW_RESULT marker goes missing, the runner parser defaults to
 # changes-requested, which is the safe fallback.
-model: gemini-3.1-pro-preview
+model: claude-sonnet-4-6
 ---
 {description}
 

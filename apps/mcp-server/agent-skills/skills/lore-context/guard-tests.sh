@@ -22,7 +22,8 @@
 # command cannot vouch for a bare runner, and quotes count as whitespace so
 # `sh -c "npm test"` reads as `npm test`.
 #
-# POSIX sh + grep -E / sed -E only: the agent image promises neither bash nor jq.
+# POSIX sh + grep -E / sed -E only: the hook bundle also runs on other vendors' images,
+# which promise neither bash nor jq.
 
 policy="${LORE_TEST_POLICY:-scoped}"
 [ "$policy" = "any" ] && exit 0

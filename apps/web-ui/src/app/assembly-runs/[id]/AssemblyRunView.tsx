@@ -1,8 +1,11 @@
 import Link from "next/link";
 import type { AssemblyRun } from "@/lib/assembly-runs";
+import CollapsibleCard from "@/components/CollapsibleCard";
 import { formatDuration, runHeaderVisual } from "@/lib/assembly-run-presenter";
+import type { RunBag } from "@/lib/run-bag";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 import { CancelTaskButton } from "./CancelTaskButton";
+import NeedRef from "./NeedRef";
 import styles from "./AssemblyRunView.module.css";
 
 const EM_DASH = "—";
@@ -13,7 +16,7 @@ export interface AssemblyRunViewProps {
   waitingOn?: string | null;
 }
 
-// Run header — line-level facts only; per-node state lives in the visualization panel below.
+// Run header — the trail, the line's name and its status. The facts card is `RunFacts`, drawn under the graph (run-viz FR4.14); per-node state lives in the visualization panel below.
 export default function AssemblyRunView({
   run,
   waitingOn = null,
@@ -29,8 +32,6 @@ export default function AssemblyRunView({
           {visual.label}
         </span>
       </div>
-
-      <RunFacts run={run} />
     </div>
   );
 }
@@ -47,9 +48,16 @@ function RunTrail({ run }: AssemblyRunViewProps) {
   );
 }
 
-function RunFacts({ run }: AssemblyRunViewProps) {
+interface RunFactsProps {
+  run: AssemblyRunViewProps["run"];
+  /** The items the floor holds in the run's bag; null while unread, or for a run it does not have. */
+  bag?: RunBag | null;
+}
+
+/** The line-level facts as one open card: branch, outcome, why, how long, the task, PR and issue it ties to, and under them the run's bag. */
+export function RunFacts({ run, bag = null }: RunFactsProps) {
   return (
-    <div className="spec-card">
+    <CollapsibleCard title="Run facts" defaultOpen>
       <dl className={styles.facts}>
         <dt>Branch</dt>
         <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
@@ -62,8 +70,56 @@ function RunFacts({ run }: AssemblyRunViewProps) {
         <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
         <IssueFact issueUrl={run.issueUrl} issueNumber={run.issueNumber} />
       </dl>
+      <BagFacts runId={run.id} bag={bag} />
+    </CollapsibleCard>
+  );
+}
+
+const SHORT_SHA_CHARS = 7;
+
+/** What the line has put in the run's bag, by name, each ref where it leads (the same rules as a need, run-viz FR4.4l). Nothing to say, nothing drawn. */
+function BagFacts({ runId, bag }: { runId: string; bag: RunBag | null }) {
+  const bagEntries = Object.entries(bag ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+
+  if (bagEntries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.bag}>
+      <div className={styles.bagHead}>Bag ({bagEntries.length})</div>
+      <dl className={styles.facts}>
+        {bagEntries.map(([name, bagItem]) => (
+          <BagItem key={name} runId={runId} name={name} bagItem={bagItem} />
+        ))}
+      </dl>
     </div>
   );
+}
+
+interface BagItemProps {
+  runId: string;
+  name: string;
+  bagItem: RunBag[string];
+}
+
+function BagItem({ runId, name, bagItem }: BagItemProps) {
+  return (
+    <>
+      <dt>{name}</dt>
+      <dd>
+        <NeedRef runId={runId} value={bagItem.ref} />
+        <span className={styles.bagMeta}>{bagMeta(bagItem)}</span>
+      </dd>
+    </>
+  );
+}
+
+/** Its kind, who put it there and, for a git item, the commit it was promised, short. */
+function bagMeta({ kind, by, sha }: RunBag[string]): string {
+  return [kind, by, sha?.slice(0, SHORT_SHA_CHARS)].filter(Boolean).join(" · ");
 }
 
 // The line the repo's Backlog page runs; a run of any other line did not come from there.
