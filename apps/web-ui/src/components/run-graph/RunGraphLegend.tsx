@@ -34,9 +34,9 @@ export default function RunGraphLegend({
   );
 }
 
-const SWATCH_STRIPE = { x: 0, y: 1, width: 3, height: 12, rx: 1.5 };
+const SWATCH_BOX = { x: 1, y: 1, width: 16, height: 12, rx: 3 };
 
-/** The stripe and the mark a node of this family wears, side by side. */
+/** A small box in the family's colours with its mark, as a node of this family is drawn. */
 function LegendSwatch({ family }: { family: NodeTypeFamily }) {
   return (
     <svg
@@ -46,11 +46,10 @@ function LegendSwatch({ family }: { family: NodeTypeFamily }) {
       viewBox="0 0 18 14"
       aria-hidden="true"
     >
-      <rect
-        className={`${styles.typeStripe} ${FAMILY_CLASS[family]}`}
-        {...SWATCH_STRIPE}
-      />
-      <TypeGlyph family={family} cx={11} cy={7} />
+      <g className={FAMILY_CLASS[family]}>
+        <rect className={styles.legendBox} {...SWATCH_BOX} />
+        <TypeGlyph family={family} cx={9} cy={7} />
+      </g>
     </svg>
   );
 }
