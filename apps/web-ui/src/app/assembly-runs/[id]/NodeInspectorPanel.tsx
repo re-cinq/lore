@@ -6,7 +6,7 @@ import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 import type { NodeModel } from "@/lib/node-models";
-import { isFloorEngine } from "@/lib/assembly-run-rows";
+import { canRunByHand } from "@/lib/run-node-permission";
 import RunNodeDetail from "./RunNodeDetail";
 import { RunNodeButton } from "./RunNodeButton";
 import styles from "./RunVisualizationPanel.module.css";
@@ -132,16 +132,14 @@ function NodeActions(props: NodeInspectorProps) {
   );
 }
 
-/** "Run this station" on a floor run's node. The exit and fail nodes end the run, so they have no station to run. */
+/** "Run this station" on a floor run's agent or service node (run-viz FR4.14): the exit and fail nodes end the run, a person's station is answered rather than run, and a marker has nothing to run. */
 function RunNodeSlot({
   nodeId,
   runId,
   engine,
   definition,
 }: NodeInspectorProps) {
-  const endsRun = nodeId === definition?.exit || nodeId === definition?.fail;
-
-  if (!isFloorEngine(engine) || endsRun) {
+  if (!canRunByHand(nodeId, definition, engine)) {
     return null;
   }
 

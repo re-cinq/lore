@@ -1,20 +1,28 @@
 "use client";
 
-// The center column (run-viz FR4.1f): one attempt of the selected node at a time — the selector row, then its transcript OR its pod logs, then what it was started with. Prop-driven, no state or IO of its own (DDAU).
+// The center column (run-viz FR4.1f, FR4.1i): one attempt of the selected node at a time, and what that attempt can show depends on the kind of station that ran it. Prop-driven, no state or IO of its own (DDAU).
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { StepView } from "@/lib/step-presenter";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import type { InspectorKind } from "@/lib/run-attempt-select";
+import { attemptSections, type AttemptSections } from "@/lib/attempt-sections";
+import { typeFamilyOf } from "@/lib/node-type-family";
+import AgentAttemptCard from "./AgentAttemptCard";
 import { AttemptSelectorRow } from "./AttemptSelectorRow";
-import FullTranscriptPanel from "./FullTranscriptPanel";
-import NodeLogPanel from "./NodeLogPanel";
+import HumanVisitCard from "./HumanVisitCard";
+import NodeEventsCard from "./NodeEventsCard";
 import NodeInputCard, { type NodeInputView } from "./NodeInputCard";
+import NodeModelCallsCard from "./NodeModelCallsCard";
 import NodeNeedsCard from "./NodeNeedsCard";
+import NodeOutcomeCard from "./NodeOutcomeCard";
+import VisitTimingCard from "./VisitTimingCard";
 import styles from "./RunVisualizationPanel.module.css";
 
 export interface AttemptInspectorProps {
   runId: string;
   nodeId: string | null;
+  /** The selected node's declared type; its family decides what an attempt can show. */
+  nodeType?: string;
   /** Which engine walks the run; it decides what a missing pod means. */
   engine?: string;
   attempts: readonly StepView[];
@@ -34,84 +42,97 @@ export function AttemptInspector(props: AttemptInspectorProps) {
   if (nodeId === null || attempt === null) {
     return null;
   }
-
-  const shown: AttemptCardProps = { ...props, nodeId, attempt };
+  const sections = attemptSections(typeFamilyOf(props.nodeType), attempt);
+  const shown: ShownAttempt = { ...props, nodeId, attempt, sections };
 
   return (
     <section className={styles.attempts} aria-label={`${nodeId} attempts`}>
-      <AttemptSelectorRow
-        kind={props.kind}
-        onKindChange={props.onKindChange}
-        attempts={props.attempts}
-        selectedIteration={attempt.iteration}
-        onAttemptChange={props.onPickAttempt}
-      />
-      <AttemptCard {...shown} />
+      <AttemptChoice {...shown} />
+      <AttemptRecord {...shown} />
+      <AttemptOutputs {...shown} />
       <AttemptStart {...shown} />
     </section>
   );
 }
 
-type AttemptCardProps = AttemptInspectorProps & {
+type ShownAttempt = AttemptInspectorProps & {
   nodeId: string;
   attempt: AssemblyRunNode;
+  sections: AttemptSections;
 };
 
-/** What the attempt was started with: the floor's bag for a floor visit, the recorded dispatch input for one of Lore's own. */
-function AttemptStart({ runId, attempt, inputs }: AttemptCardProps) {
+/** The attempt select, and the Show select only where there is a transcript or a log to choose between. */
+function AttemptChoice({ sections, ...props }: ShownAttempt) {
+  const showChoice = sections.showSelect
+    ? { kind: props.kind, onKindChange: props.onKindChange }
+    : {};
+
+  return (
+    <AttemptSelectorRow
+      {...showChoice}
+      attempts={props.attempts}
+      selectedIteration={props.attempt.iteration}
+      onAttemptChange={props.onPickAttempt}
+    />
+  );
+}
+
+/** What happened in the attempt: an agent's transcript or logs, a service's or marker's outcome, a person's answer, and when. */
+function AttemptRecord(props: ShownAttempt) {
+  const { sections, attempt } = props;
+
   return (
     <>
-      <NodeNeedsCard
-        runId={runId}
-        needs={attempt.needs ?? null}
-        iteration={attempt.iteration}
-      />
-      <NodeInputCard
-        inputs={inputs.filter((input) => input.iteration === attempt.iteration)}
-      />
+      {sections.transcript ? <AgentAttemptCard {...props} /> : null}
+      {sections.outcome ? <NodeOutcomeCard attempt={attempt} /> : null}
+      {sections.human ? (
+        <HumanVisitCard attempt={attempt} nodeType={props.nodeType} />
+      ) : null}
+      {sections.timing ? <VisitTimingCard attempt={attempt} /> : null}
     </>
   );
 }
 
-/** The one card the selector asks for. Keyed on the run so switching attempts refilters the transcript already walked rather than walking it again. */
-function AttemptCard(props: AttemptCardProps) {
-  const { runId, nodeId, attempt, kind } = props;
-
-  if (kind === "transcript") {
-    return (
-      <FullTranscriptPanel
-        key={runId}
-        runId={runId}
-        nodeId={nodeId}
-        iteration={attempt.iteration}
-        taskEvents={props.taskEvents}
-        rows={[attempt]}
-        liveEventId={props.liveEventId}
-      />
-    );
-  }
-
-  return <PodLogsCard {...props} />;
+/** What the attempt made and set off: what it produced, the models it called, the events it handled and raised. */
+function AttemptOutputs({ runId, attempt, sections }: ShownAttempt) {
+  return (
+    <>
+      {sections.produced ? (
+        <NodeNeedsCard
+          runId={runId}
+          title="Produced"
+          needs={attempt.produced ?? null}
+          iteration={attempt.iteration}
+        />
+      ) : null}
+      {sections.modelCalls ? (
+        <NodeModelCallsCard runId={runId} attempt={attempt} />
+      ) : null}
+      {sections.events ? (
+        <NodeEventsCard runId={runId} attempt={attempt} />
+      ) : null}
+    </>
+  );
 }
 
-/** An attempt with no Agent CR name never reached a pod — a service station, or a visit that failed before dispatch — so there are no logs to offer, and an empty panel would read as logs that failed to load. */
-function PodLogsCard({ runId, attempt, engine }: AttemptCardProps) {
-  if (!attempt.agentCrName) {
-    return (
-      <p className={`meta ${styles.hint}`}>
-        Attempt {attempt.iteration} never reached a pod, so it has no logs.
-      </p>
-    );
-  }
-
+/** What the attempt was started with: the floor's bag for a floor visit, the recorded dispatch input for one of Lore's own. */
+function AttemptStart({ runId, attempt, inputs, sections }: ShownAttempt) {
   return (
-    <NodeLogPanel
-      key={attempt.agentCrName}
-      assemblyLineId={runId}
-      engine={engine}
-      agentCrName={attempt.agentCrName}
-      label={`Pod logs · attempt ${attempt.iteration}`}
-      defaultOpen
-    />
+    <>
+      {sections.needs ? (
+        <NodeNeedsCard
+          runId={runId}
+          needs={attempt.needs ?? null}
+          iteration={attempt.iteration}
+        />
+      ) : null}
+      {sections.input ? (
+        <NodeInputCard
+          inputs={inputs.filter(
+            (input) => input.iteration === attempt.iteration,
+          )}
+        />
+      ) : null}
+    </>
   );
 }

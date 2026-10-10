@@ -7,12 +7,15 @@ interface NodeNeedsCardProps {
   runId: string;
   needs: Record<string, string> | null;
   iteration: number;
+  /** "Needs" by default; "Produced" lists what the visit reported it made, the refs linked the same way. */
+  title?: string;
 }
 
 export default function NodeNeedsCard({
   runId,
   needs,
   iteration,
+  title = "Needs",
 }: NodeNeedsCardProps) {
   if (needs === null) {
     return null;
@@ -20,7 +23,7 @@ export default function NodeNeedsCard({
 
   return (
     <CollapsibleCard
-      title="Needs"
+      title={title}
       defaultOpen
       labels={[`attempt ${iteration}`]}
       emptyState="This attempt was handed nothing."

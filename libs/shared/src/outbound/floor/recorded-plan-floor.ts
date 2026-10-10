@@ -49,6 +49,8 @@ const UNSTARTED_VISIT: VisitView = {
   requestedBy: null,
   deadline: null,
   resumedFrom: null,
+  openedAt: "2026-10-01T09:00:00.000Z",
+  finishedAt: null,
   agentSettings: null,
 };
 

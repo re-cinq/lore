@@ -73,6 +73,10 @@ export interface StationRunFailure {
 /** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts) extended with `needs` — the floor brief's bag as the pod saw it at start (name → ref), absent on a table-backed record, whose dispatch snapshot is `input`. */
 export type StationRunRecord = StationRun & {
   needs?: Record<string, string> | null;
+  /** What the visit reported it produced (name → value or blob hash); null until it reports, absent on a table-backed record. */
+  produced?: Record<string, string> | null;
+  /** A human station's page, resolved from its route template; null when the station names none or a placeholder had nothing to fill it. */
+  routeUrl?: string | null;
 };
 
 /** The overlap guard's row: everything it compares, nothing it does not. */

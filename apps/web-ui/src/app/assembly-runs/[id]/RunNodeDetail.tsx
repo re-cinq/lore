@@ -7,6 +7,7 @@ import { describeNode, type NodeDetail } from "@/lib/run-node-detail-presenter";
 import type { NodeStatusTone } from "@/lib/run-node-status";
 import type { StepView } from "@/lib/step-presenter";
 import { modelShortLabel, type NodeModel } from "@/lib/node-models";
+import { typeFamilyOf } from "@/lib/node-type-family";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import { AttemptHistory } from "./AttemptHistory";
 import styles from "./RunNodeDetail.module.css";
@@ -52,9 +53,9 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
     >
       <p className={`${styles.why} ${WHY_CLASS[detail.tone]}`}>{detail.why}</p>
       <ErroredSteps failures={detail.failures} />
-      <NodeFacts detail={detail} repo={props.repo} model={props.model} />
+      <NodeFacts {...props} detail={detail} />
       <AttemptHistory {...props} />
-      <TouchedFiles files={detail.files} />
+      <TouchedFiles detail={detail} />
     </CollapsibleCard>
   );
 }
@@ -85,27 +86,48 @@ function ErroredSteps({ failures }: { failures: NodeDetail["failures"] }) {
 interface NodeFactsProps {
   detail: NodeDetail;
   repo: string;
-  model: NodeModel | null | undefined;
+  model?: NodeModel | null;
+  row?: RunNodeDetailProps["row"];
 }
 
-function NodeFacts({ detail, repo, model }: NodeFactsProps) {
+function NodeFacts({ detail, repo, model, row }: NodeFactsProps) {
+  const isAgent = isAgentNode(detail);
+  const requestedBy = row?.requestedBy ?? null;
+
   return (
     <dl className={styles.facts}>
-      <ModelFact model={model} />
+      {isAgent ? <ModelFact model={model} /> : null}
       <Fact label="Attempt">{detail.iteration || "—"}</Fact>
       <Fact label="Duration">{detail.durationLabel}</Fact>
       <StartedAtFact startedAt={detail.startedAt} />
       <Fact label="Outcome">{detail.outcomeLabel}</Fact>
-      <Fact label="Files touched">{detail.files.length || "—"}</Fact>
-      <Fact label="Transcript">{transcriptSummary(detail)}</Fact>
-      <AgentCrFact agentCrName={detail.agentCrName} />
+      {isAgent ? <AgentFacts detail={detail} /> : null}
+      <RunByFact requestedBy={requestedBy} />
       <CommitFact commitSha={detail.commitSha} repo={repo} />
     </dl>
   );
 }
 
-function TouchedFiles({ files }: { files: string[] }) {
-  if (files.length === 0) {
+/** Who ran the visit by hand; absent when the walk opened it. */
+function RunByFact({ requestedBy }: { requestedBy: string | null }) {
+  return requestedBy ? <Fact label="Run by">{requestedBy}</Fact> : null;
+}
+
+/** What only an agent has: files it touched, a transcript, and the pod it ran in (run-viz FR4.14). */
+function AgentFacts({ detail }: { detail: NodeDetail }) {
+  return (
+    <>
+      <Fact label="Files touched">{detail.files.length || "—"}</Fact>
+      <Fact label="Transcript">{transcriptSummary(detail)}</Fact>
+      <AgentCrFact agentCrName={detail.agentCrName} />
+    </>
+  );
+}
+
+function TouchedFiles({ detail }: { detail: NodeDetail }) {
+  const { files } = detail;
+
+  if (files.length === 0 || !isAgentNode(detail)) {
     return null;
   }
 
@@ -205,4 +227,9 @@ function Fact({
       <dd>{children}</dd>
     </div>
   );
+}
+
+/** Files, a transcript and a pod are an agent's alone (run-viz FR4.14). */
+function isAgentNode(detail: NodeDetail): boolean {
+  return typeFamilyOf(detail.nodeType ?? undefined) === "agent";
 }

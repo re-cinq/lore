@@ -99,6 +99,12 @@ import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
 import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
 import { floorRunBlob, runBlobRoute } from "./routes/floor/run-blob.js";
 import { floorRunBag, runBagRoute } from "./routes/floor/run-bag.js";
+import {
+  floorVisitEvents,
+  floorVisitModelCalls,
+  visitEventsRoute,
+  visitModelCallsRoute,
+} from "./routes/floor/visit-reads.js";
 import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
@@ -299,5 +305,7 @@ function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
     nodeLogsRoute(nodeLogsReader(stored)),
     runBlobRoute(floorRunBlob),
     runBagRoute(floorRunBag),
+    visitModelCallsRoute(floorVisitModelCalls),
+    visitEventsRoute(floorVisitEvents),
   ];
 }
