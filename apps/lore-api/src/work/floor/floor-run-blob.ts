@@ -15,6 +15,7 @@ export interface RunBlob {
 
 const TEXT_LIMIT_BYTES = 1_048_576;
 const TEXTUAL_CONTENT_TYPE = /^(text\/|application\/(json|ya?ml|xml))/;
+const UNTYPED = "application/octet-stream";
 
 /** Null for a run the floor lacks, a hash the run never referenced, and a blob the floor no longer holds. */
 export async function runBlob(
@@ -58,15 +59,34 @@ function blobView(
   stored: { bytes: Uint8Array; contentType: string },
 ): RunBlob {
   const { bytes, contentType } = stored;
-  const textual = TEXTUAL_CONTENT_TYPE.test(contentType);
+  const head = bytes.subarray(0, TEXT_LIMIT_BYTES);
+  const cut = bytes.length > TEXT_LIMIT_BYTES;
+  const text = TEXTUAL_CONTENT_TYPE.test(contentType)
+    ? new TextDecoder().decode(head)
+    : untypedText(contentType, bytes);
 
   return {
     hash,
     contentType,
     size: bytes.length,
-    text: textual
-      ? new TextDecoder().decode(bytes.subarray(0, TEXT_LIMIT_BYTES))
-      : null,
-    truncated: textual && bytes.length > TEXT_LIMIT_BYTES,
+    text,
+    truncated: text !== null && cut,
   };
+}
+
+// A floor station stores the files it produces with no type, so the floor files them as octet-stream; bytes that read as UTF-8 and hold no NUL are text all the same. Only a cut head may end mid-character.
+function untypedText(contentType: string, bytes: Uint8Array): string | null {
+  const head = bytes.subarray(0, TEXT_LIMIT_BYTES);
+
+  if (contentType !== UNTYPED || head.includes(0)) {
+    return null;
+  }
+
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(head, {
+      stream: bytes.length > TEXT_LIMIT_BYTES,
+    });
+  } catch {
+    return null;
+  }
 }
