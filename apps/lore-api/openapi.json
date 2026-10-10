@@ -817,6 +817,60 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/blob-previews": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_blob-previews",
+        "summary": "GET /api/assembly-runs/{id}/blob-previews",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The first 4 KiB of each blob the run references, by hash; a hash it does not reference is left out. 400 for a malformed hash or more than 50, 404 for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlobPreviews"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/blobs/{hash}": {
       "get": {
         "operationId": "get_api_assembly-runs_id_blobs_hash",
@@ -9431,6 +9485,41 @@
           }
         },
         "required": ["entries"],
+        "additionalProperties": false
+      },
+      "BlobPreviews": {
+        "type": "object",
+        "properties": {
+          "previews": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "hash": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number"
+                },
+                "text": {
+                  "type": ["string", "null"]
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["hash", "contentType", "size", "text", "truncated"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["previews"],
         "additionalProperties": false
       },
       "BranchCreated": {
