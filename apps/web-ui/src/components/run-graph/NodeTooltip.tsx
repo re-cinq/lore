@@ -18,7 +18,8 @@ interface NodeTooltipProps {
 }
 
 export default function NodeTooltip({ id, tooltip, anchor }: NodeTooltipProps) {
-  const card = usePlacedAt(anchor);
+  const placement = placementOf(anchor);
+  const card = usePlacedAt(anchor.left, placement.top);
 
   return (
     <div
@@ -26,7 +27,7 @@ export default function NodeTooltip({ id, tooltip, anchor }: NodeTooltipProps) {
       id={id}
       role="tooltip"
       className={`${styles.tooltip} ${FAMILY_CLASS[tooltip.family]}`}
-      data-placement={placementOf(anchor).side}
+      data-placement={placement.side}
     >
       <strong className={styles.tooltipTitle}>{tooltip.title}</strong>
       <span className={styles.tooltipKind}>{tooltip.kind}</span>
@@ -36,19 +37,16 @@ export default function NodeTooltip({ id, tooltip, anchor }: NodeTooltipProps) {
 }
 
 /** Pins the card where the anchor says, after layout and before paint, so it never shows where it was last. */
-function usePlacedAt(anchor: TooltipAnchor) {
+function usePlacedAt(left: number, top: number) {
   const card = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const element = card.current;
 
     if (element) {
-      Object.assign(element.style, {
-        left: `${anchor.left}px`,
-        top: `${placementOf(anchor).top}px`,
-      });
+      Object.assign(element.style, { left: `${left}px`, top: `${top}px` });
     }
-  }, [anchor]);
+  }, [left, top]);
 
   return card;
 }
