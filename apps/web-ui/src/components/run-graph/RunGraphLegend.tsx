@@ -1,5 +1,5 @@
 // Under the graph: what each step-type mark means, for the families this line has (run-viz FR4.1h).
-import type { NodeTypeFamily } from "@/lib/node-type-family";
+import { FAMILY_LABEL, type NodeTypeFamily } from "@/lib/node-type-family";
 import TypeGlyph, { FAMILY_CLASS } from "./TypeGlyph";
 import styles from "./run-graph.module.css";
 
@@ -9,13 +9,6 @@ const FAMILY_ORDER: readonly NodeTypeFamily[] = [
   "person",
   "marker",
 ];
-
-const FAMILY_LABEL: Record<NodeTypeFamily, string> = {
-  agent: "Agent",
-  service: "Service",
-  person: "Person",
-  marker: "Marker",
-};
 
 export default function RunGraphLegend({
   families,

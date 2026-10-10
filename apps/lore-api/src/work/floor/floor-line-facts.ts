@@ -1,6 +1,9 @@
-// What a run's line version says about its nodes, read once per version (a version is its content): the graph the page draws, each human station's route template, and the event that starts each node.
+// What a run's line version says about its nodes, read once per version (a version is its content): the graph the page draws with what each station does, each human station's route template, and the event that starts each node.
 import type { FloorClient, LineBody, RunView } from "@re-cinq/floor-client";
-import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import type {
+  RunGraph,
+  RunGraphNode,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   lineBodyToRunGraph,
   type StationKindName,
@@ -19,6 +22,7 @@ export interface LineFacts {
 interface StationFacts {
   kind: StationKindName;
   route?: string;
+  description?: string;
 }
 
 export async function readLineFacts(
@@ -30,15 +34,48 @@ export async function readLineFacts(
   const stations = await stationFactsOf(floor, body);
 
   return {
-    graph: lineBodyToRunGraph(run.lineId, body, kindsOf(stations)),
-    routes: routesOf(body, stations),
-    startEvents: Object.fromEntries(
-      body.nodes.map((node) => [
-        node.id,
-        node.start ?? `node.${node.id}.start`,
-      ]),
+    graph: describedGraph(
+      lineBodyToRunGraph(run.lineId, body, kindsOf(stations)),
+      body,
+      stations,
     ),
+    routes: routesOf(body, stations),
+    startEvents: startEventsOf(body),
   };
+}
+
+function startEventsOf(body: LineBody): Record<string, string> {
+  return Object.fromEntries(
+    body.nodes.map((node) => [node.id, node.start ?? `node.${node.id}.start`]),
+  );
+}
+
+/** Each node with what its station does, the run graph's tooltip; a marker, and a station that says nothing, get none. */
+function describedGraph(
+  graph: RunGraph,
+  body: LineBody,
+  stations: Record<string, StationFacts>,
+): RunGraph {
+  const stationOf = new Map(body.nodes.map((node) => [node.id, node.station]));
+
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      ...descriptionOf(stationOf.get(node.id), stations),
+    })),
+  };
+}
+
+function descriptionOf(
+  station: string | undefined,
+  stations: Record<string, StationFacts>,
+): Pick<RunGraphNode, "description"> {
+  const facts: StationFacts | undefined =
+    station === undefined ? undefined : stations[stationNameOf(station)];
+  const description = facts?.description;
+
+  return description === undefined ? {} : { description };
 }
 
 async function stationFactsOf(
@@ -88,13 +125,26 @@ function factsOf(body: {
   kind: "agent" | "service" | "human";
   produces?: readonly unknown[];
   route?: string;
+  description?: string;
 }): StationFacts {
   const kind =
     body.kind === "human" && (body.produces?.length ?? 0) > 0
       ? "author"
       : body.kind;
 
-  return body.route === undefined ? { kind } : { kind, route: body.route };
+  return {
+    kind,
+    ...definedOf({ route: body.route, description: body.description }),
+  };
+}
+
+/** The fields that are set, so a station that names no route or description carries no key for it. */
+function definedOf(
+  fields: Record<"route" | "description", string | undefined>,
+): Pick<StationFacts, "route" | "description"> {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined),
+  );
 }
 
 /** A node may pin its station as `name@hash`. */

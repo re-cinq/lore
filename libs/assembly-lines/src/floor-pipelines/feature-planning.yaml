@@ -404,6 +404,7 @@ line:
       on: failed
 stations:
   plan-analyze:
+    description: An AI agent drafts or refines the plan together with its people, saying what the change is for and what it touches, and asking what only a person can decide.
     kind: agent
     agent_definition: plan-analyze
     # Each Refine continues the previous round's conversation for the SAME plan, so
@@ -429,6 +430,7 @@ stations:
         optional: true
     produces: []
   plan-author:
+    description: Waits on the plan page for its people. Approve moves on to writing the spec, Refine sends a section back to the agent, and walking away ends the run.
     kind: human
     outcomes:
       - success
@@ -449,6 +451,7 @@ stations:
       - name: description
         kind: value
   plan-pass-end:
+    description: Closes one planning pass before the author is asked again. If the Refine round died, it tells the person instead of leaving them waiting.
     kind: service
     outcomes:
       - success
@@ -464,6 +467,7 @@ stations:
         optional: true
     produces: []
   plan-grounding:
+    description: Checks without AI that the files and names the plan mentions exist on the default branch, and writes any it cannot find onto the plan as findings.
     kind: service
     outcomes:
       - success
@@ -479,6 +483,7 @@ stations:
         access: read
     produces: []
   plan-validate:
+    description: An AI agent run when someone clicks Validate on the plan page. It reads the plan against the repository and reports contradictions and gaps without fixing them.
     kind: agent
     agent_definition: plan-validate
     outcomes:
@@ -500,6 +505,7 @@ stations:
         kind: file
         path: plan-validation.json
   plan-findings:
+    description: Writes the validator's findings into the plan for its people to read. If the validator delivered nothing, it puts a blocker on the plan instead.
     kind: service
     outcomes:
       - success
@@ -517,6 +523,7 @@ stations:
   # blocker findings, one per check in its section, so Approve refuses until the
   # plan is fixed. See apps/stations/src/planning/spec-findings.
   spec-findings:
+    description: When the spec checks give up, writes what the spec could not uphold into the plan as blocking findings and hands the plan back to its people to fix.
     kind: service
     outcomes:
       - success
@@ -528,6 +535,7 @@ stations:
         kind: file
     produces: []
   spec-analysis:
+    description: An AI agent decides which spec files the approved plan creates or changes, and records what it learned of the repository for the writers after it.
     kind: agent
     agent_definition: spec-analysis
     outcomes:
@@ -556,6 +564,7 @@ stations:
         kind: file
         path: repo-context.md
   spec-write:
+    description: One AI agent per plan section returns a patch that folds that section into the spec. It commits nothing, so many can run at once.
     kind: agent
     agent_definition: spec-write
     outcomes:
@@ -591,6 +600,7 @@ stations:
         kind: file
         path: section-patch.json
   assemble:
+    description: Applies every section patch in the order the sections were listed, commits the spec once, and says whether another round of section writing is owed.
     kind: service
     outcomes:
       - success
@@ -613,6 +623,7 @@ stations:
       - name: section_state
         kind: file
   spec-rework:
+    description: An AI agent rewrites the whole spec set from the approved plan when a person asks for it again while the spec pull request waits on review.
     kind: agent
     agent_definition: spec-rework
     outcomes:
@@ -645,6 +656,7 @@ stations:
         kind: file
         path: spec-review-result.json
   spec-draft:
+    description: An AI agent writes the first draft of the spec from the plan's intent section alone, leaving the other sections for the writers that follow.
     kind: agent
     agent_definition: spec-draft
     outcomes:
@@ -670,6 +682,7 @@ stations:
         optional: true
     produces: []
   split-sections:
+    description: Lists the plan sections this round still has to fold into the spec, and starts one writer agent per section.
     kind: service
     outcomes:
       - success
@@ -695,6 +708,7 @@ stations:
       - name: section_state
         kind: file
   spec-qa-generate:
+    description: An AI agent writes test questions from the approved plan alone, never seeing the spec. The set is frozen and later used to check that the spec kept the plan.
     kind: agent
     agent_definition: spec-qa-generate
     outcomes:
@@ -721,6 +735,7 @@ stations:
         kind: file
         path: qa-questions.json
   qa-questions:
+    description: Checks the frozen question set against the plan's blocks, then hands the questions to the answerer without the answers they expect.
     kind: service
     outcomes:
       - success
@@ -744,6 +759,7 @@ stations:
       - name: qa_question_errors
         kind: file
   spec-qa-answer:
+    description: An AI agent answers the frozen questions from the spec alone, never seeing the plan, so a wrong answer shows what the spec left out.
     kind: agent
     agent_definition: spec-qa-answer
     outcomes:
@@ -762,6 +778,7 @@ stations:
         kind: file
         path: qa-answers.json
   spec-qa-recheck:
+    description: A second AI agent re-answers only the questions the first answerer failed, so one flaky answer does not cost a whole fix round.
     kind: agent
     agent_definition: spec-qa-recheck
     outcomes:
@@ -780,6 +797,7 @@ stations:
         kind: file
         path: qa-recheck-answers.json
   qa-gate:
+    description: Judges the pushed spec by scoring the blind answers and running the spec's own checks. It opens the pull request, sends sections back to the writers, asks for a recheck, or gives up.
     kind: service
     outcomes:
       - success
@@ -834,6 +852,7 @@ stations:
       - name: plan_coverage
         kind: file
   open-spec-pr:
+    description: Opens the spec pull request, titled after the plan, listing any plan blocks the spec does not cite and any questions it still fails.
     kind: service
     outcomes:
       - success
@@ -877,6 +896,7 @@ stations:
       - name: issue_coverage
         kind: file
   spec-pr-merged:
+    description: Waits on the spec pull request on GitHub. A merge moves on to splitting the spec into tasks, and a request for changes goes back to the plan's people.
     kind: human
     outcomes:
       - success
@@ -889,6 +909,7 @@ stations:
     needs: []
     produces: []
   feature-decompose:
+    description: An AI agent breaks the merged spec into stories and tasks the implementation loop can build, without changing or questioning the spec.
     kind: agent
     agent_definition: feature-decompose
     outcomes:
@@ -934,6 +955,7 @@ stations:
         kind: file
         path: decomposition.json
   issues:
+    description: Files the decomposition as GitHub issues, a story issue holding the plan and one task issue per task with a priority label, so the implementation loop picks them up.
     kind: service
     outcomes:
       - success
@@ -968,6 +990,7 @@ stations:
         optional: true
     produces: []
   issue-coverage:
+    description: Counts the spec statements this plan wrote that no task issue covers, and sends only those back to the decompose agent.
     kind: service
     outcomes:
       - success

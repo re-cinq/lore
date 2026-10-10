@@ -174,6 +174,7 @@ line:
       iteration_max: 1
 stations:
   loop-dod:
+    description: An AI agent defines done for the ticket as acceptance tests that fail today, writing no production code. It ends the run if the ticket is unclear or already resolved.
     kind: agent
     agent_definition: loop-dod
     conversation: new
@@ -197,6 +198,7 @@ stations:
       - name: dod_resolved
         kind: value
   loop-open-pr:
+    description: Opens a draft pull request for the ticket's branch, so every later round is judged by that pull request's CI.
     kind: service
     outcomes:
       - success
@@ -219,6 +221,7 @@ stations:
       - name: pr_url
         kind: value
   loop-tdd-round:
+    description: An AI agent does exactly one red, green, refactor round toward the acceptance tests and pushes it. CI then judges the round.
     kind: agent
     agent_definition: loop-tdd-round
     conversation: new
@@ -247,6 +250,7 @@ stations:
       - name: tdd_blocked
         kind: value
   loop-await-ci:
+    description: Waits until the pull request's CI judges the latest round. Green moves on to review, red asks for another round, and a build that stays red goes to repair.
     kind: human
     outcomes:
       - success
@@ -265,6 +269,7 @@ stations:
       - name: round_brief
         kind: file
   loop-repair-build:
+    description: An AI agent fixes only the checks that stayed red after a round that pushed nothing new, so the loop does not re-derive the same failure.
     kind: agent
     agent_definition: loop-fix-ci
     conversation: new
@@ -291,6 +296,7 @@ stations:
       - name: ci_blocked
         kind: value
   loop-ready-for-review:
+    description: An AI agent writes the pull request's title and description for human reviewers once CI is green on the finished ticket.
     kind: agent
     agent_definition: loop-pr-ready
     conversation: new
@@ -317,6 +323,7 @@ stations:
       - name: pr_blocked
         kind: value
   loop-mark-ready:
+    description: Applies the agent's title and description and marks the draft pull request ready for review.
     kind: service
     outcomes:
       - success
@@ -341,6 +348,7 @@ stations:
         optional: true
     produces: []
   loop-await-pr:
+    description: Waits on the pull request until CI is green and no review thread is open. Red CI goes to a fix, while open threads end the run for people to settle.
     kind: human
     outcomes:
       - success
@@ -359,6 +367,7 @@ stations:
       - name: round_brief
         kind: file
   loop-fix-ci:
+    description: An AI agent makes the red build green on the pull request after it was marked ready, changing only what CI reported.
     kind: agent
     agent_definition: loop-fix-ci
     conversation: new

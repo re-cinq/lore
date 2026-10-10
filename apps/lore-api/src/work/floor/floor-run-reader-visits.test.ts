@@ -88,6 +88,7 @@ const ANSWERS: Record<string, unknown> = {
   }),
   "/stations/plan-author": station("plan-author", {
     kind: "human",
+    description: "Waits on the plan page for its people",
     outcomes: ["success"],
     needs: [{ name: "plan_id", kind: "value" }],
     produces: [{ name: "plan", kind: "file" }],
@@ -143,6 +144,19 @@ describe("FloorRunReader visits", () => {
     expect(visits.find((visit) => visit.nodeId === "author")?.routeUrl).toBe(
       "/repos/re-cinq/lore/plans/plan-7",
     );
+  });
+
+  it("draws the author node with plan-author's description, and the code-review node without one", async () => {
+    const found = await reader().getById("run-1");
+    const nodes = found?.graph?.nodes ?? [];
+
+    expect(
+      nodes.map(({ id, description }) => ({ id, description })),
+    ).toMatchObject([
+      { id: "review", description: undefined },
+      { id: "author", description: "Waits on the plan page for its people" },
+      { id: "done", description: undefined },
+    ]);
   });
 
   it("reads visit-1's llm_call record as one model call", async () => {
