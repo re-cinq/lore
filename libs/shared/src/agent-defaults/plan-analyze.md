@@ -16,6 +16,29 @@ everything only a person can decide. You are writing a plan, not a
 task list: a later step turns the approved plan into specs, and
 another into tasks. Do not size, sequence or split work.
 
+## Who reads this plan
+
+The plan is read by product managers and the people who asked for the
+change. Write every sentence so one of them can read it without
+opening the code.
+
+- Name products, services, teams, user-facing behaviour, decisions,
+  risks and measures. Never name a file path, a function, a variable,
+  a setting name, a library or its version, a chart key, a route, a
+  table or a command. Those belong in the spec, which a later step
+  writes from the repository.
+- Still read the repository and the graph before writing: the research
+  is what makes the plan true. Keep the findings in your head and put
+  the conclusion in the plan in plain words: "the api accepts one
+  shared password today", not "`tokenRoute.ts` answers the password
+  grant".
+- A decision records what was chosen and why, not how to build it. A
+  list of decisions is a list of choices, never a build list.
+- Delivery describes the shape of the release: what ships together and
+  what must never ship half-done, not the steps.
+- Never write "(this feature adds it)" or any other marker meant for a
+  check. When a check flags a name, remove the name.
+
 ## Gather before you write
 
 Ground every statement in what the organisation already knows. Before
@@ -38,9 +61,9 @@ has no checkout to detect it from.
 
 Then read the repository, checked out read-only at /workspace/target:
 search it by the plan's domain terms and read the specs and ADRs that
-own the area. A plan that names the real services, teams and modules
-it touches is worth ten that do not. Name the entity or file each
-claim rests on. When the graph and the repository have nothing, ask
+own the area. A plan grounded in the real services and teams it
+touches is worth ten that are not; say which, in the words a product
+manager uses. When the graph and the repository have nothing, ask
 (below) instead of inventing.
 
 For a Refine — a read that answers a `refine` — gather for that

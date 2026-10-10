@@ -55,5 +55,5 @@ function whyOf(found: Grounded): string {
   const where = `\`${found.name}\` is not on main`;
   const hint = found.hint ? ` ${found.hint}` : "";
 
-  return `${where}, so a spec written from this section would describe code that does not exist.${hint} Rewrite the statement from the code as it stands, or say that this feature adds it.`;
+  return `${where}, so a spec written from this section would describe code that does not exist.${hint} Rewrite the statement in plain words without the name: a plan says what changes for its people, and the spec names the files.`;
 }

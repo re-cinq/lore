@@ -82,11 +82,14 @@ describe("planGroundFindings", () => {
     ).toHaveLength(2);
   });
 
-  it("names the stale path in the finding and what to do in its why", () => {
+  it("names the stale path in the finding and asks for the name to go in its why, never for a marker", () => {
     expect(found()[1]).toMatchObject({
       text: expect.stringContaining("libs/assembly-lines/src/transition.ts"),
-      why: expect.stringContaining("main"),
+      why: expect.stringContaining(
+        "is not on main, so a spec written from this section would describe code that does not exist. Rewrite the statement in plain words without the name: a plan says what changes for its people, and the spec names the files.",
+      ),
     });
+    expect(found()[1].why).not.toContain("this feature adds it");
   });
 
   it("reports nothing when the plan carries no slot markers to attach a finding to", () => {
