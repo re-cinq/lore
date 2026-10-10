@@ -87,10 +87,10 @@ describe("visitEventsOf", () => {
     ]);
   });
 
-  it("counts the outside event that answered the visit as handled", () => {
+  it("counts the outside event that answered visit-0 and visit-1 as handled by visit-1", () => {
     const closed = event("6", "github.pull_request.closed", {
       merged: true,
-      answeredVisitId: "visit-1",
+      answeredVisitIds: ["visit-0", "visit-1"],
     });
 
     expect(nameAndSide(visitEventsOf(visit, [closed]))).toEqual([

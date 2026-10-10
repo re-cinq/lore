@@ -1,4 +1,4 @@
-// The events one visit handled and raised (run-viz FR4.1i). Exact where the floor says so: `visitId` on its dispatch, abort, report and cost note; `causedBy` on what its report enqueued; `answeredVisitId` on the outside event that answered it. Its own start event names only the node and iteration, so that match is marked inferred.
+// The events one visit handled and raised (run-viz FR4.1i). Exact where the floor says so: `visitId` on its dispatch, abort, report and cost note; `causedBy` on what its report enqueued; `answeredVisitIds` on the outside event that answered it. Its own start event names only the node and iteration, so that match is marked inferred.
 import type { FloorEventView } from "@re-cinq/floor-client";
 
 export interface VisitForEvents {
@@ -55,13 +55,19 @@ function relationOf(
     return { direction: "raised", inferred: false };
   }
 
-  if (payload.answeredVisitId === visit.id) {
+  if (answered(payload, visit.id)) {
     return { direction: "handled", inferred: false };
   }
 
   return startedIt(visit, floorEvent, payload)
     ? { direction: "handled", inferred: true }
     : null;
+}
+
+function answered(payload: Record<string, unknown>, visitId: string): boolean {
+  const visitIds = payload.answeredVisitIds;
+
+  return Array.isArray(visitIds) && visitIds.includes(visitId);
 }
 
 function idRelation(name: string): Relation | null {
