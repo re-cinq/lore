@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { needLink } from "./need-link";
+import { commitLink, needLink } from "./need-link";
 
 const HASH = `sha256-${"ab12".repeat(16)}`;
 
@@ -55,5 +55,23 @@ describe("needLink", () => {
 
   it("leaves text that merely contains a URL unlinked", () => {
     expect(needLink("see https://github.com/re-cinq/lore", "run-1")).toBeNull();
+  });
+});
+
+describe("commitLink", () => {
+  it("links github.com/re-cinq/lore@fix/login at abc1234 to that commit", () => {
+    expect(commitLink("github.com/re-cinq/lore@fix/login", "abc1234")).toBe(
+      "https://github.com/re-cinq/lore/commit/abc1234",
+    );
+  });
+
+  it("links nothing for a git ref with no sha", () => {
+    expect(
+      commitLink("github.com/re-cinq/lore@fix/login", undefined),
+    ).toBeNull();
+  });
+
+  it("links nothing for a ref on a host it does not know", () => {
+    expect(commitLink("gitlab.com/re-cinq/lore@main", "abc1234")).toBeNull();
   });
 });

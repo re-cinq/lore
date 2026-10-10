@@ -11,9 +11,9 @@ import { runBlob, type RunBlob } from "../../../work/floor/floor-run-blob.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 
-const BLOB_HASH = /^sha256-[0-9a-f]{64}$/;
+export const BLOB_HASH = /^sha256-[0-9a-f]{64}$/;
 
-const RunBlobSchema = z.object({
+export const RunBlobSchema = z.object({
   hash: z.string(),
   contentType: z.string(),
   size: z.number(),

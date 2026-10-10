@@ -110,6 +110,7 @@ function RunDetails({ props, run, live }: PanelSources) {
       <RunFactsCard
         run={run}
         refreshKey={bagRefreshKey(live.run.status, live.nodes)}
+        nodes={live.nodes}
       />
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />

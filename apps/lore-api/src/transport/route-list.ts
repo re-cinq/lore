@@ -98,6 +98,10 @@ import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
 import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
 import { floorRunBlob, runBlobRoute } from "./routes/floor/run-blob.js";
+import {
+  blobPreviewsRoute,
+  floorBlobPreviews,
+} from "./routes/floor/blob-previews.js";
 import { floorRunBag, runBagRoute } from "./routes/floor/run-bag.js";
 import {
   floorVisitEvents,
@@ -304,6 +308,7 @@ function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
     runEventsRoute(eventPageReader(stored)),
     nodeLogsRoute(nodeLogsReader(stored)),
     runBlobRoute(floorRunBlob),
+    blobPreviewsRoute(floorBlobPreviews),
     runBagRoute(floorRunBag),
     visitModelCallsRoute(floorVisitModelCalls),
     visitEventsRoute(floorVisitEvents),

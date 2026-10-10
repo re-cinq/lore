@@ -17,6 +17,18 @@ export function needLink(ref: string, runId: string): NeedLink | null {
   return WEB_URL.test(ref) ? { href: ref, external: true } : githubLink(ref);
 }
 
+/** The commit a git item was promised, on GitHub; null without a sha or off GitHub. */
+export function commitLink(
+  ref: string,
+  sha: string | null | undefined,
+): string | null {
+  const match = GITHUB_REF.exec(ref);
+
+  return match && sha
+    ? `https://github.com/${match[1]}/${match[2]}/commit/${encodeURIComponent(sha)}`
+    : null;
+}
+
 /** `github.com/owner/name@branch`, as the floor writes a git item's ref. */
 function githubLink(ref: string): NeedLink | null {
   const match = GITHUB_REF.exec(ref);

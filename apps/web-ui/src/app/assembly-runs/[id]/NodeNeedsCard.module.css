@@ -18,8 +18,3 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-
-.mono {
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-}

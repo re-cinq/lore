@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
+import RunBagFacts from "./RunBagFacts";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import { codeReviewDefinition } from "@/lib/definition-fixtures";
@@ -1332,5 +1333,46 @@ describe("the attempt column by station kind", () => {
     expect(
       screen.queryByRole("button", { name: "Run this station" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("the bag names who put an item there", () => {
+  const implementAttempt = (iteration: number): AssemblyRunNode => ({
+    nodeId: "implement",
+    iteration,
+    outcome: "success",
+    agentCrName: null,
+    commitSha: null,
+    durationSeconds: 30,
+    stationRunId: `visit-${iteration}`,
+  });
+
+  it("shows implement's attempt 1 in the center once implement · attempt 1 is clicked in the bag", async () => {
+    stubHistory([]);
+    useFakeSocket();
+    const nodes = [implementAttempt(1), implementAttempt(2)];
+    const bag = {
+      plan: { kind: "value", ref: "plan-7", by: "visit-1" },
+    } as const;
+
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={definition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+        runDetails={<RunBagFacts runId="run-1" bag={bag} nodes={nodes} />}
+      />,
+    );
+    await settle();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "implement · attempt 1" }),
+      );
+    });
+
+    expect(screen.getByLabelText("Attempt")).toHaveValue("1");
   });
 });
