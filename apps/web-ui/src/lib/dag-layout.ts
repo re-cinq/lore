@@ -280,11 +280,7 @@ function bandFloors(nodes: LayoutNode[], opts: ResolvedOptions): number[] {
 
 /** Right edge of the widest band, node box included. */
 function layoutWidth(nodes: LayoutNode[], opts: ResolvedOptions): number {
-  const columns = nodes.map(
-    (node) => wrapLayer(node.layer, opts.columnsPerBand).column,
-  );
-
-  return opts.originX + Math.max(...columns) * opts.layerGap + opts.nodeWidth;
+  return Math.max(...nodes.map((node) => node.x)) + opts.nodeWidth;
 }
 
 interface EdgeLayoutInput {
