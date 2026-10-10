@@ -13,7 +13,12 @@ import { useDiffDrawer } from "./use-diff-drawer";
 import { attemptInspectorProps, inspectorProps } from "./run-inspector-props";
 import { RunGraphSection } from "./RunGraphSection";
 import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
-import { useInspectorFocus, type InspectorFocus } from "./use-inspector-focus";
+import {
+  useFocusAttempt,
+  useInspectorFocus,
+  type InspectorFocus,
+} from "./use-inspector-focus";
+import { RunFocusContext, type FocusAttempt } from "./run-focus-context";
 import { useResizablePanelWidth } from "./use-resizable-panel-width";
 import { useRunVisualization, type RunView } from "./use-run-visualization";
 
@@ -55,14 +60,31 @@ export default function RunVisualizationPanel(
   const drawer = useDiffDrawer();
 
   return (
-    <section className={styles.panel}>
+    <FocusProvider
+      focusAttempt={useFocusAttempt(view.setSelectedNodeId, focus)}
+    >
       <RunWorkbenchLayout
         graph={<GraphWithHeader view={view} {...graphProps(props)} />}
         {...inspectorSlots({ view, page: props, focus, drawer })}
         sideWidth={side.width}
         onResizeSide={side.setWidth}
       />
-    </section>
+    </FocusProvider>
+  );
+}
+
+/** The panel's section, telling the cards inside it how to show one attempt of a node (run-viz FR4.4n). */
+function FocusProvider({
+  focusAttempt,
+  children,
+}: {
+  focusAttempt: FocusAttempt;
+  children: ReactNode;
+}) {
+  return (
+    <RunFocusContext.Provider value={focusAttempt}>
+      <section className={styles.panel}>{children}</section>
+    </RunFocusContext.Provider>
   );
 }
 

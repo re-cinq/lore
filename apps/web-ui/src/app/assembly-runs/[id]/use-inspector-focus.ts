@@ -13,6 +13,8 @@ export interface InspectorFocus {
   /** The attempt on show: the viewer's pick while the node still has it, else the newest. */
   attempt: AssemblyRunNode | null;
   pickAttempt: (iteration: number) => void;
+  /** Picks an attempt of any node, for a caller that selects the node too. */
+  pickAttemptOf: (nodeId: string, iteration: number) => void;
 }
 
 export function useInspectorFocus(
@@ -27,7 +29,7 @@ export function useInspectorFocus(
 function useAttemptPick(
   selectedNodeId: string | null,
   rows: readonly AssemblyRunNode[],
-): Pick<InspectorFocus, "attempt" | "pickAttempt"> {
+): Pick<InspectorFocus, "attempt" | "pickAttempt" | "pickAttemptOf"> {
   const [pick, setPick] = useState<AttemptPick | null>(null);
   const attempt = useMemo(
     () =>
@@ -41,7 +43,30 @@ function useAttemptPick(
     [selectedNodeId],
   );
 
-  return { attempt, pickAttempt };
+  return { attempt, pickAttempt, pickAttemptOf: usePickAttemptOf(setPick) };
+}
+
+function usePickAttemptOf(setPick: (pick: AttemptPick) => void) {
+  return useCallback(
+    (nodeId: string, iteration: number) => setPick({ nodeId, iteration }),
+    [setPick],
+  );
+}
+
+/** Selects a node and shows one of its attempts in one step: what the bag's "put there by" link does (run-viz FR4.4n). */
+export function useFocusAttempt(
+  selectNode: (nodeId: string) => void,
+  focus: Pick<InspectorFocus, "pickAttemptOf">,
+): (nodeId: string, iteration: number) => void {
+  const { pickAttemptOf } = focus;
+
+  return useCallback(
+    (nodeId: string, iteration: number) => {
+      selectNode(nodeId);
+      pickAttemptOf(nodeId, iteration);
+    },
+    [selectNode, pickAttemptOf],
+  );
 }
 
 function pickOf(nodeId: string | null, iteration: number): AttemptPick | null {

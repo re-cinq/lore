@@ -1,6 +1,7 @@
-// The bag as the pod saw it at start (run-viz FR4.4l): the floor brief's needs for one attempt, name → ref, each ref linked where it leads. A visit Lore's own engine walked recorded none, and shows no card.
+// The bag as the pod saw it at start (run-viz FR4.4l): the floor brief's needs for one attempt, name → ref, each ref shown the way a person reads it. A visit Lore's own engine walked recorded none, and shows no card.
 import CollapsibleCard from "@/components/CollapsibleCard";
-import NeedRef from "./NeedRef";
+import ItemValue from "./ItemValue";
+import { useBlobPreviews } from "./use-blob-previews";
 import styles from "./NodeNeedsCard.module.css";
 
 interface NodeNeedsCardProps {
@@ -42,20 +43,24 @@ function needsList(runId: string, needs: Record<string, string>) {
   ) : null;
 }
 
-function NeedsList({
-  runId,
-  entries,
-}: {
+interface NeedsListProps {
   runId: string;
   entries: [string, string][];
-}) {
+}
+
+function NeedsList({ runId, entries }: NeedsListProps) {
+  const previews = useBlobPreviews(
+    runId,
+    entries.map(([, value]) => value),
+  );
+
   return (
     <dl className={styles.needs}>
       {entries.map(([name, value]) => (
         <div key={name} className={styles.need}>
           <dt>{name}</dt>
-          <dd className={styles.mono}>
-            <NeedRef runId={runId} value={value} />
+          <dd>
+            <ItemValue runId={runId} value={value} preview={previews[value]} />
           </dd>
         </div>
       ))}

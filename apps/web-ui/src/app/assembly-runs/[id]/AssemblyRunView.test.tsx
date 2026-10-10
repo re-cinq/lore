@@ -131,7 +131,7 @@ describe("AssemblyRunView", () => {
 
     expect(screen.getByText("Bag (3)")).toBeInTheDocument();
     expect(screen.getByText("task_id").nextElementSibling).toHaveTextContent(
-      "task-1value · lore",
+      /^task-1Copyvalue · lore$/,
     );
   });
 
