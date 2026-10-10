@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **renders Triage tab alongside Backlog** — Asserts that "Triage" appears in the tab list alongside "Backlog".
+- [x] **renders Triage tab alongside Backlog** — Asserts that "Triage" appears in the tab list alongside "Backlog".
   `apps/web-ui/src/app/repos/[owner]/[repo]/layout.test.tsx`
 
 ## Facets
 
-- [ ] Add the Triage tab to `repoTabs` in `layout.tsx`.
+- [x] Add the Triage tab to `repoTabs` in `layout.tsx`.
 
 ## Out of scope
 
