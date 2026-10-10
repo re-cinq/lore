@@ -9,6 +9,8 @@ export interface HumanStationMeta {
   phase: "awaiting-author" | "awaiting-merge";
   /** The detail panel's answer to "why is nothing happening". */
   whyParked: string;
+  /** The link to where the person acts, when the station names its page. */
+  openLabel: string;
 }
 
 export const HUMAN_STATIONS: Record<HumanStationType, HumanStationMeta> = {
@@ -17,16 +19,19 @@ export const HUMAN_STATIONS: Record<HumanStationType, HumanStationMeta> = {
     phase: "awaiting-author",
     whyParked:
       "Parked — waiting for you: open the plan to refine or approve it.",
+    openLabel: "Open the plan",
   },
   pr_review: {
     label: "Waiting for the spec PR",
     phase: "awaiting-merge",
     whyParked: "Parked — waiting for the spec PR to merge.",
+    openLabel: "Open the pull request",
   },
   ci_check: {
     label: "Waiting for CI",
     phase: "awaiting-merge",
     whyParked: "Parked — waiting for the pull request's build to finish.",
+    openLabel: "Open the build",
   },
 };
 

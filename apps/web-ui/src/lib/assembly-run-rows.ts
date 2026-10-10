@@ -72,6 +72,18 @@ export interface AssemblyRunNode {
   agentCrName: string | null;
   /** Null for a visit dispatched before input was recorded; optional so test doubles need not set it (the mapper always does). */
   input?: StationRunInput | null;
+  /** The visit's id on its engine; the per-visit reads (events, model calls) are keyed by it. Optional for test doubles. */
+  stationRunId?: string | null;
+  /** What the visit reported it produced, name → value or blob hash; null until it reports. */
+  produced?: Record<string, string> | null;
+  /** A human station's page for this visit; null when it names none. */
+  routeUrl?: string | null;
+  /** Who reported the visit: a worker, `station:<name>`, a person, or `event:<name>`. */
+  worker?: string | null;
+  /** The person or event that ran the node by hand; null when the walk opened it. */
+  requestedBy?: string | null;
+  /** When the visit finished; null while it is open. */
+  finishedAt?: string | null;
   /** The bag as the pod saw it at start — the floor brief's needs, name → ref; null for a visit Lore's own engine walked. Optional for test doubles, the mapper always sets it. */
   needs?: Record<string, string> | null;
   commitSha: string | null;
@@ -157,9 +169,22 @@ export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
     agentCrName: row.agent_cr_name,
     input: row.input ?? null,
     needs: row.needs ?? null,
+    ...visitFactsOf(row),
     commitSha: row.commit_sha,
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
     startedAt: row.started_at,
+  };
+}
+
+/** What a floor visit adds to its row: its id, what it produced, its page, who reported it, who ran it by hand, and when it finished. */
+function visitFactsOf(row: AssemblyRunNodeRow) {
+  return {
+    stationRunId: row.station_run_id,
+    produced: row.produced,
+    routeUrl: row.route_url,
+    worker: row.worker,
+    requestedBy: row.requested_by,
+    finishedAt: row.finished_at,
   };
 }
 

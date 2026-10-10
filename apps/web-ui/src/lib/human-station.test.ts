@@ -9,6 +9,7 @@ describe("humanStation", () => {
       phase: "awaiting-author",
       whyParked:
         "Parked — waiting for you: open the plan to refine or approve it.",
+      openLabel: "Open the plan",
     });
   });
 
@@ -17,6 +18,7 @@ describe("humanStation", () => {
       label: "Waiting for the spec PR",
       phase: "awaiting-merge",
       whyParked: "Parked — waiting for the spec PR to merge.",
+      openLabel: "Open the pull request",
     });
   });
 

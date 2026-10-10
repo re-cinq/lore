@@ -4,8 +4,9 @@ import type { InspectorKind } from "@/lib/run-attempt-select";
 import styles from "./AttemptSelectorRow.module.css";
 
 interface AttemptSelectorRowProps {
-  kind: InspectorKind;
-  onKindChange: (kind: InspectorKind) => void;
+  /** The Show select appears only when both are handed in: an agent attempt's transcript or logs (run-viz FR4.1i). */
+  kind?: InspectorKind;
+  onKindChange?: (kind: InspectorKind) => void;
   attempts: readonly StepView[];
   selectedIteration: number;
   onAttemptChange: (iteration: number) => void;
@@ -14,7 +15,9 @@ interface AttemptSelectorRowProps {
 export function AttemptSelectorRow(props: AttemptSelectorRowProps) {
   return (
     <div className={styles.row}>
-      <KindSelect kind={props.kind} onKindChange={props.onKindChange} />
+      {props.kind && props.onKindChange ? (
+        <KindSelect kind={props.kind} onKindChange={props.onKindChange} />
+      ) : null}
       <AttemptSelect
         attempts={props.attempts}
         selectedIteration={props.selectedIteration}
@@ -29,7 +32,10 @@ const FIELD_CLASS = `task-form ${styles.field}`;
 function KindSelect({
   kind,
   onKindChange,
-}: Pick<AttemptSelectorRowProps, "kind" | "onKindChange">) {
+}: {
+  kind: InspectorKind;
+  onKindChange: (kind: InspectorKind) => void;
+}) {
   return (
     <label className={FIELD_CLASS}>
       Show

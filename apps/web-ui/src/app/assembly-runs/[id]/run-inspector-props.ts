@@ -1,3 +1,4 @@
+import { nodeTypeOf } from "@/lib/human-station";
 import type { RunLiveState } from "@/lib/run-event-reducer";
 import type { AttemptInspectorProps } from "./AttemptInspector";
 import type { InspectorFocus } from "./use-inspector-focus";
@@ -43,6 +44,7 @@ export function attemptInspectorProps(
   return {
     runId: inspector.runId,
     nodeId: inspector.selectedNodeId,
+    nodeType: selectedNodeType(inspector),
     engine: inspector.engine,
     attempts: inspector.selectedAttempts,
     inputs: inspector.nodeInputs,
@@ -53,6 +55,17 @@ export function attemptInspectorProps(
     onKindChange: focus.setKind,
     onPickAttempt: focus.pickAttempt,
   };
+}
+
+/** The selected node's declared type, which decides what its attempts can show (run-viz FR4.1i). */
+function selectedNodeType(
+  inspector: ReturnType<typeof inspectorProps>,
+): string | undefined {
+  const { selectedNodeId, definition } = inspector;
+
+  return selectedNodeId === null
+    ? undefined
+    : nodeTypeOf(definition, selectedNodeId);
 }
 
 function pageFacts(page: RunDetailPage) {

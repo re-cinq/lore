@@ -713,7 +713,7 @@ describe("node inspector", () => {
     });
   });
 
-  it("keeps Pod logs chosen when another node is selected", async () => {
+  it("keeps Pod logs chosen across a trip to another node and back", async () => {
     stubHistory([]);
     useFakeSocket();
 
@@ -727,6 +727,7 @@ describe("node inspector", () => {
       target: { value: "pods" },
     });
     await selectNode("validate");
+    await selectNode("implement");
 
     expect(screen.getByLabelText("Show")).toHaveValue("pods");
   });
@@ -1201,6 +1202,135 @@ describe("a run that ended", () => {
     );
     expect(
       screen.queryByRole("button", { name: "Show possible outcomes" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("the attempt column by station kind", () => {
+  const kindDefinition: AssemblyLineDefinition = {
+    name: "planning",
+    description: "draft, ground, approve",
+    version: 1,
+    entry: "draft",
+    exit: "done",
+    nodes: [
+      { id: "draft", type: "agent" },
+      { id: "ground", type: "validate" },
+      { id: "approve", type: "pr_review" },
+      { id: "done", type: "retrospective" },
+    ],
+    edges: [
+      { from: "draft", to: "ground", on: "success" },
+      { from: "ground", to: "approve", on: "success" },
+      { from: "approve", to: "done", on: "success" },
+    ],
+  };
+
+  function visitRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
+    return {
+      nodeId: "draft",
+      iteration: 1,
+      outcome: "success",
+      agentCrName: null,
+      commitSha: null,
+      durationSeconds: 30,
+      ...over,
+    };
+  }
+
+  async function renderAndSelect(nodes: AssemblyRunNode[], nodeId: string) {
+    stubHistory([]);
+    FakeWebSocket.reset();
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={kindDefinition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+        engine="floor"
+      />,
+    );
+    await settle();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${nodeId} —`) }),
+      );
+    });
+  }
+
+  it("shows ground, a service node, its error in an Outcome card and no Show select", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          nodeId: "ground",
+          outcome: "failed",
+          failureDetail: "the plan names a file main does not have",
+          agentCrName: "floor-visit-2",
+        }),
+      ],
+      "ground",
+    );
+
+    expect({
+      show: screen.queryByLabelText("Show"),
+      error: screen.getByText("the plan names a file main does not have")
+        .textContent,
+    }).toEqual({
+      show: null,
+      error: "the plan names a file main does not have",
+    });
+  });
+
+  it("shows approve, waiting on a person, as Waiting for the spec PR with Open the pull request", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          nodeId: "approve",
+          outcome: null,
+          routeUrl: "https://github.com/re-cinq/lore/pull/412",
+        }),
+      ],
+      "approve",
+    );
+
+    expect({
+      waiting: screen.getAllByText("Waiting for the spec PR").length > 0,
+      open: screen
+        .getByRole("link", { name: "Open the pull request" })
+        .getAttribute("href"),
+    }).toEqual({
+      waiting: true,
+      open: "https://github.com/re-cinq/lore/pull/412",
+    });
+  });
+
+  it("shows a Produced card for a draft attempt that produced plan", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          produced: { plan: "plan text" },
+          agentCrName: "floor-visit-1",
+        }),
+      ],
+      "draft",
+    );
+
+    expect({
+      show: screen.getByLabelText("Show") !== null,
+      produced: screen.getByText("Produced") !== null,
+    }).toEqual({ show: true, produced: true });
+  });
+
+  it("offers no Run this station on approve, which a person answers", async () => {
+    await renderAndSelect(
+      [visitRow({ nodeId: "approve", outcome: null })],
+      "approve",
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Run this station" }),
     ).not.toBeInTheDocument();
   });
 });
