@@ -15,6 +15,7 @@ jobs:
       - name: Check PR description sections
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
 
@@ -22,7 +23,7 @@ jobs:
           WARNINGS=""
 
           # --- Skip for Lore generated PRs ---
-          if echo "$PR_BODY" | grep -q "lore-plan-task"; then
+          if [ "$PR_AUTHOR" = "lore-agent[bot]" ] || echo "$PR_BODY" | grep -q "lore-plan-task"; then
             echo "PR description looks good (Lore generated)."
             exit 0
           fi
