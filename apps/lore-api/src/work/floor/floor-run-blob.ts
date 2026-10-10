@@ -60,28 +60,31 @@ function blobView(
 ): RunBlob {
   const { bytes, contentType } = stored;
   const head = bytes.subarray(0, TEXT_LIMIT_BYTES);
+  const cut = bytes.length > TEXT_LIMIT_BYTES;
   const text = TEXTUAL_CONTENT_TYPE.test(contentType)
     ? new TextDecoder().decode(head)
-    : untypedText(contentType, head);
+    : untypedText(contentType, bytes);
 
   return {
     hash,
     contentType,
     size: bytes.length,
     text,
-    truncated: text !== null && bytes.length > TEXT_LIMIT_BYTES,
+    truncated: text !== null && cut,
   };
 }
 
-// A floor station stores the files it produces with no type, so the floor files them as octet-stream; bytes that read as UTF-8 and hold no NUL are text all the same.
-function untypedText(contentType: string, head: Uint8Array): string | null {
+// A floor station stores the files it produces with no type, so the floor files them as octet-stream; bytes that read as UTF-8 and hold no NUL are text all the same. Only a cut head may end mid-character.
+function untypedText(contentType: string, bytes: Uint8Array): string | null {
+  const head = bytes.subarray(0, TEXT_LIMIT_BYTES);
+
   if (contentType !== UNTYPED || head.includes(0)) {
     return null;
   }
 
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(head, {
-      stream: true,
+      stream: bytes.length > TEXT_LIMIT_BYTES,
     });
   } catch {
     return null;

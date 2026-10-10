@@ -136,6 +136,30 @@ describe("runBlob", () => {
     expect(blob?.text).toBeNull();
   });
 
+  it("answers no text for application/octet-stream bytes 0x80 0x81, which are not UTF-8", async () => {
+    const bytes = new Uint8Array([0x80, 0x81]);
+    const blob = await runBlob(floorWithBlob(untyped(bytes)), "run-1", HELD);
+
+    expect(blob?.text).toBeNull();
+  });
+
+  it("answers no text for an application/octet-stream blob that ends mid-character", async () => {
+    const bytes = new Uint8Array([104, 0xe2, 0x82]);
+    const blob = await runBlob(floorWithBlob(untyped(bytes)), "run-1", HELD);
+
+    expect(blob?.text).toBeNull();
+  });
+
+  it("cuts an application/octet-stream UTF-8 blob over one mebibyte and says so", async () => {
+    const big = "x".repeat(1_048_576 + 10);
+    const blob = await runBlob(floorWithBlob(untyped(big)), "run-1", HELD);
+
+    expect({ length: blob?.text?.length, truncated: blob?.truncated }).toEqual({
+      length: 1_048_576,
+      truncated: true,
+    });
+  });
+
   it("cuts a text blob over one mebibyte and says so", async () => {
     const big = "x".repeat(1_048_576 + 10);
     const floor = floorWithBlob(
