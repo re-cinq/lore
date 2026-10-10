@@ -51,6 +51,8 @@ const visit: VisitView = {
   requestedBy: "alice",
   deadline: null,
   resumedFrom: null,
+  openedAt: "2026-09-30T10:05:00.000Z",
+  finishedAt: null,
   agentSettings: null,
 };
 
@@ -266,8 +268,21 @@ describe("visitToStationRun", () => {
       routeUrl: null,
       commitSha: null,
       requestedBy: "alice",
-      startedAt: CREATED_AT,
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
       finishedAt: null,
+    });
+  });
+
+  it("finishes a visit reported at 10:20 at 10:20", () => {
+    const reported: VisitView = {
+      ...visit,
+      report: { outcome: "success", produced: {} },
+      finishedAt: "2026-09-30T10:20:00.000Z",
+    };
+
+    expect(visitToStationRun(reported, run)).toMatchObject({
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
+      finishedAt: new Date("2026-09-30T10:20:00.000Z"),
     });
   });
 
@@ -332,7 +347,7 @@ describe("visitToStationRun", () => {
       status: "claimed",
       requiredTags: ["gpu"],
       claimedAt: new Date("2026-09-30T10:00:00.000Z"),
-      startedAt: new Date("2026-09-30T10:00:00.000Z"),
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
     });
   });
 

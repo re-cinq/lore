@@ -93,11 +93,10 @@ export function floorRunToSummary(input: {
   };
 }
 
-/** The run a visit is read against: its start, and its graph when the caller holds one, which is what tells a visit waiting on a person from one a pod runs. */
+/** The run a visit is read against: its graph when the caller holds one, which is what tells a visit waiting on a person from one a pod runs. */
 export interface VisitRun {
   id: string;
   repo: string;
-  createdAt: Date;
   graph?: Pick<RunGraph, "nodes"> | null;
   /** The run's args, which a human station's route template may name. */
   args?: Record<string, unknown>;
@@ -122,8 +121,8 @@ export function visitToStationRun(
     ...visitBagOf(visit, run),
     commitSha: null,
     requestedBy: visit.requestedBy,
-    startedAt: claimedAt ?? run.createdAt,
-    finishedAt: null,
+    startedAt: new Date(visit.openedAt),
+    finishedAt: visit.finishedAt ? new Date(visit.finishedAt) : null,
   };
 }
 

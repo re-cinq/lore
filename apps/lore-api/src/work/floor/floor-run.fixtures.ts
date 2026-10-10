@@ -41,6 +41,8 @@ export const FLOOR_VISIT: VisitView = {
   requestedBy: null,
   deadline: "2026-09-30T10:30:00.000Z",
   resumedFrom: null,
+  openedAt: "2026-09-30T10:00:00.000Z",
+  finishedAt: null,
   agentSettings: {
     model: "gemini-3.1-pro-preview",
     prompt: SECRET_PROMPT,
