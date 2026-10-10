@@ -6,7 +6,7 @@ import RepoLayout from "./layout";
 vi.mock("@/lib/github", () => ({
   getRepoMeta: vi.fn().mockResolvedValue({ description: "Test Repo" }),
 }));
-// mock TabNav since we want to check what is passed to it
+
 vi.mock("./TabNav", () => ({
   default: ({ tabs }: { tabs: { label: string }[] }) => (
     <div data-testid="tabnav">
@@ -25,7 +25,7 @@ describe("RepoLayout", () => {
     const jsx = await RepoLayout({ children: <div>child</div>, params });
     render(jsx);
 
-    const links = screen.getAllByRole("link").map(l => l.textContent);
+    const links = screen.getAllByRole("link").map((l) => l.textContent);
     expect(links).toContain("Backlog");
     expect(links).toContain("Triage");
   });
