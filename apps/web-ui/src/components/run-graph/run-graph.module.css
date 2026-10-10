@@ -308,5 +308,5 @@
   margin: var(--space-2) 0 0;
   color: var(--text-muted);
   font-size: var(--fs-sm);
-  line-height: 1.45;
+  line-height: var(--lh-base);
 }
