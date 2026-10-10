@@ -243,6 +243,34 @@ describe("test_policy", () => {
 });
 
 describe("the feature-planning recipe", () => {
+  it("tells the planning agent its reader is a product manager, so it names no file, setting, version or route and never writes the marker a check taught it", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      reader: prompt.includes("read by product managers"),
+      noCode: prompt.includes(
+        "Never name a file path, a function, a variable, a setting name, a library or its version, a chart key, a route, a table or a command",
+      ),
+      researchStays: prompt.includes(
+        "put the conclusion in the plan in plain words",
+      ),
+      decisionsNotBuild: prompt.includes("not how to build it"),
+      noMarker: prompt.includes('Never write "(this feature adds it)"'),
+      plainGather: prompt.includes("in the words a product manager uses"),
+      noFileNaming: !prompt.includes(
+        "Name the entity or file each claim rests on",
+      ),
+    }).toEqual({
+      reader: true,
+      noCode: true,
+      researchStays: true,
+      decisionsNotBuild: true,
+      noMarker: true,
+      plainGather: true,
+      noFileNaming: true,
+    });
+  });
+
   it("tells the planning agent to gather from lore_assemble_context and the lore_query_graph knowledge graph before it writes", () => {
     const prompt = promptOf("plan-analyze");
     const gather = prompt.indexOf("## Gather before you write");
@@ -605,8 +633,11 @@ describe("the plan-validate recipe", () => {
       writesValidation: prompt.includes("`plan-validation.json`"),
       neverEdits: prompt.includes("Never edit the plan"),
       standingFindingById: prompt.includes("by its id"),
-      fixedTextNamesStrings: prompt.includes("names its strings"),
-      newWireNamesFields: prompt.includes("names its fields"),
+      fixedTextSaysWhatItTells: prompt.includes(
+        "says what the text tells the user",
+      ),
+      stringsAreTheSpecs: prompt.includes("the exact string is the spec's"),
+      newWireNamesNoFields: !prompt.includes("names its fields"),
       newStoreRetention: prompt.includes("retention and erasure"),
       verifiedClaimNamesTarget: prompt.includes("verified against"),
       severity: prompt.includes("severity"),
@@ -616,8 +647,9 @@ describe("the plan-validate recipe", () => {
       writesValidation: true,
       neverEdits: true,
       standingFindingById: true,
-      fixedTextNamesStrings: true,
-      newWireNamesFields: true,
+      fixedTextSaysWhatItTells: true,
+      stringsAreTheSpecs: true,
+      newWireNamesNoFields: true,
       newStoreRetention: true,
       verifiedClaimNamesTarget: true,
       severity: true,
@@ -647,6 +679,18 @@ describe("the planning recipes check a plan against what the platform has (issue
       guide: prompt.includes(".lore/assembly-line-guide.md"),
       blocker: prompt.includes("or an INFEASIBILITY"),
     }).toEqual({ category: true, searched: true, guide: true, blocker: true });
+  });
+
+  it("has plan-validate expect no mechanism names from the plan, and warn on a sentence written for the code rather than its people", () => {
+    const prompt = promptOnOneLine("plan-validate");
+
+    expect({
+      noMechanismExpected: prompt.includes(
+        "The plan is not expected to name the mechanism",
+      ),
+      category: prompt.includes("**WRITTEN FOR THE CODE**"),
+      warning: prompt.includes("written for the code, not for its people"),
+    }).toEqual({ noMechanismExpected: true, category: true, warning: true });
   });
 
   it("has spec-rework commit only when every named mechanism exists or is tasked, every listed file has a task, same-file tasks chain and each task names its test", () => {
