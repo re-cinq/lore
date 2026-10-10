@@ -31,6 +31,25 @@ const handedIssue = {
   brief: { needs: { issue: HELD, pr_url: "https://x/pull/1" }, iteration: 1 },
 };
 
+function floorWithBlob(stored: Response) {
+  return recordedFloor((request: FloorRequest) => {
+    const answers: Record<string, unknown> = {
+      "/assembly-runs/run-1": { run: FLOOR_RUN, bag: {} },
+      "/station-runs?run=run-1": {
+        items: [{ ...FLOOR_VISIT, ...handedIssue }],
+      },
+      [`/blobs/${HELD}`]: stored,
+    };
+
+    return answers[request.path];
+  }).floor;
+}
+
+const untyped = (body: BodyInit) =>
+  new Response(body, {
+    headers: { "content-type": "application/octet-stream" },
+  });
+
 describe("runBlob", () => {
   it("answers the markdown a visit was handed as its issue need", async () => {
     expect(await runBlob(floorHolding(handedIssue), "run-1", HELD)).toEqual({
@@ -86,19 +105,11 @@ describe("runBlob", () => {
   });
 
   it("answers no text for a binary blob", async () => {
-    const binary = recordedFloor((request: FloorRequest) => {
-      const answers: Record<string, unknown> = {
-        "/assembly-runs/run-1": { run: FLOOR_RUN, bag: {} },
-        "/station-runs?run=run-1": {
-          items: [{ ...FLOOR_VISIT, ...handedIssue }],
-        },
-        [`/blobs/${HELD}`]: new Response(new Uint8Array([137, 80, 78, 71]), {
-          headers: { "content-type": "image/png" },
-        }),
-      };
-
-      return answers[request.path];
-    }).floor;
+    const binary = floorWithBlob(
+      new Response(new Uint8Array([137, 80, 78, 71]), {
+        headers: { "content-type": "image/png" },
+      }),
+    );
 
     expect(await runBlob(binary, "run-1", HELD)).toEqual({
       hash: HELD,
@@ -109,21 +120,27 @@ describe("runBlob", () => {
     });
   });
 
+  it("shows the markdown a station stored as application/octet-stream as text", async () => {
+    const blob = await runBlob(floorWithBlob(untyped(MARKDOWN)), "run-1", HELD);
+
+    expect(blob).toMatchObject({
+      contentType: "application/octet-stream",
+      text: MARKDOWN,
+    });
+  });
+
+  it("answers no text for application/octet-stream bytes that hold a NUL", async () => {
+    const bytes = new Uint8Array([104, 105, 0, 1]);
+    const blob = await runBlob(floorWithBlob(untyped(bytes)), "run-1", HELD);
+
+    expect(blob?.text).toBeNull();
+  });
+
   it("cuts a text blob over one mebibyte and says so", async () => {
     const big = "x".repeat(1_048_576 + 10);
-    const floor = recordedFloor((request: FloorRequest) => {
-      const answers: Record<string, unknown> = {
-        "/assembly-runs/run-1": { run: FLOOR_RUN, bag: {} },
-        "/station-runs?run=run-1": {
-          items: [{ ...FLOOR_VISIT, ...handedIssue }],
-        },
-        [`/blobs/${HELD}`]: new Response(big, {
-          headers: { "content-type": "text/plain" },
-        }),
-      };
-
-      return answers[request.path];
-    }).floor;
+    const floor = floorWithBlob(
+      new Response(big, { headers: { "content-type": "text/plain" } }),
+    );
     const blob = await runBlob(floor, "run-1", HELD);
 
     expect({ length: blob?.text?.length, truncated: blob?.truncated }).toEqual({
