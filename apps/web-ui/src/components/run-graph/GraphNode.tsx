@@ -42,11 +42,13 @@ export default function GraphNode(props: GraphNodeProps) {
   const body = { node, badge, baselines, outcomes, isTerminal, top, leftEdge };
   const family = typeFamilyOf(model?.nodeType ?? model?.type);
   const box = { leftEdge, top, height };
+  // The type mark sits in the box's top-left corner; the box itself wears the family colour through the class on the group (run-viz FR4.1h).
+  const mark = { cx: leftEdge + GLYPH_INSET, cy: top + GLYPH_INSET };
 
   return (
     <g {...groupProps({ body, interaction, selected: props.selected, family })}>
       <NodeBox {...box} />
-      <NodeTypeMarks family={family} {...box} />
+      <TypeGlyph family={family} {...mark} />
       <NodeBody {...body} title={titleCase(node.id)} />
       <NodeMetaLine {...metaLine} />
     </g>
@@ -254,21 +256,6 @@ function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
 
 // The type mark's centre from the box's top-left: inside the corner, clear of the status glyph below it and of the text to its right.
 const GLYPH_INSET = 11;
-
-/** The step's type mark in the box's top-left corner; the box itself wears the family's colour through the class on the group (run-viz FR4.1h). */
-function NodeTypeMarks({
-  family,
-  leftEdge,
-  top,
-}: NodeBoxProps & { family: NodeTypeFamily }) {
-  return (
-    <TypeGlyph
-      family={family}
-      cx={leftEdge + GLYPH_INSET}
-      cy={top + GLYPH_INSET}
-    />
-  );
-}
 
 /** What the box says, in precedence order: a run badge when this visit has an outcome, else the outcomes the definition declares, else the plain name. A node cannot show both — the badge IS the run's answer, and listing the possibilities beside it would read as though they were still open. */
 function NodeBody(props: NodeBodyProps) {

@@ -122,8 +122,10 @@
 .node:focus-visible {
   outline: none;
 }
+/* Keyboard focus thickens the border and darkens the box like selection does: the lightest family colour (marker grey) only clears 3:1 against the surface once darkened (WCAG 1.4.11). */
 .node:focus-visible .box {
   stroke-width: 3;
+  filter: brightness(0.8);
 }
 /* A box wears its step type's colour (run-viz FR4.1h): the border in the family colour, the fill a light wash of it. Status is the glyph and the verdict text inside. */
 .box {
