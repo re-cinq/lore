@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { VisitEvent } from "@/lib/visit-reads";
-import NodeOutcomeCard from "./NodeOutcomeCard";
+import NodeOutcomeCard, { outcomePill } from "./NodeOutcomeCard";
 import VisitTimingCard from "./VisitTimingCard";
 import HumanVisitCard, { answererOf } from "./HumanVisitCard";
 import { ModelCallsView } from "./NodeModelCallsCard";
@@ -55,6 +55,13 @@ describe("NodeOutcomeCard", () => {
     render(<NodeOutcomeCard attempt={attempt({ outcome: null })} />);
 
     expect(screen.getByText("In progress")).toBeInTheDocument();
+  });
+
+  it("draws cancelled in the idle tone, not as an error", () => {
+    expect(outcomePill("cancelled")).toEqual({
+      label: "cancelled",
+      tone: "idle",
+    });
   });
 });
 

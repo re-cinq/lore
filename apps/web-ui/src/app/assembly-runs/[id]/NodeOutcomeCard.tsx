@@ -32,5 +32,14 @@ export function outcomePill(outcome: string | null): {
     return { label: "In progress", tone: "running" };
   }
 
-  return { label: outcome, tone: SUCCESS.has(outcome) ? "ok" : "err" };
+  return { label: outcome, tone: toneOf(outcome) };
+}
+
+// A visit closed by "Run this station" (FR8) or a cancelled run ended as asked, not in error.
+function toneOf(outcome: string): StatusTone {
+  if (SUCCESS.has(outcome)) {
+    return "ok";
+  }
+
+  return outcome === "cancelled" ? "idle" : "err";
 }
