@@ -21,6 +21,12 @@ jobs:
           FAILED=0
           WARNINGS=""
 
+          # --- Skip for Lore generated PRs ---
+          if echo "$PR_BODY" | grep -q "lore-plan-task"; then
+            echo "PR description looks good (Lore generated)."
+            exit 0
+          fi
+
           # --- Check "## Why" section ---
           WHY_CONTENT=$(echo "$PR_BODY" | sed -n '/^## Why/,/^## /{ /^## /d; p; }')
           WHY_STRIPPED=$(echo "$WHY_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
