@@ -16,6 +16,14 @@ export const StationRunRowSchema = z.object({
   input: StationRunInputSchema.nullable(),
   // The floor's brief: the bag as the pod saw it at start (name → ref); null for a visit Lore's own engine walked.
   needs: z.record(z.string(), z.string()).nullable(),
+  // What the visit reported it produced, name → value or blob hash; null until it reports, and for a visit Lore's own engine walked.
+  produced: z.record(z.string(), z.string()).nullable(),
+  // A human station's page, resolved from its route template; null when it names none or a placeholder had nothing to fill it.
+  route_url: z.string().nullable(),
+  // Who reported the visit: a worker, `station:<name>`, a person, or `event:<name>` for an outside event that answered it.
+  worker: z.string().nullable(),
+  // The person or event that ran the node by hand; null when the walk opened it.
+  requested_by: z.string().nullable(),
   commit_sha: z.string().nullable(),
   started_at: z.string(),
   finished_at: z.string().nullable(),
@@ -36,11 +44,27 @@ export function toStationRunRow(visit: StationRunRecord): StationRunRow {
     failure_detail: visit.failureDetail,
     agent_cr_name: visit.agentCrName,
     input: visit.input,
-    needs: visit.needs ?? null,
+    ...floorVisitFacts(visit),
     commit_sha: visit.commitSha,
     started_at: visit.startedAt.toISOString(),
     finished_at: visit.finishedAt?.toISOString() ?? null,
     status: visit.status,
     claimed_at: visit.claimedAt?.toISOString() ?? null,
+  };
+}
+
+/** What a visit on the external floor adds: what it was handed and produced, its page, who reported it and who ran it by hand. A visit Lore's own engine walked has none of the first three. */
+function floorVisitFacts(
+  visit: StationRunRecord,
+): Pick<
+  StationRunRow,
+  "needs" | "produced" | "route_url" | "worker" | "requested_by"
+> {
+  return {
+    needs: visit.needs ?? null,
+    produced: visit.produced ?? null,
+    route_url: visit.routeUrl ?? null,
+    worker: visit.clusterAgentId,
+    requested_by: visit.requestedBy,
   };
 }

@@ -430,6 +430,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/visits/{visitId}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/visits/{visitId}/events */
+    get: operations["get_api_assembly-runs_id_visits_visitId_events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/visits/{visitId}/model-calls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/visits/{visitId}/model-calls */
+    get: operations["get_api_assembly-runs_id_visits_visitId_model-calls"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/audit-log": {
     parameters: {
       query?: never;
@@ -3027,6 +3061,12 @@ export interface components {
                   needs: {
                     [key: string]: string;
                   } | null;
+                  produced: {
+                    [key: string]: string;
+                  } | null;
+                  route_url: string | null;
+                  worker: string | null;
+                  requested_by: string | null;
                   commit_sha: string | null;
                   started_at: string;
                   finished_at: string | null;
@@ -3840,6 +3880,12 @@ export interface components {
             needs: {
               [key: string]: string;
             } | null;
+            produced: {
+              [key: string]: string;
+            } | null;
+            route_url: string | null;
+            worker: string | null;
+            requested_by: string | null;
             commit_sha: string | null;
             started_at: string;
             finished_at: string | null;
@@ -4157,6 +4203,12 @@ export interface components {
         needs: {
           [key: string]: string;
         } | null;
+        produced: {
+          [key: string]: string;
+        } | null;
+        route_url: string | null;
+        worker: string | null;
+        requested_by: string | null;
         commit_sha: string | null;
         started_at: string;
         finished_at: string | null;
@@ -4327,6 +4379,32 @@ export interface components {
     TurnsRelayed: {
       forwarded: number;
       skipped: number;
+    };
+    VisitEvents: {
+      events: {
+        id: string;
+        name: string;
+        /** @enum {string} */
+        direction: "handled" | "raised";
+        inferred: boolean;
+        created_at: string;
+        acked_at: string | null;
+        claimed_by: string | null;
+        attempts: number;
+        last_error: string | null;
+        dead_at: string | null;
+        payload: unknown;
+      }[];
+    };
+    VisitModelCalls: {
+      calls: {
+        seq: number;
+        occurredAt: string;
+        model: string | null;
+        costUsd: number | null;
+        tokensIn: number | null;
+        tokensOut: number | null;
+      }[];
     };
   };
   responses: {
@@ -5129,6 +5207,62 @@ export interface operations {
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_visits_visitId_events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        visitId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The floor events one visit handled and raised, each with its direction, whether the link was inferred, and its queue state; 404 for a visit of no run the floor has */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VisitEvents"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_visits_visitId_model-calls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        visitId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The model calls one visit of a floor run made, from its llm_call records: model, tokens in and out, cost; 404 for a visit of no run the floor has */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VisitModelCalls"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

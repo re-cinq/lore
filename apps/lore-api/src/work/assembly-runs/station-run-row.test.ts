@@ -30,6 +30,30 @@ describe("toStationRunRow", () => {
     expect(toStationRunRow({ ...tableVisit, needs })).toMatchObject({ needs });
   });
 
+  it("carries produced, worker cluster-agent-1, requested_by bogdan and route_url of a floor visit", () => {
+    const floorVisit = {
+      ...tableVisit,
+      clusterAgentId: "cluster-agent-1",
+      requestedBy: "bogdan",
+      produced: { plan: "sha256-abc" },
+      routeUrl: "/repos/re-cinq/lore/plans/plan-7",
+    };
+
+    expect(toStationRunRow(floorVisit)).toMatchObject({
+      produced: { plan: "sha256-abc" },
+      worker: "cluster-agent-1",
+      requested_by: "bogdan",
+      route_url: "/repos/re-cinq/lore/plans/plan-7",
+    });
+  });
+
+  it("nulls produced and route_url for a table-backed visit", () => {
+    expect(toStationRunRow(tableVisit)).toMatchObject({
+      produced: null,
+      route_url: null,
+    });
+  });
+
   it("gives a table-backed visit without needs a null needs", () => {
     expect(toStationRunRow(tableVisit)).toMatchObject({ needs: null });
   });

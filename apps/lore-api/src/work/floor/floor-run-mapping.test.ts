@@ -262,6 +262,8 @@ describe("visitToStationRun", () => {
       agentCrName: "floor-visit-1",
       input: null,
       needs: {},
+      produced: null,
+      routeUrl: null,
       commitSha: null,
       requestedBy: "alice",
       startedAt: CREATED_AT,
@@ -278,6 +280,40 @@ describe("visitToStationRun", () => {
     expect(
       visitToStationRun({ ...visit, brief: { needs, iteration: 2 } }, run),
     ).toMatchObject({ needs });
+  });
+
+  it("carries the report's produced plan as the visit's produced", () => {
+    const reported: VisitView = {
+      ...visit,
+      report: { outcome: "success", produced: { plan: "sha256-abc" } },
+    };
+
+    expect(visitToStationRun(reported, run)).toMatchObject({
+      produced: { plan: "sha256-abc" },
+    });
+  });
+
+  it("resolves the author node's route to /repos/re-cinq/lore/plans/plan-7 from the run's repo and the visit's needs", () => {
+    const author: VisitView = {
+      ...visit,
+      nodeId: "author",
+      brief: { needs: { plan_id: "plan-7" }, iteration: 1 },
+    };
+    const withRoutes = {
+      ...run,
+      args: {},
+      routes: { author: "/repos/{repo}/plans/{plan_id}" },
+    };
+
+    expect(visitToStationRun(author, withRoutes).routeUrl).toBe(
+      "/repos/re-cinq/lore/plans/plan-7",
+    );
+  });
+
+  it("gives a node whose station names no route a null routeUrl", () => {
+    expect(
+      visitToStationRun(visit, { ...run, routes: { author: "/x" } }).routeUrl,
+    ).toBeNull();
   });
 
   it("maps a visit with a deadline and no worker to claimed with tags and claim time", () => {

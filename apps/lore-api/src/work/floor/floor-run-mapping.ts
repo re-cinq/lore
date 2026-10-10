@@ -16,6 +16,7 @@ import type {
   RunGraph,
   RunGraphNode,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { resolveRoute } from "./route-template.js";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 
 /** A station's kind as the floor names it, with the human station that produces something told apart: there a person writes what the line runs on, where a plain human station waits on something outside it. */
@@ -98,6 +99,10 @@ export interface VisitRun {
   repo: string;
   createdAt: Date;
   graph?: Pick<RunGraph, "nodes"> | null;
+  /** The run's args, which a human station's route template may name. */
+  args?: Record<string, unknown>;
+  /** nodeId → the route template its station declares, for a human station. */
+  routes?: Record<string, string>;
 }
 
 export function visitToStationRun(
@@ -114,7 +119,7 @@ export function visitToStationRun(
     requiredTags: visit.agentSettings?.tags ?? [],
     claimedAt,
     ...visitVerdictOf(visit),
-    ...visitBagOf(visit),
+    ...visitBagOf(visit, run),
     commitSha: null,
     requestedBy: visit.requestedBy,
     startedAt: claimedAt ?? run.createdAt,
@@ -287,8 +292,27 @@ function visitVerdictOf(
 /** What the visit was started with: the floor's brief holds the bag as the pod saw it, so there is no separate dispatch snapshot to record. */
 function visitBagOf(
   visit: VisitView,
-): Pick<StationRunRecord, "input" | "needs"> {
-  return { input: null, needs: visit.brief.needs };
+  run: VisitRun,
+): Pick<StationRunRecord, "input" | "needs" | "produced" | "routeUrl"> {
+  return {
+    input: null,
+    needs: visit.brief.needs,
+    produced: visit.report?.produced ?? null,
+    routeUrl: routeUrlOf(visit, run),
+  };
+}
+
+/** A human station's page for this visit, filled from the run's args and the visit's needs (run-viz FR4.1i). */
+function routeUrlOf(visit: VisitView, run: VisitRun): string | null {
+  const template = run.routes?.[visit.nodeId];
+
+  return template === undefined
+    ? null
+    : resolveRoute(template, {
+        args: run.args ?? {},
+        needs: visit.brief.needs,
+        repo: run.repo,
+      });
 }
 
 export function agentCrNameOf(visitId: string): string {

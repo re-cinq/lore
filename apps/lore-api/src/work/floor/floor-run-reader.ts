@@ -1,7 +1,6 @@
 // A run that lives on the external floor, read through its client and answered in the models the run page already reads. Nothing here writes: a floor run is changed only by the floor.
 import type {
   FloorClient,
-  LineBody,
   RecordKind,
   RunView,
   StationRunRecordView,
@@ -32,11 +31,15 @@ import {
 import {
   floorRunToAssemblyRun,
   floorRunToSummary,
-  lineBodyToRunGraph,
   turnRecordToRow,
   visitToStationRun,
-  type StationKindName,
 } from "./floor-run-mapping.js";
+import { readLineFacts, type LineFacts } from "./floor-line-facts.js";
+import {
+  visitEvents,
+  visitModelCalls,
+  type VisitReadDeps,
+} from "./floor-visit-reads.js";
 import {
   floorVisitIdOf,
   nodeLogsOf,
@@ -45,10 +48,11 @@ import {
 
 export type FloorRunSource = Pick<
   FloorClient,
-  "runs" | "stationRuns" | "lines" | "stations" | "costs"
+  "runs" | "stationRuns" | "lines" | "stations" | "costs" | "events"
 >;
 
 const RECORDS_PER_READ = 1000;
+const EVENTS_PER_READ = 200;
 const DEFAULT_LIST_LIMIT = 50;
 
 /** How many pages a search for a task's run reads before giving up: 500 runs of one line. */
@@ -74,8 +78,8 @@ export interface FloorRunPageQuery {
 }
 
 export class FloorRunReader {
-  /** A line version is its content, so its graph never changes once read. */
-  private readonly graphs = new Map<string, Promise<RunGraph>>();
+  /** A line version is its content, so what it says about its nodes never changes once read. */
+  private readonly lines = new Map<string, Promise<LineFacts>>();
 
   constructor(private readonly floor: FloorRunSource) {}
 
@@ -182,14 +186,41 @@ export class FloorRunReader {
   }
 
   async listStationRuns(runId: string): Promise<StationRunRecord[]> {
-    const run = await this.getById(runId);
+    const found = await this.floor.runs.get(runId);
 
-    if (!run) {
+    if (!found) {
       return [];
     }
-    const visits = await this.floor.stationRuns.list({ run: runId });
+    const [run, facts, visits] = await Promise.all([
+      this.recordOf(found.run),
+      this.lineFactsOf(found.run),
+      this.floor.stationRuns.list({ run: runId }),
+    ]);
 
-    return visits.map((visit) => visitToStationRun(visit, run));
+    return visits.map((visit) =>
+      visitToStationRun(visit, { ...run, routes: facts.routes }),
+    );
+  }
+
+  visitModelCalls(runId: string, visitId: string) {
+    return visitModelCalls(this.visitReadDeps(), runId, visitId);
+  }
+
+  visitEvents(runId: string, visitId: string) {
+    return visitEvents(this.visitReadDeps(), runId, visitId);
+  }
+
+  private visitReadDeps(): VisitReadDeps {
+    const { runs, stationRuns, events } = this.floor;
+
+    return {
+      visitById: (visitId) => stationRuns.get(visitId),
+      runById: async (runId) => (await runs.get(runId))?.run ?? null,
+      eventsPage: (runId, since) =>
+        events.feed({ run: runId, since }, { limit: EVENTS_PER_READ }),
+      recordsOf: (visit, kind) => this.recordsOf(visit, kind),
+      lineFactsOf: (run) => this.lineFactsOf(run),
+    };
   }
 
   /** Every turn of the run, visit by visit in the order the walk opened them. The floor numbers turns within a visit, so a row's id here is its place in the run: the cursor a reader pages with. */
@@ -309,57 +340,22 @@ export class FloorRunReader {
     return records;
   }
 
-  private graphOf(run: RunView): Promise<RunGraph> {
-    const known = this.graphs.get(run.lineHash);
+  private async graphOf(run: RunView): Promise<RunGraph> {
+    return (await this.lineFactsOf(run)).graph;
+  }
+
+  private lineFactsOf(run: RunView): Promise<LineFacts> {
+    const known = this.lines.get(run.lineHash);
 
     if (known) {
       return known;
     }
-    const reading = this.readGraph(run);
+    const reading = readLineFacts(this.floor, run);
 
-    this.graphs.set(run.lineHash, reading);
+    this.lines.set(run.lineHash, reading);
 
     return reading;
   }
-
-  private async readGraph(run: RunView): Promise<RunGraph> {
-    const version = await this.floor.lines.version(run.lineId, run.lineHash);
-    const body: LineBody = version?.body ?? emptyLine();
-
-    return lineBodyToRunGraph(run.lineId, body, await this.kindsOf(body));
-  }
-
-  private async kindsOf(
-    body: LineBody,
-  ): Promise<Record<string, StationKindName>> {
-    const names = body.nodes.flatMap((node) =>
-      node.station ? [stationNameOf(node.station)] : [],
-    );
-    const stations = await Promise.all(
-      names.map((name) => this.floor.stations.get(name)),
-    );
-
-    return Object.fromEntries(
-      stations.flatMap((station) =>
-        station ? [[station.id, kindNameOf(station.body)]] : [],
-      ),
-    );
-  }
-}
-
-// A human station that produces something is where a person writes what the line runs on.
-function kindNameOf(body: {
-  kind: "agent" | "service" | "human";
-  produces?: readonly unknown[];
-}): StationKindName {
-  return body.kind === "human" && (body.produces?.length ?? 0) > 0
-    ? "author"
-    : body.kind;
-}
-
-/** A node may pin its station as `name@hash`. */
-function stationNameOf(stationRef: string): string {
-  return stationRef.split("@")[0];
 }
 
 function hasStatus(
@@ -367,8 +363,4 @@ function hasStatus(
   status: AssemblyRunStatus | undefined,
 ): boolean {
   return status === undefined || listing.run.status === status;
-}
-
-function emptyLine(): LineBody {
-  return { entry: "", exit: "", args: {}, nodes: [], edges: [] };
 }
