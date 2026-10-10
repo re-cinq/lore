@@ -123,8 +123,7 @@
   outline: none;
 }
 .node:focus-visible .box {
-  stroke-width: 2.5;
-  stroke: var(--info);
+  stroke-width: 3;
 }
 /* A box wears its step type's colour (run-viz FR4.1h): the border in the family colour, the fill a light wash of it. Status is the glyph and the verdict text inside. */
 .box {
@@ -137,15 +136,12 @@
     fill var(--transition);
 }
 .node[tabindex]:hover .box {
-  stroke: var(--info);
-  stroke-width: 2;
-  fill: var(--bg-hover);
+  stroke-width: 2.5;
 }
-/* The node the inspector shows: a heavier ring, so the graph and the panel beside it agree at a glance. */
+/* The node the inspector shows: its own colours, darker, and a border 2.5px heavier, so the graph and the panel beside it agree at a glance without the box changing what it says about its type. Brightness darkens the agent gradient as well as a flat colour. */
 .selected .box {
-  stroke: var(--info);
-  stroke-width: 3;
-  filter: drop-shadow(0 0 0 3px var(--info-bg));
+  stroke-width: 4;
+  filter: brightness(0.8) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
 }
 .nodeMeta {
   fill: var(--text-muted);
@@ -259,4 +255,19 @@
        visible seam. */
     stroke-dashoffset: -16;
   }
+}
+
+/* An AI step's border is a gradient through the palette (run-viz FR4.1h); the gradient lives in the graph's <defs>, ArrowMarkerDefs.tsx. */
+.agentStopStart {
+  stop-color: var(--chart-spec);
+}
+.agentStopMiddle {
+  stop-color: var(--chart-feature);
+}
+.agentStopEnd {
+  stop-color: var(--chart-section);
+}
+.familyAgent .box {
+  stroke: url(#rgv-agent-border);
+  stroke-width: 2;
 }
