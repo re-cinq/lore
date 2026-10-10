@@ -23,9 +23,11 @@ describe("RepoLayout", () => {
   it("renders Triage tab alongside Backlog", async () => {
     const params = Promise.resolve({ owner: "re-cinq", repo: "lore" });
     const jsx = await RepoLayout({ children: <div>child</div>, params });
+
     render(jsx);
 
     const links = screen.getAllByRole("link").map((l) => l.textContent);
+
     expect(links).toContain("Backlog");
     expect(links).toContain("Triage");
   });
