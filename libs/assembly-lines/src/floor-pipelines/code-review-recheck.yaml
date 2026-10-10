@@ -42,6 +42,7 @@ line:
       iteration_max: 1
 stations:
   code-review-recheck:
+    description: An AI agent does a fast re-check of the commits pushed since the last review, confirming earlier concerns are resolved and flagging only new problems.
     kind: agent
     agent_definition: code-review-recheck
     conversation: new
@@ -65,6 +66,7 @@ stations:
         kind: file
         from: output
   post-review:
+    description: Posts the review agent's verdict and comments on the pull request on GitHub. If the agent ended without a verdict, it fails so the agent runs again.
     kind: service
     outcomes:
       - success

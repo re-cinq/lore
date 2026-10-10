@@ -39,6 +39,7 @@ line:
       iteration_max: 1
 stations:
   code-review:
+    description: An AI agent reviews the pull request's diff against the repository's conventions, ADRs, specs and CI result, and returns a verdict with its findings.
     kind: agent
     agent_definition: code-review
     conversation: new
@@ -62,6 +63,7 @@ stations:
         kind: file
         from: output
   post-review:
+    description: Posts the review agent's verdict and comments on the pull request on GitHub. If the agent ended without a verdict, it fails so the agent runs again.
     kind: service
     outcomes:
       - success

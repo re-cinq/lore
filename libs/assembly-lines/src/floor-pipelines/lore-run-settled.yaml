@@ -31,6 +31,7 @@ line:
       on: failed
 stations:
   run-settled:
+    description: Runs whenever a run on the floor ends and settles what Lore tracks for it, such as the task's status, the backlog ticket, or a failed check for a review that never finished.
     kind: service
     outcomes:
       - success

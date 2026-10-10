@@ -57,6 +57,7 @@ line:
       on: always
 stations:
   merge-settle:
+    description: Marks the task as merged now that its pull request is in. Every later step of this line assumes this one succeeded, so it is retried once on failure.
     kind: service
     outcomes:
       - success
@@ -66,6 +67,7 @@ stations:
         kind: value
     produces: []
   merge-close-issue:
+    description: Comments on the task's GitHub issue and closes it, when the task has one.
     kind: service
     outcomes:
       - success
@@ -75,6 +77,7 @@ stations:
         kind: value
     produces: []
   merge-outcome-stats:
+    description: Records the merged pull request's stats, such as files changed and time to merge, in the repository's outcome history.
     kind: service
     outcomes:
       - success
@@ -84,6 +87,7 @@ stations:
         kind: value
     produces: []
   merge-curate:
+    description: Writes an episode about the merged task into Lore's memory, so later sessions can learn from what worked.
     kind: service
     outcomes:
       - success
@@ -93,6 +97,7 @@ stations:
         kind: value
     produces: []
   merge-memory-feedback:
+    description: Keeps the facts and memories that fed this task's context for longer, since they helped produce work that merged.
     kind: service
     outcomes:
       - success
@@ -102,6 +107,7 @@ stations:
         kind: value
     produces: []
   merge-trust:
+    description: Counts the merge toward the repository's trust level, which is promoted after enough successful merges and widens the task types allowed.
     kind: service
     outcomes:
       - success

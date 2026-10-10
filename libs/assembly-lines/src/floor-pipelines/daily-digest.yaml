@@ -56,6 +56,7 @@ line:
       iteration_max: 1
 stations:
   digest-collect:
+    description: Gathers what merged, what closed and who holds which issue across the channel's repositories into a draft of today's Slack digest.
     kind: service
     outcomes:
       - success
@@ -76,6 +77,7 @@ stations:
       - name: digest_draft
         kind: file
   digest-refine:
+    description: An AI agent writes a fresh intro and ending around the collected facts, in the voice the channel chose. It can only add to the digest, never block it.
     kind: agent
     agent_definition: digest-refine
     conversation: new
@@ -94,6 +96,7 @@ stations:
         kind: file
         path: digest.md
   digest-post:
+    description: Posts the digest into the week's Slack thread for the channel. When the agent wrote nothing, it posts the plain draft instead.
     kind: service
     outcomes:
       - success

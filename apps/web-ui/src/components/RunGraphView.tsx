@@ -9,6 +9,9 @@ import type { VisibleGraph } from "@/lib/graph-view-model";
 import ArrowMarkerDefs from "./run-graph/ArrowMarkerDefs";
 import GraphEdge from "./run-graph/GraphEdge";
 import GraphNode from "./run-graph/GraphNode";
+import { useNodeTooltip } from "./run-graph/use-node-tooltip";
+import NodeTooltip from "./run-graph/NodeTooltip";
+import { nodeTooltipOf } from "@/lib/node-tooltip";
 import RunGraphLegend from "./run-graph/RunGraphLegend";
 import { useElementWidth } from "./run-graph/use-element-width";
 import {
@@ -47,11 +50,32 @@ export default function RunGraphView(props: RunGraphViewProps) {
   return (
     <section ref={panelRef} className={styles.panel}>
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
-      <div className={styles.scroll}>
-        <GraphSvg {...graphSvgProps(props, panelWidth)} />
-      </div>
+      <GraphCanvas view={props} panelWidth={panelWidth} />
       <RunGraphLegend families={familiesOf(graph)} />
     </section>
+  );
+}
+
+/** The drawing in its scroll box, and the tooltip of the node under the pointer or the focus (run-viz FR4.1h). */
+function GraphCanvas({
+  view,
+  panelWidth,
+}: {
+  view: RunGraphViewProps;
+  panelWidth: number | null;
+}) {
+  const tooltip = useNodeTooltip();
+
+  return (
+    <>
+      <div className={styles.scroll} {...tooltip.handlers}>
+        <GraphSvg
+          {...graphSvgProps(view, panelWidth)}
+          describedNode={describedNodeOf(tooltip)}
+        />
+      </div>
+      <GraphTooltip {...tooltip} definition={view.definition} />
+    </>
   );
 }
 
@@ -88,13 +112,43 @@ function familiesOf(graph: RunGraphViewProps["graph"]) {
   );
 }
 
+/** The node the tooltip is up for, and the tooltip's id its group points at. */
+function describedNodeOf({
+  id,
+  anchor,
+}: ReturnType<typeof useNodeTooltip>): DescribedNode | null {
+  return anchor ? { nodeId: anchor.nodeId, tooltipId: id } : null;
+}
+
+function GraphTooltip({
+  id,
+  anchor,
+  definition,
+}: ReturnType<typeof useNodeTooltip> & {
+  definition: RunGraphViewProps["definition"];
+}) {
+  const tooltip =
+    anchor && definition && nodeTooltipOf(anchor.nodeId, definition);
+
+  return anchor && tooltip ? (
+    <NodeTooltip id={id} tooltip={tooltip} anchor={anchor} />
+  ) : null;
+}
+
 function EmptyGraph() {
   return (
     <p className={styles.empty}>No assembly-line graph to show for this run.</p>
   );
 }
 
+interface DescribedNode {
+  nodeId: string;
+  tooltipId: string;
+}
+
 interface LaidGraphProps {
+  /** The node whose tooltip is up, which points at it through aria-describedby. */
+  describedNode?: DescribedNode | null;
   laid: ReturnType<typeof layoutRunGraph>;
   mode: RunGraphViewProps["graph"]["mode"];
   onSelectNode: RunGraphViewProps["onSelectNode"];
@@ -167,8 +221,16 @@ function GraphNodes(props: LaidGraphProps) {
       selected={node.id === selectedNodeId}
       meta={nodeMeta?.[node.id]}
       onSelect={onSelectNode}
+      describedBy={describedByOf(props.describedNode, node.id)}
     />
   ));
+}
+
+function describedByOf(
+  described: DescribedNode | null | undefined,
+  nodeId: string,
+): string | undefined {
+  return described?.nodeId === nodeId ? described.tooltipId : undefined;
 }
 
 /** Everything geometric: where each node sits, how big the canvas has to be, plus the model lookups the drawing needs. */

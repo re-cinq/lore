@@ -14,7 +14,8 @@ import NodePlainLabel from "./NodePlainLabel";
 import NodeRunBadge from "./NodeRunBadge";
 import TypeGlyph, { FAMILY_CLASS } from "./TypeGlyph";
 import { typeFamilyOf, type NodeTypeFamily } from "@/lib/node-type-family";
-import { NODE_WIDTH, nodeTextRows, titleCase } from "./run-graph-geometry";
+import { NODE_WIDTH, nodeTextRows } from "./run-graph-geometry";
+import { nodeTitle } from "@/lib/node-tooltip";
 import { classes } from "./run-graph-tone-classes";
 import styles from "./run-graph.module.css";
 
@@ -30,6 +31,8 @@ export interface GraphNodeProps {
   /** Run mode facts under the verdict (model · duration · visits); empty draws nothing. */
   meta?: string;
   onSelect?: (nodeId: string) => void;
+  /** The id of the tooltip shown for this node, while one is. */
+  describedBy?: string;
 }
 
 export default function GraphNode(props: GraphNodeProps) {
@@ -41,15 +44,14 @@ export default function GraphNode(props: GraphNodeProps) {
   const { baselines, metaLine } = nodeLines(props, badge, leftEdge);
   const body = { node, badge, baselines, outcomes, isTerminal, top, leftEdge };
   const family = typeFamilyOf(model?.nodeType ?? model?.type);
-  const box = { leftEdge, top, height };
   // The type mark sits in the box's top-left corner; the box itself wears the family colour through the class on the group (run-viz FR4.1h).
   const mark = { cx: leftEdge + GLYPH_INSET, cy: top + GLYPH_INSET };
 
   return (
-    <g {...groupProps({ body, interaction, selected: props.selected, family })}>
-      <NodeBox {...box} />
+    <g {...groupProps({ ...props, body, interaction, family })}>
+      <NodeBox leftEdge={leftEdge} top={top} height={height} />
       <TypeGlyph family={family} {...mark} />
-      <NodeBody {...body} title={titleCase(node.id)} />
+      <NodeBody {...body} title={nodeTitle(node.id)} />
       <NodeMetaLine {...metaLine} />
     </g>
   );
@@ -161,11 +163,13 @@ interface NodeBodyProps {
 interface GroupInput {
   body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">;
   interaction: ReturnType<typeof nodeInteraction>;
-  selected: boolean | undefined;
+  selected?: boolean;
   family: NodeTypeFamily;
+  describedBy?: string;
 }
 
-function groupProps({ body, interaction, selected, family }: GroupInput) {
+function groupProps(input: GroupInput) {
+  const { body, interaction, selected, family, describedBy } = input;
   const { node, badge } = body;
   const isSelected = selected === true;
 
@@ -179,6 +183,7 @@ function groupProps({ body, interaction, selected, family }: GroupInput) {
     "data-family": family,
     "data-selected": isSelected || undefined,
     "aria-label": nodeAriaLabel(body),
+    "aria-describedby": describedBy,
     ...interactionAttrs({ interaction, selected: isSelected }),
   };
 }

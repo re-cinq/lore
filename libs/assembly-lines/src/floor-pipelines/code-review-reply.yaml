@@ -51,6 +51,7 @@ line:
       iteration_max: 1
 stations:
   read-review:
+    description: Reads the review that asked for changes on the pull request, with every inline comment, and hands it to the agent that answers it.
     kind: service
     outcomes:
       - success
@@ -64,6 +65,7 @@ stations:
       - name: review_feedback
         kind: value
   code-review-refine:
+    description: An AI agent works through each review comment, commits and pushes the changes asked for, and writes a reply that answers questions or asks what it cannot guess.
     kind: agent
     agent_definition: code-review-refine
     conversation: new
@@ -87,6 +89,7 @@ stations:
         kind: file
         from: output
   post-reply:
+    description: Posts the agent's replies on the pull request, each in the thread of the review comment it answers.
     kind: service
     outcomes:
       - success

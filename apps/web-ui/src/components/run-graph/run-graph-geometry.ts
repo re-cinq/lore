@@ -129,7 +129,3 @@ function layoutEdges(graph: VisibleGraph): AssemblyLineDefinition["edges"] {
 export function edgeMapKey(from: string, to: string): string {
   return `${from}->${to}`;
 }
-
-export function titleCase(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
-}

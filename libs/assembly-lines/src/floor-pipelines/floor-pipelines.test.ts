@@ -28,6 +28,7 @@ interface Need {
 
 interface Station {
   kind: string;
+  description?: string;
   agent_definition?: string;
   outcomes: string[];
   needs: Need[];
@@ -580,7 +581,7 @@ describe("the floor pipelines shipped in this folder", () => {
     const { line, stations } = pipelineOf("merge");
 
     expect(line.args).toEqual({ task_id: { kind: "value", subject: true } });
-    expect(Object.values(stations)).toEqual(
+    expect(Object.values(stations)).toMatchObject(
       Array.from({ length: 6 }, () => ({
         kind: "service",
         outcomes: ["success", "failed"],
@@ -1234,7 +1235,7 @@ describe("the feature-planning pipeline", () => {
       fromFindings: edgesOn(line, "spec-findings"),
       station: line.nodes.find((node) => node.id === "spec-findings")?.station,
       findings: stations["spec-findings"],
-    }).toEqual({
+    }).toMatchObject({
       fromFindings: [
         { from: "spec-findings", to: "author", on: "success" },
         { from: "spec-findings", to: "failed", on: "failed" },
@@ -1260,7 +1261,7 @@ describe("the feature-planning pipeline", () => {
       fromFindings: edgesOn(line, "plan-findings"),
       station: line.nodes.find((node) => node.id === "plan-findings")?.station,
       findings: stations["plan-findings"],
-    }).toEqual({
+    }).toMatchObject({
       fromValidate: [{ from: "validate", to: "plan-findings", on: "always" }],
       fromFindings: [{ from: "plan-findings", to: "author", on: "always" }],
       station: "plan-findings",
@@ -1757,3 +1758,21 @@ describe("the agents of every floor pipeline", () => {
     expect(denying).toEqual([]);
   });
 });
+
+describe("the stations of every floor pipeline", () => {
+  it("each say what they do in a description of 20 to 300 characters, the tooltip the run graph shows", () => {
+    const undescribed = [...PIPELINES.values()].flatMap((pipeline) =>
+      Object.entries(pipeline.stations)
+        .filter(([, station]) => !describes(station.description))
+        .map(([id]) => `${pipeline.line.id}: ${id}`),
+    );
+
+    expect(undescribed).toEqual([]);
+  });
+});
+
+function describes(description: string | undefined): boolean {
+  const length = description?.length ?? 0;
+
+  return length >= 20 && length <= 300;
+}

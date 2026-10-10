@@ -273,3 +273,40 @@
   stroke: url(#rgv-agent-border);
   stroke-width: 2;
 }
+
+/* A node's tooltip (run-viz FR4.1h): fixed to the viewport, centred on the node, above it unless the node sits near the top. */
+.tooltip {
+  position: fixed;
+  z-index: var(--z-popover);
+  max-width: 320px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--family, var(--border));
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.tooltip[data-placement="above"] {
+  transform: translate(-50%, -100%);
+}
+.tooltipTitle {
+  display: inline;
+  font-size: var(--fs-sm);
+}
+.tooltipKind {
+  margin-left: var(--space-2);
+  color: var(--family, var(--text-muted));
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tooltipText {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
