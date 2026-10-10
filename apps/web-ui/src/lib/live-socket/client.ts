@@ -19,6 +19,7 @@ import {
   type RunListFrame,
 } from "./protocol";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
+import { isStaleDeployment } from "./stale-deployment";
 
 /** The slice of the browser's WebSocket the client drives, so a test can hand in its own. */
 export interface SocketLike {
@@ -59,6 +60,8 @@ export interface LiveSocketOptions {
   setTimer?: (fn: () => void, delayMs: number) => unknown;
   clearTimer?: (timer: unknown) => void;
   random?: () => number;
+  /** Called once when a channel's token action is gone from the server: the page is from an older deployment. */
+  onStaleDeployment?: () => void;
 }
 
 const OPEN = 1;
@@ -68,6 +71,7 @@ const SOCKET_TIMER = "socket:";
 
 export class LiveSocketClient {
   private state: MachineState = INITIAL_STATE;
+  private staleNoticed = false;
   private socket: SocketLike | null = null;
   // One timer per waiting channel: a channel waiting 16s must hold neither the socket's reconnect nor another channel's.
   private readonly timers = new Map<string, unknown>();
@@ -177,8 +181,22 @@ export class LiveSocketClient {
       if (this.phaseOf(id) === "opening") {
         this.send(openMessage(id, spec, token));
       }
-    } catch {
+    } catch (error) {
+      this.tokenFailed(id, error);
+    }
+  }
+
+  /** A token refused is retried after a pause; a token action the server no longer has is not, since only a reload can fix it. */
+  private tokenFailed(id: string, error: unknown): void {
+    if (!isStaleDeployment(error)) {
       this.dispatch({ type: "open_failed", id });
+
+      return;
+    }
+
+    if (!this.staleNoticed) {
+      this.staleNoticed = true;
+      this.options.onStaleDeployment?.();
     }
   }
 

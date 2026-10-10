@@ -3,6 +3,7 @@
 // One live socket per tab, held above every page so a navigation from a plan to its run keeps the connection (ADR-048). Without an address there is no client, and every consumer falls back to polling.
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { LiveSocketClient, type SocketConstructor } from "./client";
+import { reloadPage } from "./stale-deployment";
 
 const LiveSocketContext = createContext<LiveSocketClient | null>(null);
 
@@ -19,7 +20,9 @@ export function LiveSocketProvider({
   socket,
 }: LiveSocketProviderProps) {
   const [client] = useState(() =>
-    url === undefined ? null : new LiveSocketClient({ url, socket }),
+    url === undefined
+      ? null
+      : new LiveSocketClient({ url, socket, onStaleDeployment: reloadPage }),
   );
 
   return (
