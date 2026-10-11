@@ -386,7 +386,7 @@ The system MUST provide a single-command install experience. ([validated by `ins
 ### FR-4: Task Tracking Integration
 
 The system MUST provide agent-native task tracking via PostgreSQL
-pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
+pipeline tasks and GitHub Issues. ([validated by `awaitingApproval selects approval-gated tasks carrying an issue`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L21))
 
 - Decision: the generated `AGENTS.md` instructs Claude Code on task-tracking
   commands and proactive guidance behaviour.
@@ -976,7 +976,7 @@ The `Project` facade (ADR-024) exposes every data capability — tasks,
 events, chunks, features, agents, workspace, PRs, issues, cost/usage
 accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
 and an in-memory double per port, so Floor, mcp-server, and lore-api
-share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
+share one persistence surface instead of inline SQL. ([validated by `awaitingApproval selects approval-gated tasks carrying an issue`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L21))
 
 - FR-20.1: The `TaskQueue` port drives org-wide sweep: it exposes
   `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
