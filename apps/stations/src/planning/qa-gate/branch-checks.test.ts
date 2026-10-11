@@ -61,11 +61,16 @@ const NAMES_THE_TICK = [
   `- FR-003: A sweep under \`apps/stations/src/work/issue-triage-tick/\` picks the oldest. ([from plan](${PLAN_URL}#b-why))`,
 ].join("\n");
 
+interface SceneOptions {
+  plan?: string;
+  specPlanPath?: string;
+  onDefault?: Record<string, string>;
+}
+
 function scene(
   spec: string,
   visits: RunVisit[] = [],
-  plan?: string,
-  specPlanPath = SPEC_PATH,
+  { plan, specPlanPath = SPEC_PATH, onDefault = {} }: SceneOptions = {},
 ) {
   const reads: string[] = [];
   const files: Record<string, string> = {
@@ -79,8 +84,11 @@ function scene(
   const { tools, produced, given } = visitBag(files);
   const deps: CoverageDeps = {
     readSpec: async (repo, path, ref) => {
-      reads.push(`${repo}:${path}@${ref}`);
+      reads.push(`${repo}:${path}@${ref ?? "default"}`);
 
+      if (ref === undefined) {
+        return onDefault[path] ?? null;
+      }
       const onBranch: Record<string, string> = {
         [SPEC_PATH]: spec,
         [HANDLER_PATH]: HANDLER,
@@ -119,17 +127,17 @@ describe("qaGateHandle on the spec branch", () => {
         plan_coverage:
           "## Plan coverage\n\n2 of 2 plan blocks are cited by a spec statement.\n",
       },
-      reads: [`re-cinq/lore:${SPEC_PATH}@lore/feature-planning/p1`],
+      reads: [
+        `re-cinq/lore:${SPEC_PATH}@lore/feature-planning/p1`,
+        `re-cinq/lore:${SPEC_PATH}@default`,
+      ],
     });
   });
 
   it("reads specs/checkout/spec.md and counts 2 of 2 cited when the spec plan names the folder specs/checkout/", async () => {
-    const { handle, tools, produced, reads } = scene(
-      CITES_BOTH,
-      [],
-      undefined,
-      "specs/checkout/",
-    );
+    const { handle, tools, produced, reads } = scene(CITES_BOTH, [], {
+      specPlanPath: "specs/checkout/",
+    });
 
     const report = await handle(brief(), tools);
 
@@ -137,7 +145,10 @@ describe("qaGateHandle on the spec branch", () => {
       report: { outcome: "success" },
       coverage:
         "## Plan coverage\n\n2 of 2 plan blocks are cited by a spec statement.\n",
-      reads: [`re-cinq/lore:${SPEC_PATH}@lore/feature-planning/p1`],
+      reads: [
+        `re-cinq/lore:${SPEC_PATH}@lore/feature-planning/p1`,
+        `re-cinq/lore:${SPEC_PATH}@default`,
+      ],
     });
   });
 
@@ -206,8 +217,35 @@ describe("qaGateHandle on the spec branch", () => {
     }).toEqual({ report: { outcome: "changes_requested" }, namesGuard: true });
   });
 
+  it("reports success when the gone guard sits on a line the default branch already has, since an updated spec is judged on the lines the branch wrote", async () => {
+    const { handle, tools } = scene(NAMES_A_GONE_GUARD, [], {
+      onDefault: { [SPEC_PATH]: NAMES_A_GONE_GUARD },
+    });
+
+    const report = await handle(brief(), tools);
+
+    expect(report).toEqual({ outcome: "success" });
+  });
+
+  it("sends the writer back for the gone guard when the branch added its line to a spec the default branch has without it", async () => {
+    const { handle, tools, produced } = scene(NAMES_A_GONE_GUARD, [], {
+      onDefault: { [SPEC_PATH]: CITES_BOTH },
+    });
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      namesGuard: produced.plan_coverage?.includes(
+        "`alreadyWorkingOnIssue` (line 5)",
+      ),
+    }).toEqual({ report: { outcome: "changes_requested" }, namesGuard: true });
+  });
+
   it("reports success when the spec names a folder its plan.md's files-touched list adds", async () => {
-    const { handle, tools } = scene(NAMES_THE_TICK, [], PLAN_ADDS_TICK);
+    const { handle, tools } = scene(NAMES_THE_TICK, [], {
+      plan: PLAN_ADDS_TICK,
+    });
 
     const report = await handle(brief(), tools);
 
