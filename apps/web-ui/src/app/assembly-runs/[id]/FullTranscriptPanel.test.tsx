@@ -186,6 +186,23 @@ describe("FullTranscriptPanel", () => {
     expect(await screen.findByText(/iteration 2/)).toBeTruthy();
   });
 
+  it("shows only iteration 2's turns when told the attempt", async () => {
+    stubFetch(
+      turnsResponse([
+        wireTurn("1", "implement", 1),
+        wireTurn("2", "implement", 2),
+      ]),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" iteration={2} />,
+    );
+
+    await openPanel(container);
+
+    expect(await screen.findByText(/full text of turn 2/)).toBeTruthy();
+    expect(screen.queryByText(/full text of turn 1/)).toBeNull();
+  });
+
   it("switching nodes refilters without refetching", async () => {
     const fetchMock = stubFetch(
       turnsResponse([wireTurn("1", "implement"), wireTurn("2", "review")]),

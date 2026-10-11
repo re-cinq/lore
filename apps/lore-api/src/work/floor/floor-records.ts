@@ -14,12 +14,13 @@ const TURN_KIND = "turn";
 const DEFAULT_LOG_TAIL = 500;
 const RUNNING = "Running";
 
-/** Where a record was made: the visit and the run it belongs to, as both a live frame and a listed record name them. */
+/** Where a record sits in its run's journal: the visit and node it was made on, and the journal's own seq. A record's `seq` only numbers it within its visit and starts again at 1 on the next, so the journal's is the one a run-wide cursor can be built on. */
 export interface RecordPlace {
   runId: string;
   visitId: string;
   nodeId: string;
   iteration: number;
+  seq: number;
 }
 
 /** The node-logs answer the run page reads for a Lore pod, here filled from the floor's own log records of the visit. */
@@ -32,7 +33,7 @@ export interface FloorNodeLogs {
   reason?: "no-records";
 }
 
-/** One turn is one stream-json line, which may project to several rows: a tool call and its text. Each gets the seq and its place in the line, so ids stay numeric, ordered and unique; the live relay and the history read share this so a cursor means the same on both. A record that is not a turn draws nothing. */
+/** One turn is one stream-json line, which may project to several rows: a tool call and its text. Each gets the journal's seq and its place in the line, so ids stay numeric, ordered and unique across the whole run; the live relay and the history read share this so a cursor means the same on both. A record that is not a turn draws nothing. */
 export function recordToAgentEvents(
   record: StationRunRecordView,
   place: RecordPlace,
@@ -47,7 +48,7 @@ export function recordToAgentEvents(
     nodeId: place.nodeId,
     iteration: place.iteration,
     createdAt: new Date(record.occurredAt),
-    id: agentEventId(record.seq, rowIndex),
+    id: agentEventId(place.seq, rowIndex),
     agentCrName,
   }));
 }

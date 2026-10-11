@@ -10,6 +10,8 @@ export interface RankedRow {
   rank: number;
   id?: string;
   confidence?: string;
+  /** Cosine similarity to the query; only a vector leg measures it. */
+  similarity?: number;
 }
 
 /** Raw row shape shared by the four memory/fact search SQL queries. */
@@ -22,10 +24,12 @@ interface SearchSqlRow {
   confidence?: string;
   vec_rank?: string;
   kw_rank?: string;
+  similarity?: string | number | null;
 }
 
 const VECTOR_MEMORIES_SQL = `
     SELECT m.id, m.key, m.value, m.agent_id, 'memory' as source,
+           1 - (m.embedding <=> $1::vector) as similarity,
            ROW_NUMBER() OVER (ORDER BY m.embedding <=> $1::vector) as vec_rank
     FROM memory.memories m
     WHERE m.is_deleted = FALSE
@@ -70,6 +74,7 @@ const FACT_JOINS = `
     WHERE (m.id IS NULL OR (m.is_deleted = FALSE AND (m.expires_at IS NULL OR m.expires_at > now())))`;
 
 const VECTOR_FACTS_SQL = `${FACT_SELECT}
+           1 - (f.embedding <=> $1::vector) as similarity,
            ROW_NUMBER() OVER (ORDER BY f.embedding <=> $1::vector) as vec_rank
 ${FACT_JOINS}
       AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
@@ -164,6 +169,7 @@ function toRankedRow(r: SearchSqlRow): RankedRow {
     agent_id: r.agent_id,
     source: r.source as RankedRow["source"],
     rank: rankOf(r),
+    ...similarityOf(r),
   };
 }
 
@@ -173,6 +179,10 @@ function toFactRow(r: SearchSqlRow): RankedRow {
 }
 
 /** The rank column is named for how the row was found — `vec_rank` by embedding distance, `kw_rank` by text match — and exactly one of them is present on any given row. */
+function similarityOf(row: SearchSqlRow): { similarity?: number } {
+  return row.similarity == null ? {} : { similarity: Number(row.similarity) };
+}
+
 function rankOf(row: SearchSqlRow): number {
   return Number(row.vec_rank ?? row.kw_rank);
 }

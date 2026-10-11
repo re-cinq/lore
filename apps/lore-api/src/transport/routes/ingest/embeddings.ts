@@ -21,7 +21,7 @@ export function setEmbeddingsForTests(fn: EmbeddingsFn | undefined): void {
   embeddingsOverride = fn;
 }
 
-/** Vertex's per-request instance ceiling; the station never sends more in one call. */
+/** The most texts one request may carry (Vertex's per-request instance ceiling); the station never sends more in one call. */
 const MAX_TEXTS = 250;
 
 const EmbeddingsBody = z.object({

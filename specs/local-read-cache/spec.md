@@ -74,7 +74,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
 ## Acceptance Criteria
 
 1. **AC1** The cache is active only in local stdio mode (memory DB
-   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/transport/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/transport/tools/deps.ts#L17))
+   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/transport/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/transport/tools/deps.ts#L18))
 
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
    `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/outbound/proxy-cache.test.ts#L148), [`isCacheEnabled`](libs/server-core/src/outbound/proxy-cache.ts#L43))
@@ -106,7 +106,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
     `search_memory` + `query_graph` + `assemble_context`; create task → task
     lists; ingest files → `assemble_context` for the repo; invalidation scopes
     removal to the given repo; invalidation is a no-op with no entries directory
-    yet, and non-`.json` files in it are left untouched. ([implemented by `MEMORY_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L42), [`EPISODE_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L43), [`invalidateCache`](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L75), [`invalidateCache`](apps/mcp-server/src/transport/tools/repo-tools.ts#L97), [validated by `scopes removal to a repo when given`](libs/server-core/src/outbound/proxy-cache.test.ts#L104), [validated by `removes entries for the named tool only`](libs/server-core/src/outbound/proxy-cache.test.ts#L96), [validated by `is a no-op when the entries directory does not exist yet`](libs/server-core/src/outbound/proxy-cache.test.ts#L112), [validated by `leaves non-.json files in the entries directory untouched`](libs/server-core/src/outbound/proxy-cache.test.ts#L116))
+    yet, and non-`.json` files in it are left untouched. ([implemented by `MEMORY_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L48), [`EPISODE_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L49), [`invalidateCache`](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L75), [`invalidateCache`](apps/mcp-server/src/transport/tools/repo-tools.ts#L97), [validated by `scopes removal to a repo when given`](libs/server-core/src/outbound/proxy-cache.test.ts#L104), [validated by `removes entries for the named tool only`](libs/server-core/src/outbound/proxy-cache.test.ts#L96), [validated by `is a no-op when the entries directory does not exist yet`](libs/server-core/src/outbound/proxy-cache.test.ts#L112), [validated by `leaves non-.json files in the entries directory untouched`](libs/server-core/src/outbound/proxy-cache.test.ts#L116))
 
 11. **AC11** Finished-job log reads (`lore_get_task_logs`, `lore_get_job_logs`)
     are cached only when the response reports `complete: true`, with a 24h TTL. ([implemented by `completeOnly`](apps/mcp-server/src/transport/tools/pipeline-tools-shared.ts#L34), [`ttlSeconds: 86400`](apps/mcp-server/src/transport/tools/pipeline-tools-logs.ts#L97), [`ttlSeconds: 86400`](apps/mcp-server/src/transport/tools/pipeline-tools-logs.ts#L133))

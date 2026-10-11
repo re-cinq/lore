@@ -37,11 +37,53 @@ and [ADR-023](../../adrs/ADR-023-ci-driven-doc-and-test-projection.md).
    a 4xx aborts immediately. Ingest is idempotent (xid upserts), so re-sending
    a chunk is safe.
 
+## Specs and ADRs: `docs`
+
+`lore-code-trace docs --post` sends the repo's specs and ADRs to lore-api
+(`POST /api/repos/{owner}/{repo}/ingest`), one delta per kind, with the files'
+content inline. lore-api projects them in-process: no event, no assembly run,
+no pod, no clone.
+
+1. Fetches the last commit Lore ingested for the kind (`GET …/ingest-state`).
+2. With a reachable commit, posts only the kind's files `git diff` names as
+   changed, plus its deleted paths. The checkout needs full history
+   (`fetch-depth: 0`).
+3. With no recorded commit, an unreachable one, a changed `.lore/ingest.yml`,
+   or `--force`, posts every file of the kind and the list of paths the tree
+   holds, so the server prunes docs that are gone.
+4. A push that changed no file of the kind still posts an empty delta, so the
+   stored commit advances.
+
+Which files belong to a kind: markdown under `specs/` and `.specify/` (specs)
+or `adrs/` (ADRs), unless `.lore/ingest.yml` declares glob patterns for the
+kind (`**`, `*`, `?`). A manifest that does not parse fails the run. Without `--post`, `docs` prints the selection as JSON,
+which is how to check a manifest's patterns locally.
+
+## Spec links: `links`
+
+`lore-code-trace links` checks every test link the repo's specs and ADRs carry
+(`([validated by …](path/to/test.ts#L42))`) against the checkout, and fails
+with one GitHub annotation per broken link: the file is gone, the line is past
+the end of the file, or the link is not at the end of its statement.
+
+lore-api parses the links (`POST /api/spec-links/parse`), so this check and the
+graph agree on what a link is. The binary judges them against the tree.
+
+- On a pull request it judges only what the change could have broken: the docs
+  it touched, and links pointing at files it touched. The base comes from
+  `--base <branch>` or `GITHUB_BASE_REF`, and the checkout needs full history.
+- `--all`, or no known base, checks everything.
+- When lore-api does not answer, or the URL or token is unset, the check is
+  skipped with a warning and passes. A refused token fails it.
+
 ## Flags
 
-| Flag     | Effect                                                                                       |
-| -------- | -------------------------------------------------------------------------------------------- |
-| `--post` | POST the report to the Floor ci-tests ingress instead of printing it. Requires the env vars. |
+| Flag      | Effect                                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| `--post`  | POST to Lore instead of printing. Requires the env vars.                                           |
+| `--force` | `docs` only: post every file and have Lore re-project it even when its content hash is unchanged.  |
+| `--all`   | `links` only: check every link instead of only what the change could have broken.                  |
+| `--base`  | `links` only: the branch the change targets. Defaults to `GITHUB_BASE_REF`.                        |
 
 Exit code: `0` on success, `1` on any fatal error
 (errors go to stderr, prefixed `lore-code-trace:`).
@@ -50,7 +92,8 @@ Exit code: `0` on success, `1` on any fatal error
 
 | Variable               | Purpose                                                                                                  |
 | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| `LORE_WEBHOOK_URL`     | Base URL of the Floor server (`--post` only, required). `/api/webhook/ci-tests` is appended.              |
+| `LORE_API_URL`         | Base URL of lore-api (`--post`): the incremental ingest for the test report, and the only path for `docs`. |
+| `LORE_WEBHOOK_URL`     | Base URL of the Floor server: the test report's chunked fallback when lore-api lacks the ingest route.    |
 | `LORE_INGEST_TOKEN`    | Bearer token for the ingest POST (`--post` only, required).                                               |
 | `LORE_TRACE_TIMEOUT_MS`| Per-command timeout for `list` and each `run`, in ms. Default 120000. CI sets 600000 for cold runners.    |
 | `LORE_DB_HOST`         | If set, the binary **refuses to run** — trust-boundary parity with the TS runner: repo commands execute only in a trusted sandbox (CI/local), never the shared server. |

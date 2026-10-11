@@ -1,5 +1,6 @@
 // What the `issues` station files, decided from the decomposition alone. Pure: the station does the IO, this decides.
 
+import { DEFAULT_PRIORITY, PRIORITY_LABELS } from "../backlog/labels.js";
 import type {
   DecompositionResult,
   UserStory,
@@ -8,8 +9,8 @@ import type {
 /** Every Lore-filed issue carries this, so a repo can find or ignore them all. */
 export const BASE_STORY_LABELS = ["lore-managed", "user-story"] as const;
 
-/** Every task issue carries these: filterable as Lore's, and as a spec-task. */
-export const BASE_TASK_LABELS = ["lore-managed", "spec-task"] as const;
+/** Every task issue carries this, so a repo can find or ignore them all. */
+export const BASE_TASK_LABELS = ["lore-managed"] as const;
 
 /** The ONE issue a plan becomes; its decomposed slices are sections inside it. */
 export interface PlannedStory {
@@ -118,11 +119,20 @@ function plannedTasks(stories: DecompositionResult["stories"]): PlannedTask[] {
     story.tasks.map((task) => ({
       title: `${task.id}: ${task.title ?? task.description}`,
       description: task.description,
-      labels: distinct([...(task.labels ?? []), ...BASE_TASK_LABELS]),
+      labels: taskLabels(task.labels ?? []),
       storyIndex,
       task,
     })),
   );
+}
+
+/** A task issue's labels: its own, Lore's, and the priority label that queues it for the implementation loop — added only when the decomposition chose none, because `orderBacklog` holds back a ticket carrying two. */
+function taskLabels(chosen: readonly string[]): string[] {
+  const queued = PRIORITY_LABELS.some((p) => chosen.includes(p))
+    ? []
+    : [DEFAULT_PRIORITY];
+
+  return distinct([...chosen, ...BASE_TASK_LABELS, ...queued]);
 }
 
 function distinct(labels: string[]): string[] {

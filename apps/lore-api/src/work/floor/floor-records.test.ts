@@ -12,12 +12,11 @@ describe("recordToAgentEvents", () => {
     visitId: "visit-1",
     nodeId: "review",
     iteration: 2,
+    seq: 7,
   };
 
-  it("turns the assistant turn at seq 7 into agent event 700 of visit-1 at iteration 2", () => {
-    expect(
-      recordToAgentEvents({ ...ASSISTANT_TURN, seq: 7 }, place),
-    ).toMatchObject([
+  it("numbers the assistant turn by the journal's seq 7, not its own record seq 1: agent event 700 of visit-1 at iteration 2", () => {
+    expect(recordToAgentEvents(ASSISTANT_TURN, place)).toMatchObject([
       {
         id: "700",
         assemblyLineId: "run-1",

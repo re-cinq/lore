@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
 import { proxyUpstreamStatus } from "@/lib/api-error";
 import { assemblyRunProxyRoute } from "@/lib/assembly-run-auth";
-import { resolveUpstreamConfig, type UpstreamConfig } from "@/lib/floor-config";
+import type { UpstreamConfig } from "@/lib/floor-config";
 import type { RunReadUpstream } from "@/lib/run-read-upstream";
 
-/** Where one run-scoped read is answered, given the run and the two backends that could. */
-type UpstreamOf = (
-  run: { id: string; engine?: string },
-  floor: UpstreamConfig,
-  loreApi: UpstreamConfig | null,
-) => RunReadUpstream;
+/** Where one run-scoped read is answered on lore-api. */
+type UpstreamOf = (runId: string, loreApi: UpstreamConfig) => RunReadUpstream;
 
-/** A run-scoped paged JSON proxy whose backend depends on the run's engine: lore-api for a run on the external floor, the Floor otherwise, with only the paging parameters forwarded. */
-export function engineRoutedPagedJsonRoute(
+/** A run-scoped paged JSON proxy to lore-api, with only the paging parameters forwarded. */
+export function runPagedJsonRoute(
   errorContext: string,
   upstreamOf: UpstreamOf,
 ) {
-  return assemblyRunProxyRoute(errorContext, async (ctx) => {
-    const upstream = upstreamOf(
-      { id: ctx.id, engine: ctx.run.engine },
-      { upstreamUrl: ctx.upstreamUrl, token: ctx.token },
-      resolveUpstreamConfig("lore-api"),
-    );
-
-    return proxyJson(await fetchPaged(upstream, ctx.req));
-  });
+  return assemblyRunProxyRoute(errorContext, async (ctx) =>
+    proxyJson(
+      await fetchPaged(
+        upstreamOf(ctx.id, { upstreamUrl: ctx.upstreamUrl, token: ctx.token }),
+        ctx.req,
+      ),
+    ),
+  );
 }
 
 function fetchPaged(upstream: RunReadUpstream, req: Request) {
@@ -36,7 +31,7 @@ function fetchPaged(upstream: RunReadUpstream, req: Request) {
   });
 }
 
-/** The paging parameters, and only those. An allowlist rather than a pass-through: whatever else a caller appends must not reach the Floor as if this route had asked for it. */
+/** The paging parameters, and only those. An allowlist rather than a pass-through: whatever else a caller appends must not reach lore-api as if this route had asked for it. */
 export function forwardedPagingQuery(incoming: URLSearchParams): string {
   const forwarded = new URLSearchParams();
 
@@ -51,7 +46,7 @@ export function forwardedPagingQuery(incoming: URLSearchParams): string {
   return forwarded.size === 0 ? "" : `?${forwarded}`;
 }
 
-/** The Floor's JSON, passed through as-is. The body is never parsed — these routes proxy rather than interpret — and the status goes through `proxyUpstreamStatus` so a Floor auth failure reads as a gateway error rather than as the reader's own. */
+/** The upstream's JSON, passed through as-is. The body is never parsed — these routes proxy rather than interpret — and the status goes through `proxyUpstreamStatus` so an upstream auth failure reads as a gateway error rather than as the reader's own. */
 export async function proxyJson(upstream: Response) {
   const body = await upstream.text();
 
@@ -59,21 +54,4 @@ export async function proxyJson(upstream: Response) {
     status: proxyUpstreamStatus(upstream.status),
     headers: { "Content-Type": "application/json" },
   });
-}
-
-/** A run-scoped paged JSON proxy: the Floor's answer at `/api/{upstream}/{id}`, passed through with only the paging parameters forwarded. */
-export function floorPagedJsonRoute(upstream: string, errorContext: string) {
-  return assemblyRunProxyRoute(
-    errorContext,
-    async ({ id, req, upstreamUrl, token }) => {
-      const query = forwardedPagingQuery(new URL(req.url).searchParams);
-
-      return proxyJson(
-        await fetch(
-          `${upstreamUrl}/api/${upstream}/${encodeURIComponent(id)}${query}`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: req.signal },
-        ),
-      );
-    },
-  );
 }

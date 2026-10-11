@@ -37,9 +37,12 @@ export const FLOOR_VISIT: VisitView = {
   brief: { needs: {}, iteration: 1 },
   report: null,
   worker: "cluster-agent-1",
+  branch: null,
   requestedBy: null,
   deadline: "2026-09-30T10:30:00.000Z",
   resumedFrom: null,
+  openedAt: "2026-09-30T10:00:00.000Z",
+  finishedAt: null,
   agentSettings: {
     model: "gemini-3.1-pro-preview",
     prompt: SECRET_PROMPT,
@@ -126,4 +129,17 @@ const ANSWERS: Record<string, unknown> = {
 /** The floor holding the one run above; any other path answers 404. */
 export function floorWithOneRun(request: FloorRequest): unknown {
   return ANSWERS[request.path];
+}
+
+/** The floor with one run on a page that has a next one, and that run's cost. */
+export function floorWithRunPage(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  if (url.pathname === "/costs") {
+    return { items: [{ key: "run-1", costUsd: 0.42 }] };
+  }
+
+  return url.pathname === "/assembly-runs"
+    ? { items: [FLOOR_RUN], nextCursor: "cursor-2" }
+    : floorWithOneRun(request);
 }

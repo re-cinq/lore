@@ -27,7 +27,6 @@ async function serverWith(
   server.auth.default("bearer-scope");
   server.route(
     spendWindowRoute(() => poolWith(rows, issued, rejectWhen), {
-      livePods: async () => [],
       env: {},
       now: () => NOW,
       ...deps,
@@ -349,30 +348,6 @@ describe("GET /api/analytics/spend-window", () => {
     expect(issued.some(({ sql }) => sql.includes("credit_ledger"))).toBe(false);
   });
 
-  it("prices each live pod from its ACTUAL requests and sums the burn rate", async () => {
-    const server = await serverWith(BASE_ROWS, {
-      livePods: async () => [
-        {
-          name: "agent-job-run1-tdd-round-abc",
-          phase: "Running",
-          startedAt: "2026-09-02T11:00:00.000Z",
-          requests: { cpu: "1", memory: "16Gi" },
-          labels: { "lore.re-cinq.com/station-run-id": "sr-1" },
-        },
-      ],
-    });
-    const body = JSON.parse((await get(server)).payload);
-    const pod = body.compute.live_pods[0];
-
-    expect(pod).toMatchObject({
-      name: "agent-job-run1-tdd-round-abc",
-      usd_per_hour: 0.07,
-      usd_so_far: 0.07,
-      station_run_id: "sr-1",
-    });
-    expect(body.compute.live_usd_per_hour).toBe(0.07);
-  });
-
   it("defaults to the last 7 days and rejects a bad interval as a 400 naming the rule", async () => {
     const server = await serverWith(BASE_ROWS);
     const ok = await get(server);
@@ -404,18 +379,6 @@ describe("GET /api/analytics/spend-window", () => {
 
     expect(podHoursSql).toContain("sr.started_at + interval '2 hours'");
     expect(podHoursSql).not.toMatch(/coalesce\(sr\.finished_at,\s*now\(\)\)/);
-  });
-
-  it("an unreachable cluster-agent degrades to an empty live list, never a failed page", async () => {
-    const server = await serverWith(BASE_ROWS, {
-      livePods: async () => {
-        throw new Error("should be caught by the default deps, not reach here");
-      },
-    });
-    const res = await get(server);
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload).compute.live_pods).toEqual([]);
   });
 
   it("reports the billed half unavailable (not a confident zero) when the sync has never run", async () => {

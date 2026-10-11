@@ -9,11 +9,14 @@ import {
   runStatusVisual,
 } from "@/lib/assembly-run-presenter";
 import { formatCost, shortAgentId } from "@/lib/task-presenter";
-import PRStatusBadgePanel from "../tasks/PRStatusBadgePanel";
+import MiniPipeline from "@/components/MiniPipeline";
+import PRStatusBadgePanel from "./PRStatusBadgePanel";
 import styles from "./AssemblyRunsTable.module.css";
 
 const EM_DASH = "—";
-const TABLE_COLUMNS = 9;
+const BASE_COLUMNS = 9;
+const columnCountFor = ({ showStages }: StagesProps): number =>
+  showStages ? BASE_COLUMNS + 1 : BASE_COLUMNS;
 const BY_COLUMN_TITLE =
   "Who triggered the run — the task creator, or the commenter/reviewer/PR author for webhook-driven lines";
 const COST_COLUMN_TITLE =
@@ -29,7 +32,7 @@ const isCoordinationSkip = (run: AssemblyRun): boolean =>
 const withoutCoordinationSkips = (runs: AssemblyRun[]) =>
   runs.filter((r) => !isCoordinationSkip(r));
 
-export interface AssemblyRunsTableProps {
+export interface AssemblyRunsTableProps extends StagesProps {
   runs: AssemblyRun[];
 }
 
@@ -37,23 +40,27 @@ interface RunRowProps {
   run: AssemblyRun;
 }
 
+interface StagesProps {
+  showStages?: boolean;
+}
+
 // The one assembly-line table, shared by the global list and per-repo tab. PR/creator/cost come from the backing task; task-less runs fall back to args.pr_number/args.actor/llm_calls, else em-dash.
-export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
+export default function AssemblyRunsTable(props: AssemblyRunsTableProps) {
+  const { runs, showStages } = props;
   const [showSkips, setShowSkips] = useState(false);
 
   if (runs.length === 0) {
     return <p className={styles.empty}>No assembly line runs.</p>;
   }
-  const skipCount = runs.filter(isCoordinationSkip).length;
+  const visibleRuns = showSkips ? runs : withoutCoordinationSkips(runs);
 
   return (
     <table className={styles.table}>
-      <RunsTableHead />
-      <TableBody
-        visibleRuns={showSkips ? runs : withoutCoordinationSkips(runs)}
-      />
+      <RunsTableHead showStages={showStages} />
+      <TableBody visibleRuns={visibleRuns} showStages={showStages} />
       <SkipToggleFooter
-        skipCount={skipCount}
+        skipCount={runs.filter(isCoordinationSkip).length}
+        showStages={showStages}
         showSkips={showSkips}
         onToggle={() => setShowSkips((s) => !s)}
       />
@@ -61,7 +68,7 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   );
 }
 
-function RunsTableHead() {
+function RunsTableHead({ showStages }: StagesProps) {
   return (
     <thead>
       <tr>
@@ -69,6 +76,7 @@ function RunsTableHead() {
         <th>Repo</th>
         <th>Branch</th>
         <th>Status</th>
+        {showStages ? <th>Stages</th> : null}
         <th>PR</th>
         <th>Duration</th>
         <th>Started</th>
@@ -79,21 +87,25 @@ function RunsTableHead() {
   );
 }
 
-function TableBody({ visibleRuns }: { visibleRuns: AssemblyRun[] }) {
+interface TableBodyProps extends StagesProps {
+  visibleRuns: AssemblyRun[];
+}
+
+function TableBody({ visibleRuns, showStages }: TableBodyProps) {
   if (visibleRuns.length === 0) {
-    return <AllSkippedBody />;
+    return <AllSkippedBody showStages={showStages} />;
   }
 
   return (
     <tbody>
       {visibleRuns.map((run) => (
-        <RunRow run={run} key={run.id} />
+        <RunRow run={run} showStages={showStages} key={run.id} />
       ))}
     </tbody>
   );
 }
 
-interface SkipToggleFooterProps {
+interface SkipToggleFooterProps extends StagesProps {
   skipCount: number;
   showSkips: boolean;
   onToggle: () => void;
@@ -108,7 +120,7 @@ function SkipToggleFooter(props: SkipToggleFooterProps) {
   return (
     <tfoot>
       <tr>
-        <td colSpan={TABLE_COLUMNS}>
+        <td colSpan={columnCountFor(props)}>
           <SkipToggleButton {...props} />
         </td>
       </tr>
@@ -116,19 +128,18 @@ function SkipToggleFooter(props: SkipToggleFooterProps) {
   );
 }
 
-function RunRow({ run }: RunRowProps) {
+function RunRow({ run, showStages }: RunRowProps & StagesProps) {
   return (
     <tr>
       <DefinitionCell run={run} />
-      <td>
-        <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
-      </td>
+      <RepoCell run={run} />
       <td className={styles.branch}>
         <BranchCell branch={run.branch} />
       </td>
       <td>
         <StatusCell run={run} />
       </td>
+      {showStages ? <StagesCell run={run} /> : null}
       <td>
         <RunPrCell run={run} />
       </td>
@@ -137,11 +148,11 @@ function RunRow({ run }: RunRowProps) {
   );
 }
 
-function AllSkippedBody() {
+function AllSkippedBody(props: StagesProps) {
   return (
     <tbody>
       <tr>
-        <td colSpan={TABLE_COLUMNS} className={styles.empty}>
+        <td colSpan={columnCountFor(props)} className={styles.empty}>
           All runs are coordination skips — use the toggle below to reveal them.
         </td>
       </tr>
@@ -166,6 +177,22 @@ function SkipToggleButton({
     >
       {showSkips ? `Hide ${skipLabel}` : `Show ${skipLabel}`}
     </button>
+  );
+}
+
+function RepoCell({ run }: RunRowProps) {
+  return (
+    <td>
+      <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
+    </td>
+  );
+}
+
+function StagesCell({ run }: RunRowProps) {
+  return (
+    <td>
+      <MiniPipeline runId={run.id} pipeline={run.pipeline ?? []} />
+    </td>
   );
 }
 

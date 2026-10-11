@@ -54,7 +54,7 @@ const ROUTE_OPTIONS = zodResponse(
   {
     name: "CiJobLog",
     description:
-      "The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep",
+      "The tail of one GitHub Actions job's log, timestamps stripped. With grep, only the lines containing it are kept and the tail is taken from those",
     errors: [400, 404],
   },
 );

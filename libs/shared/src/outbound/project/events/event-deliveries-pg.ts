@@ -199,6 +199,17 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     }));
   }
 
+  async pendingCount(subscriber: string): Promise<number> {
+    const { rows } = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+         FROM pipeline.event_deliveries
+        WHERE subscriber = $1 AND status IN ('pending', 'failed')`,
+      [subscriber],
+    );
+
+    return Number(rows[0]?.count ?? 0);
+  }
+
   async orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]> {
     const { rows } = await this.pool.query<{
       event_name: string;

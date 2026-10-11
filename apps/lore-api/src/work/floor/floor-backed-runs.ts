@@ -11,6 +11,8 @@ import type {
   AssemblyRunSummary,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { FloorRunReader } from "./floor-run-reader.js";
+import { FloorRunRows } from "./floor-run-rows.js";
+import { FloorRunsFeed } from "./floor-runs-feed.js";
 
 export type FloorRunReads = Pick<
   AssemblyRunsPort,
@@ -20,9 +22,6 @@ export type FloorRunReads = Pick<
 const DEFAULT_LIST_LIMIT = 50;
 
 export const FLOOR_ENGINE = "floor";
-
-export const FLOOR_RUN_REFUSAL =
-  "this run is on the external floor; retry it from the floor";
 
 /** True for a run the floor answered: its `args.engine` is stamped by the mapping. */
 export function runsOnFloor(run: { args: Record<string, unknown> }): boolean {
@@ -87,6 +86,26 @@ export function floorRunReader(): FloorRunReader {
   reader ??= new FloorRunReader(floorClient());
 
   return reader;
+}
+
+let rows: FloorRunRows | undefined;
+
+export function floorRunRows(): FloorRunRows {
+  rows ??= new FloorRunRows(floorRunReader());
+
+  return rows;
+}
+
+let runsFeed: FloorRunsFeed | undefined;
+
+/** The one feed the process keeps on the floor's run list. */
+export function floorRunsFeed(): FloorRunsFeed {
+  runsFeed ??= new FloorRunsFeed({
+    watchFloor: () => floorClient().runs.watchFloor(),
+    rowOf: (runId) => floorRunRows().row(runId),
+  });
+
+  return runsFeed;
 }
 
 /** The port every run read goes through: Postgres alone on a deployment with no floor. */

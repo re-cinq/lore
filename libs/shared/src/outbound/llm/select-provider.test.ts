@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectProvider } from "./select-provider.js";
+import { selectProvider, selectProviderFor } from "./select-provider.js";
 
 describe("selectProvider", () => {
   it("uses anthropic when a key is set and nothing else is configured", () => {
@@ -39,5 +39,26 @@ describe("selectProvider", () => {
       selectProvider({ LORE_LLM_PROVIDER: "gemini", LORE_FACT_LLM: "ollama" })
         .vendor,
     ).toBe("gemini");
+  });
+
+  it("picks vertex for LORE_LLM_PROVIDER=vertex", () => {
+    expect(selectProvider({ LORE_LLM_PROVIDER: "vertex" }).vendor).toBe(
+      "vertex",
+    );
+  });
+});
+
+describe("selectProviderFor", () => {
+  it("picks vertex for the eval use when LORE_EVAL_LLM_PROVIDER=vertex and the process runs anthropic", () => {
+    const env = { ANTHROPIC_API_KEY: "k", LORE_EVAL_LLM_PROVIDER: "vertex" };
+
+    expect(selectProviderFor("eval", env).vendor).toBe("vertex");
+    expect(selectProvider(env).vendor).toBe("anthropic");
+  });
+
+  it("falls back to the process vendor ollama when the eval use names none", () => {
+    expect(
+      selectProviderFor("eval", { LORE_LLM_PROVIDER: "ollama" }).vendor,
+    ).toBe("ollama");
   });
 });

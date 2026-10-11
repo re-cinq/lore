@@ -58,6 +58,8 @@ export {
 export {
   deleteSpecSubtree,
   deleteAdrSubtree,
+  listGraphDocPaths,
+  selectPruneCandidates,
 } from "./spec-trace/prune-removed-docs.js";
 export { pruneTestFiles } from "./spec-trace/prune-test-files.js";
 export {

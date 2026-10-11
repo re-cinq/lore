@@ -110,6 +110,7 @@ describe("floorReviewHandlers", () => {
 
     await deliver("github.issue_comment.created", {
       comment_author: "gedaiu",
+      comment_author_association: "MEMBER",
       comment_body: "@lore review",
     });
 
@@ -123,6 +124,7 @@ describe("floorReviewHandlers", () => {
 
     await deliver("github.issue_comment.created", {
       comment_author: "gedaiu",
+      comment_author_association: "MEMBER",
       comment_body: "@lore review",
     });
 
@@ -134,6 +136,7 @@ describe("floorReviewHandlers", () => {
 
     await deliver("github.issue_comment.created", {
       comment_author: "gedaiu",
+      comment_author_association: "MEMBER",
       comment_body: "looks fine to me",
     });
 
@@ -201,5 +204,29 @@ describe("floorReviewHandlers", () => {
     await deliver("github.pull_request.closed", {});
 
     expect(writes(requests)).toEqual(["/assembly-runs/open-1/cancel"]);
+  });
+
+  it("starts a forced code-review when MEMBER gedaiu comments @lore review in a repository with auto_review off", async () => {
+    const { deliver, requests } = scene({ autoReview: false });
+
+    await deliver("github.issue_comment.created", {
+      comment_author: "gedaiu",
+      comment_author_association: "MEMBER",
+      comment_body: "@lore review",
+    });
+
+    expect(writes(requests)).toEqual(["/assembly-lines/code-review/start"]);
+  });
+
+  it("starts nothing when a stranger with association NONE comments @lore review", async () => {
+    const { deliver, requests } = scene();
+
+    await deliver("github.issue_comment.created", {
+      comment_author: "passer-by",
+      comment_author_association: "NONE",
+      comment_body: "@lore review",
+    });
+
+    expect(requests).toEqual([]);
   });
 });

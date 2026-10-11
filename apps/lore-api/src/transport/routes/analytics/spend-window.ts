@@ -5,12 +5,9 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import type { RunningPodInfo } from "@re-cinq/lore-shared";
-import { ClusterAgentClient } from "@re-cinq/lore-shared/cluster/cluster-agent-client.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { clusterAgentCredentials } from "../../../work/agents/agent-crd-k8s.js";
 import { spendInterval } from "../../../work/analytics/compute-cost.js";
 import { SpendWindowSchema } from "./spend-window-schema.js";
 import type { SpendWindow } from "./spend-window-db.js";
@@ -26,26 +23,9 @@ import { withPool } from "../with-pool.js";
 
 export type { SpendWindowDeps } from "./spend-window-compute.js";
 
-// The whole spend screen in one interval-scoped call (absorbed the old month-to-date /api/spend): metered llm_calls, billed anthropic_cost_daily, and a central-cluster-only compute estimate (live pods degrade to [] if unreachable).
+// The whole spend screen in one interval-scoped call (absorbed the old month-to-date /api/spend): metered llm_calls, billed anthropic_cost_daily, and a central-cluster-only compute estimate.
 
 const defaultDeps = (): SpendWindowDeps => ({
-  livePods: async () => {
-    const { baseUrl, token } = clusterAgentCredentials(process.env);
-
-    if (!baseUrl) {
-      return [];
-    }
-
-    try {
-      const body = await new ClusterAgentClient(baseUrl, token).call<{
-        pods: RunningPodInfo[];
-      }>("GET", "/pods");
-
-      return body?.pods ?? [];
-    } catch {
-      return [];
-    }
-  },
   env: process.env,
   now: () => new Date(),
 });

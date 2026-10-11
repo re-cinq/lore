@@ -15,10 +15,11 @@ export * from "./assembly-run-rows";
 export interface AssemblyRunFilter {
   status?: string;
   repo?: string;
-  clusterAgentId?: string;
   /** What the run works on, e.g. `plan:<id>`. */
   subjectKey?: string;
   blueprint?: string;
+  /** `lore`: only the runs Lore's own engine walked (Postgres). */
+  engine?: "lore";
   limit?: number;
 }
 
@@ -56,9 +57,9 @@ function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const filters: Array<[string, string | undefined]> = [
     ["status", opts.status],
     ["repo", opts.repo],
-    ["cluster_agent_id", opts.clusterAgentId],
     ["subject_key", opts.subjectKey],
     ["blueprint", opts.blueprint],
+    ["engine", opts.engine],
   ];
 
   filters
@@ -120,6 +121,16 @@ export async function fetchAssemblyRunNodes(
   const { nodes } = result.data;
 
   return nodes.map(toAssemblyRunNode);
+}
+
+/** Whether the floor holds a newer version of the run's assembly line — false for any run the floor does not have, the legacy runs Lore's own engine walked included. */
+export async function hasAssemblyRunUpgrade(id: string): Promise<boolean> {
+  const result = await apiFetch<{ available: boolean }>(
+    "lore-api",
+    `/api/assembly-runs/${encodeURIComponent(id)}/upgrade`,
+  );
+
+  return result.status === "ok" && result.data.available;
 }
 
 /** A line's usage so far, or null on no-usage-yet/any error (a pre-0037 DB included) — reads `pipeline.agent_run_turns`, not `llm_calls`, since turns arrive mid-stream while a cost row lands only when the run ends; summed SQL-side (migration 0037 grants `lore_ui` SELECT). */

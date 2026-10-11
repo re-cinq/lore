@@ -8,6 +8,7 @@ import type { PipelineTask } from "./types.js";
 import { enforceRepoTrustForTaskType } from "./pipeline-task-trust.js";
 import { setTaskStatus } from "./pipeline-task-status.js";
 import { enforceDescriptionFits } from "./task-description.js";
+import { namedTaskType } from "./task-types/retired-task-types.js";
 
 export interface CreateTaskInput {
   description: string;
@@ -82,7 +83,7 @@ export async function createTask(
   pool: PgPool,
   input: CreateTaskInput,
 ): Promise<CreatedTask> {
-  const taskType = input.taskType ?? "general";
+  const taskType = namedTaskType(input.taskType);
   const createdBy = input.createdBy ?? "ui";
   const priority = resolvePriority(input.priority);
   const resolved = { taskType, createdBy, priority };

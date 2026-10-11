@@ -9,6 +9,13 @@ import {
   PIPELINE_TASK_COLUMNS,
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { PRIORITY_LABELS } from "@re-cinq/lore-shared";
+import { ticketHold } from "@re-cinq/lore-shared/backlog/ticket-hold.js";
+import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
+import {
+  miniPipeline,
+  type PipelineNode,
+} from "../../../work/assembly-line-station/mini-pipeline.js";
+import type { FloorRunReads } from "../../../work/floor/floor-backed-runs.js";
 import type { Ticket } from "./backlog-schema.js";
 
 // The implementation-loop task fields the backlog view reads, picked from the pipeline.tasks wire contract.
@@ -20,6 +27,7 @@ const LOOP_TASK_FIELDS = [
   "issueNumber",
   "issueUrl",
   "prUrl",
+  "failureReason",
 ] as const;
 
 export const LOOP_TASK_COLUMNS = pickColumns(
@@ -36,6 +44,7 @@ export type LoopTaskRow = Pick<
   | "issue_number"
   | "issue_url"
   | "pr_url"
+  | "failure_reason"
 >;
 
 export const priorityOf = (issue: IssueRef | undefined): string | null =>
@@ -70,13 +79,68 @@ export function taskTicket(
     return null;
   }
   const issue = openIssues.find((i) => i.number === issue_number);
+  const lastAttempt = attemptOf(row, run);
 
   return {
     ...ticketIssueFields(row, issue_number, issue),
     ...ticketTaskFields(row),
-    ...runSummary(run),
+    hold: ticketHold({ issue, openBlockers: [], lastAttempt, picked: true }),
+    run_id: run?.id ?? null,
     pipeline: pipelineOf(run, nodeRows),
-    text_too_long: false,
+  };
+}
+
+/** How a task's attempt ended: the run's own reason where Postgres holds the run, otherwise what the settling hook stored on the task. */
+function attemptOf(row: LoopTaskRow, run: LoopRunRow | undefined) {
+  return { status: row.status, why: run?.reason ?? row.failure_reason };
+}
+
+/** What the queue and the parked list know about a ticket no task is working: its open blockers and its newest attempt, if it had one. */
+export interface WaitingContext {
+  openBlockers: ReadonlyMap<number, number[]>;
+  taskRows: readonly LoopTaskRow[];
+  runByTask: ReadonlyMap<string, LoopRunRow>;
+  nodeRows: readonly NodeRow[];
+}
+
+/** A ticket read from its issue: `queued` when the picker will take it, `parked` when it will not. The pull request, run and Stages of its newest attempt ride along, since that is where its reader goes next. */
+export function waitingTicket(
+  issue: IssueRef,
+  state: "queued" | "parked",
+  context: WaitingContext,
+): Ticket {
+  const last = context.taskRows.find((t) => t.issue_number === issue.number);
+  const run = last && context.runByTask.get(last.id);
+
+  return {
+    ...waitingIssueFields(issue),
+    ...lastAttemptLinks(last, run),
+    state,
+    hold: ticketHold({
+      issue,
+      openBlockers: context.openBlockers.get(issue.number) ?? [],
+      lastAttempt: last && attemptOf(last, run),
+    }),
+    pipeline: pipelineOf(run, context.nodeRows),
+  };
+}
+
+function lastAttemptLinks(
+  last: LoopTaskRow | undefined,
+  run: LoopRunRow | undefined,
+) {
+  return { pr_url: last?.pr_url ?? null, run_id: run?.id ?? null };
+}
+
+function waitingIssueFields(issue: IssueRef) {
+  return {
+    issue_number: issue.number,
+    issue_url: issue.url ?? null,
+    title: issue.title,
+    priority: priorityOf(issue),
+    created_at: issue.createdAt
+      ? new Date(issue.createdAt).toISOString()
+      : null,
   };
 }
 
@@ -105,68 +169,23 @@ function ticketTaskFields(row: LoopTaskRow) {
   };
 }
 
-function runSummary(run: LoopRunRow | undefined): {
-  error: string | null;
-  run_id: string | null;
-} {
-  return { error: run?.reason ?? null, run_id: run?.id ?? null };
-}
-
 // The mini graph: every graph node in definition order, colored by its latest station-run outcome.
 export function pipelineOf(
   run: LoopRunRow | undefined,
   nodeRows: readonly NodeRow[],
-): Array<{ node_id: string; state: string }> | null {
+): PipelineNode[] | null {
   if (!run?.graph?.nodes) {
     return null;
   }
-  const latest = latestVisitByNode(run.id, nodeRows);
-  const { nodes } = run.graph;
+  const visits = nodeRows
+    .filter((row) => row.assembly_run_id === run.id)
+    .map(({ node_id, iteration, outcome }) => ({
+      nodeId: node_id,
+      iteration,
+      outcome,
+    }));
 
-  return nodes.map((node) => nodeState(node, latest.get(node.id)));
-}
-
-/** Latest station-run visit per node in `run`, later iterations winning over earlier ones. */
-function latestVisitByNode(
-  runId: string,
-  nodeRows: readonly NodeRow[],
-): Map<string, NodeRow> {
-  const latest = new Map<string, NodeRow>();
-
-  for (const row of nodeRows) {
-    if (row.assembly_run_id !== runId) {
-      continue;
-    }
-    const prior = latest.get(row.node_id);
-
-    if (!prior || row.iteration >= prior.iteration) {
-      latest.set(row.node_id, row);
-    }
-  }
-
-  return latest;
-}
-
-/** Node types whose open row means "parked", not "working": a person, or a build, owns the next move. Mirrors HUMAN_STATION_TYPES, which lore-api does not depend on. */
-const WAITING_NODE_TYPES = new Set(["pr_review", "ci_check"]);
-
-/** absent = pending, open = running/waiting for a human station. */
-function nodeState(
-  node: { id: string; type: string },
-  visit: NodeRow | undefined,
-): { node_id: string; state: string } {
-  if (!visit) {
-    return { node_id: node.id, state: "pending" };
-  }
-
-  if (visit.outcome === null) {
-    return {
-      node_id: node.id,
-      state: WAITING_NODE_TYPES.has(node.type) ? "waiting" : "running",
-    };
-  }
-
-  return { node_id: node.id, state: visit.outcome };
+  return miniPipeline(run.graph.nodes, visits);
 }
 
 interface RunContext {
@@ -205,4 +224,86 @@ export async function fetchRunContext(
   ]);
 
   return { taskRuns, nodeRows };
+}
+
+/** A task's run and node visits read straight from the floor, for a task Postgres has no row for: every implementation-loop run has lived there since ADR-049, and `pipeline.assembly_runs` only holds the ones Lore's own retired engine walked. Callers try Postgres first (above) and call this only on a miss, so a floor-out-of-reach error costs one task its pipeline, not the whole page. */
+export async function floorRunContext(
+  floor: FloorRunReads,
+  repo: string,
+  taskId: string,
+): Promise<{ run: LoopRunRow; nodeRows: NodeRow[] } | null> {
+  const summary = (
+    await floor.listSummaries({ repo, taskId, blueprintName: LOOP_LINE })
+  ).at(0);
+
+  if (!summary) {
+    return null;
+  }
+  const run = await floorLoopRun(floor, summary, taskId);
+
+  return run.graph?.nodes
+    ? { run, nodeRows: await floorNodeRows(floor, run.id) }
+    : { run, nodeRows: [] };
+}
+
+async function floorLoopRun(
+  floor: FloorRunReads,
+  summary: { id: string; status: string; reason: string | null },
+  taskId: string,
+): Promise<LoopRunRow> {
+  const record = await floor.getById(summary.id);
+
+  return {
+    id: summary.id,
+    task_id: taskId,
+    status: summary.status,
+    reason: summary.reason,
+    graph: record?.graph ?? null,
+  };
+}
+
+async function floorNodeRows(
+  floor: FloorRunReads,
+  runId: string,
+): Promise<NodeRow[]> {
+  const visits = await floor.listStationRuns(runId);
+
+  return visits.map((visit) => ({
+    assembly_run_id: runId,
+    node_id: visit.nodeId,
+    iteration: visit.iteration,
+    outcome: visit.outcome,
+  }));
+}
+
+/** Every task Postgres had no run for, tried on the floor; a hit is folded into `runByTask` in place and its node rows handed back for the caller to merge in. */
+export async function fillFromFloor(
+  floor: FloorRunReads,
+  repo: string,
+  missing: readonly LoopTaskRow[],
+  runByTask: Map<string, LoopRunRow>,
+): Promise<NodeRow[]> {
+  const found = await Promise.all(
+    missing.map((t) => floorRunContext(floor, repo, t.id)),
+  );
+
+  return mergeFloorFinds(found, missing, runByTask);
+}
+
+function mergeFloorFinds(
+  found: ReadonlyArray<{ run: LoopRunRow; nodeRows: NodeRow[] } | null>,
+  missing: readonly LoopTaskRow[],
+  runByTask: Map<string, LoopRunRow>,
+): NodeRow[] {
+  const extraNodeRows: NodeRow[] = [];
+
+  found.forEach((result, at) => {
+    if (!result) {
+      return;
+    }
+    runByTask.set(missing[at].id, result.run);
+    extraNodeRows.push(...result.nodeRows);
+  });
+
+  return extraNodeRows;
 }

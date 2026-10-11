@@ -12,7 +12,7 @@ let injectAsFetch: typeof fetch;
 
 beforeEach(() => {
   registry = new Map([
-    ["approval-check", async () => "Checked 3 tasks, 1 approved"],
+    ["memory-ttl", async () => "Cleaned up 3 expired memories"],
   ]);
 
   const app = Hapi.server({ port: 0 });
@@ -34,8 +34,8 @@ beforeEach(() => {
 
 describe("StationClient against the real stations route (contract drift caught here, not on a cron tick)", () => {
   it("returns the summary the station reported, for the job_runs row", async () => {
-    expect(await client.run("approval-check")).toBe(
-      "Checked 3 tasks, 1 approved",
+    expect(await client.run("memory-ttl")).toBe(
+      "Cleaned up 3 expired memories",
     );
   });
 
@@ -52,7 +52,7 @@ describe("StationClient against the real stations route (contract drift caught h
       injectAsFetch,
     );
 
-    await expect(wrongToken.run("approval-check")).rejects.toThrow(/401/);
+    await expect(wrongToken.run("memory-ttl")).rejects.toThrow(/401/);
   });
 
   it("escapes a name with a slash rather than reaching a different path", async () => {

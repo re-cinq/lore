@@ -1,4 +1,4 @@
-/** DEPENDENCY-FREE like dark-factory-settings.ts: the web-ui reaches these shapes only through the generated OpenAPI types, and models/digest-settings.ts asserts at compile time that its schema infers exactly these. */
+/** DEPENDENCY-FREE: the web-ui reaches these shapes only through the generated OpenAPI types, and models/digest-settings.ts asserts at compile time that its schema infers exactly these. */
 
 export type DigestSection = "implemented" | "roadmap" | "summary" | "morale";
 export type DigestGroupBy = "person" | "area";

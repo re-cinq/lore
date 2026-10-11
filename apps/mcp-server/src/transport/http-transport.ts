@@ -75,10 +75,23 @@ interface GatewayWiring {
 
 /** The gateway as the chart configures it: LORE_MCP_PORT is required, LORE_MCP_SERVER_MODE=agent drops the laptop-only tools. */
 export function startHttpGatewayFromEnv(env: NodeJS.ProcessEnv): Server {
+  void startGatewayMetrics(env);
+
   return startHttpGateway({
     port: requiredPort(env, "LORE_MCP_PORT"),
     authToken: env.LORE_MCP_AUTH_TOKEN,
     serverMode: env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full",
+  });
+}
+
+// Loaded here and not at the top: the laptop adapter never serves metrics, so it never loads the SDK (ADR-050).
+async function startGatewayMetrics(env: NodeJS.ProcessEnv): Promise<void> {
+  const { startPrometheusMetrics, metricsPortFromEnv } =
+    await import("@re-cinq/lore-shared/otel/prometheus-metrics.js");
+
+  startPrometheusMetrics({
+    serviceName: "lore-mcp-gateway",
+    port: metricsPortFromEnv(env),
   });
 }
 

@@ -1,20 +1,16 @@
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
-  ClaimedStationRun,
   StationRunFailure,
   StationRunRecord,
-  StationRunRelease,
-  StationRunReleaseResult,
   StationRunStartInput,
 } from "./assembly-runs-port.js";
 import { toNodeRecord } from "./assembly-runs-pg-rows.js";
 
-/** DO UPDATE rather than DO NOTHING, so the statement always locks and RETURNS the row — including in the concurrent-duplicate race, where DO NOTHING would return nothing and the caller could not tell a duplicate from a failure. `xmax = 0` is what distinguishes the row this call created from the one it converged on. The input is COALESCEd rather than overwritten: a re-dispatch must keep the spec the first one was armed with. */
+/** DO UPDATE rather than DO NOTHING, so the statement always locks and RETURNS the row — including in the concurrent-duplicate race, where DO NOTHING would return nothing and the caller could not tell a duplicate from a failure. `xmax = 0` is what distinguishes the row this call created from the one it converged on. The input is COALESCEd rather than overwritten: a re-dispatch keeps the input the first one recorded. */
 const ENSURE_SQL = `INSERT INTO pipeline.station_runs
-       (assembly_run_id, node_id, iteration, agent_cr_name, input,
-        status, required_tags, dispatch_spec, requested_by)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, $9)
+       (assembly_run_id, node_id, iteration, agent_cr_name, input, requested_by)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6)
      ON CONFLICT (assembly_run_id, node_id, iteration)
        DO UPDATE SET input = COALESCE(pipeline.station_runs.input, EXCLUDED.input)
      RETURNING id, station_run_id, (xmax = 0) AS created`;
@@ -47,9 +43,6 @@ function ensureParams(input: StationRunStartInput): unknown[] {
     input.iteration,
     input.agentCrName ?? null,
     jsonOrNull(input.input),
-    input.status ?? "running",
-    input.requiredTags ?? [],
-    jsonOrNull(input.dispatchSpec),
     input.requestedBy ?? null,
   ];
 }
@@ -106,145 +99,6 @@ function finishStationRunFailureFields(
         failureDetail: failure.failureDetail ?? null,
       }
     : empty;
-}
-
-export async function enqueueStationRunDispatch(
-  pool: PgPool,
-  nodeRowId: string,
-  dispatchSpec: unknown,
-): Promise<void> {
-  await pool.query(
-    `UPDATE pipeline.station_runs
-        SET dispatch_spec = $2::jsonb
-      WHERE id = $1 AND outcome IS NULL AND status = 'queued'`,
-    [nodeRowId, JSON.stringify(dispatchSpec)],
-  );
-}
-
-/** ONE statement: the `FOR UPDATE SKIP LOCKED` subquery and the UPDATE share a snapshot, so two claimants can never take the same row. `required_tags <@ $2` is containment, not overlap — an agent must satisfy EVERY tag a node asks for, or a run needing `gpu` would go to a cluster that has none. Ordered by launch attempts, then id: the oldest queued work is claimed first, and a visit that has already failed to launch waits behind fresh work instead of being handed the next poll again (#2006). */
-const CLAIM_SQL = `WITH next AS (
-       SELECT id FROM pipeline.station_runs
-        WHERE status = 'queued' AND outcome IS NULL
-          AND dispatch_spec IS NOT NULL
-          AND required_tags <@ $2::text[]
-        ORDER BY launch_attempts, id
-        FOR UPDATE SKIP LOCKED
-        LIMIT 1
-     )
-     UPDATE pipeline.station_runs sr
-        SET status = 'claimed', cluster_agent_id = $1, claimed_at = now()
-       FROM next
-      WHERE sr.id = next.id
-     RETURNING sr.id, sr.station_run_id, sr.assembly_run_id, sr.node_id,
-               sr.iteration, sr.agent_cr_name, sr.dispatch_spec`;
-
-export async function claimNextStationRun(
-  pool: PgPool,
-  claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  },
-): Promise<ClaimedStationRun | null> {
-  const { rows } = await pool.query(CLAIM_SQL, [
-    claimant.clusterAgentId,
-    claimant.tags,
-  ]);
-
-  return rows[0] ? toClaimed(rows[0]) : null;
-}
-
-/** The claimed row in the caller's spelling. `id` is stringified because it is a bigint: it outgrows a JS number, and the cluster-agent round-trips it as an identifier rather than doing arithmetic on it. */
-function toClaimed(row: unknown): ClaimedStationRun {
-  const r = row as {
-    id: number | string;
-    station_run_id: string;
-    assembly_run_id: string;
-    node_id: string;
-    iteration: number;
-    agent_cr_name: string | null;
-    dispatch_spec: unknown;
-  };
-
-  return {
-    nodeRowId: String(r.id),
-    stationRunId: r.station_run_id,
-    assemblyRunId: r.assembly_run_id,
-    nodeId: r.node_id,
-    iteration: r.iteration,
-    agentCrName: r.agent_cr_name,
-    dispatchSpec: r.dispatch_spec,
-  };
-}
-
-export async function requeueStationRun(
-  pool: PgPool,
-  nodeRowId: string,
-): Promise<boolean> {
-  // started_at is the queue-wait clock the reaper bounds by, so requeue must restart it — else a claimed-then-lost visit arrives back already past the wait and fails terminally.
-  const { rows } = await pool.query(
-    `UPDATE pipeline.station_runs
-        SET status = 'queued',
-            cluster_agent_id = NULL,
-            claimed_at = NULL,
-            started_at = now()
-      WHERE id = $1 AND outcome IS NULL
-     RETURNING id`,
-    [nodeRowId],
-  );
-
-  return rows.length === 1;
-}
-
-/** ONE statement, so a concurrent claim or finish cannot interleave between counting the attempt and choosing to requeue or fail. */
-const RELEASE_SQL = `UPDATE pipeline.station_runs
-        SET launch_attempts = launch_attempts + 1,
-            status = 'queued',
-            cluster_agent_id = NULL,
-            claimed_at = NULL,
-            started_at = now(),
-            outcome = CASE WHEN $2::boolean OR launch_attempts + 1 >= $3::integer THEN 'failed' END,
-            failure_class = CASE WHEN $2::boolean OR launch_attempts + 1 >= $3::integer THEN $4::text END,
-            failure_detail = CASE WHEN $2::boolean OR launch_attempts + 1 >= $3::integer THEN $5::text END,
-            finished_at = CASE WHEN $2::boolean OR launch_attempts + 1 >= $3::integer THEN now() END
-      WHERE id = $1 AND outcome IS NULL
-     RETURNING outcome`;
-
-export async function releaseStationRun(
-  pool: PgPool,
-  nodeRowId: string,
-  release: StationRunRelease,
-): Promise<StationRunReleaseResult> {
-  const { rows } = await pool.query<{ outcome: string | null }>(RELEASE_SQL, [
-    nodeRowId,
-    release.permanent,
-    release.maxAttempts,
-    release.failureClass,
-    release.reason,
-  ]);
-
-  if (!rows[0]) {
-    return "settled";
-  }
-
-  return rows[0].outcome === "failed" ? "failed" : "requeued";
-}
-
-export async function countOpenClaimsByAgent(
-  pool: PgPool,
-): Promise<Record<string, number>> {
-  const { rows } = await pool.query<{
-    cluster_agent_id: string;
-    open_claims: string;
-  }>(
-    `SELECT cluster_agent_id, count(*)::text AS open_claims
-       FROM pipeline.station_runs
-      WHERE outcome IS NULL AND cluster_agent_id IS NOT NULL
-      GROUP BY cluster_agent_id`,
-  );
-
-  return Object.fromEntries(
-    rows.map((row) => [row.cluster_agent_id, Number(row.open_claims)]),
-  );
 }
 
 /** Every column `toNodeRecord` maps, single-sourced so the two station-run reads cannot drift. */

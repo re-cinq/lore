@@ -3,11 +3,6 @@ import { selectList, fromRow } from "../../../lib/row.js";
 import { REPO_COLUMNS } from "../../../domain/models/repo.js";
 import type { PgPool } from "../../memory-store.js";
 import { runInTransaction } from "../../db/pg-transaction.js";
-import {
-  resolveDarkFactorySettings,
-  type DarkFactorySettings,
-  type ResolvedDarkFactorySettings,
-} from "../../../domain/dark-factory-settings.js";
 import type {
   SettingsPort,
   OnboardedRepo,
@@ -54,6 +49,9 @@ const MOVE_AGENT_DEFINITIONS_SQL = `UPDATE lore.agent_definitions moved
     AND NOT EXISTS (SELECT 1 FROM lore.agent_definitions kept
                      WHERE kept.project_id = $2 AND kept.name = moved.name)`;
 
+/** lore.plans.repo is a free-text column with no FK to lore.repos; without this a rename orphans every existing plan under the stale name. */
+const MOVE_PLANS_SQL = "UPDATE lore.plans SET repo = $2 WHERE repo = $1";
+
 /** Inside an open transaction: locks both names' rows, then renames `from` in place or merges it into `to`. */
 async function renameRepoRow(
   db: PgPool,
@@ -74,6 +72,7 @@ async function renameRepoRow(
     : await renameRepoRowInPlace(db, source.id, to);
 
   await db.query(REPOINT_CROSS_REPO_LINKS_SQL, [from, to]);
+  await db.query(MOVE_PLANS_SQL, [from, to]);
 
   return outcome;
 }
@@ -120,32 +119,13 @@ export class PgSettings implements SettingsPort {
     return this.repoConfig;
   }
 
-  async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
-    const { rows } = await this.pool.query(
-      "SELECT settings FROM lore.repos WHERE full_name = $1",
-      [repo],
-    );
-    const settings = rows[0]?.settings as
-      { dark_factory?: DarkFactorySettings } | undefined;
-
-    return resolveDarkFactorySettings(settings?.dark_factory);
-  }
-
-  async resolveOrNull(
-    repo: string,
-  ): Promise<ResolvedDarkFactorySettings | null> {
-    const { rows } = await this.pool.query(
-      "SELECT settings FROM lore.repos WHERE full_name = $1",
-      [repo],
+  async orgSetting(key: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ value: string }>(
+      "SELECT value FROM lore.settings WHERE key = $1",
+      [key],
     );
 
-    if (rows.length === 0) {
-      return null;
-    }
-    const settings = rows[0]?.settings as
-      { dark_factory?: DarkFactorySettings } | undefined;
-
-    return resolveDarkFactorySettings(settings?.dark_factory);
+    return rows[0]?.value ?? null;
   }
 
   setRepoVariable(repo: string, name: string, value: string): Promise<void> {
@@ -156,9 +136,10 @@ export class PgSettings implements SettingsPort {
     return this.writer().setRepoSecret(repo, name, value);
   }
 
+  // Case-insensitive: the one lookup web-ui's repo layout uses to find the canonical casing of a URL typed or bookmarked with the wrong case.
   async record(repo: string): Promise<RepoRecord | null> {
     const { rows } = await this.pool.query<Record<string, unknown>>(
-      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE full_name = $1`,
+      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE LOWER(full_name) = LOWER($1)`,
       [repo],
     );
 

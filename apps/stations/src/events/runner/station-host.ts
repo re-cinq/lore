@@ -1,13 +1,7 @@
 // This process's implementation of the ports a sweep reaches data through — the composition root: the registry is shared with a pod that has no pool, so a station is GIVEN its database here rather than resolving one itself.
 
-import { getApprovalLabel } from "@re-cinq/lore-shared";
 import type { StationHost, StationRepo } from "../../work/index.js";
-import {
-  cost,
-  gcpCost,
-  memoryLifecycle,
-  pipeline,
-} from "../../outbound/queues.js";
+import { cost, gcpCost, memoryLifecycle } from "../../outbound/queues.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
 const AWAITING_APPROVAL = "awaiting_approval";
@@ -32,8 +26,6 @@ async function repoFor(repo: string): Promise<StationRepo> {
 
 // This service holds a pool AND a GitHub App, so it serves every port — the scheduled data ops as readily as the repo sweeps (lore-api's host serves only the data half).
 export const stationHost = (): StationHost => ({
-  awaitingApproval: () => pipeline().taskQueue.awaitingApproval(),
-  approvalLabel: getApprovalLabel,
   repoFor,
   memoryLifecycle,
   cost,

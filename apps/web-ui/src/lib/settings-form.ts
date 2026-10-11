@@ -1,5 +1,3 @@
-// ── General (non-privileged) settings → written directly to the DB ──────────
-
 import { parseDigestBlock } from "./settings-digest";
 
 export function parseSettingsForm(formData: FormData) {
@@ -49,9 +47,3 @@ function withoutUndefined(
 
   return updates;
 }
-
-export {
-  parsePrivilegedChanges,
-  type CurrentSettings,
-  type PrivilegedPatch,
-} from "./settings-form-privileged";

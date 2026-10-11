@@ -54,15 +54,12 @@ describe("OpenAPI coverage drift guard", () => {
         )[method].responses["200"],
       );
 
-    for (const path of [
-      "/api/tokens",
-      "/api/repos/{owner}/{repo}/settings/dark-factory",
-    ]) {
-      const verbs = Object.keys(document.paths[path]);
+    const verbs = Object.keys(document.paths["/api/tokens"]);
 
-      expect(verbs).toHaveLength(2);
-      expect(schemaOf(path, verbs[0])).not.toEqual(schemaOf(path, verbs[1]));
-    }
+    expect(verbs).toHaveLength(2);
+    expect(schemaOf("/api/tokens", verbs[0])).not.toEqual(
+      schemaOf("/api/tokens", verbs[1]),
+    );
   });
 
   it("names every wildcard route as serving verbs or as refusing them", () => {

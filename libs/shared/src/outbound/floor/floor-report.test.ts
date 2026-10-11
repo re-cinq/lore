@@ -30,4 +30,14 @@ describe("reportToVisit", () => {
       },
     ]);
   });
+
+  it("names gedaiu as reportedBy when a person answered the visit, so the floor grants the walk a fresh budget there", async () => {
+    const { floor, requests } = recordedFloor(() => ({ id: "e-1" }));
+
+    await reportToVisit(floor.events, "v-7", { outcome: "success" }, "gedaiu");
+
+    expect(requests[0]?.body).toMatchObject({
+      payload: { visitId: "v-7", worker: "lore", reportedBy: "gedaiu" },
+    });
+  });
 });

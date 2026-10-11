@@ -50,7 +50,7 @@ technical approach.]
 ### Trigger wiring
 
 [Which event or webhook, which handler, which listener file. E.g. the
-event-router ingress emits `github.issues.opened`; the Floor handler at
+lore-api's GitHub webhook route emits `github.issues.opened`; the Floor handler at
 `apps/floor/src/events/...` reacts.]
 
 ### Data model

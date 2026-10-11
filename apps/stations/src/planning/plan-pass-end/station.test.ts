@@ -11,169 +11,109 @@ const TOOLS: Tools = {
   signal: new AbortController().signal,
 };
 
-function refineNeed(slot: string, uses?: unknown): string {
-  return JSON.stringify({ slot, baseHash: "h1", ...(uses ? { uses } : {}) });
-}
+const brief = {
+  visitId: "visit-pass-end",
+  iteration: 1,
+  needs: { plan_id: PLAN_ID },
+};
 
-function brief(needs: Partial<Record<string, string>> = {}) {
-  return {
-    visitId: "visit-pass-end",
-    iteration: 1,
-    needs: { plan_id: PLAN_ID, ...needs },
-  };
+interface PassEnded {
+  planId: string;
+  outcome: string;
+  reason?: string;
 }
 
 function scene(
   runId: string | null,
   visits: { nodeId: string; report: { outcome: string } | null }[],
-  refineFailedImpl?: (input: {
-    planId: string;
-    slot: string;
-    reason: string;
-  }) => Promise<void>,
+  fails?: Error,
 ) {
-  const calls: { planId: string; slot: string; reason: string }[] = [];
-  const done: { planId: string; slot: string; uses: unknown }[] = [];
+  const ended: PassEnded[] = [];
   const deps: PlanPassEndDeps = {
     runOf: () => Promise.resolve(runId),
     visitsOf: () => Promise.resolve(visits),
-    refineFailed: async (input) => {
-      calls.push(input);
-      await refineFailedImpl?.(input);
-    },
-    refineDone: async (input) => {
-      done.push(input);
+    passEnded: async (input) => {
+      ended.push(input);
+
+      if (fails) {
+        throw fails;
+      }
     },
   };
 
-  return { handle: planPassEndHandle(deps), calls, done, deps };
+  return { handle: planPassEndHandle(deps), ended };
 }
 
 describe("planPassEndHandle", () => {
-  it("reports success and posts nothing for a first draft, which carries no refine need", async () => {
-    const { handle, calls } = scene("run-1", [
+  it("posts success for the plan when the analyze pass it settles succeeded", async () => {
+    const { handle, ended } = scene("run-1", [
       { nodeId: "analyze", report: { outcome: "success" } },
     ]);
 
-    expect(await handle(brief(), TOOLS)).toEqual({
-      outcome: "success",
+    expect({ report: await handle(brief, TOOLS), ended }).toEqual({
+      report: { outcome: "success" },
+      ended: [{ planId: PLAN_ID, outcome: "success" }],
     });
-    expect(calls).toEqual([]);
   });
 
-  it("reports success and posts nothing when the refine value is not JSON, which names no section to tell", async () => {
-    const { handle, calls } = scene("run-1", [
+  it("posts the outcome and why the pass stopped when the analyze pass failed", async () => {
+    const { handle, ended } = scene("run-1", [
       { nodeId: "analyze", report: { outcome: "failed" } },
     ]);
 
-    expect(await handle(brief({ refine: "not json at all" }), TOOLS)).toEqual({
-      outcome: "success",
-    });
-    expect(calls).toEqual([]);
-  });
-
-  it("reports success and posts nothing for a refine value that names no slot", async () => {
-    const { handle, calls } = scene("run-1", [
-      { nodeId: "analyze", report: { outcome: "failed" } },
-    ]);
-
-    expect(
-      await handle(
-        brief({ refine: JSON.stringify({ baseHash: "h1" }) }),
-        TOOLS,
-      ),
-    ).toEqual({ outcome: "success" });
-    expect(calls).toEqual([]);
-  });
-
-  it("posts refine-failed naming the section and reason when the analyze pass it asks for settled failed", async () => {
-    const { handle, calls } = scene("run-1", [
-      { nodeId: "author", report: { outcome: "changes_requested" } },
-      { nodeId: "analyze", report: { outcome: "failed" } },
-    ]);
-
-    const result = await handle(brief({ refine: refineNeed("scope") }), TOOLS);
-
-    expect(result).toEqual({ outcome: "success" });
-    expect(calls).toEqual([
-      {
-        planId: PLAN_ID,
-        slot: "scope",
-        reason:
-          "the planning agent stopped with outcome failed before it answered",
-      },
-    ]);
-  });
-
-  it("reads the LATEST analyze visit of the run, not an earlier iteration's", async () => {
-    const { handle, calls } = scene("run-1", [
-      { nodeId: "analyze", report: { outcome: "failed" } },
-      { nodeId: "analyze", report: { outcome: "success" } },
-    ]);
-
-    await handle(brief({ refine: refineNeed("intent") }), TOOLS);
-
-    expect(calls).toEqual([]);
-  });
-
-  it("posts refine-done for section kpis with the question it used, and no failure, when the analyze pass settled success", async () => {
-    const uses = { questions: ["q-1"], comments: [] };
-    const { handle, calls, done } = scene("run-1", [
-      { nodeId: "analyze", report: { outcome: "success" } },
-    ]);
-
-    const result = await handle(
-      brief({ refine: refineNeed("kpis", uses) }),
-      TOOLS,
-    );
-
-    expect({ result, done, calls }).toEqual({
-      result: { outcome: "success" },
-      done: [{ planId: PLAN_ID, slot: "kpis", uses }],
-      calls: [],
+    expect({ report: await handle(brief, TOOLS), ended }).toEqual({
+      report: { outcome: "success" },
+      ended: [
+        {
+          planId: PLAN_ID,
+          outcome: "failed",
+          reason:
+            "the planning agent stopped with outcome failed before it answered",
+        },
+      ],
     });
   });
 
-  it("posts refine-done with nothing used for an ask that named no settled input", async () => {
-    const { handle, done } = scene("run-1", [
+  it("posts for a pass nobody asked about, since lore-api holds the ask and decides whether a section waits", async () => {
+    const { handle, ended } = scene("run-1", [
       { nodeId: "analyze", report: { outcome: "success" } },
+      { nodeId: "author", report: null },
     ]);
 
-    await handle(brief({ refine: refineNeed("scope") }), TOOLS);
+    await handle(brief, TOOLS);
 
-    expect(done).toEqual([
-      { planId: PLAN_ID, slot: "scope", uses: { questions: [], comments: [] } },
-    ]);
+    expect(ended).toHaveLength(1);
   });
 
-  it("reports failed with the error message when the refine-done post itself fails", async () => {
-    const { deps } = scene("run-1", [
+  it("speaks for the LATEST analyze visit, since earlier iterations each left one", async () => {
+    const { handle, ended } = scene("run-1", [
       { nodeId: "analyze", report: { outcome: "success" } },
+      { nodeId: "analyze", report: { outcome: "changes_requested" } },
     ]);
-    const handle = planPassEndHandle({
-      ...deps,
-      refineDone: () =>
-        Promise.reject(new Error("refine-done post failed: 502")),
-    });
 
-    expect(await handle(brief({ refine: refineNeed("kpis") }), TOOLS)).toEqual({
-      outcome: "failed",
-      error: "refine-done post failed: 502",
-    });
+    await handle(brief, TOOLS);
+
+    expect(ended.at(0)?.outcome).toBe("changes_requested");
   });
 
-  it("reports failed with the error message when the refine-failed post itself fails", async () => {
+  it("posts a missing outcome when the floor names no run for this visit, so the section is told rather than left waiting", async () => {
+    const { handle, ended } = scene(null, []);
+
+    await handle(brief, TOOLS);
+
+    expect(ended.at(0)).toMatchObject({ outcome: "missing" });
+  });
+
+  it("reports failed with the error message when the post itself fails, since the section would show nothing", async () => {
     const { handle } = scene(
       "run-1",
-      [{ nodeId: "analyze", report: { outcome: "failed" } }],
-      () => Promise.reject(new Error("lore-api unreachable")),
+      [{ nodeId: "analyze", report: { outcome: "success" } }],
+      new Error("lore-api said 503"),
     );
 
-    const result = await handle(brief({ refine: refineNeed("scope") }), TOOLS);
-
-    expect(result).toEqual({
+    expect(await handle(brief, TOOLS)).toEqual({
       outcome: "failed",
-      error: "lore-api unreachable",
+      error: "lore-api said 503",
     });
   });
 });

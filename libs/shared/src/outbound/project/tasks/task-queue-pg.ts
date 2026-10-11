@@ -7,9 +7,6 @@ import type {
   TaskQueueRepository,
   RecoverableTask,
   StaleTask,
-  ReadySpecTask,
-  CompletedSpecTask,
-  RunningSpecTask,
   AwaitingApprovalTask,
   TaskPrInfo,
   ReviewableTask,
@@ -17,7 +14,6 @@ import type {
   TaskContextRefs,
   InsertTaskInput,
 } from "./task-queue-port.js";
-import { PgSpecTaskQueries } from "./task-queue-pg-spec-tasks.js";
 
 /** The INSERT column list and its matching value list, with the always-present three first and the optional columns appended in a stable order. */
 function insertColumnsAndValues(input: InsertTaskInput): {
@@ -76,11 +72,7 @@ const insertedId = (rows: { id?: unknown }[]): string | null =>
 
 /** Postgres TaskQueueRepository; org-wide claim/sweep SQL from Floor jobs. */
 export class PgTaskQueue implements TaskQueueRepository {
-  private readonly specTasks: PgSpecTaskQueries;
-
-  constructor(private readonly pool: PgPool) {
-    this.specTasks = new PgSpecTaskQueries(pool);
-  }
+  constructor(private readonly pool: PgPool) {}
 
   /** Spec-tasks are the spec-task executor's alone: it dispatches them in dependency order under a per-group cap, and this worker has no recipe for them — it claimed the ones the executor was holding back, filed an Issue for each and failed them all (plan 3b3a67af, 2026-09-29). */
   async claimNextPending(): Promise<PipelineTask | null> {
@@ -126,28 +118,19 @@ export class PgTaskQueue implements TaskQueueRepository {
       [String(thresholdHours)],
     );
 
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the SQL half of the same TaskQueueRepository port: Maps in the double, queries here, and only the signatures both must satisfy are what the token match sees
     return rows as StaleTask[];
   }
 
-  findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
-    return this.specTasks.findReadySpecTasks(repo);
-  }
+  async countUnmergedInGroup(groupId: string): Promise<number> {
+    const { rows } = await this.pool.query<{ cnt: string }>(
+      `SELECT COUNT(*) as cnt
+         FROM pipeline.tasks
+        WHERE task_group_id = $1
+          AND status NOT IN ('merged', 'cancelled')`,
+      [groupId],
+    );
 
-  runningSpecTasks(): Promise<RunningSpecTask[]> {
-    return this.specTasks.runningSpecTasks();
-  }
-
-  countUnmergedInGroup(groupId: string): Promise<number> {
-    return this.specTasks.countUnmergedInGroup(groupId);
-  }
-
-  claimSpecTask(id: string, agentId = "spec-task-executor"): Promise<boolean> {
-    return this.specTasks.claimSpecTask(id, agentId);
-  }
-
-  completeSpecTask(id: string): Promise<CompletedSpecTask> {
-    return this.specTasks.completeSpecTask(id);
+    return Number(rows[0]?.cnt ?? 0);
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {
@@ -229,16 +212,13 @@ export class PgTaskQueue implements TaskQueueRepository {
       `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number,
               task_type, description, created_at, task_group_id, context_bundle
          FROM pipeline.tasks
-        WHERE status IN ('pr-created', 'review')
+        WHERE (status IN ('pr-created', 'review')
+               OR (status = 'completed' AND task_type = 'spec-task'))
           AND pr_number IS NOT NULL
           AND pr_url IS NOT NULL`,
     );
 
     return rows as MergeableTask[];
-  }
-
-  hasSpecTasksForSlug(repo: string, slug: string): Promise<boolean> {
-    return this.specTasks.hasSpecTasksForSlug(repo, slug);
   }
 
   async contextRefs(taskId: string): Promise<TaskContextRefs | null> {

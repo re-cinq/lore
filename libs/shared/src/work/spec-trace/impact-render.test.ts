@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { summarizeStatement, windowRewrite } from "./impact-render.js";
+import {
+  statementProse,
+  summarizeStatement,
+  windowRewrite,
+} from "./impact-render.js";
+
+describe("statementProse", () => {
+  it("returns 'Accepts a|b as input.' with the pipe unescaped and the validated-by links dropped", () => {
+    expect(
+      statementProse(
+        "Accepts a|b\nas input. ([validated by `a`](x.test.ts#L1))",
+      ),
+    ).toEqual("Accepts a|b as input.");
+  });
+});
 
 describe("summarizeStatement — strips the inline validated-by parenthetical, regression #1077 (paragraph prose + 14 links unreadable raw)", () => {
   it("strips the trailing validated-by parenthetical", () => {

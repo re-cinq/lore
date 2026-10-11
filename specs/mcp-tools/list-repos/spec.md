@@ -21,7 +21,7 @@ opening the web UI or querying Postgres by hand. `lore_list_repos` returns the f
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/repo-tools.ts#L14)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/repo-tools.ts#L19)).
 
 - **name**: `lore_list_repos`
 - **description** (verbatim):

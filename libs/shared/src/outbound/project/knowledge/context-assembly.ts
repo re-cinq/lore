@@ -72,6 +72,8 @@ export interface AssembleOptions {
   includeIds?: boolean;
   debug?: boolean;
   dgraph?: DgraphClientPort | null;
+  /** Assemble without recording that anything was retrieved: for measuring what an agent would get (context evals), not for an agent. */
+  passive?: boolean;
 }
 
 export async function assembleContext(
@@ -79,11 +81,11 @@ export async function assembleContext(
   query: string,
   options: AssembleOptions = {},
 ): Promise<AssembledResult> {
-  const { repo, agentId, includeIds, debug, dgraph } = options;
+  const { repo, agentId, includeIds, debug, dgraph, passive } = options;
   const run = assemblyRun(query, options);
   const assembled = await assembleSections(
     run,
-    { pool, dgraph, query, repo, agentId },
+    { pool, dgraph, query, repo, agentId, passive },
     { crossRepo: run.crossRepo, timings: run.timings },
   );
   const refs = includeIds
@@ -163,6 +165,7 @@ interface SectionFetchContext {
   query: string;
   repo?: string;
   agentId?: string;
+  passive?: boolean;
 }
 
 /** Every section the template asks for. `cross_repo` is consulted ONLY when explicitly requested: a linked repo's context is useful when someone asked for it and noise when they did not, and the transfer-score filter downstream cannot tell the difference. */
@@ -208,20 +211,17 @@ async function fetchAllSections(
 async function fetchSectionSource(
   source: string,
   fetcher: SourceFetcher | undefined,
-  ctx: {
-    pool: PgPool;
-    dgraph: DgraphClientPort | null | undefined;
-    query: string;
-    repo?: string;
-    agentId?: string;
-  },
+  ctx: SectionFetchContext,
 ): Promise<FetchResult> {
   if (source === "coupling") {
     return fetchCouplingSource(ctx.dgraph ?? null, ctx.repo, ctx.query);
   }
 
   if (fetcher) {
-    return fetcher(ctx.pool, ctx.query, ctx.repo, ctx.agentId);
+    return fetcher(ctx.pool, ctx.query, ctx.repo, {
+      agentId: ctx.agentId,
+      passive: ctx.passive,
+    });
   }
 
   return { sources: [], status: "error" };

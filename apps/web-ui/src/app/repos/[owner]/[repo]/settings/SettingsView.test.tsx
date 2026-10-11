@@ -72,10 +72,9 @@ describe("SettingsView (general only)", () => {
     );
   });
 
-  it("no longer renders dark-factory, agent, or approval-PR controls", () => {
+  it("renders no agent or approval-PR controls", () => {
     const { container } = renderView();
 
-    expect(container.querySelector('select[name="df_enabled"]')).toBeNull();
     expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
     expect(container.querySelector('select[name="model_select"]')).toBeNull();
   });

@@ -21,7 +21,7 @@ specific past version of a memory that has since changed.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L84)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L96)).
 
 - **name**: `lore_read_memory`
 - **description** (verbatim):
@@ -76,7 +76,7 @@ proxied body, the `unreachableError` message, or
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `readMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts#L256)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `readMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L16)); `readMemoryFile` (offline).
 - Tables: `memory.memories` (read), `memory.memory_versions` (read), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 

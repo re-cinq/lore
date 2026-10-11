@@ -21,7 +21,7 @@ accumulates many memories. Expired and soft-deleted memories must not appear.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L136)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L148)).
 
 - **name**: `lore_list_memories`
 - **description** (verbatim):
@@ -79,7 +79,7 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 
 - `detectCurrentRepo()`, `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `listMemories` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts#L216)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `listMemoriesFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L16)); `listMemoriesFile` (offline).
 - Tables: `memory.memories` (read), `memory.facts` (EXISTS subquery), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 

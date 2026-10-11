@@ -1,6 +1,6 @@
 import Hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
-import { floorNodeLogsRoute, type NodeLogsOf } from "./node-logs.js";
+import { nodeLogsReader, nodeLogsRoute, type NodeLogsOf } from "./node-logs.js";
 
 const LOGS = {
   available: true,
@@ -18,7 +18,7 @@ function serve(logsOf: NodeLogsOf) {
   }));
   server.auth.strategy("bearer-scope", "stub");
   server.auth.default("bearer-scope");
-  server.route(floorNodeLogsRoute(logsOf));
+  server.route(nodeLogsRoute(logsOf));
 
   return server;
 }
@@ -48,5 +48,50 @@ describe("GET /api/assembly-runs/{id}/nodes/{name}/logs", () => {
     );
 
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("nodeLogsReader", () => {
+  const STORED = {
+    available: true,
+    logs: "stdout",
+    phase: "succeeded",
+    podName: null,
+    archived: true,
+  } as const;
+
+  it("answers the stored stdout of a node of a Postgres run without asking the floor", async () => {
+    const asked: string[] = [];
+    const read = nodeLogsReader(
+      () => ({ nodeLogs: async () => STORED }) as never,
+      async (runId) => {
+        asked.push(runId);
+
+        return LOGS;
+      },
+    );
+
+    expect({ logs: await read("run-1", "abc-review", 20), asked }).toEqual({
+      logs: STORED,
+      asked: [],
+    });
+  });
+
+  it("asks the floor for a name Postgres has no node for", async () => {
+    const read = nodeLogsReader(
+      () => ({ nodeLogs: async () => null }) as never,
+      async () => LOGS,
+    );
+
+    expect(await read("run-1", "floor-visit-1", undefined)).toEqual(LOGS);
+  });
+
+  it("asks the floor on a deployment with no database", async () => {
+    const read = nodeLogsReader(
+      () => null,
+      async () => LOGS,
+    );
+
+    expect(await read("run-1", "floor-visit-1", undefined)).toEqual(LOGS);
   });
 });

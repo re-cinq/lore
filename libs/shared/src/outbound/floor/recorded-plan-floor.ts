@@ -45,9 +45,12 @@ const UNSTARTED_VISIT: VisitView = {
   brief: { needs: {}, iteration: 1 },
   report: null,
   worker: null,
+  branch: null,
   requestedBy: null,
   deadline: null,
   resumedFrom: null,
+  openedAt: "2026-10-01T09:00:00.000Z",
+  finishedAt: null,
   agentSettings: null,
 };
 
@@ -109,9 +112,11 @@ const startedOf: Answer = (_url, scene) => {
 function runsAsked(url: URL, scene: PlanFloorScene): RunView[] {
   const { searchParams } = url;
   const openOnly = searchParams.get("open") === "true";
+  const line = searchParams.get("line");
   const limit = Number(searchParams.get("limit") ?? Infinity);
 
   return (scene.runs ?? [])
     .filter((run) => !openOnly || run.finishedAt === null)
+    .filter((run) => line === null || run.lineId === line)
     .slice(0, limit);
 }

@@ -58,22 +58,7 @@ export class AssemblyRunQueryStore {
   constructor(
     private readonly rows: AssemblyRunRecord[],
     private readonly clock: () => Date,
-    private readonly hasOpenClaimByAgent: (
-      runId: string,
-      clusterAgentId: string,
-    ) => boolean,
   ) {}
-
-  private matchesSubjectAndClaim(
-    row: AssemblyRunRecord,
-    query: AssemblyRunQuery,
-  ): boolean {
-    return (
-      (query.subjectKey === undefined || row.subjectKey === query.subjectKey) &&
-      (query.clusterAgentId === undefined ||
-        this.hasOpenClaimByAgent(row.id, query.clusterAgentId))
-    );
-  }
 
   private matchesRunQuery(
     row: AssemblyRunRecord,
@@ -84,7 +69,7 @@ export class AssemblyRunQueryStore {
     return (
       matchesRepoAndKind(row, query, blueprints, statuses) &&
       matchesTaskAndTiming(row, query) &&
-      this.matchesSubjectAndClaim(row, query)
+      (query.subjectKey === undefined || row.subjectKey === query.subjectKey)
     );
   }
 
