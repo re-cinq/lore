@@ -260,17 +260,15 @@ export async function resolveReviewThread(
 export async function enablePullRequestAutoMerge(
   ok: Octokit,
   prId: string,
-  mergeMethod?: MergeMethod,
+  mergeMethod: MergeMethod = "squash",
 ): Promise<void> {
-  const method = mergeMethod ? mergeMethod.toUpperCase() : "SQUASH";
-
   await ok.graphql(
     `mutation ($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
       enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
         pullRequest { id }
       }
     }`,
-    { pullRequestId: prId, mergeMethod: method },
+    { pullRequestId: prId, mergeMethod: mergeMethod.toUpperCase() },
   );
 }
 

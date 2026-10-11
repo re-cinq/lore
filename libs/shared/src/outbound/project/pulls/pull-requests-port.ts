@@ -178,7 +178,7 @@ export interface PullRequestsPort {
     mergeMethod?: MergeMethod,
   ): Promise<void>;
   disablePullRequestAutoMerge(prId: string): Promise<void>;
-  open(repo: string, branch: string, draft: PullDraft): Promise<PullRef>;
+  open(repo: string, branch: string, pr: PullDraft): Promise<PullRef>;
   /** Rewrite an open pull request's title and/or body. */
   update(
     repo: string,

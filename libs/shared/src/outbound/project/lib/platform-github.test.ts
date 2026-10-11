@@ -34,7 +34,6 @@ const state: {
   blockersCall?: Record<string, unknown>;
   requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
   issueUpdateCall?: Record<string, unknown>;
-  issueCommentUpdateCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -174,11 +173,6 @@ vi.mock("octokit", () => ({
         get: async () => ({ data: state.issueData }),
         update: async (params: Record<string, unknown>) => {
           state.issueUpdateCall = params;
-
-          return { data: {} };
-        },
-        updateComment: async (params: Record<string, unknown>) => {
-          state.issueCommentUpdateCall = params;
 
           return { data: {} };
         },
@@ -1090,35 +1084,41 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
   });
 });
 
-describe("PlatformGitHub auto-merge and comments", () => {
+describe("PlatformGitHub auto-merge", () => {
   const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
 
   beforeEach(() => {
     state.graphqlCalls = [];
-    state.issueCommentUpdateCall = undefined;
   });
-  afterEach(() => vi.clearAllMocks());
 
-  it("enablePullRequestAutoMerge sends the mutation with the pull request node id and merge method", async () => {
-    await (gh() as any).enablePullRequestAutoMerge("PR_123", "SQUASH");
+  it("enablePullRequestAutoMerge sends PR_123 with merge method SQUASH when no method is given", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123");
 
-    expect(state.graphqlCalls).toHaveLength(1);
-    expect(state.graphqlCalls[0]?.query).toContain(
-      "enablePullRequestAutoMerge",
-    );
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("enablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_123", mergeMethod: "SQUASH" },
+      },
+    ]);
+  });
+
+  it("enablePullRequestAutoMerge sends merge method REBASE for rebase", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123", "rebase");
+
     expect(state.graphqlCalls[0]?.vars).toEqual({
       pullRequestId: "PR_123",
-      mergeMethod: "SQUASH",
+      mergeMethod: "REBASE",
     });
   });
 
-  it("disablePullRequestAutoMerge sends the mutation with the pull request node id", async () => {
-    await (gh() as any).disablePullRequestAutoMerge("PR_456");
+  it("disablePullRequestAutoMerge sends PR_456 to the disable mutation", async () => {
+    await gh().disablePullRequestAutoMerge("PR_456");
 
-    expect(state.graphqlCalls).toHaveLength(1);
-    expect(state.graphqlCalls[0]?.query).toContain(
-      "disablePullRequestAutoMerge",
-    );
-    expect(state.graphqlCalls[0]?.vars).toEqual({ pullRequestId: "PR_456" });
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("disablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_456" },
+      },
+    ]);
   });
 });
