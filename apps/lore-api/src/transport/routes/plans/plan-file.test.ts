@@ -10,7 +10,6 @@ import { planFileRoutes } from "./plan-file.js";
 
 function serve() {
   const failed: unknown[] = [];
-  const closedPresence: unknown[] = [];
   const ports: PlanFilePorts = {
     livePlan: async () => {
       throw new Error("no live plan in this test");
@@ -26,16 +25,13 @@ function serve() {
       failRefine: async (request) => {
         failed.push(request);
       },
-      closePresence: async (request) => {
-        closedPresence.push(request);
-      },
     },
   };
   const server = Hapi.server();
 
   server.route(planFileRoutes(ports));
 
-  return { server, failed, closedPresence };
+  return { server, failed };
 }
 
 describe("POST /api/plans/{id}/refine-failed", () => {
@@ -81,36 +77,17 @@ describe("POST /api/plans/{id}/refine-failed", () => {
 });
 
 describe("POST /api/plans/{id}/refine-settled", () => {
-  it("closes the agent's presence for a first draft, which no one asked to refine", async () => {
-    const { server, closedPresence } = serve();
+  it("settles nothing for a first draft, which no one asked to refine", async () => {
+    const { server } = serve();
     const res = await server.inject({
       method: "POST",
       url: "/api/plans/p1/refine-settled",
       payload: { outcome: "success" },
     });
 
-    expect({
-      status: res.statusCode,
-      body: res.result,
-      closedPresence,
-    }).toEqual({
+    expect({ status: res.statusCode, body: res.result }).toEqual({
       status: 200,
       body: { settled: false },
-      closedPresence: [{ planId: "p1" }],
-    });
-  });
-
-  it("closes the agent's presence for a failed pass too, before failing its Refine", async () => {
-    const { server, closedPresence } = serve();
-    const res = await server.inject({
-      method: "POST",
-      url: "/api/plans/p1/refine-settled",
-      payload: { outcome: "failed", reason: "the pod died" },
-    });
-
-    expect({ status: res.statusCode, closedPresence }).toEqual({
-      status: 200,
-      closedPresence: [{ planId: "p1" }],
     });
   });
 });
@@ -135,7 +112,6 @@ describe("GET /api/plans/{id}/agent-view", () => {
           proposeChanges: async () => [],
           finishRefine: () => Promise.resolve(),
           failRefine: async () => {},
-          closePresence: async () => {},
         },
       }),
     );

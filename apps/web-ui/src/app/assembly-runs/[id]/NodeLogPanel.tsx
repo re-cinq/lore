@@ -22,16 +22,19 @@ export interface NodeLogPanelProps {
   label: string;
   /** Which engine walks the run, so a floor node's missing pod is explained rather than reported as a missing agent. */
   engine?: string;
+  /** Open on mount, fetching at once; the card the viewer asked for has no reason to start folded. */
+  defaultOpen?: boolean;
 }
 
 export default function NodeLogPanel(props: NodeLogPanelProps) {
-  const { assemblyLineId, agentCrName, label, engine } = props;
-  const logs = useNodeLogs(assemblyLineId, agentCrName);
+  const { label, engine, defaultOpen } = props;
+  const logs = useNodeLogs(props);
   const { resp } = logs;
 
   return (
     <CollapsibleCard
       title={label}
+      defaultOpen={defaultOpen}
       labels={[resp?.phase, resp?.archived ? "retained" : null]}
       onToggle={logs.setOpen}
     >
@@ -41,19 +44,14 @@ export default function NodeLogPanel(props: NodeLogPanelProps) {
 }
 
 /** Keeps this node's logs current while the card is open: fetch on first open, poll while the pod is still running, and scroll to the newest line on every arrival. A 403 is stored as a MESSAGE rather than thrown — the reader lacks access to the repo, which is an answer, not a failure. */
-function useNodeLogs(assemblyLineId: string, agentCrName: string) {
-  const [open, setOpen] = useState(false); // eslint-disable-line re-lint/declare-near-use -- moving it down only pushes the sibling state past the same threshold
+function useNodeLogs(props: NodeLogPanelProps) {
+  const [open, setOpen] = useState(props.defaultOpen ?? false); // eslint-disable-line re-lint/declare-near-use -- moving it down only pushes the sibling state past the same threshold
   const [resp, setResp] = useState<NodeLogsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const tailRef = useRef<HTMLDivElement>(null);
   const entries = useMemo(() => parseAgentLog(resp?.logs ?? ""), [resp?.logs]);
-  const fetchLogs = useLogReader({
-    assemblyLineId,
-    agentCrName,
-    setResp,
-    setError,
-  });
+  const fetchLogs = useLogReader({ ...props, setResp, setError });
 
   useLogFetching({ open, resp, error, fetchLogs });
   useScrollToTail(tailRef, resp);

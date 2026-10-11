@@ -6,7 +6,7 @@ import {
 import type { EventHandler } from "../../outbound/project/events/drain-loop.js";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
-import { decideBranchResume } from "./resume-branch.js";
+import { decideBranchResume, type OpenPr } from "./resume-branch.js";
 import { orderBacklog } from "./select-next-issue.js";
 import {
   implementationTicketDescription,
@@ -59,6 +59,8 @@ export interface StartedTicket {
   issue: Pick<IssueRef, "number" | "title">;
   /** The ticket as the agents read it. */
   description: string;
+  /** The pull request a resumed branch already has; null for a fresh branch, and for a resumed one nobody opened a pull request for. */
+  openPr: OpenPr | null;
 }
 
 /** One tick of the self-re-arming backlog loop (FR2): serialized per repo by the open-run subject key, per issue by `activeTaskByIssue` (FR1's "no open PR already referencing it"); a cross-issue race settles via the unique `(repo, subject_key)` index. */
@@ -216,12 +218,19 @@ async function dispatchLoopTask(
   input: LoopDispatchInput,
   deps: LoopTickDeps,
 ): Promise<void> {
-  const { repo, picked, branch } = input;
+  const { repo, picked, branch, resume } = input;
   const description = implementationTicketDescription(picked);
   const taskId = await mintTask(input, description, deps);
 
   logDispatch(input, taskId);
-  await deps.started({ repo, taskId, branch, issue: picked, description });
+  await deps.started({
+    repo,
+    taskId,
+    branch,
+    issue: picked,
+    description,
+    openPr: resume.resume ? resume.openPr : null,
+  });
 }
 
 async function mintTask(
@@ -235,7 +244,7 @@ async function mintTask(
     taskType: "implementation-loop",
     targetRepo: repo,
     createdBy: "implementation-loop",
-    contextBundle: loopContextBundle(input),
+    contextBundle: loopContextBundle(picked, input.branch),
   });
 
   await deps.setTaskColumns(task.task_id, {
@@ -255,33 +264,18 @@ function logDispatch(input: LoopDispatchInput, taskId: string): void {
   );
 }
 
-function loopContextBundle(input: LoopDispatchInput): Record<string, unknown> {
-  const { picked, branch, resume } = input;
-
+function loopContextBundle(
+  picked: IssueRef,
+  branch: string,
+): Record<string, unknown> {
   return {
     github_issue_number: picked.number,
     ...(picked.url ? { github_issue_url: picked.url } : {}),
     branch,
-    // Draft PR: the line declares the flag; a draft gets no Lore code review, avoiding twelve reviews on twelve round-pushes.
-    line_args: buildLineArgs(picked, resume),
   };
 }
 
-function buildLineArgs(
-  picked: IssueRef,
-  resume: ReturnType<typeof decideBranchResume>,
-): Record<string, unknown> {
-  return {
-    pr_draft: true,
-    // Rides onto the run's args so the PR footer can close the ticket on merge.
-    issue_number: picked.number,
-    // PR title from issue until pr-ready node updates it from the branch.
-    issue_title: picked.title,
-    ...(resume.resume ? resume.lineArgs : {}),
-  };
-}
-
-/** Continuing a branch is silent by design: recorded on the run's args, not GitHub. Deleting the branch is the owner's restart lever. */
+/** Continuing a branch is silent by design: the run is started with the branch's pull request, and GitHub is told nothing. Deleting the branch is the owner's restart lever. */
 async function resolveResume(
   repo: string,
   picked: IssueRef,

@@ -23,6 +23,9 @@ image:
 imagePullSecrets:
   - name: ghcr-pull-secret
 
+# Prometheus text on /metrics, scraped by the ServiceMonitor terraform owns (infra/terraform/monitoring.tf).
+metricsPort: 9464
+
 service:
   type: ClusterIP
   port: 3000
@@ -41,6 +44,7 @@ resources:
 
 env:
   PORT: "3000"
+  LORE_METRICS_PORT: "9464"
   # Leaves ~250 MB of the 1Gi limit for buffers, sockets and native memory.
   NODE_OPTIONS: "--max-old-space-size=768"
   CONTEXT_PATH: /context
@@ -99,10 +103,10 @@ slackBotTokenSecret:
 floor:
   enabled: false
   apiUrl: http://floor-api.floor.svc.cluster.local:8080
-  # The image a floor agent's pod runs in — the same one Lore's own Stations run (the
-  # ai-agents Station template). The subsystem brings its own supervisor; this is only
-  # the container the agent works inside.
-  agentImage: node:22-bookworm
+  # The image a floor agent's pod runs in: node:22-bookworm plus the tools the agents
+  # lean on (jq, yq, rg, python3, make ...), built from apps/agent-image. The subsystem
+  # brings its own supervisor; this is only the container the agent works inside.
+  agentImage: ghcr.io/re-cinq/lore-agent:latest
   # In-cluster lore-mcp gateway skills registry; set by terraform.
   skillsUrl: ""
   serviceTokenSecret:

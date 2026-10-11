@@ -35,9 +35,7 @@ that in fact asks for a credential.
 
 **INCOMPLETENESS** — check this fixed list against every section:
 - every fixed piece of text the plan promises (a label, a message)
-  names its strings;
-- every new wire or protocol entry, every new message, names its
-  fields;
+  says what the text tells the user; the exact string is the spec's;
 - every new store names retention and erasure;
 - every claim of "verified" names what it was verified against;
 - every dependency on other work names its issue;
@@ -46,13 +44,23 @@ that in fact asks for a credential.
 **INFEASIBILITY** — a mechanism the plan relies on that this
 repository does not have, and that the plan does not say it builds:
 a node type, an edge outcome, a station or human-station type, a
-task type, a label, a table, a route, a handler, a file. Check each
-one in the code, not by its name — search for it. When the plan adds
+task type, a label, a table, a route, a handler, a file. The plan is
+not expected to name the mechanism: it is written for its people, so
+work out from the behaviour it describes what the repository would
+need, and search for that. Check each one in the code, not by its
+name — search for it. When the plan adds
 or changes an assembly line, walk `.lore/assembly-line-guide.md`
 item by item: every item the plan needs is either present in the
 repository or named in the plan as work to do. Example: the plan
 routes an agent node on an `obsolete` outcome, but agent nodes only
 produce success, changes_requested or failed.
+
+**WRITTEN FOR THE CODE** — a sentence a product manager could not
+read: a file path, an identifier, a setting name, a library version,
+a route or a command. Report it as a `warning` on that section, with
+the text "written for the code, not for its people", and in `why`
+quote the sentence; the spec names the files, the plan says what
+changes.
 
 ## Severity
 
@@ -90,10 +98,9 @@ The file `plan-validation.json`, written at exactly `{plan_validation_path}`
 Write `{"findings": []}` when the plan is clean. After EVERY write,
 validate it:
 
-    node -e 'JSON.parse(require("fs").readFileSync("{plan_validation_path}"))'
+    jq empty "{plan_validation_path}"
 
-(jq is not installed in this pod.) If it throws, fix the file and
-re-run until it exits silently.
+If it reports an error, fix the file and re-run until it exits silently.
 
 ## Sending it back
 

@@ -78,6 +78,27 @@ enable_external_floor = false
 # the apply, or oauth2-proxy crash-loops on its missing secret.
 enable_headlamp = false
 
+# The metrics stack: Prometheus scraping every service, the floor and the agent
+# controller, and Grafana with the Lore dashboards behind a Google sign-in of its
+# own (monitoring.tf, ADR-050). Seed lore-grafana-oauth-client-id / -secret and
+# lore-grafana-cookie-secret from a `grafana` OAuth web client whose redirect URI
+# is https://<grafana_hostname>/oauth2/callback (docs/managing-secrets.md).
+enable_monitoring = false
+grafana_hostname  = "grafana.example.com"
+# The nginx ingress controller's namespace: the only namespace Grafana's
+# NetworkPolicy admits besides its own. A wrong value locks Grafana behind a
+# policy nothing can pass; check with `kubectl get ns | grep -i ingress`.
+ingress_controller_namespace = "ingress-nginx"
+
+# Utopia (deeplethe/utopia), the knowledge-graph app, with its own CNPG database
+# and data disk behind a Google sign-in of its own (utopia.tf). Seed the five
+# lore-utopia-* secrets from a `utopia` OAuth web client whose redirect URI is
+# https://<utopia_hostname>/oauth2/callback (docs/managing-secrets.md) before the
+# apply. The image tag is pinned; bump it on purpose.
+enable_utopia    = false
+utopia_hostname  = "utopia.example.com"
+utopia_image_tag = "0.1.0-rc8"
+
 # Cloud Billing budget for this project, stated per week (see budget.tf: Google
 # only resets budgets monthly, so it is applied as weekly * 52 / 12, with a
 # forecast rule that fires the moment the run rate exceeds the weekly pace).

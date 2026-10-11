@@ -51,7 +51,6 @@ function recordingPorts(pendingAsk: typeof PENDING_ASK | null = null) {
       failRefine: async (request) => {
         writes.push({ call: "failRefine", request });
       },
-      closePresence: async () => {},
     },
   };
 

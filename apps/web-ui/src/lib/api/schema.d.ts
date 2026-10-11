@@ -242,6 +242,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/bag": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/bag */
+    get: operations["get_api_assembly-runs_id_bag"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/blob-previews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/blob-previews */
+    get: operations["get_api_assembly-runs_id_blob-previews"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/blobs/{hash}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/blobs/{hash} */
+    get: operations["get_api_assembly-runs_id_blobs_hash"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/dod": {
     parameters: {
       query?: never;
@@ -390,6 +441,40 @@ export interface paths {
     put?: never;
     /** POST /api/assembly-runs/{id}/upgrade */
     post: operations["post_api_assembly-runs_id_upgrade"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/visits/{visitId}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/visits/{visitId}/events */
+    get: operations["get_api_assembly-runs_id_visits_visitId_events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/visits/{visitId}/model-calls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/visits/{visitId}/model-calls */
+    get: operations["get_api_assembly-runs_id_visits_visitId_model-calls"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2426,6 +2511,17 @@ export interface components {
         created_at: string;
       }[];
     };
+    BlobPreviews: {
+      previews: {
+        [key: string]: {
+          hash: string;
+          contentType: string;
+          size: number;
+          text: string | null;
+          truncated: boolean;
+        };
+      };
+    };
     BranchCreated: {
       /** @constant */
       ok: true;
@@ -2990,6 +3086,15 @@ export interface components {
                     repo: string;
                     ref: string;
                   } | null;
+                  needs: {
+                    [key: string]: string;
+                  } | null;
+                  produced: {
+                    [key: string]: string;
+                  } | null;
+                  route_url: string | null;
+                  worker: string | null;
+                  requested_by: string | null;
                   commit_sha: string | null;
                   started_at: string;
                   finished_at: string | null;
@@ -3682,6 +3787,24 @@ export interface components {
     ReviewStarted: {
       started: string | null;
     };
+    RunBag: {
+      bag: {
+        [key: string]: {
+          /** @enum {string} */
+          kind: "value" | "file" | "git";
+          ref: string;
+          by: string;
+          sha?: string;
+        };
+      };
+    };
+    RunBlob: {
+      hash: string;
+      contentType: string;
+      size: number;
+      text: string | null;
+      truncated: boolean;
+    };
     RunEvents: {
       events: {
         [key: string]: unknown;
@@ -3782,6 +3905,15 @@ export interface components {
               repo: string;
               ref: string;
             } | null;
+            needs: {
+              [key: string]: string;
+            } | null;
+            produced: {
+              [key: string]: string;
+            } | null;
+            route_url: string | null;
+            worker: string | null;
+            requested_by: string | null;
             commit_sha: string | null;
             started_at: string;
             finished_at: string | null;
@@ -4096,6 +4228,15 @@ export interface components {
           repo: string;
           ref: string;
         } | null;
+        needs: {
+          [key: string]: string;
+        } | null;
+        produced: {
+          [key: string]: string;
+        } | null;
+        route_url: string | null;
+        worker: string | null;
+        requested_by: string | null;
         commit_sha: string | null;
         started_at: string;
         finished_at: string | null;
@@ -4266,6 +4407,32 @@ export interface components {
     TurnsRelayed: {
       forwarded: number;
       skipped: number;
+    };
+    VisitEvents: {
+      events: {
+        id: string;
+        name: string;
+        /** @enum {string} */
+        direction: "handled" | "raised";
+        inferred: boolean;
+        created_at: string;
+        acked_at: string | null;
+        claimed_by: string | null;
+        attempts: number;
+        last_error: string | null;
+        dead_at: string | null;
+        payload: unknown;
+      }[];
+    };
+    VisitModelCalls: {
+      calls: {
+        seq: number;
+        occurredAt: string;
+        model: string | null;
+        costUsd: number | null;
+        tokensIn: number | null;
+        tokensOut: number | null;
+      }[];
     };
   };
   responses: {
@@ -4725,6 +4892,90 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_bag": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunBag"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_blob-previews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The first 4 KiB of each blob the run references, by hash; a hash it does not reference is left out. 400 for a malformed hash or more than 50, 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BlobPreviews"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_blobs_hash": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        hash: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A blob the external floor keeps, readable only through a run that references it: text up to 1 MiB for a textual content type, metadata alone otherwise; 400 for a malformed hash, 404 for a run or blob it does not reference */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunBlob"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_assembly-runs_id_dod": {
     parameters: {
       query?: never;
@@ -5012,6 +5263,62 @@ export interface operations {
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_visits_visitId_events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        visitId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The floor events one visit handled and raised, each with its direction, whether the link was inferred, and its queue state; 404 for a visit of no run the floor has */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VisitEvents"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_visits_visitId_model-calls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        visitId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The model calls one visit of a floor run made, from its llm_call records: model, tokens in and out, cost; 404 for a visit of no run the floor has */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VisitModelCalls"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

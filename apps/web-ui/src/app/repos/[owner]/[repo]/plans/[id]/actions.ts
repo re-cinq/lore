@@ -19,8 +19,24 @@ import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import type { PlanSocket } from "./plan-actions";
+import { planRunFor } from "./plan-run-facts";
+import type { PlanRun } from "./PlanRunCard";
 
 type Allowed = { user: PlanUser } | { error: string };
+
+/** The facts a `RunStreamFrame` never carries — the spec analysis's question, the spec PR's title and unresolved threads — read fresh when the live page's node/run folding says they may have changed. Never used to redraw the whole page; see usePlanRunLive. */
+export async function refreshPlanRunFactsAction(
+  fullName: string,
+  planId: string,
+): Promise<{ run: PlanRun | null } | { error: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+
+  return { run: await planRunFor(fullName, planId) };
+}
 
 export async function openPlanSocketAction(
   fullName: string,

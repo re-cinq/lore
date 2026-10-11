@@ -20,7 +20,8 @@
   background: var(--danger);
 }
 
-.changes_requested {
+.changes_requested,
+.stalled {
   background: var(--warning);
 }
 

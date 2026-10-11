@@ -1,0 +1,77 @@
+/* The attempt column's per-kind cards (run-viz FR4.1i). */
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+.facts dt {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+.facts dd {
+  margin: 0;
+}
+.answer {
+  margin: 0;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.table th {
+  color: var(--text-muted);
+  font-weight: var(--fw-semibold);
+}
+.group + .group {
+  margin-top: var(--space-4);
+}
+.groupHead {
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border);
+}
+.payload {
+  flex-basis: 100%;
+  font-size: var(--fs-xs);
+}
+.payload pre {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

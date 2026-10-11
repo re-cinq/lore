@@ -34,7 +34,6 @@ function scene(over: Partial<MergeStepDeps> = {}) {
       calls.push(`setStatus ${status}`);
     },
     recordEvent: record("recordEvent"),
-    flipSpecStatus: record("flipSpecStatus"),
     commentAndCloseIssue: record("commentAndCloseIssue"),
     recordOutcome: record("recordOutcome"),
     curate: record("curate"),
@@ -54,10 +53,9 @@ const brief = (taskId = "t-1") => ({
 });
 
 describe("the merge line's floor stations", () => {
-  it("serves settle, spec-status, close-issue, outcome-stats, curate, memory-feedback and trust, and not resume-planning", () => {
+  it("serves settle, close-issue, outcome-stats, curate, memory-feedback and trust, and not resume-planning", () => {
     expect(FLOOR_MERGE_STEPS.map(mergeStationName)).toEqual([
       "merge-settle",
-      "merge-spec-status",
       "merge-close-issue",
       "merge-outcome-stats",
       "merge-curate",

@@ -9,6 +9,7 @@ import {
 } from "../../outbound/floor/floor-items.js";
 import { startLine } from "../review/floor-line-start.js";
 import type { StartedTicket } from "./implementation-loop-tick.js";
+import type { OpenPr } from "./resume-branch.js";
 
 export const LOOP_LINE = "implementation-loop";
 
@@ -74,28 +75,38 @@ export interface LoopRunStart {
   description: string;
   /** The value the run is keyed on; left out, the repository's one backlog. */
   backlog?: string;
+  /** The pull request the branch already has, a start item so the run page shows it before its open-pr node finds it again. */
+  openPr?: OpenPr | null;
 }
 
 export async function startLoopRun(
   floor: LoopFloor,
-  { repo, branch, taskId, issue, description, backlog }: LoopRunStart,
+  start: LoopRunStart,
 ): Promise<void> {
   const stored = await floor.blobs.put(
-    new TextEncoder().encode(description),
+    new TextEncoder().encode(start.description),
     "text/markdown",
   );
 
   await startLine(floor.lines, LOOP_LINE, {
-    repo: floorRepoOf(repo),
-    startItems: {
-      repo: gitItem(repo, branch),
-      backlog: valueItem(backlog ?? BACKLOG),
-      task_id: valueItem(taskId),
-      ticket: fileItem(stored.hash),
-      issue_title: valueItem(issue.title),
-      ...(issue.number ? { issue_number: valueItem(issue.number) } : {}),
-    },
+    repo: floorRepoOf(start.repo),
+    startItems: loopStartItems(start, stored.hash),
   });
+}
+
+function loopStartItems(
+  { repo, branch, taskId, issue, backlog, openPr }: LoopRunStart,
+  ticketHash: string,
+) {
+  return {
+    repo: gitItem(repo, branch),
+    backlog: valueItem(backlog ?? BACKLOG),
+    task_id: valueItem(taskId),
+    ticket: fileItem(ticketHash),
+    issue_title: valueItem(issue.title),
+    ...(issue.number ? { issue_number: valueItem(issue.number) } : {}),
+    ...(openPr ? { pr_url: valueItem(openPr.url) } : {}),
+  };
 }
 
 export interface LoopRunsFloor {

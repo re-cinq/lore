@@ -175,7 +175,7 @@ against it reached the live apiserver.
 
 1. A running task's live output is one click from the task page: the
    runs list links to the run detail page, whose per-node panels render
-   the pod stream. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L67))
+   the pod stream. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86))
 
 2. No kubectl access needed to see what the agent is doing
 
@@ -237,7 +237,7 @@ A gemini `init` event becomes a session-init entry exposing the model and the pr
 
 A gemini `message` with string content classifies by role — user-text for the injected prompt, assistant-text otherwise. ([validated by `agent-log-entries.test.ts:643`](apps/web-ui/src/lib/agent-log-entries.test.ts#L676))
 
-Assistant prose arrives ONLY as `delta: true` chunks — gemini-cli emits no final complete message — so adjacent chunks merge into one assistant-text entry, and the fold is adjacent-only: a tool call between chunks starts a new paragraph rather than gluing across it. `mergedDelta` is the one home for the rule, shared by the blob parser and the run page's timed conversation, which keeps the merged utterance on its FIRST chunk's timestamp. ([validated by `agent-log-entries.test.ts:682`](apps/web-ui/src/lib/agent-log-entries.test.ts#L715), [`agent-log-entries.test.ts:697`](apps/web-ui/src/lib/agent-log-entries.test.ts#L730), [`agent-log-entries.test.ts:733`](apps/web-ui/src/lib/agent-log-entries.test.ts#L766), [`turn-transcript-presenter.test.ts:363`](apps/web-ui/src/app/assembly-runs/[id]/turn-transcript-presenter.test.ts#L341))
+Assistant prose arrives ONLY as `delta: true` chunks — gemini-cli emits no final complete message — so adjacent chunks merge into one assistant-text entry, and the fold is adjacent-only: a tool call between chunks starts a new paragraph rather than gluing across it. `mergedDelta` is the one home for the rule, shared by the blob parser and the run page's timed conversation, which keeps the merged utterance on its FIRST chunk's timestamp. ([validated by `agent-log-entries.test.ts:682`](apps/web-ui/src/lib/agent-log-entries.test.ts#L715), [`agent-log-entries.test.ts:697`](apps/web-ui/src/lib/agent-log-entries.test.ts#L730), [`agent-log-entries.test.ts:733`](apps/web-ui/src/lib/agent-log-entries.test.ts#L766), [`turn-transcript-presenter.test.ts:363`](apps/web-ui/src/app/assembly-runs/[id]/turn-transcript-presenter.test.ts#L351))
 
 A top-level gemini `tool_use` summarizes as `→ <tool>: <most relevant arg>` from `tool_name` and `parameters`, through the same summary rule the claude blocks use. ([validated by `agent-log-entries.test.ts:652`](apps/web-ui/src/lib/agent-log-entries.test.ts#L685))
 
@@ -275,7 +275,7 @@ The Raw/Formatted toggle marks the active option via aria-pressed and reports ch
 
 A run's turns span every node visit of its assembly line, so the formatted transcript renders one segment per consecutive (node, iteration) run — labeled `node · iteration N`, bare node name when the iteration is unknown, no label for uncorrelated turns — and the parser runs per segment so each visit keeps its own transcript, via the grouping in `@/lib/turn-segments` consumed by the run page's full transcript panel (specs/turn-level-transcript-store FR5). ([validated by `turn-segments.test.ts:31`](apps/web-ui/src/lib/turn-segments.test.ts#L31), [validated by `turn-segments.test.ts:46`](apps/web-ui/src/lib/turn-segments.test.ts#L46), [validated by `turn-segments.test.ts:60`](apps/web-ui/src/lib/turn-segments.test.ts#L60), [validated by `turn-segments.test.ts:69`](apps/web-ui/src/lib/turn-segments.test.ts#L69), [validated by `turn-segments.test.ts:75`](apps/web-ui/src/lib/turn-segments.test.ts#L75), [validated by `turn-segments.test.ts:79`](apps/web-ui/src/lib/turn-segments.test.ts#L79), [validated by `turn-segments.test.ts:83`](apps/web-ui/src/lib/turn-segments.test.ts#L83), [validated by `turn-segments.test.ts:91`](apps/web-ui/src/lib/turn-segments.test.ts#L91), [validated by `turn-segments.test.ts:104`](apps/web-ui/src/lib/turn-segments.test.ts#L104))
 
-An opened assembly-line pod-log panel renders the same formatted transcript, switches to the raw blob via the toggle, and keeps the `(no output yet)` placeholder for empty logs. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L67), [validated by `NodeLogPanel.test.tsx:81`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L81), [validated by `NodeLogPanel.test.tsx:95`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L95))
+An opened assembly-line pod-log panel renders the same formatted transcript, switches to the raw blob via the toggle, and keeps the `(no output yet)` placeholder for empty logs. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86), [validated by `NodeLogPanel.test.tsx:81`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L100), [validated by `NodeLogPanel.test.tsx:95`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L114))
 
 ### FailurePanel
 

@@ -137,6 +137,8 @@ resource "helm_release" "lore_platform" {
         # omitting it when the feature is turned off would leave the UI pointing
         # at a dashboard that is no longer deployed.
         HEADLAMP_URL = var.enable_headlamp ? "https://${var.headlamp_hostname}" : ""
+        # The metrics dashboards' address, under the same rule (monitoring.tf).
+        GRAFANA_URL = var.enable_monitoring ? "https://${var.grafana_hostname}" : ""
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }

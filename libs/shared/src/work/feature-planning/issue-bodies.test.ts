@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { storyIssueBody, taskIssueBody } from "./issue-bodies.js";
+import { storyMarker, withMarker } from "./plan-issues.js";
 import type { UserStory } from "../../domain/feature-planning/decomposition-result.js";
 
 const REPO = "re-cinq/lore";
@@ -162,6 +163,20 @@ describe("storyIssueBody", () => {
       ),
       keepsStories: body.endsWith("- T006: Add the human-gate node\n"),
     }).toEqual({ underLimit: true, pointer: true, keepsStories: true });
+  });
+
+  it("keeps the story under GitHub's 65,536 once the plan marker is appended to a cut plan of 70,000 characters", () => {
+    const planId = "64e50ec3-2dfb-457a-ae4f-fd3859a7c227";
+    const body = withMarker(
+      storyIssueBody({
+        repo: REPO,
+        planMarkdown: "x".repeat(70_000),
+        stories: STORIES,
+      }),
+      storyMarker(planId),
+    );
+
+    expect(body.length).toBeLessThanOrEqual(65_536);
   });
 
   it("leaves the plan out when the stories alone leave no room for it under GitHub's 65,536", () => {
@@ -383,7 +398,7 @@ describe("taskIssueBody", () => {
     );
   });
 
-  it("cuts a task body with 100,000 chars of context to 65,536, ending on a note", () => {
+  it("cuts a task body with 100,000 chars of context to 65,000, ending on a note", () => {
     const body = taskIssueBody({
       repo: REPO,
       dependsOn: [],
@@ -398,7 +413,7 @@ describe("taskIssueBody", () => {
     });
 
     expect({ length: body.length, end: body.slice(-47) }).toEqual({
-      length: 65_536,
+      length: 65_000,
       end: "\n\n*Cut short: GitHub holds 65,536 characters.*\n",
     });
   });

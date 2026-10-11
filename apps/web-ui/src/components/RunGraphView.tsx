@@ -3,12 +3,21 @@
 // Renders a VisibleGraph — lays out the mode-selected nodes/connectors from graph-view-model and hands drawing to ./run-graph/*; every node also carries its status as text, so meaning never rests on color alone.
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { layoutAssemblyLine } from "@/lib/dag-layout";
+import { columnsFor } from "@/lib/dag-wrap";
+import { typeFamilyOf } from "@/lib/node-type-family";
 import type { VisibleGraph } from "@/lib/graph-view-model";
 import ArrowMarkerDefs from "./run-graph/ArrowMarkerDefs";
 import GraphEdge from "./run-graph/GraphEdge";
 import GraphNode from "./run-graph/GraphNode";
+import { useNodeTooltip } from "./run-graph/use-node-tooltip";
+import NodeTooltip from "./run-graph/NodeTooltip";
+import { nodeTooltipOf } from "@/lib/node-tooltip";
+import RunGraphLegend from "./run-graph/RunGraphLegend";
+import { useElementWidth } from "./run-graph/use-element-width";
 import {
+  LAYER_GAP,
   NODE_WIDTH,
+  VIEW_PADDING,
   edgeMapKey,
   fitView,
   nodeHeightFor,
@@ -29,28 +38,101 @@ export interface RunGraphViewProps {
   heading?: string | null;
 }
 
-// The mode-selected workflow graph. Pure render of a VisibleGraph.
+// The mode-selected workflow graph: drawn at its natural size and wrapped onto as many rows as the panel's width needs.
 export default function RunGraphView(props: RunGraphViewProps) {
-  const { graph, definition, heading = "Graph", nodeMeta } = props;
+  const [panelRef, panelWidth] = useElementWidth<HTMLElement>();
+  const { graph, heading = "Graph" } = props;
 
   if (graph.nodes.length === 0) {
     return <EmptyGraph />;
   }
 
   return (
-    <section className={styles.panel}>
+    <section ref={panelRef} className={styles.panel}>
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
-      <GraphSvg
-        laid={layoutRunGraph(graph, definition, {
-          withMeta: hasMetaLine(graph, nodeMeta),
-        })}
-        mode={graph.mode}
-        onSelectNode={props.onSelectNode}
-        selectedNodeId={props.selectedNodeId}
-        nodeMeta={nodeMeta}
-      />
+      <GraphCanvas view={props} panelWidth={panelWidth} />
+      <RunGraphLegend families={familiesOf(graph)} />
     </section>
   );
+}
+
+/** The drawing in its scroll box, and the tooltip of the node under the pointer or the focus (run-viz FR4.1h). */
+function GraphCanvas({
+  view,
+  panelWidth,
+}: {
+  view: RunGraphViewProps;
+  panelWidth: number | null;
+}) {
+  const tooltip = useNodeTooltip();
+
+  return (
+    <>
+      <div className={styles.scroll} {...tooltip.handlers}>
+        <GraphSvg
+          {...graphSvgProps(view, panelWidth)}
+          describedNode={describedNodeOf(tooltip)}
+        />
+      </div>
+      <GraphTooltip {...tooltip} definition={view.definition} />
+    </>
+  );
+}
+
+/** Everything the drawing needs: the layout for this width, and the run's interaction and facts. */
+function graphSvgProps(props: RunGraphViewProps, panelWidth: number | null) {
+  const { graph, definition, nodeMeta } = props;
+
+  return {
+    laid: layoutRunGraph(graph, definition, {
+      withMeta: hasMetaLine(graph, nodeMeta),
+      columnsPerBand: columnsOf(panelWidth),
+    }),
+    mode: graph.mode,
+    onSelectNode: props.onSelectNode,
+    selectedNodeId: props.selectedNodeId,
+    nodeMeta,
+  };
+}
+
+/** Unmeasured (on the server, or before the first resize report), the line stays on one row. */
+function columnsOf(panelWidth: number | null): number {
+  return panelWidth === null
+    ? Number.POSITIVE_INFINITY
+    : columnsFor(panelWidth, {
+        layerGap: LAYER_GAP,
+        nodeWidth: NODE_WIDTH,
+        padding: VIEW_PADDING,
+      });
+}
+
+function familiesOf(graph: RunGraphViewProps["graph"]) {
+  return new Set(
+    graph.nodes.map((node) => typeFamilyOf(node.nodeType ?? node.type)),
+  );
+}
+
+/** The node the tooltip is up for, and the tooltip's id its group points at. */
+function describedNodeOf({
+  id,
+  anchor,
+}: ReturnType<typeof useNodeTooltip>): DescribedNode | null {
+  return anchor ? { nodeId: anchor.nodeId, tooltipId: id } : null;
+}
+
+function GraphTooltip({
+  id,
+  anchor,
+  definition,
+}: ReturnType<typeof useNodeTooltip> & {
+  definition: RunGraphViewProps["definition"];
+}) {
+  const tooltip =
+    anchor && definition && nodeTooltipOf(anchor.nodeId, definition);
+
+  return anchor && tooltip ? (
+    <NodeTooltip id={id} tooltip={tooltip} anchor={anchor} />
+  ) : null;
 }
 
 function EmptyGraph() {
@@ -59,7 +141,14 @@ function EmptyGraph() {
   );
 }
 
+interface DescribedNode {
+  nodeId: string;
+  tooltipId: string;
+}
+
 interface LaidGraphProps {
+  /** The node whose tooltip is up, which points at it through aria-describedby. */
+  describedNode?: DescribedNode | null;
   laid: ReturnType<typeof layoutRunGraph>;
   mode: RunGraphViewProps["graph"]["mode"];
   onSelectNode: RunGraphViewProps["onSelectNode"];
@@ -75,7 +164,8 @@ function GraphSvg(props: LaidGraphProps) {
   return (
     <svg
       className={styles.svg}
-      style={{ ["--graph-width" as string]: `${view.width}px` }}
+      width={view.width}
+      height={view.height}
       role="img"
       aria-labelledby={titleId}
       viewBox={view.viewBox}
@@ -131,22 +221,29 @@ function GraphNodes(props: LaidGraphProps) {
       selected={node.id === selectedNodeId}
       meta={nodeMeta?.[node.id]}
       onSelect={onSelectNode}
+      describedBy={describedByOf(props.describedNode, node.id)}
     />
   ));
+}
+
+function describedByOf(
+  described: DescribedNode | null | undefined,
+  nodeId: string,
+): string | undefined {
+  return described?.nodeId === nodeId ? described.tooltipId : undefined;
 }
 
 /** Everything geometric: where each node sits, how big the canvas has to be, plus the model lookups the drawing needs. */
 function layoutRunGraph(
   graph: RunGraphViewProps["graph"],
   definition: RunGraphViewProps["definition"],
-  { withMeta }: { withMeta: boolean },
+  { withMeta, columnsPerBand }: { withMeta: boolean; columnsPerBand: number },
 ) {
   const nodeHeight = nodeHeightFor(graph, { withMeta });
-  const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
-    nodeWidth: NODE_WIDTH,
-    nodeHeight,
-    rowGap: nodeHeight + 48,
-  });
+  const layout = layoutAssemblyLine(
+    toLayoutDefinition(graph, definition),
+    layoutOptions(nodeHeight, columnsPerBand),
+  );
 
   return {
     layout,
@@ -154,6 +251,17 @@ function layoutRunGraph(
     nodeHeight,
     titleId: `run-graph-title-${graph.mode}`,
     ...graphLookups(graph),
+  };
+}
+
+/** The run graph's pitch: full-size nodes, the rows of a layer a node apart, and as many columns per band as the panel holds. */
+function layoutOptions(nodeHeight: number, columnsPerBand: number) {
+  return {
+    layerGap: LAYER_GAP,
+    nodeWidth: NODE_WIDTH,
+    nodeHeight,
+    rowGap: nodeHeight + 48,
+    columnsPerBand,
   };
 }
 

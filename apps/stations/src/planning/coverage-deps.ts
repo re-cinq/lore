@@ -11,8 +11,8 @@ export interface RunVisit {
 }
 
 export interface CoverageDeps {
-  /** A spec file as it stands at a branch or commit; null when there is no such file. */
-  readSpec(repo: string, path: string, ref: string): Promise<string | null>;
+  /** A spec file as it stands at a branch or commit, or at the default branch when `ref` is left out; null when there is no such file. */
+  readSpec(repo: string, path: string, ref?: string): Promise<string | null>;
   /** Every file path at a branch or commit. */
   listTree(repo: string, ref: string): Promise<string[]>;
   /** Every visit of the run this visit belongs to, oldest first. */

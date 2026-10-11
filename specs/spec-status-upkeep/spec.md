@@ -8,7 +8,7 @@
 | Created  | 2026-07-14                                    |
 | Owner    | Platform Engineering                          |
 
-Automatic Spec Status Upkeep keeps each spec's and ADR's `| Status |` header honest by deriving it from the doc's own test-link coverage — enforced in CI by a linter, reconciled by a deterministic PR when a feature's task group merges, and swept by a weekly staleness detector — closing the loop that convention alone leaves to rot.
+Automatic Spec Status Upkeep keeps each spec's and ADR's `| Status |` header honest by deriving it from the doc's own test-link coverage and enforcing the result in CI, closing the loop that convention alone leaves to rot.
 
 ## Problem Statement
 
@@ -19,11 +19,10 @@ implemented and live — some stale for months. The header is now surfaced
 as a status pill in the web-ui spec lists, which makes staleness visible
 but not self-correcting.
 
-Two convention layers already exist (shipped alongside this draft): the
-repo CLAUDE.md instructs sessions to flip the header in the same branch
-that completes a spec, and the `implementation` task prompt in
-The shipped agent prompts (`libs/shared/src/agent-defaults/`) carry the same rule. Conventions rot without
-enforcement; the three mechanisms below close the loop.
+The repo CLAUDE.md and the shipped agent prompts (`libs/shared/src/agent-defaults/`)
+instruct authors to update the header in the same branch that completes a spec.
+The lint rule enforces that convention in CI; the proposed weekly detector below
+would catch stale statuses outside the normal review path.
 
 ## The status ladder
 
@@ -48,53 +47,13 @@ and the web-ui coverage bar read:
 - Resolve a doc straight to the label its coverage entitles it to, so a caller reconciling a status never re-implements the ladder. ([validated by `spec-status-coverage.test.ts:153`](libs/shared/src/work/spec-status-coverage.test.ts#L193), [`spec-status-coverage.test.ts:157`](libs/shared/src/work/spec-status-coverage.test.ts#L197), [`spec-status-coverage.test.ts:163`](libs/shared/src/work/spec-status-coverage.test.ts#L203))
 
 Specs and ADRs ride the same ladder. `libs/shared/src/work/spec-status-coverage.ts`
-is the single source both the linter (FR3) and the reconciling PR (FR1) read, so
-the rule that reports a violation and the automation that fixes it can never
-disagree.
+is the single source for the linter (FR1), so the status row is enforced in the
+same pull request that changes the statements or their links.
 
-## FR1 — Deterministic flip on feature completion (pipeline-driven work)
+## FR1 — `re-lint/require-status-matches-coverage` (CI enforcement)
 
-**Dormant since 2026-10-07.** This flip never fires any more. It recognises a feature's work by the `task_group_id` the `issues` station put on its spec-task rows, and gates on `task_type === "spec-task"`; the spec-task executor and then the rows themselves are removed (`specs/external-floor` FR15.0), and the backlog implementation loop that implements a plan's tasks instead works one ticket at a time and knows nothing about which tickets came from the same plan. So no group ever resolves, the gate never passes, and no PR is opened — silently, which is why it is written down here rather than left to be discovered from a stale status pill. The code is left in place rather than deleted so that the replacement can be judged against it. Its replacement is a lint rule that enforces the `| Status |` row against the spec's own statements and their links on the pull request that changes them, rather than a job that opens a PR after the fact (#2589); FR3 is already most of that rule. Until it lands, an author flips the row in the branch that earns it, which `CLAUDE.md` requires anyway.
-
-What it did while it ran: when the last spec-task in a feature's task group merged, the Floor's
-merge-check detects group completion — no sibling in the `task_group_id`
-was still unmerged (a sibling a rerun of the plan cancelled was no longer
-owed, while one whose PR was closed unmerged still was) — and, when the group resolved to a feature + spec path
-(feature-planning rows and spec-tasks both carried it):
-
-- Detect that this merge completes the group, then resolve the owning feature before acting. ([validated by PgTaskQueue counts group rows neither merged nor cancelled](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L344), [validated by InMemory leaves out a spec-task a rerun cancelled, so the rest merging completes group g1](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L373), [`task-queue.test.ts:586`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L353), [`task-queue.test.ts:592`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L359), [`spec-status-flip.test.ts:17`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L14), [`spec-status-flip.test.ts:21`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L20), [`spec-status-flip.test.ts:25`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L24), [`spec-status-flip.test.ts:29`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L28), [`spec-status-flip.test.ts:33`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L32))
-- Open a one-line follow-up PR setting the spec's `| Status |` row to the status its test-link coverage entitles it to claim, using the same PR-opening plumbing as `spec-coverage-backfill`. ([validated by `spec-status-flip.test.ts:71`](libs/shared/src/work/spec-status-flip.test.ts#L71), [`spec-status-flip.test.ts:103`](libs/shared/src/work/spec-status-flip.test.ts#L103))
-- Mark the spec `Shipped` only when every testable statement is linked; a partially-linked spec whose group has merged lands `In Progress` instead, because a merged task group is not evidence that the spec's statements are validated. ([validated by `spec-status-flip.test.ts:71`](libs/shared/src/work/spec-status-flip.test.ts#L71), [`spec-status-flip.test.ts:103`](libs/shared/src/work/spec-status-flip.test.ts#L103))
-- Demote a `Shipped` spec back to `In Progress` when a statement has lost its link, so the reconciliation runs in both directions. ([validated by `spec-status-flip.test.ts:122`](libs/shared/src/work/spec-status-flip.test.ts#L122))
-- Skip without opening a PR when the spec is missing, has no status row, is terminal (rejected/retired), has no testable statement to derive a status from, or already claims the status its coverage supports. ([validated by `spec-status-flip.test.ts:139`](libs/shared/src/work/spec-status-flip.test.ts#L139), [`spec-status-flip.test.ts:156`](libs/shared/src/work/spec-status-flip.test.ts#L156), [`spec-status-flip.test.ts:172`](libs/shared/src/work/spec-status-flip.test.ts#L172), [`spec-status-flip.test.ts:188`](libs/shared/src/work/spec-status-flip.test.ts#L188), [`spec-status-flip.test.ts:199`](libs/shared/src/work/spec-status-flip.test.ts#L199), [`spec-status-flip.test.ts:208`](libs/shared/src/work/spec-status-flip.test.ts#L208), [`spec-status-flip.test.ts:223`](libs/shared/src/work/spec-status-flip.test.ts#L223))
-- Compare status buckets rather than labels when deciding whether a flip is needed, so the corpus's synonyms (`Implemented` / `Shipped` / `Complete`) keep the PR idempotent. ([validated by `spec-status-flip.test.ts:139`](libs/shared/src/work/spec-status-flip.test.ts#L139))
-- No LLM call — the edit is a deterministic single-row rewrite.
-- The PR is opened for human review. Dark-factory auto-merge is task-bound, so a hook-opened flip PR (docs-only path, one file) is not auto-merged in this iteration.
-- Transition `lore.features.status` to `implemented` only when the spec ends up claiming `shipped` — freshly set or already current — so the features table and the spec file never diverge; every other outcome is left for a human to reconcile. ([validated by `spec-status-flip.test.ts:40`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L39), [`spec-status-flip.test.ts:50`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L49), [`spec-status-flip.test.ts:61`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L60), [`spec-status-flip.test.ts:71`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L70), [`spec-status-flip.test.ts:82`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L81), [`spec-status-flip.test.ts:93`](apps/stations/src/work/merge-check/spec-status-flip.test.ts#L92), [`merge-check.test.ts:9`](apps/stations/src/work/merge-check/merge-check.test.ts#L9), [`merge-check.test.ts:15`](apps/stations/src/work/merge-check/merge-check.test.ts#L15), [`merge-check.test.ts:19`](apps/stations/src/work/merge-check/merge-check.test.ts#L19), [`merge-check.test.ts:25`](apps/stations/src/work/merge-check/merge-check.test.ts#L25), [`merge-check.test.ts:36`](apps/stations/src/work/merge-check/merge-check.test.ts#L36), [`merge-check.test.ts:46`](apps/stations/src/work/merge-check/merge-check.test.ts#L46), [`merge-check.test.ts:63`](apps/stations/src/work/merge-check/merge-check.test.ts#L59), [`merge-check.test.ts:70`](apps/stations/src/work/merge-check/merge-check.test.ts#L66))
-
-## FR2 — Status-staleness detector (everything else)
-
-Human-driven and interactive work bypasses the pipeline, so a weekly
-safety net catches what FR1 and convention miss. Add a
-`status-staleness` detect assembly line to the existing detect family
-(`spec_drift`, `gap_detect` pattern: `cron.<job>.tick` → one repo-less
-per-repo line, deterministic detect node):
-
-- For each spec whose parsed status is `draft` or `in-progress`
-  (`apps/web-ui/src/lib/spec-status.ts` normalization, hoisted to
-  shared), gather implementation evidence: all linked pipeline tasks
-  merged; inline `([validated by ...])` links resolving to real tests;
-  files/routes the spec names existing on the default branch.
-- Evidence above threshold → open an issue (or, at high confidence, a
-  status-flip PR like FR1) naming the evidence.
-- Zero findings is the healthy steady state; the detector exists so a
-  stale header survives at most one week, not one quarter.
-
-## FR3 — `re-lint/require-status-matches-coverage` (CI enforcement)
-
-FR1 and FR2 are after-the-fact sweeps; neither stops a human from typing
-`Shipped` into an unlinked spec. The `re-lint/require-status-matches-coverage`
-ESLint rule closes that at review time, over `specs/**/spec.md` + `adrs/**/*.md`
+The `re-lint/require-status-matches-coverage`
+ESLint rule enforces the status ladder at review time, over `specs/**/spec.md` + `adrs/**/*.md`
 (the repo's markdown-language config block), at `error`:
 
 - Report a doc whose declared status disagrees with the status its test-link coverage entitles it to claim, naming both the coverage tally and the label to write. ([validated by `status-coverage.test.mjs:104`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L104), [`status-coverage.test.mjs:115`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L115), [`status-coverage.test.mjs:126`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L126), [`status-coverage.test.mjs:137`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L137), [`status-coverage.test.mjs:177`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/lib/status-coverage.test.mjs#L177))
@@ -111,7 +70,8 @@ a human writes it.
 
 ### Adoption
 
-Adopting FR3 at `error` required reconciling the whole corpus in the same change
+When the lint rule was first adopted, as FR3 in an earlier change, taking it to
+`error` required reconciling the whole corpus in the same change
 — 132 of 138 in-scope docs disagreed with their coverage, because status had
 never been answerable to anything. That reconciliation demoted 27 shipped ADRs
 and 42 shipped specs, taking the corpus from 47 Shipped specs to 1. This is the
@@ -120,13 +80,24 @@ described intent, not validation. `Shipped` is now a high bar reachable only by
 fully-linked docs, and the expected path back up is adding links (via
 `/lore-suggest-links` or `spec-coverage-backfill`), not editing the row.
 
+## FR2 — Status-staleness detector (proposed follow-up)
+
+Human-driven and interactive work bypasses the normal review path, so a weekly
+safety net would catch what the convention misses. This detector is not implemented.
+
+- For each spec whose parsed status is `draft` or `in-progress`, gather
+  implementation evidence: inline `([validated by ...])` links resolving to real
+  tests and files/routes the spec names existing on the default branch.
+- Evidence above threshold → open an issue naming the evidence.
+- Zero findings is the healthy steady state; the detector would keep a stale
+  header from surviving longer than one week.
+
 ## Out of Scope
 
 - Rewriting historical statuses beyond the header row (amendment
   sections stay human-authored).
 - Inferring `Rejected` — abandonment is a human judgement. `rejected` and
-  `retired` are outside the ladder in both directions: the linter skips them and
-  FR1 never reopens them.
+  `retired` are outside the ladder in both directions: the linter skips them.
 - The six vestigial `## Status` MADR sections whose prose contradicts their own
   frontmatter (ADR-007/008/009/010 say `Accepted`, ADR-011 `Superseded`). Nothing
   reads them; the corpus reconciliation widens the contradiction and a follow-up
@@ -134,11 +105,8 @@ fully-linked docs, and the expected path back up is adding links (via
 
 ## Verification
 
-- FR1: merging the final task of a planned feature produces the status
-  PR within one watcher cycle; the PR touches exactly one line, and its
-  label matches the spec's coverage rather than assuming completion.
-- FR2: seeding a repo with an implemented-but-Draft spec yields one
-  detector finding; a repo with honest headers yields zero.
-- FR3: `npx eslint specs adrs` reports zero errors on a reconciled corpus;
+- FR1: `npx eslint specs adrs` reports zero errors on a reconciled corpus;
   editing any status row away from its coverage tier reproduces exactly one
   error, anchored on that row.
+- FR2 (when implemented): seeding a repo with an implemented-but-Draft spec
+  yields one detector finding; a repo with honest headers yields zero.

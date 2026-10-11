@@ -21,8 +21,8 @@ export interface StoryIssueInput {
   coverage?: string;
 }
 
-// GitHub refuses an issue body longer than this.
-const GITHUB_BODY_LIMIT = 65_536;
+// GitHub refuses a body over 65,536 characters; the rest is headroom for the plan marker the filing appends after this fit.
+const GITHUB_BODY_LIMIT = 65_000;
 
 export function storyIssueBody(input: StoryIssueInput): string {
   const links = [planLine(input), ...specLine(input), ""];
