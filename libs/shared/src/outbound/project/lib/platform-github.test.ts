@@ -1083,3 +1083,42 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 });
+
+describe("PlatformGitHub auto-merge", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.graphqlCalls = [];
+  });
+
+  it("enablePullRequestAutoMerge sends PR_123 with merge method SQUASH when no method is given", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123");
+
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("enablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_123", mergeMethod: "SQUASH" },
+      },
+    ]);
+  });
+
+  it("enablePullRequestAutoMerge sends merge method REBASE for rebase", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123", "rebase");
+
+    expect(state.graphqlCalls[0]?.vars).toEqual({
+      pullRequestId: "PR_123",
+      mergeMethod: "REBASE",
+    });
+  });
+
+  it("disablePullRequestAutoMerge sends PR_456 to the disable mutation", async () => {
+    await gh().disablePullRequestAutoMerge("PR_456");
+
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("disablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_456" },
+      },
+    ]);
+  });
+});

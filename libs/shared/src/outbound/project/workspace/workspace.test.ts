@@ -51,10 +51,14 @@ describe("Workspace", () => {
       listMergedSince: async () => [],
       get: async () => null,
       comment: async () => {},
+      updateIssueComment: async () => {},
       review: async () => {},
       createReview: async () => {},
       replyToReviewComment: async () => {},
       addLabel: async () => {},
+      enablePullRequestAutoMerge: async () => {},
+      // eslint-disable-next-line re-lint/no-negative-names
+      disablePullRequestAutoMerge: async () => {},
       merge: async () => {},
       open: async (repo, branch, { title }) => {
         opened.push(`${repo}#${branch}`);

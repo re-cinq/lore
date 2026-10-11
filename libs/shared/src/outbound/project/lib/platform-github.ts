@@ -390,6 +390,22 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsWrite.merge(await this.octo(), repo, number, method);
   }
 
+  async enablePullRequestAutoMerge(
+    prId: string,
+    mergeMethod?: MergeMethod,
+  ): Promise<void> {
+    return pullsWrite.enablePullRequestAutoMerge(
+      await this.octo(),
+      prId,
+      mergeMethod,
+    );
+  }
+
+  // eslint-disable-next-line re-lint/no-negative-names
+  async disablePullRequestAutoMerge(prId: string): Promise<void> {
+    return pullsWrite.disablePullRequestAutoMerge(await this.octo(), prId);
+  }
+
   async open(repo: string, branch: string, draft: PullDraft): Promise<PullRef> {
     return pullsWrite.open(await this.octo(), repo, branch, draft);
   }

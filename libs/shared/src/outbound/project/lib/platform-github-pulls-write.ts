@@ -256,3 +256,33 @@ export async function resolveReviewThread(
     { threadId },
   );
 }
+
+export async function enablePullRequestAutoMerge(
+  ok: Octokit,
+  prId: string,
+  mergeMethod: MergeMethod = "squash",
+): Promise<void> {
+  await ok.graphql(
+    `mutation ($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+      enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
+        pullRequest { id }
+      }
+    }`,
+    { pullRequestId: prId, mergeMethod: mergeMethod.toUpperCase() },
+  );
+}
+
+// eslint-disable-next-line re-lint/no-negative-names
+export async function disablePullRequestAutoMerge(
+  ok: Octokit,
+  prId: string,
+): Promise<void> {
+  await ok.graphql(
+    `mutation ($pullRequestId: ID!) {
+      disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
+        pullRequest { id }
+      }
+    }`,
+    { pullRequestId: prId },
+  );
+}
