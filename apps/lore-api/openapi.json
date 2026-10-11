@@ -13486,6 +13486,16 @@
                       }
                     ]
                   },
+                  "auto_merge": {
+                    "type": "object",
+                    "properties": {
+                      "approver": {
+                        "type": "string",
+                        "enum": ["none", "lore-reviewer"]
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
                   "dispatch_label": {
                     "type": "string"
                   },
@@ -13496,16 +13506,6 @@
                   "incidents": {
                     "type": "array",
                     "items": {}
-                  },
-                  "auto_merge": {
-                    "additionalProperties": {},
-                    "properties": {
-                      "approver": {
-                        "enum": ["none", "lore-reviewer"],
-                        "type": "string"
-                      }
-                    },
-                    "type": "object"
                   }
                 },
                 "additionalProperties": {}
@@ -13868,6 +13868,16 @@
                             }
                           ]
                         },
+                        "auto_merge": {
+                          "type": "object",
+                          "properties": {
+                            "approver": {
+                              "type": "string",
+                              "enum": ["none", "lore-reviewer"]
+                            }
+                          },
+                          "additionalProperties": {}
+                        },
                         "dispatch_label": {
                           "type": "string"
                         },
@@ -13878,16 +13888,6 @@
                         "incidents": {
                           "type": "array",
                           "items": {}
-                        },
-                        "auto_merge": {
-                          "additionalProperties": {},
-                          "properties": {
-                            "approver": {
-                              "enum": ["none", "lore-reviewer"],
-                              "type": "string"
-                            }
-                          },
-                          "type": "object"
                         }
                       },
                       "additionalProperties": {}

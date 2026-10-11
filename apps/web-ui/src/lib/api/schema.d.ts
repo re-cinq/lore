@@ -3622,9 +3622,10 @@ export interface components {
               group_by?: "person" | "area";
               voice?: string;
             } | null;
-
             auto_merge?: {
+              /** @enum {string} */
               approver?: "none" | "lore-reviewer";
+            } & {
               [key: string]: unknown;
             };
             dispatch_label?: string;
@@ -3731,9 +3732,10 @@ export interface components {
                 group_by?: "person" | "area";
                 voice?: string;
               } | null;
-
               auto_merge?: {
+                /** @enum {string} */
                 approver?: "none" | "lore-reviewer";
+              } & {
                 [key: string]: unknown;
               };
               dispatch_label?: string;
