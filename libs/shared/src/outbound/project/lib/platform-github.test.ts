@@ -644,6 +644,17 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("getInstallationToken for re-cinq/lore with contents:read asks GitHub for a token narrowed to contents:read", async () => {
+    await gh().getInstallationToken("re-cinq/lore", { contents: "read" });
+
+    expect(state.authCalls.at(-1)).toEqual({
+      type: "installation",
+      refresh: true,
+      repositoryNames: ["lore"],
+      permissions: { contents: "read" },
+    });
+  });
+
   it("createLabels swallows a 422 (already exists) and continues", async () => {
     state.labelError = { status: 422 };
     await expect(
