@@ -5,6 +5,7 @@ import {
   linksForStatements,
   findMisplacedCoverageLinks,
   testLinksOfDoc,
+  withoutTrailingLinkGroup,
 } from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
@@ -141,6 +142,14 @@ describe("parseCodeLinksInStatement", () => {
     );
 
     expect(out).toEqual([]);
+  });
+
+  it("returns only the repo path when the group also links a plan block by URL", () => {
+    const out = parseCodeLinksInStatement(
+      "Runs the task. ([from plan](https://lore.example/repos/o/r/plans/p1#b7), [impl](src/runner.ts#L88))",
+    );
+
+    expect(out).toEqual([{ label: "impl", path: "src/runner.ts", line: 88 }]);
   });
 
   it("keeps a non-test source path in another language as a code link", () => {
@@ -303,5 +312,21 @@ describe("testLinksOfDoc", () => {
     ].join("\n");
 
     expect(testLinksOfDoc("specs/a/spec.md", doc)).toEqual([]);
+  });
+});
+
+describe("withoutTrailingLinkGroup", () => {
+  it("cuts a from-plan and validated-by group off the statement", () => {
+    expect(
+      withoutTrailingLinkGroup(
+        "The run settles once. ([from plan](https://lore.example/p#b-1), [validated by settles](a.test.ts#L3))",
+      ),
+    ).toBe("The run settles once.");
+  });
+
+  it("keeps a closing parenthetical that holds no link", () => {
+    expect(withoutTrailingLinkGroup("The run settles (once).")).toBe(
+      "The run settles (once).",
+    );
   });
 });

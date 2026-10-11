@@ -76,7 +76,50 @@ export async function createDispatchLabels(
   }
 }
 
-/** Every label a dispatch-driven repo needs: the `lore` entry point, the per-task-type dispatch set, and the backlog seed. */
+const TRIAGE_LABEL_SEED: LabelSeed[] = [
+  {
+    name: "triage: needs-triage",
+    color: "e4e669",
+    description: "Awaiting initial triage",
+  },
+  {
+    name: "triage: needs-reproduction",
+    color: "f9d0c4",
+    description: "Awaiting reproduction steps",
+  },
+  {
+    name: "triage: reproduced",
+    color: "0075ca",
+    description: "Issue has been reproduced",
+  },
+  {
+    name: "triage: unable-to-reproduce",
+    color: "cfd3d7",
+    description: "Could not reproduce the issue",
+  },
+  {
+    name: "triage: diagnosed",
+    color: "bfd4f2",
+    description: "Root cause identified",
+  },
+  {
+    name: "triage: skipped",
+    color: "cfd3d7",
+    description: "Triage skipped intentionally",
+  },
+  {
+    name: "triage: not-actionable",
+    color: "cfd3d7",
+    description: "No action will be taken",
+  },
+  {
+    name: "triage: failed",
+    color: "b60205",
+    description: "Triage process failed",
+  },
+];
+
+/** Every label a dispatch-driven repo needs: the `lore` entry point, the per-task-type dispatch set, the backlog seed, and the triage set. */
 function dispatchLabelSeed(): LabelSeed[] {
   return [
     { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },
@@ -86,5 +129,6 @@ function dispatchLabelSeed(): LabelSeed[] {
       description,
     })),
     ...BACKLOG_LABEL_SEED,
+    ...TRIAGE_LABEL_SEED,
   ];
 }

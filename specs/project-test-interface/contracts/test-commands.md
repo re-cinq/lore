@@ -75,11 +75,23 @@ file-name convention; when `suite` is present, the nested `TestSuite` chain
 (+ `TestChunk.suite`, + `TestSuite.spec` for spec-anchored suite names);
 when `spec` is present, also the one-to-one `VALIDATED_BY` link.
 
-## `tests.run <id>` — run one test, return covered code + pass/fail
+## `tests.run` — run one test, return covered code + pass/fail
 
-Lore substitutes `{selector}` (a `tests.list` `id`) into the `run`
-command and executes it in `cwd`. The command MUST run that single test
-with coverage and emit, per `coverage_format`:
+Two callers substitute into `{selector}` before executing the `run` command in `cwd`:
+
+- **`lore-code-trace` (CI)** — substitutes the **repo-relative test file** (e.g.
+  `src/auth/auth.test.ts`). Coverage is file-level: it runs the command once per
+  distinct `file` from `tests.list`, then fans the result onto every descriptor in
+  that file. The file path after `path_prefix_strip` is what gets substituted, so
+  it must be repo-relative.
+- **`lore_run_test` (MCP)** — substitutes the **descriptor id** — the runner-native
+  node id returned by `tests.list` (e.g. `src/auth/auth.test.ts::logs in` for
+  vitest, `tests/test_auth.py::TestAuth::test_login` for pytest). The id's file
+  component must be repo-relative.
+
+The `run` command **must accept both shapes**: a bare file path from CI and a
+full descriptor id from `lore_run_test`. The command MUST produce coverage output
+and emit, per `coverage_format`:
 
 - `lcov` / `cobertura`: the coverage report on stdout (scoped to the run);
 - `json`: `passed` + a **list of covered chunks**.
@@ -162,6 +174,8 @@ re-checked fact, still with zero LLM.
 
 ```yaml
 # Node / Vitest
+# {selector} = test file from CI (e.g. src/auth.test.ts), or descriptor id from lore_run_test
+# vitest accepts a file path or a "file > test name" id as its first positional argument
 list: "vitest list --reporter=json"
 run:  "vitest run {selector} --coverage --coverage.reporter=lcov"
 coverage_format: "lcov"
@@ -169,14 +183,19 @@ coverage_format: "lcov"
 
 ```yaml
 # Python / pytest
+# {selector} = test file from CI (e.g. tests/test_auth.py), or id from lore_run_test (e.g. tests/test_auth.py::TestAuth::test_login)
+# pytest accepts a file path or a node id — both are valid positional arguments
 list: "pytest --collect-only -q --json"
 run:  "pytest '{selector}' --cov --cov-report=lcov:/dev/stdout"
 coverage_format: "lcov"
 ```
 
 ```yaml
-# Go (per-file aggregate; test_name='*')
+# Go (per-file aggregate — lore-code-trace passes the test file; lore_run_test passes a TestXxx name)
+# Use a wrapper script that dispatches on the selector shape:
+#   - file path (ends in .go) → derive the package and run all tests in it
+#   - function name → pass directly to -run
 list: "go test ./... -list '.*' -json"
-run:  "go test -run '{selector}' -coverprofile=/dev/stdout ./..."
+run:  "bash -c 'if [[ \"{selector}\" == *.go ]]; then go test -coverprofile=/tmp/lore-cov.out ./$(dirname \"{selector}\")/... && cat /tmp/lore-cov.out; else go test -run \"{selector}\" -coverprofile=/tmp/lore-cov.out ./... && cat /tmp/lore-cov.out; fi'"
 coverage_format: "go-cover"
 ```

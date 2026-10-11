@@ -17,7 +17,7 @@ function brief(attention = "") {
     visitId: "visit-open-pr",
     iteration: 1,
     needs: {
-      target: "github.com/re-cinq/app@lore/onboard/app-1234abcd",
+      target: "https://github.com/re-cinq/app@lore/onboard/app-1234abcd",
       task_id: "task-1",
       attention,
     },

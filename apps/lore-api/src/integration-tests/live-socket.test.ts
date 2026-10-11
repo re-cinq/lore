@@ -12,6 +12,7 @@ import {
   bytesToBase64,
   type LiveServerMessage,
 } from "../work/assembly-line-station/protocol.js";
+import { queuedClient } from "../work/assembly-line-station/live-socket.fixtures.js";
 import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
 const TOKEN = "test-live-socket-token";
@@ -19,42 +20,6 @@ const REPO = "acme/live-socket";
 const ANA = { id: "ana", name: "Ana" };
 
 const HOCUSPOCUS_AUTH_MESSAGE = 2;
-
-function queuedClient(port: number) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/api/ws`);
-  const queue: LiveServerMessage[] = [];
-  const waiters: ((m: LiveServerMessage) => void)[] = [];
-
-  ws.on("message", (raw) => {
-    const message = JSON.parse(raw.toString()) as LiveServerMessage;
-    const waiter = waiters.shift();
-
-    if (waiter) {
-      waiter(message);
-
-      return;
-    }
-    queue.push(message);
-  });
-
-  return {
-    ws,
-    open: () =>
-      new Promise<void>((resolve) => ws.once("open", () => resolve())),
-    send: (message: object) => ws.send(JSON.stringify(message)),
-    next: () =>
-      new Promise<LiveServerMessage>((resolve) => {
-        const queued = queue.shift();
-
-        if (queued) {
-          resolve(queued);
-
-          return;
-        }
-        waiters.push(resolve);
-      }),
-  };
-}
 
 function hocuspocusAuthMessage(documentName: string, token: string): string {
   const encoder = encoding.createEncoder();

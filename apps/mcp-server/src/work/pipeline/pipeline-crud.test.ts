@@ -113,7 +113,7 @@ describe("retryTask", () => {
             id: TASK_ID,
             status: "failed",
             description: "do x",
-            task_type: "spec-task",
+            task_type: "onboard",
             target_repo: "re-cinq/lore",
             created_by: "mcp",
           },
@@ -140,6 +140,30 @@ describe("retryTask", () => {
       status: "pending",
       retry_of: TASK_ID,
     });
+  });
+
+  it("throws the spec-task type was removed when retrying a task of a retired type", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: TASK_ID,
+            status: "failed",
+            description: "do x",
+            task_type: "spec-task",
+            target_repo: "re-cinq/lore",
+            created_by: "mcp",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    await expect(retryTask(pool, TASK_ID)).rejects.toThrow(
+      new Error(
+        'The "spec-task" task type was removed. To have something implemented, open an issue with a priority:high, priority:medium or priority:low label and the implementation loop picks it up.',
+      ),
+    );
   });
 
   it("throws cannot retry when the task is still running", async () => {

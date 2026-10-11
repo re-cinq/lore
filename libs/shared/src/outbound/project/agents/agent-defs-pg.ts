@@ -1,5 +1,4 @@
 import type { PgPool } from "../../memory-store.js";
-import { catalogCrdName } from "./agent-crd.js";
 import {
   resolveAgentConfig,
   type AgentDefinition,
@@ -8,11 +7,9 @@ import {
   type PodResourcesWrite,
 } from "./agent-defs-port.js";
 import {
-  CATALOG_ENTRY_SQL,
   CREATE_DEF_SQL,
   DELETE_DEF_SQL,
   LIST_DEFS_SQL,
-  QUALIFIED_STATION_SQL,
   RESOLVE_DEF_SQL,
   UPDATE_DEF_SQL,
   UPDATE_ORG_DEF_SQL,
@@ -123,40 +120,7 @@ function resolveGroupedDefinition(group: AgentRow[]): AgentDefinition | null {
   );
 }
 
-// Effective definition for catalog entry by (name, projectId); a missing override resolves null, the delete-the-CRDs signal.
-export async function resolveCatalogEntry(
-  pool: PgPool,
-  name: string,
-  projectId: string | null,
-): Promise<AgentDefinition | null> {
-  const { rows } = await pool.query<AgentRow>(CATALOG_ENTRY_SQL, [
-    name,
-    projectId,
-  ]);
-
-  if (projectId !== null && !split(rows as AgentRow[]).project) {
-    return null;
-  }
-
-  return resolveGroupedDefinition(rows as AgentRow[]);
-}
-
-// Dispatch stationRef for repo: project-qualified CRD name if override exists, bare name otherwise.
-export async function qualifiedStationRef(
-  pool: PgPool,
-  baseName: string,
-  repo: string,
-): Promise<string> {
-  const { rows } = await pool.query<{ project_id: string }>(
-    QUALIFIED_STATION_SQL,
-    [baseName, repo],
-  );
-  const projectId = (rows[0] as { project_id: string } | undefined)?.project_id;
-
-  return catalogCrdName(baseName, projectId ?? null);
-}
-
-// Upsert ORG-DEFAULT row (project_id IS NULL) — writes catalog event for cluster-agents to see.
+// Upsert ORG-DEFAULT row (project_id IS NULL).
 export async function updateOrgDefinition(
   pool: PgPool,
   patch: AgentDefinitionInput,

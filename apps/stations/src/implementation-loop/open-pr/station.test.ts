@@ -21,7 +21,7 @@ function brief(needs: Record<string, string> = {}) {
     visitId: "visit-open-pr",
     iteration: 1,
     needs: {
-      target: `github.com/re-cinq/app@${BRANCH}`,
+      target: `https://github.com/re-cinq/app@${BRANCH}`,
       task_id: "task-1",
       ...needs,
     },
@@ -32,19 +32,25 @@ function scene(
   open: (pr: PullDraft) => Promise<PullRef> = () => Promise.resolve(pullRef()),
 ) {
   const opened: PullDraft[] = [];
+  const recorded: Array<[string, PullRef]> = [];
   const handle = openLoopPrHandle({
-    pulls: () =>
-      Promise.resolve({
-        list: () => Promise.resolve([]),
-        open: (_branch, pr) => {
-          opened.push(pr);
+    recordPr: async (taskId, pr) => {
+      recorded.push([taskId, pr]);
+    },
+    pulls: (repo) =>
+      repo !== "re-cinq/app"
+        ? Promise.reject(new Error(`Not Found: ${repo}`))
+        : Promise.resolve({
+            list: () => Promise.resolve([]),
+            open: (_branch, pr) => {
+              opened.push(pr);
 
-          return open(pr);
-        },
-      }),
+              return open(pr);
+            },
+          }),
   });
 
-  return { handle, opened };
+  return { handle, opened, recorded };
 }
 
 function pullRef(): PullRef {
@@ -95,6 +101,24 @@ describe("the loop-open-pr station", () => {
       outcome: "success",
       produced: { pr_url: PR_URL },
     });
+  });
+
+  it("records pull request 42 on task-1, where the run page reads it", async () => {
+    const { handle, recorded } = scene();
+
+    await handle(brief(), TOOLS);
+
+    expect(recorded).toEqual([["task-1", pullRef()]]);
+  });
+
+  it("records nothing on the task when no pull request could be opened", async () => {
+    const { handle, recorded } = scene(() =>
+      Promise.reject(new Error("Bad credentials")),
+    );
+
+    await handle(brief(), TOOLS);
+
+    expect(recorded).toEqual([]);
   });
 
   it("reports failed naming the empty branch when the step before it pushed nothing", async () => {

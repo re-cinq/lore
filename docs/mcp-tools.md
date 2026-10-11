@@ -64,7 +64,6 @@ Hand a job to Lore's background agents; they open a pull request for review.
 
 | Tool | What it does | Where | |
 |---|---|---|---|
-| `lore_create_pipeline_task` | Asks Lore to do a job (implement something, write docs, review a PR). | ☁️ Cloud | |
 | `lore_get_pipeline_status` | Checks how a job is going. | ☁️ Cloud | |
 | `lore_list_pipeline_tasks` | Lists recent jobs. | ☁️ Cloud | |
 | `lore_list_pending_tasks` | Shows jobs waiting to be picked up. | ☁️ Cloud | |

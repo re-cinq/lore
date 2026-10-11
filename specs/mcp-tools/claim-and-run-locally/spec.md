@@ -102,15 +102,15 @@ credentials are absent, `undefined` on a non-ok response or a non-`pending`
 status, the mapped task fields on success, and `undefined` when the request
 throws. ([validated by `returns undefined without fetching when the API URL or
 token is not
-configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L74),
+configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L11),
 [`returns undefined when the API responds
-non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L85),
+non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L22),
 [`returns undefined when the fetched task is not
-pending`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L95),
+pending`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L32),
 [`returns the pending task's fields on
-success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L118),
+success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L55),
 [`returns undefined when the request
-throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L149))
+throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L86))
 
 ## Out of Scope
 

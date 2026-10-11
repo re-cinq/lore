@@ -45,21 +45,25 @@ export function planPageState(
   return planStatus === "approved" ? approvedState(run) : draftState(run);
 }
 
+// What the open node makes a draft, where that node alone says it.
+const DRAFT_STATES: Partial<Record<string, PlanPageState>> = {
+  analyze: "refining",
+  validate: "validating",
+  "plan-findings": "validating",
+};
+
 function draftState(run: RunFacts): PlanPageState {
   if (isDraftingPlan(run, run.nodes)) {
     return "drafting";
   }
   const open = openNode(run.nodes);
 
-  if (open === "analyze") {
-    return "refining";
+  if (open === "author") {
+    return authorState(run);
   }
 
-  if (open === "validate") {
-    return "validating";
-  }
-
-  return open === "author" ? authorState(run) : "writing";
+  // With nothing open the draft is one reopened after its line delivered, and the spec PR that line merged is what the next approval amends.
+  return open ? (DRAFT_STATES[open] ?? "writing") : prState(run);
 }
 
 // The line waits on the plan's people: to answer the spec analysis's question, to revise an open spec PR, or to write.
@@ -68,6 +72,11 @@ function authorState(run: RunFacts): PlanPageState {
     return "answering";
   }
 
+  return prState(run);
+}
+
+// A spec PR the plan already has is what makes the draft a reopened one rather than one still being written.
+function prState(run: RunFacts): PlanPageState {
   return run.prUrl ? "reopened" : "writing";
 }
 

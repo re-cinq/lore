@@ -21,7 +21,7 @@
   opacity: 0.8;
 }
 
-.textTooLong {
+.holdKind {
   display: inline-block;
   margin-left: var(--space-2);
   padding: var(--space-1) var(--space-3);
@@ -40,53 +40,6 @@
 .howTo {
   max-width: 60rem;
   margin-bottom: var(--space-6);
-}
-
-.miniPipeline {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  text-decoration: none;
-}
-
-.dot {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.success {
-  background: var(--success);
-}
-
-.failed {
-  background: var(--danger);
-}
-
-.changes_requested {
-  background: var(--warning);
-}
-
-.running {
-  background: var(--info);
-  animation: miniPulse 1.2s ease-in-out infinite;
-}
-
-.waiting {
-  background: transparent;
-  border: 2px solid var(--info);
-}
-
-.pending {
-  background: transparent;
-  border: 2px solid var(--chart-neutral);
-}
-
-@keyframes miniPulse {
-  50% {
-    opacity: 0.4;
-  }
 }
 
 .ticketTable {
@@ -147,13 +100,24 @@
   margin-top: var(--space-2);
 }
 
-.errorLine {
-  margin: var(--space-2) 0 0;
+.hold {
+  margin-top: var(--space-2);
+  max-width: 60rem;
   font-size: var(--fs-xs);
+
+  p {
+    margin: 0;
+  }
+}
+
+.holdMessage {
   color: var(--danger);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+}
+
+.holdFix {
+  opacity: 0.85;
+}
+
+.sectionNotice {
+  margin-bottom: var(--space-3);
 }

@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
+import RunBagFacts from "./RunBagFacts";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import { codeReviewDefinition } from "@/lib/definition-fixtures";
@@ -9,6 +10,8 @@ import { HISTORY_PAGE_LIMIT } from "@/lib/run-stream-presenter";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 vi.mock("./live-actions", () => ({
   openRunChannelAction: async () => ({ token: "tok" }),
@@ -623,7 +626,7 @@ describe("node inspector", () => {
     ).toHaveTextContent("Sonnet 4.6 · 3m 12s");
   });
 
-  it("shows the selected node's pod logs inside the inspector, one panel per attempt", async () => {
+  it("shows the newest attempt's pod logs alone once Pod logs is chosen", async () => {
     stubHistory([]);
     useFakeSocket();
 
@@ -634,15 +637,131 @@ describe("node inspector", () => {
     ]);
     await settle();
     await selectNode("implement");
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "pods" },
+    });
 
-    expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
     expect(screen.getByText("Pod logs · attempt 2")).toBeInTheDocument();
-    expect(screen.queryByText("Pod logs · attempt 3")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pod logs · attempt 1")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Transcript", { selector: "strong" }),
+    ).not.toBeInTheDocument();
+  });
 
-    await selectNode("validate");
+  it("shows attempt 1's pod logs when the attempt select picks it", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ outcome: "implement-failed", agentCrName: "run1-implement" }),
+      walkRow({ iteration: 2, agentCrName: "run1-implement-2" }),
+    ]);
+    await settle();
+    await selectNode("implement");
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "pods" },
+    });
+    fireEvent.change(screen.getByLabelText("Attempt"), {
+      target: { value: "1" },
+    });
 
     expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
-    expect(screen.queryByText("Pod logs · attempt 2")).not.toBeInTheDocument();
+  });
+
+  it("draws the header above the graph, the run details under it and the task notice after the attempt, outside the aside", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    const { container } = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={definition}
+        nodes={[walkRow({})]}
+        repo="re-cinq/lore"
+        reason={null}
+        header={<p>header slot</p>}
+        runDetails={<p>details slot</p>}
+        taskContext={<p>task slot</p>}
+      />,
+    );
+
+    await settle();
+    await selectNode("implement");
+
+    const order = [
+      screen.getByText("header slot"),
+      container.querySelector('[data-node="implement"]'),
+      screen.getByText("details slot"),
+      screen.getByLabelText("Show"),
+      screen.getByText("task slot"),
+    ];
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
+
+    expect({
+      inReadingOrder: order.every(
+        (node, i) =>
+          i === 0 ||
+          Boolean(
+            order[i - 1]!.compareDocumentPosition(node as Node) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          ),
+      ),
+      inAside: order.map((node) => aside.contains(node as Node)),
+    }).toEqual({
+      inReadingOrder: true,
+      inAside: [false, false, false, false, false],
+    });
+  });
+
+  it("keeps Pod logs chosen across a trip to another node and back", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ agentCrName: "run1-implement" }),
+      walkRow({ nodeId: "validate", agentCrName: "run1-validate" }),
+    ]);
+    await settle();
+    await selectNode("implement");
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "pods" },
+    });
+    await selectNode("validate");
+    await selectNode("implement");
+
+    expect(screen.getByLabelText("Show")).toHaveValue("pods");
+  });
+
+  it("moves the attempt select to attempt 1 when its row in the detail card is clicked", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ outcome: "implement-failed" }),
+      walkRow({ iteration: 2 }),
+    ]);
+    await settle();
+    await selectNode("implement");
+    fireEvent.click(screen.getByRole("button", { name: /^attempt 1/ }));
+
+    expect(screen.getByLabelText("Attempt")).toHaveValue("1");
+  });
+
+  it("shows the attempt's needs card with the bag it was handed", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ needs: { target: "github.com/re-cinq/lore@main" } }),
+    ]);
+    await settle();
+    await selectNode("implement");
+
+    expect(screen.getByText("Needs")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "github.com/re-cinq/lore@main" }),
+    ).toHaveAttribute("href", "https://github.com/re-cinq/lore/tree/main");
   });
 
   it("renders the attempts history inside the inspector for a node that looped", async () => {
@@ -775,7 +894,7 @@ describe("a node's input opens its transcript", () => {
   });
 });
 
-describe("retry from node", () => {
+describe("Run this station", () => {
   function retryRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
     return {
       nodeId: "implement",
@@ -788,6 +907,12 @@ describe("retry from node", () => {
     };
   }
 
+  const floorDefinition: AssemblyLineDefinition = {
+    ...definition,
+    fail: "gave-up",
+    nodes: [...definition.nodes, { id: "gave-up", type: "retrospective" }],
+  };
+
   function renderRun(
     runStatus: string,
     nodes: AssemblyRunNode[],
@@ -797,7 +922,7 @@ describe("retry from node", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus={runStatus}
-        definition={definition}
+        definition={floorDefinition}
         nodes={nodes}
         repo="re-cinq/lore"
         reason={null}
@@ -814,107 +939,17 @@ describe("retry from node", () => {
     });
   }
 
-  it("offers Run this station on a node the run never visited, while the run is still live", async () => {
+  it("offers neither retry nor Run this station on a node of a finished run Lore's own engine walked", async () => {
     stubHistory([]);
-
-    useFakeSocket();
-    renderRun("running", [retryRow({ nodeId: "implement", outcome: null })]);
-
-    await settle();
-    await select("validate");
-
-    expect({
-      run: screen.getByRole("button", { name: "Run this station" }) !== null,
-      retry: screen.queryByRole("button", { name: "Retry from this node" }),
-    }).toEqual({ run: true, retry: null });
-  });
-
-  it("offers retry in the node card's header on a finished run, posting the implement fork source", async () => {
-    const fetchMock = stubHistory([]); // eslint-disable-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
-
     useFakeSocket();
 
-    const { container } = renderRun("finished", [
+    renderRun("finished", [
       retryRow({ nodeId: "implement" }),
       retryRow({ nodeId: "validate", outcome: "failed" }),
     ]);
 
     await settle();
-    await select("validate");
-
-    const button = screen.getByRole("button", {
-      name: "Retry from this node",
-    });
-
-    expect(button.closest("summary")).toBe(
-      container.querySelector("section summary"),
-    );
-
-    await act(async () => {
-      fireEvent.click(button);
-    });
-
-    const rerunCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === "/api/assembly-runs/rerun",
-    );
-    const body = rerunCall?.[1]?.body as URLSearchParams;
-
-    expect(rerunCall?.[1]).toMatchObject({ method: "POST" });
-    expect(Object.fromEntries(body)).toEqual({
-      run_id: "run-1",
-      node_id: "implement",
-      iteration: "1",
-    });
-  });
-
-  it("offers retry on a looping run's validate node, posting implement@2 as the fork source", async () => {
-    const fetchMock = stubHistory([]);
-
-    useFakeSocket();
-
-    renderRun("failed", [
-      retryRow({ nodeId: "implement", iteration: 1 }),
-      retryRow({ nodeId: "validate", iteration: 1, outcome: "failed" }),
-      retryRow({ nodeId: "implement", iteration: 2 }),
-      retryRow({ nodeId: "validate", iteration: 2, outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("validate");
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Retry from this node" }),
-      );
-    });
-
-    const rerunCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === "/api/assembly-runs/rerun",
-    );
-
-    expect(Object.fromEntries(rerunCall?.[1]?.body as URLSearchParams)).toEqual(
-      {
-        run_id: "run-1",
-        node_id: "implement",
-        iteration: "2",
-      },
-    );
-  });
-
-  it("offers neither retry nor Run this station on a finished run on the floor engine", async () => {
-    stubHistory([]);
-    useFakeSocket();
-
-    renderRun(
-      "finished",
-      [
-        retryRow({ nodeId: "implement" }),
-        retryRow({ nodeId: "validate", outcome: "failed" }),
-      ],
-      "floor",
-    );
-
-    await settle();
-    await select("validate");
+    await select("implement");
 
     expect({
       retry: screen.queryByRole("button", { name: "Retry from this node" }),
@@ -922,36 +957,34 @@ describe("retry from node", () => {
     }).toEqual({ retry: null, run: null });
   });
 
-  it("offers no retry while the run is still running", async () => {
+  it("offers Run this station on implement, a node of a finished floor run", async () => {
     stubHistory([]);
     useFakeSocket();
 
-    renderRun("running", [
-      retryRow({ nodeId: "implement" }),
-      retryRow({ nodeId: "validate", outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("validate");
-
-    expect(
-      screen.queryByRole("button", { name: "Retry from this node" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("offers no retry on the entry node — there is no prefix to fork from", async () => {
-    stubHistory([]);
-    useFakeSocket();
-
-    renderRun("finished", [
-      retryRow({ nodeId: "implement", outcome: "failed" }),
-    ]);
+    renderRun("finished", [retryRow({ nodeId: "implement" })], "floor");
 
     await settle();
     await select("implement");
 
     expect(
-      screen.queryByRole("button", { name: "Retry from this node" }),
+      screen.getByRole("button", { name: "Run this station" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["validate", "the exit"],
+    ["gave-up", "the fail node"],
+  ])("offers no Run this station on %s, %s of a floor run", async (nodeId) => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderRun("finished", [retryRow({ nodeId })], "floor");
+
+    await settle();
+    await select(nodeId);
+
+    expect(
+      screen.queryByRole("button", { name: "Run this station" }),
     ).not.toBeInTheDocument();
   });
 });
@@ -1006,7 +1039,7 @@ describe("agent edit link", () => {
       "/repos/re-cinq/lore/agents/implement/edit",
     );
     expect(link.closest("summary")).toBe(
-      container.querySelector("section summary"),
+      container.querySelector('[aria-label="implement inspector"] summary'),
     );
   });
 
@@ -1058,6 +1091,57 @@ describe("file diff drawer", () => {
     });
 
     expect(screen.getByText("Diff · src/a.ts")).toBeInTheDocument();
+  });
+
+  async function renderWithTouchedFile() {
+    stubHistory([
+      eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        filePaths: ["src/a.ts"],
+      }),
+    ]);
+    FakeWebSocket.reset();
+
+    const view = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="finished"
+        definition={definition}
+        nodes={[]}
+        repo="re-cinq/lore"
+        reason={null}
+        prNumber={42}
+      />,
+    );
+
+    await settle();
+
+    return view;
+  }
+
+  it("draws the Files touched card inside the selected-node aside", async () => {
+    await renderWithTouchedFile();
+
+    expect(
+      screen.getByRole("complementary", { name: "Selected node" }),
+    ).toContainElement(screen.getByText("Files touched"));
+  });
+
+  it("mounts the clicked file's diff outside the aside, in the center column", async () => {
+    const { container } = await renderWithTouchedFile();
+
+    await act(async () => {
+      fireEvent.click(
+        container.querySelector("[data-path='src/a.ts']") as HTMLElement,
+      );
+    });
+
+    expect(
+      screen.getByRole("complementary", { name: "Selected node" }),
+    ).not.toContainElement(screen.getByText("Diff · src/a.ts"));
   });
 });
 
@@ -1120,5 +1204,175 @@ describe("a run that ended", () => {
     expect(
       screen.queryByRole("button", { name: "Show possible outcomes" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("the attempt column by station kind", () => {
+  const kindDefinition: AssemblyLineDefinition = {
+    name: "planning",
+    description: "draft, ground, approve",
+    version: 1,
+    entry: "draft",
+    exit: "done",
+    nodes: [
+      { id: "draft", type: "agent" },
+      { id: "ground", type: "validate" },
+      { id: "approve", type: "pr_review" },
+      { id: "done", type: "retrospective" },
+    ],
+    edges: [
+      { from: "draft", to: "ground", on: "success" },
+      { from: "ground", to: "approve", on: "success" },
+      { from: "approve", to: "done", on: "success" },
+    ],
+  };
+
+  function visitRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
+    return {
+      nodeId: "draft",
+      iteration: 1,
+      outcome: "success",
+      agentCrName: null,
+      commitSha: null,
+      durationSeconds: 30,
+      ...over,
+    };
+  }
+
+  async function renderAndSelect(nodes: AssemblyRunNode[], nodeId: string) {
+    stubHistory([]);
+    FakeWebSocket.reset();
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={kindDefinition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+        engine="floor"
+      />,
+    );
+    await settle();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${nodeId} —`) }),
+      );
+    });
+  }
+
+  it("shows ground, a service node, its error in an Outcome card and no Show select", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          nodeId: "ground",
+          outcome: "failed",
+          failureDetail: "the plan names a file main does not have",
+          agentCrName: "floor-visit-2",
+        }),
+      ],
+      "ground",
+    );
+
+    expect({
+      show: screen.queryByLabelText("Show"),
+      error: screen.getByText("the plan names a file main does not have")
+        .textContent,
+    }).toEqual({
+      show: null,
+      error: "the plan names a file main does not have",
+    });
+  });
+
+  it("shows approve, waiting on a person, as Waiting for the spec PR with Open the pull request", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          nodeId: "approve",
+          outcome: null,
+          routeUrl: "https://github.com/re-cinq/lore/pull/412",
+        }),
+      ],
+      "approve",
+    );
+
+    expect({
+      waiting: screen.getAllByText("Waiting for the spec PR").length > 0,
+      open: screen
+        .getByRole("link", { name: "Open the pull request" })
+        .getAttribute("href"),
+    }).toEqual({
+      waiting: true,
+      open: "https://github.com/re-cinq/lore/pull/412",
+    });
+  });
+
+  it("shows a Produced card for a draft attempt that produced plan", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          produced: { plan: "plan text" },
+          agentCrName: "floor-visit-1",
+        }),
+      ],
+      "draft",
+    );
+
+    expect({
+      show: screen.getByLabelText("Show") !== null,
+      produced: screen.getByText("Produced") !== null,
+    }).toEqual({ show: true, produced: true });
+  });
+
+  it("offers no Run this station on approve, which a person answers", async () => {
+    await renderAndSelect(
+      [visitRow({ nodeId: "approve", outcome: null })],
+      "approve",
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Run this station" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("the bag names who put an item there", () => {
+  const implementAttempt = (iteration: number): AssemblyRunNode => ({
+    nodeId: "implement",
+    iteration,
+    outcome: "success",
+    agentCrName: null,
+    commitSha: null,
+    durationSeconds: 30,
+    stationRunId: `visit-${iteration}`,
+  });
+
+  it("shows implement's attempt 1 in the center once implement · attempt 1 is clicked in the bag", async () => {
+    stubHistory([]);
+    useFakeSocket();
+    const nodes = [implementAttempt(1), implementAttempt(2)];
+    const bag = {
+      plan: { kind: "value", ref: "plan-7", by: "visit-1" },
+    } as const;
+
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={definition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+        runDetails={<RunBagFacts runId="run-1" bag={bag} nodes={nodes} />}
+      />,
+    );
+    await settle();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "implement · attempt 1" }),
+      );
+    });
+
+    expect(screen.getByLabelText("Attempt")).toHaveValue("1");
   });
 });

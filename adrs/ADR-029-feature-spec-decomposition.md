@@ -24,7 +24,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > never starts** — silently, with nothing logged. Every feature planned on the merged line
 > is affected.
 >
-> **The replacement.** [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> **The replacement.** feature-planning.yaml
 > gains a `merged` node of type `wait` with `signal: pr_merged`, followed by the
 > `decompose` and `issues` nodes lifted from
 > `feature-decompose.yaml`,
@@ -37,7 +37,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Why a wait node rather than a fixed predicate.** The `pr_merged` signal is already
 > declared in the loader's `WaitSignal` union
-> ([loader.ts](../libs/assembly-lines/src/loader.ts)) and already rendered by the run
+> and already rendered by the run
 > visualization as "Waiting for the spec PR"
 > ([run-node-status.ts](../apps/web-ui/src/lib/run-node-status.ts)) — no definition had
 > ever used it. The seam existed; this uses it. A person merging a PR is a station in
@@ -48,7 +48,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > [merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts) resolves the line via
 > `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/outbound/project/assembly-runs/assembly-runs-port.ts))
 > and reports to the parked node with an `assembly_run.resume` event, handled by the
-> existing [resume-event-handler.ts](../apps/floor/src/work/assembly-run/resume-event-handler.ts).
+> existing resume-event-handler.ts.
 > That is the same mechanism finalize already uses, so no new event type is introduced and
 > `decompose-kick.ts` is deleted rather than corrected. This depends on the `push` node
 > stamping `pr_number` on the line — `findOpenByPr` cannot resolve a line whose PR was
@@ -56,7 +56,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Execution moved to a pod.** "In-process in the coordinator" was superseded by the
 > station cutover (ADR-031): `decompose` is an agent node and `issues` is a station
-> ([issues.ts](../apps/stations/src/work/issues/issues.ts)) reaching the database over
+> ([issues.ts](../apps/stations/src/planning/file-issues/issues.ts)) reaching the database over
 > HTTP, so the coordinator-credentials argument below no longer applies.
 >
 > **Alternative rejected.** Keep two lines and widen the kick predicate to also match a
@@ -71,6 +71,29 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 ## Amendment 2026-09-21: decomposition keys on plans
 
 Decomposition is unchanged, but its spec-tasks no longer name a feature row: the `issues` station stamps `plan_id` and `spec_path` into each spec-task's `context_bundle`, and the spec-status flip reads the path from there (ADR-047). `specTasksForFeature` is gone with the feature page that read it.
+
+## Amendment 2026-10-07: spec-task rows are gone; a plan's tasks are tickets
+
+This ADR's mechanism — one `spec-task` row per decomposed task, grouped by the
+run that filed them, dispatched by a reader of that table — is removed. The
+dispatcher it relied on, the spec-task executor, ran every minute with no
+per-repository opt-in and no way to switch it off, and it opened pull requests
+against a repository whose implementation loop was deliberately switched off
+(`specs/external-floor` FR15.0).
+
+What survives is everything this ADR decided about ISSUES: one story issue per
+plan, one issue per task, filed idempotently against the plan's markers, linked
+as sub-issues, with the story's checklist rewritten. What goes is the row beside
+each issue. The `issues` station now stamps a priority label on each task issue
+instead, so the backlog implementation loop queues it — one at a time per
+repository, behind `settings.implementation_loop.enabled`
+(`specs/7-feature-planning` FR-11.13).
+
+The `tasks.md` parser named in the Context below (`syncTasksToDb`, `parseTasks`,
+`inferPhaseDependencies`) is deleted with it; its `[DEPENDS ON: ...]` and `[P]`
+markers now reach people as the `Depends on #<n>` lines in a task issue's body
+and nothing else. The loop does not honour that order — CI and review judge a
+task started early.
 
 ## Context
 
@@ -87,8 +110,7 @@ A task pipeline already exists: `spec-task` rows in `pipeline.tasks` (with
 `depends_on` / `phase` / `parallelizable` / `file_path` metadata) are picked up by
 the implementation pipeline under the per-repo trust gate. Today those rows are
 created only from a hand-authored `specs/<slug>/tasks.md` parsed on merge
-([syncTasksToDb](../libs/shared/src/domain/tasks.ts),
-[merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts)),
+(`syncTasksToDb`, [merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts)),
 and only for the legacy one-shot `feature-request` task type. The interactive
 planning flow produces no `tasks.md`, so it feeds nothing.
 

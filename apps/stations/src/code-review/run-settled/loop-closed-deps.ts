@@ -4,7 +4,7 @@ import { infraDeferralsFromEnv } from "@re-cinq/lore-shared/backlog/loop-infra-d
 import type { LoopRunClosedDeps } from "@re-cinq/lore-shared/backlog/loop-run-closed.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { eventProxy, taskStore } from "../../outbound/queues.js";
+import { eventProxy, pipeline, taskStore } from "../../outbound/queues.js";
 import {
   floorInfraFailures,
   type FloorLoopRun,
@@ -20,6 +20,8 @@ export const loopClosedDeps: SettleLoopDeps = {
 function closedDepsFor(settled: FloorLoopRun): LoopRunClosedDeps {
   return {
     getTaskIssueNumber: taskIssueNumber,
+    recordWhy: (taskId, why) =>
+      pipeline().taskQueue.setColumns(taskId, { failure_reason: why }),
     listStationRuns: () => Promise.resolve(settled.visits),
     priorInfraFailures: (repo, branch, since, excludeRunId) =>
       floorInfraFailures(floorClient(), {

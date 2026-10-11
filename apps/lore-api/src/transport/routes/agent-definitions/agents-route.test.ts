@@ -8,7 +8,7 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../../work/dark-factory/dark-factory-authz.js", () => {
+vi.mock("../../../work/two-key/approval-pr.js", () => {
   class TwoKeyError extends Error {
     constructor(
       message: string,
@@ -40,7 +40,7 @@ vi.mock("../../../outbound/project-boot.js", () => ({
 import {
   verifyApproval,
   TwoKeyError,
-} from "../../../work/dark-factory/dark-factory-authz.js";
+} from "../../../work/two-key/approval-pr.js";
 import { getOctokit } from "../../../outbound/github-client.js";
 
 const BASE = "/api/repos/o/r/agent-definitions";

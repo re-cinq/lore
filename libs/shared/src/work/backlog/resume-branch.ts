@@ -6,11 +6,17 @@ export interface BranchResumeInput {
   /** `undefined` when the port could not answer — unknown, never "no". */
   branchExists: boolean | undefined;
   issueLabels: readonly string[];
-  openPr: { number: number; url: string } | null;
+  openPr: OpenPr | null;
+}
+
+/** The pull request the branch already has, which the run is started with so its page shows it from the first node. */
+export interface OpenPr {
+  number: number;
+  url: string;
 }
 
 export type BranchResume =
-  { resume: false } | { resume: true; lineArgs: Record<string, unknown> };
+  { resume: false } | { resume: true; openPr: OpenPr | null };
 
 const FRESH: BranchResume = { resume: false };
 
@@ -25,13 +31,5 @@ export function decideBranchResume(input: BranchResumeInput): BranchResume {
     return FRESH;
   }
 
-  return {
-    resume: true,
-    lineArgs: {
-      resumed_from_branch: true,
-      ...(input.openPr
-        ? { pr_number: input.openPr.number, pr_url: input.openPr.url }
-        : {}),
-    },
-  };
+  return { resume: true, openPr: input.openPr };
 }

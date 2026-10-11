@@ -2,6 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
+import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
+import { COVERAGE_ROUNDS } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
+import { SPEC_QA_ROUNDS } from "@re-cinq/lore-shared/feature-planning/spec-qa.js";
 
 interface Arg {
   kind: string;
@@ -25,6 +28,8 @@ interface Need {
 
 interface Station {
   kind: string;
+  description?: string;
+  agent_definition?: string;
   outcomes: string[];
   needs: Need[];
   produces: Array<{ name: string; kind: string; path?: string }>;
@@ -32,6 +37,10 @@ interface Station {
 
 interface AgentSettings {
   model: string;
+  prices?: Record<
+    string,
+    { input_per_million: number; output_per_million: number }
+  >;
   prompt: string;
   config: {
     env: Record<string, string>;
@@ -47,10 +56,16 @@ interface Pipeline {
     id: string;
     entry: string;
     exit: string;
+    fail?: string;
     start?: { on: string[] };
     files?: Record<string, string>;
     args: Record<string, Arg>;
-    nodes: { id: string; station?: string }[];
+    nodes: {
+      id: string;
+      station?: string;
+      fanout?: { over: string; to: string };
+      bind?: Record<string, string>;
+    }[];
     edges: Edge[];
   };
   stations: Record<string, Station>;
@@ -84,7 +99,7 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -94,6 +109,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "daily-digest",
       "feature-planning",
       "implementation-loop",
+      "issue-triage",
       "lore-run-settled",
       "merge",
       "onboard",
@@ -181,6 +197,28 @@ describe("the floor pipelines shipped in this folder", () => {
       "task_id",
       "ticket",
     ]);
+  });
+
+  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value beside the spec plan as an optional file", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const openSpecPr = stations["open-spec-pr"];
+    const issues = stations["issues"];
+
+    expect({
+      openSpecPrReads: needOf(openSpecPr, "spec_plan")?.kind,
+      openSpecPrProduces: openSpecPr.produces,
+      issuesReads: needOf(issues, "spec_path"),
+      issuesReadsPlan: needOf(issues, "spec_plan"),
+    }).toEqual({
+      openSpecPrReads: "file",
+      openSpecPrProduces: [
+        { name: "pr_url", kind: "value" },
+        { name: "spec_path", kind: "value" },
+        { name: "issue_coverage", kind: "file" },
+      ],
+      issuesReads: { name: "spec_path", kind: "value", optional: true },
+      issuesReadsPlan: { name: "spec_plan", kind: "file", optional: true },
+    });
   });
 
   it("makes both loop waits human stations that produce the three CI values and the round brief as a file", () => {
@@ -511,18 +549,16 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(prompt).not.toContain("clone");
   });
 
-  it("walks merge from settle through spec-status, close-issue, outcome-stats, curate, memory-feedback, trust and spec-tasks to done", () => {
+  it("walks merge from settle through close-issue, outcome-stats, curate, memory-feedback and trust to done", () => {
     const { line } = pipelineOf("merge");
 
     expect(line.nodes).toEqual([
       { id: "settle", station: "merge-settle" },
-      { id: "spec-status", station: "merge-spec-status" },
       { id: "close-issue", station: "merge-close-issue" },
       { id: "outcome-stats", station: "merge-outcome-stats" },
       { id: "curate", station: "merge-curate" },
       { id: "memory-feedback", station: "merge-memory-feedback" },
       { id: "trust", station: "merge-trust" },
-      { id: "spec-tasks", station: "merge-spec-tasks" },
       { id: "done" },
     ]);
   });
@@ -531,15 +567,13 @@ describe("the floor pipelines shipped in this folder", () => {
     const { line } = pipelineOf("merge");
 
     expect(line.edges).toEqual([
-      { from: "settle", to: "spec-status", on: "success" },
+      { from: "settle", to: "close-issue", on: "success" },
       { from: "settle", to: "settle", on: "failed", iteration_max: 1 },
-      { from: "spec-status", to: "close-issue", on: "always" },
       { from: "close-issue", to: "outcome-stats", on: "always" },
       { from: "outcome-stats", to: "curate", on: "always" },
       { from: "curate", to: "memory-feedback", on: "always" },
       { from: "memory-feedback", to: "trust", on: "always" },
-      { from: "trust", to: "spec-tasks", on: "always" },
-      { from: "spec-tasks", to: "done", on: "always" },
+      { from: "trust", to: "done", on: "always" },
     ]);
   });
 
@@ -547,8 +581,8 @@ describe("the floor pipelines shipped in this folder", () => {
     const { line, stations } = pipelineOf("merge");
 
     expect(line.args).toEqual({ task_id: { kind: "value", subject: true } });
-    expect(Object.values(stations)).toEqual(
-      Array.from({ length: 8 }, () => ({
+    expect(Object.values(stations)).toMatchObject(
+      Array.from({ length: 6 }, () => ({
         kind: "service",
         outcomes: ["success", "failed"],
         needs: [{ name: "task_id", kind: "value" }],
@@ -596,7 +630,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks code-review-recheck through recheck, post-review and done on gemini-3.1-pro-preview with edges for changes_requested, failed and success", () => {
+  it("walks code-review-recheck through recheck, post-review and done on claude-sonnet-4-6 with edges for changes_requested, failed and success", () => {
     const { line, agent_definitions } = pipelineOf("code-review-recheck");
 
     expect({
@@ -607,12 +641,33 @@ describe("the floor pipelines shipped in this folder", () => {
         .sort(),
     }).toEqual({
       nodes: ["recheck", "post-review", "done"],
-      model: "gemini-3.1-pro-preview",
+      model: "claude-sonnet-4-6",
       recheckOutcomes: ["changes_requested", "failed", "success"],
     });
   });
 
-  it("marks pr_url as the subject of code-review and head_sha as the subject of code-review-recheck, so a re-check never joins an open review and two re-checks of one sha are one run", () => {
+  it("runs the implementation loop on gemini-3.1-pro-preview and every code-review agent on claude-sonnet-4-6, so no model reviews its own family's pull request", () => {
+    const modelsOf = (ids: string[]): string[] =>
+      ids.flatMap((id) =>
+        Object.values(pipelineOf(id).agent_definitions ?? {}).map(
+          (definition) => definition.settings.model,
+        ),
+      );
+
+    expect({
+      loop: [...new Set(modelsOf(["implementation-loop"]))],
+      reviewers: [
+        ...new Set(
+          modelsOf(["code-review", "code-review-recheck", "code-review-reply"]),
+        ),
+      ],
+    }).toEqual({
+      loop: ["gemini-3.1-pro-preview"],
+      reviewers: ["claude-sonnet-4-6"],
+    });
+  });
+
+  it("keys code-review on pr_url, code-review-recheck on head_sha and code-review-reply on review_id, so a re-check never joins an open review, two re-checks of one sha are one run, and one review is answered once", () => {
     const subjectArgs = (id: string): string[] =>
       Object.entries(pipelineOf(id).line.args)
         .filter(([, arg]) => arg.subject)
@@ -622,7 +677,11 @@ describe("the floor pipelines shipped in this folder", () => {
       review: subjectArgs("code-review"),
       recheck: subjectArgs("code-review-recheck"),
       reply: subjectArgs("code-review-reply"),
-    }).toEqual({ review: ["pr_url"], recheck: ["head_sha"], reply: [] });
+    }).toEqual({
+      review: ["pr_url"],
+      recheck: ["head_sha"],
+      reply: ["review_id"],
+    });
   });
 
   it("enters code-review-reply at read-review and clones the repository with write access for its code-review-refine station", () => {
@@ -634,6 +693,43 @@ describe("the floor pipelines shipped in this folder", () => {
     }).toMatchObject({
       entry: "read-review",
       target: { kind: "git", access: "write" },
+    });
+  });
+
+  it("starts code-review-reply from the repository, the pull request and the review alone, and gives post-reply the review id so each answer lands under a comment of that review", () => {
+    const { line, stations } = pipelineOf("code-review-reply");
+
+    expect({
+      args: Object.keys(line.args),
+      readReview: stations["read-review"]?.needs.map((need) => need.name),
+      postReply: stations["post-reply"]?.needs.map((need) => need.name),
+    }).toEqual({
+      args: ["repo", "pr_url", "review_id"],
+      readReview: ["pr_url", "review_id"],
+      postReply: ["reply_output", "pr_url", "review_id"],
+    });
+  });
+
+  it("tells the reply agent to answer each line comment by its id, shows both reply blocks whole, and promises it no intent and no thread it was not given", () => {
+    const prompt = promptOnOneLine("code-review-refine");
+
+    expect({
+      answersById: prompt.includes("`inline comment <id> on <path>`"),
+      replyBlock: prompt.includes("```REVIEW_REPLY"),
+      threadBlock: [
+        "```REVIEW_THREAD_REPLIES",
+        '"comment_id"',
+        '"reply"',
+        '"resolved"',
+      ].every((part) => prompt.includes(part)),
+      namesAnIntent: /intent/i.test(prompt),
+      postsItself: prompt.includes("post one clarifying question"),
+    }).toEqual({
+      answersById: true,
+      replyBlock: true,
+      threadBlock: true,
+      namesAnIntent: false,
+      postsItself: false,
     });
   });
 
@@ -668,31 +764,437 @@ describe("the floor pipelines shipped in this folder", () => {
 });
 
 describe("the feature-planning pipeline", () => {
+  it("grounds the plan between plan-pass-end and author, reading the default branch and nothing from the bag", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+    const node = line.nodes.find((each) => each.id === "plan-grounding");
+
+    expect({
+      station: node?.station,
+      base: node?.bind,
+      from: edgesOn(line, "plan-pass-end").map((edge) => [edge.to, edge.on]),
+      to: edgesOn(line, "plan-grounding").map((edge) => [edge.to, edge.on]),
+      planMd: needOf(stations["plan-grounding"], "plan_md"),
+      target: needOf(stations["plan-grounding"], "target"),
+    }).toEqual({
+      station: "plan-grounding",
+      base: { target: "base" },
+      from: [["plan-grounding", "always"]],
+      to: [["author", "always"]],
+      planMd: undefined,
+      target: { name: "target", kind: "git", path: "target", access: "read" },
+    });
+  });
+
   it("walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event", () => {
     const { line } = pipelineOf("feature-planning");
 
     expect({
       entry: line.entry,
       exit: line.exit,
+      fail: line.fail,
       nodes: line.nodes.map((node) => node.id).sort(),
       validateStart: line.nodes.find((node) => node.id === "validate")?.station,
     }).toEqual({
       entry: "analyze",
       exit: "done",
+      fail: "failed",
       nodes: [
         "analyse-specs",
         "analyze",
+        "assemble",
         "author",
         "decompose",
         "done",
+        "draft",
+        "failed",
+        "issue-coverage",
         "issues",
         "merged",
         "open-spec-pr",
+        "plan-findings",
+        "plan-grounding",
         "plan-pass-end",
+        "qa-answer",
+        "qa-gate",
+        "qa-generate",
+        "qa-questions",
+        "qa-recheck",
+        "rework",
+        "spec-findings",
+        "split-sections",
         "validate",
         "write",
       ].sort(),
       validateStart: "plan-validate",
+    });
+  });
+
+  it("ends the run failed when split-sections, assemble, qa-questions, qa-gate, spec-findings, open-spec-pr, issues or issue-coverage fails or decompose asks for changes, and done when the author walks away or the spec PR closes", () => {
+    const { line } = pipelineOf("feature-planning");
+    const settledBy = (to: string) =>
+      line.edges
+        .filter((edge) => edge.to === to && edge.on !== "success")
+        .map((edge) => `${edge.from}:${edge.on}`)
+        .sort();
+
+    expect({ failed: settledBy("failed"), done: settledBy("done") }).toEqual({
+      failed: [
+        "assemble:failed",
+        "decompose:changes_requested",
+        "issue-coverage:failed",
+        "issues:failed",
+        "open-spec-pr:failed",
+        "qa-gate:failed",
+        "qa-questions:failed",
+        "spec-findings:failed",
+        "split-sections:failed",
+      ],
+      done: ["author:failed", "merged:failed"],
+    });
+  });
+
+  it("retries every failed planning agent once before the run fails, and no service station", () => {
+    const { line } = pipelineOf("feature-planning");
+    const retried = line.edges
+      .filter((edge) => edge.on === "failed" && edge.from === edge.to)
+      .map((edge) => `${edge.from}:${edge.iteration_max}`)
+      .sort();
+
+    expect(retried).toEqual([
+      "analyse-specs:1",
+      "decompose:1",
+      "draft:1",
+      "qa-answer:1",
+      "qa-generate:1",
+      "qa-recheck:1",
+      "rework:1",
+      "write:1",
+    ]);
+  });
+
+  it("freezes the questions first, then drafts the spec from the intent, lists the sections, fans a write pod out over them and joins them at assemble", () => {
+    const { line } = pipelineOf("feature-planning");
+    const success = (node: string) =>
+      edgesOn(line, node).find((edge) => edge.on === "success");
+
+    expect({
+      fromAnalysis: success("analyse-specs"),
+      fromQuestions: success("qa-questions"),
+      fromDraft: success("draft"),
+      fromSplit: edgesOn(line, "split-sections"),
+      fromWrite: edgesOn(line, "write"),
+      fromAssemble: edgesOn(line, "assemble"),
+    }).toEqual({
+      fromAnalysis: { from: "analyse-specs", to: "qa-generate", on: "success" },
+      fromQuestions: { from: "qa-questions", to: "draft", on: "success" },
+      fromDraft: { from: "draft", to: "split-sections", on: "success" },
+      fromSplit: [
+        { from: "split-sections", to: "write", on: "success" },
+        { from: "split-sections", to: "failed", on: "failed" },
+      ],
+      fromWrite: [
+        { from: "write", to: "assemble", on: "success" },
+        { from: "write", to: "write", on: "failed", iteration_max: 1 },
+      ],
+      fromAssemble: [
+        {
+          from: "assemble",
+          to: "split-sections",
+          on: "retry",
+          iteration_max: 2,
+        },
+        { from: "assemble", to: "qa-answer", on: "success" },
+        { from: "assemble", to: "failed", on: "failed" },
+      ],
+    });
+  });
+
+  it("freezes the plan's questions once, checks them against the plan, answers them blind, and sends only the failing sections back through split-sections at most SPEC_QA_ROUNDS times before open-spec-pr", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect(
+      [
+        "qa-generate",
+        "qa-questions",
+        "qa-answer",
+        "qa-recheck",
+        "qa-gate",
+      ].flatMap((node) => edgesOn(line, node)),
+    ).toEqual([
+      { from: "qa-generate", to: "qa-questions", on: "success" },
+      {
+        from: "qa-generate",
+        to: "qa-generate",
+        on: "failed",
+        iteration_max: 1,
+      },
+      { from: "qa-questions", to: "draft", on: "success" },
+      {
+        from: "qa-questions",
+        to: "qa-generate",
+        on: "changes_requested",
+        iteration_max: 2,
+      },
+      { from: "qa-questions", to: "failed", on: "failed" },
+      { from: "qa-answer", to: "qa-gate", on: "success" },
+      { from: "qa-answer", to: "qa-answer", on: "failed", iteration_max: 1 },
+      {
+        from: "qa-recheck",
+        to: "qa-gate",
+        on: "success",
+        iteration_max: SPEC_QA_ROUNDS,
+      },
+      { from: "qa-recheck", to: "qa-recheck", on: "failed", iteration_max: 1 },
+      { from: "qa-gate", to: "open-spec-pr", on: "success" },
+      { from: "qa-gate", to: "spec-findings", on: "stalled" },
+      {
+        from: "qa-gate",
+        to: "qa-recheck",
+        on: "recheck",
+        iteration_max: SPEC_QA_ROUNDS,
+      },
+      {
+        from: "qa-gate",
+        to: "split-sections",
+        on: "changes_requested",
+        iteration_max: SPEC_QA_ROUNDS,
+      },
+      { from: "qa-gate", to: "failed", on: "failed" },
+    ]);
+  });
+
+  it("gives qa-gate the spec branch, the spec plan, the citable blocks, the frozen questions, the answers, a second pod's answers and its own history, and has it produce the briefs the writer and the pull request read", () => {
+    const gate = pipelineOf("feature-planning").stations["qa-gate"];
+
+    expect({
+      needs: gate.needs.map((need) => need.name),
+      produces: gate.produces.map((produced) => produced.name),
+      target: needOf(gate, "target"),
+    }).toEqual({
+      needs: [
+        "target",
+        "spec_plan",
+        "plan_blocks",
+        "qa_questions",
+        "qa_answers",
+        "qa_recheck_answers",
+        "qa_history",
+      ],
+      produces: [
+        "qa_failures",
+        "qa_advisory",
+        "qa_history",
+        "redo_sections",
+        "qa_recheck_blind",
+        "qa_verdict",
+        "plan_coverage",
+      ],
+      target: { name: "target", kind: "git", path: "target", access: "read" },
+    });
+  });
+
+  it("has spec-analysis produce repo-context.md, and hands it to draft and write as an optional file", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const context = {
+      name: "repo_context",
+      kind: "file",
+      path: "repo-context.md",
+      optional: true,
+    };
+
+    expect({
+      produced: stations["spec-analysis"].produces.map((out) => out.name),
+      draft: needOf(stations["spec-draft"], "repo_context"),
+      write: needOf(stations["spec-write"], "repo_context"),
+    }).toEqual({
+      produced: ["spec_plan", "repo_context"],
+      draft: context,
+      write: context,
+    });
+  });
+
+  it("fans split-sections out over its sections list to write, and sends a retry and a failing gate back through it on separate counters", () => {
+    const { line } = pipelineOf("feature-planning");
+    const intoSplit = line.edges
+      .filter((edge) => edge.to === "split-sections")
+      .map((edge) => `${edge.from}:${edge.on}:${edge.iteration_max ?? "-"}`);
+
+    expect({
+      fanout: line.nodes.find((node) => node.id === "split-sections")?.fanout,
+      body: line.nodes.find((node) => node.id === "write")?.station,
+      intoSplit,
+    }).toEqual({
+      fanout: { over: "sections", to: "write" },
+      body: "spec-write",
+      intoSplit: [
+        "draft:success:-",
+        "assemble:retry:2",
+        "qa-gate:changes_requested:5",
+      ],
+    });
+  });
+
+  it("has write read the target without writing it, take its section as the item, and produce a section patch the assemble join collects", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const assemble = stations.assemble;
+
+    expect({
+      target: needOf(stations["spec-write"], "target"),
+      item: needOf(stations["spec-write"], "item"),
+      produces: stations["spec-write"].produces,
+      collects: needOf(assemble, "section_patches"),
+      assembleOutcomes: assemble.outcomes,
+    }).toEqual({
+      target: { name: "target", kind: "git", path: "target", access: "read" },
+      item: { name: "item", kind: "value" },
+      produces: [
+        { name: "section_patch", kind: "file", path: "section-patch.json" },
+      ],
+      collects: {
+        name: "section_patches",
+        kind: "value",
+        collect: "section_patch",
+      },
+      assembleOutcomes: ["success", "retry", "failed"],
+    });
+  });
+
+  it("has split-sections read the plan blocks, its state and the gate's redo request, and produce the sections value it fans out over and its state", () => {
+    const split = pipelineOf("feature-planning").stations["split-sections"];
+
+    expect({
+      outcomes: split.outcomes,
+      needs: split.needs.map((need) => need.name),
+      produces: split.produces.map((out) => [out.name, out.kind]),
+    }).toEqual({
+      outcomes: ["success", "failed"],
+      needs: ["plan_blocks", "section_state", "redo_sections"],
+      produces: [
+        ["sections", "value"],
+        ["section_state", "file"],
+      ],
+    });
+  });
+
+  it("has qa-recheck answer only the questions the gate failed, for a second opinion, and hand them back through qa_recheck_answers", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const recheck = stations["spec-qa-recheck"];
+
+    expect({
+      agent: recheck.agent_definition,
+      outcomes: recheck.outcomes,
+      needs: recheck.needs.map((need) => [need.name, need.path]),
+      produces: recheck.produces.map((out) => [out.name, out.path]),
+      gateOutcomes: stations["qa-gate"].outcomes,
+    }).toEqual({
+      agent: "spec-qa-recheck",
+      outcomes: ["success", "failed"],
+      needs: [
+        ["target", "target"],
+        ["qa_recheck_blind", "qa-recheck-blind.json"],
+      ],
+      produces: [["qa_recheck_answers", "qa-recheck-answers.json"]],
+      gateOutcomes: [
+        "success",
+        "stalled",
+        "recheck",
+        "changes_requested",
+        "failed",
+      ],
+    });
+  });
+
+  it("hands open-spec-pr the checks that still fail and the advisory ones as optional files for its body", () => {
+    const pr = pipelineOf("feature-planning").stations["open-spec-pr"];
+
+    expect(
+      ["qa_failures", "qa_advisory", "plan_coverage"].map((name) =>
+        needOf(pr, name),
+      ),
+    ).toEqual(
+      ["qa_failures", "qa_advisory", "plan_coverage"].map((name) => ({
+        name,
+        kind: "file",
+        optional: true,
+      })),
+    );
+  });
+
+  it("checks issue coverage after issues, sending decompose back at most COVERAGE_ROUNDS times", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect({
+      fromIssues: edgesOn(line, "issues").find((edge) => edge.on === "success"),
+      fromCoverage: edgesOn(line, "issue-coverage"),
+    }).toEqual({
+      fromIssues: { from: "issues", to: "issue-coverage", on: "success" },
+      fromCoverage: [
+        { from: "issue-coverage", to: "done", on: "success" },
+        {
+          from: "issue-coverage",
+          to: "decompose",
+          on: "changes_requested",
+          iteration_max: COVERAGE_ROUNDS,
+        },
+        { from: "issue-coverage", to: "failed", on: "failed" },
+      ],
+    });
+  });
+
+  it("hands feature-decompose its last decomposition and issue coverage as optional files its prompt names", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      decomposition: needOf(decompose, "decomposition"),
+      coverage: needOf(decompose, "issue_coverage"),
+      named: [
+        prompt.includes("/workspace/decomposition.json"),
+        prompt.includes("/workspace/issue-coverage.md"),
+      ],
+    }).toEqual({
+      named: [true, true],
+      decomposition: {
+        name: "decomposition",
+        kind: "file",
+        path: "decomposition.json",
+        optional: true,
+      },
+      coverage: {
+        name: "issue_coverage",
+        kind: "file",
+        path: "issue-coverage.md",
+        optional: true,
+      },
+    });
+  });
+
+  it("hands spec-rework the citable plan blocks and the last coverage as optional files its prompt names", () => {
+    const write = pipelineOf("feature-planning").stations["spec-rework"];
+    const prompt = promptOnOneLine("spec-rework");
+
+    expect({
+      blocks: needOf(write, "plan_blocks"),
+      coverage: needOf(write, "plan_coverage"),
+      named: [
+        prompt.includes("/workspace/plan-blocks.json"),
+        prompt.includes("/workspace/plan-coverage.md"),
+      ],
+    }).toEqual({
+      named: [true, true],
+      blocks: {
+        name: "plan_blocks",
+        kind: "file",
+        path: "plan-blocks.json",
+        optional: true,
+      },
+      coverage: {
+        name: "plan_coverage",
+        kind: "file",
+        path: "plan-coverage.md",
+        optional: true,
+      },
     });
   });
 
@@ -704,17 +1206,74 @@ describe("the feature-planning pipeline", () => {
     expect(subjectArgs).toEqual(["plan_id"]);
   });
 
-  it("gives spec-write git write access to target, guarded by the author node on every path in, and tells it to push its own commit", () => {
+  it("gives spec-rework git write access to target, guarded by the author node on every path in, and tells it to push its own commit", () => {
     const { stations } = pipelineOf("feature-planning");
 
     expect({
-      target: needOf(stations["spec-write"], "target"),
-      pushes: promptOnOneLine("spec-write").includes(
+      target: needOf(stations["spec-rework"], "target"),
+      pushes: promptOnOneLine("spec-rework").includes(
         "git -C /workspace/target push origin HEAD",
       ),
     }).toEqual({
       target: { name: "target", kind: "git", path: "target", access: "write" },
       pushes: true,
+    });
+  });
+
+  it("has validate read the default branch as it stands when the visit opens, not the spec branch cut when the run started", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect(line.nodes.find((node) => node.id === "validate")?.bind).toEqual({
+      target: "base",
+    });
+  });
+
+  it("sends a gate that gave up back to the author through spec-findings, which writes the checks the spec could not uphold into the plan, and ends the run failed when that write fails", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+
+    expect({
+      fromFindings: edgesOn(line, "spec-findings"),
+      station: line.nodes.find((node) => node.id === "spec-findings")?.station,
+      findings: stations["spec-findings"],
+    }).toMatchObject({
+      fromFindings: [
+        { from: "spec-findings", to: "author", on: "success" },
+        { from: "spec-findings", to: "failed", on: "failed" },
+      ],
+      station: "spec-findings",
+      findings: {
+        kind: "service",
+        outcomes: ["success", "failed"],
+        needs: [
+          { name: "plan_id", kind: "value" },
+          { name: "qa_verdict", kind: "file" },
+        ],
+        produces: [],
+      },
+    });
+  });
+
+  it("hands every validate visit to plan-findings, which writes the findings into the plan before the author waits again", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+
+    expect({
+      fromValidate: edgesOn(line, "validate"),
+      fromFindings: edgesOn(line, "plan-findings"),
+      station: line.nodes.find((node) => node.id === "plan-findings")?.station,
+      findings: stations["plan-findings"],
+    }).toMatchObject({
+      fromValidate: [{ from: "validate", to: "plan-findings", on: "always" }],
+      fromFindings: [{ from: "plan-findings", to: "author", on: "always" }],
+      station: "plan-findings",
+      findings: {
+        kind: "service",
+        outcomes: ["success", "failed"],
+        needs: [
+          { name: "plan_id", kind: "value" },
+          { name: "plan_validation", kind: "file", optional: true },
+        ],
+        produces: [],
+      },
     });
   });
 
@@ -735,7 +1294,7 @@ describe("the feature-planning pipeline", () => {
       "plan-analyze",
       "plan-validate",
       "spec-analysis",
-      "spec-write",
+      "spec-rework",
       "feature-decompose",
     ];
 
@@ -746,6 +1305,102 @@ describe("the feature-planning pipeline", () => {
         ),
       ),
     ).toEqual(agents.map(() => true));
+  });
+
+  it("gives feature-decompose the approved plan as plan.md and the spec_path value, and names both in its prompt", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      planMd: needOf(decompose, "plan_md"),
+      specPath: needOf(decompose, "spec_path"),
+      namesPlan: prompt.includes("{plan_md_path}"),
+      namesSpecPath: prompt.includes("{spec_path}"),
+    }).toEqual({
+      planMd: { name: "plan_md", kind: "file", path: "plan.md" },
+      specPath: { name: "spec_path", kind: "value" },
+      namesPlan: true,
+      namesSpecPath: true,
+    });
+  });
+
+  it("gives feature-decompose every spec the plan touched as spec-plan.json and the citable plan blocks, and names both in its prompt", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      specPlan: needOf(decompose, "spec_plan"),
+      blocks: needOf(decompose, "plan_blocks"),
+      named: [
+        prompt.includes("{spec_plan_path}"),
+        prompt.includes("/workspace/plan-blocks.json"),
+      ],
+    }).toEqual({
+      specPlan: { name: "spec_plan", kind: "file", path: "spec-plan.json" },
+      blocks: {
+        name: "plan_blocks",
+        kind: "file",
+        path: "plan-blocks.json",
+        optional: true,
+      },
+      named: [true, true],
+    });
+  });
+
+  it("runs feature-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const { settings } =
+      pipelineOf("feature-planning").agent_definitions!["feature-decompose"]!;
+
+    expect({ model: settings.model, prices: settings.prices }).toEqual({
+      model: "gemini-3.1-pro-preview",
+      prices: {
+        "gemini-3.1-pro-preview": {
+          input_per_million: 2,
+          output_per_million: 12,
+        },
+      },
+    });
+  });
+
+  it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const agents = [
+      "spec-draft",
+      "spec-qa-generate",
+      "spec-qa-answer",
+      "spec-qa-recheck",
+    ];
+    const { agent_definitions } = pipelineOf("feature-planning");
+
+    expect(
+      agents.map((agent) => ({
+        agent,
+        model: agent_definitions![agent]!.settings.model,
+        prices: agent_definitions![agent]!.settings.prices,
+      })),
+    ).toEqual(
+      agents.map((agent) => ({
+        agent,
+        model: "gemini-3.1-pro-preview",
+        prices: {
+          "gemini-3.1-pro-preview": {
+            input_per_million: 2,
+            output_per_million: 12,
+          },
+        },
+      })),
+    );
+  });
+
+  it("gives the issues station the approved plan as an optional plan_md, to fold into the story issue", () => {
+    const issues = pipelineOf("feature-planning").stations["issues"];
+
+    expect(needOf(issues, "plan_md")).toEqual({
+      name: "plan_md",
+      kind: "file",
+      optional: true,
+    });
   });
 });
 
@@ -994,8 +1649,10 @@ function loadPipelines(): Map<string, Pipeline> {
   const folder = new URL("./", import.meta.url);
   const pipelines = readdirSync(folder)
     .filter((file) => file.endsWith(".yaml"))
-    .map(
-      (file) => parse(readFileSync(new URL(file, folder), "utf8")) as Pipeline,
+    .map((file) =>
+      withAgentPrompts(
+        parse(readFileSync(new URL(file, folder), "utf8")) as Pipeline,
+      ),
     );
 
   return new Map(pipelines.map((pipeline) => [pipeline.line.id, pipeline]));
@@ -1035,4 +1692,87 @@ function settingsOf(name: string): AgentSettings {
 
 function promptOnOneLine(name: string): string {
   return settingsOf(name).prompt.replace(/\s+/g, " ");
+}
+
+describe("the files the floor agents produce", () => {
+  it("lists no agent file under the target/ clone, so no git add in it can commit one", () => {
+    const insideClone = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.entries(pipeline.stations))
+      .filter(([, station]) => station.kind === "agent")
+      .flatMap(([name, station]) =>
+        station.produces.map((output) => `${name}:${output.path ?? ""}`),
+      )
+      .filter((entry) => entry.includes(":target/"));
+
+    expect(insideClone).toEqual([]);
+  });
+
+  it("names every agent's produced file by its path placeholder and never the current directory, which is the root in the pod", () => {
+    const agentStations = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.values(pipeline.stations))
+      .filter((station) => station.kind === "agent");
+    const unnamed = agentStations.flatMap((station) =>
+      station.produces
+        .filter((output) => output.path !== undefined)
+        .filter(
+          (output) =>
+            !promptOnOneLine(station.agent_definition ?? "").includes(
+              `{${output.name}_path}`,
+            ),
+        )
+        .map((output) => `${station.agent_definition}:${output.name}`),
+    );
+    const sayCurrentDirectory = agentStations
+      .map((station) => station.agent_definition ?? "")
+      .filter((name) => promptOnOneLine(name).includes("current directory"));
+
+    expect({ unnamed, sayCurrentDirectory }).toEqual({
+      unnamed: [],
+      sayCurrentDirectory: [],
+    });
+  });
+});
+
+describe("the agents of every floor pipeline", () => {
+  const AGENTS = [...PIPELINES.values()].flatMap((pipeline) =>
+    Object.entries(pipeline.agent_definitions ?? {}).map(([name, agent]) => ({
+      name,
+      config: agent.settings.config as
+        { skills_source?: string; disallowed_tools?: string[] } | undefined,
+    })),
+  );
+
+  it("fetch their hooks and test guard from Lore's skills registry, never the floor's own", () => {
+    const elsewhere = AGENTS.filter(
+      (agent) => agent.config?.skills_source !== "${LORE_SKILLS_URL}",
+    ).map((agent) => agent.name);
+
+    expect(elsewhere).toEqual([]);
+  });
+
+  it("deny no tool, leaving the test guard as the only refusal", () => {
+    const denying = AGENTS.filter(
+      (agent) => agent.config?.disallowed_tools !== undefined,
+    ).map((agent) => agent.name);
+
+    expect(denying).toEqual([]);
+  });
+});
+
+describe("the stations of every floor pipeline", () => {
+  it("each say what they do in a description of 20 to 300 characters, the tooltip the run graph shows", () => {
+    const undescribed = [...PIPELINES.values()].flatMap((pipeline) =>
+      Object.entries(pipeline.stations)
+        .filter(([, station]) => !describes(station.description))
+        .map(([id]) => `${pipeline.line.id}: ${id}`),
+    );
+
+    expect(undescribed).toEqual([]);
+  });
+});
+
+function describes(description: string | undefined): boolean {
+  const length = description?.length ?? 0;
+
+  return length >= 20 && length <= 300;
 }

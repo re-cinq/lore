@@ -32,6 +32,78 @@ describe("dedupeItems", () => {
     expect(result.find((i) => i.source_path === "adrs/A.md")?.score).toBe(0.9);
   });
 
+  it("merges the three chunks of adrs/A.md into one document, the best-scoring chunk first", () => {
+    const merged = dedupeItems([
+      source({
+        source_path: "adrs/A.md",
+        text: "## Context",
+        tokens: 5,
+        score: 0.6,
+        similarity: 0.7,
+      }),
+      source({
+        source_path: "adrs/A.md",
+        text: "## Decision",
+        tokens: 7,
+        score: 0.9,
+        similarity: 0.8,
+      }),
+      source({
+        source_path: "adrs/A.md",
+        text: "## Consequences",
+        tokens: 4,
+        score: 0.3,
+      }),
+    ]);
+
+    expect(merged).toEqual([
+      {
+        source_path: "adrs/A.md",
+        text: "## Decision\n\n## Context\n\n## Consequences",
+        tokens: 16,
+        score: 0.9,
+        similarity: 0.8,
+      },
+    ]);
+  });
+
+  it("keeps the best three chunks of a document and leaves the fourth out", () => {
+    const [merged] = dedupeItems(
+      [0.9, 0.8, 0.7, 0.6].map((score) =>
+        source({
+          source_path: "specs/a/spec.md",
+          text: `chunk ${score}`,
+          score,
+        }),
+      ),
+    );
+
+    expect(merged.text).toBe("chunk 0.9\n\nchunk 0.8\n\nchunk 0.7");
+  });
+
+  it("keeps three chunks of equal score in the order they arrived", () => {
+    const [merged] = dedupeItems(
+      ["first", "second", "third"].map((text) =>
+        source({ source_path: "specs/a/spec.md", text, score: 0.5 }),
+      ),
+    );
+
+    expect(merged.text).toBe("first\n\nsecond\n\nthird");
+  });
+
+  it("places a merged document where its best chunk ranked", () => {
+    const ranked = dedupeItems([
+      source({ source_path: "adrs/A.md", text: "A context", score: 0.9 }),
+      source({ source_path: "adrs/B.md", text: "B", score: 0.8 }),
+      source({ source_path: "adrs/A.md", text: "A decision", score: 0.7 }),
+    ]);
+
+    expect(ranked.map((it) => it.source_path)).toEqual([
+      "adrs/A.md",
+      "adrs/B.md",
+    ]);
+  });
+
   it("collapses trace-impact-workflow.ts and its twin sharing content_hash abc123 to one item", () => {
     const twin = { text: "same body", tokens: 3, content_hash: "abc123" };
     const deduped = dedupeItems([
@@ -79,7 +151,7 @@ describe("dedupeItems", () => {
       keyed("a.ts", 0.1),
     ];
 
-    expect(dedupeItems(ranked).map((it) => it.text)).toEqual([
+    expect(dedupeItems(ranked).map((it) => it.source_path ?? it.text)).toEqual([
       "a.ts",
       "memory",
       "b.ts",

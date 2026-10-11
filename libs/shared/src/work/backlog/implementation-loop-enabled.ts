@@ -1,4 +1,4 @@
-/** The per-repo `implementation_loop.enabled` opt-in (FR7); deliberately top-level, not inside `dark_factory`, since the loop never merges and must not need the two-key CODEOWNERS ceremony. */
+/** The per-repo `implementation_loop.enabled` opt-in (FR7); a plain setting, since the loop never merges and needs no two-key CODEOWNERS ceremony. */
 export function implementationLoopEnabled(rawSettings: unknown): boolean {
   const parsed =
     typeof rawSettings === "string" ? safeParse(rawSettings) : rawSettings;

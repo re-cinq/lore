@@ -41,8 +41,10 @@ locals {
     "lore-nextauth-secret",
     # Binary/base64 .dockerconfigjson for GHCR pull access.
     "lore-ghcr-pull-secret",
-    # Every cluster-agent registers — the central one included — so this is a
-    # platform secret, not a feature gate.
+    # Nothing reads this any more: Lore's cluster agent was removed on
+    # 2026-10-02 and no ExternalSecret mirrors it. The container stays listed
+    # because it is `prevent_destroy`; delete it in Secret Manager by hand and
+    # then drop this line.
     "lore-cluster-agent-registration-token",
     ],
     var.enable_anthropic_admin_key ? ["lore-anthropic-admin-api-key"] : [],
@@ -58,6 +60,25 @@ locals {
       "lore-headlamp-oauth-client-id",
       "lore-headlamp-oauth-client-secret",
       "lore-headlamp-cookie-secret",
+    ] : [],
+    # Grafana's own Google sign-in (monitoring.tf): its own OAuth web client, so a
+    # redirect URI or a rotation on one dashboard never touches the other, and its
+    # own cookie key under the same 16/24/32-byte rule.
+    var.enable_monitoring ? [
+      "lore-grafana-oauth-client-id",
+      "lore-grafana-oauth-client-secret",
+      "lore-grafana-cookie-secret",
+    ] : [],
+    # Utopia (utopia.tf): its database owner's password, the 32-byte key it seals
+    # stored model credentials with (seeded, so a lost data disk does not take the
+    # key with it), and its own Google OAuth web client plus cookie key under the
+    # same 16/24/32-byte rule.
+    var.enable_utopia ? [
+      "lore-utopia-db-password",
+      "lore-utopia-secret-key",
+      "lore-utopia-oauth-client-id",
+      "lore-utopia-oauth-client-secret",
+      "lore-utopia-cookie-secret",
     ] : [],
   )
 }

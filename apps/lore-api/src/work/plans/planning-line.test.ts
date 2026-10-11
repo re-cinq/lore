@@ -1,523 +1,95 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryEventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-memory.js";
-import type { PlanningRunPort } from "@re-cinq/lore-shared/project/plans/plan-run.js";
+import type { PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 import {
-  askRefine,
-  decideApproval,
-  handOverApproved,
-  openForAuthor,
-  reopenPlan,
-  startDrafting,
-  type NewPlanningTask,
-  type SpecPrState,
+  approvalDecisionOf,
+  reopenActionOf,
+  reopenWhenAuthorWaits,
 } from "./planning-line.js";
 
-const PLAN = {
-  id: "p1",
-  repo: "re-cinq/lore",
-  title: "Faster checkout",
-  status: "draft",
-};
-const APPROVED = { ...PLAN, status: "approved" };
-const REFINE = {
-  slot: "intent",
-  title: "Intent",
-  baseHash: "3f9a",
-  inputs: {},
-  uses: {},
-};
+const PARK = { runId: "run-1", nodeId: "author", iteration: 1 };
 
-const runWith = (visits: object[]): PlanningRunPort => ({
-  listForSubject: async () =>
-    [
-      {
-        id: "run-1",
-        blueprintName: "feature-planning",
-        status: "running",
-        outcome: null,
-        args: {},
-        graph: null,
-      },
-    ] as never,
-  listStationRuns: async () => visits as never,
+const lineOn = (
+  open: string | null,
+  over: Partial<PlanLine> = {},
+): PlanLine => ({
+  lineId: "run-1",
+  status: open === null ? "finished" : "running",
+  outcome: null,
+  prNumber: null,
+  prUrl: null,
+  branch: null,
+  open,
+  parkedAuthor: null,
+  parkedMerged: null,
+  merged: false,
+  ...over,
 });
 
-const parkedOnAuthor = runWith([
-  { nodeId: "analyze", iteration: 1, outcome: "success" },
-  { nodeId: "author", iteration: 1, outcome: null },
-]);
-
-const stillDrafting = runWith([
-  { nodeId: "analyze", iteration: 1, outcome: null },
-]);
-
-const resumes = (reporter: InMemoryEventReporter) =>
-  reporter.rows.map((row) => row.params);
-
-describe("startDrafting", () => {
-  it("starts gedaiu's feature-planning task on plan p1 of re-cinq/lore with its title for the PR", async () => {
-    const created: NewPlanningTask[] = [];
-
-    await startDrafting(
-      {
-        createTask: async (task) => (created.push(task), "t1"),
-        runs: runWith([]),
-        reporter: new InMemoryEventReporter(),
-      },
-      {
-        plan: PLAN,
-        projection: { title: "Faster checkout" },
-        known: "Checkout is slow.",
-        createdBy: "gedaiu",
-      },
-    );
-
-    expect(created).toMatchObject([
-      {
-        taskType: "feature-planning",
-        targetRepo: "re-cinq/lore",
-        createdBy: "gedaiu",
-        priority: "immediate",
-        description: expect.stringContaining("Checkout is slow."),
-        contextBundle: {
-          plan_id: "p1",
-          line_args: { repo: "re-cinq/lore", plan_title: "Faster checkout" },
-        },
-      },
-    ]);
-  });
-});
-
-describe("startDrafting on a plan whose line waits on its people", () => {
-  it("sends the parked author node back to the agent with a fresh draft brief, creating no task", async () => {
-    const created: NewPlanningTask[] = [];
-    const reporter = new InMemoryEventReporter();
-
-    await startDrafting(
-      {
-        createTask: async (task) => (created.push(task), "t1"),
-        runs: parkedOnAuthor,
-        reporter,
-      },
-      {
-        plan: PLAN,
-        projection: { title: "Faster checkout" },
-        known: "",
-        createdBy: "gedaiu",
-      },
-    );
-
-    expect({ created, resumed: resumes(reporter) }).toMatchObject({
-      created: [],
-      resumed: [
-        {
-          assemblyLineId: "run-1",
-          nodeId: "author",
-          outcome: "changes_requested",
-          args: {
-            round_feedback: expect.stringContaining(
-              'Draft the plan "Faster checkout"',
-            ),
-            refine: null,
-          },
-        },
-      ],
-    });
-  });
-});
-
-describe("askRefine", () => {
-  it("sends the author node back to the agent with the intent section's refine brief", async () => {
-    const reporter = new InMemoryEventReporter();
-
-    await askRefine(
-      { runs: parkedOnAuthor, reporter },
-      PLAN,
-      { title: "Faster checkout" },
-      REFINE,
-    );
-
-    expect(resumes(reporter)).toMatchObject([
-      {
-        assemblyLineId: "run-1",
-        nodeId: "author",
-        outcome: "changes_requested",
-        args: {
-          round_feedback: expect.stringContaining(
-            'Refine the section "Intent"',
-          ),
-          refine: { slot: "intent", baseHash: "3f9a", uses: {} },
-        },
-      },
-    ]);
-  });
-
-  it("refuses a Refine while the agent is still drafting, resuming nothing", async () => {
-    const reporter = new InMemoryEventReporter();
-
-    await expect(
-      askRefine(
-        { runs: stillDrafting, reporter },
-        PLAN,
-        { title: "Faster checkout" },
-        REFINE,
-      ),
-    ).rejects.toMatchObject({ output: { statusCode: 409 } });
-    expect(reporter.rows).toEqual([]);
-  });
-});
-
-const GRAPH = {
-  nodes: [
-    { id: "analyze", type: "agent" },
-    { id: "author", type: "feature_review" },
-    { id: "analyse-specs", type: "agent" },
-    { id: "write", type: "agent" },
-    { id: "push", type: "agent" },
-    { id: "merged", type: "pr_review" },
-    { id: "decompose", type: "agent" },
-  ],
-  edges: [],
-  entry: "analyze",
-  exit: "decompose",
-};
-
-interface LineFacts {
-  status: string;
-  outcome?: string | null;
-  args?: object;
-  branch?: string;
-}
-
-const lineWith = (facts: LineFacts, visits: object[]): PlanningRunPort => ({
-  listForSubject: async () =>
-    [
-      {
-        id: "run-1",
-        blueprintName: "feature-planning",
-        status: facts.status,
-        outcome: facts.outcome ?? null,
-        args: facts.args ?? {},
-        branch: facts.branch ?? null,
-        graph: GRAPH,
-      },
-    ] as never,
-  listStationRuns: async () => visits as never,
-});
-
-const v = (nodeId: string, outcome: string | null, iteration = 1) => ({
-  nodeId,
-  iteration,
-  outcome,
-});
-
-const specWorkFailed = lineWith({ status: "failed", outcome: "error" }, [
-  v("author", "success"),
-  v("analyse-specs", "success"),
-  v("write", "success"),
-  v("push", "success"),
-]);
-
-const specPrOpen = lineWith({ status: "running", args: { pr_number: 7 } }, [
-  v("author", "success"),
-  v("push", "success"),
-  v("merged", null),
-]);
-
-const SPEC_PR = {
-  pr_number: 7,
-  pr_url: "https://github.com/re-cinq/lore/pull/7",
-};
-
-const specPrOpenLineEnded = lineWith(
-  {
-    status: "failed",
-    outcome: "error",
-    args: SPEC_PR,
-    branch: "lore/feature-planning/faster-checkout-abcd1234",
-  },
-  [v("author", "success"), v("push", "success"), v("merged", "failed")],
-);
-
-const specsMerged = lineWith(
-  { status: "finished", outcome: "completed", args: { pr_number: 7 } },
-  [v("author", "success"), v("merged", "success"), v("decompose", "success")],
-);
-
-const writingSpecs = lineWith({ status: "running" }, [
-  v("author", "success"),
-  v("analyse-specs", null),
-]);
-
-const decomposing = lineWith({ status: "running", args: { pr_number: 7 } }, [
-  v("merged", "success"),
-  v("decompose", null),
-]);
-
-const refining = lineWith({ status: "running" }, [
-  v("author", "changes_requested"),
-  v("analyze", null, 2),
-]);
-
-const specWorkDeps = (runs: PlanningRunPort, prState: SpecPrState = "open") => {
-  const created: NewPlanningTask[] = [];
-  const reporter = new InMemoryEventReporter();
-
-  return {
-    created,
-    reporter,
-    deps: {
-      runs,
-      reporter,
-      createTask: async (task: NewPlanningTask) => (created.push(task), "t2"),
-      specPrState: async () => prState,
-    },
-  };
-};
-
-describe("decideApproval", () => {
-  it("hands the plan over when its line waits on the author", async () => {
-    expect(await decideApproval(parkedOnAuthor, "p1")).toEqual({
-      kind: "hand-over",
-    });
-  });
-
-  it("starts the spec work for a plan with no line, one whose spec work failed, and one whose specs merged", async () => {
+describe("approvalDecisionOf", () => {
+  it("hands the plan over when its line waits on the author", () => {
     expect(
-      await Promise.all(
-        [runWith([]), specWorkFailed, specsMerged].map((runs) =>
-          decideApproval(runs, "p1"),
-        ),
-      ),
-    ).toEqual([
-      { kind: "start-spec-work" },
+      approvalDecisionOf(lineOn("author", { parkedAuthor: PARK as never })),
+    ).toEqual({ kind: "hand-over" });
+  });
+
+  it("starts the spec work for a plan with no line and for one whose line ended", () => {
+    expect([null, lineOn(null)].map(approvalDecisionOf)).toEqual([
       { kind: "start-spec-work" },
       { kind: "start-spec-work" },
     ]);
   });
 
-  it("refuses while the planning agent is still refining a section, and while the specs are being written", async () => {
+  it("refuses with 'still refining' on analyze and with 'specs are being written' on write", () => {
     expect(
-      await Promise.all(
-        [refining, writingSpecs, specPrOpen].map((runs) =>
-          decideApproval(runs, "p1"),
-        ),
-      ),
+      [lineOn("analyze"), lineOn("write")].map(approvalDecisionOf),
     ).toEqual([
       {
         kind: "refused",
         reason: "the planning agent is still refining a section",
       },
       { kind: "refused", reason: "the specs are being written" },
-      { kind: "refused", reason: "the specs are being written" },
-    ]);
-  });
-});
-
-describe("handOverApproved", () => {
-  it("moves the approved plan on to the spec work as its brief", async () => {
-    const { deps, created, reporter } = specWorkDeps(parkedOnAuthor);
-
-    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
-
-    expect({ created, resumed: resumes(reporter) }).toMatchObject({
-      created: [],
-      resumed: [
-        {
-          nodeId: "author",
-          outcome: "success",
-          args: {
-            description: expect.stringContaining(
-              'The approved plan "Faster checkout"',
-            ),
-            round_feedback: null,
-            refine: null,
-          },
-        },
-      ],
-    });
-  });
-
-  it("starts a fresh spec pass at analyse-specs when the plan's spec work failed, resuming nothing", async () => {
-    const { deps, created, reporter } = specWorkDeps(specWorkFailed);
-
-    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
-
-    expect({ created, resumed: reporter.rows }).toMatchObject({
-      resumed: [],
-      created: [
-        {
-          taskType: "feature-planning",
-          targetRepo: "re-cinq/lore",
-          createdBy: "gedaiu",
-          priority: "immediate",
-          description: expect.stringContaining(
-            'The approved plan "Faster checkout"',
-          ),
-          contextBundle: {
-            plan_id: "p1",
-            line_args: {
-              repo: "re-cinq/lore",
-              plan_title: "Faster checkout",
-              entry_node: "analyse-specs",
-            },
-          },
-        },
-      ],
-    });
-  });
-
-  it("briefs the fresh spec pass as a revision of spec PR #7 when the plan's specs already merged", async () => {
-    const { deps, created } = specWorkDeps(specsMerged);
-
-    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
-
-    expect(created[0]?.description).toContain(
-      "The specs on main were written from an earlier version of this plan (spec PR #7)",
-    );
-  });
-
-  it("contributes the fresh spec pass to open spec PR #7 on its branch when the line ended before the PR merged", async () => {
-    const { deps, created } = specWorkDeps(specPrOpenLineEnded);
-
-    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
-
-    expect(created).toMatchObject([
-      {
-        description: expect.stringContaining(
-          "Spec PR #7 is open on this branch",
-        ),
-        contextBundle: {
-          plan_id: "p1",
-          branch: "lore/feature-planning/faster-checkout-abcd1234",
-          line_args: {
-            repo: "re-cinq/lore",
-            plan_title: "Faster checkout",
-            entry_node: "analyse-specs",
-            pr_number: 7,
-            pr_url: "https://github.com/re-cinq/lore/pull/7",
-          },
-        },
-      },
     ]);
   });
 
-  it("starts the pass on a fresh branch with the approved-plan brief when spec PR #7 was closed without merging", async () => {
-    const { deps, created } = specWorkDeps(specPrOpenLineEnded, "closed");
-
-    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
-
-    expect({
-      description: created[0]?.description,
-      contextBundle: created[0]?.contextBundle,
-    }).toEqual({
-      description: expect.stringContaining(
-        'The approved plan "Faster checkout"',
-      ),
-      contextBundle: {
-        plan_id: "p1",
-        line_args: {
-          repo: "re-cinq/lore",
-          plan_title: "Faster checkout",
-          entry_node: "analyse-specs",
-        },
-      },
-    });
-  });
-
-  it("starts the pass after merged spec PR #7 on a fresh branch, with no PR to contribute to", async () => {
-    const { deps, created } = specWorkDeps(specsMerged);
-
-    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
-
-    expect(created[0]?.contextBundle).toEqual({
-      plan_id: "p1",
-      line_args: {
-        repo: "re-cinq/lore",
-        plan_title: "Faster checkout",
-        entry_node: "analyse-specs",
-      },
-    });
-  });
-
-  it("hands over nothing while the planning agent is still refining a section", async () => {
-    const { deps, created, reporter } = specWorkDeps(refining);
-
-    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
-
-    expect({ created, resumed: reporter.rows }).toEqual({
-      created: [],
-      resumed: [],
+  it("refuses with 'still refining' while plan-findings writes the validator's findings, which come before any spec work", () => {
+    expect(approvalDecisionOf(lineOn("plan-findings"))).toEqual({
+      kind: "refused",
+      reason: "the planning agent is still refining a section",
     });
   });
 });
 
-describe("reopenPlan", () => {
-  it("sends the open spec PR back to the author in gedaiu's name", async () => {
-    const reporter = new InMemoryEventReporter();
+describe("reopenActionOf", () => {
+  it("reports to the spec-PR park of a line waiting on its merge", () => {
+    expect(
+      reopenActionOf(lineOn("await-merge", { parkedMerged: PARK as never })),
+    ).toEqual({ kind: "report", parked: PARK });
+  });
 
-    await reopenPlan({ runs: specPrOpen, reporter }, "p1", "gedaiu");
+  it("does nothing for no line, an ended line and a line waiting on the author", () => {
+    expect(
+      [
+        null,
+        lineOn(null),
+        lineOn("author", { parkedAuthor: PARK as never }),
+      ].map(reopenActionOf),
+    ).toEqual([{ kind: "nothing" }, { kind: "nothing" }, { kind: "nothing" }]);
+  });
 
-    expect(resumes(reporter)).toMatchObject([
-      {
-        assemblyLineId: "run-1",
-        nodeId: "merged",
-        outcome: "changes_requested",
-        args: {
-          round_feedback: "gedaiu reopened the plan to revise it",
-          refine: null,
-          spec_review: null,
-        },
-      },
+  it("cancels run-1 while the spec work is on write, and while the spec-tasks are being filed", () => {
+    expect([lineOn("write"), lineOn("issues")].map(reopenActionOf)).toEqual([
+      { kind: "cancel", runId: "run-1" },
+      { kind: "cancel", runId: "run-1" },
     ]);
-  });
-
-  it("reports nothing for a plan whose line waits on the author, ended, or never started", async () => {
-    const reporter = new InMemoryEventReporter();
-
-    for (const runs of [
-      parkedOnAuthor,
-      specWorkFailed,
-      specsMerged,
-      runWith([]),
-    ]) {
-      await reopenPlan({ runs, reporter }, "p1", "gedaiu");
-    }
-
-    expect(reporter.rows).toEqual([]);
-  });
-
-  it("refuses while the specs are being written, and while the merged spec is being broken into tasks", async () => {
-    const reporter = new InMemoryEventReporter();
-
-    await expect(
-      reopenPlan({ runs: writingSpecs, reporter }, "p1", "gedaiu"),
-    ).rejects.toMatchObject({
-      output: { statusCode: 409 },
-      message: "the specs are being written; wait for the spec PR",
-    });
-    await expect(
-      reopenPlan({ runs: decomposing, reporter }, "p1", "gedaiu"),
-    ).rejects.toMatchObject({
-      output: { statusCode: 409 },
-      message: "wait until the spec-tasks are filed",
-    });
-    expect(reporter.rows).toEqual([]);
   });
 });
 
-describe("openForAuthor", () => {
-  const questionAsked = lineWith({ status: "running" }, [
-    v("author", "success"),
-    v("analyse-specs", "changes_requested"),
-    v("author", null, 2),
-  ]);
-
-  it("reopens approved plan p1 when the spec analysis sent its line back to the author", async () => {
+describe("reopenWhenAuthorWaits", () => {
+  it("reopens approved plan p1 when its line waits on the author", async () => {
     const reopened: string[] = [];
 
-    const answer = await openForAuthor(
-      questionAsked,
+    const answer = await reopenWhenAuthorWaits(
+      { parkedAuthor: PARK as never },
       { id: "p1", status: "approved" },
       async (planId) => void reopened.push(planId),
     );
@@ -525,146 +97,26 @@ describe("openForAuthor", () => {
     expect({ answer, reopened }).toEqual({ answer: true, reopened: ["p1"] });
   });
 
-  it("reopens nothing for a draft plan, nor an approved one whose line is not on the author", async () => {
+  it("reopens nothing for a draft plan, nor for an approved one with no line", async () => {
     const reopened: string[] = [];
     const reopen = async (planId: string) => void reopened.push(planId);
-    const cases = [
-      { runs: parkedOnAuthor, status: "draft" },
-      { runs: writingSpecs, status: "approved" },
-      { runs: specPrOpen, status: "approved" },
-      { runs: specWorkFailed, status: "approved" },
-      { runs: runWith([]), status: "approved" },
+
+    const answers = [
+      await reopenWhenAuthorWaits(
+        { parkedAuthor: PARK as never },
+        { id: "p1", status: "draft" },
+        reopen,
+      ),
+      await reopenWhenAuthorWaits(
+        null,
+        { id: "p1", status: "approved" },
+        reopen,
+      ),
     ];
 
-    const answers = await Promise.all(
-      cases.map(({ runs, status }) =>
-        openForAuthor(runs, { id: "p1", status }, reopen),
-      ),
-    );
-
     expect({ answers, reopened }).toEqual({
-      answers: [false, false, false, false, false],
+      answers: [false, false],
       reopened: [],
-    });
-  });
-});
-
-describe("askRefine while no author waits on the plan", () => {
-  const noLine: PlanningRunPort = {
-    listForSubject: async () => [],
-    listStationRuns: async () => [],
-  };
-
-  const cancelled = lineWith({ status: "finished", outcome: "cancelled" }, [
-    v("analyze", "success"),
-    v("author", "failed"),
-  ]);
-
-  const refusalOf = (
-    plan: typeof PLAN,
-    runs: PlanningRunPort,
-    reporter: InMemoryEventReporter,
-  ) =>
-    askRefine({ runs, reporter }, plan, { title: "Faster checkout" }, REFINE)
-      .then(() => "resumed")
-      .catch(
-        (error: Error & { output?: { statusCode: number } }) =>
-          `${error.output?.statusCode}: ${error.message}`,
-      );
-
-  const refusalsOf = async (
-    plan: typeof PLAN,
-    lines: Record<string, PlanningRunPort>,
-    reporter: InMemoryEventReporter,
-  ) =>
-    Object.fromEntries(
-      await Promise.all(
-        Object.entries(lines).map(async ([state, runs]) => [
-          state,
-          await refusalOf(plan, runs, reporter),
-        ]),
-      ),
-    );
-
-  it("refuses a Refine on plan p1 with 409 naming why for each state its line is in, resuming nothing", async () => {
-    const reporter = new InMemoryEventReporter();
-    const lines = {
-      noLine,
-      specWorkFailed,
-      specPrOpenLineEnded,
-      cancelled,
-      specsMerged,
-      specPrOpen,
-      stillDrafting,
-      refining,
-      runningWithNoVisits: runWith([]),
-      writingSpecs,
-      decomposing,
-    };
-
-    const refusals = await refusalsOf(PLAN, lines, reporter);
-
-    expect({ refusals, resumed: reporter.rows }).toEqual({
-      refusals: {
-        noLine:
-          "409: the plan has no planning line yet; regenerate the plan to start one",
-        specWorkFailed:
-          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
-        specPrOpenLineEnded:
-          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
-        cancelled:
-          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
-        specsMerged:
-          "409: the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
-        specPrOpen:
-          "409: the spec PR is being sent back to the author; try again in a moment",
-        stillDrafting: "409: the planning agent is still working on this plan",
-        refining: "409: the planning agent is still working on this plan",
-        runningWithNoVisits:
-          "409: the planning agent is still working on this plan",
-        writingSpecs: "409: the specs are being written; wait for the spec PR",
-        decomposing: "409: wait until the spec-tasks are filed",
-      },
-      resumed: [],
-    });
-  });
-
-  it("names Retry and Reopen, never Regenerate, when approved plan p1 is refined, as its read-only page offers them", async () => {
-    const reporter = new InMemoryEventReporter();
-    const lines = {
-      noLine,
-      specWorkFailed,
-      specPrOpenLineEnded,
-      cancelled,
-      specsMerged,
-      specPrOpen,
-      runningWithNoVisits: runWith([]),
-      writingSpecs,
-      decomposing,
-    };
-
-    const refusals = await refusalsOf(APPROVED, lines, reporter);
-
-    expect({ refusals, resumed: reporter.rows }).toEqual({
-      refusals: {
-        noLine:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        specWorkFailed:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        specPrOpenLineEnded:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        cancelled:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        specsMerged:
-          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
-        specPrOpen:
-          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
-        runningWithNoVisits:
-          "409: the specs are being written; wait for the spec PR",
-        writingSpecs: "409: the specs are being written; wait for the spec PR",
-        decomposing: "409: wait until the spec-tasks are filed",
-      },
-      resumed: [],
     });
   });
 });

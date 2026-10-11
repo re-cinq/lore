@@ -35,7 +35,7 @@ const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
 
 describe("RepoTasksView", () => {
   it("renders the Assembly Runs heading and intro copy, and offers no way to create a task", () => {
-    render(<RepoTasksView runs={[]} />);
+    renderView();
 
     expect(
       screen.getByRole("heading", { level: 2, name: "Assembly Runs" }),
@@ -47,12 +47,12 @@ describe("RepoTasksView", () => {
   });
 
   it("renders the empty-state row when there are no runs", () => {
-    render(<RepoTasksView runs={[]} />);
+    renderView();
     expect(screen.getByText("No assembly line runs.")).toBeInTheDocument();
   });
 
   it("renders a repo run with its summed task cost", () => {
-    render(<RepoTasksView runs={[run({ costUsd: 1.5 })]} />);
+    renderView({ earlierRuns: [run({ costUsd: 1.5 })] });
 
     expect(screen.getByText("$1.50")).toBeInTheDocument();
     expect(
@@ -63,3 +63,69 @@ describe("RepoTasksView", () => {
     );
   });
 });
+
+vi.mock("@/app/assembly-runs/runs-live-actions", () => ({
+  openRunsChannelAction: async () => ({ token: "t-1" }),
+  loadRunsPageAction: vi.fn(),
+}));
+
+const floorRun = run({
+  id: "run-1",
+  blueprintName: "code-review",
+  status: "running",
+  outcome: null,
+  pipeline: [{ node_id: "review", state: "running" }],
+});
+const oldRun = run({
+  id: "dbccc0a0-b910-4e1c-bde8-0f90783d98ce",
+  blueprintName: "implementation-loop",
+});
+
+function renderView(over: Partial<ComponentProps<typeof RepoTasksView>> = {}) {
+  return render(
+    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+      <RepoTasksView
+        repo="re-cinq/lore"
+        initial={{ runs: [], nextCursor: null }}
+        earlierRuns={[]}
+        {...over}
+      />
+    </LiveSocketProvider>,
+  );
+}
+
+function tabSections() {
+  return {
+    stagesColumns: screen.queryAllByRole("columnheader", { name: "Stages" })
+      .length,
+    hasEarlierHeading: !!screen.queryByRole("heading", {
+      name: "Earlier runs",
+    }),
+  };
+}
+
+describe("RepoTasksView live tab", () => {
+  it("shows run-1 with a Stages column and Earlier runs only while old runs exist", () => {
+    const withOldRuns = renderView({
+      initial: { runs: [floorRun], nextCursor: null },
+      earlierRuns: [oldRun],
+    });
+    const { stagesColumns, hasEarlierHeading } = tabSections();
+
+    withOldRuns.unmount();
+    renderView({ initial: { runs: [floorRun], nextCursor: null } });
+
+    expect({
+      stagesColumns,
+      earlierHeading: hasEarlierHeading,
+      earlierWithoutOldRuns: tabSections().hasEarlierHeading,
+    }).toEqual({
+      stagesColumns: 1,
+      earlierHeading: true,
+      earlierWithoutOldRuns: false,
+    });
+  });
+});
+import type { ComponentProps } from "react";
+import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
+import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";

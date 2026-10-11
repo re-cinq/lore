@@ -5,6 +5,7 @@ import type {
   CloseReason,
   IssueEdit,
 } from "../lib/github-port.js";
+import type { IssueComment } from "../pulls/pull-requests-port.js";
 
 /** Value-object sub-facade over GitHubPort (repo-bound); cheap to construct, keeps Project stateless. */
 export class IssueCollection {
@@ -46,6 +47,14 @@ export class IssueCollection {
 
   comment(number: number, body: string): Promise<void> {
     return this.github.commentOnIssue(this.repo, number, body);
+  }
+
+  listComments(number: number): Promise<IssueComment[]> {
+    return this.github.listIssueComments(this.repo, number);
+  }
+
+  updateComment(id: number, body: string): Promise<void> {
+    return this.github.updateIssueComment(this.repo, id, body);
   }
 
   close(number: number, reason?: CloseReason): Promise<void> {

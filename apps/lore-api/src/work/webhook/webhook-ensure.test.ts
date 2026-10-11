@@ -53,7 +53,7 @@ describe("ensureLoreWebhook", () => {
       expect.arrayContaining([
         "pull_request",
         "pull_request_review",
-        "check_run",
+        "issue_comment",
         "issues",
         "repository",
       ]),

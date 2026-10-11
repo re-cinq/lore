@@ -9,12 +9,15 @@ export type ClosedReason = Extract<
   { type: "closed" }
 >["reason"];
 
-export type ChannelKind = "run" | "plan";
+export type RunListFrame = components["schemas"]["RunListFrame"];
+
+export type ChannelKind = "run" | "plan" | "runs";
 
 const SERVER_TYPES: ReadonlySet<string> = new Set<LiveServerMessage["type"]>([
   "opened",
   "frame",
   "data",
+  "runs",
   "closed",
   "error",
 ]);

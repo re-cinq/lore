@@ -1,12 +1,16 @@
-// The live socket's wire protocol (ADR-048): one JSON text frame per message, a client-chosen channel id on every one, so one connection carries a run's frames and a plan's tunnelled bytes side by side. Published in OpenAPI as `LiveClientMessage` / `LiveServerMessage` so the web-ui reads both as generated types.
+// The live socket's wire protocol (ADR-048): one JSON text frame per message, a client-chosen channel id on every one, so one connection carries a run's frames, the run list's changes and a plan's tunnelled bytes side by side. Published in OpenAPI as `LiveClientMessage` / `LiveServerMessage` so the web-ui reads both as generated types.
 
 import { z } from "zod";
+import { FloorRunRowSchema } from "../floor/floor-run-rows.js";
 import { RunStreamFrameSchema } from "./run-stream-frame.js";
 
 export const LIVE_SOCKET_PATH = "/api/ws";
 
 /** Channels one socket may hold at once; a page needs one or two. */
 export const MAX_CHANNELS_PER_SOCKET = 8;
+
+/** The runs one list page shows; a page is 25. */
+export const MAX_WATCHED_RUNS = 200;
 
 const Channel = z.string().min(1).max(64);
 
@@ -29,6 +33,18 @@ export const LiveClientMessageSchema = z.union([
     kind: z.literal("plan"),
     subject: z.string().min(1),
   }),
+  z.object({
+    type: z.literal("open"),
+    channel: Channel,
+    kind: z.literal("runs"),
+    subject: z.string().min(1),
+    token: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("watch"),
+    channel: Channel,
+    runs: z.array(z.string().min(1)).max(MAX_WATCHED_RUNS),
+  }),
   z.object({ type: z.literal("send"), channel: Channel, data: Bytes }),
   z.object({ type: z.literal("close"), channel: Channel }),
 ]);
@@ -49,12 +65,23 @@ export const LiveErrorCodeSchema = z.enum([
   "unknown_channel",
 ]);
 
+export const RunListFrameSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("run_started"), run_id: z.string() }),
+  z.object({ type: z.literal("run_row"), run: FloorRunRowSchema }),
+  z.object({ type: z.literal("resync") }),
+]);
+
 export const LiveServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("opened"), channel: Channel }),
   z.object({
     type: z.literal("frame"),
     channel: Channel,
     frame: RunStreamFrameSchema,
+  }),
+  z.object({
+    type: z.literal("runs"),
+    channel: Channel,
+    frame: RunListFrameSchema,
   }),
   z.object({ type: z.literal("data"), channel: Channel, data: Bytes }),
   z.object({
@@ -73,6 +100,8 @@ export const LiveServerMessageSchema = z.discriminatedUnion("type", [
 export type LiveClientMessage = z.infer<typeof LiveClientMessageSchema>;
 export type LiveServerMessage = z.infer<typeof LiveServerMessageSchema>;
 export type OpenMessage = Extract<LiveClientMessage, { type: "open" }>;
+export type WatchMessage = Extract<LiveClientMessage, { type: "watch" }>;
+export type RunListFrame = z.infer<typeof RunListFrameSchema>;
 export type ClosedReason = z.infer<typeof ClosedReasonSchema>;
 export type LiveErrorCode = z.infer<typeof LiveErrorCodeSchema>;
 

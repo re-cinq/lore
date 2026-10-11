@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  PgAgentDefs,
-  qualifiedStationRef,
-  updateOrgDefinition,
-} from "./agent-defs-pg.js";
+import { PgAgentDefs, updateOrgDefinition } from "./agent-defs-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
 type Row = Record<string, unknown>;
@@ -125,7 +121,7 @@ describe("PgAgentDefs", () => {
     expect(capture[0].params).toEqual(["general", "re-cinq/re-plan"]);
   });
 
-  it("create, update and delete each append a lore.catalog_events row in the same statement", async () => {
+  it("create and update write the row and return its columns from the same statement", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const store = new PgAgentDefs(fakePool(() => [orgRow], capture));
     const input = {
@@ -141,17 +137,16 @@ describe("PgAgentDefs", () => {
 
     await store.create("re-cinq/re-plan", input);
     await store.update("re-cinq/re-plan", "general", input);
-    await store.delete("re-cinq/re-plan", "general");
 
     for (const call of capture) {
-      expect(call.text).toMatch(/insert into lore\.catalog_events/i);
+      expect(call.text).toMatch(/^\s*insert into lore\.agent_definitions/i);
+      expect(call.text).toMatch(/returning name, model, timeout_minutes/i);
     }
-    expect(capture[2].text).toMatch(/'delete' from removed/i);
   });
 });
 
 describe("updateOrgDefinition", () => {
-  it("upserts the org row (project_id NULL conflict target) and appends a catalog event in one statement", async () => {
+  it("upserts the org row on the project_id NULL conflict target", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const written: Row = { ...orgRow, timeout_minutes: 60 };
 
@@ -174,7 +169,6 @@ describe("updateOrgDefinition", () => {
     expect(capture[0].text).toMatch(
       /on conflict \(name\) where project_id is null/i,
     );
-    expect(capture[0].text).toMatch(/insert into lore\.catalog_events/i);
     expect(capture[0].params?.[0]).toBe("general");
   });
 
@@ -279,49 +273,5 @@ describe("PgAgentDefs.update with a pod_resources write", () => {
     expect(capture[0].text).toMatch(
       /config = CASE WHEN \$10::boolean[\s\S]*COALESCE\(lore\.agent_definitions\.config, \$11::jsonb/,
     );
-  });
-});
-
-describe("qualifiedStationRef", () => {
-  function capturingPool(rows: Row[]) {
-    const capture: Array<{ text: string; params?: unknown[] }> = [];
-
-    return { pool: fakePool(() => rows, capture), capture };
-  }
-
-  it("qualifies to the override's CRD name when a repo row exists", async () => {
-    const { pool } = capturingPool([
-      { project_id: "2263bc7a-0767-42ef-80f0-fc6bc5dea98c" },
-    ]);
-
-    expect(
-      await qualifiedStationRef(pool, "code-review", "re-cinq/lore"),
-    ).toEqual("code-review--r2263bc7a");
-  });
-
-  it("keeps the bare org-default name when the repo has no override", async () => {
-    const { pool } = capturingPool([]);
-
-    expect(
-      await qualifiedStationRef(pool, "code-review", "re-cinq/lore"),
-    ).toEqual("code-review");
-  });
-
-  it("excludes an override every cluster refused, so dispatch cannot point at a CR that will never exist", async () => {
-    const { pool, capture } = capturingPool([]);
-
-    await qualifiedStationRef(pool, "code-review", "re-cinq/lore");
-
-    expect(capture[0].text).toContain("catalog_apply_status");
-    expect(capture[0].text).toContain("'refused'");
-    expect(capture[0].text).toContain("'applied'");
-  });
-
-  it("binds the definition name and the repo, never interpolating them", async () => {
-    const { pool, capture } = capturingPool([]);
-
-    await qualifiedStationRef(pool, "code-review", "re-cinq/lore");
-
-    expect(capture[0].params).toEqual(["code-review", "re-cinq/lore"]);
   });
 });

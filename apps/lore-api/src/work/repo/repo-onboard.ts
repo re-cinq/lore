@@ -4,9 +4,7 @@ import {
   decideOnboard,
   onboardLockKey,
   onboardTicketBody,
-  onboardTicketTitle,
   onboardUpdateTicketBody,
-  onboardUpdateTicketTitle,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_IN_FLIGHT_TASK_SQL,
@@ -140,11 +138,9 @@ export async function onboardRepo(
   fullName: string,
   options: OnboardOptions = {},
 ): Promise<OnboardResult | OnboardBlockedResult> {
-  const floorStart =
-    options.floorStart === undefined ? floorStartFor(pool) : options.floorStart;
+  const floorStart = options.floorStart ?? floorStartFor(pool);
   const written = await writeOnboardTx(pool, repoIdentity(fullName), {
     reonboard: options.reonboard,
-    onFloor: floorStart !== null,
   });
 
   if ("blocked" in written) {
@@ -153,7 +149,7 @@ export async function onboardRepo(
   const { repoId, taskId, ticket } = written;
   const webhook = await ensuredWebhook(fullName);
 
-  await floorStart?.({ repo: fullName, taskId, ticket });
+  await floorStart({ repo: fullName, taskId, ticket });
 
   return onboarded({ repoId, taskId }, webhook);
 }
@@ -214,8 +210,6 @@ async function writeOnboardTx(
 
 interface OnboardWriteOptions {
   reonboard?: boolean;
-  /** The task is created already running, because the floor runs it and nothing may claim it. */
-  onFloor: boolean;
 }
 
 /** Runs both writes (repos upsert + task) on ONE connection + transaction, holding per-repo advisory lock to avoid deadlocks and ensure atomicity. */
@@ -233,12 +227,12 @@ async function writeOnboard(
   const written = await insertRepoAndTask(
     client,
     { fullName, owner, name },
-    { ticket, onFloor: options.onFloor },
+    ticket,
   );
 
   await client.query("COMMIT");
 
-  return { ...written, ticket: ticket.body };
+  return { ...written, ticket };
 }
 
 /** The advisory lock is taken INSIDE the transaction so it releases with it — two concurrent submissions for one repo must not both read a clear state. */
@@ -291,41 +285,29 @@ async function refuseOnboard(
 function ticketFor(
   fullName: string,
   state: Pick<OnboardState, "onboardingPrMerged">,
-): OnboardTicket {
+): string {
   return state.onboardingPrMerged
-    ? {
-        title: onboardUpdateTicketTitle(fullName),
-        body: onboardUpdateTicketBody(fullName),
-      }
-    : {
-        title: onboardTicketTitle(fullName),
-        body: onboardTicketBody(fullName),
-      };
-}
-
-interface OnboardTicket {
-  title: string;
-  body: string;
+    ? onboardUpdateTicketBody(fullName)
+    : onboardTicketBody(fullName);
 }
 
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
   identity: RepoIdentity,
-  { ticket, onFloor }: { ticket: OnboardTicket; onFloor: boolean },
+  ticket: string,
 ): Promise<{ repoId: string; taskId: string }> {
   const repoId = await upsertRepo(client, identity);
   const task = await createPipelineTask(client, {
-    description: ticket.body,
+    description: ticket,
     taskType: "onboard",
     targetRepo: identity.fullName,
     createdBy: "onboard-system",
-    contextBundle: onboardContextBundle(identity.fullName, ticket),
+    contextBundle: { repo: identity.fullName },
   });
 
-  if (onFloor) {
-    await markRunningOnFloor(client, task.task_id);
-  }
+  // Created already running: the floor runs it, and nothing may claim it as pending.
+  await markRunningOnFloor(client, task.task_id);
 
   return { repoId, taskId: task.task_id };
 }
@@ -341,10 +323,6 @@ async function upsertRepo(
   );
 
   return rows[0].id;
-}
-
-function onboardContextBundle(fullName: string, ticket: OnboardTicket) {
-  return { repo: fullName, line_args: { issue_title: ticket.title } };
 }
 
 /** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */

@@ -149,28 +149,24 @@ describe("activity reads", () => {
   });
 
   describe("GET /api/repos/{owner}/{repo}/activity-counts", () => {
-    it("returns the repo's 7-day task and auto-merge counts", async () => {
+    it("returns 12 as the repo's 7-day task count", async () => {
       const pool = makePool();
 
-      pool.query
-        .mockResolvedValueOnce({ rows: [{ c: 12 }] })
-        .mockResolvedValueOnce({ rows: [{ c: 5 }] });
+      pool.query.mockResolvedValueOnce({ rows: [{ c: 12 }] });
 
       expect(
         (await get("/api/repos/re-cinq/lore/activity-counts", pool)).result,
-      ).toEqual({ tasks: 12, auto_merged: 5 });
+      ).toEqual({ tasks: 12 });
     });
 
-    it("reports a count as null rather than failing the page when its table is absent", async () => {
+    it("reports the count as null rather than failing the page when the query fails", async () => {
       const pool = makePool();
 
-      pool.query
-        .mockResolvedValueOnce({ rows: [{ c: 12 }] })
-        .mockRejectedValueOnce(new Error("no audit_log"));
+      pool.query.mockRejectedValueOnce(new Error("no tasks table"));
 
       expect(
         (await get("/api/repos/re-cinq/lore/activity-counts", pool)).result,
-      ).toEqual({ tasks: 12, auto_merged: null });
+      ).toEqual({ tasks: null });
     });
   });
 });

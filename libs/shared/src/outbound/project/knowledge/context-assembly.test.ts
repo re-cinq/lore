@@ -440,6 +440,71 @@ describe("hybridChunkItems", () => {
     expect(calls[1].params).toContainEqual("[0.1,0.2,0.3]");
   });
 
+  it("carries the cosine similarity 0.74 of a hybrid hit onto the item, and asks both legs for it", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce([0.1, 0.2]);
+    const { pool, calls } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: "## Decision",
+            file_path: "adrs/ADR-020.md",
+            content_type: "adr",
+            score: 0.03,
+            similarity: "0.74",
+          },
+        ],
+      },
+    );
+
+    const sources = await hybridChunkItems(pool, "format", "re-cinq/lore", {
+      contentTypes: ["adr"],
+      limit: 10,
+    });
+
+    expect(sources[0]).toMatchObject({ similarity: 0.74 });
+    expect(
+      calls[1].text.split("1 - (embedding <=> $2::vector)").length - 1,
+    ).toBe(2);
+  });
+
+  it("asks for 15 chunks when 5 documents are wanted, so several chunks of one document do not crowd the others out", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce([0.1, 0.2]);
+    const { pool, calls } = fakePool({ rows: [] }, { rows: [] });
+
+    await hybridChunkItems(pool, "format", "re-cinq/lore", {
+      contentTypes: ["doc", "spec"],
+      limit: 5,
+    });
+
+    expect(calls[1].params?.at(-1)).toBe(15);
+    expect(calls[1].text.split("LIMIT GREATEST(20, $5)").length - 1).toBe(2);
+  });
+
+  it("leaves similarity off an item the keyword-only fallback found", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const { pool } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: "## Decision",
+            file_path: "adrs/ADR-020.md",
+            content_type: "adr",
+            score: 0.4,
+          },
+        ],
+      },
+    );
+
+    const sources = await hybridChunkItems(pool, "format", "re-cinq/lore", {
+      contentTypes: ["adr"],
+      limit: 10,
+    });
+
+    expect(sources[0]).not.toHaveProperty("similarity");
+  });
+
   it("cross_repo unions linked-repo matches across every provisioned chunk schema", async () => {
     const portable = "error handling pattern convention gotcha";
     const { pool, calls } = fakePool(

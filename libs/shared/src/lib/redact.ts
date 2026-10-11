@@ -39,3 +39,23 @@ export function redactSecrets(
 
   return result;
 }
+
+/** Redacts one JSON line, or returns null when the redaction broke its JSON (a replacement can span a JSON boundary): one dropped line beats a whole batch failing its `::jsonb` cast. */
+export function redactJsonLine(
+  line: string,
+  redact: (text: string) => string = redactSecrets,
+): string | null {
+  const redacted = redact(line);
+
+  if (redacted === line) {
+    return line;
+  }
+
+  try {
+    JSON.parse(redacted);
+  } catch {
+    return null;
+  }
+
+  return redacted;
+}

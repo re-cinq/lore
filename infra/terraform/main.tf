@@ -80,14 +80,6 @@ resource "kubernetes_namespace" "lore_ui" {
   metadata { name = "lore-ui" }
 }
 
-resource "kubernetes_namespace" "lore_event_router" {
-  metadata { name = "lore-event-router" }
-}
-
 resource "kubernetes_namespace" "lore_stations" {
   metadata { name = "lore-stations" }
-}
-
-resource "kubernetes_namespace" "lore_cluster_agent" {
-  metadata { name = "lore-cluster-agent" }
 }

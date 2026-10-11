@@ -8,7 +8,7 @@ If you're standing up Lore for the first time, deploy the backend first, then co
 
 ## Tasks via the Web UI or API
 
-A product owner or platform engineer creates a task through the dashboard. The [Floor](../../apps/floor/README.md) processes it — either via a direct API call (simple tasks) or by dispatching `Agent` CRs on the [ai-agent-subsystem](../../infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/README.md) in the `ai-agents` namespace (complex tasks; one pod per assembly-line node, advanced by the event-driven Floor walk). The Floor holds no Kubernetes client of its own: dispatch, pod logs, and per-task tokens all go through the [**cluster-agent**](../../apps/cluster-agent/README.md) service.
+Work runs as a run of an assembly line on the external floor ([re-cinq/floor](https://github.com/re-cinq/floor)): the floor's own cluster agent runs each agent in a pod, and Lore's stations service does the deterministic steps. Lore holds no Kubernetes client of its own.
 
 <p align="center"><img src="../../badges/flow2-webui.svg" width="600" alt="Tasks via Web UI or API" /></p>
 
@@ -132,59 +132,11 @@ Manage per-client tokens via `/api/tokens` (admin-only). Rate limits: 30/min web
 
 Developers then use `/lore` in those channels — see the [Developer Guide](developer.md#dispatch-from-slack).
 
-## Register a new execution cluster (satellite)
-
-By default every station run executes on the central GKE cluster. A **satellite** lets station runs execute on a cluster you own — a developer's minikube, a customer cluster, a GPU box — by registering one cluster-agent per cluster ([spec](../../specs/running-stations-in-any-k8s-cluster/spec.md)). The satellite pulls work (the GitLab Runner model): it claims queued station runs from the central lore-api, launches them as Agent CRs locally, and reports outcomes back — so it works from behind NAT with no inbound access.
-
-**One-time central setup: none.** `lore-cluster-agent-registration-token` is a required platform secret, seeded by `scripts/infra/seed-secrets.sh` and mirrored by ESO into both the `lore-api` and `lore-cluster-agent` namespaces, because the platform's own cluster-agent registers with it too. If registrations are being refused, the token is missing rather than switched off — check it with `scripts/infra/check-secrets.sh`. What you do need to hand the satellite's operator is the token's value.
-
-**Install a satellite.** Point `kubectl` at the target cluster and run the install script — it checks the toolchain, creates the namespaces, vendors the chart dependency, and `helm upgrade --install`s the release (idempotent; re-running is free):
-
-```bash
-scripts/install-satellite.sh \
-  --api-url https://lore-api.example.com \
-  --event-router-url https://lore-events.example.com \
-  --registration-token <token from your platform engineer> \
-  --name gpu-box-1 \
-  --tags node:agent \
-  --skills-url https://lore-mcp.example.com/skills
-```
-
-It also needs `GHCR_USERNAME`/`GHCR_TOKEN` (image pulls) and an LLM credential in the env — `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`; bills a subscription) or `ANTHROPIC_API_KEY` (bills the org). Every flag can come from env instead (`LORE_API_URL`, `EVENT_ROUTER_URL`, `LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`, `LORE_CLUSTER_AGENT_NAME`, `LORE_CLUSTER_AGENT_TAGS`). Pass `--context <name>` to assert which kubectl context the install must land in, and `--no-network-policy` on single-node clusters without a CNI. For a laptop minikube there is a wrapper with the right defaults baked in: `scripts/install-satellite-minikube.sh`.
-
-`--skills-url` (env `LORE_SKILLS_URL`) is the central lore-mcp gateway's public `/skills` registry — unauthenticated by design, so no extra secret. The installer hands it to the cluster-agent (`catalog.skillsUrl`), whose catalog sync renders it as `resources.skills_source` on every Claude-agent recipe, and the agent init fetches skills + writes the settings file from it. Leave it unset only for a satellite that claims exclusively non-agent stations (`validate`, `gate`, `detect`): the Claude Code adapter passes `--settings` unconditionally, so a Claude-agent node whose recipe has no `skills_source` dies at startup with "Settings file not found".
-
-Default `--tags` is `node:agent` only — deliberately. Every *station* recipe (`def-validate`, `def-gate`, `def-detect`) mounts `LORE_INGEST_TOKEN`, which by design never leaves the central cluster, so a satellite that advertises `node:validate` claims the node and then fails at init with `CreateContainerConfigError`, wasting the claim and the run. Central claims those nodes instead; an `implementation-loop` run still completes with `implement` on the satellite and `validate` centrally.
-
-Optionally set `GITHUB_TOKEN` (a PAT scoped to the repos this satellite may push to) — without it, a claimed run needing a git push (`agent`, `github_action`, `retrospective` node types) fails "GitHub not configured" after launch, while tag-only work (`validate`, `gate`, `detect`) is unaffected. Handing a satellite any GitHub credential is deliberate, so it is never required; the chart also accepts the full GitHub App triple (`github.app.appId`/`privateKey`/`installationId`) via plain `helm --set` for a satellite acting as the org's own identity.
-
-**Live telemetry (optional).** By default a satellite's runs report only their terminal outcome — no cost rows, no live run view. To turn on live per-tool-call telemetry, stand up the Floor's telemetry ingress centrally (set `lore_agent_events_hostname` in `terraform.tfvars` and apply), then pass that host to the installer:
-
-```bash
-scripts/install-satellite.sh ... --telemetry-url https://lore-agent-events.example.com/api/agent-events
-```
-
-The satellite authenticates with the per-agent token it received at registration — never a bus-wide secret — and publishes that token into its own `agent-secrets` so its run pods can use it. Rotation republishes automatically. Without the flag, nothing changes: runs still execute and still report their outcome, and pod logs (`kubectl -n ai-agents logs`) remain the way to watch them.
-
-Under the hood both drive the standalone chart at `infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-standalone-helm` (deliberately *not* part of the `lore-platform` umbrella); install it with plain `helm` if you need values the script does not surface.
-
-**What happens on first boot.** The satellite registers under `name`, receives a durable id and a per-agent bearer token (the plaintext exists once, in that response; only its SHA-256 is stored centrally), and persists the identity in the `lore-cluster-agent-identity` Kubernetes Secret — written through the Kubernetes API, since the pod's filesystem is read-only. Restarts re-register with the persisted token instead of minting a new identity. It then polls for claims and heartbeats every 30 s.
-
-**Routing work to it.** A station run is claimable by a satellite when the satellite's `tags` contain every one of the run's `required_tags`: always the node's own type tag (`node:agent`, `node:ingest`, …) plus whatever the assembly-line YAML or the repo's `station_default_tags` add. The type tag is structural — a satellite is claimable only for node types its own tag list names, which is what keeps central-only work (anything needing the bus-wide ingest credential) off satellites by construction rather than by convention. A run whose tags no registered cluster fully carries fails after the 30-minute queue wait, naming the unmatched tags.
-
-**Watching it.** The **Clusters** page in the web UI (`/cluster-agents`) lists every registered agent with its tags, liveness, and running-claims count (the count links to that agent's runs). An agent silent for 5 minutes is marked `offline`; its claims are requeued for another cluster and the event shows in the page's offline-events table.
-
-**Pausing a cluster.** The Clusters page has a **Pause** button per row. A paused cluster keeps heartbeating, stays `active`, and finishes whatever it already claimed — it is simply passed over when new work is handed out, so nothing is yanked away mid-run. Press **Resume** to put it back in the rotation. Use this rather than scaling the deployment to zero: that reads as a dead cluster five minutes later and requeues its live work elsewhere.
-
-**Identity rules worth knowing.** Names are first-come: re-registering an existing name requires the current per-agent token (`409` otherwise), so the shared registration token alone can never take over a live cluster's identity. If a satellite's identity Secret is lost, delete its registry row (or pick a new name) before re-registering. Rotating the registration token invalidates nothing already registered — per-agent tokens are independent.
-
 ## Dark Factory mode
 
-Dark Factory mode lets a repo run autonomously by default, with humans only at intent definition and stage-gate validation. Enabling it for a repo is a single per-repo switch — `lore.repos.settings.dark_factory.enabled = true` via the settings UI / API. Toggling it is a privileged change guarded by two-key authorization: admin scope **plus** an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`.
+There is no Dark Factory mode to switch on. It was a per-repo settings block (`dark_factory`: enabled, issue creation, auto-merge paths, review mode, notify channels) read by the assembly-line engine Lore ran itself. That engine was deleted on 2026-10-02 (ADR-049, epic #2342) and the settings went with it: the settings route, the Dark Factory tab and the stored block. Every assembly line now runs on the external floor, pull requests are merged by people, and no repository ever had the block set.
 
-All tasks execute on the ai-agent-subsystem (`Agent` CRs in the `ai-agents` namespace) regardless of mode; the legacy LoreTask path and its `LORE_DARK_FACTORY_CLUSTER_ENABLED` cluster gate were removed in the ADR-031 cutover. The setting defaults to **off**, so there's no behavior change for existing repos.
-
-Rollout, rollback, the pilot procedure, and audit-log queries live in `runbooks/dark-factory-rollback.md`. For the full design — branch-as-state, auto-merge gates, two-key authorization — see the [Architecture reference](../building-lore/architecture.md#dark-factory-mode), ADR-016, and `specs/6-dark-factory/`.
+Two things outlived it. Every Lore-authored commit still carries the `Lore-Task:` trailer. The two-key approval ceremony (admin scope plus an open pull request labeled `dark-factory-approval` by a CODEOWNER) still guards a custom agent image (`specs/two-key-approval`). The design record is ADR-016 and `specs/6-dark-factory/`.
 
 ---
 

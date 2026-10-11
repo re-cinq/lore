@@ -68,13 +68,9 @@
   font-family: var(--font-mono);
 }
 
-/* Both recolour a .detail cell, so they must stay below it to win on order. */
+/* Recolours a .detail cell, so it must stay below it to win on order. */
 .detailDormant {
   color: var(--warning);
-}
-
-.detailBad {
-  color: var(--danger);
 }
 
 .actions {

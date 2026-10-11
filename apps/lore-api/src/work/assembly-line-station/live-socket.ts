@@ -19,6 +19,7 @@ import {
   type ChannelOutlet,
   type RunChannelDeps,
 } from "./run-channel.js";
+import { openRunsChannel, type RunsChannelDeps } from "./runs-channel.js";
 import { urlOf, webRequest } from "./web-request.js";
 
 const PING_MS = 25_000;
@@ -28,8 +29,11 @@ const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 
 const OPEN = 1;
 
+type ChannelMessage = Exclude<LiveClientMessage, OpenMessage>;
+
 export interface LiveSocketDeps {
   run: RunChannelDeps;
+  runs: RunsChannelDeps;
   collab: CollabServer;
   pingMs?: number;
   log?: (message: string) => void;
@@ -134,33 +138,41 @@ class LiveConnection {
   }
 
   private dispatch(message: LiveClientMessage): void {
+    if (message.type === "open") {
+      return this.open(message);
+    }
+
+    return this.dispatchToChannel(message);
+  }
+
+  private dispatchToChannel(message: ChannelMessage): void {
     switch (message.type) {
-      case "open":
-        return this.open(message);
       case "send":
-        return this.forward(message.channel, message.data);
+        return this.handleOf(message.channel)?.receive(
+          base64ToBytes(message.data),
+        );
+      case "watch":
+        return this.handleOf(message.channel)?.watch?.(message.runs);
       default:
         return this.close(message.channel);
     }
   }
 
-  private forward(channel: string, encodedBytes: string): void {
+  /** The channel's handle, or undefined after telling the client it names no open channel. */
+  private handleOf(channel: string): ChannelHandle | undefined {
     const handle = this.registry.get(channel);
 
     if (!handle) {
       this.send({ type: "error", channel, code: "unknown_channel" });
-
-      return;
     }
-    handle.receive(base64ToBytes(encodedBytes));
+
+    return handle;
   }
 
   private close(channel: string): void {
-    const handle = this.registry.get(channel);
+    const handle = this.handleOf(channel);
 
     if (!handle) {
-      this.send({ type: "error", channel, code: "unknown_channel" });
-
       return;
     }
     this.registry.forget(channel);
@@ -232,15 +244,21 @@ class LiveConnection {
     message: OpenMessage,
     outlet: ChannelOutlet,
   ): Promise<ChannelHandle | null> {
-    if (message.kind === "plan") {
-      const request = webRequest(this.request);
-
-      return Promise.resolve(
-        openPlanChannel(message.channel, request, outlet, this.deps.collab),
-      );
+    switch (message.kind) {
+      case "plan":
+        return Promise.resolve(
+          openPlanChannel(
+            message.channel,
+            webRequest(this.request),
+            outlet,
+            this.deps.collab,
+          ),
+        );
+      case "runs":
+        return openRunsChannel(message, outlet, this.deps.runs);
+      default:
+        return openRunChannel(message, outlet, this.deps.run);
     }
-
-    return openRunChannel(message, outlet, this.deps.run);
   }
 
   private outletFor(channel: string): ChannelOutlet {

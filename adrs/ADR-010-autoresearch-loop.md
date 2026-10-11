@@ -23,7 +23,9 @@ Context quality was static — no automated mechanism to detect knowledge gaps f
 
 ## Decision
 
-Implement 3 new Lore Agent scheduled jobs:
+_(Amended 2026-10-02.)_ None of the three jobs runs any more. The nightly `eval_runner` and `context_core_builder` jobs were deleted with Lore's own Floor on 2026-10-02, and the weekly `autoresearch` job went with them. Context evals are a nightly GitHub Actions job that asks lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443). It keeps no stored baseline: the tables `pipeline.eval_runs` and `pipeline.context_core_history` were dropped by migration 0101, and `pipeline.research_attempts` with them. What follows is the original decision, kept as the record.
+
+The original decision implemented 3 Lore Agent scheduled jobs:
 
 1. **eval-runner** (nightly 3am): Run PromptFoo evals, store results in pipeline.eval_runs, create tasks for >5% regressions
 2. **autoresearch** (weekly Monday 6am): Query Langfuse for low-confidence traces, cluster by similarity, generate 3 candidate approaches (direct/example/constraint) per gap, eval each, open PR for >= 2% improvement or create task for manual review
@@ -39,7 +41,7 @@ Implement 3 new Lore Agent scheduled jobs:
 
 ## New Infrastructure
 
-- 3 PostgreSQL tables: `pipeline.eval_runs`, `pipeline.research_attempts`, `pipeline.context_core_history`
+- 3 PostgreSQL tables: `pipeline.eval_runs`, `pipeline.research_attempts`, `pipeline.context_core_history` _(all three dropped by migration 0101, 2026-10-02)_
 - No external services added
 
 ## Alternatives Considered
@@ -54,4 +56,4 @@ Quarterly review of support tickets. Too slow, misses patterns, doesn't scale.
 
 ### 3. LLM-only quality assessment
 
-Skip PromptFoo and have the LLM judge its own context. Circular reasoning — the model can't evaluate what it doesn't know.
+Skip PromptFoo and have the LLM judge its own context. Circular reasoning — the model can't evaluate what it doesn't know. _(2026-10-02: the replacement in #2443 does use a model as judge, but it judges the answer against the document the question was written from, not against what the model knows.)_

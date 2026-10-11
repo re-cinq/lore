@@ -7,12 +7,8 @@ import {
   ADR_TOPICS,
   TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
   ONBOARD_INSTRUCTED_WORKFLOWS,
-  ONBOARD_DETERMINISTIC_PATHS,
-  onboardPrBody,
   onboardTicketBody,
-  onboardTicketTitle,
   onboardUpdateTicketBody,
-  onboardUpdateTicketTitle,
 } from "./onboard-content.js";
 
 const staticPaths = ONBOARD_STATIC_FILES.map((f) => f.path);
@@ -194,31 +190,6 @@ describe("TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT", () => {
     expect(TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT).toContain(
       "only use coverage tooling the repo already declares as a dependency",
     );
-  });
-});
-
-describe("onboarding PR title and body", () => {
-  it("titles a first onboarding and an update after the repository", () => {
-    expect(onboardTicketTitle("re-cinq/app")).toBe(
-      "Onboard re-cinq/app into Lore",
-    );
-    expect(onboardUpdateTicketTitle("re-cinq/app")).toBe(
-      "Update re-cinq/app's Lore setup",
-    );
-  });
-
-  it("lists every file an onboarding may add", () => {
-    const body = onboardPrBody("re-cinq/app");
-
-    expect(
-      [
-        ...ONBOARD_DETERMINISTIC_PATHS,
-        ...llmPaths,
-        "adrs/",
-        ".lore/test-commands.yml",
-        ".github/workflows/lore-tests.yml",
-      ].filter((path) => !body.includes(`\`${path}\``)),
-    ).toEqual([]);
   });
 });
 

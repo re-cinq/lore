@@ -18,6 +18,7 @@ import {
   startFloorSpecWork,
   type FloorPlanDeps,
 } from "./floor-plan-line.js";
+import type { RefineAsk } from "./refine-asks.js";
 import type { SpecReviewReads } from "./spec-rework.js";
 import { specBranchOf } from "./spec-branch.js";
 
@@ -34,6 +35,7 @@ const SUCCESS: Report = { outcome: "success" };
 const SPEC_PR_URL = "https://github.com/re-cinq/lore/pull/12";
 
 const REFINE = {
+  actor: "ana",
   slot: "intent",
   title: "Intent",
   baseHash: "3f9a",
@@ -58,6 +60,22 @@ const ON_MERGED = [
     produced: { pr_url: SPEC_PR_URL },
   }),
   planVisit("merged", null),
+];
+
+const MERGED_SPEC_PR = [
+  planVisit("open-spec-pr", {
+    outcome: "success",
+    produced: { pr_url: "https://github.com/re-cinq/lore/pull/7" },
+  }),
+  planVisit("merged", SUCCESS),
+];
+const REOPENED_WITH_OPEN_PR = [
+  planVisit("open-spec-pr", {
+    outcome: "success",
+    produced: { pr_url: "https://github.com/re-cinq/lore/pull/9" },
+  }),
+  planVisit("merged", { outcome: "changes_requested" }),
+  planVisit("author", null),
 ];
 
 const REVIEWED: SpecReviewReads = {
@@ -87,15 +105,29 @@ function scene(
     visits: { "run-open": given.visits ?? [] },
   });
   const branchesFor: string[] = [];
+  const asks: RefineAsk[] = [];
+  const specPrsRead: number[] = [];
   const deps: FloorPlanDeps = {
     floor: recorded.floor,
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
     baseBranch: () => Promise.resolve("main"),
-    specPrState: () => Promise.resolve(given.specPrState ?? null),
+    specPrState: async (_repo, prNumber) => (
+      specPrsRead.push(prNumber),
+      given.specPrState ?? null
+    ),
     pulls: given.pulls ?? REVIEWED,
+    recordRefineAsk: async (ask) => {
+      asks.push(ask);
+    },
   };
 
-  return { deps, requests: recorded.requests, branchesFor };
+  return {
+    deps,
+    requests: recorded.requests,
+    branchesFor,
+    asks,
+    specPrsRead,
+  };
 }
 
 const NO_RUN = { runs: [] };
@@ -108,12 +140,12 @@ function posts(requests: FloorRequest[]): FloorRequest[] {
   return requests.filter((request) => request.method === "POST");
 }
 
-function startedRefine(requests: FloorRequest[]): string {
+function startedItem(requests: FloorRequest[], name: string): unknown {
   const body = posts(requests).at(-1)?.body as {
-    startItems?: { refine?: { ref?: string } };
+    startItems?: Record<string, unknown>;
   };
 
-  return body?.startItems?.refine?.ref ?? "";
+  return body?.startItems?.[name];
 }
 
 function startedDescription(requests: FloorRequest[]): string {
@@ -134,13 +166,18 @@ function reportedProduced(
   return last?.payload?.report?.produced ?? {};
 }
 
-function reported(visitId: string, report: Report): FloorRequest {
+function reported(visitId: string, report: Report, by?: string): FloorRequest {
   return {
     method: "POST",
     path: "/events",
     body: {
       name: "station_run.reported",
-      payload: { visitId, worker: "lore", report },
+      payload: {
+        visitId,
+        worker: "lore",
+        report,
+        ...(by ? { reportedBy: by } : {}),
+      },
       dedupeKey: `station_run.reported:${visitId}`,
     },
   };
@@ -167,7 +204,6 @@ function started(entry?: string): FloorRequest {
         plan_title: { kind: "value", ref: "Faster checkout", by: "lore" },
         plan_md: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
         description: { kind: "value", ref: BRIEF, by: "lore" },
-        refine: { kind: "value", ref: "", by: "lore" },
       },
       ...(entry ? { entry } : {}),
     },
@@ -175,7 +211,7 @@ function started(entry?: string): FloorRequest {
 }
 
 describe("startFloorDrafting", () => {
-  it("reports changes_requested on the author visit with plan.md and no refine when the run waits on author", async () => {
+  it("reports changes_requested on the author visit with the plan.md a draft answers with", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
 
     const runId = await startFloorDrafting(deps, {
@@ -188,7 +224,7 @@ describe("startFloorDrafting", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "changes_requested",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
       }),
     );
   });
@@ -248,7 +284,41 @@ describe("startFloorDrafting", () => {
 });
 
 describe("askFloorRefine", () => {
-  it("reports changes_requested on the author visit with plan.md and the refine slot intent read at 3f9a", async () => {
+  it("posts a bare analyze start on the plan's run and records the ask, with the author waiting", async () => {
+    const { deps, requests, asks } = scene({ visits: ON_AUTHOR });
+
+    await askFloorRefine(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      refine: REFINE,
+      actor: "ana",
+    });
+
+    expect({ post: posts(requests).at(-1), asks }).toEqual({
+      post: {
+        method: "POST",
+        path: "/events",
+        body: {
+          name: "node.analyze.start",
+          payload: { runId: "run-open", requestedBy: "ana" },
+        },
+      },
+      asks: [
+        {
+          planId: "p1",
+          slot: "intent",
+          title: "Intent",
+          baseHash: "3f9a",
+          inputs: {},
+          uses: { answers: ["a1"] },
+          brief: BRIEF,
+        },
+      ],
+    });
+  });
+
+  it("carries no refine value in the run's bag, since the ask is read from lore-api", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
 
     await askFloorRefine(deps, {
@@ -256,23 +326,14 @@ describe("askFloorRefine", () => {
       planMarkdown: MARKDOWN,
       brief: BRIEF,
       refine: REFINE,
+      actor: "ana",
     });
 
-    expect(posts(requests).at(-1)).toEqual(
-      reported("visit-author", {
-        outcome: "changes_requested",
-        produced: {
-          plan_md: PLAN_BLOB_HASH,
-          refine:
-            '{"slot":"intent","baseHash":"3f9a","uses":{"answers":["a1"]}}',
-          description: BRIEF,
-        },
-      }),
-    );
+    expect(JSON.stringify(posts(requests))).not.toContain("3f9a");
   });
 
-  it("refuses with 409 while the planning agent is still working on this plan, reporting nothing", async () => {
-    const { deps, requests } = scene({ visits: WHILE_ANALYZING });
+  it("refuses with 409 while an analyze visit is open, so two agents never edit one plan, recording no ask", async () => {
+    const { deps, requests, asks } = scene({ visits: WHILE_ANALYZING });
 
     await expect(
       askFloorRefine(deps, {
@@ -280,30 +341,36 @@ describe("askFloorRefine", () => {
         planMarkdown: MARKDOWN,
         brief: BRIEF,
         refine: REFINE,
+        actor: "ana",
       }),
     ).rejects.toMatchObject({
       output: { statusCode: 409 },
       message: "the planning agent is still working on this plan",
     });
-    expect(posts(requests)).toEqual([]);
+    expect({ posts: posts(requests), asks }).toEqual({ posts: [], asks: [] });
   });
 
-  it("starts a round carrying the section when the plan's last run already ended, rather than refusing", async () => {
-    const { deps, requests } = scene(NO_RUN);
+  it("starts a run when the plan has none, since there is no run to start a node on", async () => {
+    const { deps, requests, asks } = scene(NO_RUN);
 
     await askFloorRefine(deps, {
       plan: DRAFT,
       planMarkdown: MARKDOWN,
       brief: BRIEF,
       refine: REFINE,
+      actor: "ana",
     });
 
-    expect(startedRefine(requests)).toBe(
-      '{"slot":"intent","baseHash":"3f9a","uses":{"answers":["a1"]}}',
-    );
+    expect({
+      started: posts(requests).at(-1)?.path,
+      recorded: asks.length,
+    }).toEqual({
+      started: "/assembly-lines/feature-planning/start",
+      recorded: 1,
+    });
   });
 
-  it("starts its own round where the page would say Regenerate, and refuses the rest with the reason it shows, on draft plan p1", async () => {
+  it("starts the station in every state but an approved plan and a drafting pass still holding it, on draft plan p1", async () => {
     const scenes = {
       noRun: NO_RUN,
       specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
@@ -312,54 +379,42 @@ describe("askFloorRefine", () => {
       specPrOpen: { visits: ON_MERGED },
       whileAnalyzing: { visits: WHILE_ANALYZING },
       settlingThePass: { visits: SETTLING_PASS },
+      whileValidating: { visits: WHILE_VALIDATING },
+      writingFindings: { visits: WRITING_FINDINGS },
       writingSpecs: { visits: WHILE_WRITING },
       decomposing: { visits: DECOMPOSING },
     };
+    const held = "409: the planning agent is still working on this plan";
 
-    expect(await refusalsOf(DRAFT, scenes)).toEqual({
+    expect(await refusalsOf(DRAFT, scenes)).toMatchObject({
       refusals: {
         noRun: "resumed",
         specWorkFailed: "resumed",
         cancelled: "resumed",
-        delivered:
-          "409: the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
-        specPrOpen:
-          "409: the spec PR is being sent back to the author; try again in a moment",
-        whileAnalyzing: "409: the planning agent is still working on this plan",
-        settlingThePass:
-          "409: the planning agent is still working on this plan",
-        writingSpecs: "409: the specs are being written; wait for the spec PR",
-        decomposing: "409: wait until the spec-tasks are filed",
+        delivered: "resumed",
+        specPrOpen: "resumed",
+        whileAnalyzing: held,
+        settlingThePass: held,
+        whileValidating: held,
+        writingFindings: held,
+        writingSpecs: "resumed",
+        decomposing: "resumed",
       },
-      reported: 6,
     });
   });
 
-  it("names Retry and Reopen, never Regenerate, when approved plan p1 is refined on the floor, as its read-only page offers them", async () => {
+  it("refuses an approved plan in every state, since approval settles its sections", async () => {
     const scenes = {
       noRun: NO_RUN,
-      specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
       delivered: { runs: [FINISHED], visits: DELIVERED },
       specPrOpen: { visits: ON_MERGED },
       writingSpecs: { visits: WHILE_WRITING },
-      decomposing: { visits: DECOMPOSING },
     };
+    const { refusals } = await refusalsOf(APPROVED, scenes);
 
-    expect(await refusalsOf(APPROVED, scenes)).toEqual({
-      refusals: {
-        noRun:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        specWorkFailed:
-          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
-        delivered:
-          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
-        specPrOpen:
-          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
-        writingSpecs: "409: the specs are being written; wait for the spec PR",
-        decomposing: "409: wait until the spec-tasks are filed",
-      },
-      reported: 0,
-    });
+    expect(
+      Object.values(refusals).every((refusal) => refusal.startsWith("409: ")),
+    ).toBe(true);
   });
 });
 
@@ -384,6 +439,14 @@ const SETTLING_PASS = [
   planVisit("analyze", SUCCESS),
   planVisit("plan-pass-end", null),
 ];
+const WHILE_VALIDATING = [
+  planVisit("author", SUCCESS),
+  planVisit("validate", null),
+];
+const WRITING_FINDINGS = [
+  planVisit("validate", SUCCESS),
+  planVisit("plan-findings", null),
+];
 const DECOMPOSING = [
   planVisit("merged", SUCCESS),
   planVisit("decompose", null),
@@ -401,6 +464,7 @@ async function refusalsOf(
         planMarkdown: MARKDOWN,
         brief: BRIEF,
         refine: REFINE,
+        actor: "ana",
       })
         .then(() => "resumed")
         .catch(
@@ -420,23 +484,87 @@ async function refusalsOf(
   };
 }
 
+const PLAN_URL = "https://lore.example/repos/re-cinq/lore/plans/p1";
+const CITABLE = {
+  plan_url: PLAN_URL,
+  blocks: [
+    {
+      id: "b-why",
+      slot: "intent",
+      kind: "paragraph",
+      text: "Checkout is slow.",
+      link: `${PLAN_URL}#b-why`,
+    },
+  ],
+};
+
 describe("approveFloorPlan", () => {
-  it("reports success on the author visit with the approved plan.md when the run waits on author", async () => {
+  it("reports success on the author visit with the approved plan.md, in gedaiu's name, when the run waits on author", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
 
-    const decision = await approveFloorPlan(deps, {
-      plan: APPROVED,
-      planMarkdown: MARKDOWN,
-      brief: BRIEF,
-    });
+    const decision = await approveFloorPlan(
+      deps,
+      {
+        plan: APPROVED,
+        planMarkdown: MARKDOWN,
+        brief: BRIEF,
+      },
+      "gedaiu",
+    );
 
     expect(decision).toEqual({ kind: "hand-over" });
     expect(posts(requests).at(-1)).toEqual(
-      reported("visit-author", {
-        outcome: "success",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
-      }),
+      reported(
+        "visit-author",
+        {
+          outcome: "success",
+          produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        },
+        "gedaiu",
+      ),
     );
+  });
+
+  it("hands the author visit the plan's citable blocks as plan_blocks beside plan.md", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      citablePlan: CITABLE,
+      brief: BRIEF,
+    });
+
+    expect({
+      blobs: posts(requests)
+        .filter((request) => request.path === "/blobs")
+        .map((request) => request.body),
+      produced: reportedProduced(requests),
+    }).toEqual({
+      blobs: [MARKDOWN, JSON.stringify(CITABLE)],
+      produced: {
+        plan_md: PLAN_BLOB_HASH,
+        plan_blocks: PLAN_BLOB_HASH,
+        description: BRIEF,
+      },
+    });
+  });
+
+  it("starts the spec pass with plan_blocks when the floor holds no run", async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      citablePlan: CITABLE,
+      brief: BRIEF,
+    });
+
+    expect(startedItem(requests, "plan_blocks")).toEqual({
+      kind: "file",
+      ref: PLAN_BLOB_HASH,
+      by: "lore",
+    });
   });
 
   it("starts a fresh run entered at analyse-specs when the floor holds no run", async () => {
@@ -479,23 +607,13 @@ describe("approveFloorPlan", () => {
     });
     expect(posts(requests)).toEqual([]);
   });
-});
 
-describe("a round that answers no section says so", () => {
-  it("clears the refine the bag still holds from an earlier Refine when a draft is asked for", async () => {
-    const { deps, requests } = scene({ visits: ON_AUTHOR });
-
-    await startFloorDrafting(deps, {
-      plan: DRAFT,
-      planMarkdown: MARKDOWN,
-      brief: BRIEF,
+  it("briefs the fresh pass as an amendment to the specs on main when the plan was reopened after spec PR #7 merged", async () => {
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      visits: MERGED_SPEC_PR,
+      specPrState: "merged",
     });
-
-    expect(reportedProduced(requests).refine).toBe("");
-  });
-
-  it("clears it on an approval too, so a later failed pass tells no section it was never asked about", async () => {
-    const { deps, requests } = scene({ visits: ON_AUTHOR });
 
     await approveFloorPlan(deps, {
       plan: APPROVED,
@@ -503,25 +621,90 @@ describe("a round that answers no section says so", () => {
       brief: BRIEF,
     });
 
-    expect(reportedProduced(requests).refine).toBe("");
+    expect(startedDescription(requests)).toContain("spec PR #7");
+  });
+
+  it("hands the author visit the amendment brief while spec PR #9 is still open on the branch", async () => {
+    const { deps, requests } = scene({
+      visits: REOPENED_WITH_OPEN_PR,
+      specPrState: "open",
+    });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(reportedProduced(requests).description).toContain(
+      "Spec PR #9 is open",
+    );
+  });
+
+  it("keeps the approved brief and asks GitHub nothing when the plan reaches its specs for the first time", async () => {
+    const { deps, requests, specPrsRead } = scene(NO_RUN);
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect({ brief: startedDescription(requests), specPrsRead }).toEqual({
+      brief: BRIEF,
+      specPrsRead: [],
+    });
   });
 });
 
 describe("the round's brief the floor's planning agent is given", () => {
   it("names the section the Refine asks about in the brief the agent is given", async () => {
-    const { deps, requests } = scene({ visits: ON_AUTHOR });
-    const verbs = floorPlanVerbs(deps, () => Promise.resolve(MARKDOWN));
+    const { deps, asks } = scene({ visits: ON_AUTHOR });
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+    }));
 
     await verbs.refine(DRAFT, REFINE);
 
-    expect(reportedProduced(requests).description).toContain(
-      "<!-- slot:intent -->",
-    );
+    expect(asks.at(0)?.brief).toContain("<!-- slot:intent -->");
+  });
+
+  it("lists the plan's unresolved finding in the brief a Refine gives the agent, and in a draft's", async () => {
+    const snapshot = async () => ({
+      planMarkdown: MARKDOWN,
+      openFindings: [
+        {
+          findingId: "f-ground-9k2",
+          slot: "scope",
+          severity: "warning",
+          text: "This section names `ToolResponse`.",
+          why: "It is not on the default branch.",
+        },
+      ],
+    });
+    const refined = scene({ visits: ON_AUTHOR });
+    const drafted = scene({ visits: ON_AUTHOR });
+
+    await floorPlanVerbs(refined.deps, snapshot).refine(DRAFT, REFINE);
+    await floorPlanVerbs(drafted.deps, snapshot).draft(DRAFT, {
+      known: "checkout drops carts",
+      createdBy: "gedaiu",
+    });
+
+    expect([
+      refined.asks.at(0)?.brief,
+      reportedProduced(drafted.requests).description,
+    ]).toEqual([
+      expect.stringContaining("- Finding f-ground-9k2 on `scope` (warning):"),
+      expect.stringContaining("- Finding f-ground-9k2 on `scope` (warning):"),
+    ]);
   });
 
   it("tells the agent what the plan's author already knows on a first draft", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
-    const verbs = floorPlanVerbs(deps, () => Promise.resolve(MARKDOWN));
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+    }));
 
     await verbs.draft(DRAFT, {
       known: "checkout drops carts",
@@ -645,13 +828,13 @@ describe("startFloorSpecWork", () => {
 });
 
 describe("reopenFloorPlan", () => {
-  it("reports changes_requested on the merged visit when the run waits on its spec PR", async () => {
+  it("reports changes_requested on the merged visit, in gedaiu's name, when the run waits on its spec PR", async () => {
     const { deps, requests } = scene({ visits: ON_MERGED });
 
-    await reopenFloorPlan(deps, APPROVED);
+    await reopenFloorPlan(deps, APPROVED, "gedaiu");
 
     expect(posts(requests)).toEqual([
-      reported("visit-merged", { outcome: "changes_requested" }),
+      reported("visit-merged", { outcome: "changes_requested" }, "gedaiu"),
     ]);
   });
 
@@ -663,12 +846,28 @@ describe("reopenFloorPlan", () => {
     expect(posts(requests)).toEqual([]);
   });
 
-  it("refuses with 409 while the specs are being written and the spec PR is not open", async () => {
-    const { deps } = scene({ visits: WHILE_WRITING });
+  it("cancels the run while the specs are being written, and while the spec-tasks are being filed", async () => {
+    const cancels = async (visits: VisitView[]) => {
+      const { deps, requests } = scene({ visits });
 
-    await expect(reopenFloorPlan(deps, APPROVED)).rejects.toMatchObject({
-      output: { statusCode: 409 },
-      message: "the specs are being written; wait for the spec PR",
+      await reopenFloorPlan(deps, APPROVED);
+
+      return posts(requests).map((request) => request.path);
+    };
+
+    expect([await cancels(WHILE_WRITING), await cancels(DECOMPOSING)]).toEqual([
+      ["/assembly-runs/run-open/cancel"],
+      ["/assembly-runs/run-open/cancel"],
+    ]);
+  });
+
+  it("gives the floor the reopening as the reason it cancelled the run", async () => {
+    const { deps, requests } = scene({ visits: WHILE_WRITING });
+
+    await reopenFloorPlan(deps, APPROVED);
+
+    expect(posts(requests).at(0)?.body).toEqual({
+      reason: "the plan was reopened for writing",
     });
   });
 });
@@ -717,7 +916,7 @@ describe("validateFloorPlan", () => {
 });
 
 describe("reworkFloorSpec", () => {
-  it("posts node.write.start naming run-open and gedaiu when spec PR 12 has an unresolved review", async () => {
+  it("posts node.rework.start naming run-open and gedaiu when spec PR 12 has an unresolved review", async () => {
     const { deps, requests } = scene({ visits: ON_MERGED });
 
     const runId = await reworkFloorSpec(deps, {
@@ -731,7 +930,7 @@ describe("reworkFloorSpec", () => {
         method: "POST",
         path: "/events",
         body: {
-          name: "node.write.start",
+          name: "node.rework.start",
           payload: { runId: "run-open", requestedBy: "gedaiu" },
         },
       },
@@ -763,10 +962,11 @@ describe("floorPlanVerbs", () => {
   it("hands the markdown read for plan p1 to the run it starts as the plan.md blob", async () => {
     const { deps, requests } = scene(NO_RUN);
     const reads: string[] = [];
-    const verbs = floorPlanVerbs(
-      deps,
-      async (planId) => (reads.push(planId), MARKDOWN),
-    );
+    const verbs = floorPlanVerbs(deps, async (subject) => {
+      reads.push(subject.id);
+
+      return { planMarkdown: MARKDOWN };
+    });
 
     await verbs.draft(DRAFT, {
       known: "Checkout is slow.",
@@ -780,10 +980,24 @@ describe("floorPlanVerbs", () => {
     });
   });
 
+  it("hands an approval the snapshot's citable blocks as plan_blocks", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+      citablePlan: CITABLE,
+    }));
+
+    await verbs.handOverApproved(APPROVED, "gedaiu");
+
+    expect(reportedProduced(requests).plan_blocks).toBe(PLAN_BLOB_HASH);
+  });
+
   it("reopens an approved plan whose run waits on its author and says it did", async () => {
     const { deps } = scene({ visits: ON_AUTHOR });
     const reopened: string[] = [];
-    const verbs = floorPlanVerbs(deps, async () => MARKDOWN);
+    const verbs = floorPlanVerbs(deps, async () => ({
+      planMarkdown: MARKDOWN,
+    }));
 
     const locked = await verbs.openForAuthor(APPROVED, async (planId) =>
       reopened.push(planId),
@@ -791,5 +1005,60 @@ describe("floorPlanVerbs", () => {
 
     expect(locked).toBe(true);
     expect(reopened).toEqual(["p1"]);
+  });
+});
+
+function startedStoryIssue(requests: FloorRequest[]): string | undefined {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: { story_issue?: { ref?: string } };
+  };
+
+  return body?.startItems?.story_issue?.ref;
+}
+
+describe("the user story a planning run carries", () => {
+  it("starts the run with story_issue 42 when the draft names issue 42", async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      storyIssue: 42,
+    });
+
+    expect(startedStoryIssue(requests)).toBe("42");
+  });
+
+  it("carries story_issue 42 over from the finished run when a later round names no story", async () => {
+    const storied = planRun({
+      outcome: "failed",
+      finishedAt: "2026-10-01T10:00:00.000Z",
+      startItems: {
+        ...FINISHED.startItems,
+        story_issue: { kind: "value", ref: "42", by: "lore" },
+      },
+    });
+    const { deps, requests } = scene({ runs: [storied] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBe("42");
+  });
+
+  it("starts the run with no story_issue when neither the draft nor an earlier run names a story", async () => {
+    const { deps, requests } = scene({ runs: [FINISHED] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBeUndefined();
   });
 });

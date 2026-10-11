@@ -3,7 +3,12 @@ import { recordedFloor } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import { FloorRunReader } from "./floor-run-reader.js";
 import type { RunView } from "@re-cinq/floor-client";
 import type { FloorRequest } from "@re-cinq/lore-shared/floor/recorded-floor.js";
-import { FLOOR_RUN, floorWithOneRun, PR_URL } from "./floor-run.fixtures.js";
+import {
+  FLOOR_RUN,
+  floorWithOneRun,
+  floorWithRunPage,
+  PR_URL,
+} from "./floor-run.fixtures.js";
 
 const FINISHED_RUN: RunView = {
   ...FLOOR_RUN,
@@ -38,6 +43,32 @@ function floorWithTwoRuns(request: FloorRequest): unknown {
   }
 
   return floorWithOneRun(request);
+}
+
+function floorWithFailedRunOnSecondPage(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  if (url.pathname === "/station-runs") {
+    return { items: [] };
+  }
+
+  if (url.pathname !== "/assembly-runs") {
+    return floorWithOneRun(request);
+  }
+
+  return url.searchParams.get("cursor") === "page-2"
+    ? {
+        items: [
+          {
+            ...FINISHED_RUN,
+            id: "run-3",
+            outcome: "failed",
+            finishedAt: "2026-09-30T08:30:00.000Z",
+          },
+        ],
+        nextCursor: null,
+      }
+    : { items: [FINISHED_RUN], nextCursor: "page-2" };
 }
 
 function loopRunsInTwoPages(request: FloorRequest): unknown {
@@ -254,6 +285,65 @@ describe("FloorRunReader.listSummaries", () => {
 
     expect(recorded.requests.map((request) => request.path)).toEqual([
       "/costs?run=run-1&group=run",
+    ]);
+  });
+});
+
+describe("FloorRunReader.page", () => {
+  it("lists run-1 as running with review running and done pending, and hands back cursor-2, when no status is asked", async () => {
+    const floorReader = new FloorRunReader(
+      recordedFloor(floorWithRunPage).floor,
+    );
+
+    expect(await floorReader.page({})).toMatchObject({
+      runs: [
+        {
+          run: { id: "run-1", status: "running" },
+          pipeline: [
+            { node_id: "review", state: "running" },
+            { node_id: "done", state: "pending" },
+          ],
+        },
+      ],
+      nextCursor: "cursor-2",
+    });
+  });
+
+  it("reads past a floor page with no failed run and returns run-3 from page-2 with a null cursor for status failed", async () => {
+    const recorded = recordedFloor(floorWithFailedRunOnSecondPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    expect({
+      page: await floorReader.page({ status: "failed" }),
+      asked: recorded.requests
+        .map((request) => request.path)
+        .filter((path) => path.startsWith("/assembly-runs?")),
+    }).toMatchObject({
+      page: {
+        runs: [{ run: { id: "run-3", status: "failed" } }],
+        nextCursor: null,
+      },
+      asked: [
+        "/assembly-runs?open=false&limit=25",
+        "/assembly-runs?open=false&limit=25&cursor=page-2",
+      ],
+    });
+  });
+
+  it("asks the floor for github.com/re-cinq/lore without since for repo Re-Cinq/Lore, and adds open=true for status running", async () => {
+    const recorded = recordedFloor(floorWithRunPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    await floorReader.page({ repo: "Re-Cinq/Lore" });
+    const plainRequests = recorded.requests.length;
+
+    await floorReader.page({ repo: "Re-Cinq/Lore", status: "running" });
+
+    expect(
+      [0, plainRequests].map((first) => recorded.requests[first].path),
+    ).toEqual([
+      "/assembly-runs?repo=github.com%2Fre-cinq%2Flore&limit=25",
+      "/assembly-runs?repo=github.com%2Fre-cinq%2Flore&open=true&limit=25",
     ]);
   });
 });

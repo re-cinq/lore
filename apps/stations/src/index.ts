@@ -4,7 +4,6 @@ import {
   onTerminationSignals,
   runEntrypoint,
 } from "@re-cinq/lore-shared/lib/process-entry.js";
-import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { startServer } from "./transport/server.js";
@@ -32,14 +31,22 @@ import { startDigestStations } from "./digest/index.js";
 import { startOnboardStations } from "./onboard/index.js";
 import { startSpecUpkeepStations } from "./spec-upkeep/index.js";
 import { startImplementationLoopStations } from "./implementation-loop/index.js";
+import { startIssueTriageStations } from "./issue-triage/index.js";
+import {
+  metricsPortFromEnv,
+  startPrometheusMetrics,
+} from "@re-cinq/lore-shared/otel/prometheus-metrics.js";
+import { observeBusQueueDepth } from "@re-cinq/lore-shared/otel/metrics.js";
+import { STATIONS_SUBSCRIBER } from "./events/subscriptions.js";
 
 const PORT = requiredPort(process.env, "PORT");
 
 // How long shutdown waits for the event queue to drain — long enough for a backlog, short enough not to hold a rollout past its grace period.
 async function main(): Promise<void> {
+  const metrics = startServiceMetrics();
+
   initPool();
-  // Module state read by approval-check; the Floor loads the same config for its worker's gate.
-  await loadApprovalConfig(getPool());
+  observeBusQueueDepth(() => deliveries().pendingCount(STATIONS_SUBSCRIBER));
   // Service-run stations may call a model (the retrospective's Haiku curation); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
   Llm.configure({ usage: usage() });
 
@@ -58,9 +65,18 @@ async function main(): Promise<void> {
   const shutdown = shutdownHandler(drain, async () => {
     await Promise.all(floorStations.map((station) => station.stop()));
     await stopServer();
+    await metrics.stop();
   });
 
   onTerminationSignals(shutdown);
+}
+
+// First thing in the process: an instrument touched before the provider exists is a no-op for good (ADR-050).
+function startServiceMetrics() {
+  return startPrometheusMetrics({
+    serviceName: "lore-stations",
+    port: metricsPortFromEnv(process.env),
+  });
 }
 
 /** The `cron.<name>.tick` events every scheduled sweep and line start hangs off. This service is their one emitter (specs/external-floor FR16); it runs a single replica, and the scheduler reads each job's last run from `pipeline.job_runs`, so an emitter still running elsewhere during a rollout takes turns with it. */
@@ -85,6 +101,7 @@ function startFloorStations() {
         ...startOnboardStations(),
         ...startSpecUpkeepStations(),
         ...startImplementationLoopStations(),
+        ...startIssueTriageStations(),
       ]
     : [];
 }

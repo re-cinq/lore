@@ -23,7 +23,7 @@ Start a task with lore_assemble_context (one ordered bundle), then lore_search_m
 
 export type ServerMode = "full" | "agent";
 
-// Builds the McpServer; in `agent` mode the pipeline tools (lore_create_pipeline_task, the recursion vector), local-runner tools, local spec-trace runners, and lore_update are NOT registered.
+// Builds the McpServer; in `agent` mode the pipeline tools, local-runner tools, local spec-trace runners, and lore_update are NOT registered.
 export function buildMcpServer(
   opts: { serverMode?: ServerMode } = {},
 ): McpServer {
@@ -57,7 +57,7 @@ function registerSharedTools(server: McpServer): void {
   registerCiTools(server);
 }
 
-// Registered only outside `agent` mode: lore_create_pipeline_task is the recursion vector, and the rest need a developer's own machine.
+// Registered only outside `agent` mode: they need a developer's own machine.
 function registerLaptopOnlyTools(server: McpServer): void {
   registerPipelineTools(server);
   registerLocalRunnerTools(server);

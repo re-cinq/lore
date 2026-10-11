@@ -1,34 +1,63 @@
 import HelpPopover from "@/components/HelpPopover";
+import AssemblyRunsLive from "@/app/assembly-runs/AssemblyRunsLive";
 import AssemblyRunsTable from "@/app/assembly-runs/AssemblyRunsTable";
+import type { FloorRunsPage } from "@/lib/api/floor-runs";
 import { type AssemblyRun } from "@/lib/assembly-runs";
 import styles from "./RepoTasksView.module.css";
 
 export interface RepoTasksViewProps {
-  runs: AssemblyRun[];
+  /** `owner/name` */
+  repo: string;
+  activeStatus?: string;
+  cursor?: string;
+  initial: FloorRunsPage;
+  /** Runs of the engine Lore ran itself; they no longer change. */
+  earlierRuns: AssemblyRun[];
 }
 
-/** Per-repo assembly-runs tab: pure render of runs via shared <AssemblyRunsTable>. */
-export default function RepoTasksView({ runs }: RepoTasksViewProps) {
+/** Per-repo assembly-runs tab: the floor's live runs, then the old engine's runs that no longer change. */
+export default function RepoTasksView({
+  repo,
+  earlierRuns,
+  ...live
+}: RepoTasksViewProps) {
   return (
     <div>
-      <TasksHeader />
-      <p className={`meta ${styles.intro}`}>
-        Assembly lines targeting this repo. Track their status, stages, PRs, and
-        cost.
-      </p>
-      <AssemblyRunsTable runs={runs} />
+      <AssemblyRunsLive
+        repo={repo}
+        basePath={`/repos/${repo}/tasks`}
+        {...live}
+        heading={<TasksHeading />}
+      />
+      {earlierRuns.length > 0 && <EarlierRuns runs={earlierRuns} />}
     </div>
   );
 }
 
-function TasksHeader() {
+function TasksHeading() {
   return (
-    <div className={styles.header}>
+    <div>
       <div className={styles.heading}>
         <h2 className={styles.title}>Assembly Runs</h2>
         <AssemblyLineHelp />
       </div>
+      <p className={`meta ${styles.intro}`}>
+        Assembly lines targeting this repo. Track their status, stages, PRs, and
+        cost.
+      </p>
     </div>
+  );
+}
+
+function EarlierRuns({ runs }: { runs: AssemblyRun[] }) {
+  return (
+    <section className={styles.earlier}>
+      <h3>Earlier runs</h3>
+      <p className="meta">
+        Runs of the engine Lore ran itself. They no longer change.
+      </p>
+      <AssemblyRunsTable runs={runs} />
+    </section>
   );
 }
 

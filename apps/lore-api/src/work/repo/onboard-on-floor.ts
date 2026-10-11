@@ -1,5 +1,7 @@
 // Hands a new onboarding to the external floor (ADR-049): the task's branch is made, and the onboard line is started on it with the ticket. The task row was created already running, so the old Floor's worker never claims it; a start that fails therefore has to fail the task itself, or the repo would look mid-onboarding forever.
 
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import {
   floorClient,
@@ -46,15 +48,19 @@ export async function startOnboardingOnFloor(
   }
 }
 
-/** Hands a committed onboarding to the external floor; null on a deployment with no floor, where the old Floor's worker claims the pending task. */
-export type FloorStart =
-  ((onboarding: FloorOnboarding) => Promise<void>) | null;
+/** Hands a committed onboarding to the external floor. */
+export type FloorStart = (onboarding: FloorOnboarding) => Promise<void>;
 
+/** The deployment's own floor start. Refused with 503 on a deployment with no floor: nothing else runs an onboarding, so a task created there would wait for ever. */
 export function floorStartFor(pool: Pool): FloorStart {
-  return floorConfigured()
-    ? (onboarding) =>
-        startOnboardingOnFloor(onboardOnFloorDeps(pool), onboarding)
-    : null;
+  enforceTrue(
+    floorConfigured(),
+    apiError(503),
+    "onboarding needs the external floor, and this deployment has none",
+  );
+
+  return (onboarding) =>
+    startOnboardingOnFloor(onboardOnFloorDeps(pool), onboarding);
 }
 
 function onboardOnFloorDeps(pool: Pool): OnboardOnFloorDeps {
@@ -76,7 +82,7 @@ function onboardOnFloorDeps(pool: Pool): OnboardOnFloorDeps {
   };
 }
 
-/** Inside the transaction that creates the task, so there is no moment at which the old Floor's worker could claim it as pending. */
+/** Inside the transaction that creates the task, so the task is never seen as pending. */
 export async function markRunningOnFloor(
   client: PgPool,
   taskId: string,

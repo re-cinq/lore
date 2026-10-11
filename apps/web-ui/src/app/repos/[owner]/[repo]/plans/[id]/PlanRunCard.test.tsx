@@ -8,6 +8,8 @@ const RUN: PlanRun = {
   status: "running",
   outcome: null,
   reason: null,
+  issueUrl: null,
+  issueNumber: null,
   prUrl: null,
   prNumber: null,
   prTitle: null,

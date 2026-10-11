@@ -1,7 +1,8 @@
-import { isFloorEngine } from "@/lib/assembly-run-rows";
+import { nodeTypeOf } from "@/lib/human-station";
 import type { RunLiveState } from "@/lib/run-event-reducer";
+import type { AttemptInspectorProps } from "./AttemptInspector";
+import type { InspectorFocus } from "./use-inspector-focus";
 import type { RunVisualizationPanelProps } from "./RunVisualizationPanel";
-import { runStateOf } from "./RunStationButton";
 import type { useRunGraph, useSelectedNode } from "./run-visualization-hooks";
 import { transcriptFeed } from "./run-visualization-selectors";
 
@@ -30,9 +31,41 @@ interface InspectorView {
 export function inspectorProps(view: InspectorView, page: RunDetailPage) {
   return {
     ...pageFacts(page),
-    ...viewFacts(view, page.engine),
+    ...viewFacts(view),
     ...transcriptFeed(view.state, page.taskEvents),
   };
+}
+
+/** The center column's values: the inspector bundle narrowed to one node's attempts, plus which of them is in focus. */
+export function attemptInspectorProps(
+  inspector: ReturnType<typeof inspectorProps>,
+  focus: InspectorFocus,
+): AttemptInspectorProps {
+  return {
+    runId: inspector.runId,
+    nodeId: inspector.selectedNodeId,
+    nodeType: selectedNodeType(inspector),
+    engine: inspector.engine,
+    attempts: inspector.selectedAttempts,
+    inputs: inspector.nodeInputs,
+    taskEvents: inspector.taskEvents,
+    liveEventId: inspector.liveEventId,
+    attempt: focus.attempt,
+    kind: focus.kind,
+    onKindChange: focus.setKind,
+    onPickAttempt: focus.pickAttempt,
+  };
+}
+
+/** The selected node's declared type, which decides what its attempts can show (run-viz FR4.1i). */
+function selectedNodeType(
+  inspector: ReturnType<typeof inspectorProps>,
+): string | undefined {
+  const { selectedNodeId, definition } = inspector;
+
+  return selectedNodeId === null
+    ? undefined
+    : nodeTypeOf(definition, selectedNodeId);
 }
 
 function pageFacts(page: RunDetailPage) {
@@ -42,14 +75,12 @@ function pageFacts(page: RunDetailPage) {
     reason: page.reason,
     definition: page.definition,
     engine: page.engine,
-    runState: runStateOf(page.runStatus),
     agentEditHrefs: page.agentEditHrefs,
     nodeModels: page.nodeModels,
   };
 }
 
-function viewFacts(view: InspectorView, engine: string | undefined) {
-  const onFloor = isFloorEngine(engine);
+function viewFacts(view: InspectorView) {
   const { nodes } = view.graph.visibleGraph;
 
   return {
@@ -58,8 +89,6 @@ function viewFacts(view: InspectorView, engine: string | undefined) {
     selectedRows: view.node.selectedRows,
     selectedAttempts: view.node.selectedAttempts,
     nodeInputs: view.node.nodeInputs,
-    retrySource: onFloor ? null : view.graph.retrySource,
-    runActions: !onFloor,
     selectedState: view.node.selected,
     visibleNodeCount: nodes.length,
   };

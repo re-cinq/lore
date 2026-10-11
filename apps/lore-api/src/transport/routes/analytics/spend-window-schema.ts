@@ -45,16 +45,6 @@ const UnitCostsSchema = z.object({
   ),
 });
 
-const LiveSchema = z.object({
-  name: z.string(),
-  phase: z.string(),
-  started_at: z.string().nullable(),
-  requests: z.record(z.string(), z.string()),
-  usd_per_hour: z.number(),
-  usd_so_far: z.number(),
-  station_run_id: z.string().nullable(),
-});
-
 export const SpendWindowSchema = z.object({
   interval: z.object({ from: z.string(), to: z.string() }),
   llm: z.object({
@@ -167,8 +157,6 @@ export const SpendWindowSchema = z.object({
       }),
     ),
     est_total_usd: z.number(),
-    live_pods: z.array(LiveSchema),
-    live_usd_per_hour: z.number(),
   }),
   // What a unit of work costs (#2116): per ticket, per PR review, per node visit.
   unit_costs: UnitCostsSchema,

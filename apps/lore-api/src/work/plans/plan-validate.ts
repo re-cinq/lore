@@ -3,39 +3,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
-import {
-  runStation,
-  type RunStationDeps,
-} from "../assembly-runs/run-station.js";
-
-export interface PlanValidateDeps {
-  station: RunStationDeps;
-}
 
 export interface PlanValidateInput {
   plan: { id: string; status: string };
   /** The plan's line, as `planLineState` read it. */
   line: PlanLine | null;
   actor: string;
-}
-
-/** The validate node in the planning line. */
-const VALIDATE_NODE = "validate";
-
-/** `{run_id}` once the validate station is asked for. 409 for a plan already approved, a line not started yet, or a line whose author has not parked yet. */
-export async function startPlanValidation(
-  deps: PlanValidateDeps,
-  { plan, line, actor }: PlanValidateInput,
-): Promise<{ run_id: string }> {
-  assertValidatable(plan, line);
-
-  const runId = await runStation(deps.station, {
-    runId: line.lineId,
-    nodeId: VALIDATE_NODE,
-    actor,
-  });
-
-  return { run_id: runId };
 }
 
 /** The refusals a validation asks before it starts, whichever engine read the line. */

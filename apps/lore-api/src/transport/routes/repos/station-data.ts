@@ -24,7 +24,6 @@ import {
   createPullRoute,
 } from "./station-write-routes.js";
 import { addSubIssueRoute, updateIssueRoute } from "./station-issue-links.js";
-import { reconcileSpecTasksRoute } from "./station-spec-task-routes.js";
 import { repoOf, fail } from "./station-helpers.js";
 
 export {
@@ -58,7 +57,6 @@ export function stationDataRoutes(): ServerRoute[] {
     driftTasksRoute(),
     openLikeTasksRoute(),
     createRepoTaskRoute(),
-    reconcileSpecTasksRoute(),
   ];
 }
 

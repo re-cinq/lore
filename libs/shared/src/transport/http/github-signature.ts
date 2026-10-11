@@ -1,4 +1,4 @@
-// GitHub's webhook HMAC, verified in constant time — shared by the router's `POST /api/events` and the Floor's `POST /api/webhook/github` during the event-router transition (ADR-044) so the two never disagree on a signature.
+// GitHub's webhook HMAC, verified in constant time — the one check behind `POST /api/webhook/github`, so the public `/api/events` URL (rewritten onto it by the ingress) and the route never disagree on a signature.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 

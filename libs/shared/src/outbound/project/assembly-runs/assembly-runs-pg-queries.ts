@@ -149,14 +149,13 @@ async function selectList(
     orNull(query.createdAfter),
     query.limit ?? 50,
     orNull(query.subjectKey),
-    orNull(query.clusterAgentId),
     orNull(query.branch),
   ]);
 
   return rows;
 }
 
-/** Every filter as an `IS NULL OR` pair, so one statement serves every combination rather than building SQL per query. The cluster-agent filter is an EXISTS over open claims: a run "belongs to" an agent while that agent holds a visit of it, which is a fact about the visits, not the run. `id` breaks the ORDER BY tie — two runs started in the same millisecond would otherwise come back in an order Postgres may vary between calls, which reads as rows jumping around a paged list. */
+/** Every filter as an `IS NULL OR` pair, so one statement serves every combination rather than building SQL per query. `id` breaks the ORDER BY tie — two runs started in the same millisecond would otherwise come back in an order Postgres may vary between calls, which reads as rows jumping around a paged list. */
 function listSql(columns: string): string {
   return `SELECT ${columns}
        FROM pipeline.assembly_runs
@@ -167,12 +166,7 @@ function listSql(columns: string): string {
         AND ($5::int    IS NULL OR (args->>'pr_number')::int = $5)
         AND ($6::timestamptz IS NULL OR created_at >= $6)
         AND ($8::text   IS NULL OR subject_key = $8)
-        AND ($10::text  IS NULL OR branch = $10)
-        AND ($9::uuid   IS NULL OR EXISTS (
-              SELECT 1 FROM pipeline.station_runs claims
-               WHERE claims.assembly_run_id = pipeline.assembly_runs.id
-                 AND claims.cluster_agent_id = $9
-                 AND claims.outcome IS NULL))
+        AND ($9::text   IS NULL OR branch = $9)
       ORDER BY created_at DESC, id DESC
       LIMIT $7`;
 }

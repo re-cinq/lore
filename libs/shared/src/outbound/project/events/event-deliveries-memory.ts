@@ -177,6 +177,14 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     return created;
   }
 
+  async pendingCount(subscriber: string): Promise<number> {
+    return this.deliveries.filter(
+      (d) =>
+        d.subscriber === subscriber &&
+        (d.status === "pending" || d.status === "failed"),
+    ).length;
+  }
+
   async reconcileDeliveries(withinMinutes: number): Promise<number> {
     const since = this.now() - withinMinutes * 60_000;
 

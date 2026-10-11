@@ -9,12 +9,9 @@ import { parse } from "yaml";
 // outside the Actions tab is the `deploy-failed` issue report-deploy-failure.sh
 // files, which needs the job to be allowed to write issues (#1650).
 const UMBRELLA_DEPLOY_WORKFLOWS = [
-  ".github/workflows/build-floor.yml",
   ".github/workflows/build-mcp-server.yml",
   ".github/workflows/build-lore-api.yml",
-  ".github/workflows/build-event-router.yml",
   ".github/workflows/build-stations.yml",
-  ".github/workflows/build-cluster-agent.yml",
   ".github/workflows/build-ui.yml",
 ];
 

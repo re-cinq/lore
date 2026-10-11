@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -25,7 +26,15 @@ func linksRepo(t *testing.T) string {
 // doc paths it was sent.
 func parseServer(t *testing.T, status int, links []docLink) *[]string {
 	t.Helper()
+	return parseServerAnswering(t, []int{status}, links)
+}
+
+// parseServerAnswering walks the given statuses one per request, repeating the
+// last one once they run out, so a test can let an attempt recover.
+func parseServerAnswering(t *testing.T, statuses []int, links []docLink) *[]string {
+	t.Helper()
 	sent := &[]string{}
+	attempt := &atomic.Int64{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/spec-links/parse" || r.Header.Get("Authorization") != "Bearer tok" {
 			t.Errorf("unexpected %s %s with %q", r.Method, r.URL.Path, r.Header.Get("Authorization"))
@@ -35,7 +44,8 @@ func parseServer(t *testing.T, status int, links []docLink) *[]string {
 		}
 		json.NewDecoder(r.Body).Decode(&body)
 		*sent = append(*sent, pathsOf(body.Docs)...)
-		w.WriteHeader(status)
+		nth := int(attempt.Add(1)) - 1
+		w.WriteHeader(statuses[min(nth, len(statuses)-1)])
 		json.NewEncoder(w).Encode(map[string]any{"links": links})
 	}))
 	t.Cleanup(srv.Close)
@@ -139,6 +149,35 @@ func TestRunLinksWarnsAndPassesWithoutAToken(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "::warning::") || !strings.Contains(out.String(), "LORE_INGEST_TOKEN") {
 		t.Errorf("output = %q, want a warning naming LORE_INGEST_TOKEN", out.String())
+	}
+}
+
+func TestRunLinksWarnsAndPassesWhenTheTokenKeepsBeingRefusedForScope(t *testing.T) {
+	noRetrySleep(t)
+	dir := linksRepo(t)
+	parseServerAnswering(t, []int{http.StatusForbidden}, nil)
+
+	var out bytes.Buffer
+	if err := runLinks(dir, linksOptions{all: true}, &out); err != nil {
+		t.Fatalf("runLinks: %v, want a standing 403 to warn rather than fail the check", err)
+	}
+	if !strings.HasPrefix(out.String(), "::warning::") || !strings.Contains(out.String(), "403") {
+		t.Errorf("output = %q, want a warning naming the 403", out.String())
+	}
+}
+
+func TestRunLinksChecksTheLinksWhenA403GivesWayToAnAnswer(t *testing.T) {
+	noRetrySleep(t)
+	dir := linksRepo(t)
+	parseServerAnswering(t, []int{http.StatusForbidden, http.StatusOK}, []docLink{
+		{DocPath: "specs/a/spec.md", StatementLine: intPtr(1), Path: "apps/x/a.test.ts", Line: intPtr(9)},
+	})
+
+	var out bytes.Buffer
+	err := runLinks(dir, linksOptions{all: true}, &out)
+
+	if err == nil || !strings.Contains(err.Error(), "1 broken spec link") {
+		t.Fatalf("err = %v, output = %q, want the retry to reach the real answer", err, out.String())
 	}
 }
 

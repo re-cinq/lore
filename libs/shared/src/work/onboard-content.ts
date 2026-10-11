@@ -208,31 +208,6 @@ export function onboardUpdateTicketBody(repo: string): string {
   ].join("\n");
 }
 
-export function onboardTicketTitle(repo: string): string {
-  return `Onboard ${repo} into Lore`;
-}
-
-export function onboardUpdateTicketTitle(repo: string): string {
-  return `Update ${repo}'s Lore setup`;
-}
-
-export function onboardPrBody(repo: string): string {
-  return [
-    `Lore setup for ${repo}. This pull request adds each of these files the repository did not have yet, and refreshes Lore's own files where they had drifted.`,
-    "",
-    "Committed by Lore, verbatim:",
-    ...ONBOARD_DETERMINISTIC_PATHS.map((path) => `- \`${path}\``),
-    "",
-    "Authored for this repository by the onboarding agent:",
-    ...ONBOARD_FILES.map((file) => `- \`${file.path}\` — ${file.description}`),
-    "- `adrs/` — starter architecture decision records",
-    "- `.lore/test-commands.yml` — how Lore lists and runs this repository's tests",
-    "- `.github/workflows/lore-tests.yml` — runs the tests in CI and reports them to Lore",
-    "",
-    "Review each file and adjust it to the repository before merging; the merge starts ingesting this repository's context.",
-  ].join("\n");
-}
-
 function owedFileLines(): string[] {
   return [
     ...ONBOARD_FILES.map((file) => `- \`${file.path}\` — ${file.prompt}`),

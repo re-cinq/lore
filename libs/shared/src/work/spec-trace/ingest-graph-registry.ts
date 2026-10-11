@@ -42,7 +42,7 @@ export interface IngestGraphPorts {
   listTree(ref?: string): Promise<string[]>;
   readFile(path: string, ref?: string): Promise<string>;
   buildTestReport?: () => Promise<unknown>;
-  /** Batch statement embedder passed to each kind's project; omitted = the projector's default (Vertex via GCP ADC, absent in station pods). */
+  /** Batch statement embedder passed to each kind's project; omitted = the projector's default (the process's embedding provider, which has no credential in station pods). */
   embed?: EmbedFn;
 }
 

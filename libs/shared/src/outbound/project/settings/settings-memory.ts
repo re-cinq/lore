@@ -1,9 +1,4 @@
 import { randomUUID } from "node:crypto";
-import {
-  resolveDarkFactorySettings,
-  type DarkFactorySettings,
-  type ResolvedDarkFactorySettings,
-} from "../../../domain/dark-factory-settings.js";
 import type {
   SettingsPort,
   OnboardedRepo,
@@ -101,27 +96,6 @@ export class InMemorySettings implements SettingsPort {
     return this.repos.find((r) => r.full_name === repo);
   }
 
-  async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
-    return resolveDarkFactorySettings(this.darkFactory(repo));
-  }
-
-  async resolveOrNull(
-    repo: string,
-  ): Promise<ResolvedDarkFactorySettings | null> {
-    if (!this.row(repo)) {
-      return null;
-    }
-
-    return resolveDarkFactorySettings(this.darkFactory(repo));
-  }
-
-  private darkFactory(repo: string): DarkFactorySettings | undefined {
-    const settings = this.row(repo)?.settings as
-      { dark_factory?: DarkFactorySettings } | undefined;
-
-    return settings?.dark_factory;
-  }
-
   async setRepoVariable(
     repo: string,
     name: string,
@@ -138,8 +112,11 @@ export class InMemorySettings implements SettingsPort {
     this.secrets.push({ repo, name, value });
   }
 
+  // Case-insensitive, mirroring PgSettings.record: the lookup web-ui's repo layout uses to find the canonical casing of a wrong-case URL.
   async record(repo: string): Promise<RepoRecord | null> {
-    const row = this.row(repo);
+    const row = this.repos.find(
+      (r) => r.full_name.toLowerCase() === repo.toLowerCase(),
+    );
 
     if (!row) {
       return null;

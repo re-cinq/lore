@@ -14,8 +14,6 @@ vi.mock("../../../outbound/github-client.js", () => ({
 }));
 vi.mock("@re-cinq/lore-shared", () => ({
   redactSecrets: (s: string) => s,
-  parseTasks: vi.fn(),
-  inferPhaseDependencies: vi.fn(),
   parseTrailers: vi.fn(),
   parseSpecTitle: vi.fn(),
   extractSummary: vi.fn(),

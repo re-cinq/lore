@@ -9,7 +9,7 @@ const START_A_PLAN =
 const REVIEWED_ALREADY =
   "Every open pull request is reviewed already; comment `@lore review` on one to have it reviewed again.";
 
-/** Task types that ran one agent pass over a free-text description, each with where its work goes now. The implementation loop took what was implemented or written from a description (#2328, #2329), plans took feature requests (ADR-047), and the code-review line reviews every pull request. */
+/** Task types that are refused, each with where its work goes now. The implementation loop took what was implemented or written from a description (#2328, #2329), plans took feature requests (ADR-047), the code-review line reviews every pull request, and a plan's own tasks joined the backlog as tickets when the spec-task executor was removed (`specs/external-floor` FR15.0). */
 const WHERE_IT_WENT: Readonly<Record<string, string>> = {
   implementation: USE_THE_LOOP,
   general: USE_THE_LOOP,
@@ -18,6 +18,7 @@ const WHERE_IT_WENT: Readonly<Record<string, string>> = {
   "feature-request": START_A_PLAN,
   "feature-finalize": START_A_PLAN,
   review: REVIEWED_ALREADY,
+  "spec-task": USE_THE_LOOP,
 };
 
 export const RETIRED_TASK_TYPES: readonly string[] = Object.keys(WHERE_IT_WENT);
@@ -29,7 +30,7 @@ export function isRetiredTaskType(taskType: string): boolean {
   return RETIRED_TASK_TYPES.includes(taskType);
 }
 
-/** The type a task row is written with. There is no default, and a removed type is refused with where its work goes now: the rows that remain belong to the lines that keep one (onboarding, plans, the loop, spec-tasks). */
+/** The type a task row is written with. There is no default, and a removed type is refused with where its work goes now: the rows that remain belong to the lines that keep one (onboarding, plans, the loop). */
 export function namedTaskType(
   taskType: string | undefined,
   errorType: ErrorType = Error,

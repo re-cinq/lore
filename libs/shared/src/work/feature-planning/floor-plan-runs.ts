@@ -30,6 +30,8 @@ export interface FloorPlanLine extends Omit<
 > {
   parkedAuthor: ParkedVisit | null;
   parkedMerged: ParkedVisit | null;
+  /** The number of the user story the run was started for, as its `story_issue` start item; null when it names none. */
+  storyIssue: number | null;
 }
 
 export interface PlanKey {
@@ -109,6 +111,7 @@ export function planLineOf(run: RunView, visits: VisitView[]): FloorPlanLine {
     parkedAuthor: open ? parkedVisit(visits, AUTHOR_NODE) : null,
     parkedMerged: open ? parkedVisit(visits, MERGED_NODE) : null,
     merged: visits.some(mergedSucceeded),
+    storyIssue: storyIssueOf(run),
   };
 }
 
@@ -147,6 +150,12 @@ function specPrUrlOf(visits: VisitView[]): string | null {
 
 function prNumberOf(prUrl: string | null): number | null {
   const digits = prUrl ? PULL_NUMBER.exec(prUrl)?.[1] : undefined;
+
+  return digits ? Number(digits) : null;
+}
+
+function storyIssueOf(run: RunView): number | null {
+  const digits = startValue(run, "story_issue");
 
   return digits ? Number(digits) : null;
 }

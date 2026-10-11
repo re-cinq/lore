@@ -57,7 +57,6 @@ async function saveSettings(
   const fullName = formData.get("full_name") as string;
   const team = formData.get("team") as string;
 
-  // General → direct DB; dark-factory (privileged) on Dark Factory tab; agents on Agents tab.
   const updates = parseSettingsForm(formData);
   const selectedRepos = updates.cross_repo_repos as string[];
 
@@ -68,7 +67,7 @@ async function saveSettings(
 
   revalidatePath(`/repos/${fullName}/settings`);
 
-  return { saved: true, privileged: null };
+  return { saved: true };
 }
 
 // Bidirectional cross-repo linkage: add this repo to the linked repo's own list.

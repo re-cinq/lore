@@ -130,7 +130,7 @@ function ciTarget(args: {
 function registerGetCiJobLogTool(server: McpServer) {
   server.tool(
     "lore_get_ci_job_log",
-    "The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep. Use it when a failure from lore_get_ci_failures needs more than its annotations and tail — never to re-run the job locally. Instead: lore_get_ci_failures to find the job_id.",
+    "The tail of one GitHub Actions job's log, timestamps stripped. With grep, only the lines containing it are kept and the tail is taken from those. Use it when a failure from lore_get_ci_failures needs more than its annotations and tail — never to re-run the job locally. Instead: lore_get_ci_failures to find the job_id.",
     CI_JOB_LOG_INPUT,
     ciJobLogHandler,
   );

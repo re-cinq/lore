@@ -1,4 +1,4 @@
-// Hand mirror of libs/assembly-lines/src/node-outcome.ts's parseNodeResult (web-ui can't import libs/): the LAST line-start `LORE_NODE_RESULT:` marker decides, a bare outcome word is legacy but live, extras keep string values only. The transcript lifts that line out of the prose so the node's verdict reads as a card, not a buried JSON string.
+// The node result line a stored run's station printed: the LAST line-start `LORE_NODE_RESULT:` marker decides, a bare outcome word is legacy but live, extras keep string values only. The transcript lifts that line out of the prose so the node's verdict reads as a card, not a buried JSON string.
 import { isRecord } from "./agent-log-format";
 
 const MARKER = /^LORE_NODE_RESULT:[ \t]*(.*)$/gm;

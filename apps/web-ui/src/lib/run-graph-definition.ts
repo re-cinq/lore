@@ -44,6 +44,7 @@ function fromRunGraph(graph: RunGraph): AssemblyLineDefinition {
     version: 1,
     entry: graph.entry,
     exit: graph.exit,
+    fail: graph.fail,
     nodes: graph.nodes.map((node) => ({
       ...node,
       // Safe: node.type from snapshotGraph (loader's node-type union); drift guard keeps unions aligned.

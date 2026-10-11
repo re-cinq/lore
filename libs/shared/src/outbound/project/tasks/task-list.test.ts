@@ -42,11 +42,6 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
       priority: "normal",
       created_at: "2026-01-01T00:00:00Z",
     }),
-    reconcileSpecTasks: async (_repo, input) => ({
-      created: input.tasks.length,
-      updated: 0,
-      cancelled: 0,
-    }),
     retry: async (id) => ({ task_id: "new", status: "pending", retry_of: id }),
     list: async () => ({ tasks: rows, total: rows.length }),
     getById: async (id) => rows.find((r) => r.id === id) ?? null,

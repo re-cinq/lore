@@ -1,23 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { Settings } from "./settings.js";
 import { InMemorySettings } from "./settings-memory.js";
-import { resolveDarkFactorySettings } from "../../../domain/dark-factory-settings.js";
 
 describe("Settings", () => {
-  it("resolves the repo's settings via the real resolver", async () => {
-    const port = new InMemorySettings([
-      {
-        full_name: "re-cinq/lore",
-        settings: { dark_factory: { enabled: true } },
-      },
-    ]);
-    const facade = new Settings("re-cinq/lore", port);
-
-    expect(await facade.resolve()).toEqual(
-      resolveDarkFactorySettings({ enabled: true }),
-    );
-  });
-
   it("binds the repo when setting a GitHub variable", async () => {
     const port = new InMemorySettings();
     const facade = new Settings("re-cinq/lore", port);
