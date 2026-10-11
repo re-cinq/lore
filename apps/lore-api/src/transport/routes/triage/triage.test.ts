@@ -34,7 +34,7 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
     vi.clearAllMocks();
   });
 
-  it("returns issues with triage:* labels joined with their active floor runs. ([validated by FR30])", async () => {
+  it("returns issue 42 with its triage label and a link to its open issue-triage run", async () => {
     const pool = makePool();
 
     vi.mocked(projectFor).mockResolvedValue({
@@ -59,7 +59,9 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
               id: "run-42",
               status: "running",
               pipeline: "issue-triage",
-              args: { issue_number: 42 },
+              startItems: {
+                issue_number: { kind: "value", ref: "42", by: "lore" },
+              },
             },
           ],
         }),
@@ -74,11 +76,11 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload)).toEqual([
-      expect.objectContaining({
+      {
         title: "A triage issue",
         triage_label: "triage: needs-triage",
-        active_run_link: expect.any(String),
-      }),
+        active_run_link: "/assembly-runs/run-42",
+      },
     ]);
   });
 });

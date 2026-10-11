@@ -6,7 +6,9 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
+import type { RunView } from "@re-cinq/floor-client";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -43,7 +45,6 @@ export function triageRoute(): ServerRoute {
   };
 }
 
-type FloorRun = { id: string; args?: { issue_number?: number } };
 type IssueLike = { title: string; number: number; labels?: string[] };
 
 async function serveTriage(
@@ -57,7 +58,9 @@ async function serveTriage(
 
   try {
     const project = await projectFor(fullName);
-    const issues = (await project.issues.list()) as IssueLike[];
+    const issues = (await project.issues.list({
+      state: "open",
+    })) as IssueLike[];
     const runs = await fetchRuns(fullName);
 
     return h.response(buildWireIssues(issues, runs));
@@ -66,30 +69,37 @@ async function serveTriage(
   }
 }
 
-async function fetchRuns(repo: string): Promise<FloorRun[]> {
+/** The open issue-triage runs of the repo; a floor that cannot answer leaves every row without a link rather than failing the list. */
+async function fetchRuns(repo: string): Promise<RunView[]> {
   try {
-    const res = await floorClient().runs.list({ repo });
+    const res = await floorClient().runs.list({
+      repo,
+      line: "issue-triage",
+      open: true,
+    });
 
-    return res.items as FloorRun[];
+    return res.items;
   } catch {
     return [];
   }
 }
 
-function buildWireIssues(issues: IssueLike[], runs: FloorRun[]) {
+function buildWireIssues(issues: IssueLike[], runs: RunView[]) {
   const triageIssues = issues.filter((i) =>
     i.labels?.some((l) => l.startsWith("triage:")),
   );
 
   return triageIssues.map((issue) => {
     const triageLabel = issue.labels?.find((l) => l.startsWith("triage:"));
-    const activeRun = runs.find((r) => r.args?.issue_number === issue.number);
+    const activeRun = runs.find(
+      (run) => startValue(run, "issue_number") === String(issue.number),
+    );
 
     return {
       title: issue.title,
       triage_label: triageLabel,
       ...(activeRun
-        ? { active_run_link: `/api/floor-runs/${activeRun.id}` }
+        ? { active_run_link: `/assembly-runs/${activeRun.id}` }
         : {}),
     };
   });
