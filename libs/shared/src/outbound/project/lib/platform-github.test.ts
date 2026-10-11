@@ -34,6 +34,7 @@ const state: {
   blockersCall?: Record<string, unknown>;
   requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
   issueUpdateCall?: Record<string, unknown>;
+  issueCommentUpdateCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -173,6 +174,11 @@ vi.mock("octokit", () => ({
         get: async () => ({ data: state.issueData }),
         update: async (params: Record<string, unknown>) => {
           state.issueUpdateCall = params;
+
+          return { data: {} };
+        },
+        updateComment: async (params: Record<string, unknown>) => {
+          state.issueCommentUpdateCall = params;
 
           return { data: {} };
         },
@@ -1081,5 +1087,31 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     await expect(
       gh().jobLog("re-cinq/lore", 102476456760),
     ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("PlatformGitHub auto-merge and comments", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.graphqlCalls = [];
+    state.issueCommentUpdateCall = undefined;
+  });
+  afterEach(() => vi.clearAllMocks());
+
+  it("enablePullRequestAutoMerge sends the mutation with the pull request node id and merge method", async () => {
+    await (gh() as any).enablePullRequestAutoMerge("PR_123", "SQUASH");
+
+    expect(state.graphqlCalls).toHaveLength(1);
+    expect(state.graphqlCalls[0]?.query).toContain("enablePullRequestAutoMerge");
+    expect(state.graphqlCalls[0]?.vars).toEqual({ pullRequestId: "PR_123", mergeMethod: "SQUASH" });
+  });
+
+  it("disablePullRequestAutoMerge sends the mutation with the pull request node id", async () => {
+    await (gh() as any).disablePullRequestAutoMerge("PR_456");
+
+    expect(state.graphqlCalls).toHaveLength(1);
+    expect(state.graphqlCalls[0]?.query).toContain("disablePullRequestAutoMerge");
+    expect(state.graphqlCalls[0]?.vars).toEqual({ pullRequestId: "PR_456" });
   });
 });
