@@ -73,6 +73,9 @@ produced.
   and rewrite the statement from what the code says now. Never keep a
   name the code does not have, unless the statement says this feature
   adds it.
+- Every finding names the spec it is in. Put that path in the `file` of
+  the op that fixes it: an op with no `file` lands in the line's first
+  spec, where the text you amend does not stand, and your fix is lost.
 - Under "Compound requirements": one requirement carries more than one
   MUST. Split it into one requirement per MUST, numbering the new ones
   after the spec's last, and keep each trailing link group with the half
@@ -85,7 +88,12 @@ produced.
 
 Write `{section_patch_path}` as JSON and nothing else:
 
-`{"section":"<your slot>","status":"integrated"|"nothing_relevant"|"failed","technical_additions":[{"claim":"<the fact you added>","source":"<path#Lnn or ADR>"}],"ops":[{"op":"append","heading":"<an existing heading line, e.g. ## Requirements>","text":"<markdown bullets to add at the end of that heading's body>"},{"op":"amend","find":"<an exact substring of ONE existing statement>","replace":"<its new text>"}]}`
+`{"section":"<your slot>","status":"integrated"|"nothing_relevant"|"failed","technical_additions":[{"claim":"<the fact you added>","source":"<path#Lnn or ADR>"}],"ops":[{"op":"append","file":"<the spec's path>","heading":"<an existing heading line, e.g. ## Requirements>","text":"<markdown bullets to add at the end of that heading's body>"},{"op":"amend","file":"<the spec's path>","find":"<an exact substring of ONE existing statement>","replace":"<its new text>"}]}`
+
+- `file` is the spec the op writes: the path the finding or your
+  section names, as it stands in the clone (`specs/<name>/spec.md`).
+  An op with no `file` goes to the line's first spec, so leave it out
+  only when that is the one you mean.
 
 - `integrated` when you changed the spec for this section,
   `nothing_relevant` when nothing in it belonged in the spec (then `ops`

@@ -497,6 +497,10 @@ describe("the feature-planning recipe", () => {
       ownSection: prompt.includes("tagged with your section"),
       operations:
         prompt.includes('"op":"append"') && prompt.includes('"op":"amend"'),
+      opNamesItsFile: prompt.includes('"file":"<the spec\'s path>"'),
+      repairNamesTheFindingsSpec: prompt.includes(
+        "Put that path in the `file` of the op that fixes it",
+      ),
       oldRetryRule: prompt.includes(
         'end it with `LORE_NODE_RESULT: {"outcome":"changes_requested"}`',
       ),
@@ -509,6 +513,8 @@ describe("the feature-planning recipe", () => {
       noFiller: true,
       ownSection: true,
       operations: true,
+      opNamesItsFile: true,
+      repairNamesTheFindingsSpec: true,
       oldRetryRule: false,
     });
   });
