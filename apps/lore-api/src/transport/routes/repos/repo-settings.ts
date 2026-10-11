@@ -54,22 +54,28 @@ async function serveRepoSettings(
   const existingTeam = await loadRepoTeam(pool, repo);
 
   const gate = await enforceApproverGate(request, repo, body);
-  if (!gate.ok) {
-    return h.response(gate.body).code(gate.code);
-  }
+  if (!gate.ok) return h.response(gate.body).code(gate.code);
 
   enforceNoDarkFactory(body);
   enforceDigestValid(
     (body.settings as { digest?: unknown } | undefined)?.digest,
   );
   await applyRepoUpdates(pool, repo, body);
-
-  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
-  if (body.team !== undefined && (body.team || null) !== existingTeam) {
-    await notifyTeamChanged(pool, repo);
-  }
+  await handleTeamChange(pool, repo, body.team, existingTeam);
 
   return h.response({ ok: true });
+}
+
+async function handleTeamChange(
+  pool: Pool,
+  repo: string,
+  bodyTeam: string | null | undefined,
+  existingTeam: string | null,
+): Promise<void> {
+  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
+  if (bodyTeam !== undefined && (bodyTeam || null) !== existingTeam) {
+    await notifyTeamChanged(pool, repo);
+  }
 }
 
 async function enforceApproverGate(
@@ -77,13 +83,8 @@ async function enforceApproverGate(
   repo: string,
   body: RepoSettingsBody,
 ): Promise<{ ok: false; code: number; body: unknown } | { ok: true }> {
-  if (!body.settings?.auto_merge) {
-    return { ok: true };
-  }
-  const am = body.settings.auto_merge as { approver?: string };
-  if (am.approver !== "lore-reviewer") {
-    return { ok: true };
-  }
+  const am = body.settings?.auto_merge as { approver?: string } | undefined;
+  if (am?.approver !== "lore-reviewer") return { ok: true };
 
   const gate = await checkApproval(
     request,
@@ -91,10 +92,7 @@ async function enforceApproverGate(
     ["auto_merge.approver"],
     "Turning auto_merge.approver on is two-key",
   );
-  if (!gate.ok) {
-    return gate;
-  }
-  return { ok: true };
+  return gate.ok ? { ok: true } : gate;
 }
 
 function enforceNoDarkFactory(body: RepoSettingsBody): void {
