@@ -521,7 +521,7 @@ All other principles remain intact. Specifically preserved:
 - The audit_log infrastructure — already shipped.
 - The web-ui pipeline page and task detail view — already shipped; this feature adds rendering for stage timelines and the `Lore-Task:` resolver.
 - The OpenTelemetry instrumentation — already shipped; this feature adds new span types.
-- GitHub App permissions for auto-merge — resolved: Lore arms GitHub's native auto-merge (`enablePullRequestAutoMerge` GraphQL mutation), and lore-reviewer (a second GitHub App with `pull_requests:write`) submits the APPROVE. GitHub performs the merge. See [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md) and [ADR-050](../../adrs/ADR-050-protected-branch-approver.md).
+- GitHub App permissions for auto-merge — resolved: Lore arms GitHub's native auto-merge (`enablePullRequestAutoMerge` GraphQL mutation), and lore-reviewer (a second GitHub App with `pull_requests:write`) submits the APPROVE. GitHub performs the merge. See [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md) and [ADR-051](../../adrs/ADR-051-protected-branch-approver.md).
 
 ## Branch-guard exemptions and coordination-skip display (added 2026-07)
 

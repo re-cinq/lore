@@ -7,7 +7,7 @@ deciders: ["Platform Engineering"]
 domains: [code-review, merge, github, stations, lore-api]
 ---
 
-# ADR-050: Protected-branch approver — lore-reviewer as a second GitHub App
+# ADR-051: Protected-branch approver — lore-reviewer as a second GitHub App
 
 **Status**: Draft until the prototype demo on 2026-10-09, accepted then
 **Date**: 2026-10-07
@@ -19,7 +19,7 @@ domains: [code-review, merge, github, stations, lore-api]
 
 On 2026-10-02 PR #2431 deleted `apps/floor` and with it the dark-factory auto-merge evaluation, which never shipped to any repo. On the same day PR #2445 deleted the per-repo dark_factory settings, their route and their tab. Nothing in Lore merges a pull request today. A person reads every Lore-opened PR, approves it and clicks merge.
 
-PR 2224 (`escalate_paths`, `auto_merge.enabled`) targeted the deleted Floor code and is superseded. A draft ADR-049 in that PR covered related ground; however ADR-049 on main is already taken by the external-floor decision, so this record becomes ADR-050. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_d9110a41-a9b6-48d3-97ee-9ac0d2af7cec))
+PR 2224 (`escalate_paths`, `auto_merge.enabled`) targeted the deleted Floor code and is superseded. A draft ADR-049 in that PR covered related ground; however ADR-049 on main is already taken by the external-floor decision, and ADR-050 is the metrics stack, so this record becomes ADR-051. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_d9110a41-a9b6-48d3-97ee-9ac0d2af7cec))
 
 Four options were evaluated for who satisfies the branch rule's required-approval gate after Lore arms GitHub's native auto-merge. The criteria any option must satisfy: an approval GitHub counts for the branch rule; the author App cannot be the approver; sensitive PRs must always end with a human approval; the rule must be enforced by GitHub, not only by Lore. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#6b9e9b58-4fba-49d9-8e21-c610aa1de70f))
 

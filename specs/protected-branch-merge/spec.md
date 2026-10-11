@@ -24,7 +24,7 @@ This repo arms native auto-merge with a workflow: adding the `automerge` label r
 
 That rule does not require an approval today: agent-generated PR 2064 merged with no review recorded, because the review line skips PRs opened by Lore's App. PR 2065 shows the review loop correcting work (the review bot requested changes, the author fixed them, the bot approved, a person merged), but no approval GitHub enforced. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#21d0253f-e6b8-45ca-a6f4-5cb693760851))
 
-PR 2224 (`escalate_paths`, `auto_merge.enabled`) targets the deleted Floor code and is superseded: escalate paths become CODEOWNERS entries that GitHub enforces. Its draft ADR-049 clashes with ADR-049-external-floor on main, so this decision is recorded as ADR-050. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_d9110a41-a9b6-48d3-97ee-9ac0d2af7cec))
+PR 2224 (`escalate_paths`, `auto_merge.enabled`) targets the deleted Floor code and is superseded: escalate paths become CODEOWNERS entries that GitHub enforces. Its draft ADR-049 clashes with ADR-049-external-floor on main, and ADR-050 is the metrics stack, so this decision is recorded as ADR-051. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_d9110a41-a9b6-48d3-97ee-9ac0d2af7cec))
 
 The implementation loop (`floor-pipelines/implementation-loop.yaml`) waits for green CI and resolved review threads and never merges. The old escalation line was retired with the Floor, so nothing tells a person when a PR is stuck. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_a5c91be7-b8bf-4ef8-a44b-27e46e69c550))
 
@@ -144,7 +144,7 @@ The org-admin runbook covers App creation and install, the four-place secret pro
 
 **Q: Do we agree with the recommendation to start with Option C (arm native auto-merge) and then build Option A (Second-App approver), leaving Option D (merge queue) for later?** ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#q-approve-recommendation))
 
-Settled: Build Option A first, behind `auto_merge.approver = none | lore-reviewer`, with Option C as what a repo gets with `approver = none`, and leave Option D for later. See ADR-050.
+Settled: Build Option A first, behind `auto_merge.approver = none | lore-reviewer`, with Option C as what a repo gets with `approver = none`, and leave Option D for later. See ADR-051.
 
 **Q: How many consecutive api_failure retries (N) should we allow before escalating through the escalation line with an `auto_merge_blocked` reason?** ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#q-api-failure-retries))
 

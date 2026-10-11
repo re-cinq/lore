@@ -30,7 +30,7 @@ Build Option A first — lore-reviewer as the approver — behind `auto_merge.ap
 | Three-Command Interface                | Pass    | No new CLI surface                                                          |
 | Single Interface (Lore MCP)            | Pass    | Blocked-reason exposed via lore-api routes                                 |
 | Distributed Ownership with CI Gates   | Pass    | Four-place secret procedure; terraform apply before chart change            |
-| Architecture Decisions Are Final       | Pass    | ADR-050 records the approver option decision                               |
+| Architecture Decisions Are Final       | Pass    | ADR-051 records the approver option decision                               |
 | Schema-Per-Team Isolation              | Pass    | `pipeline.pr_blocked_reasons` in pipeline schema                           |
 | Intelligent Agents Over Mechanical Scripts | Pass | Station reads and decides; no cron polling                               |
 | Opt-In Data Collection                 | Pass    | `auto_merge.approver` is off by default; no repo enrolled without consent  |
@@ -172,7 +172,7 @@ apps/lore-api/src/transport/routes/
   auto-merge-kpis.ts       ← new GET route (step 1)
   blocked-reason.ts        ← new GET routes (step 2)
 adrs/
-  ADR-050-protected-branch-approver.md ← step 1
+  ADR-051-protected-branch-approver.md ← step 1
 infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/
   NNNN_pr_blocked_reasons.sql          ← step 2
 ```

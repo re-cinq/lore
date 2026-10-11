@@ -7,7 +7,7 @@
 | Plan    | [plan.md](./plan.md)                                             |
 | Created | 2026-10-07                                                        |
 
-Decision: Build Option A first, behind `auto_merge.approver = none | lore-reviewer`, with Option C as what a repo gets with `approver = none`, and leave Option D for later. The ruleset requires one approval, review from Code Owners, and the required CI checks. ADR-050 is accepted once the prototype has been shown on 2026-10-09. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#d9fc30d4-669a-4121-b582-4efda0ddda66))
+Decision: Build Option A first, behind `auto_merge.approver = none | lore-reviewer`, with Option C as what a repo gets with `approver = none`, and leave Option D for later. The ruleset requires one approval, review from Code Owners, and the required CI checks. ADR-051 is accepted once the prototype has been shown on 2026-10-09. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#d9fc30d4-669a-4121-b582-4efda0ddda66))
 
 Delivery order: (1) lore-reviewer: the second App, the review line running on Lore's own PRs, the branch-rule and mergeability reads, arming native auto-merge before the post-review station approves as lore-reviewer, and the `auto_merge.approver` setting, first demonstrated on 2026-10-09. (2) The blocked-reason surface and refusal classification; due by 2026-10-31, before the first KPI deadline on 2026-11-15. (3) Dependency ordering and the base-drift update; due by 2026-12-15. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_2ede3ddb-c03c-4788-bc6c-41d56e40b5bf))
 
@@ -21,7 +21,7 @@ Dependencies below are the build order inside a phase: a task marked `[P]` has n
 | 2    | Blocked-reason surface   | 2026-10-31   | SC-002, SC-003, SC-004 |
 | 3    | Dependency + base-drift  | 2026-12-15   | SC-002       |
 
-## Phase 1 — lore-reviewer App, arming, approver setting, ADR-050
+## Phase 1 — lore-reviewer App, arming, approver setting, ADR-051
 
 Prototype due 2026-10-09.
 
@@ -31,7 +31,7 @@ No new onboarding step: a repo opts in from its settings page in Lore, which lin
 
 PR 2224 is closed as superseded. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_0ee9bc55-2189-479a-85c9-bc792986273d))
 
-- [ ] T001 **ADR-050 accepted** — `adrs/ADR-050-protected-branch-approver.md` already lands with this spec PR as a draft. After the prototype demo, flip its status to accepted and record the demo date; no other change. (depends on T008)
+- [ ] T001 **ADR-051 accepted** — `adrs/ADR-051-protected-branch-approver.md` already lands with this spec PR as a draft. After the prototype demo, flip its status to accepted and record the demo date; no other change. (depends on T008)
 - [ ] T002 [P] **`auto_merge.approver` field and its two-key gate** — Add `auto_merge.approver: none | lore-reviewer` (default `none`) to `RepoSettingsSchema` in `libs/shared/src/domain/models/repo-settings.ts`. Extend `twoKeyFieldsTouched` to flag it, and extend the `checkApproval` gate in `apps/lore-api/src/transport/routes/two-key.ts` from agent-definition image writes to the repo-settings PUT that sets it. The approval PR carries the `dark-factory-approval` label and needs at least one `@user` handle in CODEOWNERS.
 - [ ] T003 [P] **`decideReviewOnOpen` lets Lore's own App through** — Read Lore's App login once at startup with `GET /app` under the App's JWT (the App slug plus the `[bot]` suffix), hold it in memory for the life of the process, and let a PR by that author through `decideReviewOnOpen` in `libs/shared/src/work/review/code-review-decisions.ts`; every other `[bot]` suffix still fails. No login is hardcoded.
 - [ ] T004 [P] **PR port — three new reads** — Add `getBranchRule` (rulesets and classic protection: required approvals, Code Owners review, required checks), `getMergeability`, and `getChangedFiles` (matched against CODEOWNERS to tell a sensitive PR from a routine one) to `libs/shared/src/outbound/project/lib/platform-github.ts`.
