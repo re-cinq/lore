@@ -449,7 +449,7 @@ The onboarding PR carries deterministic files committed verbatim by the Floor pl
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
   `.claude/settings.json` carrying a `SessionStart` hook that tells every
   session to call `lore_assemble_context` first, and the
-  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by commits .claude/settings.json whose SessionStart hook tells the session to call lore_assemble_context first](libs/shared/src/work/onboard-content.test.ts#L23), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L45), [validated by](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates; a repo-owned file the repo already holds with different content is left as it is. ([validated by commits .claude/settings.json whose SessionStart hook tells the session to call lore_assemble_context first](libs/shared/src/work/onboard-content.test.ts#L23), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L45), [validated by returns false when current !== null and current !== file.content](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
 - FR-5.5: The ticket owes `AGENTS.md`, the PR template, the pr-description-check
   workflow, and `.specify/spec.md` from fixed prompts — the AGENTS.md prompt
   targets the repo's own stack and the PR-template prompt names the five
