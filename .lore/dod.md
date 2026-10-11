@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **decideReviewOnOpen lets a PR by Lore's own App through while refusing other bots** — validates that Lore's own App PRs are not skipped while other `[bot]` PRs continue to be skipped.
+- [x] **decideReviewOnOpen lets a PR by Lore's own App through while refusing other bots** — validates that Lore's own App PRs are not skipped while other `[bot]` PRs continue to be skipped.
   `libs/shared/src/work/review/code-review-decisions.test.ts`
 
 ## Facets
 
-- [ ] Add `loreAppLogin?: string` to `decideReviewOnOpen` input parameter types.
-- [ ] Implement behavior in `decideReviewOnOpen` to return `true` when `pr.author === loreAppLogin`.
-- [ ] Update callers of `decideReviewOnOpen` to pass the `loreAppLogin` state.
+- [x] Add `loreAppLogin?: string` to `decideReviewOnOpen` input parameter types.
+- [x] Implement behavior in `decideReviewOnOpen` to return `true` when `pr.author === loreAppLogin`.
+- [x] Update callers of `decideReviewOnOpen` to pass the `loreAppLogin` state.
 
 ## Out of scope
 
