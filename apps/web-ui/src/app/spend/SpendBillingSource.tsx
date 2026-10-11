@@ -3,45 +3,22 @@ import type { SpendWindow } from "./SpendView";
 import { usd, num } from "./spend-format";
 import { CostTable } from "./CostTable";
 
-type ByCluster = SpendWindow["llm"]["by_cluster"];
+type ByBillingMode = SpendWindow["llm"]["by_billing_mode"];
+type BillingMode = ByBillingMode[number]["mode"];
 
-interface Bucket {
-  calls: number;
-  cost_usd: number;
+const SOURCE_LABELS: Record<BillingMode, string> = {
+  api_key: "API key (org account)",
+  subscription: "Subscription (personal credential)",
+  unknown: "Unknown (agent named no credential)",
+};
+
+/** The API-vs-subscription split of metered spend, so a reader can tell how much of the figure the Anthropic invoice can even see. */
+interface BillingSourceProps {
+  byBillingMode: ByBillingMode;
 }
 
-export interface BillingSourceSplit {
-  api: Bucket;
-  subscription: Bucket;
-}
-
-/** Which credential paid for the metered spend, read off the cluster attribution: the no-cluster bucket is the org's own API key (this is the balance's `cluster_agent_id IS NULL` rule), and every named cluster is a satellite running on its own subscription. */
-export function billingSourceSplit(byCluster: ByCluster): BillingSourceSplit {
-  return {
-    api: sum(byCluster.filter((r) => r.cluster === null)),
-    subscription: sum(byCluster.filter((r) => r.cluster !== null)),
-  };
-}
-
-function sum(rows: ByCluster): Bucket {
-  return rows.reduce(
-    (acc, r) => ({
-      calls: acc.calls + r.calls,
-      cost_usd: acc.cost_usd + r.cost_usd,
-    }),
-    { calls: 0, cost_usd: 0 },
-  );
-}
-
-interface SourceRow {
-  source: string;
-  calls: number;
-  cost_usd: number;
-}
-
-/** The API-vs-subscription split of metered spend, so a reader can tell how much of the figure the Anthropic invoice can even see. Only renders when spend is cluster-attributed — with nothing attributed the split has no basis. */
-export function BillingSource({ byCluster }: { byCluster: ByCluster }) {
-  if (byCluster.length === 0) {
+export function BillingSource({ byBillingMode }: BillingSourceProps) {
+  if (byBillingMode.length === 0) {
     return null;
   }
 
@@ -50,29 +27,27 @@ export function BillingSource({ byCluster }: { byCluster: ByCluster }) {
       <CostTable
         title="Billing Source"
         columns={["Source", "Calls", "Cost"]}
-        rows={sourceRows(billingSourceSplit(byCluster))}
-        rowKey={(r) => r.source}
-        cells={(r) => [r.source, num(r.calls), usd(r.cost_usd)]}
+        rows={byBillingMode}
+        rowKey={(r) => r.mode}
+        cells={sourceCells}
       />
       <BillingSourceNote />
     </>
   );
 }
 
-function sourceRows({ api, subscription }: BillingSourceSplit): SourceRow[] {
-  return [
-    { source: "API key (org account)", ...api },
-    { source: "Subscription (satellite credential)", ...subscription },
-  ];
+function sourceCells(row: ByBillingMode[number]) {
+  return [SOURCE_LABELS[row.mode], num(row.calls), usd(row.cost_usd)];
 }
 
 function BillingSourceNote() {
   return (
     <p className={`meta ${styles.subnote}`}>
-      Derived from which cluster ran each call: no cluster is the org&apos;s own
-      API key, a named cluster is a satellite on its own subscription. The
-      billed figure covers only the API-key portion — subscription runs bill
-      each person&apos;s own account, so they never reach the org invoice.
+      Lore&apos;s own model calls run on the org&apos;s API key; each agent run
+      on the floor counts as one call, under the credential its agent reported
+      when it started. The billed figure covers only the API-key portion —
+      subscription runs bill each person&apos;s own account, so they never reach
+      the org invoice.
     </p>
   );
 }

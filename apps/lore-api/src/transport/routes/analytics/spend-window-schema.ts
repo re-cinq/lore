@@ -107,6 +107,14 @@ export const SpendWindowSchema = z.object({
         cost_usd: z.number(),
       }),
     ),
+    // Which credential paid: Lore's own calls on the org API key, plus the floor's agent visits by the credential each ran on (calls counts a visit as one). A mode with no spend is absent.
+    by_billing_mode: z.array(
+      z.object({
+        mode: z.enum(["api_key", "subscription", "unknown"]),
+        calls: z.number(),
+        cost_usd: z.number(),
+      }),
+    ),
   }),
   // Anthropic's own billing, interval-scoped, reported beside (never reconciled with) the computed figures; available=false when no admin key has ever synced, rows empty either way.
   billed: z.object({

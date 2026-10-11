@@ -15280,6 +15280,26 @@
                   "required": ["cluster", "calls", "cost_usd"],
                   "additionalProperties": false
                 }
+              },
+              "by_billing_mode": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": ["api_key", "subscription", "unknown"]
+                    },
+                    "calls": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["mode", "calls", "cost_usd"],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
@@ -15296,7 +15316,8 @@
               "by_kind",
               "daily",
               "by_task_type",
-              "by_cluster"
+              "by_cluster",
+              "by_billing_mode"
             ],
             "additionalProperties": false
           },
