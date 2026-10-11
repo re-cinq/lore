@@ -4,7 +4,7 @@
 | ----------------- | -------------------- |
 | Feature           | Lore Platform        |
 | Branch            | 1-lore-platform      |
-| Status            | In Progress          |
+| Status            | Shipped              |
 | Created           | 2026-03-25           |
 | Updated           | 2026-04-20           |
 | Owner             | Platform Engineering |
