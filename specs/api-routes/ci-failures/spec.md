@@ -19,7 +19,7 @@ The CI wait already makes this judgement to route a run ([implementation-loop FR
 ## Interface
 
 - **Method + path**: `GET /api/repos/{owner}/{repo}/ci-failures`
-- **Query**: `branch` (string) or `pr_number` (positive integer); one is required, `branch` wins when both are given ([registration](../../../apps/lore-api/src/transport/routes/repos/ci-failures.ts#L57)).
+- **Query**: `branch` (string) or `pr_number` (positive integer); one is required, `branch` wins when both are given ([registration](../../../apps/lore-api/src/transport/routes/repos/ci-failures.ts#L56)).
 - **Response** `200`: `{branch, judged_sha, conclusion, failures[]}` where each failure is `{name, app, job_id, annotations[], steps[], tail[], npm_script, unreadable[]}` (`CiFailures` in `openapi.json`); `unreadable` names the reads GitHub refused as `what (status)`; `npm_script` is `{package, script}` recovered from npm's banner in the failed step's output, or null when the step did not run through npm.
 
 ## Behavior

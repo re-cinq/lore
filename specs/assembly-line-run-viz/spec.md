@@ -231,7 +231,7 @@ useful granularity.
 
 - FR9.4. The run page shows that issue as a collapsible card under the run header, titled `Issue #<number> · <title>` with the issue's state as its pill and folded until opened; the body renders as GitHub-flavoured markdown with raw HTML sanitized, so `<details>` survives while template comments and scripts are dropped, an empty body reads `No description provided.`, and a run with no issue renders no card. ([validated by `RunIssueCard.test.tsx:25`](apps/web-ui/src/app/assembly-runs/[id]/RunIssueCard.test.tsx#L25), [`RunIssueCard.test.tsx:38`](apps/web-ui/src/app/assembly-runs/[id]/RunIssueCard.test.tsx#L38), [`RunIssueCard.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/RunIssueCard.test.tsx#L56), [`RunIssueCard.test.tsx:62`](apps/web-ui/src/app/assembly-runs/[id]/RunIssueCard.test.tsx#L62), [shows the issue the run works on as a card, so reading it needs no trip to GitHub](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L209))
 
-- FR9.5. A repo that was never onboarded to Lore is a 404 on that route before GitHub is read, since the App installation can see repos Lore does not serve. ([validated by `issue.test.ts:115`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L115))
+- FR9.5. A repo that was never onboarded to Lore is a 404 on the issue route before GitHub is read, since the App installation can see repos Lore does not serve. ([validated by `issue.test.ts:115`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L115))
 
 ## Retired Requirements (Background)
 

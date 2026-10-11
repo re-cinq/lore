@@ -19,7 +19,7 @@ The failed-job account the CI verdict carries is a few lines. When a reader need
 ## Interface
 
 - **Method + path**: `GET /api/repos/{owner}/{repo}/ci-jobs/{job_id}/log`
-- **Query**: `tail` (integer 1..2000, default 200), `grep` (string, optional) ([registration](../../../apps/lore-api/src/transport/routes/repos/ci-job-log.ts#L47)).
+- **Query**: `tail` (integer 1..2000, default 200), `grep` (string, optional) ([registration](../../../apps/lore-api/src/transport/routes/repos/ci-job-log.ts#L50)).
 - **Response** `200`: `{job_id, lines[], total, truncated}` (`CiJobLog` in `openapi.json`) — `total` counts the lines the filter kept, `truncated` says whether the tail left any out.
 
 ## Behavior
