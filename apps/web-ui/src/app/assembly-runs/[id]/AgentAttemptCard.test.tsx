@@ -11,10 +11,6 @@ vi.mock("./FullTranscriptPanel", () => ({
 }));
 vi.mock("./NodeLogPanel", () => ({ default: () => null }));
 
-function attempt(outcome: string | null): AssemblyRunNode {
-  return { nodeId: "implement", iteration: 1, outcome, agentCrName: "pod-1" };
-}
-
 function renderCard(outcome: string | null) {
   return render(
     <AgentAttemptCard
@@ -24,6 +20,17 @@ function renderCard(outcome: string | null) {
       kind="transcript"
     />,
   );
+}
+
+function attempt(outcome: string | null): AssemblyRunNode {
+  return {
+    nodeId: "implement",
+    iteration: 1,
+    outcome,
+    agentCrName: "pod-1",
+    commitSha: null,
+    durationSeconds: null,
+  };
 }
 
 describe("AgentAttemptCard", () => {

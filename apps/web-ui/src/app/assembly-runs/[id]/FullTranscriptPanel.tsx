@@ -62,12 +62,18 @@ export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
 
   return (
     <CollapsibleCard title="Transcript" defaultOpen onToggle={walk.setOpen}>
-      <p className={`meta ${styles.hint}`}>
-        Untruncated turns from the transcript store (30-day retention), with the
-        task&apos;s status changes in this step folded in.
-      </p>
+      <TranscriptHint />
       <TranscriptBody walk={walk} segments={segments} node={node} />
     </CollapsibleCard>
+  );
+}
+
+function TranscriptHint() {
+  return (
+    <p className={`meta ${styles.hint}`}>
+      Untruncated turns from the transcript store (30-day retention), with the
+      task&apos;s status changes in this step folded in.
+    </p>
   );
 }
 
