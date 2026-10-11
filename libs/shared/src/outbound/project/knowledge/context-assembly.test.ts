@@ -9,6 +9,7 @@ import {
   fetchers,
   fitItemsToBudget,
   hybridChunkItems,
+  hybridChunkSearch,
   dropSeen,
   formatCouplingItems,
   fetchCouplingSource,
@@ -438,6 +439,80 @@ describe("hybridChunkItems", () => {
 
     expect(calls[1].text).toContain("embedding <=>");
     expect(calls[1].params).toContainEqual("[0.1,0.2,0.3]");
+  });
+
+  it("runs the hybrid query in one transaction after widening the HNSW scan, guarded to pgvector 0.8+ for iterative scan", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce([0.1, 0.2, 0.3]);
+    const calls: string[] = [];
+    const release = vi.fn();
+    const client = {
+      async query(text: string) {
+        calls.push(text);
+
+        return { rows: [] };
+      },
+      release,
+    };
+    const pool = {
+      query: client.query,
+      connect: async () => client,
+    };
+
+    await hybridChunkItems(pool as never, "q", "re-cinq/lore", {
+      contentTypes: ["adr"],
+      limit: 10,
+    });
+
+    const settings = calls.find((c) => c.includes("hnsw.ef_search"))!;
+
+    expect(calls[0]).toContain("SELECT team FROM lore.repos");
+    expect(calls.slice(-4).map((c) => c.split(/\s/)[0])).toEqual([
+      "BEGIN",
+      "SELECT",
+      "WITH",
+      "COMMIT",
+    ]);
+    expect(settings).toContain("set_config('hnsw.ef_search', '200', true)");
+    expect(settings).toContain(
+      "set_config('hnsw.iterative_scan', 'relaxed_order', true)",
+    );
+    expect(settings).toContain(">= 8");
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("reports the vector leg's row count from the fused query, 0 when nothing came back", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValue([0.1, 0.2, 0.3]);
+    const withVec = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: "adr",
+            file_path: "adrs/a.md",
+            content_type: "adr",
+            score: 0.5,
+            vec_rows: "3",
+          },
+        ],
+      },
+    );
+    const empty = fakePool({ rows: [] });
+
+    const found = await hybridChunkSearch(withVec.pool, "q", "re-cinq/lore", {
+      contentTypes: ["adr"],
+      limit: 5,
+    });
+    const none = await hybridChunkSearch(empty.pool, "q", "re-cinq/lore", {
+      contentTypes: ["adr"],
+      limit: 5,
+    });
+
+    vi.mocked(getQueryEmbedding).mockReset().mockResolvedValue(null);
+
+    expect({
+      found: found.vectorLegRows,
+      none: none.vectorLegRows,
+    }).toEqual({ found: 3, none: 0 });
   });
 
   it("carries the cosine similarity 0.74 of a hybrid hit onto the item, and asks both legs for it", async () => {
