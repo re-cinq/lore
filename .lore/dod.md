@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **enablePullRequestAutoMerge sends the mutation with the pull request node id and merge method** — verifies that the GraphQL mutation is sent with the correct ID and SQUASH merge method
+- [x] **enablePullRequestAutoMerge sends the mutation with the pull request node id and merge method** — verifies that the GraphQL mutation is sent with the correct ID and SQUASH merge method
   `libs/shared/src/outbound/project/lib/platform-github.test.ts`
-- [ ] **disablePullRequestAutoMerge sends the mutation with the pull request node id** — verifies that the GraphQL mutation is sent with the correct ID
+- [x] **disablePullRequestAutoMerge sends the mutation with the pull request node id** — verifies that the GraphQL mutation is sent with the correct ID
   `libs/shared/src/outbound/project/lib/platform-github.test.ts`
 
 ## Facets
 
-- [ ] Add `enablePullRequestAutoMerge` and `disablePullRequestAutoMerge` GraphQL mutations.
+- [x] Add `enablePullRequestAutoMerge` and `disablePullRequestAutoMerge` GraphQL mutations.
 
 ## Out of scope
 

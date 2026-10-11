@@ -151,6 +151,7 @@ export interface PullRequestsPort {
   listMergedSince(repo: string, since: string): Promise<PullRef[]>;
   get(repo: string, number: number): Promise<PullRef | null>;
   comment(repo: string, number: number, body: string): Promise<void>;
+  updateIssueComment(repo: string, id: number, body: string): Promise<void>;
   review(
     repo: string,
     number: number,
@@ -172,7 +173,9 @@ export interface PullRequestsPort {
   ): Promise<void>;
   addLabel(repo: string, number: number, label: string): Promise<void>;
   merge(repo: string, number: number, method?: MergeMethod): Promise<void>;
-  open(repo: string, branch: string, pr: PullDraft): Promise<PullRef>;
+  enablePullRequestAutoMerge(prId: string, mergeMethod?: MergeMethod): Promise<void>;
+  disablePullRequestAutoMerge(prId: string): Promise<void>;
+  open(repo: string, branch: string, draft: PullDraft): Promise<PullRef>;
   /** Rewrite an open pull request's title and/or body. */
   update(
     repo: string,
