@@ -85,7 +85,7 @@ async function enforceApproverGate(
   request: Request,
   repo: string,
   body: RepoSettingsBody,
-): Promise<{ ok: false; code: number; body: unknown } | { ok: true }> {
+): Promise<{ ok: false; code: number; body: object } | { ok: true }> {
   const am = body.settings?.auto_merge as { approver?: string } | undefined;
 
   if (am?.approver !== "lore-reviewer") {

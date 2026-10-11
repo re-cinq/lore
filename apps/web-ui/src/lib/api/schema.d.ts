@@ -3622,6 +3622,11 @@ export interface components {
               group_by?: "person" | "area";
               voice?: string;
             } | null;
+
+        auto_merge?: {
+            approver?: "none" | "lore-reviewer";
+            [key: string]: unknown;
+        };
             dispatch_label?: string;
             dispatch_default_type?: string;
             test_commands?: unknown;
@@ -3726,6 +3731,11 @@ export interface components {
                 group_by?: "person" | "area";
                 voice?: string;
               } | null;
+
+        auto_merge?: {
+            approver?: "none" | "lore-reviewer";
+            [key: string]: unknown;
+        };
               dispatch_label?: string;
               dispatch_default_type?: string;
               test_commands?: unknown;
