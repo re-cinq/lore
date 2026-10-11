@@ -1,4 +1,3 @@
-import type { PipelineTask } from "../../../domain/types.js";
 import { enforceSettableTaskColumns } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
@@ -30,8 +29,6 @@ export interface SeedTask {
   pr_url?: string | null;
   [key: string]: unknown;
 }
-
-const GRACE_MS = 30 * 1000;
 
 const ms = (ts: string | undefined): number =>
   ts ? new Date(ts).getTime() : 0;
@@ -97,25 +94,6 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     public readonly tasks: SeedTask[] = [],
     private readonly now: () => number = () => Date.now(),
   ) {}
-
-  async claimNextPending(): Promise<PipelineTask | null> {
-    const now = this.now();
-    const runnable = this.tasks
-      .filter(
-        (t) =>
-          t.status === "pending" &&
-          t.task_type !== "spec-task" &&
-          (t.priority === "immediate" || ms(t.created_at) < now - GRACE_MS),
-      )
-      .sort((a, b) => {
-        const ap = a.priority === "immediate" ? 0 : 1;
-        const bp = b.priority === "immediate" ? 0 : 1;
-
-        return ap !== bp ? ap - bp : ms(a.created_at) - ms(b.created_at);
-      });
-
-    return (runnable[0] as unknown as PipelineTask | undefined) ?? null;
-  }
 
   async findRecoverable(maxAgeMinutes = 30): Promise<RecoverableTask[]> {
     const cutoff = this.now() - maxAgeMinutes * 60_000;

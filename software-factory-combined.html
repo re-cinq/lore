@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Software Factory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { font-family: "IBM Plex Sans", sans-serif; color: #1f2323; font-size: 15px; line-height: 1.4; }
+  .slide { position: relative; width: 1280px; height: 720px; padding: 18px 56px 0 56px; overflow: hidden; page-break-after: always; break-after: page; background: #fff; }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+  .nav { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #9a9f9f; letter-spacing: .01em; }
+  .nav b { color: #1f2323; font-weight: 500; }
+  .nav span + span { margin-left: 18px; }
+  .tabs { display: flex; border: 1px solid #d9dcdc; margin-top: 8px; }
+  .tab { flex: 1; display: flex; align-items: baseline; justify-content: space-between; padding: 9px 14px; border-right: 1px solid #d9dcdc; font-size: 14px; font-weight: 600; }
+  .tab:last-child { border-right: 0; }
+  .tab .n { margin-right: 8px; font-weight: 600; }
+  .tab .k { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: #9a9f9f; font-weight: 400; }
+  .tab.on { background: #1d2121; color: #fff; }
+  .tab.on .k { color: #b8bebe; }
+  h1 { font-family: "Archivo", sans-serif; font-weight: 600; font-size: 40px; letter-spacing: -.01em; margin: 18px 0 4px 0; line-height: 1.1; }
+  h1.big { font-size: 56px; margin-top: 150px; }
+  .sub { color: #5f6666; font-size: 17px; margin: 0 0 18px 0; max-width: 920px; }
+  .label { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #5f6666; margin: 0 0 10px 0; }
+  .teal { color: #0f5f5c; }
+  .tag { display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 12px; padding: 3px 10px; border: 1px solid #0f5f5c; background: #dcecea; color: #0f3f3d; white-space: nowrap; }
+  .tag.ghost { border: 1px dashed #9a9f9f; background: #fff; color: #5f6666; }
+  .tag.dark { border-color: #1d2121; background: #1d2121; color: #fff; }
+  .tag.human { border-color: #9a5a00; background: #fbeed6; color: #6b3f00; }
+  .tag.red { border-color: #b4321e; background: #fde7e3; color: #8a2414; }
+  .cols { display: flex; gap: 40px; }
+  .col { flex: 1; min-width: 0; }
+  .card { border: 1px solid #d9dcdc; padding: 16px 18px; background: #fff; }
+  .card.grey { background: #f3f4f4; border-color: #f3f4f4; }
+  .num { font-family: "IBM Plex Mono", monospace; font-size: 22px; color: #0f5f5c; font-weight: 500; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #5f6666; font-weight: 400; background: #e9ebeb; padding: 8px 12px; }
+  td { padding: 10px 12px; border-bottom: 1px solid #d9dcdc; vertical-align: top; }
+  tr:last-child td { border-bottom: 1px solid #d9dcdc; }
+  td.k { font-weight: 600; width: 34%; }
+  td.arrow { color: #0f5f5c; width: 24px; text-align: center; }
+  .quote { border-left: 3px solid #0f5f5c; padding: 4px 0 4px 14px; margin: 12px 0; font-size: 14.5px; }
+  .quote b { font-weight: 600; }
+  table.tight { font-size: 12.8px; } table.tight td { padding: 6px 12px; } table.tight th { padding: 6px 12px; } table.tight td.k { width: auto; }
+  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; }
+  .step .tag { margin-top: 3px; min-width: 150px; text-align: center; }
+  .step h3 { margin: 0 0 3px 0; font-size: 16px; font-weight: 600; }
+  .step h3 small { font-weight: 400; color: #5f6666; font-size: 13px; margin-left: 8px; }
+  .step p { margin: 0; color: #2d3333; font-size: 14px; }
+  .list { margin: 0; padding: 0; list-style: none; }
+  .list li { display: block; padding-left: 26px; margin: 0 0 8px 0; font-size: 14px; }
+  .list li .i { display: inline-block; font-family: "IBM Plex Mono", monospace; color: #0f5f5c; width: 26px; margin-left: -26px; }
+  .list li .i.x { color: #b4321e; } .list li .i.r { color: #b07a00; }
+  .foot { position: absolute; left: 56px; right: 56px; bottom: 18px; border-top: 1px solid #d9dcdc; padding-top: 8px; display: flex; justify-content: space-between; font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: #5f6666; }
+  .code { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; background: #f3f4f4; padding: 14px 16px; white-space: pre; line-height: 1.5; color: #2d3333; }
+  .code .c { color: #0f5f5c; } .code .d { color: #9a9f9f; } .code .h { color: #9a5a00; }
+  .hstrip { border: 1px solid #d9dcdc; border-left: 4px solid #9a5a00; background: #fffaf2; padding: 10px 14px; font-size: 13.5px; display: flex; gap: 14px; align-items: flex-start; }
+  .hstrip .tag { margin-top: 1px; }
+  .hstrip b { font-weight: 600; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  svg text { font-family: "IBM Plex Mono", monospace; }
+  .band { fill: #fff; stroke: #d9dcdc; }
+  .bandt { font-family: "Archivo", sans-serif; font-weight: 600; font-size: 15px; fill: #1f2323; }
+  .box { fill: #dcecea; stroke: #0f5f5c; }
+  .boxg { fill: #f3f4f4; stroke: #c9cdcd; }
+  .boxh { fill: #fbeed6; stroke: #9a5a00; }
+  .boxd { fill: #1d2121; stroke: #1d2121; }
+  .sm { font-size: 10px; fill: #5f6666; }
+  .lbl { font-size: 10px; fill: #0f5f5c; }
+  .edge { stroke: #5f6666; fill: none; }
+  .edget { stroke: #0f5f5c; fill: none; }
+  .edgea { stroke: #b07a00; fill: none; }
+  .edgeh { stroke: #9a5a00; fill: none; stroke-dasharray: 4 3; }
+  .t { font-size: 12px; fill: #1f2323; }
+  .legend { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #5f6666; margin-top: 6px; }
+  .tbl td { padding: 7px 10px; font-size: 13px; } .tbl th { padding: 6px 10px; }
+  .kv { margin: 0 0 8px; font-size: 13px; } .kv .mono { font-size: 12.5px; }
+  h2 { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #5f6666; margin: 14px 0 8px; font-weight: 400; }
+</style>
+</head>
+<body>
+<section class="slide">
+  <h1 class="big" style="margin-top:150px;font-size:50px">The Software Factory</h1>
+  <p class="sub" style="font-size:19px">How an idea becomes a plan, a plan becomes merged code, and what the system learns on the way back. Four parts.</p>
+  <div class="grid4" style="margin-top:28px">
+    <div class="card"><div class="num">01</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">Planning</div><div class="mono" style="font-size:11.5px;color:#5f6666">artifacts · hand-over · loop</div></div>
+    <div class="card"><div class="num">02</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">Implementation</div><div class="mono" style="font-size:11.5px;color:#5f6666">done · tdd · review</div></div>
+    <div class="card"><div class="num">03</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">Operate &amp; Learn</div><div class="mono" style="font-size:11.5px;color:#5f6666">check · record · feed back</div></div>
+    <div class="card"><div class="num">04</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">Knowledge base</div><div class="mono" style="font-size:11.5px;color:#5f6666">graph · build · proof</div></div>
+  </div>
+  <div class="foot"><span>The Software Factory · Sep 2026</span><span>1 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span><b>01 Planning</b></span><span>02 Implementation</span><span>03 Operate &amp; Learn</span><span>04 Knowledge base</span></div><h1 style="margin-top:22px;font-size:36px">Planning produces two artifacts, and hands over tickets</h1>
+  <p class="sub" style="margin-bottom:14px">A prototype at an agreed level of maturity, a plan everyone can work from, and tickets the factory can turn into failing tests.</p>
+  <div class="cols">
+    <div class="col">
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="tag">prototype</span><span><span class="tag" style="font-size:11px;padding:2px 8px">pm</span> <span class="tag" style="font-size:11px;padding:2px 8px">po</span> <span class="tag" style="font-size:11px;padding:2px 8px">exec</span></span></div>
+        <h3 style="margin:10px 0 4px;font-size:16px">"Agreed level of maturity" prototype</h3>
+        <p style="margin:0 0 8px;font-size:13.5px">The maturity is agreed up front, so an idea is tested with little or no developer time.</p>
+        <p style="margin:0;font-size:13.5px"><span class="mono teal">click-dummy</span> simple click dummy with fake data &nbsp;·&nbsp; <span class="mono teal">running-prototype</span> partially connected, actually running</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="tag">plan</span><span><span class="tag" style="font-size:11px;padding:2px 8px">pm</span> <span class="tag" style="font-size:11px;padding:2px 8px">po</span> <span class="tag" style="font-size:11px;padding:2px 8px">the factory</span></span></div>
+        <h3 style="margin:10px 0 4px;font-size:16px">The plan</h3>
+        <p style="margin:0 0 8px;font-size:13.5px">Written in a strong format that we provide, so every plan looks the same and can be picked up by anyone, or by the factory.</p>
+        <p style="margin:0;font-size:13.5px"><span class="mono teal">versioned</span> every change is a new version &nbsp;·&nbsp; <span class="mono teal">strong-format</span> a fixed template from us &nbsp;·&nbsp; <span class="mono teal">collaborative</span> written and revised together</p>
+      </div>
+    </div>
+    <div class="col">
+      <p class="label">The ticket the factory reads &nbsp; <span class="tag" style="font-size:11px;padding:2px 8px">the factory</span></p>
+      <div class="code" style="font-size:12px"><span class="c"># Ticket</span>
+<span class="d">&gt; the task in one sentence</span>
+<span class="c">## Done when these pass</span>
+- [ ] one to five acceptance criteria, each testable
+      <span class="d">more than five: split the ticket</span>
+<span class="c">## Affects</span>
+- services, owners and consumers <span class="d">(from the knowledge base)</span>
+<span class="c">## Rules</span>
+- conventions and decisions that apply
+<span class="c">## Similar</span>
+- past changes to learn from, with what they cost</div>
+      <div class="quote" style="margin:10px 0 0"><b>Sized for the factory.</b> A ticket that cannot become tests, or that runs out of rounds, comes back as a planning finding. Content comes from the knowledge base, from Operate &amp; Learn, and from the people in the room, asked now and not later.</div>
+    </div>
+  </div>
+  <div class="foot"><span>01 Planning · Sep 2026</span><span>2 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span><b>01 Planning</b></span><span>02 Implementation</span><span>03 Operate &amp; Learn</span><span>04 Knowledge base</span></div><h1 style="margin-top:22px;font-size:36px">From plan to tickets to the factory, and back</h1>
+  <p class="sub">The plan is broken into tickets and the factory implements them. Failures come back to the plan first; what happened in production comes back through Operate &amp; Learn.</p>
+  <div class="cols">
+    <div class="col">
+      <div class="step"><span class="tag">plan</span><div><h3>Plan <small>part 01</small></h3><p>The planning artifact. Everything below the dashed line is derived from it.</p></div></div>
+      <div class="step"><span class="tag ghost">tickets</span><div><h3>Tickets <small>derived</small></h3><p>The plan is broken down into tickets, each sized for one run.</p></div></div>
+      <div class="step"><span class="tag">factory</span><div><h3>Implementation <small>the factory</small></h3><p>Each ticket goes through the implementation loop. It ends in success or in a fail.</p></div></div>
+      <p class="label" style="margin-top:14px">What comes back</p>
+      <ul class="list">
+        <li><span class="i">✓</span>Success: Operate &amp; Learn checks whether we asked for the right thing, and feeds the next plan.</li>
+        <li><span class="i r">↺</span>Fail: the plan is adjusted and the ticket re-planned or split, x times. The factory's own retries stay inside the factory.</li>
+        <li><span class="i x">✕</span>Then it is a blocker: a human takes over.</li>
+      </ul>
+    </div>
+    <div class="col"><svg width="480" height="250" viewBox="-30 0 480 250"><defs>
+  <marker id="m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f6666"/></marker>
+  <marker id="mt" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f5f5c"/></marker>
+  <marker id="ma" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b07a00"/></marker>
+</defs>
+<g font-size="12">
+<rect x="150" y="10" width="110" height="34" class="box"/><text x="205" y="32" text-anchor="middle">plan</text>
+<line x1="20" y1="58" x2="400" y2="58" stroke="#c9cdcd" stroke-dasharray="3 3"/><text x="150" y="54" class="sm" text-anchor="end">planning</text><text x="150" y="70" class="sm" text-anchor="end">factory</text>
+<rect x="150" y="84" width="110" height="34" fill="#fff" stroke="#9a9f9f" stroke-dasharray="4 3"/><text x="205" y="106" text-anchor="middle">tickets</text>
+<rect x="150" y="150" width="110" height="34" class="box"/><text x="205" y="172" text-anchor="middle">factory</text>
+<rect x="60" y="210" width="80" height="30" class="boxd"/><text x="100" y="230" text-anchor="middle" style="fill:#fff">success</text>
+<rect x="280" y="210" width="80" height="30" fill="#fff" stroke="#b4321e"/><text x="320" y="230" text-anchor="middle" fill="#8a2414">fail</text>
+<line x1="205" y1="44" x2="205" y2="84" class="edge" marker-end="url(#m)"/><line x1="205" y1="118" x2="205" y2="150" class="edge" marker-end="url(#m)"/>
+<path d="M180,184 L120,210" class="edge" marker-end="url(#m)"/><path d="M230,184 L300,210" class="edge" marker-end="url(#m)"/>
+<path d="M60,225 L20,225 L20,27 L150,27" class="edget" marker-end="url(#mt)"/><text x="10" y="130" class="lbl" transform="rotate(-90 10 130)" text-anchor="middle">what happened, what it cost</text>
+<path d="M360,225 L400,225 L400,27 L260,27" class="edgea" marker-end="url(#ma)"/><text x="412" y="130" class="sm" fill="#b07a00" transform="rotate(90 412 130)" text-anchor="middle">adjust, re-plan or split · x times</text>
+</g></svg>
+      <table style="margin-top:10px"><tr><td class="k" style="width:36%"><b>After x times</b><br><span class="mono" style="font-size:11.5px;color:#5f6666;font-weight:400">the loop stops adjusting</span></td><td><span class="mono" style="color:#8a2414">Blocker</span>&nbsp; The ticket is a blocker.<br><span class="mono" style="color:#6b3f00">Human</span>&nbsp;&nbsp; A human takes over.</td></tr></table>
+    </div>
+  </div>
+  <div class="foot"><span>01 Planning · Sep 2026</span><span>3 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Planning</span><span><b>02 Implementation</b></span><span>03 Operate &amp; Learn</span><span>04 Knowledge base</span></div><h1 style="margin-top:22px;font-size:36px">Define done as failing tests, then one round per agent</h1>
+  <p class="sub" style="margin-bottom:10px">The ticket is turned into acceptance tests that fail today. When they pass, the ticket is finished and nothing more is owed. Each later visit is a fresh agent doing one round, and the PR's build grades it, never the agent.</p>
+  <div class="cols">
+    <div class="col">
+      <div class="step"><span class="tag">define-done</span><div><h3>Write the red acceptance tests <small>agent</small></h3><p>Reads the ticket and any spec it points to. Writes the fewest tests that mean "done": one is ideal, more than five means the ticket needs splitting. Proves each fails because the behaviour is missing. Writes no production code. Picks exactly one strategy: <span class="mono teal">direct</span> · <span class="mono teal">parallel-change</span> · <span class="mono teal">characterize</span> · <span class="mono teal">mechanical</span>.</p></div></div>
+      <div class="step"><span class="tag">open-pr</span><div><h3>Push and open a draft PR <small>agent</small></h3><p>Pushes the tests and the <span class="mono">dod.md</span> brief, then opens a draft pull request, which gives CI something to judge and keeps code review quiet.</p></div></div>
+      <div class="step"><span class="tag">tdd-round</span><div><h3>One red-green-refactor round <small>agent</small></h3><p>Writes one failing test for the smallest open facet, the least code that passes it, then refactors. Ticks the facet and pushes. Never edits an acceptance test to make it pass.</p></div></div>
+      <div class="step"><span class="tag">repair-build</span><div><h3>Repair a stuck build <small>agent</small></h3><p>Used when the build stayed red and the round pushed nothing. Gets the failing checks from CI and fixes only those.</p></div></div>
+    </div>
+    <div class="col">
+      <svg width="520" height="150" viewBox="0 0 520 150"><defs>
+  <marker id="m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f6666"/></marker>
+  <marker id="mt" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f5f5c"/></marker>
+  <marker id="ma" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b07a00"/></marker>
+</defs><g font-size="12">
+<rect x="10" y="50" width="110" height="36" class="box"/><text x="65" y="73" text-anchor="middle">tdd-round</text>
+<rect x="190" y="50" width="110" height="36" fill="#fff" stroke="#9a9f9f" stroke-dasharray="4 3"/><text x="245" y="73" text-anchor="middle">await-ci</text>
+<rect x="400" y="50" width="110" height="36" class="boxd"/><text x="455" y="73" text-anchor="middle" style="fill:#fff">review</text>
+<rect x="190" y="110" width="110" height="36" class="box"/><text x="245" y="133" text-anchor="middle">repair-build</text>
+<line x1="120" y1="68" x2="190" y2="68" class="edge" marker-end="url(#m)"/><line x1="300" y1="68" x2="400" y2="68" class="edget" marker-end="url(#mt)"/><text x="350" y="60" text-anchor="middle" class="lbl">green</text>
+<path d="M245,50 C245,10 65,10 65,50" class="edgea" marker-end="url(#ma)"/><text x="155" y="22" text-anchor="middle" class="sm" fill="#b07a00">red · next round · max 12</text>
+<path d="M225,86 L225,110" class="edgea" marker-end="url(#ma)"/><text x="130" y="102" class="sm" fill="#b07a00">stayed red · max 2</text>
+<path d="M265,110 L265,86" class="edge" marker-end="url(#m)"/><text x="275" y="102" class="sm">fixed</text>
+</g></svg>
+      <div class="quote"><b>The agent doesn't run lint, typecheck or the full suite.</b> CI already runs all of it on every push, so the agent runs only the tests it's working on.</div>
+      <div class="quote"><b>Twelve rounds is the limit on purpose.</b> A ticket that needs more was sized wrong, so running out is itself the finding.</div>
+      <p class="label" style="margin-top:12px">Leaves this stage</p>
+      <ul class="list">
+        <li><span class="i">→</span>CI is green: on to review and approval.</li>
+        <li><span class="i x">✕</span>The ticket can't be expressed as tests, out of rounds, or a repair failed: blocked, with the reason on the ticket.</li>
+        <li><span class="i">✓</span>The ticket is already resolved: ticket and draft PR are closed with the reason.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>02 Implementation · Sep 2026</span><span>4 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Planning</span><span><b>02 Implementation</b></span><span>03 Operate &amp; Learn</span><span>04 Knowledge base</span></div><h1 style="margin-top:22px;font-size:36px">Out of draft, reviewed, merged by risk</h1>
+  <p class="sub">The PR gets a real description and leaves draft, which starts code review. Once it is ready, two questions decide whether the factory merges it or a human does.</p>
+  <div class="cols">
+    <div class="col">
+      <div class="step"><span class="tag">ready-for-review</span><div><h3>Describe the finished work <small>agent</small></h3><p>Reads the diff against <span class="mono">dod.md</span> and writes the PR description and a new title, including why it strayed from the planned strategy, if it did. Removes <span class="mono">dod.md</span> and takes the PR out of draft.</p></div></div>
+      <div class="step"><span class="tag ghost">await-pr</span><div><h3>Wait for CI and review <small>waits on CI</small></h3><p>Resumes when CI is green on the latest commit and every review thread is resolved.</p></div></div>
+      <div class="step"><span class="tag">fix-ci</span><div><h3>Fix a red build <small>agent · max 3</small></h3><p>Starts from CI's report: the failing checks, their annotations and the failed step. Fixes only those, pushes, and goes back to waiting.</p></div></div>
+    </div>
+    <div class="col">
+      <p class="label">Once the PR is ready (green CI, no open threads), who merges it?</p>
+      <table>
+        <tr><td class="k" style="width:38%"><b>1&nbsp; Are the lights off?</b><br><span class="mono" style="font-size:11.5px;color:#5f6666;font-weight:400">lights-out mode, set per repository</span></td><td><span class="mono teal">Off</span>&nbsp; No humans in the loop. The factory merges it automatically.<br><span class="mono teal">On</span>&nbsp;&nbsp; Go to the risk assessment.</td></tr>
+        <tr><td class="k"><b>2&nbsp; How risky is this PR?</b><br><span class="mono" style="font-size:11.5px;color:#5f6666;font-weight:400">a prompt reads the ready PR</span></td><td><span class="mono teal">Low</span>&nbsp; The factory merges it automatically.<br><span class="mono" style="color:#8a2414">High</span>&nbsp; A human reviews and merges it.</td></tr>
+      </table>
+      <div class="card" style="border-color:#b4321e;margin-top:14px"><div style="font-family:Archivo,sans-serif;font-weight:600;font-size:18px;color:#8a2414;margin-bottom:4px">Never ready</div><div style="font-size:13.5px">The build is still red after 3 fixes, or review threads stay unresolved. The ticket is labeled <span class="mono">blocked</span> and gets a comment with the conclusions. The PR stays open for a human.</div></div>
+    </div>
+  </div>
+  <div class="foot"><span>02 Implementation · Sep 2026</span><span>5 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Planning</span><span>02 Implementation</span><span><b>03 Operate &amp; Learn</b></span><span>04 Knowledge base</span></div><h1 style="margin-top:22px;font-size:36px">The check that runs after release, and what it feeds</h1>
+  <p class="sub" style="margin-bottom:10px">Acceptance criteria say the software does what we asked for. This check says we asked for the right thing. Its conclusions, not the data, go into the knowledge base and into the next plan.</p>
+  <div class="cols">
+    <div class="col">
+      <p class="label">What happens after release</p>
+      <table class="tbl">
+        <tr><td class="k" style="width:44%">The check runs on its own</td><td>Worked · didn't work · can't tell · something got worse</td></tr>
+        <tr><td class="k">People decide what to do</td><td>The check gives a result, not a decision</td></tr>
+        <tr><td class="k">If something got worse, the system acts</td><td>Flag off, roll back. That is safety, not judgement</td></tr>
+      </table>
+      <p class="label" style="margin-top:14px">Six things each change declares in its plan</p>
+      <div class="cols" style="gap:20px">
+        <div class="col"><p class="kv"><span class="mono teal">signal</span> the one measure that shows whether the change worked</p><p class="kv"><span class="mono teal">who</span> who the change applies to</p><p class="kv"><span class="mono teal">guardrail</span> what must not get worse</p></div>
+        <div class="col"><p class="kv"><span class="mono teal">how-far</span> how much the signal should move</p><p class="kv"><span class="mono teal">how-long</span> how long we watch before calling it</p><p class="kv"><span class="mono teal">attribution</span> how we tell this change apart from the rest</p></div>
+      </div>
+    </div>
+    <div class="col">
+      <p class="label">Saved to the knowledge base, without flooding it</p>
+      <table class="tbl">
+        <tr><td class="k" style="width:40%">When something happens</td><td>A release, a merge, an incident, a result</td></tr>
+        <tr><td class="k">Regular summaries</td><td>One per component, never the raw stream</td></tr>
+        <tr><td class="k">Only if it says something new</td><td>"Nothing changed" is not worth saving</td></tr>
+        <tr><td class="k"><span class="tag" style="font-size:11px;padding:2px 8px">written by people</span></td><td>Why we chose this, what a result means, what went wrong. The factory asks at the time; nobody writes it up later</td></tr>
+      </table>
+      <p class="label" style="margin-top:14px">What it changes for planning</p>
+      <table class="tbl">
+        <tr><td class="k" style="width:40%">How past changes turned out</td><td>Targets are argued from what happened before</td></tr>
+        <tr><td class="k">Changes that did not work</td><td>Come back as new work, with the evidence attached</td></tr>
+        <tr><td class="k">Things that worked more than once</td><td>Become a starting template</td></tr>
+        <tr><td class="k">What past work cost and took</td><td>Says what this one will likely cost, before we commit</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>03 Operate &amp; Learn · Sep 2026</span><span>6 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Planning</span><span>02 Implementation</span><span>03 Operate &amp; Learn</span><span><b>04 Knowledge base</b></span></div><h1 style="margin-top:22px;font-size:36px">A shared memory for the software factory</h1>
+  <p class="sub" style="margin-bottom:8px">Agents can read the repository in front of them. The knowledge base holds everything else the company knows: other services, tickets, decisions, deployments, owners and rules, connected across every repo. Local code always wins.</p>
+  <div class="cols">
+    <div class="col" style="flex:0.95"><svg width="540" height="300" viewBox="0 0 540 300"><defs>
+  <marker id="m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f6666"/></marker>
+  <marker id="mt" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f5f5c"/></marker>
+  <marker id="ma" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b07a00"/></marker>
+</defs><g font-size="11">
+<rect x="10" y="20" width="130" height="46" class="boxg"/><text x="75" y="38" text-anchor="middle" class="sm">Ticket</text><text x="75" y="55" text-anchor="middle" font-weight="600">SHOP-142</text>
+<rect x="205" y="20" width="130" height="46" class="boxg"/><text x="270" y="38" text-anchor="middle" class="sm">Pull request</text><text x="270" y="55" text-anchor="middle" font-weight="600">#412 merged</text>
+<rect x="400" y="20" width="130" height="46" class="boxg"/><text x="465" y="38" text-anchor="middle" class="sm">Deployment</text><text x="465" y="55" text-anchor="middle" font-weight="600">prod, 14 Sep</text>
+<rect x="10" y="130" width="130" height="46" class="boxg"/><text x="75" y="148" text-anchor="middle" class="sm">Decision</text><text x="75" y="165" text-anchor="middle" font-weight="600">ADR-017</text>
+<rect x="205" y="130" width="130" height="46" class="box"/><text x="270" y="148" text-anchor="middle" class="sm">Service</text><text x="270" y="165" text-anchor="middle" font-weight="600">checkout-api</text>
+<rect x="400" y="130" width="130" height="46" class="boxg"/><text x="465" y="148" text-anchor="middle" class="sm">Team</text><text x="465" y="165" text-anchor="middle" font-weight="600">Payments</text>
+<rect x="10" y="240" width="130" height="46" class="boxg"/><text x="75" y="258" text-anchor="middle" class="sm">Service</text><text x="75" y="275" text-anchor="middle" font-weight="600">mobile-app</text>
+<rect x="205" y="240" width="130" height="46" class="boxg"/><text x="270" y="258" text-anchor="middle" class="sm">API</text><text x="270" y="275" text-anchor="middle" font-weight="600">POST /quotes</text>
+<rect x="400" y="240" width="130" height="46" fill="#fff" stroke="#b07a00" stroke-dasharray="4 3"/><text x="465" y="258" text-anchor="middle" class="sm">Service</text><text x="465" y="275" text-anchor="middle" font-weight="600">partner-gateway</text>
+<line x1="140" y1="43" x2="205" y2="43" class="edge" marker-end="url(#m)"/><text x="172" y="37" text-anchor="middle" class="sm">implements</text>
+<line x1="335" y1="43" x2="400" y2="43" class="edge" marker-end="url(#m)"/><text x="367" y="37" text-anchor="middle" class="sm">shipped</text>
+<line x1="270" y1="66" x2="270" y2="130" class="edge" marker-end="url(#m)"/><text x="278" y="100" class="sm">modifies</text>
+<line x1="140" y1="153" x2="205" y2="153" class="edge" marker-end="url(#m)"/><text x="172" y="147" text-anchor="middle" class="sm">governs</text>
+<line x1="400" y1="153" x2="335" y2="153" class="edge" marker-end="url(#m)"/><text x="367" y="147" text-anchor="middle" class="sm">owns</text>
+<line x1="270" y1="176" x2="270" y2="240" class="edge" marker-end="url(#m)"/><text x="278" y="210" class="sm">exposes</text>
+<line x1="140" y1="263" x2="205" y2="263" class="edge" marker-end="url(#m)"/><text x="172" y="257" text-anchor="middle" class="sm">uses v2</text>
+<line x1="400" y1="263" x2="335" y2="263" stroke="#b07a00" stroke-dasharray="4 3" marker-end="url(#ma)"/><text x="367" y="257" text-anchor="middle" class="sm" fill="#b07a00">uses v1</text>
+</g></svg><div class="legend">solid = parsed from source data · dashed amber = inferred by AI, with evidence</div></div>
+    <div class="col" style="flex:1.1">
+      <table class="tbl">
+        <tr><th style="width:20%">Layer</th><th>What it does</th></tr>
+        <tr><td class="k">Sources</td><td>Git host, tickets, docs, CI/CD, ownership, incidents, release check results and factory run records</td></tr>
+        <tr><td class="k">Ingestion</td><td>Read-only connectors, secrets and personal data removed, kept current by webhooks and a nightly sync</td></tr>
+        <tr><td class="k">Processing</td><td>Cross-repo facts linked through shared IDs; AI summaries and decisions only with evidence; conclusions, never raw monitoring data</td></tr>
+        <tr><td class="k">Storage</td><td>Knowledge graph and text search, plus versioned plans, specs, decisions and conventions in Git</td></tr>
+        <tr><td class="k">Context service</td><td>One endpoint, six tools: task context, consumers, owners, conventions, similar changes, past outcomes. Permission filtering and an audit log</td></tr>
+        <tr><td class="k">Consumers</td><td>Planning, the implementation agents, the risk assessment and the release check all query the same service; agents also get context at session start</td></tr>
+      </table>
+      <div class="quote" style="margin-top:10px"><b>Why agents can trust it.</b> Every fact records its source, whether it is approved, parsed or AI-inferred, and when it stopped being true. Across every layer: a model gateway to the customer's approved LLM, mirrored permissions, one isolated instance per customer.</div>
+    </div>
+  </div>
+  <div class="foot"><span>04 Knowledge base · Sep 2026</span><span>7 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Planning</span><span>02 Implementation</span><span>03 Operate &amp; Learn</span><span><b>04 Knowledge base</b></span></div><h1 style="margin-top:22px;font-size:36px">How the factory uses it, and how we prove it works</h1>
+  <p class="sub" style="margin-bottom:10px">Every factory step reads the same knowledge base, and every step writes back. Humans approve knowledge the same way they approve code: through pull requests.</p>
+  <div class="cols">
+    <div class="col">
+      <p class="label">At every factory step</p>
+      <table class="tbl">
+        <tr><td class="k" style="width:30%">Planning</td><td>Past outcomes, caveats, cost and time of similar work</td></tr>
+        <tr><td class="k">Define done</td><td>The spec, consumers and similar tickets shape the red acceptance tests</td></tr>
+        <tr><td class="k">TDD rounds</td><td>Context pack, wiki pages and the conventions that apply</td></tr>
+        <tr><td class="k">Risk check</td><td>Consumers and owners of the changed code feed the risk prompt</td></tr>
+        <tr><td class="k">Release check</td><td>Uses the signals declared in the plan; writes conclusions back</td></tr>
+        <tr><td class="k">Learn</td><td>Runs and human context flow back; owners approve inferred facts</td></tr>
+      </table>
+      <p class="label" style="margin-top:12px">Rollout</p>
+      <p style="margin:0;font-size:13.5px"><span class="tag" style="font-size:11px;padding:2px 8px">1 Readiness check</span> <span class="tag" style="font-size:11px;padding:2px 8px">2 Code and ownership</span> <span class="tag" style="font-size:11px;padding:2px 8px">3 Tickets and docs</span> <span class="tag" style="font-size:11px;padding:2px 8px">4 AI enrichment</span> <span class="tag" style="font-size:11px;padding:2px 8px">5 Full factory integration</span></p>
+    </div>
+    <div class="col">
+      <p class="label">What the AI agent receives for SHOP-142</p>
+      <div class="code" style="font-size:12px"><span class="c">Task</span>      Add discount codes to quotes
+          Invalid code returns 422, one code per quote
+<span class="c">Affects</span>   checkout-api (owner: Payments)
+          POST /quotes, used by mobile-app v2
+          <span class="h">partner-gateway v1 (inferred, 0.8)</span>
+<span class="c">Rules</span>     Money in integer cents; ADR-017 rounding
+<span class="c">Similar</span>   #398 added a field in v2 only
+<span class="c">Past</span>      #398 took 4 rounds; release check: worked</div>
+      <p class="label" style="margin-top:12px">How we prove it</p>
+      <table class="tbl">
+        <tr><td class="k" style="width:34%">Readiness check</td><td>Of the customer's data before building</td></tr>
+        <tr><td class="k">Question set</td><td>Real questions scored every night</td></tr>
+        <tr><td class="k">With and without</td><td>The knowledge base on the same tickets: correctness, rework, time and cost</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>04 Knowledge base · Sep 2026</span><span>8 / 8</span></div>
+</section>
+</body>
+</html>
