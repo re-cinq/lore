@@ -126,8 +126,10 @@ stations:
       - name: verdict
         kind: value
   triage-reproduce:
+    description: An AI agent tries to reproduce the reported behaviour against the repository and says whether it reproduced, needs more detail, or could not.
     kind: agent
     agent_definition: triage-reproduce
+    conversation: new
     outcomes:
       - success
       - unable-to-reproduce
@@ -142,8 +144,10 @@ stations:
         kind: value
         optional: true
   triage-diagnose:
+    description: An AI agent traces a reproduced issue to its cause in the code and writes a short diagnosis that verify reads.
     kind: agent
     agent_definition: triage-diagnose
+    conversation: new
     outcomes:
       - success
       - failed
@@ -195,6 +199,17 @@ agent_definitions:
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 15
       config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
         mcp_servers:
           - name: lore
             transport: http
@@ -206,6 +221,17 @@ agent_definitions:
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 10
       config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
         mcp_servers:
           - name: lore
             transport: http
