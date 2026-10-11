@@ -25,7 +25,6 @@ export interface ChunkSearchHit {
   similarity?: number | string | null;
   repo?: string;
   content_hash?: string | null;
-  vec_rows?: number | string | null;
 }
 
 // The hash travels with the hit so two paths holding one body (a file and its copied twin) collapse to one document.
@@ -84,6 +83,9 @@ export async function hybridChunkSearch(
     : { items: await keywordRankedItems(pool, schema, chunkQuery) };
 }
 
+/** A fused row also carries how many rows the vector leg produced, the same count on every row. */
+type FusedHit = ChunkSearchHit & { vec_rows?: number | string | null };
+
 async function hybridRankedItems(
   pool: PgPool,
   schema: string,
@@ -103,13 +105,13 @@ function runHybridQuery(
   schema: string,
   embedding: number[],
   chunkQuery: ChunkQuery,
-): Promise<ChunkSearchHit[]> {
+): Promise<FusedHit[]> {
   return runInTransaction(pool, async (tx) => {
     if (tx !== pool) {
       await tx.query(VECTOR_SCAN_SETTINGS_SQL);
     }
 
-    const { rows } = await tx.query<ChunkSearchHit>(hybridSql(schema), [
+    const { rows } = await tx.query<FusedHit>(hybridSql(schema), [
       chunkQuery.repo,
       `[${embedding.join(",")}]`,
       chunkQuery.contentTypes,
