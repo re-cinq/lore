@@ -263,6 +263,7 @@ export async function enablePullRequestAutoMerge(
   mergeMethod?: MergeMethod,
 ): Promise<void> {
   const method = mergeMethod ? mergeMethod.toUpperCase() : "SQUASH";
+
   await ok.graphql(
     `mutation ($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
       enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {

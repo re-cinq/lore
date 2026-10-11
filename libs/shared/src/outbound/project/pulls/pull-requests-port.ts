@@ -173,7 +173,10 @@ export interface PullRequestsPort {
   ): Promise<void>;
   addLabel(repo: string, number: number, label: string): Promise<void>;
   merge(repo: string, number: number, method?: MergeMethod): Promise<void>;
-  enablePullRequestAutoMerge(prId: string, mergeMethod?: MergeMethod): Promise<void>;
+  enablePullRequestAutoMerge(
+    prId: string,
+    mergeMethod?: MergeMethod,
+  ): Promise<void>;
   disablePullRequestAutoMerge(prId: string): Promise<void>;
   open(repo: string, branch: string, draft: PullDraft): Promise<PullRef>;
   /** Rewrite an open pull request's title and/or body. */

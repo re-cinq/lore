@@ -4,7 +4,7 @@
 | ------- | ----------------------------------------------------------------- |
 | Feature | Lore merges on protected repos, and every PR knows what blocks it |
 | Branch  | feat/protected-branch-merge                                       |
-| Status  | Draft                                                             |
+| Status  | In Progress                                                       |
 | Created | 2026-10-07                                                        |
 | Owner   | Platform Engineering                                              |
 

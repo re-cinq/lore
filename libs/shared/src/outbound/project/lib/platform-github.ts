@@ -394,13 +394,15 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     prId: string,
     mergeMethod?: MergeMethod,
   ): Promise<void> {
-    return pullsWrite.enablePullRequestAutoMerge(await this.octo(), prId, mergeMethod);
+    return pullsWrite.enablePullRequestAutoMerge(
+      await this.octo(),
+      prId,
+      mergeMethod,
+    );
   }
 
   // eslint-disable-next-line re-lint/no-negative-names
-  async disablePullRequestAutoMerge(
-    prId: string,
-  ): Promise<void> {
+  async disablePullRequestAutoMerge(prId: string): Promise<void> {
     return pullsWrite.disablePullRequestAutoMerge(await this.octo(), prId);
   }
 

@@ -1103,15 +1103,22 @@ describe("PlatformGitHub auto-merge and comments", () => {
     await (gh() as any).enablePullRequestAutoMerge("PR_123", "SQUASH");
 
     expect(state.graphqlCalls).toHaveLength(1);
-    expect(state.graphqlCalls[0]?.query).toContain("enablePullRequestAutoMerge");
-    expect(state.graphqlCalls[0]?.vars).toEqual({ pullRequestId: "PR_123", mergeMethod: "SQUASH" });
+    expect(state.graphqlCalls[0]?.query).toContain(
+      "enablePullRequestAutoMerge",
+    );
+    expect(state.graphqlCalls[0]?.vars).toEqual({
+      pullRequestId: "PR_123",
+      mergeMethod: "SQUASH",
+    });
   });
 
   it("disablePullRequestAutoMerge sends the mutation with the pull request node id", async () => {
     await (gh() as any).disablePullRequestAutoMerge("PR_456");
 
     expect(state.graphqlCalls).toHaveLength(1);
-    expect(state.graphqlCalls[0]?.query).toContain("disablePullRequestAutoMerge");
+    expect(state.graphqlCalls[0]?.query).toContain(
+      "disablePullRequestAutoMerge",
+    );
     expect(state.graphqlCalls[0]?.vars).toEqual({ pullRequestId: "PR_456" });
   });
 });
