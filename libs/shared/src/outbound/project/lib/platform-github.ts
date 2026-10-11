@@ -199,6 +199,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return repoContent.branchExists(await this.octo(), repo, branch);
   }
 
+  async branchMerged(
+    repo: string,
+    branch: string,
+  ): Promise<boolean | undefined> {
+    return repoContent.branchMerged(await this.octo(), repo, branch);
+  }
+
   async createBranch(
     repo: string,
     branch: string,
