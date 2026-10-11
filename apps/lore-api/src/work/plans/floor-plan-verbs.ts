@@ -10,6 +10,7 @@ import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import { reopenWhenAuthorWaits } from "./planning-line.js";
 import type {
+  DraftingRequest,
   PlanContentVerbs,
   PlanSubject,
   PlanVerbs,
@@ -58,16 +59,29 @@ function draftingVerbs(
 ): Pick<PlanContentVerbs, "draft" | "refine"> {
   return {
     draft: async (plan, request) =>
-      startFloorDrafting(deps, {
-        ...(await briefed(plan, draftBriefOf(plan, request.known))),
-        storyIssue: request.storyIssue,
-      }),
+      startFloorDrafting(
+        deps,
+        await draftInput(briefed, plan, request),
+        request.createdBy,
+      ),
     refine: async (plan, refine) =>
       askFloorRefine(deps, {
         ...(await briefed(plan, refineBriefOf(plan, refine))),
         refine,
         actor: refine.actor,
       }),
+  };
+}
+
+/** The draft's brief and markdown, with the story the plan answers. */
+async function draftInput(
+  briefed: Briefed,
+  plan: PlanSubject,
+  request: DraftingRequest,
+): Promise<FloorPlanMarkdown> {
+  return {
+    ...(await briefed(plan, draftBriefOf(plan, request.known))),
+    storyIssue: request.storyIssue,
   };
 }
 
@@ -87,10 +101,11 @@ function approvalVerbs(
   briefed: Briefed,
 ): Pick<PlanContentVerbs, "handOverApproved" | "startSpecWork"> {
   return {
-    handOverApproved: async (plan) => {
+    handOverApproved: async (plan, approvedBy) => {
       await approveFloorPlan(
         deps,
         await briefed(plan, () => approvedBrief(plan)),
+        approvedBy,
       );
     },
     startSpecWork: async (plan, _createdBy, storyIssue) =>
@@ -114,7 +129,7 @@ function lineVerbs(
 ): Omit<PlanVerbs, keyof PlanContentVerbs> {
   return {
     approvalDecision: (plan) => decideFloorApproval(deps, plan),
-    reopen: (plan) => reopenFloorPlan(deps, plan),
+    reopen: (plan, actor) => reopenFloorPlan(deps, plan, actor),
     openForAuthor: async (plan, reopen) =>
       reopenWhenAuthorWaits(
         await floorPlanLineState(deps.floor, keyOf(plan)),
