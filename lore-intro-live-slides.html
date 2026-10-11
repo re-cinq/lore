@@ -1,0 +1,155 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lore evidence call · live</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #fff; }
+body { font-family: "Inter", sans-serif; color: #14143a; font-size: 14px; line-height: 1.42; letter-spacing: -0.01em; }
+.slide { position: relative; width: 1280px; height: 720px; padding: 38px 64px 0; overflow: hidden; break-after: page; }
+.slide:last-child { break-after: auto; }
+.chip { display: inline-block; background: #e6e8fd; color: #0b0b66; font-weight: 500; font-size: 15px; padding: 5px 14px; border-radius: 16px; }
+h1 { font-family: "IBM Plex Sans", sans-serif; font-weight: 500; font-size: 38px; letter-spacing: -0.01em; margin: 12px 0 6px; line-height: 1.15;
+     color: #05052e; }
+h1 b { font-weight: 500; color: #1a22d6; }
+.sub { color: #555a6e; font-size: 17.5px; margin: 0 0 18px; max-width: 1120px; }
+.row { display: flex; gap: 14px; }
+.card { flex: 1; background: #f2f2fe; border-radius: 14px; padding: 16px 16px 14px; min-width: 0; }
+.k { font-family: "JetBrains Mono", monospace; font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase; color: #1a22d6; }
+.card h3 { font-family: "Inter", sans-serif; font-weight: 500; font-size: 18.5px; color: #0b0b66; margin: 6px 0 6px; letter-spacing: -0.02em; line-height: 1.2; }
+.card p { margin: 0 0 8px; font-size: 13.5px; color: #2a2d44; }
+.links { margin: 8px 0 0; padding: 0; list-style: none; border-top: 1px solid #dcdcf6; padding-top: 8px; }
+.links li { font-size: 12.5px; margin: 0 0 4px; line-height: 1.3; }
+a { color: #1a22d6; text-decoration: underline; text-decoration-color: #b9bcf5; text-underline-offset: 2px; }
+.mono { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0; }
+.pill { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 13px; padding: 4px 16px; border: 1.5px solid #1a22d6; border-radius: 7px; color: #0b0b66; background: #e9eafd; }
+.pill.v { border-color: #8a2be2; color: #7421c4; background: #f5eafd; }
+.strip { background: #f2f2fe; border-radius: 12px; padding: 12px 18px; margin-top: 14px; font-size: 14.5px; display: flex; gap: 14px; align-items: baseline; }
+.strip .k { white-space: nowrap; }
+.foot { position: absolute; left: 64px; right: 64px; bottom: 26px; border-top: 1px solid #ececf4; padding-top: 12px; display: flex; justify-content: space-between; color: #6b6f85; font-size: 15px; }
+.foot .n { font-family: "JetBrains Mono", monospace; color: #0b0b66; }
+.t { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: #6b6f85; }
+</style></head><body>
+
+<!-- #2064 -->
+<section class="slide">
+  <span class="chip">1 Evidence walkthrough · live · #2064</span>
+  <h1>#2064: work item to merge, <b>by the factory</b></h1>
+  <p class="sub">A person filed an outage ticket. The implementation line wrote the failing check, the fix and the pull request in 32 minutes. A person merged it. Every link below is the production record.</p>
+  <div class="row">
+    <div class="card"><div class="k">1 · work item</div><h3>Ticket #1948</h3>
+      <p>Filed by a person on 9 Sep after a migration hook failed a deploy. Picked up by the backlog loop on 13 Sep at 21:38 UTC.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/issues/1948">Issue #1948</a></li>
+        <li><a href="https://github.com/re-cinq/lore/issues/1948#issuecomment-5656323872">"Agent picked up this task"</a></li>
+      </ul></div>
+    <div class="card"><div class="k">2 · agent run</div><h3>Seven visits, one run</h3>
+      <p class="mono" style="font-size:11.5px;color:#0b0b66">dod → open-pr → tdd-round → await-ci → ready-for-review → await-pr → retrospective</p>
+      <p>21:38 to 22:10. Red test first, then the fix, each in its own pod.</p>
+      <ul class="links">
+        <li><a href="https://lore.gcp.re-cinq.com/assembly-runs/dbccc0a0-b910-4e1c-bde8-0f90783d98ce">Run page in Lore</a> <span class="t">dbccc0a0</span></li>
+        <li><a href="https://lore.gcp.re-cinq.com/tasks/27b3ec3b-3607-4334-97bd-13fca1c15f4e">Task page</a> <span class="t">27b3ec3b</span></li>
+        <li><a href="https://github.com/re-cinq/lore/commit/5ee00079f">Red test</a> · <a href="https://github.com/re-cinq/lore/commit/ee98cdd50">the fix</a> · <a href="https://github.com/re-cinq/lore/commit/d9b1a0c23">clean-up</a></li>
+      </ul></div>
+    <div class="card"><div class="k">3 · tests and CI</div><h3>26 checks green</h3>
+      <p>CI judged every push. The <span class="mono">apply</span> job runs the acceptance check the agent wrote: migrations as the application role against the full baseline.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/pull/2064/checks">All checks on the PR</a></li>
+        <li><a href="https://github.com/re-cinq/lore/actions/runs/34785659434/job/103800554771">migrations · apply</a></li>
+        <li><a href="https://github.com/re-cinq/lore/actions/runs/34785659401/job/103800554836">integration</a></li>
+      </ul></div>
+    <div class="card"><div class="k">4 · review</div><h3>By the person who merged</h3>
+      <p>On 13 Sep the reviewer did not yet judge pull requests the factory itself opened. Since 25 Sep its verdict lands on a <span class="mono">lore/code-review</span> check.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/pull/2064">PR #2064, description and diff</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2196">#2196: verdict on factory PRs</a></li>
+      </ul></div>
+    <div class="card"><div class="k">5 · merge</div><h3>A person, 22:56</h3>
+      <p>Squash-merged by a maintainer. The PR body carries <span class="mono">Lore-Task</span>, the commits carry the model that wrote them.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/commit/41fbfcf87">Merge commit 41fbfcf87</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2064/commits">Commits and trailers</a></li>
+      </ul></div>
+  </div>
+  <div class="strip"><span class="k">in lore</span><span>The run page still holds the full transcript: 518 recorded agent turns across the seven visits, with every tool call and the cost.</span></div>
+  <div class="foot"><span>re:cinq · Lore · evidence call · Oct 2026</span><span class="n">live · 1 / 3</span></div>
+</section>
+
+<!-- #2065 -->
+<section class="slide">
+  <span class="chip">1 Evidence walkthrough · live · #2065</span>
+  <h1>#2065: a person's change, <b>corrected by the reviewer</b></h1>
+  <p class="sub">The same evening, a maintainer opened a pull request by hand. Lore's reviewer blocked it five minutes later for a real defect, the author fixed it, and every later push was re-checked.</p>
+  <div class="row">
+    <div class="card"><div class="k">1 · work item</div><h3>A human pull request</h3>
+      <p>Opened 13 Sep at 21:52 UTC: a loop ticket that failed for infrastructure reasons is deferred, a bounded number of times.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/pull/2065">PR #2065</a></li>
+        <li><a href="https://github.com/re-cinq/lore/issues/1648">#1648</a> · <a href="https://github.com/re-cinq/lore/issues/2056">#2056</a> <span class="t">the tickets</span></li>
+      </ul></div>
+    <div class="card"><div class="k">2 · review run</div><h3>Blocked at +5 minutes</h3>
+      <p>The code-review line read the change in a clone and posted CHANGES_REQUESTED: one must-fix, one nit. The review names its model and run.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/pull/2065#pullrequestreview-5192435245">The review, 21:57</a></li>
+        <li><a href="https://lore.gcp.re-cinq.com/assembly-runs/9a27aff3-1e10-4688-ad04-efdf8ca670c9">Run page in Lore</a> <span class="t">9a27aff3</span></li>
+      </ul></div>
+    <div class="card"><div class="k">3 · the finding</div><h3>A real double-count</h3>
+      <p>The closing run was already marked failed, so the first failure counted as attempt two. Posted on the line, with a suggested fix.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/pull/2065#discussion_r4001030263">The blocking finding</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2065#discussion_r4001040121">The author's answer</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2065#discussion_r4001040196">A nit, declined with a reason</a></li>
+      </ul></div>
+    <div class="card"><div class="k">4 · fix and re-checks</div><h3>Approved on every push</h3>
+      <p>Fixed in one commit with a new test. Four re-check runs, each judging only what changed since the last verdict.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/commit/016536120">The fix, 016536120</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2065#pullrequestreview-5192462501">First re-check, 22:02</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2065#pullrequestreview-5192535681">Last re-check, 22:34</a></li>
+        <li><a href="https://lore.gcp.re-cinq.com/assembly-runs/81324712-3370-451f-b3a9-76d397c89d61">A re-check run in Lore</a></li>
+      </ul></div>
+    <div class="card"><div class="k">5 · CI and merge</div><h3>Green, merged at 22:39</h3>
+      <p>All checks green, including <span class="mono">lore/code-review</span>. The author merged. The declined nit was taken two PRs later.</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/pull/2065/checks">Checks on the PR</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2067">#2067, where the nit landed</a></li>
+      </ul></div>
+  </div>
+  <div class="strip"><span class="k">what it shows</span><span>Review is the same line for a person's pull request and for the factory's. People answer in the thread; the answer, and the reason, stay on the record.</span></div>
+  <div class="foot"><span>re:cinq · Lore · evidence call · Oct 2026</span><span class="n">live · 2 / 3</span></div>
+</section>
+
+<!-- when something fails -->
+<section class="slide">
+  <span class="chip">1 Evidence walkthrough · live · when something fails</span>
+  <h1>When something fails: <b>three real cases</b></h1>
+  <p class="sub">Retries are bounded and named in the line definition. When a bound is spent the factory stops, says why on the ticket, and leaves the pull request for a person.</p>
+  <div class="row">
+    <div class="card"><span class="pill">#2053</span><h3 style="margin-top:10px">A red build, repaired, then merged</h3>
+      <p>CI went red after the first round, and stayed red after the second. The repair station took CI's failing checks, fixed only those, and the build went green.</p>
+      <p class="mono" style="font-size:11.5px;color:#0b0b66">tdd-round → CI red → tdd-round → CI red → repair-build → CI green → ready-for-review → merged</p>
+      <ul class="links">
+        <li><a href="https://lore.gcp.re-cinq.com/assembly-runs/7217c809-56b4-4443-bee5-1195c8eeb4a0">Run page in Lore</a> <span class="t">7217c809 · 11 visits · 730 turns</span></li>
+        <li><a href="https://github.com/re-cinq/lore/actions/runs/34733268139/job/103659909924">The red check</a> · <a href="https://github.com/re-cinq/lore/commit/b874fadc9">the repair commit</a></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2053">PR #2053</a> · <a href="https://github.com/re-cinq/lore/issues/2025">ticket #2025</a></li>
+      </ul></div>
+    <div class="card"><span class="pill v">#2060</span><h3 style="margin-top:10px">Out of repairs: handed to a person</h3>
+      <p>The build was still red after three fixes. The loop spent its budget, labeled the ticket <span class="mono">lore:blocked</span>, and wrote the reason on it. The pull request stayed open for a human; it was closed unmerged.</p>
+      <p class="mono" style="font-size:11.5px;color:#0b0b66">await-pr → fix-ci ×3 → parked</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/issues/1899#issuecomment-5656185444">The parking comment</a></li>
+        <li><a href="https://lore.gcp.re-cinq.com/assembly-runs/d72bb72f-6eb5-4f6b-b67b-4ad0514103b9">Run page in Lore</a> <span class="t">d72bb72f</span></li>
+        <li><a href="https://github.com/re-cinq/lore/pull/2060">PR #2060</a> · <a href="https://github.com/re-cinq/lore/issues/1899">ticket #1899</a></li>
+      </ul></div>
+    <div class="card"><span class="pill v">#1846</span><h3 style="margin-top:10px">A ticket it could not build: declined in six minutes</h3>
+      <p>The ticket asked for a lint rule, but that rule's code lives in another repository. The first station saw it could not write a failing test here. It wrote no code, opened no pull request, and parked the ticket with the reason and where to re-file it.</p>
+      <p class="mono" style="font-size:11.5px;color:#0b0b66">dod → parked</p>
+      <ul class="links">
+        <li><a href="https://github.com/re-cinq/lore/issues/1846#issuecomment-5655738403">The parking comment, with the reason</a></li>
+        <li><a href="https://lore.gcp.re-cinq.com/assembly-runs/904278cf-30fd-43e1-9284-f84c76359bc5">Run page in Lore</a> <span class="t">904278cf · 131 turns</span></li>
+        <li><a href="https://github.com/re-cinq/lore/issues/1846">Ticket #1846</a></li>
+      </ul></div>
+  </div>
+  <div class="strip"><span class="k">the bounds</span><span>12 rounds per ticket · 2 build repairs during the rounds · 3 CI fixes before review · 1 retry of a failed step. A spent bound is a finding for planning, not a silent loop.</span></div>
+  <div class="foot"><span>re:cinq · Lore · evidence call · Oct 2026</span><span class="n">live · 3 / 3</span></div>
+</section>
+</body></html>

@@ -5,8 +5,10 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: "run-credential", re: /v1\.[A-Za-z0-9_-]{20,}\.[0-9a-f]{64}/g },
   {
     name: "api-key",
-    re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_-]{20,}/g,
+    re: /(?:sk-|AKIA|xoxb-|xoxp-|gl(?:pat|dt|rt|cbt|ptt|ft|soat)-|GR1348941)[A-Za-z0-9_-]{20,}|gh[psour]_[A-Za-z0-9_.-]{20,}|github_pat_[A-Za-z0-9_]{20,}/g,
   },
+  { name: "aws-access-key-id", re: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g },
+  { name: "google-api-key", re: /\bAIza[0-9A-Za-z_-]{35}\b/g },
   {
     name: "jwt",
     re: /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g,
@@ -21,6 +23,18 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
   },
   { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9_\-.]{20,}/g },
   { name: "github-token", re: /x-access-token:[A-Za-z0-9_-]{20,}/g },
+  {
+    name: "github-token-base64",
+    re: /eC1hY2Nlc3MtdG9rZW46[A-Za-z0-9+/]*={0,2}/g,
+  },
+  {
+    name: "basic-auth",
+    re: /\bBasic\s+(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{12,}={0,2}/gi,
+  },
+  {
+    name: "url-credentials",
+    re: /(?<=https?:\/\/)[^\s/@:?#"'`]+:[^\s/@"'`]+(?=@)/g,
+  },
   { name: "base64-blob", re: /[A-Za-z0-9+/]{100,}={0,2}/g },
 ];
 

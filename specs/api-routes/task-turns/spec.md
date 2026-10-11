@@ -26,7 +26,7 @@ dedup.
 ## Interface
 
 Registered in `routeList`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L134),
+([registration](../../../apps/lore-api/src/app/build-server.ts#L136),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-turns.ts#L65)).
 
 - **Method + path**: `POST /api/task-turns/{taskId}`; `taskId` must be a UUID.
