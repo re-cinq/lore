@@ -47,9 +47,12 @@ const visit: VisitView = {
   brief: { needs: {}, iteration: 2 },
   report: null,
   worker: null,
+  branch: null,
   requestedBy: "alice",
   deadline: null,
   resumedFrom: null,
+  openedAt: "2026-09-30T10:05:00.000Z",
+  finishedAt: null,
   agentSettings: null,
 };
 
@@ -260,11 +263,72 @@ describe("visitToStationRun", () => {
       failureDetail: null,
       agentCrName: "floor-visit-1",
       input: null,
+      needs: {},
+      produced: null,
+      routeUrl: null,
       commitSha: null,
       requestedBy: "alice",
-      startedAt: CREATED_AT,
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
       finishedAt: null,
     });
+  });
+
+  it("finishes a visit reported at 10:20 at 10:20", () => {
+    const reported: VisitView = {
+      ...visit,
+      report: { outcome: "success", produced: {} },
+      finishedAt: "2026-09-30T10:20:00.000Z",
+    };
+
+    expect(visitToStationRun(reported, run)).toMatchObject({
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
+      finishedAt: new Date("2026-09-30T10:20:00.000Z"),
+    });
+  });
+
+  it("carries the brief's needs target and pr_url as the visit's bag", () => {
+    const needs = {
+      target: "github.com/re-cinq/lore@fix/login",
+      pr_url: "https://github.com/re-cinq/lore/pull/412",
+    };
+
+    expect(
+      visitToStationRun({ ...visit, brief: { needs, iteration: 2 } }, run),
+    ).toMatchObject({ needs });
+  });
+
+  it("carries the report's produced plan as the visit's produced", () => {
+    const reported: VisitView = {
+      ...visit,
+      report: { outcome: "success", produced: { plan: "sha256-abc" } },
+    };
+
+    expect(visitToStationRun(reported, run)).toMatchObject({
+      produced: { plan: "sha256-abc" },
+    });
+  });
+
+  it("resolves the author node's route to /repos/re-cinq/lore/plans/plan-7 from the run's repo and the visit's needs", () => {
+    const author: VisitView = {
+      ...visit,
+      nodeId: "author",
+      brief: { needs: { plan_id: "plan-7" }, iteration: 1 },
+    };
+    const withRoutes = {
+      ...run,
+      args: {},
+      routes: { author: "/repos/{repo}/plans/{plan_id}" },
+    };
+
+    expect(visitToStationRun(author, withRoutes).routeUrl).toBe(
+      "/repos/re-cinq/lore/plans/plan-7",
+    );
+  });
+
+  it("gives a node whose station names no route a null routeUrl", () => {
+    expect(
+      visitToStationRun(visit, { ...run, routes: { author: "/x" } }).routeUrl,
+    ).toBeNull();
   });
 
   it("maps a visit with a deadline and no worker to claimed with tags and claim time", () => {
@@ -283,7 +347,7 @@ describe("visitToStationRun", () => {
       status: "claimed",
       requiredTags: ["gpu"],
       claimedAt: new Date("2026-09-30T10:00:00.000Z"),
-      startedAt: new Date("2026-09-30T10:00:00.000Z"),
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
     });
   });
 

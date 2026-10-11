@@ -173,7 +173,6 @@ export const MAX_EXPECTS_BASELINE = [
   "libs/shared/src/work/feature-planning/decomposition-plan.test.ts",
   "libs/shared/src/work/ingest-workflow.test.ts",
   "libs/shared/src/work/repo-validation/repo-validation.test.ts",
-  "libs/shared/src/work/spec-status-flip.test.ts",
   "libs/shared/src/work/spec-trace/format-drift-report.test.ts",
   "libs/shared/src/work/spec-trace/language-agnostic-e2e.test.ts",
   "libs/shared/src/work/spec-trace/project-spec-file.test.ts",

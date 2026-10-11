@@ -49,7 +49,7 @@ function toStepView(
     tone,
     label,
     transition: transitionOf(definition, layers, node),
-    reason: tone === "err" ? runReason : null,
+    reason: tone === "err" ? (node.failureDetail ?? runReason) : null,
   };
 }
 

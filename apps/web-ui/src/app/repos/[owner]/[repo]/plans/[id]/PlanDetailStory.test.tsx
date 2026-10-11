@@ -56,6 +56,7 @@ describe("PlanDetailStory", () => {
         reworkSpecs={async () => ({})}
         validate={async () => ({})}
         deletePlan={async () => ({})}
+        refreshRunFacts={async () => ({ run: null })}
       />,
     );
     fireEvent.change(screen.getByRole("textbox", { name: "User story" }), {

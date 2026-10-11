@@ -6,12 +6,10 @@ import {
   writeEpisodeWithCuration,
   type PipelineTask,
 } from "@re-cinq/lore-shared";
-import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { runMergeStep, type MergeStepDeps } from "./merge-step.js";
 import type { MergeStepTask } from "./merge-step.js";
 import {
   applyOutcomeFeedback,
-  maybeFlipSpecStatus,
   promoteTrust,
 } from "../../work/merge-check/merge-check.js";
 import {
@@ -50,24 +48,6 @@ export function toMergeStepTask(
     task_type: row.task_type,
     description: row.description,
   };
-}
-
-/** Normalises a task-store row's task-store-only-undefined fields to the sweep's explicit null. */
-export function toFlipSpecStatusTask(
-  row: PipelineTask | null,
-  now: string,
-): MergeableTask {
-  const merged = { ...row } as NonNullable<typeof row>;
-
-  return {
-    ...merged,
-    target_branch: merged.target_branch ?? null,
-    pr_url: merged.pr_url ?? null,
-    task_group_id: merged.task_group_id ?? null,
-    context_bundle: merged.context_bundle ?? null,
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- row is an unchecked `as PipelineTask` cast over a raw pg row; a short SELECT can still leave created_at undefined
-    created_at: merged.created_at ?? now,
-  } as MergeableTask;
 }
 
 const recordMergeOutcome: MergeStepDeps["recordOutcome"] = async (task) => {
@@ -165,16 +145,11 @@ function stepFailed(step: string, detail: string): NodeResult {
   };
 }
 
-/** The steps' ports over this process's pool and GitHub App; one per run of a step, because it caches the task row it reads. */
+/** The steps' ports over this process's pool and GitHub App. */
 export function mergeStepProductionDeps(): MergeStepDeps {
-  // Cache the whole row to hand to helpers rather than widening the step contract.
-  let row: PipelineTask | null = null;
-
   return {
-    ...taskPorts((fetched) => {
-      row = fetched;
-    }),
-    ...repoPorts(() => row),
+    ...taskPorts(),
+    ...repoPorts(),
     recordOutcome: recordMergeOutcome,
     curate: curateMergeEpisode,
     applyOutcomeFeedback: (id, kind) => applyOutcomeFeedback(id, kind),
@@ -183,15 +158,14 @@ export function mergeStepProductionDeps(): MergeStepDeps {
   };
 }
 
-// The task-row reads and writes. Fetching CACHES the whole row through `remember`, so the repo-side ports below can read fields the step contract does not carry rather than widening it.
-function taskPorts(
-  remember: (row: PipelineTask | null) => void,
-): Pick<MergeStepDeps, "task" | "setStatus" | "recordEvent"> {
+// The task-row reads and writes.
+function taskPorts(): Pick<
+  MergeStepDeps,
+  "task" | "setStatus" | "recordEvent"
+> {
   return {
     task: async (id) => {
       const row = await taskStore().getById(id);
-
-      remember(row);
 
       return hasMergeStepFields(row) ? toMergeStepTask(row) : null;
     },
@@ -202,17 +176,9 @@ function taskPorts(
   };
 }
 
-/** The GitHub side of a merge: the spec's status row and the Issue that tracked the work. Both read `row` for fields the step contract deliberately does not carry. */
-function repoPorts(
-  row: () => PipelineTask | null,
-): Pick<MergeStepDeps, "flipSpecStatus" | "commentAndCloseIssue"> {
+/** The GitHub side of a merge: close the Issue that tracked the work. */
+function repoPorts(): Pick<MergeStepDeps, "commentAndCloseIssue"> {
   return {
-    flipSpecStatus: async (task) => {
-      await maybeFlipSpecStatus(
-        await projectFor(task.target_repo),
-        toFlipSpecStatusTask(row(), new Date().toISOString()),
-      );
-    },
     commentAndCloseIssue: async (task) => {
       const issues = (await projectFor(task.target_repo)).issues;
 

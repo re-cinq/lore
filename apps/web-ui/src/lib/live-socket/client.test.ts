@@ -282,3 +282,52 @@ describe("LiveSocketClient", () => {
     });
   });
 });
+
+describe("LiveSocketClient on a page from an older deployment", () => {
+  const STALE = new Error(
+    'Server Action "4080f7f2" was not found on the server. \nRead more: https://nextjs.org/docs/messages/failed-to-find-server-action',
+  );
+
+  function staleHarness(token: () => Promise<string>) {
+    const timers: { fn: () => void; delayMs: number }[] = [];
+    const reloads: string[] = [];
+    const client = new LiveSocketClient({
+      url: "ws://test/api/ws",
+      socket: FakeWebSocket,
+      setTimer: (fn, delayMs) => timers.push({ fn, delayMs }),
+      random: () => 0,
+      onStaleDeployment: () => reloads.push("reload"),
+    });
+
+    client.open(runSpec({ token }).spec);
+    FakeWebSocket.latest.accept();
+
+    return { timers, reloads };
+  }
+
+  it("asks for a reload once and arms no retry when the token action was not found on the server", async () => {
+    const { timers, reloads } = staleHarness(async () => {
+      throw STALE;
+    });
+
+    await flush();
+
+    expect({ reloads, retries: timers.length }).toEqual({
+      reloads: ["reload"],
+      retries: 0,
+    });
+  });
+
+  it("retries without a reload when the token is refused for another reason", async () => {
+    const { timers, reloads } = staleHarness(async () => {
+      throw new Error("forbidden");
+    });
+
+    await flush();
+
+    expect({ reloads, retries: timers.length }).toEqual({
+      reloads: [],
+      retries: 1,
+    });
+  });
+});

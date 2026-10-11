@@ -28,4 +28,20 @@ describe("MiniPipeline", () => {
       dots: ["dod: success", "tdd-round: running", "await-ci: lint_failed"],
     });
   });
+
+  it("renders a stalled node as a hand-back, in the changes-requested tone, not as a failure", () => {
+    render(
+      <MiniPipeline
+        runId="dbccc0a0-b910-4e1c-bde8-0f90783d98ce"
+        pipeline={[{ node_id: "qa-gate", state: "stalled" }]}
+      />,
+    );
+
+    const dot = screen.getByTestId("mini-node-qa-gate");
+
+    expect({
+      stalled: dot.className.includes("stalled"),
+      failed: dot.className.includes("failed"),
+    }).toEqual({ stalled: true, failed: false });
+  });
 });

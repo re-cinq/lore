@@ -94,7 +94,7 @@ The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
 `apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L28), [`run-stream-types.test.ts:67`](apps/web-ui/src/lib/run-stream-types.test.ts#L68))
 
 The definition DAG is laid out and rendered by hand in SVG, with no new
-dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L147))
+dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L243))
 
 ## Consequences
 

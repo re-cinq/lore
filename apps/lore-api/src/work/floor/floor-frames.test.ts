@@ -81,10 +81,15 @@ describe("floorFrames", () => {
     expect(floorFrames({ type: "unsupported" }, await run())).toEqual([]);
   });
 
-  it("sends nothing for run_reopened, which the installed floor-client does not declare", async () => {
-    const reopened = { type: "run_reopened", seq: 11 } as unknown as LiveFrame;
-
-    expect(floorFrames(reopened, await run())).toEqual([]);
+  it("turns a run a start by hand reopened into a running run status", async () => {
+    expect(
+      floorFrames(
+        { type: "run_reopened", seq: 11, run: FLOOR_RUN },
+        await run(),
+      ),
+    ).toMatchObject([
+      { type: "run_status", run: { id: "run-1", status: "running" } },
+    ]);
   });
 
   it("sends nothing for a frame type the floor adds later, rather than throwing", async () => {

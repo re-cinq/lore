@@ -49,6 +49,9 @@ const MOVE_AGENT_DEFINITIONS_SQL = `UPDATE lore.agent_definitions moved
     AND NOT EXISTS (SELECT 1 FROM lore.agent_definitions kept
                      WHERE kept.project_id = $2 AND kept.name = moved.name)`;
 
+/** lore.plans.repo is a free-text column with no FK to lore.repos; without this a rename orphans every existing plan under the stale name. */
+const MOVE_PLANS_SQL = "UPDATE lore.plans SET repo = $2 WHERE repo = $1";
+
 /** Inside an open transaction: locks both names' rows, then renames `from` in place or merges it into `to`. */
 async function renameRepoRow(
   db: PgPool,
@@ -69,6 +72,7 @@ async function renameRepoRow(
     : await renameRepoRowInPlace(db, source.id, to);
 
   await db.query(REPOINT_CROSS_REPO_LINKS_SQL, [from, to]);
+  await db.query(MOVE_PLANS_SQL, [from, to]);
 
   return outcome;
 }
@@ -132,9 +136,10 @@ export class PgSettings implements SettingsPort {
     return this.writer().setRepoSecret(repo, name, value);
   }
 
+  // Case-insensitive: the one lookup web-ui's repo layout uses to find the canonical casing of a URL typed or bookmarked with the wrong case.
   async record(repo: string): Promise<RepoRecord | null> {
     const { rows } = await this.pool.query<Record<string, unknown>>(
-      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE full_name = $1`,
+      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE LOWER(full_name) = LOWER($1)`,
       [repo],
     );
 

@@ -64,6 +64,8 @@ export interface EventDeliveriesPort {
   pruneHandled(olderThanDays: number): Promise<number>;
   /** Events captured within withinMinutes that no subscriber received — makes an unsubscribed name audible instead of silent. */
   orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]>;
+  /** This subscriber's deliveries still waiting to run or be retried: the bus queue depth a dashboard watches. */
+  pendingCount(subscriber: string): Promise<number>;
   /** Deliveries dead-lettered within withinMinutes, grouped by (event_name, subscriber). The sibling of {@link orphanedEvents} for the other silent failure: a handler that ran, exhausted its retries and gave up. A safety-net handler is exactly the one nobody notices losing — the Agent-CR reconcile dead-lettered 84 ticks across a 3-hour cluster-agent outage (2026-09-08) and the only record was the rows themselves. */
   deadLettered(withinMinutes: number): Promise<DeadLetteredDeliveries[]>;
   /** Creates the deliveries fan-out couldn't (a subscriber not yet registered at insert time), repairing the deploy-order gap; idempotent via the same (event_id, subscriber) uniqueness fan-out uses. withinMinutes must stay well inside the prune window or a pruned delivery gets recreated and re-run. */

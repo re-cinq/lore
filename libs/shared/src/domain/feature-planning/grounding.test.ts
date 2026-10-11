@@ -153,6 +153,18 @@ describe("groundingFindings", () => {
     expect(findings).toEqual([]);
   });
 
+  it("leaves an identifier unchecked on a line that says the feature adds it to the file it names", () => {
+    const findings = groundingFindings({
+      text: "Add `OIDC_CLIENT_ID` to `libs/shared/src/work/backlog/label-dispatch.ts`.",
+      tree: TREE,
+      files: {
+        "libs/shared/src/work/backlog/label-dispatch.ts": LABEL_DISPATCH,
+      },
+    });
+
+    expect(findings).toEqual([]);
+  });
+
   it("reports a bare repository path a plan quote names without backticks", () => {
     const findings = groundingFindings({
       text: "> outcomes: EdgeCondition and PRODUCIBLE_OUTCOMES in libs/assembly-lines/src/assembly-line-schema.ts.",

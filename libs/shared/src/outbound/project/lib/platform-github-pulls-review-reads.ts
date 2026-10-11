@@ -224,11 +224,13 @@ function isHumanComment(c: { body?: string }): boolean {
 }
 
 function toIssueComment(c: {
+  id: number;
   body?: string;
   user?: { login?: string } | null;
   created_at: string;
 }): IssueComment {
   return {
+    id: c.id,
     body: c.body ?? "",
     user: c.user?.login ?? "unknown",
     created_at: c.created_at,

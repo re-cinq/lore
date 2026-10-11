@@ -37,18 +37,18 @@ const REFINE_SETTLED_OPTIONS = {
     name: "PlanRefineSettled",
     description:
       "An analyze pass ended: its person's Refine is answered or told why not, and the ask is cleared",
-    errors: [404],
+    errors: [400, 404],
   }),
   validate: { payload: zodValidate(RefineSettledBody) },
 };
 
-/** The analyze pass ended: lore-api answers the section a person asked about, or says why it could not, and clears the ask. A pass nobody asked about settles nothing. */
+/** The analyze pass ended: lore-api answers the section a person asked about (or says why it could not), and clears the ask. A pass nobody asked about settles nothing. The agent's presence follows the floor's visits, not this call (plan-agent-presence.ts). */
 function refineSettledRoute(ports: PlanFilePorts): ServerRoute {
   return {
     method: "POST",
     path: "/api/plans/{id}/refine-settled",
     options: REFINE_SETTLED_OPTIONS,
-    handler: async (request) =>
+    handler: (request) =>
       settleRefine(
         request.params.id,
         request.payload as z.infer<typeof RefineSettledBody>,

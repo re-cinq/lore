@@ -95,6 +95,16 @@ describe("stepViews", () => {
     expect(bad.reason).toBe("pod exited non-zero");
   });
 
+  it("shows the failed issues step's own 'body is too long' over the run reason", () => {
+    const [bad] = stepViews(
+      implementationDefinition,
+      [node({ outcome: "failed", failureDetail: "body is too long" })],
+      "pod exited non-zero",
+    );
+
+    expect(bad?.reason).toBe("body is too long");
+  });
+
   it("preserves execution order and one step per row", () => {
     const steps = stepViews(implementationDefinition, [
       node({ nodeId: "implement" }),

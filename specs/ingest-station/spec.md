@@ -140,7 +140,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   force-pass self-chunking tree listing, and the spec_trace handler no longer
   needs a dgraph client at all (the `LORE_DGRAPH_HTTP` check remains only as
   the feature gate).
-  ([`drain-loop.test.ts:150`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L173); implemented by [`loop.ts:53`](libs/shared/src/outbound/project/events/drain-loop.ts#L172))
+  ([`drain-loop.test.ts:150`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L173); implemented by [`loop.ts:53`](libs/shared/src/outbound/project/events/drain-loop.ts#L174))
 
 - **FR7 — catalog.** A `def-ingest` recipe is seeded like the other builtins
   (a `def-<type>` row in `lore.agent_definitions`, rendered by each cluster-agent's catalog sync), with

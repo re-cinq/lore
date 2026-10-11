@@ -186,7 +186,29 @@ describe("parseDecomposition", () => {
       ],
     }).stories[0].tasks;
 
-    expect(task.spec_lines).toEqual([42, 57]);
+    expect(task.spec_lines).toEqual([{ line: 42 }, { line: 57 }]);
+  });
+
+  it("keeps line 7 of specs/b/spec.md and line 42 of specs/a/spec.md when the lines are keyed by spec, a directory naming its spec.md", () => {
+    const [task] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "d",
+              spec_lines: { "specs/a/spec.md": [42, 0], "specs/b": ["7"] },
+            },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect(task.spec_lines).toEqual([
+      { file: "specs/a/spec.md", line: 42 },
+      { file: "specs/b/spec.md", line: 7 },
+    ]);
   });
 
   it("keeps the commit abc123 the decomposition read the spec at", () => {

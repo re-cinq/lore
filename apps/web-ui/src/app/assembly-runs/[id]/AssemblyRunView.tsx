@@ -1,8 +1,11 @@
 import Link from "next/link";
-import type { AssemblyRun } from "@/lib/assembly-runs";
+import type { AssemblyRun, AssemblyRunNode } from "@/lib/assembly-runs";
+import CollapsibleCard from "@/components/CollapsibleCard";
 import { formatDuration, runHeaderVisual } from "@/lib/assembly-run-presenter";
+import type { RunBag } from "@/lib/run-bag";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 import { CancelTaskButton } from "./CancelTaskButton";
+import RunBagFacts from "./RunBagFacts";
 import styles from "./AssemblyRunView.module.css";
 
 const EM_DASH = "—";
@@ -13,7 +16,7 @@ export interface AssemblyRunViewProps {
   waitingOn?: string | null;
 }
 
-// Run header — line-level facts only; per-node state lives in the visualization panel below.
+// Run header — the trail, the line's name and its status. The facts card is `RunFacts`, drawn under the graph (run-viz FR4.14); per-node state lives in the visualization panel below.
 export default function AssemblyRunView({
   run,
   waitingOn = null,
@@ -29,8 +32,6 @@ export default function AssemblyRunView({
           {visual.label}
         </span>
       </div>
-
-      <RunFacts run={run} />
     </div>
   );
 }
@@ -47,9 +48,18 @@ function RunTrail({ run }: AssemblyRunViewProps) {
   );
 }
 
-function RunFacts({ run }: AssemblyRunViewProps) {
+interface RunFactsProps {
+  run: AssemblyRunViewProps["run"];
+  /** The items the floor holds in the run's bag; null while unread, or for a run it does not have. */
+  bag?: RunBag | null;
+  /** The run's attempts, which name who put each bag item there. */
+  nodes?: readonly AssemblyRunNode[];
+}
+
+/** The line-level facts as one open card: branch, outcome, why, how long, the task, PR and issue it ties to, and under them the run's bag. */
+export function RunFacts({ run, bag = null, nodes = [] }: RunFactsProps) {
   return (
-    <div className="spec-card">
+    <CollapsibleCard title="Run facts" defaultOpen>
       <dl className={styles.facts}>
         <dt>Branch</dt>
         <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
@@ -62,7 +72,8 @@ function RunFacts({ run }: AssemblyRunViewProps) {
         <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
         <IssueFact issueUrl={run.issueUrl} issueNumber={run.issueNumber} />
       </dl>
-    </div>
+      <RunBagFacts runId={run.id} bag={bag} nodes={nodes} />
+    </CollapsibleCard>
   );
 }
 

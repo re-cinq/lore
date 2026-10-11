@@ -106,6 +106,7 @@ line:
       on: success
 stations:
   triage-verify:
+    description: An AI agent checks the issue against the repository's specs and docs and decides whether it is a genuine bug, obsolete, or not actionable, with a short verdict for the reporter.
     kind: agent
     agent_definition: triage-verify
     conversation: new
@@ -153,6 +154,7 @@ stations:
       - name: diagnosis
         kind: value
   close-issue:
+    description: Posts the agent's verdict on the issue and closes it, because the behaviour it reports no longer exists or was already addressed.
     kind: service
     outcomes:
       - success
@@ -165,6 +167,7 @@ stations:
         kind: value
     produces: []
   triage-label:
+    description: Labels the issue with the triage result, not actionable or failed. For a not actionable issue it also posts the agent's verdict as a comment.
     kind: service
     outcomes:
       - success
@@ -178,6 +181,7 @@ stations:
         optional: true
     produces: []
   human-gate:
+    description: Waits on the issue page for a person to decide whether a confirmed bug is worth implementing.
     kind: human
     route: "{args.issue_url}"
     outcomes:

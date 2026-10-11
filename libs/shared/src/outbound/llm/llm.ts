@@ -2,6 +2,7 @@
 
 import type { LlmProvider } from "./llm-provider.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
+import { meteredUsage } from "../project/usage/metered-usage.js";
 import {
   selectProvider,
   selectProviderFor,
@@ -48,7 +49,7 @@ export class Llm {
   }
 
   static configure(opts: { usage?: UsagePort }): void {
-    usage = opts.usage;
+    usage = opts.usage && meteredUsage(opts.usage);
     current = null;
     perUse.clear();
   }

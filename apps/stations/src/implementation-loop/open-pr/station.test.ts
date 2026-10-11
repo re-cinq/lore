@@ -32,7 +32,11 @@ function scene(
   open: (pr: PullDraft) => Promise<PullRef> = () => Promise.resolve(pullRef()),
 ) {
   const opened: PullDraft[] = [];
+  const recorded: Array<[string, PullRef]> = [];
   const handle = openLoopPrHandle({
+    recordPr: async (taskId, pr) => {
+      recorded.push([taskId, pr]);
+    },
     pulls: (repo) =>
       repo !== "re-cinq/app"
         ? Promise.reject(new Error(`Not Found: ${repo}`))
@@ -46,7 +50,7 @@ function scene(
           }),
   });
 
-  return { handle, opened };
+  return { handle, opened, recorded };
 }
 
 function pullRef(): PullRef {
@@ -97,6 +101,24 @@ describe("the loop-open-pr station", () => {
       outcome: "success",
       produced: { pr_url: PR_URL },
     });
+  });
+
+  it("records pull request 42 on task-1, where the run page reads it", async () => {
+    const { handle, recorded } = scene();
+
+    await handle(brief(), TOOLS);
+
+    expect(recorded).toEqual([["task-1", pullRef()]]);
+  });
+
+  it("records nothing on the task when no pull request could be opened", async () => {
+    const { handle, recorded } = scene(() =>
+      Promise.reject(new Error("Bad credentials")),
+    );
+
+    await handle(brief(), TOOLS);
+
+    expect(recorded).toEqual([]);
   });
 
   it("reports failed naming the empty branch when the step before it pushed nothing", async () => {

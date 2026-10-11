@@ -17,8 +17,9 @@ authored the change, to counter self-preference bias.
 > moved to the external floor ([ADR-049](./ADR-049-external-floor.md)). The
 > reviewer's model is the `model` of the agent definition inside each floor
 > pipeline file (`libs/assembly-lines/src/floor-pipelines/code-review.yaml`,
-> `code-review-recheck.yaml`, `code-review-reply.yaml`), `gemini-3.1-pro-preview`
-> on all three, and no longer a `lore.agent_definitions` row. `task-types.yaml`
+> `code-review-recheck.yaml`, `code-review-reply.yaml`), `claude-sonnet-4-6`
+> on all three since 2026-10-08, when the implementation loop moved to
+> `gemini-3.1-pro-preview`, and no longer a `lore.agent_definitions` row. `task-types.yaml`
 > and `libs/assembly-lines/src/assembly-lines/code-review.yaml`, both named
 > below, are gone. The proposal is unchanged; where it says to pin the review
 > default, the place to pin it is those files.

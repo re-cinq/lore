@@ -766,6 +766,173 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/bag": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_bag",
+        "summary": "GET /api/assembly-runs/{id}/bag",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBag"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/blob-previews": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_blob-previews",
+        "summary": "GET /api/assembly-runs/{id}/blob-previews",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The first 4 KiB of each blob the run references, by hash; a hash it does not reference is left out. 400 for a malformed hash or more than 50, 404 for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlobPreviews"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/blobs/{hash}": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_blobs_hash",
+        "summary": "GET /api/assembly-runs/{id}/blobs/{hash}",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A blob the external floor keeps, readable only through a run that references it: text up to 1 MiB for a textual content type, metadata alone otherwise; 400 for a malformed hash, 404 for a run or blob it does not reference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBlob"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/dod": {
       "get": {
         "operationId": "get_api_assembly-runs_id_dod",
@@ -1340,6 +1507,124 @@
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/visits/{visitId}/events": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_visits_visitId_events",
+        "summary": "GET /api/assembly-runs/{id}/visits/{visitId}/events",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The floor events one visit handled and raised, each with its direction, whether the link was inferred, and its queue state; 404 for a visit of no run the floor has",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitEvents"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "visitId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/visits/{visitId}/model-calls": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_visits_visitId_model-calls",
+        "summary": "GET /api/assembly-runs/{id}/visits/{visitId}/model-calls",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The model calls one visit of a floor run made, from its llm_call records: model, tokens in and out, cost; 404 for a visit of no run the floor has",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitModelCalls"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "visitId",
             "in": "path",
             "required": true,
             "schema": {
@@ -9202,6 +9487,41 @@
         "required": ["entries"],
         "additionalProperties": false
       },
+      "BlobPreviews": {
+        "type": "object",
+        "properties": {
+          "previews": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "hash": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number"
+                },
+                "text": {
+                  "type": ["string", "null"]
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["hash", "contentType", "size", "text", "truncated"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["previews"],
+        "additionalProperties": false
+      },
       "BranchCreated": {
         "type": "object",
         "properties": {
@@ -11223,6 +11543,9 @@
                           "outcome": {
                             "type": ["string", "null"]
                           },
+                          "failure_detail": {
+                            "type": ["string", "null"]
+                          },
                           "agent_cr_name": {
                             "type": ["string", "null"]
                           },
@@ -11277,6 +11600,47 @@
                               }
                             ]
                           },
+                          "needs": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "produced": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "route_url": {
+                            "type": ["string", "null"]
+                          },
+                          "worker": {
+                            "type": ["string", "null"]
+                          },
+                          "requested_by": {
+                            "type": ["string", "null"]
+                          },
                           "commit_sha": {
                             "type": ["string", "null"]
                           },
@@ -11297,9 +11661,15 @@
                           "node_id",
                           "iteration",
                           "outcome",
+                          "failure_detail",
                           "agent_cr_name",
                           "station_run_id",
                           "input",
+                          "needs",
+                          "produced",
+                          "route_url",
+                          "worker",
+                          "requested_by",
                           "commit_sha",
                           "started_at",
                           "finished_at",
@@ -13690,6 +14060,61 @@
         "required": ["started"],
         "additionalProperties": false
       },
+      "RunBag": {
+        "type": "object",
+        "properties": {
+          "bag": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["value", "file", "git"]
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "by": {
+                  "type": "string"
+                },
+                "sha": {
+                  "type": "string"
+                }
+              },
+              "required": ["kind", "ref", "by"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["bag"],
+        "additionalProperties": false
+      },
+      "RunBlob": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "number"
+          },
+          "text": {
+            "type": ["string", "null"]
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": ["hash", "contentType", "size", "text", "truncated"],
+        "additionalProperties": false
+      },
       "RunEvents": {
         "type": "object",
         "properties": {
@@ -13978,6 +14403,9 @@
                   "outcome": {
                     "type": ["string", "null"]
                   },
+                  "failure_detail": {
+                    "type": ["string", "null"]
+                  },
                   "agent_cr_name": {
                     "type": ["string", "null"]
                   },
@@ -14032,6 +14460,47 @@
                       }
                     ]
                   },
+                  "needs": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "produced": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "route_url": {
+                    "type": ["string", "null"]
+                  },
+                  "worker": {
+                    "type": ["string", "null"]
+                  },
+                  "requested_by": {
+                    "type": ["string", "null"]
+                  },
                   "commit_sha": {
                     "type": ["string", "null"]
                   },
@@ -14052,9 +14521,15 @@
                   "node_id",
                   "iteration",
                   "outcome",
+                  "failure_detail",
                   "agent_cr_name",
                   "station_run_id",
                   "input",
+                  "needs",
+                  "produced",
+                  "route_url",
+                  "worker",
+                  "requested_by",
                   "commit_sha",
                   "started_at",
                   "finished_at",
@@ -15193,6 +15668,9 @@
                 "outcome": {
                   "type": ["string", "null"]
                 },
+                "failure_detail": {
+                  "type": ["string", "null"]
+                },
                 "agent_cr_name": {
                   "type": ["string", "null"]
                 },
@@ -15247,6 +15725,47 @@
                     }
                   ]
                 },
+                "needs": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "produced": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "route_url": {
+                  "type": ["string", "null"]
+                },
+                "worker": {
+                  "type": ["string", "null"]
+                },
+                "requested_by": {
+                  "type": ["string", "null"]
+                },
                 "commit_sha": {
                   "type": ["string", "null"]
                 },
@@ -15267,9 +15786,15 @@
                 "node_id",
                 "iteration",
                 "outcome",
+                "failure_detail",
                 "agent_cr_name",
                 "station_run_id",
                 "input",
+                "needs",
+                "produced",
+                "route_url",
+                "worker",
+                "requested_by",
                 "commit_sha",
                 "started_at",
                 "finished_at",
@@ -15918,6 +16443,109 @@
           }
         },
         "required": ["forwarded", "skipped"],
+        "additionalProperties": false
+      },
+      "VisitEvents": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": ["handled", "raised"]
+                },
+                "inferred": {
+                  "type": "boolean"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "acked_at": {
+                  "type": ["string", "null"]
+                },
+                "claimed_by": {
+                  "type": ["string", "null"]
+                },
+                "attempts": {
+                  "type": "number"
+                },
+                "last_error": {
+                  "type": ["string", "null"]
+                },
+                "dead_at": {
+                  "type": ["string", "null"]
+                },
+                "payload": {}
+              },
+              "required": [
+                "id",
+                "name",
+                "direction",
+                "inferred",
+                "created_at",
+                "acked_at",
+                "claimed_by",
+                "attempts",
+                "last_error",
+                "dead_at",
+                "payload"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["events"],
+        "additionalProperties": false
+      },
+      "VisitModelCalls": {
+        "type": "object",
+        "properties": {
+          "calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "seq": {
+                  "type": "number"
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": ["string", "null"]
+                },
+                "costUsd": {
+                  "type": ["number", "null"]
+                },
+                "tokensIn": {
+                  "type": ["number", "null"]
+                },
+                "tokensOut": {
+                  "type": ["number", "null"]
+                }
+              },
+              "required": [
+                "seq",
+                "occurredAt",
+                "model",
+                "costUsd",
+                "tokensIn",
+                "tokensOut"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["calls"],
         "additionalProperties": false
       }
     },

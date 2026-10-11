@@ -142,3 +142,70 @@ variable "headlamp_hostname" {
   type        = string
   default     = ""
 }
+
+# Gates the metrics stack (monitoring.tf): kube-prometheus-stack scraping every
+# service, the floor and the agent controller, and Grafana behind the same Google
+# sign-in proxy as Headlamp, with the Lore dashboards (ADR-050). A dashboard, not a
+# dependency: leaving this false changes nothing about how the platform runs.
+variable "enable_monitoring" {
+  type    = bool
+  default = false
+
+  # The same dependency Headlamp has: oauth2-proxy builds its redirect URL from
+  # the hostname and will not start without one.
+  validation {
+    condition     = !var.enable_monitoring || var.grafana_hostname != ""
+    error_message = "enable_monitoring = true requires a non-empty grafana_hostname: oauth2-proxy derives its OAuth redirect URL from it and will not start without one."
+  }
+}
+
+variable "grafana_hostname" {
+  description = "Hostname for the Grafana ingress (e.g. grafana.example.com). Also an OAuth redirect host on the Headlamp Google client, so it must be added to that client's authorized redirect URIs. Required when enable_monitoring is true."
+  type        = string
+  default     = ""
+}
+
+variable "ingress_controller_namespace" {
+  description = "The namespace of the nginx ingress controller: the only namespace the Grafana NetworkPolicy lets in, because Grafana trusts the identity header the ingress sets after oauth2-proxy."
+  type        = string
+  default     = "ingress-nginx"
+}
+
+# Gates Utopia (utopia.tf): deeplethe/utopia with its own CNPG database and data
+# disk, behind an oauth2-proxy Google sign-in of its own. An application beside
+# Lore, not a dependency of it: leaving this false changes nothing about Lore.
+variable "enable_utopia" {
+  type    = bool
+  default = false
+
+  # The same dependency Headlamp has: oauth2-proxy builds its redirect URL from
+  # the hostname and will not start without one.
+  validation {
+    condition     = !var.enable_utopia || var.utopia_hostname != ""
+    error_message = "enable_utopia = true requires a non-empty utopia_hostname: oauth2-proxy derives its OAuth redirect URL from it and will not start without one."
+  }
+}
+
+variable "utopia_hostname" {
+  description = "Hostname for the Utopia ingress (e.g. utopia.example.com). Also the OAuth redirect host on the utopia Google client (https://<host>/oauth2/callback). Required when enable_utopia is true."
+  type        = string
+  default     = ""
+}
+
+variable "utopia_image_repository" {
+  description = "The image Utopia runs, without its tag. The upstream image by default; a build of our own (upstream tag plus a fix we are waiting on) goes under ghcr.io/re-cinq/utopia until the release that carries it."
+  type        = string
+  default     = "ghcr.io/deeplethe/utopia"
+}
+
+variable "utopia_image_tag" {
+  description = "The ghcr.io/deeplethe/utopia tag to run. Release candidates move fast and migrate the database on start, so a bump is a deliberate PR, never `latest`."
+  type        = string
+  default     = "0.1.0-rc8"
+}
+
+variable "utopia_data_size" {
+  description = "Size of the Utopia data disk: uploaded files and the full-text index."
+  type        = string
+  default     = "20Gi"
+}

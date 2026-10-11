@@ -76,6 +76,8 @@ function fakeProject(labels: string[]) {
         addSubIssue: async () => undefined,
         update: async () => undefined,
         comment: async () => undefined,
+        listComments: async () => [],
+        updateComment: async () => undefined,
         close: async () => undefined,
       },
     } as never,

@@ -65,6 +65,8 @@ export interface ReviewComment {
 }
 
 export interface IssueComment {
+  /** What an edit of the comment names it by. */
+  id: number;
   body: string;
   user: string;
   created_at: string;

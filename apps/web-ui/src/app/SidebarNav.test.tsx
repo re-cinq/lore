@@ -386,3 +386,32 @@ describe("SidebarNav accordion groups", () => {
     expect(linkByLabel("Analytics")).toHaveAttribute("href", "/analytics");
   });
 });
+
+describe("SidebarNav metrics dashboards link", () => {
+  const GRAFANA = "https://grafana.example.com";
+
+  it("links to the named Grafana in a new tab beside the Headlamp link", () => {
+    render(
+      <SidebarNav
+        headlampUrl="https://headlamp.example.com"
+        grafanaUrl={GRAFANA}
+      />,
+    );
+    const link = linkByLabel("Grafana");
+
+    expect({
+      href: link.getAttribute("href"),
+      target: link.getAttribute("target"),
+      headlamp: linkByLabel("Headlamp").getAttribute("href"),
+    }).toEqual({
+      href: GRAFANA,
+      target: "_blank",
+      headlamp: "https://headlamp.example.com",
+    });
+  });
+
+  it("renders no Grafana link when the deployment names none", () => {
+    render(<SidebarNav />);
+    expect(screen.queryByRole("link", { name: /Grafana/ })).toBeNull();
+  });
+});

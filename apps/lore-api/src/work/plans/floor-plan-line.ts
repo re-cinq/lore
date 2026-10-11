@@ -91,20 +91,41 @@ export interface FloorRefineInput extends FloorPlanMarkdown {
 export async function startFloorDrafting(
   deps: FloorPlanDeps,
   { plan, planMarkdown, brief, storyIssue }: FloorPlanMarkdown,
+  actor?: string,
 ): Promise<string> {
   const line = await floorPlanLineState(deps.floor, keyOf(plan));
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
 
   if (line?.parkedAuthor) {
-    await reportToVisit(deps.floor.events, line.parkedAuthor.visitId, {
-      outcome: "changes_requested",
-      produced: { plan_md: planMd, description: brief },
-    });
+    await answerAuthorWithDraft(
+      deps,
+      line.parkedAuthor,
+      { planMd, brief },
+      actor,
+    );
 
     return line.lineId;
   }
 
   return startPlanRun(deps, line, { plan, planMd, brief, storyIssue });
+}
+
+// The author visit goes back to the agent with the edited plan; in the person's name, so the floor's retry budgets start afresh there.
+async function answerAuthorWithDraft(
+  deps: FloorPlanDeps,
+  author: ParkedVisit,
+  { planMd, brief }: { planMd: string; brief: string },
+  actor?: string,
+): Promise<void> {
+  await reportToVisit(
+    deps.floor.events,
+    author.visitId,
+    {
+      outcome: "changes_requested",
+      produced: { plan_md: planMd, description: brief },
+    },
+    actor,
+  );
 }
 
 /** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while a drafting pass still holds the plan — `analyze`, the `plan-pass-end` that settles it, or the validation and findings someone asked for — since two agents would edit the same blocks. */
@@ -154,10 +175,11 @@ export async function decideFloorApproval(
   return approvalDecisionOf(await floorPlanLineState(deps.floor, keyOf(plan)));
 }
 
-/** Moves an approved plan on: the author visit reports success with the approved plan, or with no run open a fresh run enters at the spec analysis. Either way the brief is the amendment one where the plan already has a spec PR, so a re-approval after a reopening revises those specs rather than writing over them. A run the agent is on moves nothing, and the refusal comes back as the decision. */
+/** Moves an approved plan on: the author visit reports success with the approved plan, in the approver's name so the floor's retry budgets start afresh (a plan approved four times is not a loop), or with no run open a fresh run enters at the spec analysis. Either way the brief is the amendment one where the plan already has a spec PR, so a re-approval after a reopening revises those specs rather than writing over them. A run the agent is on moves nothing, and the refusal comes back as the decision. */
 export async function approveFloorPlan(
   deps: FloorPlanDeps,
   input: FloorPlanMarkdown,
+  approvedBy?: string,
 ): Promise<ApprovalDecision> {
   const line = await floorPlanLineState(deps.floor, keyOf(input.plan));
   const decision = approvalDecisionOf(line);
@@ -169,7 +191,7 @@ export async function approveFloorPlan(
   const briefed = await amended(deps, input, line);
 
   if (line?.parkedAuthor) {
-    await reportApproved(deps, line.parkedAuthor, briefed);
+    await reportApproved(deps, line.parkedAuthor, briefed, approvedBy);
 
     return decision;
   }
@@ -233,14 +255,18 @@ const REOPENED = "the plan was reopened for writing";
 export async function reopenFloorPlan(
   deps: FloorPlanDeps,
   plan: PlanSubject,
+  actor?: string,
 ): Promise<void> {
   const { floor } = deps;
   const action = reopenActionOf(await floorPlanLineState(floor, keyOf(plan)));
 
   if (action.kind === "report") {
-    await reportToVisit(floor.events, action.parked.visitId, {
-      outcome: "changes_requested",
-    });
+    await reportToVisit(
+      floor.events,
+      action.parked.visitId,
+      { outcome: "changes_requested" },
+      actor,
+    );
   }
 
   if (action.kind === "cancel") {
@@ -256,15 +282,21 @@ async function reportApproved(
   deps: FloorPlanDeps,
   author: ParkedVisit,
   { planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
+  approvedBy?: string,
 ): Promise<void> {
-  await reportToVisit(deps.floor.events, author.visitId, {
-    outcome: "success",
-    produced: {
-      plan_md: await storeMarkdown(deps.floor, planMarkdown),
-      ...(await storeCitable(deps.floor, citablePlan)),
-      description: brief,
+  await reportToVisit(
+    deps.floor.events,
+    author.visitId,
+    {
+      outcome: "success",
+      produced: {
+        plan_md: await storeMarkdown(deps.floor, planMarkdown),
+        ...(await storeCitable(deps.floor, citablePlan)),
+        description: brief,
+      },
     },
-  });
+    approvedBy,
+  );
 }
 
 async function startSpecPass(

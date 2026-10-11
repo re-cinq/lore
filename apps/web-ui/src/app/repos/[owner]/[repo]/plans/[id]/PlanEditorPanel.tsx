@@ -17,6 +17,7 @@ import type { PlanActions } from "./plan-actions";
 import PlanBlockAnchor from "./PlanBlockAnchor";
 import PlanOutlineActions from "./PlanOutlineActions";
 import { useRefineAsk } from "./useRefineAsk";
+import { reloadingWhenStale } from "@/lib/live-socket/stale-deployment";
 
 interface PlanEditorPanelProps extends PlanActions {
   meta: PlanMeta;
@@ -107,13 +108,14 @@ async function connectPlan(
   if (client === null) {
     return { error: NO_SOCKET };
   }
-  const socket = await openSocket();
+  const openSocketOrReload = reloadingWhenStale(openSocket);
+  const socket = await openSocketOrReload();
 
   if ("error" in socket) {
     return socket;
   }
   const token = async () => {
-    const again = await openSocket();
+    const again = await openSocketOrReload();
 
     return "token" in again ? again.token : "";
   };

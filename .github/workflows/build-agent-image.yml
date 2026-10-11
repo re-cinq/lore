@@ -1,0 +1,71 @@
+name: Build and push the Lore agent image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/agent-image/**'
+      - '.github/workflows/build-agent-image.yml'
+  pull_request:
+    paths:
+      - 'apps/agent-image/**'
+      - '.github/workflows/build-agent-image.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-agent-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: re-cinq/lore-agent
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/agent-image
+          load: true
+          tags: lore-agent:smoke
+
+      - name: Smoke-test the tools the agents rely on
+        run: |
+          docker run --rm lore-agent:smoke sh -c '
+            jq --version && yq --version && rg --version >/dev/null &&
+            git --version && curl --version >/dev/null && sed --version >/dev/null &&
+            python3 --version && make --version >/dev/null && unzip -v >/dev/null &&
+            tree --version && file --version >/dev/null && less --version >/dev/null'
+
+      - name: Push
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/agent-image
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
