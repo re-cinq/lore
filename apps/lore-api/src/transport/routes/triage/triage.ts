@@ -6,7 +6,6 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
-import type { RunView } from "@re-cinq/floor-client";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -68,6 +67,10 @@ async function serveTriage(
     return githubFailureResponse(err, h, "triage issues");
   }
 }
+
+type RunView = Awaited<
+  ReturnType<ReturnType<typeof floorClient>["runs"]["list"]>
+>["items"][number];
 
 /** The open issue-triage runs of the repo; a floor that cannot answer leaves every row without a link rather than failing the list. */
 async function fetchRuns(repo: string): Promise<RunView[]> {
