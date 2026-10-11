@@ -14,6 +14,9 @@ line:
       kind: value
     repo:
       kind: value
+    # The default branch, which decompose reads to split a large issue (apps/stations/src/work/issue-triage-tick/).
+    target:
+      kind: git
   nodes:
     - id: reproduce
       station: triage-reproduce
@@ -31,6 +34,10 @@ line:
       station: triage-label
     - id: verify
       station: triage-verify
+    - id: decompose
+      station: triage-decompose
+    - id: file-issues
+      station: triage-file-issues
     - id: close-obsolete
       station: close-issue
     - id: label-not-actionable
@@ -86,6 +93,26 @@ line:
       to: close-obsolete
       on: obsolete
     - from: verify
+      to: decompose
+      on: large-issue
+    - from: decompose
+      to: file-issues
+      on: success
+    - from: decompose
+      to: label-failed
+      on: failed
+      iteration_max: 3
+    - from: file-issues
+      to: done
+      on: success
+    - from: file-issues
+      to: decompose
+      on: changes_requested
+      iteration_max: 3
+    - from: file-issues
+      to: label-failed
+      on: failed
+    - from: verify
       to: label-not-actionable
       on: not-actionable
     - from: verify
@@ -114,6 +141,7 @@ stations:
       - success
       - obsolete
       - not-actionable
+      - large-issue
       - failed
     needs:
       - name: issue_url
@@ -157,6 +185,45 @@ stations:
     produces:
       - name: diagnosis
         kind: value
+  triage-decompose:
+    description: An AI agent splits a confirmed bug too broad for one change into a story and small tasks, each with acceptance criteria and a test plan.
+    kind: agent
+    agent_definition: triage-decompose
+    conversation: new
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: issue_url
+        kind: value
+      - name: diagnosis
+        kind: value
+    produces:
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+  triage-file-issues:
+    description: Files the decomposition as a story issue with one sub-issue per task, labelled for a person to prioritize rather than queued for the implementation loop.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+      - name: issue_number
+        kind: value
+    produces: []
   close-issue:
     description: Posts the agent's verdict on the issue and closes it, because the behaviour it reports no longer exists or was already addressed.
     kind: service
@@ -242,6 +309,28 @@ agent_definitions:
       model: claude-sonnet-4-6
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 10
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+  triage-decompose:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
       config:
         pod_resources:
           requests:
