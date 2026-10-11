@@ -43,6 +43,16 @@ export {
   type CoverageTarget,
 } from "../outbound/spec-trace/tests-covering.js";
 export {
+  callersOf,
+  type CodeCaller,
+  type CallDirection,
+} from "../outbound/spec-trace/code-callers.js";
+export {
+  projectCodeFile,
+  deleteCodeFile,
+  listCodeFilePaths,
+} from "./spec-trace/project-code-file.js";
+export {
   failuresTouching,
   type FailureHit,
 } from "./spec-trace/failure-nodes.js";
