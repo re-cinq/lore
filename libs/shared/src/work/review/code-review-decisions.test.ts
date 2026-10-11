@@ -52,10 +52,28 @@ describe("code-review pure decisions", () => {
       { autoReview: false, pr: openPr() },
       { autoReview: true, pr: null },
       { autoReview: true, pr: openPr({ draft: true }) },
-      { autoReview: true, pr: openPr({ author: "lore-app[bot]" }) },
+      { autoReview: true, pr: openPr({ author: "other-app[bot]" }) },
     ].map((given) => decideReviewOnOpen(given).start);
 
     expect(decided).toEqual([true, false, false, false, false]);
+  });
+
+  it("decideReviewOnOpen lets a PR by Lore's own App through while refusing other bots", () => {
+    expect(
+      decideReviewOnOpen({
+        autoReview: true,
+        pr: openPr({ author: "lore-app-staging[bot]" }),
+        loreAppLogin: "lore-app-staging[bot]",
+      } as any).start,
+    ).toBe(true);
+
+    expect(
+      decideReviewOnOpen({
+        autoReview: true,
+        pr: openPr({ author: "other-bot[bot]" }),
+        loreAppLogin: "lore-app-staging[bot]",
+      } as any).start,
+    ).toBe(false);
   });
 
   it("decideReviewOnReply starts only for an open, non-draft PR with a human comment", () => {
