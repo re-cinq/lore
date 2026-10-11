@@ -18,11 +18,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          if echo "$PR_BODY" | grep -q "Lore-Task:"; then
-            echo "Agent-authored PR, skipping description check."
-            exit 0
-          fi
-
           FAILED=0
           WARNINGS=""
 
