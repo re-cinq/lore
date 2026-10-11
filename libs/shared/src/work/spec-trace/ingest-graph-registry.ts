@@ -5,6 +5,11 @@ import type { EmbedFn, ProjectionOptions } from "./project-spec-file.js";
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
+import {
+  deleteCodeFile,
+  listCodeFilePaths,
+  projectCodeFile,
+} from "./project-code-file.js";
 import { matchesAnyGlob } from "./ingest-patterns.js";
 import {
   listGraphDocPaths,
@@ -91,9 +96,12 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
   code: {
     prefixes: ["src/", "lib/", "libs/", "apps/", "packages/"],
     extensions: [".ts", ".js", ".tsx", ".jsx"],
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- projectCodeFile is a separate facet; stub keeps the registry valid
-    project: async (_doc, _dgraph) => ({ projected: false }),
+    project: projectCodeFile,
     runsOn: "runner+local",
+    prune: {
+      listDocPaths: listCodeFilePaths,
+      deleteSubtree: deleteCodeFile,
+    },
   },
 };
 

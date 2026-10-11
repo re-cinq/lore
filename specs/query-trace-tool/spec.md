@@ -172,13 +172,18 @@ shape this tool serves. ([validated by reports the proxy failure rather than thr
 
 ## The `callers` shape
 
-The tool's fourth query (issue #1768): which production symbols call a named symbol.
+The tool's fourth query (issue #1768, #1992): which definitions call a named symbol,
+or which ones it calls.
 
 The read is served by `GET /api/repos/{owner}/{repo}/trace/callers`, which names the
-target in `symbol` and walks the reverse `CodeChunk.references` edge. With no graph
-configured it degrades to an empty list rather than failing.
+target in `symbol` and walks the reverse `CodeChunk.references` edge, or the edge
+itself when `direction=callees`. It answers one hop; `depth` is not walked yet.
 
-The `callers` kind is registered in `TRACE_KINDS` and the route returns a non-404 response when a `?symbol=` parameter is given. ([validated by `callers is a recognised trace kind and does not return 404`](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L29))
+Each caller comes back with its file, its symbol name and the line it starts on. ([validated by answers advance in src/runner.ts as the caller of nextTransition](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L54))
+
+With no graph configured it answers an empty list rather than failing. ([validated by answers an empty callers list for nextTransition when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L33))
+
+A request that names no symbol is refused with 400. ([validated by answers 400 when the symbol is missing](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L39))
 
 ## Out of Scope
 

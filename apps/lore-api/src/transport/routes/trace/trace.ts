@@ -12,14 +12,11 @@ import {
   parseRanges,
   createDgraphClient,
   failuresTouching,
-  withTxn,
+  callersOf,
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-
-const zCoerce = z.coerce;
-const DepthParam = zCoerce.number().int().min(1).max(10).optional();
 
 // kind: Set check (404 unknown); path: bounded to 1024 chars.
 const TraceQuery = z.object({
@@ -28,7 +25,6 @@ const TraceQuery = z.object({
   branch: z.string().max(255).optional(),
   symbol: z.string().max(255).optional(),
   direction: z.enum(["callers", "callees"]).optional(),
-  depth: DepthParam,
 });
 
 type TraceQuery = z.infer<typeof TraceQuery>;
@@ -91,9 +87,8 @@ const PATH_KINDS: Record<
 };
 
 // Kinds that read the graph directly, not through the Project facade.
-const GRAPH_KINDS: Record<
-  string,
-  (repo: string, query: TraceQuery) => Promise<object>
+const GRAPH_KINDS: Partial<
+  Record<string, (repo: string, query: TraceQuery) => Promise<object>>
 > = {
   "failures-touching": failuresResult,
   callers: callersResult,
@@ -150,6 +145,7 @@ async function traceResult(
   const repo = `${request.params.owner}/${request.params.repo}`;
 
   const graphHandler = GRAPH_KINDS[kind];
+
   if (graphHandler) {
     return graphHandler(repo, query);
   }
@@ -167,45 +163,18 @@ async function traceResult(
   return PATH_KINDS[kind](trace, filePath, query);
 }
 
-const CALLERS_QUERY = `query q($repo: string, $symbol: string) {
-  target(func: eq(CodeChunk.symbol_name, $symbol)) @filter(eq(CodeChunk.repo, $repo)) {
-    callers: ~CodeChunk.references @filter(eq(CodeChunk.repo, $repo)) {
-      CodeChunk.file_path
-      CodeChunk.symbol_name
-      CodeChunk.start_line
-    }
-  }
-}`;
-
-interface GraphCallerChunk {
-  "CodeChunk.file_path"?: string;
-  "CodeChunk.symbol_name"?: string;
-  "CodeChunk.start_line"?: number;
-}
-
-/** Callers of a named symbol, via the reverse CodeChunk.references edge. Degrades to empty when no Dgraph client is configured. */
+/** Callers (or, with `direction=callees`, callees) of a named symbol, over the CodeChunk.references edge the code projection writes. One hop: `depth` is not walked yet. Degrades to empty when no Dgraph client is configured. */
 async function callersResult(repo: string, query: TraceQuery): Promise<object> {
   const symbol = query.symbol ?? "";
 
   enforceTrue(symbol, apiError(400), "symbol query param required");
   const dgraph = createDgraphClient(process.env);
 
-  if (!dgraph) {
-    return { callers: [] };
-  }
-  const callers = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(CALLERS_QUERY, {
-      $repo: repo,
-      $symbol: symbol,
-    });
-    const targets = (res.data.target ?? []) as {
-      callers?: GraphCallerChunk[];
-    }[];
+  const direction = query.direction ?? "callers";
 
-    return targets.flatMap((t) => t.callers ?? []);
-  });
-
-  return { callers };
+  return {
+    callers: dgraph ? await callersOf(dgraph, repo, symbol, direction) : [],
+  };
 }
 
 /** Failures recorded against a source file. This kind reads the graph directly rather than through the Project facade: `failuresTouching` is a work-layer module, which `outbound` may not import. A deployment with no graph answers with an empty list rather than an error. */

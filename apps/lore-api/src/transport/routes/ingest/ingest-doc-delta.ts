@@ -1,7 +1,7 @@
 import { selectPruneCandidates } from "@re-cinq/lore-shared";
 import type { IngestDeltaDeps } from "./ingest-delta-deps.js";
 
-/** The part of a delta body a doc kind (specs, adrs) reads. */
+/** The part of a delta body a file kind (specs, adrs, code) reads. */
 export interface DocDelta {
   kind: string;
   files?: Array<{ path: string; content: string }>;
@@ -28,21 +28,32 @@ export async function applyDocDelta(
   return { projected, deleted: gone.length };
 }
 
-function docFunctions(
-  deps: IngestDeltaDeps,
-  kind: string,
-): {
+interface DocFunctions {
   project: IngestDeltaDeps["projectSpec"];
   remove: IngestDeltaDeps["deleteSpec"];
   list: IngestDeltaDeps["listSpecs"];
-} {
-  return kind === "specs"
-    ? {
-        project: deps.projectSpec,
-        remove: deps.deleteSpec,
-        list: deps.listSpecs,
-      }
-    : { project: deps.projectAdr, remove: deps.deleteAdr, list: deps.listAdrs };
+}
+
+function docFunctions(deps: IngestDeltaDeps, kind: string): DocFunctions {
+  const byKind: Record<string, DocFunctions> = {
+    specs: {
+      project: deps.projectSpec,
+      remove: deps.deleteSpec,
+      list: deps.listSpecs,
+    },
+    adrs: {
+      project: deps.projectAdr,
+      remove: deps.deleteAdr,
+      list: deps.listAdrs,
+    },
+    code: {
+      project: deps.projectCode,
+      remove: deps.deleteCode,
+      list: deps.listCode,
+    },
+  };
+
+  return byKind[kind];
 }
 
 /** SEQUENTIAL on purpose: every projection upserts the shared Repo node, so concurrent ones abort each other's Dgraph transactions. */
