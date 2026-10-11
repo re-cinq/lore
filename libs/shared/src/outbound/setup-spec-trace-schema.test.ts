@@ -114,6 +114,7 @@ describe.skipIf(!reachable)(
         "Section.statements",
         "Statement.validated_by",
         "Coverage.covers",
+        "TestChunk.coverage",
       ];
       const { schema } = await querySchema(
         `schema(pred: [${edges.join(", ")}]) {type list}`,

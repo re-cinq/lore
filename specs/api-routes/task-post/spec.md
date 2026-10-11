@@ -29,7 +29,7 @@ The local runner reports progress back through the same endpoint with an
 
 Registered as `exact("/api/task", "POST")` →
 `handleTaskPost(req, res, pool)`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L95),
+([registration](../../../apps/lore-api/src/app/build-server.ts#L97),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L32)). Ordered **after**
 the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 `/api/task` is the only way in.

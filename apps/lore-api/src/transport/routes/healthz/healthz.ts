@@ -60,7 +60,10 @@ async function isReaderAuthed(
 ): Promise<boolean> {
   const bearer = bearerToken(request.headers.authorization);
 
-  return bearer ? validateClientToken(pool, bearer, "read") : false;
+  // A DB outage must not turn the health probe into a 500: it reports the outage itself, so the caller just reads as unauthenticated.
+  return bearer
+    ? validateClientToken(pool, bearer, "read").catch(() => false)
+    : false;
 }
 
 function bearerToken(
