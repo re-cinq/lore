@@ -53,19 +53,9 @@ async function serveRepoSettings(
   const body = request.payload as RepoSettingsBody;
   const existingTeam = await loadRepoTeam(pool, repo);
 
-  if (body.settings?.auto_merge) {
-    const am = body.settings.auto_merge as { approver?: string };
-    if (am.approver === "lore-reviewer") {
-      const gate = await checkApproval(
-        request,
-        repo,
-        ["auto_merge.approver"],
-        "Turning auto_merge.approver on is two-key",
-      );
-      if (!gate.ok) {
-        return h.response(gate.body).code(gate.code);
-      }
-    }
+  const gate = await enforceApproverGate(request, repo, body);
+  if (!gate.ok) {
+    return h.response(gate.body).code(gate.code);
   }
 
   enforceNoDarkFactory(body);
@@ -80,6 +70,31 @@ async function serveRepoSettings(
   }
 
   return h.response({ ok: true });
+}
+
+async function enforceApproverGate(
+  request: Request,
+  repo: string,
+  body: RepoSettingsBody,
+): Promise<{ ok: false; code: number; body: unknown } | { ok: true }> {
+  if (!body.settings?.auto_merge) {
+    return { ok: true };
+  }
+  const am = body.settings.auto_merge as { approver?: string };
+  if (am.approver !== "lore-reviewer") {
+    return { ok: true };
+  }
+
+  const gate = await checkApproval(
+    request,
+    repo,
+    ["auto_merge.approver"],
+    "Turning auto_merge.approver on is two-key",
+  );
+  if (!gate.ok) {
+    return gate;
+  }
+  return { ok: true };
 }
 
 function enforceNoDarkFactory(body: RepoSettingsBody): void {
