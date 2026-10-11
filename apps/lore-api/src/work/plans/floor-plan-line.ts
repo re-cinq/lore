@@ -20,6 +20,7 @@ import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run
 import type { CitablePlan } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import {
+  briefFor,
   openPrBrief,
   revisedBrief,
   type RefineRequest,
@@ -191,12 +192,7 @@ export async function approveFloorPlan(
   const briefed = await amended(deps, input, line);
 
   if (line?.parkedAuthor) {
-    await reportApproved(
-      deps,
-      line.parkedAuthor,
-      { ...briefed, brief: briefFor(input.plan.repo, briefed.brief) },
-      approvedBy,
-    );
+    await reportApproved(deps, line.parkedAuthor, briefed, approvedBy);
 
     return decision;
   }
@@ -283,15 +279,10 @@ export function keyOf(plan: PlanRef): { repo: string; planId: string } {
   return { repo: plan.repo, planId: plan.id };
 }
 
-// The planning prompts tell the agent to pass the repo named on the description's first line to Lore's tools; the gateway has no checkout to read it from.
-function briefFor(repo: string, brief: string): string {
-  return `repo: "${repo}"\n${brief}`;
-}
-
 async function reportApproved(
   deps: FloorPlanDeps,
   author: ParkedVisit,
-  { planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
+  { plan, planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
   approvedBy?: string,
 ): Promise<void> {
   await reportToVisit(
@@ -302,7 +293,7 @@ async function reportApproved(
       produced: {
         plan_md: await storeMarkdown(deps.floor, planMarkdown),
         ...(await storeCitable(deps.floor, citablePlan)),
-        description: brief,
+        description: briefFor(plan.repo, brief),
       },
     },
     approvedBy,
