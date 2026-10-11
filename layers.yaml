@@ -79,11 +79,14 @@ layers:
       - outbound
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"
-    # The station the external floor dispatches for the issue-triage line:
-    # close-issue posts the verdict comment then closes the GitHub issue.
+    # The stations the external floor dispatches for the issue-triage line, one
+    # folder each. `planning` is reached for the issue filing its file-issues
+    # station shares with the feature-planning line's issues station.
     issue-triage:
       - outbound
+      - planning
       - "@re-cinq/floor-station"
+      - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the spec-upkeep line, one
     # folder each. `onboard` is reached for the request-review station, which

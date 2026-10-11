@@ -29,6 +29,7 @@ import { pipeline } from "../outbound/queues.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
 import {
   floorRepoOf,
+  gitItem,
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
@@ -100,9 +101,11 @@ const repoEventDeps: RepoEventDeps = {
       repo,
     ),
   startIssueTriage: async (repo, issueNumber, issueUrl) => {
+    const branch = await (await projectFor(repo)).repo.defaultBranch();
     const started = await startLine(floorClient().lines, "issue-triage", {
       repo: floorRepoOf(repo),
       startItems: {
+        target: gitItem(repo, branch),
         issue_number: valueItem(issueNumber),
         repo: valueItem(repo),
         issue_url: valueItem(issueUrl),

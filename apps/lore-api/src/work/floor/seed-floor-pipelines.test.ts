@@ -208,9 +208,40 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       { outcome: "success", to: "human-gate" },
       { outcome: "obsolete", to: "close-obsolete" },
       { outcome: "not-actionable", to: "label-not-actionable" },
+      { outcome: "large-issue", to: "decompose" },
       { outcome: "failed", to: "label-failed" },
     ]);
     expect(routed.filter(({ to }) => !nodes.has(to ?? ""))).toEqual([]);
+  });
+
+  it("routes a large issue through decompose and triage-file-issues to done", () => {
+    const line = issueTriageLine();
+
+    expect({
+      decompose: line.nodes.find(({ id }) => id === "decompose")?.station,
+      fileIssues: line.nodes.find(({ id }) => id === "file-issues")?.station,
+      decomposed: edgeTarget(line, "decompose", "success"),
+      filed: edgeTarget(line, "file-issues", "success"),
+      reworked: edgeTarget(line, "file-issues", "changes_requested"),
+    }).toEqual({
+      decompose: "triage-decompose",
+      fileIssues: "triage-file-issues",
+      decomposed: "file-issues",
+      filed: "done",
+      reworked: "decompose",
+    });
+  });
+
+  it("declares each station name with one body across every pipeline file, since the floor keeps the last one put", () => {
+    const bodies = new Map<string, Set<string>>();
+
+    for (const { id, body } of pipelines.flatMap((one) => one.stations)) {
+      bodies.set(id, (bodies.get(id) ?? new Set()).add(JSON.stringify(body)));
+    }
+
+    expect(
+      [...bodies].filter(([, declared]) => declared.size > 1).map(([id]) => id),
+    ).toEqual([]);
   });
 
   it("starts issue-triage at reproduce", () => {

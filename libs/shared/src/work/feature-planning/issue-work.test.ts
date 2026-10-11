@@ -46,7 +46,7 @@ describe("decideIssueWork", () => {
         ],
       }),
       REPO_LABELS,
-      "Live run view",
+      { planTitle: "Live run view" },
     );
 
     expect(work.outcome === "proceed" && work.story).toEqual({
@@ -199,6 +199,27 @@ describe("decideIssueWork", () => {
     expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
       "priority:high",
       "lore-managed",
+    ]);
+  });
+
+  it("files triage child issues with triage: needs-priority and no priority label, so a person queues them", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          {
+            ...slice,
+            tasks: [{ ...slice.tasks[0], labels: ["priority:high"] }],
+          },
+        ],
+      }),
+      [...REPO_LABELS, "priority:high"],
+      { queue: false },
+    );
+
+    expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
+      "lore-managed",
+      "triage: needs-priority",
     ]);
   });
 });
