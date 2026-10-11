@@ -54,7 +54,10 @@ async function serveRepoSettings(
   const existingTeam = await loadRepoTeam(pool, repo);
 
   const gate = await enforceApproverGate(request, repo, body);
-  if (!gate.ok) return h.response(gate.body).code(gate.code);
+
+  if (!gate.ok) {
+    return h.response(gate.body).code(gate.code);
+  }
 
   enforceNoDarkFactory(body);
   enforceDigestValid(
@@ -84,7 +87,10 @@ async function enforceApproverGate(
   body: RepoSettingsBody,
 ): Promise<{ ok: false; code: number; body: unknown } | { ok: true }> {
   const am = body.settings?.auto_merge as { approver?: string } | undefined;
-  if (am?.approver !== "lore-reviewer") return { ok: true };
+
+  if (am?.approver !== "lore-reviewer") {
+    return { ok: true };
+  }
 
   const gate = await checkApproval(
     request,
@@ -92,6 +98,7 @@ async function enforceApproverGate(
     ["auto_merge.approver"],
     "Turning auto_merge.approver on is two-key",
   );
+
   return gate.ok ? { ok: true } : gate;
 }
 
