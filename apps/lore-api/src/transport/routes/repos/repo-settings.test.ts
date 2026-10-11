@@ -26,7 +26,11 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     vi.clearAllMocks();
   });
 
-  function put(payload: unknown, pool: unknown = makePool(), headers: Record<string, string> = AUTH) {
+  function put(
+    payload: unknown,
+    pool: unknown = makePool(),
+    headers: Record<string, string> = AUTH,
+  ) {
     return buildServer(() => pool as never).inject({
       method: "PUT",
       url: "/api/repos/re-cinq/lore/settings",
@@ -240,11 +244,15 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     });
 
     const pool = makePool();
+
     pool.query.mockResolvedValue({
       rows: [{ full_name: "re-cinq/lore", team: null }],
     });
 
-    const res = await put({ settings: { auto_merge: { approver: "lore-reviewer" } } }, pool);
+    const res = await put(
+      { settings: { auto_merge: { approver: "lore-reviewer" } } },
+      pool,
+    );
 
     expect(res.statusCode).toBe(403);
     expect(res.result).toEqual({
