@@ -66,28 +66,24 @@ export async function resolveTokenScopes(
   return lookupTokenScopes(pool, tokenHash);
 }
 
-// One UPDATE…RETURNING so a lookup also stamps last_used; any DB error resolves to "no scopes" rather than failing the request open.
+// One UPDATE…RETURNING so a lookup also stamps last_used
 async function lookupTokenScopes(
   pool: Pool,
   tokenHash: string,
 ): Promise<TokenScope[] | null> {
-  try {
-    const { rows } = await pool.query(
-      `UPDATE pipeline.api_tokens SET last_used = now()
+  const { rows } = await pool.query(
+    `UPDATE pipeline.api_tokens SET last_used = now()
        WHERE token_hash = $1 AND revoked_at IS NULL
          AND (expires_at IS NULL OR expires_at > now())
        RETURNING scopes`,
-      [tokenHash],
-    );
+    [tokenHash],
+  );
 
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0].scopes as TokenScope[];
-  } catch {
+  if (rows.length === 0) {
     return null;
   }
+
+  return rows[0].scopes as TokenScope[];
 }
 
 // Validates a per-client token against the DB for a required scope; used by healthz's own optional bearer check (guarded routes use the bearer-scope strategy instead).

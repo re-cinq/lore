@@ -293,9 +293,15 @@ system is performing.
 - The gateway's top-level router tries `/healthz`, then `/skills/*`, before
   falling through to `/mcp`: a non-`/mcp` path 404s, an `/mcp` request missing
   the configured bearer token 401s, and on `/mcp` itself POST mints or resumes
-  a session (400 without a valid session on a non-initialize body) while
-  GET/DELETE require an already-minted session id (400 otherwise) and any
-  other method 405s. ([validated by `answers /healthz without touching /mcp or /skills routing`](apps/mcp-server/src/transport/http-transport.test.ts#L51), [`falls through to the skills registry for a /skills path`](apps/mcp-server/src/transport/http-transport.test.ts#L61), [`404s a path that is neither /healthz, /skills, nor /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L71), [`401s an /mcp request missing the configured bearer token`](apps/mcp-server/src/transport/http-transport.test.ts#L80), [`400s a POST /mcp with no session and a non-initialize body`](apps/mcp-server/src/transport/http-transport.test.ts#L90), [`400s a GET /mcp with an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L105), [`405s an unsupported method on /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L118))
+  a session (400 without a session id on a non-initialize body) while
+  GET/DELETE require an already-minted session id (400 without one) and any
+  other method 405s. ([validated by `answers /healthz without touching /mcp or /skills routing`](apps/mcp-server/src/transport/http-transport.test.ts#L51), [`falls through to the skills registry for a /skills path`](apps/mcp-server/src/transport/http-transport.test.ts#L61), [`404s a path that is neither /healthz, /skills, nor /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L71), [`401s an /mcp request missing the configured bearer token`](apps/mcp-server/src/transport/http-transport.test.ts#L80), [`400s a POST /mcp with no session and a non-initialize body`](apps/mcp-server/src/transport/http-transport.test.ts#L90), [`400s a GET /mcp with no session id`](apps/mcp-server/src/transport/http-transport.test.ts#L105), [`405s an unsupported method on /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L117))
+- A gateway restart forgets every in-memory session, so a request carrying a
+  session id the gateway does not know answers `404` with JSON-RPC code
+  `-32001` (POST, GET and DELETE alike), which tells a spec-compliant client
+  to re-initialize; a fresh `initialize` mints a new session, and a live
+  session keeps being served until it is deleted.
+  ([validated by `404s a POST /mcp carrying an unknown session id so the client re-initializes`](apps/mcp-server/src/transport/http-transport.test.ts#L154), [`404s a GET and a DELETE /mcp carrying an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L173), [`mints a fresh session on initialize after an unknown session 404`](apps/mcp-server/src/transport/http-transport.test.ts#L190), [`keeps serving a live session and 404s it once it is deleted`](apps/mcp-server/src/transport/http-transport.test.ts#L205), [validated by `400s a GET /mcp whose session id header is empty, as POST does`](apps/mcp-server/src/transport/http-transport.test.ts#L234))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
@@ -370,23 +376,26 @@ serves as the source of truth for organizational context.
 
 ### FR-3: Developer Onboarding
 
-The system MUST provide a single-command install experience. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L13))
+The system MUST provide a single-command install experience. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L23))
 
 - FR-3.1: Install script clones the context repo, builds the MCP
   server, detects team, configures Claude Code settings, installs
-  platform skills, and runs health checks. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L13), [`install-contract.test.mjs:52`](scripts/install-contract.test.mjs#L52), [`install-contract.test.mjs:68`](scripts/install-contract.test.mjs#L68), [`install-contract.test.mjs:81`](scripts/install-contract.test.mjs#L81), [`install-contract.test.mjs:94`](scripts/install-contract.test.mjs#L94), [`install-contract.test.mjs:102`](scripts/install-contract.test.mjs#L102), [`install-contract.test.mjs:141`](scripts/install-contract.test.mjs#L141))
+  platform skills, and runs health checks. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L23), [`install-contract.test.mjs:52`](scripts/install-contract.test.mjs#L62), [`install-contract.test.mjs:68`](scripts/install-contract.test.mjs#L78), [`install-contract.test.mjs:81`](scripts/install-contract.test.mjs#L91), [`install-contract.test.mjs:94`](scripts/install-contract.test.mjs#L197), [`install-contract.test.mjs:102`](scripts/install-contract.test.mjs#L205), [`install-contract.test.mjs:141`](scripts/install-contract.test.mjs#L244))
 - FR-3.2: Install script is idempotent — re-running always produces
-  correct state. ([validated by `install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L120), [`install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L120), [`install-contract.test.mjs:154`](scripts/install-contract.test.mjs#L154))
-- FR-3.3: Install script works without pre-cloning the repository. ([validated by `install-contract.test.mjs:26`](scripts/install-contract.test.mjs#L26), [`install-contract.test.mjs:39`](scripts/install-contract.test.mjs#L39))
+  correct state. ([validated by `install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L223), [`install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L223), [`install-contract.test.mjs:154`](scripts/install-contract.test.mjs#L257))
+- FR-3.3: Install script works without pre-cloning the repository. ([validated by `install-contract.test.mjs:26`](scripts/install-contract.test.mjs#L36), [`install-contract.test.mjs:39`](scripts/install-contract.test.mjs#L49))
 - FR-3.4: Settings merge (via helper script) appends platform hooks
   without overwriting personal developer hooks. ([validated by `lore-merge-settings.test.mjs:25`](scripts/lore-merge-settings.test.mjs#L25), [`lore-merge-settings.test.mjs:41`](scripts/lore-merge-settings.test.mjs#L41))
+- FR-3.5: Install script registers the `lore-context` MCP server at user scope so Lore works in every repo, and fails with a clear error when `claude` is missing or registration fails. ([validated by `install-contract.test.mjs:97`](scripts/install-contract.test.mjs#L97), [`install-contract.test.mjs:124`](scripts/install-contract.test.mjs#L124))
+- FR-3.6: Install script honours an environment-provided `LORE_API_URL` and `LORE_INGEST_TOKEN` over git config, prompts for a missing URL, and never writes an empty value to git config. ([validated by `install-contract.test.mjs:142`](scripts/install-contract.test.mjs#L142), [`install-contract.test.mjs:155`](scripts/install-contract.test.mjs#L155))
+- FR-3.7: `lore-doctor` requires the API URL, the token and a user-scope registration, tells a rejected token apart from an outage, and prints its results line last. ([validated by `install-contract.test.mjs:313`](scripts/install-contract.test.mjs#L313), [`install-contract.test.mjs:321`](scripts/install-contract.test.mjs#L321), [`install-contract.test.mjs:327`](scripts/install-contract.test.mjs#L327), [`install-contract.test.mjs:357`](scripts/install-contract.test.mjs#L357))
 - Decision: the `lore-doctor` health-check script tests all connections and
   prints clear pass/fail with fix instructions for each.
 
 ### FR-4: Task Tracking Integration
 
 The system MUST provide agent-native task tracking via PostgreSQL
-pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
+pipeline tasks and GitHub Issues. ([validated by `awaitingApproval selects approval-gated tasks carrying an issue`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L21))
 
 - Decision: the generated `AGENTS.md` instructs Claude Code on task-tracking
   commands and proactive guidance behaviour.
@@ -672,14 +681,14 @@ Added 2026-04-17 per ADR-015.
 ### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
 
 The system MUST detect and surface pipeline tasks that are stuck in
-non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
+non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L103))
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
-  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
+  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L103))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
-  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
+  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L103))
 - FR-18.3: The transition is idempotent — if a task completes between
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:68`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L68))
 - FR-18.4: A failure episode is written for each stuck task so the
@@ -976,25 +985,19 @@ The `Project` facade (ADR-024) exposes every data capability — tasks,
 events, chunks, features, agents, workspace, PRs, issues, cost/usage
 accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
 and an in-memory double per port, so Floor, mcp-server, and lore-api
-share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
+share one persistence surface instead of inline SQL. ([validated by `awaitingApproval selects approval-gated tasks carrying an issue`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L21))
 
-- FR-20.1: The `TaskQueue` port drives org-wide claim/sweep: it claims
-  one runnable pending task (immediate-first, past the minute interval,
-  without the dead `running-local` predicate) or null, CAS-updates a
-  still-pending row to a claimer (default or caller-supplied) and returns
-  false when already claimed, stays org-wide with no params but scopes to
-  a repo when given, flips a running task to completed (reporting
-  same-spec dependents it unblocks, false for unknown/non-running), and
-  exposes `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
-  `findRecoverable`. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20), [`task-queue.test.ts:27`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L27), [`task-queue.test.ts:35`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L42), [`task-queue.test.ts:49`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L56), [`task-queue.test.ts:180`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L56), [`task-queue.test.ts:191`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L67), [`task-queue.test.ts:204`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L80), [`task-queue.test.ts:218`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L94), [`task-queue.test.ts:272`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L148), [`task-queue.test.ts:282`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L179), [`task-queue.test.ts:311`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L208))
+- FR-20.1: The `TaskQueue` port drives org-wide sweep: it exposes
+  `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
+  `findRecoverable`. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7), [`task-queue.test.ts:21`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L21), [`task-queue.test.ts:32`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L32), [`task-queue.test.ts:45`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L45), [`task-queue.test.ts:59`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L59), [`task-queue.test.ts:72`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L72), [`task-queue.test.ts:127`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:149`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L149), [`task-queue.test.ts:159`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L159))
 - FR-20.1b: `setColumns` writes only the given allow-listed task columns
   WITHOUT touching status or updated_at, issues no SQL for an empty column
   set, and throws on any key outside `SETTABLE_TASK_COLUMNS` — identically
   in the Pg adapter and the in-memory double, so a typo'd column fails
   loudly in tests instead of silently no-oping in production; the double
   additionally assigns the columns onto the seeded row and stays a no-op
-  for an unknown task id. ([validated by `task-queue.test.ts:635`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L411), [`task-queue.test.ts:654`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L430), [`task-queue.test.ts:667`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L443), [`task-queue.test.ts:674`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L450), [`task-queue.test.ts:686`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L462), [`task-queue.test.ts:698`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L474))
-- FR-20.1c: `activeTaskByIssue` returns null for a task that no longer holds its issue: `failed`, `cancelled` or `retried`. A `retried` task handed its work to the retry, so it must not block the issue from being picked again (#2009). A `completed` task still guards it *(amended 2026-09-14, #2069)*: completed means its pull request awaits review, and treating it as terminal made the backlog loop start the same ticket again on the same branch. On 2026-09-14, re-cinq/Otto#19's second run pushed five rounds of commits onto PR #231 one minute after the first run had marked it ready for review, and #1948 was re-run fourteen minutes after its fix merged. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L384), [`task-queue.test.ts:616`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L392), [`task-queue.test.ts:624`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L400))
+  for an unknown task id. ([validated by `task-queue.test.ts:635`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L275), [`task-queue.test.ts:654`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L294), [`task-queue.test.ts:667`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L307), [`task-queue.test.ts:674`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L314), [`task-queue.test.ts:686`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L326), [`task-queue.test.ts:698`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L338))
+- FR-20.1c: `activeTaskByIssue` returns null for a task that no longer holds its issue: `failed`, `cancelled` or `retried`. A `retried` task handed its work to the retry, so it must not block the issue from being picked again (#2009). A `completed` task still guards it *(amended 2026-09-14, #2069)*: completed means its pull request awaits review, and treating it as terminal made the backlog loop start the same ticket again on the same branch. On 2026-09-14, re-cinq/Otto#19's second run pushed five rounds of commits onto PR #231 one minute after the first run had marked it ready for review, and #1948 was re-run fourteen minutes after its fix merged. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L248), [`task-queue.test.ts:616`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L256), [`task-queue.test.ts:624`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L264))
 - FR-20.1a: The `pipeline.tasks` queue, exercised end-to-end against Postgres,
   backs those port behaviors: a created task defaults to `pending` status and
   `normal` priority (accepting an explicit `immediate`); a claim is atomic (a
@@ -1005,23 +1008,13 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `failure_reason` on failure; the review loop increments `review_iteration`;
   and run-now flips a pending task's priority from `normal` to `immediate`.
   ([validated by `creates a task in pending status`](apps/lore-api/src/integration-tests/pipeline.test.ts#L28), [validated by `claims a task atomically`](apps/lore-api/src/integration-tests/pipeline.test.ts#L38), [validated by `30s grace period excludes recently created tasks`](apps/lore-api/src/integration-tests/pipeline.test.ts#L68), [validated by `full lifecycle pending running completed`](apps/lore-api/src/integration-tests/pipeline.test.ts#L86), [validated by `records task events for audit trail`](apps/lore-api/src/integration-tests/pipeline.test.ts#L118), [validated by `handles failure with reason`](apps/lore-api/src/integration-tests/pipeline.test.ts#L149), [validated by `tracks review iterations`](apps/lore-api/src/integration-tests/pipeline.test.ts#L171), [validated by `creates tasks with default priority normal`](apps/lore-api/src/integration-tests/pipeline.test.ts#L192), [validated by `creates tasks with explicit priority immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L202), [validated by `GKE worker query picks up immediate tasks without grace`](apps/lore-api/src/integration-tests/pipeline.test.ts#L212), [validated by `run-now updates priority from normal to immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L234))
-- FR-20.2: The `TaskQueue` port also drives spec-task DAG dispatch: it
-  claims a pending spec-task once via CAS (default claimer
-  `spec-task-executor`), completes it reporting only the same-spec
-  dependents it unblocks (false when not running), exposes
-  `awaitingApproval`/`distinctTargetRepos`/`prInfo`, and returns ready
-  spec-tasks whose deps are completed/merged in the same spec — scoping
-  the returned set to one repo while still resolving deps org-wide.
-  Nothing dispatches a spec-task any more: the executor that did, and the
+- FR-20.2: Nothing dispatches a spec-task any more: the executor that did, and the
   admission rules that capped a plan's group at three concurrent tasks, are
   removed *(rewritten 2026-10-07, `specs/external-floor` FR15.0)*. The
-  generic claim still never takes one — it holds no recipe for them and
-  ignores their dependencies, and on 2026-09-29 it grabbed the tasks the
-  executor was holding back, filed an Issue for each and failed them all —
-  so these port methods answer for the rows that already exist and for
+  methods answer for the rows that already exist and for
   nothing new. A plan's tasks reach the implementation loop as tickets
   (`specs/7-feature-planning` FR-11.13).
-  ([`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L263), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L285), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L295), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34)))
+  ([`task-queue.test.ts:127`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:149`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L149), [`task-queue.test.ts:159`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L159), [`task-queue.test.ts:174`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L174), [`task-queue.test.ts:196`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L196), [`task-queue.test.ts:208`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L208), [`task-queue.test.ts:217`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L217), [`task-queue.test.ts:223`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L223), [`task-queue.test.ts:237`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L237), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34))
 - FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
   transitions a cancel to `cancelled`, writes `setStatus` (status +
   updated_at + only allowlisted extra columns), reads-old-then-writes-new
@@ -1187,10 +1180,13 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   database. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/lib/redact.test.ts#L78))
 - Centralized auth in `routes.ts`: every `/api/*` route enforces bearer
   token validation. Supports legacy single token (`LORE_INGEST_TOKEN`)
-  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/transport/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/transport/http/bearer-scope.test.ts#L41), [returns 403 {error:insufficient scope} when the token is not legacy and pool is null](apps/lore-api/src/transport/http/bearer-scope.test.ts#L48), [returns 403 when the DB has no matching token](apps/lore-api/src/transport/http/bearer-scope.test.ts#L59), [grants any scope when the DB token has admin](apps/lore-api/src/transport/http/bearer-scope.test.ts#L87), [returns 403 when the DB token lacks the scope the route needs](apps/lore-api/src/transport/http/bearer-scope.test.ts#L100), [returns 403 when the token lookup query throws](apps/lore-api/src/transport/http/bearer-scope.test.ts#L113), [grants access via the legacy token without hitting the DB](apps/lore-api/src/transport/http/bearer-scope.test.ts#L126))
+  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/transport/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/transport/http/bearer-scope.test.ts#L41), [returns 403 {error:insufficient scope} when the token is not legacy and pool is null](apps/lore-api/src/transport/http/bearer-scope.test.ts#L48), [returns 403 when the DB has no matching token](apps/lore-api/src/transport/http/bearer-scope.test.ts#L59), [grants any scope when the DB token has admin](apps/lore-api/src/transport/http/bearer-scope.test.ts#L87), [returns 403 when the DB token lacks the scope the route needs](apps/lore-api/src/transport/http/bearer-scope.test.ts#L100), [returns 503 when the token lookup query throws](apps/lore-api/src/transport/http/bearer-scope.test.ts#L113), [grants access via the legacy token without hitting the DB](apps/lore-api/src/transport/http/bearer-scope.test.ts#L126))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
   (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L52), [`rate-limit.test.ts:39`](apps/lore-api/src/transport/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L144))
 - Decision: Slack indexing is opt-in per channel only and DMs are never indexed; Lore indexes no Slack content today, so there is nothing to test yet.
+- lore-api logs every unexpected handler or auth throw on the hapi `request` error
+  channel under an `[http]` tag with method, path, request id and stack, so no route
+  500s anonymously. ([validated by `names an unexpected route throw on the console instead of 500ing anonymously`](apps/lore-api/src/app/build-server.test.ts#L5))
 
 ### NFR-2: Reliability & Freshness
 

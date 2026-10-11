@@ -155,4 +155,14 @@ describe("GET /healthz", () => {
       tasks: { processed_today: 1, pending: 1 },
     });
   });
+
+  it("answers the bare status when a client token's lookup throws", async () => {
+    const pool = makePool();
+
+    pool.query.mockRejectedValue(new Error("db down"));
+    const res = await inject(pool, { authorization: "Bearer client-token" });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ status: "ok" });
+  });
 });

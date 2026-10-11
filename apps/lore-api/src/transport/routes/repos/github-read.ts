@@ -2,9 +2,10 @@ import type { ResponseObject, ResponseToolkit } from "@hapi/hapi";
 import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, type Project } from "@re-cinq/lore-shared";
+import { projectFor } from "../../../outbound/project-boot.js";
 
-// What the repo routes that read one numbered GitHub thing (a pull request's files, an issue) share: the path they name it by and how a failed read answers.
+// What the repo routes that read GitHub through the App share: the path they name a numbered thing by, the onboarded-repo guard, and how a failed read answers.
 
 export const RepoNumberParams = z.object({
   owner: z.string().min(1),
@@ -13,6 +14,14 @@ export const RepoNumberParams = z.object({
 });
 
 export type RepoNumberParams = z.infer<typeof RepoNumberParams>;
+
+export async function onboardedProject(repo: string): Promise<Project> {
+  const project = await projectFor(repo);
+
+  enforceTrue(await project.settings.record(), apiError(404), "repo not found");
+
+  return project;
+}
 
 const GITHUB_UNCONFIGURED = "GitHub not configured";
 

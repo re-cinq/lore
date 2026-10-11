@@ -104,55 +104,59 @@ merge_settings() {
   CURRENT_STEP="merge Claude settings"
   echo "[lore] Configuring MCP server + hooks for team '$TEAM' ..."
 
-  # Register MCP server via CLI (the reliable way)
-  if command -v claude &>/dev/null; then
-    claude mcp remove lore-context 2>/dev/null || true
+  if ! command -v claude &>/dev/null; then
+    echo "[lore] Error: 'claude' is required to register the MCP server but was not found."
+    echo "  Hint: install Claude Code from https://claude.com/claude-code, then re-run this installer"
+    return 1
+  fi
 
-    # Read API URL and token from config (set during first install or manually)
-    LORE_API_URL="$(git config --global lore.api-url 2>/dev/null || true)"
-    LORE_TOKEN="$(git config --global lore.ingest-token 2>/dev/null || true)"
+  LORE_API_URL="${LORE_API_URL:-$(git config --global lore.api-url 2>/dev/null || true)}"
+  LORE_TOKEN="${LORE_INGEST_TOKEN:-$(git config --global lore.ingest-token 2>/dev/null || true)}"
 
-    # Set default API URL if not configured
-    if [ -z "$LORE_API_URL" ]; then
-      LORE_API_URL="${LORE_API_URL:-}"
-      git config --global lore.api-url "$LORE_API_URL"
+  if [ -z "$LORE_API_URL" ]; then
+    echo ""
+    echo "[lore] The Lore API URL is required, e.g. https://lore-api.example.com"
+    echo "  Ask the platform team, or re-run with LORE_API_URL=<url> set."
+    if [ -r /dev/tty ]; then
+      read -r -p "[lore] Lore API URL: " LORE_API_URL < /dev/tty || LORE_API_URL=""
     fi
+  fi
+  if [ -z "$LORE_API_URL" ]; then
+    echo "[lore] Error: no Lore API URL. Re-run with LORE_API_URL=<url> set."
+    return 1
+  fi
 
-    # Prompt for token if not set
-    if [ -z "$LORE_TOKEN" ]; then
-      echo ""
-      echo "[lore] To delegate tasks from Claude Code to agents, you need a token."
-      echo "  Get it from: kubectl get secret lore-ingest-token -n lore-api -o jsonpath='{.data.token}' | base64 -d"
-      echo "  Or ask the platform team."
-      echo ""
-      # Read from the terminal so this also works under `curl | bash` (where
-      # stdin is the piped script, not the keyboard). No tty → skip the prompt.
-      if [ -r /dev/tty ]; then
-        read -r -p "[lore] Paste token (or Enter to skip — you can set it later): " LORE_TOKEN < /dev/tty || LORE_TOKEN=""
-      else
-        LORE_TOKEN=""
-      fi
-      if [ -n "$LORE_TOKEN" ]; then
-        git config --global lore.ingest-token "$LORE_TOKEN"
-        echo "[lore] Token saved."
-      else
-        echo "[lore] Skipped. Set later: git config --global lore.ingest-token <token>"
-      fi
+  if [ -z "$LORE_TOKEN" ]; then
+    echo ""
+    echo "[lore] A Lore API token is required."
+    echo "  Get it from: kubectl get secret lore-ingest-token -n lore-api -o jsonpath='{.data.token}' | base64 -d"
+    echo "  Or ask the platform team."
+    echo ""
+    if [ -r /dev/tty ]; then
+      read -r -p "[lore] Paste token: " LORE_TOKEN < /dev/tty || LORE_TOKEN=""
     fi
+  fi
+  if [ -z "$LORE_TOKEN" ]; then
+    echo "[lore] Error: no Lore API token. Re-run with LORE_INGEST_TOKEN=<token> set."
+    return 1
+  fi
 
-    MCP_ENV_ARGS=(-e "CONTEXT_PATH=$LORE_DIR" -e "LORE_TEAM=$TEAM")
-    if [ -n "$LORE_API_URL" ]; then
-      MCP_ENV_ARGS+=(-e "LORE_API_URL=$LORE_API_URL")
-    fi
-    if [ -n "$LORE_TOKEN" ]; then
-      MCP_ENV_ARGS+=(-e "LORE_INGEST_TOKEN=$LORE_TOKEN")
-    fi
+  git config --global lore.api-url "$LORE_API_URL"
+  git config --global lore.ingest-token "$LORE_TOKEN"
 
-    claude mcp add lore-context node \
-      "$LORE_DIR/apps/mcp-server/dist/index.js" \
-      "${MCP_ENV_ARGS[@]}" \
-      2>/dev/null && echo "[lore] MCP server registered via claude CLI" || \
-      echo "[lore] Warning: claude mcp add failed, falling back to settings.json"
+  claude mcp remove -s local lore-context >/dev/null 2>&1 || true
+  claude mcp remove -s user lore-context >/dev/null 2>&1 || true
+
+  if claude mcp add -s user \
+    -e "CONTEXT_PATH=$LORE_DIR" \
+    -e "LORE_API_URL=$LORE_API_URL" \
+    -e "LORE_INGEST_TOKEN=$LORE_TOKEN" \
+    lore-context -- node "$LORE_DIR/apps/mcp-server/dist/index.js" >/dev/null 2>&1; then
+    echo "[lore] MCP server registered for every repo (user scope)"
+  else
+    echo "[lore] Error: 'claude mcp add -s user lore-context' failed, so Lore is not registered anywhere."
+    echo "  Hint: run 'claude mcp list' to inspect, then re-run this installer"
+    return 1
   fi
 
   # Merge env vars + hooks + status line into settings.json
