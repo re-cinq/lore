@@ -20,6 +20,7 @@ import { specPathsOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import type { CoverageDeps } from "../coverage-deps.js";
 import { addedAcross, findingsIn, groundedText } from "../grounded-text.js";
+import { changedLines, onChangedLines } from "./changed-lines.js";
 
 export interface BranchChecks {
   /** The brief the writer reads on its next visit. */
@@ -73,13 +74,6 @@ interface SpecsOnBranch {
   unsound: SoundnessFinding[];
 }
 
-interface BranchRead {
-  deps: CoverageDeps;
-  tools: Tools;
-  repo: string;
-  branch: string;
-}
-
 async function coverageOnBranch(
   deps: CoverageDeps,
   brief: Brief,
@@ -88,20 +82,43 @@ async function coverageOnBranch(
 ): Promise<SpecsOnBranch> {
   const { repo, branch } = parseGitRef(brief.needs.target);
   const read = (path: string) => deps.readSpec(repo, path, branch);
-  const [citable, tree] = await readBranch({
-    deps,
-    tools,
-    repo,
-    branch,
-  });
+  const [citable, tree, written] = await Promise.all([
+    readJson<CitablePlan>(tools, "plan_blocks"),
+    deps.listTree(repo, branch),
+    linesWritten(specs, (path) => deps.readSpec(repo, path)),
+  ]);
 
-  return countsOf(citable, specs, await groundedSpecs(specs, tree, read));
+  return countsOf(
+    citable,
+    specs,
+    await groundedSpecs(specs, tree, read, written),
+    written,
+  );
+}
+
+/** Per spec path, the lines this plan's writer wrote: the whole of a spec the default branch lacks, the changed lines of one it has. */
+async function linesWritten(
+  specs: readonly SpecFile[],
+  readOnDefault: (path: string) => Promise<string | null>,
+): Promise<Map<string, Set<number>>> {
+  const entries = await Promise.all(
+    specs.map(
+      async (spec) =>
+        [
+          spec.path,
+          changedLines(spec.text, await readOnDefault(spec.path)),
+        ] as const,
+    ),
+  );
+
+  return new Map(entries);
 }
 
 function countsOf(
   citable: CitablePlan,
   specs: readonly SpecFile[],
   grounded: GroundedFile[],
+  written: ReadonlyMap<string, Set<number>>,
 ): SpecsOnBranch {
   return {
     coverage: planCoverage(
@@ -109,34 +126,31 @@ function countsOf(
       specs.map((spec) => spec.text),
     ),
     grounded,
-    unsound: specSoundness(specs),
+    unsound: specSoundness(specs).filter((finding) =>
+      written.get(finding.path)?.has(finding.line),
+    ),
   };
 }
 
-/** The plan's blocks and the tree the names are checked against. */
-function readBranch({
-  deps,
-  tools,
-  repo,
-  branch,
-}: BranchRead): Promise<[CitablePlan, string[]]> {
-  return Promise.all([
-    readJson<CitablePlan>(tools, "plan_blocks"),
-    deps.listTree(repo, branch),
-  ]);
-}
-
-/** Each spec grounded, what any of them says the feature adds counting for all. */
-function groundedSpecs(
+/** Each spec grounded on the lines its writer wrote, what any of them says the feature adds counting for all. */
+async function groundedSpecs(
   specs: readonly SpecFile[],
   tree: readonly string[],
   read: (path: string) => Promise<string | null>,
+  written: ReadonlyMap<string, Set<number>>,
 ): Promise<GroundedFile[]> {
   const added = addedAcross(specs);
-
-  return Promise.all(
+  const grounded = await Promise.all(
     specs.map((spec) => groundedText(spec, tree, read, added)),
   );
+
+  return grounded.map((file) => ({
+    ...file,
+    findings: onChangedLines(
+      file.findings,
+      written.get(file.path) ?? new Set(),
+    ),
+  }));
 }
 
 export interface SpecFile {
