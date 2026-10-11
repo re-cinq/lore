@@ -11,6 +11,7 @@ import {
 } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import {
   invalidRepoRefusal,
+  NO_REPO_GIVEN,
   repoParam,
   resolveBranch,
   resolveRepo,
@@ -57,6 +58,16 @@ describe("repoParam", () => {
         "'owner/repo'. Required: this server has no checkout to detect it from.",
       full: "'owner/repo'. Auto-detected from the git remote when omitted.",
     });
+  });
+
+  it("rejects an omitted repo in the gateway with the owner/name hint, and accepts one on a laptop", () => {
+    const agentCall = repoParam("agent").safeParse(undefined);
+
+    expect({
+      agentOk: agentCall.success,
+      agentError: agentCall.error?.issues[0]?.message,
+      fullOk: repoParam("full").safeParse(undefined).success,
+    }).toEqual({ agentOk: false, agentError: NO_REPO_GIVEN, fullOk: true });
   });
 });
 

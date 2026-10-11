@@ -53,15 +53,20 @@ export function resolveBranch(
   return mode === "agent" ? null : detectCurrentBranch();
 }
 
+// The shared gateway serves every pod, so only the call can name its repo: Zod refuses one that omits it.
 export function repoParam(mode: ServerMode) {
+  if (mode === "agent") {
+    return z
+      .string({ error: NO_REPO_GIVEN })
+      .describe(
+        "'owner/repo'. Required: this server has no checkout to detect it from.",
+      );
+  }
+
   return z
     .string()
     .optional()
-    .describe(
-      mode === "agent"
-        ? "'owner/repo'. Required: this server has no checkout to detect it from."
-        : "'owner/repo'. Auto-detected from the git remote when omitted.",
-    );
+    .describe("'owner/repo'. Auto-detected from the git remote when omitted.");
 }
 
 export async function withRepo<A extends { repo?: string }, R>(
