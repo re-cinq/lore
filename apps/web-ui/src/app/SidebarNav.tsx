@@ -132,7 +132,7 @@ const externalAppLinks: {
   {
     urlKey: "utopiaUrl",
     label: "Utopia",
-    title: "Utopia (opens in a new tab)",
+    title: "Chat with models (opens in a new tab)",
   },
 ];
 

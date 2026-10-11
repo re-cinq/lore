@@ -424,7 +424,8 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   link, and no link at all for an absent or empty address. ([validated by `links to the named Grafana in a new tab beside the Headlamp link`](apps/web-ui/src/app/SidebarNav.test.tsx#L393), [`renders no Grafana link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L413), [`returns the Grafana address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L31), [`names no address when the variable is empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L37), [`names no address when the variable is unset or holds only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L41))
 - FR-3.21: The sidebar footer links to Utopia under the same rule: only
   when the deployment names it in `UTOPIA_URL`, as an external anchor in
-  a new tab, and no link at all for an absent or empty address. ([validated by `links to the named Utopia in a new tab`](apps/web-ui/src/app/SidebarNav.test.tsx#L422), [`renders no Utopia link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L432), [`returns the Utopia address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L50), [`names no address when the variable is unset, empty or only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L56))
+  a new tab after the Grafana link, and no link at all for an absent or
+  empty address. ([validated by `links to the named Utopia in a new tab`](apps/web-ui/src/app/SidebarNav.test.tsx#L422), [`renders no Utopia link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L432), [`returns the Utopia address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L50), [`names no address when the variable is unset, empty or only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L56))
 
 ### FR-4: Form and Input Styling
 
