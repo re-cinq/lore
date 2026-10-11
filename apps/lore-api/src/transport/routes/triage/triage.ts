@@ -5,13 +5,15 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { projectFor } from "../../../outbound/project-boot.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { githubFailureResponse } from "../repos/github-read.js";
+import {
+  githubFailureResponse,
+  onboardedProject,
+} from "../repos/github-read.js";
 
 const RepoParams = z.object({
   owner: z.string().min(1),
@@ -56,7 +58,7 @@ async function serveTriage(
   const fullName = `${owner}/${repo}`;
 
   try {
-    const project = await projectFor(fullName);
+    const project = await onboardedProject(fullName);
     const issues = (await project.issues.list({
       state: "open",
     })) as IssueLike[];
