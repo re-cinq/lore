@@ -26,6 +26,7 @@ export function decideReviewOnOpen(input: {
   }
 
   const author = input.pr!.author || "";
+
   if (author === input.loreAppLogin) {
     return { start: true };
   }
@@ -37,6 +38,7 @@ function isEligiblePr(pr: PullRef | null): boolean {
   if (!pr) {
     return false;
   }
+
   return pr.state === "open" && pr.draft !== true;
 }
 
@@ -144,7 +146,11 @@ export function reviewGateOpen(
 
   return (
     input.forced ||
-    decideReviewOnOpen({ autoReview: input.autoReview, pr, loreAppLogin: input.loreAppLogin }).start
+    decideReviewOnOpen({
+      autoReview: input.autoReview,
+      pr,
+      loreAppLogin: input.loreAppLogin,
+    }).start
   );
 }
 
