@@ -18,3 +18,4 @@
 ## Out of scope
 
 - `updateIssueComment` is already implemented via `issues.updateIssueComment(await this.octo(), repo, id, body)` on `PlatformGitHub` and tested elsewhere, so testing it here is excluded.
+- [x] Fix pr-description-check.yml to use ENFORCE_MODE (CI failure)

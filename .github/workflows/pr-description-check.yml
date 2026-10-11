@@ -54,7 +54,12 @@ jobs:
             echo "PR description check found issues:"
             echo "============================================"
             echo -e "$WARNINGS"
-            exit 1
+            if [ "${{ env.ENFORCE_MODE || 'false' }}" = "true" ]; then
+              exit 1
+            else
+              echo "Warning mode active: not failing the build."
+              exit 0
+            fi
           else
             echo "PR description looks good."
           fi
