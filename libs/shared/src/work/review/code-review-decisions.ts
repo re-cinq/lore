@@ -19,8 +19,9 @@ export function isReviewRequest(body: string): boolean {
 export function decideReviewOnOpen(input: {
   autoReview: boolean;
   pr: PullRef | null;
+  loreAppLogin?: string;
 }): { start: boolean } {
-  const { autoReview, pr } = input;
+  const { autoReview, pr, loreAppLogin } = input;
 
   return {
     start:
@@ -28,7 +29,7 @@ export function decideReviewOnOpen(input: {
       !!pr &&
       pr.state === "open" &&
       pr.draft !== true &&
-      !isBotActor(pr.author ?? ""),
+      (!isBotActor(pr.author ?? "") || (loreAppLogin !== undefined && pr.author === loreAppLogin)),
   };
 }
 
@@ -133,7 +134,7 @@ export function reviewFeedback(
 /** True once the PR is open and either forced or the auto-review gate says go. */
 export function reviewGateOpen(
   pr: PullRef,
-  input: { autoReview: boolean; forced?: boolean },
+  input: { autoReview: boolean; forced?: boolean; loreAppLogin?: string },
 ): boolean {
   if (pr.state !== "open") {
     return false;
@@ -141,7 +142,7 @@ export function reviewGateOpen(
 
   return (
     input.forced ||
-    decideReviewOnOpen({ autoReview: input.autoReview, pr }).start
+    decideReviewOnOpen({ autoReview: input.autoReview, pr, loreAppLogin: input.loreAppLogin }).start
   );
 }
 

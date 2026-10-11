@@ -61,6 +61,7 @@ export interface ReviewStartDeps {
   pulls: ReviewPulls;
   issues: ReviewIssues;
   uiUrl?: string;
+  loreAppLogin?: string;
 }
 
 export interface PullRequestTarget {
@@ -94,7 +95,7 @@ export async function startReview(
 ): Promise<string | null> {
   const pr = await deps.pulls.get(input.prNumber);
 
-  if (!pr || !reviewGateOpen(pr, input)) {
+  if (!pr || !reviewGateOpen(pr, { autoReview: input.autoReview, forced: input.forced, loreAppLogin: deps.loreAppLogin })) {
     return null;
   }
   await retireRechecks(deps.floor, input);
@@ -137,7 +138,7 @@ export async function startRecheck(
 ): Promise<string | null> {
   const pr = await deps.pulls.get(target.prNumber);
 
-  if (!decideReviewOnOpen({ autoReview: target.autoReview, pr }).start) {
+  if (!decideReviewOnOpen({ autoReview: target.autoReview, pr, loreAppLogin: deps.loreAppLogin }).start) {
     return null;
   }
   const runs = await reviewRunsForPr(deps.floor, target);
