@@ -6,9 +6,6 @@ import {
   AUTH,
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
-import { checkApproval } from "../two-key.js";
-
-vi.mock("../two-key.js", () => ({ checkApproval: vi.fn() }));
 
 const originalEnv = { ...process.env };
 
@@ -16,25 +13,17 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
-    vi.mocked(checkApproval).mockResolvedValue({
-      ok: true,
-      evidence: { prRef: "#5", approver: "bob", prUrl: "https://gh/5" },
-    });
   });
   afterEach(() => {
     process.env = { ...originalEnv };
     vi.clearAllMocks();
   });
 
-  function put(
-    payload: unknown,
-    pool: unknown = makePool(),
-    headers: Record<string, string> = AUTH,
-  ) {
+  function put(payload: unknown, pool: unknown = makePool()) {
     return buildServer(() => pool as never).inject({
       method: "PUT",
       url: "/api/repos/re-cinq/lore/settings",
-      headers,
+      headers: AUTH,
       payload: JSON.stringify(payload),
     });
   }
@@ -233,16 +222,6 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
   });
 
   it("returns 403 two_key_required for an auto_merge.approver change to lore-reviewer without the approval header", async () => {
-    vi.mocked(checkApproval).mockResolvedValue({
-      ok: false,
-      code: 403,
-      body: {
-        error: "two_key_required",
-        field_paths: ["auto_merge.approver"],
-        detail: "Turning auto_merge.approver on is two-key",
-      },
-    });
-
     const pool = makePool();
 
     pool.query.mockResolvedValue({

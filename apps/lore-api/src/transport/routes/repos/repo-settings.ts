@@ -15,7 +15,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
-import { checkApproval } from "../two-key.js";
+import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 
 const RepoSettingsBody = z.object({
   team: z.string().nullable().optional(),
@@ -85,21 +85,20 @@ async function enforceApproverGate(
   request: Request,
   repo: string,
   body: RepoSettingsBody,
-): Promise<{ ok: false; code: number; body: object } | { ok: true }> {
-  const am = body.settings?.auto_merge as { approver?: string } | undefined;
+): Promise<{ ok: true } | ApprovalOutcome> {
+  const autoMerge = body.settings?.auto_merge as
+    { approver?: string } | undefined;
 
-  if (am?.approver !== "lore-reviewer") {
+  if (autoMerge?.approver !== "lore-reviewer") {
     return { ok: true };
   }
 
-  const gate = await checkApproval(
+  return checkApproval(
     request,
     repo,
     ["auto_merge.approver"],
     "Turning auto_merge.approver on is two-key",
   );
-
-  return gate.ok ? { ok: true } : gate;
 }
 
 function enforceNoDarkFactory(body: RepoSettingsBody): void {
