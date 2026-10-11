@@ -13486,6 +13486,16 @@
                       }
                     ]
                   },
+                  "auto_merge": {
+                    "type": "object",
+                    "properties": {
+                      "approver": {
+                        "type": "string",
+                        "enum": ["none", "lore-reviewer"]
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
                   "dispatch_label": {
                     "type": "string"
                   },
@@ -13857,6 +13867,16 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "auto_merge": {
+                          "type": "object",
+                          "properties": {
+                            "approver": {
+                              "type": "string",
+                              "enum": ["none", "lore-reviewer"]
+                            }
+                          },
+                          "additionalProperties": {}
                         },
                         "dispatch_label": {
                           "type": "string"

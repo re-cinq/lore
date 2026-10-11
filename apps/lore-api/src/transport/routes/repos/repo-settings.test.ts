@@ -220,4 +220,24 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
 
     expect((await put({}, pool)).statusCode).toBe(400);
   });
+
+  it("returns 403 two_key_required for an auto_merge.approver change to lore-reviewer without the approval header", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+
+    const res = await put(
+      { settings: { auto_merge: { approver: "lore-reviewer" } } },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(res.result).toEqual({
+      error: "two_key_required",
+      field_paths: ["auto_merge.approver"],
+      detail: "Turning auto_merge.approver on is two-key",
+    });
+  });
 });

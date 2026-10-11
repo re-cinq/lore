@@ -4,7 +4,7 @@
 | ------- | ----------------------------------------------------------------- |
 | Feature | Lore merges on protected repos, and every PR knows what blocks it |
 | Branch  | feat/protected-branch-merge                                       |
-| Status  | Draft                                                             |
+| Status  | In Progress                                                       |
 | Created | 2026-10-07                                                        |
 | Owner   | Platform Engineering                                              |
 
@@ -123,7 +123,7 @@ A branch that falls behind its base is updated using GitHub's update-branch API 
 ## Compliance Requirements
 
 - The review line runs again on every push, so approving, arming and commenting each carry an idempotency key and happen once per PR state. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_a928dff4-4235-4284-8050-a69c46076706))
-- Turning `auto_merge.approver` on is two-key (admin scope plus a CODEOWNER approval PR), which needs a CODEOWNERS file covering `CLAUDE.md`. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_e9bcb5f9-5511-4691-85cc-acb66dcd6cca))
+- Turning `auto_merge.approver` on is two-key (admin scope plus a CODEOWNER approval PR), which needs a CODEOWNERS file covering `CLAUDE.md`. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_e9bcb5f9-5511-4691-85cc-acb66dcd6cca), [validated by returns 403 two_key_required for an auto_merge.approver change to lore-reviewer without the approval header](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L224))
 - lore-reviewer's private key lives in Secret Manager and reaches the stations service through ESO (ADR-046); the terraform apply lands before any chart references it. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_c7ad479f-84fc-4512-825d-6d38ae3aafd9))
 
 ## Out of Scope
