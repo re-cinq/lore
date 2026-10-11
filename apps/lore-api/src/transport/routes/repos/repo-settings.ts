@@ -15,6 +15,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
+import { checkApproval } from "../two-key.js";
 
 const RepoSettingsBody = z.object({
   team: z.string().nullable().optional(),
@@ -51,6 +52,21 @@ async function serveRepoSettings(
   const repo = `${request.params.owner}/${request.params.repo}`;
   const body = request.payload as RepoSettingsBody;
   const existingTeam = await loadRepoTeam(pool, repo);
+
+  if (body.settings?.auto_merge) {
+    const am = body.settings.auto_merge as { approver?: string };
+    if (am.approver === "lore-reviewer") {
+      const gate = await checkApproval(
+        request,
+        repo,
+        ["auto_merge.approver"],
+        "Turning auto_merge.approver on is two-key",
+      );
+      if (!gate.ok) {
+        return h.response(gate.body).code(gate.code);
+      }
+    }
+  }
 
   enforceNoDarkFactory(body);
   enforceDigestValid(

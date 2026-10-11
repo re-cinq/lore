@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **returns 403 two_key_required for an auto_merge.approver change to lore-reviewer without the approval header** — refuses the settings patch if the approval header is missing
+- [x] **returns 403 two_key_required for an auto_merge.approver change to lore-reviewer without the approval header** — refuses the settings patch if the approval header is missing
   `apps/lore-api/src/transport/routes/repos/repo-settings.test.ts`
 
 ## Facets
 
-- [ ] Add `auto_merge` and `approver` to `RepoSettingsSchema`
-- [ ] Add `twoKeyFieldsTouched` or equivalent logic to detect the change
-- [ ] Apply the `checkApproval` gate to the repo settings route
+- [x] Add `auto_merge` and `approver` to `RepoSettingsSchema`
+- [x] Add `twoKeyFieldsTouched` or equivalent logic to detect the change
+- [x] Apply the `checkApproval` gate to the repo settings route
 
 ## Out of scope
 
