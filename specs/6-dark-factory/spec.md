@@ -613,7 +613,7 @@ The per-repo `dark_factory` settings block went the same day, with the route tha
 
 - **FR3.5** Sub-setting `notify` MUST support a list of channels: `escalation`, `watched`, `all`. Default when dark-mode-on: `[escalation]`. (`notify-slack.test.ts:24`; implemented by `notify-decision.ts:9`)
 
-- **FR3.9** Authorization on `dark_factory.*` settings MUST be tiered. Lighter sub-settings (`notify`, `create_issue`, `review`, `auto_merge.min_trust`, `auto_merge.require_*`) MAY be changed with admin scope alone. (`dark-factory.test.ts:343`; implemented by [`dark-factory-authz.ts:69`](apps/lore-api/src/work/two-key/approval-pr.ts#L73))
+- **FR3.9** Authorization on `dark_factory.*` settings MUST be tiered. Lighter sub-settings (`notify`, `create_issue`, `review`, `auto_merge.min_trust`, `auto_merge.require_*`) MAY be changed with admin scope alone. (`dark-factory.test.ts:343`; implemented by [`dark-factory-authz.ts:69`](apps/lore-api/src/work/two-key/approval-pr.ts#L85))
 - **FR6.65** *(split from FR3.9)* Privileged changes — toggling `dark_factory.enabled` and modifying `dark_factory.auto_merge.paths` — MUST require both an admin-scope API token and a CODEOWNERS approval recorded in the audit log (a labeled PR against the settings, or an equivalent ceremony surfaced via the web-ui).
 - **FR6.66** *(split from FR3.9)* Every mutation on `dark_factory.*` settings, regardless of tier, MUST write an audit_log entry naming the actor, the previous value, the new value, and the authorization path used.
 
