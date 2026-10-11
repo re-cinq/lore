@@ -20,6 +20,7 @@ import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run
 import type { CitablePlan } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import {
+  briefFor,
   openPrBrief,
   revisedBrief,
   type RefineRequest,
@@ -100,7 +101,7 @@ export async function startFloorDrafting(
     await answerAuthorWithDraft(
       deps,
       line.parkedAuthor,
-      { planMd, brief },
+      { planMd, brief: briefFor(plan.repo, brief) },
       actor,
     );
 
@@ -281,7 +282,7 @@ export function keyOf(plan: PlanRef): { repo: string; planId: string } {
 async function reportApproved(
   deps: FloorPlanDeps,
   author: ParkedVisit,
-  { planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
+  { plan, planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
   approvedBy?: string,
 ): Promise<void> {
   await reportToVisit(
@@ -292,7 +293,7 @@ async function reportApproved(
       produced: {
         plan_md: await storeMarkdown(deps.floor, planMarkdown),
         ...(await storeCitable(deps.floor, citablePlan)),
-        description: brief,
+        description: briefFor(plan.repo, brief),
       },
     },
     approvedBy,
@@ -365,7 +366,7 @@ async function startItemsOf(
     plan_title: valueItem(plan.title),
     plan_md: fileItem(planMd),
     ...(planBlocks ? { plan_blocks: fileItem(planBlocks) } : {}),
-    description: valueItem(brief),
+    description: valueItem(briefFor(plan.repo, brief)),
     ...(storyIssue ? { story_issue: valueItem(String(storyIssue)) } : {}),
   };
 }

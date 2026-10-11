@@ -7,6 +7,7 @@ import {
   proxyGetApi,
   withReadCache,
   textResult,
+  failedProxyError,
   type ProxyResult,
 } from "./proxy.js";
 
@@ -155,6 +156,41 @@ describe("proxy client result mapping", () => {
       status: 409,
       body,
     });
+  });
+
+  it("carries the status of a refused GET too, so a caller reports the API's verdict rather than an outage", async () => {
+    const spy = fetchReturning({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      text: async () => JSON.stringify({ error: "repo: expected owner/name" }),
+    });
+
+    global.fetch = spy as typeof fetch;
+    const result = await proxyGetApi("/api/context?repo=");
+
+    expect({
+      result,
+      text: failedProxyError(
+        "lore_assemble_context",
+        result as Extract<ProxyResult, { reason: "unreachable" }>,
+      ).content[0].text,
+    }).toMatchObject({
+      result: { ok: false, reason: "unreachable", status: 400 },
+      text: "Lore API rejected lore_assemble_context: HTTP 400 Bad Request: repo: expected owner/name",
+    });
+  });
+
+  it("still reports an outage with no status as unreachable after every attempt", () => {
+    expect(
+      failedProxyError("lore_search_memory", {
+        ok: false,
+        reason: "unreachable",
+        detail: "request timed out (15s)",
+      }).content[0].text,
+    ).toContain(
+      "Lore API unreachable for lore_search_memory after 4 attempts: request timed out (15s)",
+    );
   });
 
   it("retries a retriable 503 and succeeds on the next attempt", async () => {
@@ -371,6 +407,28 @@ describe("withReadCache", () => {
       ok: false,
       reason: "denied",
       detail: "token revoked",
+    });
+  });
+
+  it("returns the API's refusal rather than a stale copy when the failure carries a status", async () => {
+    const expiredPolicy = { ...policy, ttlSeconds: 0 };
+
+    await withReadCache(expiredPolicy, async () => ({
+      ok: true,
+      body: "cached",
+    }));
+    const refused = await withReadCache(expiredPolicy, async () => ({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 400 Bad Request: repo: expected owner/name",
+      status: 400,
+    }));
+
+    expect(refused).toEqual({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 400 Bad Request: repo: expected owner/name",
+      status: 400,
     });
   });
 

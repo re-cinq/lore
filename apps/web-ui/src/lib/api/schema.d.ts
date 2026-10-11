@@ -6063,6 +6063,7 @@ export interface operations {
               /** @constant */
               action: "list";
               agent_id?: string;
+              repo?: string;
               limit?: number;
               /** @default 0 */
               offset?: number;

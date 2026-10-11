@@ -54,7 +54,7 @@ export function reviewDescription(
   pr: number,
   branch: string,
 ): string {
-  return `Review pull request #${pr} in ${repo} (branch ${branch}).`;
+  return `repo: "${repo}"\nReview pull request #${pr} in ${repo} (branch ${branch}).`;
 }
 
 /** The re-check's brief. With the sha the last verdict judged it also names the range to read, which is the whole difference between a re-check and a second full review: a re-check that diffs `main...HEAD` re-reads the entire PR, and the ones on 2026-09-25 spent 59 commands doing it. */
@@ -68,7 +68,7 @@ export function recheckDescription(
     ? ` The last verdict judged ${sinceSha}; read what changed since it with \`git -C /workspace/target diff --no-ext-diff ${sinceSha}..HEAD\`, and judge only that.`
     : "";
 
-  return `Re-check pull request #${pr} in ${repo} (branch ${branch}) after a new push.${scope}`;
+  return `repo: "${repo}"\nRe-check pull request #${pr} in ${repo} (branch ${branch}) after a new push.${scope}`;
 }
 
 /** What a re-check decides from, all of it already in hand at the call site. */
