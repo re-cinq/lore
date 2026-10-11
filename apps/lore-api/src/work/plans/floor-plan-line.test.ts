@@ -166,13 +166,18 @@ function reportedProduced(
   return last?.payload?.report?.produced ?? {};
 }
 
-function reported(visitId: string, report: Report): FloorRequest {
+function reported(visitId: string, report: Report, by?: string): FloorRequest {
   return {
     method: "POST",
     path: "/events",
     body: {
       name: "station_run.reported",
-      payload: { visitId, worker: "lore", report },
+      payload: {
+        visitId,
+        worker: "lore",
+        report,
+        ...(by ? { reportedBy: by } : {}),
+      },
       dedupeKey: `station_run.reported:${visitId}`,
     },
   };
@@ -494,21 +499,29 @@ const CITABLE = {
 };
 
 describe("approveFloorPlan", () => {
-  it("reports success on the author visit with the approved plan.md when the run waits on author", async () => {
+  it("reports success on the author visit with the approved plan.md, in gedaiu's name, when the run waits on author", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
 
-    const decision = await approveFloorPlan(deps, {
-      plan: APPROVED,
-      planMarkdown: MARKDOWN,
-      brief: BRIEF,
-    });
+    const decision = await approveFloorPlan(
+      deps,
+      {
+        plan: APPROVED,
+        planMarkdown: MARKDOWN,
+        brief: BRIEF,
+      },
+      "gedaiu",
+    );
 
     expect(decision).toEqual({ kind: "hand-over" });
     expect(posts(requests).at(-1)).toEqual(
-      reported("visit-author", {
-        outcome: "success",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
-      }),
+      reported(
+        "visit-author",
+        {
+          outcome: "success",
+          produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        },
+        "gedaiu",
+      ),
     );
   });
 
@@ -815,13 +828,13 @@ describe("startFloorSpecWork", () => {
 });
 
 describe("reopenFloorPlan", () => {
-  it("reports changes_requested on the merged visit when the run waits on its spec PR", async () => {
+  it("reports changes_requested on the merged visit, in gedaiu's name, when the run waits on its spec PR", async () => {
     const { deps, requests } = scene({ visits: ON_MERGED });
 
-    await reopenFloorPlan(deps, APPROVED);
+    await reopenFloorPlan(deps, APPROVED, "gedaiu");
 
     expect(posts(requests)).toEqual([
-      reported("visit-merged", { outcome: "changes_requested" }),
+      reported("visit-merged", { outcome: "changes_requested" }, "gedaiu"),
     ]);
   });
 
