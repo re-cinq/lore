@@ -21,7 +21,7 @@ export function decideReviewOnOpen(input: {
   pr: PullRef | null;
   loreAppLogin?: string;
 }): { start: boolean } {
-  if (!isEligiblePr(input.pr, input.autoReview)) {
+  if (!input.autoReview || !isEligiblePr(input.pr)) {
     return { start: false };
   }
 
@@ -33,8 +33,8 @@ export function decideReviewOnOpen(input: {
   return { start: !isBotActor(author) };
 }
 
-function isEligiblePr(pr: PullRef | null, autoReview: boolean): boolean {
-  if (!autoReview || !pr) {
+function isEligiblePr(pr: PullRef | null): boolean {
+  if (!pr) {
     return false;
   }
   return pr.state === "open" && pr.draft !== true;
@@ -48,7 +48,7 @@ export function decideReviewOnReply(input: {
   const { autoReview, pr, commentAuthor } = input;
 
   return {
-    start: isEligiblePr(pr, autoReview) && !isBotActor(commentAuthor),
+    start: autoReview && isEligiblePr(pr) && !isBotActor(commentAuthor),
   };
 }
 
