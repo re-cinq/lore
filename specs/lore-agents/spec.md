@@ -87,6 +87,7 @@ no-ops on a fresh DB that already built the new name from 0015. ([validated by `
 - **FR17 — Edit-form provenance + error feedback.** The edit form notes whether
   the agent is inherited from the org default, is a project override for this repo,
   or is brand new (no note), and surfaces an action error inline on submit. ([validated by notes that values are inherited from org when editing an org agent](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L100), [validated by notes a project override when editing an already-overridden agent](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L115), [validated by shows no inherited/override note on a new agent](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L130), [validated by surfaces an error returned by the action](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L196))
+  - When editing an inherited (org) agent, the prompt textarea is blank on load — the inherited prompt is shown only as a placeholder — so a save that does not touch the prompt sends null and does not lock the project row to a snapshot of the org prompt. ([validated by does not prefill the prompt textarea for an inherited org agent — so an unmodified save does not copy the org prompt](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L229))
 
 - **FR18 — Agent memory detail view.** The `/agents/[id]` view renders the truncated
   agent id + memory count and, per memory, the key with facts/TTL/version badges,
