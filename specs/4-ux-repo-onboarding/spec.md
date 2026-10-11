@@ -295,6 +295,10 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   one pull request, the scaffolding rule of FR-2.3, the ticket of FR-2.10,
   the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer](apps/stations/src/onboard/open-pr/station.test.ts#L88), [validated by starts a forced review of pull request 42 of re-cinq/app](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-…](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
 
+- FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
+  feedback. On success the user lands on the repository's page, which shows
+  its onboarding state. A refusal keeps the user on the form with the reason. ([validated by redirects to /repos/re-cinq/lore when onboarding queues task-1](apps/web-ui/src/app/onboard/page.test.tsx#L55), [stays on the form with the refusal when onboarding is refused](apps/web-ui/src/app/onboard/page.test.tsx#L65), [rejects a malformed repository without calling the API](apps/web-ui/src/app/onboard/page.test.tsx#L81))
+
 ### FR-3: Repo-Centric UI Layout
 
 The system MUST reorganize the UI around repos. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45))
