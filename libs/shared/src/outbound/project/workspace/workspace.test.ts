@@ -57,6 +57,7 @@ describe("Workspace", () => {
       replyToReviewComment: async () => {},
       addLabel: async () => {},
       enablePullRequestAutoMerge: async () => {},
+      // eslint-disable-next-line re-lint/no-negative-names
       disablePullRequestAutoMerge: async () => {},
       merge: async () => {},
       open: async (repo, branch, { title }) => {

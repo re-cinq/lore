@@ -273,6 +273,7 @@ export async function enablePullRequestAutoMerge(
   );
 }
 
+// eslint-disable-next-line re-lint/no-negative-names
 export async function disablePullRequestAutoMerge(
   ok: Octokit,
   prId: string,

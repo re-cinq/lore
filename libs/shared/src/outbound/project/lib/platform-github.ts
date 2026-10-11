@@ -397,6 +397,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsWrite.enablePullRequestAutoMerge(await this.octo(), prId, mergeMethod);
   }
 
+  // eslint-disable-next-line re-lint/no-negative-names
   async disablePullRequestAutoMerge(
     prId: string,
   ): Promise<void> {

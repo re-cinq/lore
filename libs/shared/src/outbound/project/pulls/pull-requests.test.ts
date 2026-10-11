@@ -49,6 +49,7 @@ function fakePulls(
     review: async () => {},
     addLabel: async () => {},
     enablePullRequestAutoMerge: async () => {},
+    // eslint-disable-next-line re-lint/no-negative-names
     disablePullRequestAutoMerge: async () => {},
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
