@@ -275,7 +275,9 @@ async function commitStatusRuns(
 
 /** An installation without the commit-statuses permission answers 403; its check runs still decide, rather than every CI read failing. */
 function withoutStatusPermission(err: unknown): undefined {
-  if ((err as { status?: number }).status !== 403) throw err;
+  if ((err as { status?: number }).status !== 403) {
+    throw err;
+  }
 
   console.warn(
     "[github] commit statuses unreadable (403): the GitHub App lacks the statuses permission",
