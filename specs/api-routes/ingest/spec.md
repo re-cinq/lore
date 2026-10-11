@@ -104,7 +104,7 @@ A result with no `results` array still answers 200. ([validated by returns 200 w
 A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L78))
 
 
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L100), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L21))
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L102), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L21))
 
 A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/work/spec-trace/ingest.test.ts#L62), [`ingest.test.ts:57`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L71))
 

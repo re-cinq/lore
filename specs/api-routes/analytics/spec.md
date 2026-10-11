@@ -78,7 +78,7 @@ An unknown period is rejected with 400 rather than silently defaulting. ([valida
 
 A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/transport/routes/analytics/analytics.test.ts#L82))
 
-The route is registered as `GET /api/analytics`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L130), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/analytics.ts#L19))
+The route is registered as `GET /api/analytics`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L132), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/analytics.ts#L19))
 
 ## Out of Scope
 

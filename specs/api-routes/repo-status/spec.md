@@ -98,7 +98,7 @@ A `repo` param that is not `owner/name` is rejected with 400. ([validated by `re
 
 The route counts against the `default` rate bucket, each request counted exactly once: the 200th passes and the 201st trips 429. ([validated by `rate-limit.test.ts:89`](apps/lore-api/src/transport/http/rate-limit.test.ts#L88))
 
-The route is registered as a `GET /api/repo-status` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L84), [implemented by](../../../apps/lore-api/src/transport/routes/repos/repo-status.ts#L13))
+The route is registered as a `GET /api/repo-status` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L86), [implemented by](../../../apps/lore-api/src/transport/routes/repos/repo-status.ts#L13))
 
 ## Out of Scope
 

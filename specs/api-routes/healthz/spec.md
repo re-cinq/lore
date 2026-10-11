@@ -26,13 +26,13 @@ two-field response, upgraded to a full diagnostic payload when authenticated.
 
 Registered as the first entry in the route table, matched on path only
 (`url === "/healthz"`, method-agnostic)
-([registration](../../../apps/lore-api/src/app/build-server.ts#L82)).
+([registration](../../../apps/lore-api/src/app/build-server.ts#L84)).
 
 - **Method + path**: `GET /healthz` (the matcher ignores method; any verb on
   `/healthz` dispatches here).
 - **Auth**: none. The dispatcher exempts `/healthz` from both the rate limiter
   (`url !== "/healthz"` gate) and the bearer-token gate (`authExempt`)
-  ([dispatch gates](../../../apps/lore-api/src/app/build-server.ts#L146)).
+  ([dispatch gates](../../../apps/lore-api/src/app/build-server.ts#L148)).
 - **Request**: no body, no required query params. An optional
   `Authorization: Bearer <token>` header upgrades the response.
 - **Response**:
