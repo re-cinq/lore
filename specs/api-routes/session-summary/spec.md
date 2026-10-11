@@ -26,7 +26,7 @@ hook's payload shape and its skip/duplicate semantics.
 ## Interface
 
 Registered as `exact("/api/session-summary", "POST")`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L101)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts#L117)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/session-summary`
@@ -163,4 +163,4 @@ seam mocks both and asserts only the trigger/skip/swallow contract.)*
 - Token issuance and the scope schema.
 
 Code: handler [`handleSessionSummary`](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts#L24)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L101).
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L117).

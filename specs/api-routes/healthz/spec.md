@@ -26,13 +26,13 @@ two-field response, upgraded to a full diagnostic payload when authenticated.
 
 Registered as the first entry in the route table, matched on path only
 (`url === "/healthz"`, method-agnostic)
-([registration](../../../apps/lore-api/src/app/build-server.ts#L84)).
+([registration](../../../apps/lore-api/src/app/build-server.ts#L99)).
 
 - **Method + path**: `GET /healthz` (the matcher ignores method; any verb on
   `/healthz` dispatches here).
 - **Auth**: none. The dispatcher exempts `/healthz` from both the rate limiter
   (`url !== "/healthz"` gate) and the bearer-token gate (`authExempt`)
-  ([dispatch gates](../../../apps/lore-api/src/app/build-server.ts#L148)).
+  ([dispatch gates](../../../apps/lore-api/src/app/build-server.ts#L164)).
 - **Request**: no body, no required query params. An optional
   `Authorization: Bearer <token>` header upgrades the response.
 - **Response**:
@@ -132,7 +132,7 @@ header`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L146))
 
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L53), [validated by `rate-limit.test.ts:107`](apps/lore-api/src/transport/http/rate-limit.test.ts#L107))
+unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L53), [validated by `rate-limit.test.ts:107`](apps/lore-api/src/transport/http/rate-limit.test.ts#L109))
 
 ## Out of Scope
 

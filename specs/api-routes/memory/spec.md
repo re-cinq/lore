@@ -27,7 +27,7 @@ object on every validation or runtime failure.
 ## Interface
 
 Registered in the route table as `exact("/api/memory", "POST")`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L99)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts#L115)), dispatched by
 `handleApiRoute` after the cross-cutting rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/memory`
@@ -210,4 +210,4 @@ A failed lookup is swallowed so the write still succeeds. ([validated by `swallo
 - Token issuance and the scope schema (`/api/tokens`).
 
 Code: handler [`handleMemory`](../../../apps/lore-api/src/transport/routes/memory/memory.ts#L72)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L99).
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L115).
