@@ -4118,6 +4118,12 @@ export interface components {
           calls: number;
           cost_usd: number;
         }[];
+        by_billing_mode: {
+          /** @enum {string} */
+          mode: "api_key" | "subscription" | "unknown";
+          calls: number;
+          cost_usd: number;
+        }[];
       };
       billed: {
         available: boolean;

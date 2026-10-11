@@ -29,6 +29,7 @@ async function serverWith(
     spendWindowRoute(() => poolWith(rows, issued, rejectWhen), {
       env: {},
       now: () => NOW,
+      floor: null,
       ...deps,
     }),
   );
@@ -467,6 +468,76 @@ describe("GET /api/analytics/spend-window", () => {
     expect(sql).toContain("LEFT JOIN pipeline.station_runs");
     expect(sql).toContain("LEFT JOIN pipeline.cluster_agents");
     expect(sql).toContain("cluster_agent_id");
+  });
+
+  it("splits billing mode into Lore's own calls on the org key plus the floor's visits by credential", async () => {
+    const asked: unknown[][] = [];
+    const floor = {
+      costs: {
+        summary: async (...args: unknown[]) => {
+          asked.push(args);
+
+          return [
+            {
+              key: "api_key",
+              costUsd: 10,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 3,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+            {
+              key: "subscription",
+              costUsd: 7,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 5,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+            {
+              key: "unknown",
+              costUsd: 2,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 1,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+          ];
+        },
+      },
+    };
+    const res = await get(
+      await serverWith(BASE_ROWS, { floor }),
+      "/api/analytics/spend-window?from=2026-09-01&to=2026-09-01",
+    );
+
+    expect({
+      asked,
+      split: JSON.parse(res.payload).llm.by_billing_mode,
+    }).toEqual({
+      asked: [
+        [
+          { since: "2026-09-01T00:00:00Z", until: "2026-09-02T00:00:00.000Z" },
+          "billing_mode",
+        ],
+      ],
+      split: [
+        { mode: "api_key", calls: 45, cost_usd: 92.5 },
+        { mode: "subscription", calls: 5, cost_usd: 7 },
+        { mode: "unknown", calls: 1, cost_usd: 2 },
+      ],
+    });
+  });
+
+  it("counts only Lore's own calls, on the org key, when no floor is configured", async () => {
+    const res = await get(await serverWith(BASE_ROWS));
+
+    expect(JSON.parse(res.payload).llm.by_billing_mode).toEqual([
+      { mode: "api_key", calls: 42, cost_usd: 82.5 },
+    ]);
   });
 
   it("still renders cluster spend empty when the registry table is absent", async () => {
