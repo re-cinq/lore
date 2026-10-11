@@ -25,8 +25,8 @@ export function decideReviewOnOpen(input: {
     return { start: false };
   }
 
-  const author = input.pr?.author ?? "";
-  if (input.loreAppLogin !== undefined && author === input.loreAppLogin) {
+  const author = input.pr!.author || "";
+  if (author === input.loreAppLogin) {
     return { start: true };
   }
 
