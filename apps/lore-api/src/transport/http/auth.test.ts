@@ -4,7 +4,12 @@ import {
   makePool,
   useRateLimitSafeClock,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
-import { rateLimit, resolveTokenScopes, validateClientToken } from "./auth.js";
+import {
+  rateLimit,
+  rateWindowCount,
+  resolveTokenScopes,
+  validateClientToken,
+} from "./auth.js";
 
 const originalEnv = { ...process.env };
 const ALL_SCOPES = ["read", "write", "task", "webhook", "admin"];
@@ -28,6 +33,36 @@ describe("rateLimit", () => {
     expect(rateLimit("webhook")).toBe(false);
     vi.setSystemTime(Date.now() + 61_000);
     expect(rateLimit("webhook")).toBe(true);
+  });
+
+  it("gives each principal its own window, so one spending its budget leaves another's untouched", () => {
+    for (let i = 0; i < 30; i++) {
+      rateLimit("webhook", "ip:203.0.113.1");
+    }
+
+    expect({
+      first: rateLimit("webhook", "ip:203.0.113.1"),
+      second: rateLimit("webhook", "ip:203.0.113.2"),
+      anonymous: rateLimit("webhook"),
+    }).toEqual({ first: false, second: true, anonymous: true });
+  });
+
+  it("evicts the windows of principals that went idle, so the table stays bounded", () => {
+    for (let i = 0; i < 500; i++) {
+      rateLimit("default", `ip:198.51.100.${i}`);
+    }
+    const before = rateWindowCount();
+
+    vi.setSystemTime(Date.now() + 61_000);
+
+    for (let i = 0; i < 1000; i++) {
+      rateLimit("default", "ip:203.0.113.9");
+    }
+
+    expect({ before: before >= 500, after: rateWindowCount() }).toEqual({
+      before: true,
+      after: 1,
+    });
   });
 });
 

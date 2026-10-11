@@ -1,7 +1,9 @@
 /** Rate limiting as a hapi extension (ADR-033). */
 
-import type { Server } from "@hapi/hapi";
+import { createHash } from "node:crypto";
+import type { Request, ResponseToolkit, Server } from "@hapi/hapi";
 import { rateLimit, type RateBucket } from "./auth.js";
+import { clientAddress } from "./client-ip.js";
 
 export const GITHUB_WEBHOOK_PATH = "/api/webhook/github";
 
@@ -37,17 +39,80 @@ export function bucketFor(path: string): RouteBucket {
 }
 
 export function registerRateLimit(server: Server): void {
-  server.ext("onPreAuth", (request, h) => {
-    const bucket = bucketFor(request.path);
+  server.ext("onPreAuth", beforeAuth);
+  server.ext("onPostAuth", afterAuth);
+  server.ext("onPreResponse", beforeResponse);
+}
 
-    if (bucket === "unlimited" || rateLimit(bucket)) {
-      return h.continue;
-    }
+function beforeAuth(request: Request, h: ResponseToolkit) {
+  if (isUnlimited(request) || bearerOf(request)) {
+    return h.continue;
+  }
 
-    return h
-      .response({ error: "rate limit exceeded" })
-      .code(429)
-      .header("Retry-After", "60")
-      .takeover();
-  });
+  return admit(request, h, addressPrincipal(request));
+}
+
+function afterAuth(request: Request, h: ResponseToolkit) {
+  const bearer = bearerOf(request);
+
+  if (isUnlimited(request) || !bearer) {
+    return h.continue;
+  }
+  const principal = request.auth.isAuthenticated
+    ? tokenPrincipal(bearer)
+    : addressPrincipal(request);
+
+  return admit(request, h, principal);
+}
+
+function beforeResponse(request: Request, h: ResponseToolkit) {
+  if (isUnlimited(request) || !bearerOf(request) || isCounted(request)) {
+    return h.continue;
+  }
+
+  return admit(request, h, addressPrincipal(request));
+}
+
+type Counted = { rateCounted?: true };
+
+function isCounted(request: Request): boolean {
+  return (request.plugins as Counted).rateCounted === true;
+}
+
+function admit(request: Request, h: ResponseToolkit, principal: string) {
+  (request.plugins as Counted).rateCounted = true;
+
+  const bucket = bucketFor(request.path);
+
+  return bucket === "unlimited" || rateLimit(bucket, principal)
+    ? h.continue
+    : h
+        .response({ error: "rate limit exceeded" })
+        .code(429)
+        .header("Retry-After", "60")
+        .takeover();
+}
+
+function isUnlimited(request: Request): boolean {
+  return bucketFor(request.path) === "unlimited";
+}
+
+function bearerOf(request: Request): string | undefined {
+  const header = request.headers.authorization;
+  const value = Array.isArray(header) ? header[0] : header;
+
+  return value?.replace("Bearer ", "") || undefined;
+}
+
+function addressPrincipal(request: Request): string {
+  const address = clientAddress(
+    request.info.remoteAddress,
+    request.headers["x-forwarded-for"],
+  );
+
+  return `ip:${address}`;
+}
+
+function tokenPrincipal(bearer: string): string {
+  return `token:${createHash("sha256").update(bearer).digest("hex")}`;
 }

@@ -112,7 +112,7 @@ A guard-blocked submission returns 409 carrying the reason, and `reonboard` is p
 
 A throwing `onboardRepo` returns 500. ([validated by returns 500 when onboardRepo throws](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L95))
 
-The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L106), [implemented by](../../../apps/lore-api/src/transport/routes/repos/onboard.ts#L22))
+The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L122), [implemented by](../../../apps/lore-api/src/transport/routes/repos/onboard.ts#L22))
 
 `onboardRepo` ensures the Lore webhook (the public `/api/events` hook URL, served by lore-api) for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by repo-onboard.test.ts:67](apps/lore-api/src/work/repo/repo-onboard.test.ts#L67), [`repo-onboard.test.ts:79`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L84))
 

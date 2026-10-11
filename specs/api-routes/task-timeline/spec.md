@@ -26,7 +26,7 @@ an ordered timeline, and overlays PR state + lease state.
 
 Registered as `pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET")` →
 `handleTaskTimeline(req, res, pool)`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L93),
+([registration](../../../apps/lore-api/src/app/build-server.ts#L109),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts#L66)). Placed
 **before** the broad `prefix("/api/tasks", "GET")` list route so the timeline
 regex wins.

@@ -29,7 +29,7 @@ The local runner reports progress back through the same endpoint with an
 
 Registered as `exact("/api/task", "POST")` →
 `handleTaskPost(req, res, pool)`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L97),
+([registration](../../../apps/lore-api/src/app/build-server.ts#L113),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L32)). Ordered **after**
 the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 `/api/task` is the only way in.
@@ -189,7 +189,7 @@ No task is created from a description, whatever type the body names: the answer 
 
 Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L270))
 
-The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:71`](apps/lore-api/src/transport/http/rate-limit.test.ts#L70))
+The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:71`](apps/lore-api/src/transport/http/rate-limit.test.ts#L72))
 
 ## Out of Scope
 

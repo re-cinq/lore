@@ -26,13 +26,13 @@ dedup.
 ## Interface
 
 Registered in `routeList`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L136),
+([registration](../../../apps/lore-api/src/app/build-server.ts#L152),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-turns.ts#L65)).
 
 - **Method + path**: `POST /api/task-turns/{taskId}`; `taskId` must be a UUID.
 - **Auth scope**: `write`. Rate-limit bucket `turns` (300/min) — a run-end
   relay is a burst of batches, which must neither starve nor be starved by
-  `default`. ([validated by `rate-limit.test.ts:39`](../../../apps/lore-api/src/transport/http/rate-limit.test.ts#L39))
+  `default`. ([validated by `rate-limit.test.ts:39`](../../../apps/lore-api/src/transport/http/rate-limit.test.ts#L41))
 - **Body**: raw NDJSON (`payload.parse: false`) — one claude stream-json line
   per row, already redacted on the laptop before anything left the machine.
 - **Header** (optional): `x-turn-offset` — the position of this POST's first

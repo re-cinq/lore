@@ -40,7 +40,7 @@ fallback by dropping the cursor.
 
 Registered as `exact("/api/task-logs", "POST")` →
 `handleTaskLogs(req, res)`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L98),
+([registration](../../../apps/lore-api/src/app/build-server.ts#L114),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-logs.ts#L30)). The pool is **not**
 passed to this handler — it takes only `(req, res)`.
 
