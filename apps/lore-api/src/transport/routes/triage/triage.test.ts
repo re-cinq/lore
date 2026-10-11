@@ -38,6 +38,7 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
     const pool = makePool();
 
     vi.mocked(projectFor).mockResolvedValue({
+      settings: { record: async () => ({ fullName: "re-cinq/lore" }) },
       issues: {
         list: async () => [
           {
@@ -82,5 +83,31 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
         active_run_link: "/assembly-runs/run-42",
       },
     ]);
+  });
+
+  it("returns 404 without reading issues for a repo that is not onboarded", async () => {
+    let reads = 0;
+
+    vi.mocked(projectFor).mockResolvedValue({
+      settings: { record: async () => null },
+      issues: {
+        list: async () => {
+          reads++;
+
+          return [];
+        },
+      },
+    } as never);
+
+    const res = await buildServer(() => makePool() as never).inject({
+      method: "GET",
+      url: "/api/repos/someone/elsewhere/triage",
+      headers: AUTH,
+    });
+
+    expect({ status: res.statusCode, reads }).toEqual({
+      status: 404,
+      reads: 0,
+    });
   });
 });
