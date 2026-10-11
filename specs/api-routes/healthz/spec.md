@@ -52,7 +52,8 @@ Registered as the first entry in the route table, matched on path only
 3. Compute `code`: `503` when `status === "error"`, else `200`.
 4. Extract the bearer token (`Authorization` header, `Bearer ` stripped). If
    present, call `validateClientToken(pool, bearer, "read")`; absent → not
-   authed.
+   authed. A lookup that throws (database down) also reads as not authed, so
+   the probe answers its bare status rather than a 500. ([validated by `answers the bare status when a client token's lookup throws`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L159))
 5. **Authenticated branch** (`isAuthed` true):
    1. Default `tasks = { processed_today: 0, pending: 0 }`.
    2. If `health.connected` **and** `pool` is non-null, run
