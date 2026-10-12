@@ -27,6 +27,8 @@ import type {
   CheckRun,
   ReviewThread,
   PullFileChange,
+  BranchRule,
+  Mergeability,
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
 import * as issues from "./platform-github-issues.js";
@@ -34,6 +36,7 @@ import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
+import * as branchRule from "./platform-github-branch-rule.js";
 import * as pullsReviewReads from "./platform-github-pulls-review-reads.js";
 import * as pullsWrite from "./platform-github-pulls-write.js";
 import * as actionsReads from "./platform-github-actions.js";
@@ -274,6 +277,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async getStats(repo: string, number: number): Promise<PullStats> {
     return pullsRead.getStats(await this.octo(), repo, number);
+  }
+
+  async getBranchRule(repo: string, branch: string): Promise<BranchRule> {
+    return branchRule.getBranchRule(await this.octo(), repo, branch);
+  }
+
+  async getMergeability(repo: string, number: number): Promise<Mergeability> {
+    return branchRule.getMergeability(await this.octo(), repo, number);
   }
 
   async changedFileCount(

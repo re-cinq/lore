@@ -35,6 +35,7 @@ const state: {
   blockersData?: Array<{ number: number; state: string }>;
   blockersCall?: Record<string, unknown>;
   requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
+  requestAnswers?: Record<string, unknown>;
   issueUpdateCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
@@ -78,8 +79,13 @@ vi.mock("octokit", () => ({
     };
     request = async (route: string, params: Record<string, unknown>) => {
       (state.requestCalls ??= []).push({ route, params });
+      const answer = state.requestAnswers?.[route];
 
-      return { data: {} };
+      if (answer instanceof Error) {
+        throw answer;
+      }
+
+      return { data: answer ?? {} };
     };
     graphql = async (query: string, vars: Record<string, unknown>) => {
       state.graphqlCalls.push({ query, vars });
@@ -1132,6 +1138,100 @@ describe("PlatformGitHub auto-merge", () => {
         vars: { pullRequestId: "PR_456" },
       },
     ]);
+  });
+});
+
+describe("PlatformGitHub branch rule and mergeability reads", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+  const RULES = "GET /repos/{owner}/{repo}/rules/branches/{branch}";
+  const CLASSIC = "GET /repos/{owner}/{repo}/branches/{branch}/protection";
+  const missing = () => Object.assign(new Error("Not Found"), { status: 404 });
+
+  beforeEach(() => {
+    state.requestAnswers = undefined;
+    state.prData = undefined;
+  });
+
+  it("getBranchRule reads 1 approval, Code Owners review and checks build and lint from a ruleset", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "pull_request",
+          parameters: {
+            required_approving_review_count: 1,
+            require_code_owner_review: true,
+          },
+        },
+        {
+          type: "required_status_checks",
+          parameters: {
+            required_status_checks: [{ context: "build" }, { context: "lint" }],
+          },
+        },
+      ],
+      [CLASSIC]: missing(),
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 1,
+      codeOwnersReview: true,
+      requiredChecks: ["build", "lint"],
+    });
+  });
+
+  it("getBranchRule merges classic protection's 2 approvals and test check with a ruleset's build check", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "required_status_checks",
+          parameters: { required_status_checks: [{ context: "build" }] },
+        },
+      ],
+      [CLASSIC]: {
+        required_pull_request_reviews: {
+          required_approving_review_count: 2,
+          require_code_owner_reviews: false,
+        },
+        required_status_checks: {
+          contexts: ["test"],
+          checks: [{ context: "test" }, { context: "build" }],
+        },
+      },
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 2,
+      codeOwnersReview: false,
+      requiredChecks: ["build", "test"],
+    });
+  });
+
+  it("getBranchRule answers 0 approvals and no checks for an unprotected branch", async () => {
+    state.requestAnswers = { [RULES]: [], [CLASSIC]: missing() };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 0,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    });
+  });
+
+  it("getMergeability reads mergeable true with state blocked", async () => {
+    state.prData = { mergeable: true, mergeable_state: "blocked" };
+
+    expect(await gh().getMergeability("re-cinq/lore", 42)).toEqual({
+      mergeable: true,
+      state: "blocked",
+    });
+  });
+
+  it("getMergeability reads mergeable null with state unknown while GitHub computes it", async () => {
+    state.prData = { mergeable: null, mergeable_state: "unknown" };
+
+    expect(await gh().getMergeability("re-cinq/lore", 42)).toEqual({
+      mergeable: null,
+      state: "unknown",
+    });
   });
 });
 

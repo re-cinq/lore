@@ -21,6 +21,19 @@ export type MergeMethod = "squash" | "merge" | "rebase";
 /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (ADR-031 D3); "none" = no checks configured. */
 export type CiConclusion = "success" | "failure" | "pending" | "none";
 
+/** What a branch's protection asks of a PR before it may merge: rulesets and classic protection together, the stricter of each. */
+export interface BranchRule {
+  requiredApprovals: number;
+  codeOwnersReview: boolean;
+  requiredChecks: string[];
+}
+
+/** GitHub's own verdict on a PR: `mergeable` is null while GitHub is still computing; `state` is its `mergeable_state` (clean, blocked, behind, dirty, unstable, unknown…). */
+export interface Mergeability {
+  mergeable: boolean | null;
+  state: string;
+}
+
 export interface PullRef {
   repo: string;
   number: number;
@@ -198,6 +211,8 @@ export interface PullRequestsPort {
   isMerged(repo: string, number: number): Promise<boolean>;
   isClosed(repo: string, number: number): Promise<boolean>;
   getStats(repo: string, number: number): Promise<PullStats>;
+  getBranchRule(repo: string, branch: string): Promise<BranchRule>;
+  getMergeability(repo: string, number: number): Promise<Mergeability>;
   /** Files differing between two refs; agent-watcher uses it for the no-changes vs PR decision (Agent.status carries no changedFiles). */
   changedFileCount(repo: string, base: string, head: string): Promise<number>;
   /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (D3). */
