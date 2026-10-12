@@ -40,6 +40,7 @@ const WINDOW: SpendWindow = {
     by_task_type: [{ task_type: "implementation", tasks: 3, cost_usd: 60 }],
     by_cluster: [{ cluster: null, calls: 42, cost_usd: 81.4 }],
     by_billing_mode: [{ mode: "api_key", calls: 42, cost_usd: 81.4 }],
+    floor_unavailable: false,
     by_vendor: [{ vendor: "anthropic", calls: 42, cost_usd: 81.4 }],
   },
   billed: {

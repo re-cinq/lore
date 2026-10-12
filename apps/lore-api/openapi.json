@@ -15300,6 +15300,9 @@
                   "required": ["mode", "calls", "cost_usd"],
                   "additionalProperties": false
                 }
+              },
+              "floor_unavailable": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -15317,7 +15320,8 @@
               "daily",
               "by_task_type",
               "by_cluster",
-              "by_billing_mode"
+              "by_billing_mode",
+              "floor_unavailable"
             ],
             "additionalProperties": false
           },

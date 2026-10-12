@@ -15,9 +15,13 @@ const SOURCE_LABELS: Record<BillingMode, string> = {
 /** The API-vs-subscription split of metered spend, so a reader can tell how much of the figure the Anthropic invoice can even see. */
 interface BillingSourceProps {
   byBillingMode: ByBillingMode;
+  floorUnavailable?: boolean;
 }
 
-export function BillingSource({ byBillingMode }: BillingSourceProps) {
+export function BillingSource({
+  byBillingMode,
+  floorUnavailable = false,
+}: BillingSourceProps) {
   if (byBillingMode.length === 0) {
     return null;
   }
@@ -31,13 +35,26 @@ export function BillingSource({ byBillingMode }: BillingSourceProps) {
         rowKey={(r) => r.mode}
         cells={sourceCells}
       />
-      <BillingSourceNote />
+      <BillingSourceNotes floorUnavailable={floorUnavailable} />
     </>
   );
 }
 
 function sourceCells(row: ByBillingMode[number]) {
   return [SOURCE_LABELS[row.mode], num(row.calls), usd(row.cost_usd)];
+}
+
+function BillingSourceNotes({
+  floorUnavailable,
+}: {
+  floorUnavailable: boolean;
+}) {
+  return (
+    <>
+      {floorUnavailable && <FloorUnavailableNote />}
+      <BillingSourceNote />
+    </>
+  );
 }
 
 function BillingSourceNote() {
@@ -48,6 +65,14 @@ function BillingSourceNote() {
       when it started. The billed figure covers only the API-key portion —
       subscription runs bill each person&apos;s own account, so they never reach
       the org invoice.
+    </p>
+  );
+}
+
+function FloorUnavailableNote() {
+  return (
+    <p className={`meta ${styles.subnote}`}>
+      Floor costs unavailable: only Lore&apos;s own model calls are counted.
     </p>
   );
 }

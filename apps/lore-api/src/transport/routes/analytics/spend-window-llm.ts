@@ -32,15 +32,14 @@ export async function readLlmSpend(
   floor: FloorCosts | null,
 ) {
   const b = await llmBreakdowns(pool, win);
+  const floorModes = await floorBillingModes(floor, win);
 
   return {
     ...b.totals,
     ...llmCuts(b),
     by_cluster: await readByCluster(pool, win.fromTs, win.toTs),
-    by_billing_mode: billingModeSplit(
-      b.totals,
-      await floorBillingModes(floor, win),
-    ),
+    by_billing_mode: billingModeSplit(b.totals, floorModes ?? []),
+    floor_unavailable: floorModes === null,
   };
 }
 
@@ -59,16 +58,27 @@ function llmCuts(b: Awaited<ReturnType<typeof llmBreakdowns>>) {
   };
 }
 
-/** The floor's agent visits by the credential each ran on; nothing on a deployment that was given no floor. */
-async function floorBillingModes(floor: FloorCosts | null, win: SpendWindow) {
+/** The floor's agent visits by the credential each ran on; nothing on a deployment that was given no floor, and null when the floor cannot answer (down, or a version without the billing_mode group), so the page still renders Lore's own share. */
+async function floorBillingModes(
+  floor: FloorCosts | null,
+  win: SpendWindow,
+): Promise<FloorBillingRow[] | null> {
   if (!floor) {
     return [];
   }
 
-  return floor.costs.summary(
-    { since: win.fromTs, until: win.toTs },
-    "billing_mode",
-  );
+  try {
+    return await floor.costs.summary(
+      { since: win.fromTs, until: win.toTs },
+      "billing_mode",
+    );
+  } catch (err) {
+    console.warn(
+      `[spend-window] floor billing_mode costs unavailable: ${(err as Error).message}`,
+    );
+
+    return null;
+  }
 }
 
 export type BillingMode = "api_key" | "subscription" | "unknown";

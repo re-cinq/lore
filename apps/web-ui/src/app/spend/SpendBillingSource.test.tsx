@@ -46,6 +46,17 @@ describe("BillingSource", () => {
     ).toBeInTheDocument();
   });
 
+  it("notes Floor costs unavailable when the floor could not answer", () => {
+    render(
+      <BillingSource
+        byBillingMode={[byBillingMode[0]]}
+        floorUnavailable={true}
+      />,
+    );
+
+    expect(screen.getByText(/Floor costs unavailable/)).toBeInTheDocument();
+  });
+
   it("renders nothing when there is no spend to split", () => {
     const { container } = render(<BillingSource byBillingMode={[]} />);
 
