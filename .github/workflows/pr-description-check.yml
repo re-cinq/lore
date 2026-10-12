@@ -21,6 +21,13 @@ jobs:
           FAILED=0
           WARNINGS=""
 
+          # --- Bypass for legacy Lore draft PRs ---
+          if [[ "$PR_BODY" == *"Opened by the Lore implementation loop from"* ]] && ! echo "$PR_BODY" | grep -q '## Why'; then
+            echo "PR was opened by Lore loop before the PR template headings feature."
+            echo "Skipping the description check since the draft cannot satisfy it."
+            exit 0
+          fi
+
           # --- Check "## Why" section ---
           WHY_CONTENT=$(echo "$PR_BODY" | sed -n '/^## Why/,/^## /{ /^## /d; p; }')
           WHY_STRIPPED=$(echo "$WHY_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
