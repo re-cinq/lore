@@ -22,6 +22,7 @@ function scene(opts: {
       Promise.resolve((opts.issues ?? {})[repo] ?? []),
     runningCount: (repo: string) =>
       Promise.resolve((opts.running ?? {})[repo] ?? 0),
+    defaultBranch: () => Promise.resolve("main"),
     cap: opts.cap ?? 3,
     floor: {
       start: (
@@ -42,6 +43,23 @@ function scene(opts: {
 }
 
 describe("the issue-triage-tick sweep on the external floor", () => {
+  it("starts the run on github.com/acme/widgets@main, the checkout decompose reads", async () => {
+    const { deps, started } = scene({
+      issues: {
+        "acme/widgets": [
+          { url: "https://github.com/acme/widgets/issues/1", number: 1 },
+        ],
+      },
+    });
+
+    await issueTriageTick({}, deps);
+
+    expect(started[0]?.startItems.target).toMatchObject({
+      kind: "git",
+      ref: "github.com/acme/widgets@main",
+    });
+  });
+
   it("starts a floor run per qualifying issue, oldest first, each run independently", async () => {
     const { deps, started } = scene({
       issues: {

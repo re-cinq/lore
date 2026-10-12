@@ -173,7 +173,7 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 - FR-1.2: Repos are written to the registry on onboard (from the set the
   GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L120))
 - FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45))
-- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L252))
+- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L236))
 
 ### FR-2: Repo Onboarding via PR
 
@@ -203,7 +203,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   content is never committed: GitHub's contents API makes a commit even for
   identical bytes, and an up-to-date repo would get an empty pull request.
   Paths are read exactly, so a repo with a `.github/` directory still receives
-  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo](libs/shared/src/work/onboard-content.test.ts#L147))
+  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo](libs/shared/src/work/onboard-content.test.ts#L197))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   reporting each repo where no PR was opened with its reason (a thrown
@@ -261,7 +261,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   `adrs/` or `docs/`, the test-command manifest and `lore-tests.yml` only
   when absent — and states the rules: existing files stay untouched, no
   `CLAUDE.md`, no code changes, and Lore opens the pull request. The API
-  route sends that body as the task description, which becomes the Issue. ([validated by names re-cinq/app as the repository being onboarded](libs/shared/src/work/onboard-content.test.ts#L90), [validated by owes every LLM-drafted path with its prompt](libs/shared/src/work/onboard-content.test.ts#L94), [validated by owes the starter ADRs only for a repo with no adrs/ or docs/ directory](libs/shared/src/work/onboard-content.test.ts#L102), [validated by owes the test-command manifest and lore-tests.yml with their own instructions, only when absent](libs/shared/src/work/onboard-content.test.ts#L113), [validated by says the deterministic scaffolding is already on the branch and must not be rewritten](libs/shared/src/work/onboard-content.test.ts#L124), [validated by forbids CLAUDE.md, existing-file rewrites and code changes, and leaves the pull request to Lore](libs/shared/src/work/onboard-content.test.ts#L134), [validated by sends the onboarding ticket body instead of the bare repo name](apps/lore-api/src/work/repo/repo-onboard.test.ts#L135))
+  route sends that body as the task description, which becomes the Issue. ([validated by names re-cinq/app as the repository being onboarded](libs/shared/src/work/onboard-content.test.ts#L123), [validated by owes every LLM-drafted path with its prompt](libs/shared/src/work/onboard-content.test.ts#L127), [validated by owes the starter ADRs only for a repo with no adrs/ or docs/ directory](libs/shared/src/work/onboard-content.test.ts#L135), [validated by owes the test-command manifest and lore-tests.yml with their own instructions, only when absent](libs/shared/src/work/onboard-content.test.ts#L152), [validated by says the deterministic scaffolding is already on the branch and must not be rewritten](libs/shared/src/work/onboard-content.test.ts#L163), [validated by forbids CLAUDE.md, existing-file rewrites and code changes, and leaves the pull request to Lore](libs/shared/src/work/onboard-content.test.ts#L173), [validated by sends the onboarding ticket body instead of the bare repo name](apps/lore-api/src/work/repo/repo-onboard.test.ts#L135))
 - FR-2.11: *(added 2026-09-17)* Lore does not monitor a repo's setup; its
   owner triggers it by hand. The enrollment box carries ONE button, and only
   one: a missing file's check says what is missing but offers no action of
@@ -283,7 +283,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   everything else the repository has edited alone. It opens ONE pull request,
   or none: when the Floor had nothing to refresh and the agent nothing to add,
   the line COMPLETES saying the setup is already current, where any other
-  line whose push delivered nothing still errors. ([validated by shows exactly one button for a repo missing two files: Open enrolment PR, never one per file](apps/web-ui/src/components/EnrollmentSection.test.tsx#L40), [validated by carries no per-file PR action on a missing github file: the box's one trigger covers every missing file](apps/web-ui/src/lib/enrollment.test.ts#L202), [validated by offers Open enrolment PR in the box for a repo with no onboarding PR, and runs the handler on click](apps/web-ui/src/components/EnrollmentSection.test.tsx#L65), [validated by offers Update Lore setup once the onboarding PR has merged, even with every check passing](apps/web-ui/src/components/EnrollmentSection.test.tsx#L79), [validated by offers neither trigger while the onboarding PR is open, nor without a handler](apps/web-ui/src/components/EnrollmentSection.test.tsx#L99), [validated by reads Open enrolment PR for a repo with no onboarding PR yet](apps/web-ui/src/lib/enrollment.test.ts#L461), [validated by reads Update Lore setup once the onboarding PR has merged](apps/web-ui/src/lib/enrollment.test.ts#L469), [validated by offers nothing while the onboarding PR is still open, where review & merge is the action](apps/web-ui/src/lib/enrollment.test.ts#L473), [validated by sends the update ticket, not the onboarding one, when o/r's onboarding PR has already merged](apps/lore-api/src/work/repo/repo-onboard.test.ts#L240), [validated by sends the onboarding ticket when reonboard is requested for o/r but its onboarding PR never merged](apps/lore-api/src/work/repo/repo-onboard.test.ts#L260), [validated by asks to update re-cinq/app's Lore setup rather than onboard it](libs/shared/src/work/onboard-content.test.ts#L167), [validated by owes every file a first onboarding owes, each only when missing](libs/shared/src/work/onboard-content.test.ts#L174), [validated by realigns only lore-tests.yml and pr-description-check.yml, the workflows written from a Lore instruction](libs/shared/src/work/onboard-content.test.ts#L185), [validated by calls an already-current setup a success, not a failure](libs/shared/src/work/onboard-content.test.ts#L193))
+  line whose push delivered nothing still errors. ([validated by shows exactly one button for a repo missing two files: Open enrolment PR, never one per file](apps/web-ui/src/components/EnrollmentSection.test.tsx#L40), [validated by carries no per-file PR action on a missing github file: the box's one trigger covers every missing file](apps/web-ui/src/lib/enrollment.test.ts#L202), [validated by offers Open enrolment PR in the box for a repo with no onboarding PR, and runs the handler on click](apps/web-ui/src/components/EnrollmentSection.test.tsx#L65), [validated by offers Update Lore setup once the onboarding PR has merged, even with every check passing](apps/web-ui/src/components/EnrollmentSection.test.tsx#L79), [validated by offers neither trigger while the onboarding PR is open, nor without a handler](apps/web-ui/src/components/EnrollmentSection.test.tsx#L99), [validated by reads Open enrolment PR for a repo with no onboarding PR yet](apps/web-ui/src/lib/enrollment.test.ts#L461), [validated by reads Update Lore setup once the onboarding PR has merged](apps/web-ui/src/lib/enrollment.test.ts#L469), [validated by offers nothing while the onboarding PR is still open, where review & merge is the action](apps/web-ui/src/lib/enrollment.test.ts#L473), [validated by sends the update ticket, not the onboarding one, when o/r's onboarding PR has already merged](apps/lore-api/src/work/repo/repo-onboard.test.ts#L240), [validated by sends the onboarding ticket when reonboard is requested for o/r but its onboarding PR never merged](apps/lore-api/src/work/repo/repo-onboard.test.ts#L260), [validated by asks to update re-cinq/app's Lore setup rather than onboard it](libs/shared/src/work/onboard-content.test.ts#L217), [validated by owes every file a first onboarding owes, each only when missing](libs/shared/src/work/onboard-content.test.ts#L224), [validated by realigns only lore-tests.yml and pr-description-check.yml, the workflows written from a Lore instruction](libs/shared/src/work/onboard-content.test.ts#L235), [validated by calls an already-current setup a success, not a failure](libs/shared/src/work/onboard-content.test.ts#L243))
 - FR-2.12: *(added 2026-10-01)* Where an external floor is configured the
   onboarding runs there (`specs/external-floor` FR11), and three things
   differ from the requirements above. Enrolment gaps (FR-2.7, FR-2.8) are
@@ -293,6 +293,10 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   task branch is `lore/onboard/<first 8 of the task id>`. Everything else —
   one pull request, the scaffolding rule of FR-2.3, the ticket of FR-2.10,
   the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer](apps/stations/src/onboard/open-pr/station.test.ts#L88), [validated by starts a forced review of pull request 42 of re-cinq/app](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-…](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
+
+- FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
+  feedback. On success the user lands on the repository's page, which shows
+  its onboarding state. A refusal keeps the user on the form with the reason. ([validated by redirects to /repos/re-cinq/lore when onboarding queues task-1](apps/web-ui/src/app/onboard/page.test.tsx#L55), [stays on the form with the refusal when onboarding is refused](apps/web-ui/src/app/onboard/page.test.tsx#L65), [rejects a malformed repository without calling the API](apps/web-ui/src/app/onboard/page.test.tsx#L81))
 
 ### FR-3: Repo-Centric UI Layout
 
@@ -417,6 +421,10 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   ADR-050) under the same rule: only when the deployment names one in
   `GRAFANA_URL`, as an external anchor in a new tab beside the Headlamp
   link, and no link at all for an absent or empty address. ([validated by `links to the named Grafana in a new tab beside the Headlamp link`](apps/web-ui/src/app/SidebarNav.test.tsx#L393), [`renders no Grafana link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L413), [`returns the Grafana address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L31), [`names no address when the variable is empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L37), [`names no address when the variable is unset or holds only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L41))
+- FR-3.21: The sidebar footer links to Utopia under the same rule: only
+  when the deployment names it in `UTOPIA_URL`, as an external anchor in
+  a new tab after the Grafana link, and no link at all for an absent or
+  empty address. ([validated by `links to the named Utopia in a new tab`](apps/web-ui/src/app/SidebarNav.test.tsx#L422), [`renders no Utopia link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L432), [`returns the Utopia address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L50), [`names no address when the variable is unset, empty or only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L56))
 
 ### FR-4: Form and Input Styling
 
@@ -436,7 +444,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 
 ### FR-5: Onboarding PR Content
 
-The onboarding PR carries deterministic files committed verbatim by the Floor plus repo-specific files the `onboard` line's agent authors from the ticket's fixed prompts, reading the repository itself, reviewed by the owner in the PR. ([validated by owes every LLM-drafted path with its prompt](libs/shared/src/work/onboard-content.test.ts#L94))
+The onboarding PR carries deterministic files committed verbatim by the Floor plus repo-specific files the `onboard` line's agent authors from the ticket's fixed prompts, reading the repository itself, reviewed by the owner in the PR. ([validated by owes every LLM-drafted path with its prompt](libs/shared/src/work/onboard-content.test.ts#L127))
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
@@ -447,15 +455,23 @@ The onboarding PR carries deterministic files committed verbatim by the Floor pl
   in CI, treating a comment-only or blank section as empty. ([validated by `pr-section-check.test.ts:26`](libs/shared/src/work/pr-section-check.test.ts#L26), [`pr-section-check.test.ts:44`](libs/shared/src/work/pr-section-check.test.ts#L44), [`pr-section-check.test.ts:67`](libs/shared/src/work/pr-section-check.test.ts#L67), [`pr-section-check.test.ts:78`](libs/shared/src/work/pr-section-check.test.ts#L78))
 
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
-  `.claude/settings.json` carrying the Lore MCP system-prompt suffix, and the
-  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by commits .claude/settings.json carrying the Lore MCP system-prompt suffix](libs/shared/src/work/onboard-content.test.ts#L19), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L29))
+  `.claude/settings.json` carrying a `SessionStart` hook that tells every
+  session to call `lore_assemble_context` first, and the
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates; a repo-owned file the repo already holds with different content is left as it is. ([validated by commits .claude/settings.json whose SessionStart hook tells the session to call lore_assemble_context first](libs/shared/src/work/onboard-content.test.ts#L23), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L45), [validated by returns false when current !== null and current !== file.content](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
 - FR-5.5: The ticket owes `AGENTS.md`, the PR template, the pr-description-check
   workflow, and `.specify/spec.md` from fixed prompts — the AGENTS.md prompt
   targets the repo's own stack and the PR-template prompt names the five
-  canonical sections. ([validated by LLM-drafts AGENTS.md from a non-empty prompt](libs/shared/src/work/onboard-content.test.ts#L42), [validated by PR-template prompt names the five canonical sections](libs/shared/src/work/onboard-content.test.ts#L49), [validated by LLM-drafts the pr-description-check workflow and the .specify spec](libs/shared/src/work/onboard-content.test.ts#L65))
+  canonical sections. The pr-description-check prompt passes the PR body to
+  the script only through a step `env:` entry, bans `${{ }}` inside `run:`,
+  and declares read-only permissions (#1567). ([validated by has the pr-description-check workflow read the PR body only through a step env entry, under read-only permissions (#1567)](libs/shared/src/work/onboard-content.test.ts#L85), [validated by LLM-drafts AGENTS.md from a non-empty prompt](libs/shared/src/work/onboard-content.test.ts#L58), [validated by PR-template prompt names the five canonical sections](libs/shared/src/work/onboard-content.test.ts#L65), [validated by LLM-drafts the pr-description-check workflow and the .specify spec](libs/shared/src/work/onboard-content.test.ts#L98))
 - FR-5.6: The onboarding PR scaffolds no `CLAUDE.md` (requested in the onboarding
   issue for the owner to author) and no `spec-agent.yml` — spec and ingest
-  triggering ride the ingest and spec-impact workflows above. ([validated by scaffolds no CLAUDE.md, requested in the onboarding issue instead](libs/shared/src/work/onboard-content.test.ts#L76), [validated by scaffolds no spec-agent.yml](libs/shared/src/work/onboard-content.test.ts#L80))
+  triggering ride the ingest and spec-impact workflows above. ([validated by scaffolds no CLAUDE.md, requested in the onboarding issue instead](libs/shared/src/work/onboard-content.test.ts#L109), [validated by scaffolds no spec-agent.yml](libs/shared/src/work/onboard-content.test.ts#L113))
+- FR-5.8: The starter ADRs the agent writes are numbered sequentially, so a
+  skipped topic leaves no gap. ([validated by numbers the starter ADRs it writes sequentially, so a skipped topic leaves no gap](libs/shared/src/work/onboard-content.test.ts#L150))
+- FR-5.9: The suggested test-command manifest's `list` emits each test's real
+  line range, and its `run` uses only coverage tooling the repo already
+  declares. ([validated by demands real line ranges from list and coverage tooling the repo already has](libs/shared/src/work/onboard-content.test.ts#L190))
 
 ### FR-6: Top-Level Observability Pages
 
@@ -511,7 +527,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   covering every day after it, worded "today" only when that really is one
   day and "over N days since" when the sync has fallen further behind,
   shown only when billed data is present and the unbilled spend is
-  non-zero. ([validated by [`SpendView.test.tsx:174`](apps/web-ui/src/app/spend/SpendView.test.tsx#L176), [`SpendView.test.tsx:295`](apps/web-ui/src/app/spend/SpendView.test.tsx#L294), [`SpendView.test.tsx:306`](apps/web-ui/src/app/spend/SpendView.test.tsx#L305), [`SpendView.test.tsx:318`](apps/web-ui/src/app/spend/SpendView.test.tsx#L317), [`SpendView.test.tsx:327`](apps/web-ui/src/app/spend/SpendView.test.tsx#L326), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L337), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L351), [`SpendView.test.tsx:373`](apps/web-ui/src/app/spend/SpendView.test.tsx#L372), [`SpendView.test.tsx:381`](apps/web-ui/src/app/spend/SpendView.test.tsx#L380), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L389), [`SpendView.test.tsx:402`](apps/web-ui/src/app/spend/SpendView.test.tsx#L401), [`SpendView.test.tsx:412`](apps/web-ui/src/app/spend/SpendView.test.tsx#L411), [`SpendView.test.tsx:420`](apps/web-ui/src/app/spend/SpendView.test.tsx#L419), [`SpendView.test.tsx:203`](apps/web-ui/src/app/spend/SpendView.test.tsx#L204), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L395))
+  non-zero. ([validated by [`SpendView.test.tsx:174`](apps/web-ui/src/app/spend/SpendView.test.tsx#L179), [`SpendView.test.tsx:295`](apps/web-ui/src/app/spend/SpendView.test.tsx#L297), [`SpendView.test.tsx:306`](apps/web-ui/src/app/spend/SpendView.test.tsx#L308), [`SpendView.test.tsx:318`](apps/web-ui/src/app/spend/SpendView.test.tsx#L320), [`SpendView.test.tsx:327`](apps/web-ui/src/app/spend/SpendView.test.tsx#L329), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L340), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L354), [`SpendView.test.tsx:373`](apps/web-ui/src/app/spend/SpendView.test.tsx#L375), [`SpendView.test.tsx:381`](apps/web-ui/src/app/spend/SpendView.test.tsx#L383), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L392), [`SpendView.test.tsx:402`](apps/web-ui/src/app/spend/SpendView.test.tsx#L404), [`SpendView.test.tsx:412`](apps/web-ui/src/app/spend/SpendView.test.tsx#L414), [`SpendView.test.tsx:420`](apps/web-ui/src/app/spend/SpendView.test.tsx#L422), [`SpendView.test.tsx:203`](apps/web-ui/src/app/spend/SpendView.test.tsx#L207), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L398))
 - FR-6.7: The knowledge-graph force layout (`lib/graph-layout`) seeds
   feature positions within a radius at distinct spots (larger features
   further out), partitions links into connected components, places

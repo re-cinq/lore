@@ -34,6 +34,7 @@ function fakePulls(
     get: async (repo, number) =>
       pulls.find((p) => p.repo === repo && p.number === number) ?? null,
     comment: async () => {},
+    updateIssueComment: async () => {},
     update: async (repo, number, fields) => {
       updates.push({ repo, number, fields });
     },
@@ -47,6 +48,15 @@ function fakePulls(
     replyToReviewComment: async () => {},
     review: async () => {},
     addLabel: async () => {},
+    enablePullRequestAutoMerge: async () => {},
+    // eslint-disable-next-line re-lint/no-negative-names
+    disablePullRequestAutoMerge: async () => {},
+    getBranchRule: async () => ({
+      requiredApprovals: 0,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    }),
+    getMergeability: async () => ({ mergeable: null, state: "unknown" }),
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
     },

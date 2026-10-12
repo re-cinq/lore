@@ -116,7 +116,7 @@ Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts
 
 A throwing engine returns 500. ([validated by `context.test.ts:202`](apps/lore-api/src/transport/routes/context/context.test.ts#L201))
 
-The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L87), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L43))
+The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L43))
 
 ## Out of Scope
 

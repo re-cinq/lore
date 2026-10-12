@@ -1731,6 +1731,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/triage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/triage */
+    get: operations["get_api_repos_owner_repo_triage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/webhook": {
     parameters: {
       query?: never;
@@ -3225,7 +3242,8 @@ export interface components {
             | "bad_message"
             | "channel_in_use"
             | "too_many_channels"
-            | "unknown_channel";
+            | "unknown_channel"
+            | "rate_limited";
         };
     MemoryAuditPage: {
       entries: {
@@ -3604,6 +3622,12 @@ export interface components {
               group_by?: "person" | "area";
               voice?: string;
             } | null;
+            auto_merge?: {
+              /** @enum {string} */
+              approver?: "none" | "lore-reviewer";
+            } & {
+              [key: string]: unknown;
+            };
             dispatch_label?: string;
             dispatch_default_type?: string;
             test_commands?: unknown;
@@ -3708,6 +3732,12 @@ export interface components {
                 group_by?: "person" | "area";
                 voice?: string;
               } | null;
+              auto_merge?: {
+                /** @enum {string} */
+                approver?: "none" | "lore-reviewer";
+              } & {
+                [key: string]: unknown;
+              };
               dispatch_label?: string;
               dispatch_default_type?: string;
               test_commands?: unknown;
@@ -4100,6 +4130,13 @@ export interface components {
           calls: number;
           cost_usd: number;
         }[];
+        by_billing_mode: {
+          /** @enum {string} */
+          mode: "api_key" | "subscription" | "unknown";
+          calls: number;
+          cost_usd: number;
+        }[];
+        floor_unavailable: boolean;
       };
       billed: {
         available: boolean;
@@ -4404,6 +4441,11 @@ export interface components {
     TraceRead: {
       [key: string]: unknown;
     };
+    TriageIssues: {
+      title: string;
+      triage_label: string;
+      active_run_link?: string;
+    }[];
     TurnsRelayed: {
       forwarded: number;
       skipped: number;
@@ -5727,6 +5769,7 @@ export interface operations {
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
     };
@@ -6041,6 +6084,7 @@ export interface operations {
               /** @constant */
               action: "list";
               agent_id?: string;
+              repo?: string;
               limit?: number;
               /** @default 0 */
               offset?: number;
@@ -6264,8 +6308,10 @@ export interface operations {
           "application/json": components["schemas"]["PrStatus"];
         };
       };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7775,6 +7821,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TraceRead"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_triage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issues with triage labels and their active floor runs */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TriageIssues"];
         };
       };
       400: components["responses"]["BadRequest"];

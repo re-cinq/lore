@@ -63,6 +63,7 @@ export const LiveErrorCodeSchema = z.enum([
   "channel_in_use",
   "too_many_channels",
   "unknown_channel",
+  "rate_limited",
 ]);
 
 export const RunListFrameSchema = z.discriminatedUnion("type", [

@@ -11,7 +11,7 @@ interface Issued {
 }
 
 function fakeDeps(
-  graph: { specs?: string[]; adrs?: string[] } = {},
+  graph: { specs?: string[]; adrs?: string[]; code?: string[] } = {},
 ): IngestDeltaDeps & {
   calls: Array<[string, ...unknown[]]>;
 } {
@@ -35,13 +35,18 @@ function fakeDeps(
     dgraph: () => ({}) as never,
     projectSpec: recordProjection("projectSpec"),
     projectAdr: recordProjection("projectAdr"),
+    projectCode: recordProjection("projectCode"),
     listSpecs: async () => graph.specs ?? [],
     listAdrs: async () => graph.adrs ?? [],
+    listCode: async () => graph.code ?? [],
     deleteSpec: async (repo, path) => {
       calls.push(["deleteSpec", repo, path]);
     },
     deleteAdr: async (repo, path) => {
       calls.push(["deleteAdr", repo, path]);
+    },
+    deleteCode: async (repo, path) => {
+      calls.push(["deleteCode", repo, path]);
     },
     ingestReport: async (repo, payload) => {
       calls.push(["ingestReport", repo, payload]);
@@ -158,6 +163,24 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(deps.calls).toEqual([
       ["projectAdr", "re-cinq/lore", "adrs/ADR-001.md", "# ADR-001\n"],
       ["deleteAdr", "re-cinq/lore", "adrs/ADR-000.md"],
+    ]);
+  });
+
+  it("routes src/runner.ts to the code projector and src/old.ts to the code prune", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: null,
+      files: [{ path: "src/runner.ts", content: "export {};\n" }],
+      deleted: ["src/old.ts"],
+    });
+
+    expect(deps.calls).toEqual([
+      ["projectCode", "re-cinq/lore", "src/runner.ts", "export {};\n"],
+      ["deleteCode", "re-cinq/lore", "src/old.ts"],
     ]);
   });
 

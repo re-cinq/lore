@@ -415,3 +415,22 @@ describe("SidebarNav metrics dashboards link", () => {
     expect(screen.queryByRole("link", { name: /Grafana/ })).toBeNull();
   });
 });
+
+describe("SidebarNav Utopia link", () => {
+  const UTOPIA = "https://utopia.example.com";
+
+  it("links to the named Utopia in a new tab", () => {
+    render(<SidebarNav utopiaUrl={UTOPIA} />);
+    const link = linkByLabel("Utopia");
+
+    expect({
+      href: link.getAttribute("href"),
+      target: link.getAttribute("target"),
+    }).toEqual({ href: UTOPIA, target: "_blank" });
+  });
+
+  it("renders no Utopia link when the deployment names none", () => {
+    render(<SidebarNav />);
+    expect(screen.queryByRole("link", { name: /Utopia/ })).toBeNull();
+  });
+});

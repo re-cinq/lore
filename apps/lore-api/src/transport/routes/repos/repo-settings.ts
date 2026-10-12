@@ -15,6 +15,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
+import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 
 const RepoSettingsBody = z.object({
   team: z.string().nullable().optional(),
@@ -52,18 +53,52 @@ async function serveRepoSettings(
   const body = request.payload as RepoSettingsBody;
   const existingTeam = await loadRepoTeam(pool, repo);
 
+  const gate = await enforceApproverGate(request, repo, body);
+
+  if (!gate.ok) {
+    return h.response(gate.body).code(gate.code);
+  }
+
   enforceNoDarkFactory(body);
   enforceDigestValid(
     (body.settings as { digest?: unknown } | undefined)?.digest,
   );
   await applyRepoUpdates(pool, repo, body);
-
-  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
-  if (body.team !== undefined && (body.team || null) !== existingTeam) {
-    await notifyTeamChanged(pool, repo);
-  }
+  await handleTeamChange(pool, repo, body.team, existingTeam);
 
   return h.response({ ok: true });
+}
+
+async function handleTeamChange(
+  pool: Pool,
+  repo: string,
+  bodyTeam: string | null | undefined,
+  existingTeam: string | null,
+): Promise<void> {
+  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
+  if (bodyTeam !== undefined && (bodyTeam || null) !== existingTeam) {
+    await notifyTeamChanged(pool, repo);
+  }
+}
+
+async function enforceApproverGate(
+  request: Request,
+  repo: string,
+  body: RepoSettingsBody,
+): Promise<{ ok: true } | ApprovalOutcome> {
+  const autoMerge = body.settings?.auto_merge as
+    { approver?: string } | undefined;
+
+  if (autoMerge?.approver !== "lore-reviewer") {
+    return { ok: true };
+  }
+
+  return checkApproval(
+    request,
+    repo,
+    ["auto_merge.approver"],
+    "Turning auto_merge.approver on is two-key",
+  );
 }
 
 function enforceNoDarkFactory(body: RepoSettingsBody): void {

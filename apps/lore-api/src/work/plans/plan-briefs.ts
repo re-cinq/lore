@@ -143,3 +143,8 @@ export function revisedBrief(plan: PlanView, prNumber: number): string {
 export function openPrBrief(plan: PlanView, prNumber: number): string {
   return `${approvedBrief(plan)} Spec PR #${prNumber} is open on this branch with the specs an earlier pass wrote; amend them to say what the plan says now, and leave what still holds alone.`;
 }
+
+/** The planning prompts tell the agent to pass the repo named on the description's first line to Lore's tools; the gateway has no checkout to read it from. */
+export function briefFor(repo: string, brief: string): string {
+  return `repo: "${repo}"\n${brief}`;
+}

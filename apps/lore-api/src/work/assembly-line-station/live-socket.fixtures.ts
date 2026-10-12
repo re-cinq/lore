@@ -1,3 +1,4 @@
+import type { LiveSocketLimits } from "./live-socket.js";
 import { WebSocket } from "ws";
 import type { LiveServerMessage } from "./protocol.js";
 
@@ -45,4 +46,20 @@ function deliver(
     return;
   }
   queue.push(message);
+}
+
+/** Limits that admit the first `upgrades` upgrades and `opens` opens, from one fixed client address. */
+export function allowing(
+  upgrades: number,
+  opens: number,
+  address: string | null = "caller",
+): LiveSocketLimits {
+  let upgradesLeft = upgrades;
+  let opensLeft = opens;
+
+  return {
+    addressOf: () => address ?? undefined,
+    allowUpgrade: () => upgradesLeft-- > 0,
+    allowOpen: () => opensLeft-- > 0,
+  };
 }

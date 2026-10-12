@@ -11,10 +11,13 @@ import type { IssueRef } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { RepoNumberParams, githubFailureResponse } from "./github-read.js";
+import {
+  RepoNumberParams,
+  githubFailureResponse,
+  onboardedProject,
+} from "./github-read.js";
 
 // A GitHub read, not a table read, so this shape is stated rather than derived.
 const IssueSchema = z.object({
@@ -53,7 +56,7 @@ async function serveIssue(
   const { owner, repo, number } = request.params as unknown as RepoNumberParams;
 
   try {
-    const project = await projectFor(`${owner}/${repo}`);
+    const project = await onboardedProject(`${owner}/${repo}`);
     const issue = await project.issues.get(number);
 
     enforceTrue(issue !== null, apiError(404), "issue not found");

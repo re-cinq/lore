@@ -35,7 +35,7 @@ async function onboardRepo(
   }
 
   revalidatePath("/");
-  redirect("/");
+  redirect(`/repos/${fullName}`);
 }
 
 function invalidSlugState(fullName: string): OnboardState {

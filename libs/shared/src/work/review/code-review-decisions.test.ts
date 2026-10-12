@@ -52,10 +52,28 @@ describe("code-review pure decisions", () => {
       { autoReview: false, pr: openPr() },
       { autoReview: true, pr: null },
       { autoReview: true, pr: openPr({ draft: true }) },
-      { autoReview: true, pr: openPr({ author: "lore-app[bot]" }) },
+      { autoReview: true, pr: openPr({ author: "other-app[bot]" }) },
     ].map((given) => decideReviewOnOpen(given).start);
 
     expect(decided).toEqual([true, false, false, false, false]);
+  });
+
+  it("decideReviewOnOpen lets a PR by Lore's own App through while refusing other bots", () => {
+    expect(
+      decideReviewOnOpen({
+        autoReview: true,
+        pr: openPr({ author: "lore-app-staging[bot]" }),
+        loreAppLogin: "lore-app-staging[bot]",
+      }).start,
+    ).toBe(true);
+
+    expect(
+      decideReviewOnOpen({
+        autoReview: true,
+        pr: openPr({ author: "other-bot[bot]" }),
+        loreAppLogin: "lore-app-staging[bot]",
+      }).start,
+    ).toBe(false);
   });
 
   it("decideReviewOnReply starts only for an open, non-draft PR with a human comment", () => {
@@ -199,13 +217,13 @@ describe("recheckDescription", () => {
     expect(
       recheckDescription("re-cinq/lore", 42, "feature/x", "abc123"),
     ).toEqual(
-      "Re-check pull request #42 in re-cinq/lore (branch feature/x) after a new push. The last verdict judged abc123; read what changed since it with `git -C /workspace/target diff --no-ext-diff abc123..HEAD`, and judge only that.",
+      'repo: "re-cinq/lore"\nRe-check pull request #42 in re-cinq/lore (branch feature/x) after a new push. The last verdict judged abc123; read what changed since it with `git -C /workspace/target diff --no-ext-diff abc123..HEAD`, and judge only that.',
     );
   });
 
   it("asks for the whole PR when no verdict has judged it yet", () => {
     expect(recheckDescription("re-cinq/lore", 42, "feature/x")).toEqual(
-      "Re-check pull request #42 in re-cinq/lore (branch feature/x) after a new push.",
+      'repo: "re-cinq/lore"\nRe-check pull request #42 in re-cinq/lore (branch feature/x) after a new push.',
     );
   });
 });

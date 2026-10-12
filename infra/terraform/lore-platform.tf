@@ -139,6 +139,8 @@ resource "helm_release" "lore_platform" {
         HEADLAMP_URL = var.enable_headlamp ? "https://${var.headlamp_hostname}" : ""
         # The metrics dashboards' address, under the same rule (monitoring.tf).
         GRAFANA_URL = var.enable_monitoring ? "https://${var.grafana_hostname}" : ""
+        # Utopia's address, under the same rule (utopia.tf).
+        UTOPIA_URL = var.enable_utopia ? "https://${var.utopia_hostname}" : ""
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }

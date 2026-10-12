@@ -92,7 +92,7 @@ func deltaOfKind(t *testing.T, posts []docDelta, kind string) docDelta {
 	return docDelta{}
 }
 
-func TestRunDocsPostsEverySpecAndADRWhenLoreHoldsNoState(t *testing.T) {
+func TestRunDocsPostsEverySpecADRAndSourceWhenLoreHoldsNoState(t *testing.T) {
 	dir := docsRepo(t)
 	_, posts := ingestServer(t, nil)
 
@@ -100,7 +100,7 @@ func TestRunDocsPostsEverySpecAndADRWhenLoreHoldsNoState(t *testing.T) {
 		t.Fatalf("runDocs: %v", err)
 	}
 
-	if len(*posts) != 2 {
+	if len(*posts) != len(docKinds) {
 		t.Fatalf("posts = %d, want one per kind", len(*posts))
 	}
 	specs := deltaOfKind(t, *posts, "specs")
@@ -191,7 +191,7 @@ func TestRunDocsWithoutPostPrintsTheSelectionAndCallsNothing(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &selection); err != nil {
 		t.Fatalf("output is not a selection: %v\n%s", err, out.String())
 	}
-	want := map[string][]string{"specs": {"specs/a/spec.md"}, "adrs": {"adrs/ADR-001.md"}}
+	want := map[string][]string{"specs": {"specs/a/spec.md"}, "adrs": {"adrs/ADR-001.md"}, "code": {}}
 	if !reflect.DeepEqual(selection, want) {
 		t.Errorf("selection = %v, want %v", selection, want)
 	}
@@ -209,7 +209,7 @@ func TestRunDocsPostRequiresTheAPIURLAndToken(t *testing.T) {
 	}
 }
 
-func TestRunDocsReportsAFailedKindAndStillPostsTheOther(t *testing.T) {
+func TestRunDocsReportsAFailedKindAndStillPostsTheOthers(t *testing.T) {
 	dir := docsRepo(t)
 	kinds := []string{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -235,8 +235,8 @@ func TestRunDocsReportsAFailedKindAndStillPostsTheOther(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "specs") {
 		t.Fatalf("err = %v, want it to name the specs kind", err)
 	}
-	if !reflect.DeepEqual(kinds, []string{"specs", "adrs"}) {
-		t.Errorf("posted kinds = %v, want specs then adrs", kinds)
+	if !reflect.DeepEqual(kinds, []string{"specs", "adrs", "code"}) {
+		t.Errorf("posted kinds = %v, want specs, adrs, then code", kinds)
 	}
 }
 

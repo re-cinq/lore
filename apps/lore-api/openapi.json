@@ -2321,6 +2321,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
@@ -2979,6 +2982,9 @@
                       "agent_id": {
                         "type": "string"
                       },
+                      "repo": {
+                        "type": "string"
+                      },
                       "limit": {
                         "type": "integer",
                         "exclusiveMinimum": 0,
@@ -3326,11 +3332,17 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -6857,6 +6869,68 @@
           },
           {
             "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/triage": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_triage",
+        "summary": "GET /api/repos/{owner}/{repo}/triage",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Issues with triage labels and their active floor runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageIssues"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
             "in": "path",
             "required": true,
             "schema": {
@@ -12093,7 +12167,8 @@
                   "bad_message",
                   "channel_in_use",
                   "too_many_channels",
-                  "unknown_channel"
+                  "unknown_channel",
+                  "rate_limited"
                 ]
               }
             },
@@ -13411,6 +13486,16 @@
                       }
                     ]
                   },
+                  "auto_merge": {
+                    "type": "object",
+                    "properties": {
+                      "approver": {
+                        "type": "string",
+                        "enum": ["none", "lore-reviewer"]
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
                   "dispatch_label": {
                     "type": "string"
                   },
@@ -13782,6 +13867,16 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "auto_merge": {
+                          "type": "object",
+                          "properties": {
+                            "approver": {
+                              "type": "string",
+                              "enum": ["none", "lore-reviewer"]
+                            }
+                          },
+                          "additionalProperties": {}
                         },
                         "dispatch_label": {
                           "type": "string"
@@ -15185,6 +15280,29 @@
                   "required": ["cluster", "calls", "cost_usd"],
                   "additionalProperties": false
                 }
+              },
+              "by_billing_mode": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": ["api_key", "subscription", "unknown"]
+                    },
+                    "calls": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["mode", "calls", "cost_usd"],
+                  "additionalProperties": false
+                }
+              },
+              "floor_unavailable": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -15201,7 +15319,9 @@
               "by_kind",
               "daily",
               "by_task_type",
-              "by_cluster"
+              "by_cluster",
+              "by_billing_mode",
+              "floor_unavailable"
             ],
             "additionalProperties": false
           },
@@ -16431,6 +16551,25 @@
           "type": "string"
         },
         "additionalProperties": {}
+      },
+      "TriageIssues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "triage_label": {
+              "type": "string"
+            },
+            "active_run_link": {
+              "type": "string"
+            }
+          },
+          "required": ["title", "triage_label"],
+          "additionalProperties": false
+        }
       },
       "TurnsRelayed": {
         "type": "object",

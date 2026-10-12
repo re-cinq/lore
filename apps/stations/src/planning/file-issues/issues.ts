@@ -28,6 +28,8 @@ export interface IssuesStationDeps {
   project?: ReturnType<typeof createStationProject>;
   /** The web UI's base address, for the story issue's plan link; defaults to `LORE_UI_URL`. */
   uiUrl?: string;
+  /** False files the task issues unqueued, for a person to prioritize; the issue-triage line's filing. */
+  queue?: boolean;
 }
 
 // The decomposition rides in on `params.feature_decomposition` — the artifact decompose produced, merged into the line's args by the Floor; a run reaching here without it is a wiring failure, not a bad decomposition, so it fails rather than asking the agent to fix something it did nothing wrong about.
@@ -42,7 +44,7 @@ export async function runIssuesStation(
   }
   const project = deps.project ?? createStationProject(input.repo);
   const decomposition = parseDecomposition(parseModelJson(raw));
-  const work = await planWork(project, decomposition, input);
+  const work = await planWork(project, decomposition, { input, deps });
 
   if (work.outcome === "changes_requested") {
     return rework(work.objection);
@@ -56,16 +58,20 @@ export async function runIssuesStation(
   return filed(await filePlanIssues(project, work, context), work.tasks.length);
 }
 
+interface WorkSources {
+  input: StationInput;
+  deps: IssuesStationDeps;
+}
+
 async function planWork(
   project: StationProject,
   decomposition: DecompositionResult,
-  input: StationInput,
+  { input, deps }: WorkSources,
 ) {
-  return decideIssueWork(
-    decomposition,
-    await project.issues.listLabels(),
-    input.params.plan_title,
-  );
+  return decideIssueWork(decomposition, await project.issues.listLabels(), {
+    planTitle: input.params.plan_title,
+    queue: deps.queue,
+  });
 }
 
 function specOfRun(
@@ -108,13 +114,13 @@ interface FilingSources {
   spec: DecomposedSpecs | undefined;
 }
 
-// The plan id is what a rerun recognises its issues by.
+// The plan id, or the triaged issue's filing key, is what a rerun recognises its issues by.
 function filingContext(
   input: StationInput,
   decomposition: DecompositionResult,
   { uiUrl, spec }: FilingSources,
 ): FilingContext {
-  const planId = input.params.plan_id;
+  const planId = input.params.filing_key || input.params.plan_id;
 
   return {
     input,

@@ -1,14 +1,12 @@
 // The browser's one live socket (ADR-048): an upgrade at /api/ws on lore-api's own listener, one connection per tab, channels opened by the client and served by the run and plan handlers. Ping/pong keeps it honest through the ingress; a socket that stops answering is terminated and its channels closed.
 
 import type { IncomingMessage, Server as HttpServer } from "node:http";
-import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import { ChannelRegistry, type ChannelHandle } from "./channel-registry.js";
 import { openPlanChannel, type CollabServer } from "./plan-channel.js";
 import {
   base64ToBytes,
   encodeServerMessage,
-  LIVE_SOCKET_PATH,
   parseClientMessage,
   type LiveClientMessage,
   type LiveServerMessage,
@@ -20,7 +18,10 @@ import {
   type RunChannelDeps,
 } from "./run-channel.js";
 import { openRunsChannel, type RunsChannelDeps } from "./runs-channel.js";
-import { urlOf, webRequest } from "./web-request.js";
+import { webRequest } from "./web-request.js";
+import { UpgradeGate, type LiveSocketLimits } from "./upgrade-gate.js";
+
+export type { LiveSocketLimits } from "./upgrade-gate.js";
 
 const PING_MS = 25_000;
 
@@ -31,11 +32,16 @@ const OPEN = 1;
 
 type ChannelMessage = Exclude<LiveClientMessage, OpenMessage>;
 
+let connectionSeq = 0;
+
 export interface LiveSocketDeps {
   run: RunChannelDeps;
   runs: RunsChannelDeps;
   collab: CollabServer;
+  limits?: LiveSocketLimits;
   pingMs?: number;
+  maxSockets?: number;
+  maxSocketsPerAddress?: number;
   log?: (message: string) => void;
 }
 
@@ -53,7 +59,7 @@ export function mountLiveSocket(
     noServer: true,
     maxPayload: MAX_PAYLOAD_BYTES,
   });
-  const onUpgrade = upgradeHandler(sockets, deps);
+  const onUpgrade = new UpgradeGate(sockets, deps, serve).onUpgrade;
 
   listener.on("upgrade", onUpgrade);
 
@@ -68,18 +74,6 @@ export function mountLiveSocket(
   };
 }
 
-/** Another mount (the plans library's) shares the listener; a foreign path is its business and is left untouched. */
-function upgradeHandler(sockets: WebSocketServer, deps: LiveSocketDeps) {
-  return (request: IncomingMessage, socket: Duplex, head: Buffer): void => {
-    if (urlOf(request).pathname !== LIVE_SOCKET_PATH) {
-      return;
-    }
-    sockets.handleUpgrade(request, socket, head, (ws) =>
-      serve(ws, request, deps),
-    );
-  };
-}
-
 function terminateAll(sockets: WebSocketServer): void {
   for (const ws of sockets.clients) {
     ws.terminate();
@@ -91,6 +85,7 @@ function terminateAll(sockets: WebSocketServer): void {
 class LiveConnection {
   private readonly registry = new ChannelRegistry();
   private alive = true;
+  private readonly id = `conn:${++connectionSeq}`;
 
   constructor(
     private readonly ws: WebSocket,
@@ -183,6 +178,12 @@ class LiveConnection {
   /** The id is taken the moment the open arrives, so a second open for it while the first still verifies its token is refused rather than raced. */
   private open(message: OpenMessage): void {
     const { channel } = message;
+
+    if (this.deps.limits?.allowOpen(this.id) === false) {
+      this.send({ type: "error", channel, code: "rate_limited" });
+
+      return;
+    }
     const refusal = this.registry.refusal(channel);
 
     if (refusal) {

@@ -237,13 +237,45 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 
 ## Call graph (cross-file symbol references)
 
-The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L167))
+The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L168))
 
 `lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
 
 Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L153), [validated by surfaces a caller statement as indirect when only the callee chunk is changed](libs/shared/src/work/spec-trace/trace-impact.test.ts#L502))
 
-The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L5), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L28), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L44))
+The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L8), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L31), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L47))
+
+### Code projection (issue #1992)
+
+The `code` ingest kind is what writes the call graph. lore-code-trace's `docs --post`
+sends the repository's TypeScript and JavaScript source (tests, `.d.ts`, `node_modules/`,
+`dist/`, `build/` and `vendor/` left out) to `POST /api/repos/{owner}/{repo}/ingest` with
+`kind: "code"`, in the same chunked delta as specs and ADRs, so it lands on `main` from CI
+like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L169))
+
+lore-api parses each file with tree-sitter into its top-level functions,
+function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L75), [validated by maps the local name next to nextTransition imported from ./transition.js](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L92))
+
+A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L105))
+
+Each definition becomes one `CodeChunk` keyed `<repo>|code|<module path without extension>#<symbol>`,
+and a call to a sibling definition or to a named import from a relative path becomes a
+`CodeChunk.references` edge to the chunk with that key; calls into packages are dropped.
+A target whose file is not projected yet is a placeholder carrying only its identity, so
+the edge binds whatever order files land in. ([validated by answers advance in src/runner.ts as the caller of nextTransition](libs/shared/src/work/spec-trace/project-code-file.test.ts#L68), [validated by answers nextTransition in src/transition.ts as the callee of advance](libs/shared/src/work/spec-trace/project-code-file.test.ts#L76))
+
+A chunk's content hash covers its text and the keys it references, so a file projected
+again unchanged writes nothing. ([validated by reports projected false when src/runner.ts is projected again unchanged](libs/shared/src/work/spec-trace/project-code-file.test.ts#L84))
+
+A file over 256,000 characters is generated rather than written and is not parsed. ([validated by reports projected false for a src/generated.ts over 256000 characters](libs/shared/src/work/spec-trace/project-code-file.test.ts#L119))
+
+Dgraph does not cascade, so removing a chunk removes its edges by hand: a reference
+the new content no longer makes is dropped, a definition that left its file loses its own
+edges and is deleted, or shrinks to a placeholder while callers still point at it so they
+rebind when it returns, and a placeholder nobody references is deleted. ([validated by answers no callers once advance stops calling nextTransition](libs/shared/src/work/spec-trace/project-code-file.test.ts#L92), [validated by removes the reference edges of src/runner.ts when the file is deleted](libs/shared/src/work/spec-trace/project-code-file.test.ts#L102), [validated by answers advance again when src/transition.ts is deleted and projected back](libs/shared/src/work/spec-trace/project-code-file.test.ts#L109))
+
+A full ingest prunes the files the graph holds definition chunks for and the posted tree
+no longer names. ([validated by lists src/runner.ts and src/transition.ts as the projected code files](libs/shared/src/work/spec-trace/project-code-file.test.ts#L128))
 
 ## Branch overlay
 
@@ -274,10 +306,10 @@ type, so the same projection code hangs nodes off `Repo` on `main` and off
 
 `Overlay.xid` is a hash upsert index and `Overlay.branch` /
 `Overlay.head_commit` are indexed, so a branch's overlay is found by name and
-the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L205))
+the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L206))
 
 The `Overlay` node carries the same chunk container edges the `Repo` root does —
-`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L219))
+`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L220))
 
 ### Which branch is an overlay
 

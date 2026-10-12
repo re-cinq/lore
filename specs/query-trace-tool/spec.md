@@ -54,7 +54,7 @@ resolves the repo, issues one GET via the proxy, and formats the result
 the projection itself is a pure function
 ([`formatTraceQuery`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L10));
 the GET proxy reuses the shared retry/config machinery
-([`proxyGetApi`](../../apps/mcp-server/src/transport/tools/deps.ts#L16)); the tool is
+([`proxyGetApi`](../../apps/mcp-server/src/transport/tools/deps.ts#L17)); the tool is
 registered read-only on the shared surface
 ([`lore-query-trace` registration](apps/mcp-server/src/transport/tools/spec-trace-tools.ts#L40)).
 
@@ -169,6 +169,21 @@ The requested path reaches the proxied URL url-encoded. ([validated by proxies a
 
 An unreachable API is reported as prose rather than thrown, like every other
 shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
+
+## The `callers` shape
+
+The tool's fourth query (issue #1768, #1992): which definitions call a named symbol,
+or which ones it calls.
+
+The read is served by `GET /api/repos/{owner}/{repo}/trace/callers`, which names the
+target in `symbol` and walks the reverse `CodeChunk.references` edge, or the edge
+itself when `direction=callees`. It answers one hop; `depth` is not walked yet.
+
+Each caller comes back with its file, its symbol name and the line it starts on. ([validated by answers advance in src/runner.ts as the caller of nextTransition](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L54))
+
+With no graph configured it answers an empty list rather than failing. ([validated by answers an empty callers list for nextTransition when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L33))
+
+A request that names no symbol is refused with 400. ([validated by answers 400 when the symbol is missing](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L39))
 
 ## Out of Scope
 

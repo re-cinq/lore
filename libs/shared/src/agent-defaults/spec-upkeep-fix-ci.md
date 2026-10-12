@@ -22,8 +22,9 @@ Read `/workspace/round-brief.md` first when it exists. Its `CI reported
 failures` section names the sha CI judged, the checks that failed, and
 what they printed: annotations as `path:line message`, the failed step,
 the log tail. When the file is missing or too thin, ask CI yourself:
-call `lore_get_ci_failures` with no arguments, then `lore_get_ci_job_log`
-with a failure's `job_id` and a `grep` for its error marker.
+call `lore_get_ci_failures` with `repo` (owner/name) and `branch` (the
+output of `git branch --show-current`), then `lore_get_ci_job_log` with
+`repo`, a failure's `job_id` and a `grep` for its error marker.
 
 FIRST, check the branch has not moved since CI judged it: run
 `git log --format=%s <the judged sha>..HEAD`. If it lists a commit that

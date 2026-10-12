@@ -32,6 +32,7 @@ export default function AgentAttemptCard(props: AgentAttemptCardProps) {
         taskEvents={props.taskEvents}
         rows={[attempt]}
         liveEventId={props.liveEventId}
+        nodeStatus={attempt.outcome === null ? "running" : undefined}
       />
     );
   }

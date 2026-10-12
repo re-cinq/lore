@@ -1,5 +1,6 @@
 // One handler per subscribed event name, resolved the same way the Floor's registry does, so both drainers agree on retry, dead-lettering, and the visibility budget.
 
+import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import { STATIONS } from "../work/registry.js";
 import {
@@ -29,6 +30,7 @@ import { pipeline } from "../outbound/queues.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
 import {
   floorRepoOf,
+  gitItem,
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
@@ -49,6 +51,7 @@ const floorReviewDeps: FloorReviewDeps = {
       pulls,
       issues,
       uiUrl: process.env.LORE_UI_URL,
+      loreAppLogin: await loreAppLogin(),
     };
   },
 };
@@ -100,9 +103,11 @@ const repoEventDeps: RepoEventDeps = {
       repo,
     ),
   startIssueTriage: async (repo, issueNumber, issueUrl) => {
+    const branch = await (await projectFor(repo)).repo.defaultBranch();
     const started = await startLine(floorClient().lines, "issue-triage", {
       repo: floorRepoOf(repo),
       startItems: {
+        target: gitItem(repo, branch),
         issue_number: valueItem(issueNumber),
         repo: valueItem(repo),
         issue_url: valueItem(issueUrl),

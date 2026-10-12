@@ -8,6 +8,8 @@ import Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
 import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
 import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
+import { rateLimit } from "../transport/http/auth.js";
+import { trustedClientAddress } from "../transport/http/client-ip.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
@@ -16,11 +18,15 @@ import {
   summarizeCoverage,
 } from "../transport/openapi/build-document.js";
 import { MAX_JSON_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
+import { logRequestErrors } from "@re-cinq/lore-shared/http/server-boot.js";
 import {
   registerPlanning,
   type RegisteredPlanning,
 } from "./register-planning.js";
-import { mountLiveSocket } from "../work/assembly-line-station/live-socket.js";
+import {
+  mountLiveSocket,
+  type LiveSocketLimits,
+} from "../work/assembly-line-station/live-socket.js";
 import {
   runChannelDepsFromPool,
   runsChannelDepsFromPool,
@@ -37,6 +43,7 @@ export function buildServer(
 ): Hapi.Server {
   const server = newServer(port);
 
+  logRequestErrors(server);
   registerRequestTracing(server, TRACING);
   registerRateLimit(server);
   registerBearerScope(server, getPool);
@@ -79,6 +86,16 @@ function registerRoutes(
   return routes;
 }
 
+const LIVE_SOCKET_LIMITS: LiveSocketLimits = {
+  addressOf: (request) =>
+    trustedClientAddress(
+      request.socket.remoteAddress,
+      request.headers["x-forwarded-for"],
+    ),
+  allowUpgrade: (address) => rateLimit("ws", address),
+  allowOpen: (connection) => rateLimit("wsOpen", connection),
+};
+
 function registerLiveSocket(
   server: Hapi.Server,
   getPool: () => Pool | null,
@@ -88,6 +105,7 @@ function registerLiveSocket(
     run: runChannelDepsFromPool(getPool),
     runs: runsChannelDepsFromPool(getPool),
     collab,
+    limits: LIVE_SOCKET_LIMITS,
   });
 
   server.ext("onPreStop", () => liveSocket.close());

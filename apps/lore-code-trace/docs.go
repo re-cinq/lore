@@ -21,7 +21,16 @@ const (
 	docChunkBytes = 250_000
 )
 
-var docKinds = []string{"specs", "adrs"}
+var docKinds = []string{"specs", "adrs", "code"}
+
+// The code kind (issue #1992) is TypeScript and JavaScript source anywhere in
+// the tree; lore-api parses each file into one graph node per definition.
+var codeExtensions = []string{".ts", ".tsx", ".js", ".jsx"}
+
+// Tests, type declarations and build output define nothing a caller reaches.
+var codeExcludedSuffixes = []string{".d.ts", ".min.js"}
+var codeExcludedInfixes = []string{".test.", ".spec."}
+var codeExcludedDirs = []string{"node_modules/", "dist/", "build/", "vendor/"}
 
 // The built-in homes of each kind, mirroring INGEST_KINDS in
 // ingest-graph-registry.ts; a kind declared in .lore/ingest.yml replaces them.
@@ -213,12 +222,25 @@ func isDocOfKind(path, kind string, patterns []string) bool {
 	if len(patterns) > 0 {
 		return matchesAnyGlob(path, patterns)
 	}
+	if kind == "code" {
+		return isCodeSource(path)
+	}
 	if !strings.HasSuffix(path, ".md") {
 		return false
 	}
 	return slices.ContainsFunc(docKindPrefixes[kind], func(prefix string) bool {
 		return strings.HasPrefix(path, prefix)
 	})
+}
+
+func isCodeSource(path string) bool {
+	hasSuffix := func(suffix string) bool { return strings.HasSuffix(path, suffix) }
+	inDir := func(dir string) bool { return strings.HasPrefix(path, dir) || strings.Contains(path, "/"+dir) }
+	contains := func(infix string) bool { return strings.Contains(path, infix) }
+	return slices.ContainsFunc(codeExtensions, hasSuffix) &&
+		!slices.ContainsFunc(codeExcludedSuffixes, hasSuffix) &&
+		!slices.ContainsFunc(codeExcludedInfixes, contains) &&
+		!slices.ContainsFunc(codeExcludedDirs, inDir)
 }
 
 // parseIngestPatterns reads .lore/ingest.yml as kind → globs, dropping any

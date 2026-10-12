@@ -31,6 +31,7 @@ const DRAFT = {
 const APPROVED = { ...DRAFT, status: "approved" };
 const MARKDOWN = "# Faster checkout\n\nCheckout is slow.\n";
 const BRIEF = 'Draft the plan "Widget" in plan.md.';
+const BRIEFED = `repo: "re-cinq/lore"\n${BRIEF}`;
 const SUCCESS: Report = { outcome: "success" };
 const SPEC_PR_URL = "https://github.com/re-cinq/lore/pull/12";
 
@@ -203,7 +204,7 @@ function started(entry?: string): FloorRequest {
         plan_id: { kind: "value", ref: "p1", by: "lore" },
         plan_title: { kind: "value", ref: "Faster checkout", by: "lore" },
         plan_md: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
-        description: { kind: "value", ref: BRIEF, by: "lore" },
+        description: { kind: "value", ref: BRIEFED, by: "lore" },
       },
       ...(entry ? { entry } : {}),
     },
@@ -224,7 +225,7 @@ describe("startFloorDrafting", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "changes_requested",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEFED },
       }),
     );
   });
@@ -518,7 +519,7 @@ describe("approveFloorPlan", () => {
         "visit-author",
         {
           outcome: "success",
-          produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+          produced: { plan_md: PLAN_BLOB_HASH, description: BRIEFED },
         },
         "gedaiu",
       ),
@@ -545,7 +546,7 @@ describe("approveFloorPlan", () => {
       produced: {
         plan_md: PLAN_BLOB_HASH,
         plan_blocks: PLAN_BLOB_HASH,
-        description: BRIEF,
+        description: BRIEFED,
       },
     });
   });
@@ -651,13 +652,27 @@ describe("approveFloorPlan", () => {
     });
 
     expect({ brief: startedDescription(requests), specPrsRead }).toEqual({
-      brief: BRIEF,
+      brief: BRIEFED,
       specPrsRead: [],
     });
   });
 });
 
 describe("the round's brief the floor's planning agent is given", () => {
+  it('leads the brief with repo: "re-cinq/lore", the repo the agent passes to Lore\'s tools', async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests).split("\n")[0]).toBe(
+      'repo: "re-cinq/lore"',
+    );
+  });
+
   it("names the section the Refine asks about in the brief the agent is given", async () => {
     const { deps, asks } = scene({ visits: ON_AUTHOR });
     const verbs = floorPlanVerbs(deps, async () => ({

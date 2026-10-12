@@ -32,6 +32,16 @@ files you run: the pod's Bash hook refuses a bare `npm test` or a
 acceptance tests say now is where you actually are — not what you
 remember, and not what `.lore/dod.md` predicted.
 
+If this pod cannot run them — the command that runs them (`java`, `mvn`,
+`gradle`, `go`, `cargo`, `dotnet`) is not found, or a wrapper such as
+`./mvnw` reports no `JAVA_HOME` — do not look for it and do not install
+it: no `sudo`, no `apt`, no `find /`, no download. The round's verdict is
+CI's: the `CI reported failures` section of `/workspace/round-brief.md`,
+when there is one, says where the last push stands. Do the round from the
+code, the tests and that section, commit and push; CI judges the push,
+and a red build comes back to the next round as its brief. Say in your
+final message that the round ran no tests here.
+
 YOUR ROUND is the `tdd-loop` skill's three phases, in order, no steps
 skipped: one failing test for the smallest facet that moves an acceptance
 test closer to green, then the least code that passes it, then refactor

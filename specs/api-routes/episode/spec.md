@@ -25,7 +25,7 @@ write-once-extract-async endpoint.
 ## Interface
 
 Registered as `exact("/api/episode", "POST")`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L98)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts#L116)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/episode`
@@ -156,4 +156,4 @@ contract.)*
 - Token issuance and the scope schema.
 
 Code: handler [`handleEpisode`](../../../apps/lore-api/src/transport/routes/memory/episode.ts#L22)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L98).
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L116).

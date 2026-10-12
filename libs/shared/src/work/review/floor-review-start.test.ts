@@ -142,7 +142,7 @@ describe("startReview", () => {
             pr_url: { kind: "value", ref: PR_URL, by: "lore" },
             description: {
               kind: "value",
-              ref: "Review pull request #412 in re-cinq/lore (branch fix/login).",
+              ref: 'repo: "re-cinq/lore"\nReview pull request #412 in re-cinq/lore (branch fix/login).',
               by: "lore",
             },
             head_sha: { kind: "value", ref: "sha-new", by: "lore" },
@@ -329,7 +329,7 @@ describe("reviewOrRecheck", () => {
     expect(started(requests)[0].body).toMatchObject({
       startItems: {
         description: {
-          ref: "Re-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.",
+          ref: 'repo: "re-cinq/lore"\nRe-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.',
         },
       },
     });
@@ -381,7 +381,7 @@ describe("reviewOrRecheck", () => {
     expect(started(requests)[0].body).toMatchObject({
       startItems: {
         description: {
-          ref: "Re-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.",
+          ref: 'repo: "re-cinq/lore"\nRe-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.',
         },
       },
     });
@@ -401,7 +401,7 @@ describe("reviewOrRecheck", () => {
     expect(started(requests)[0].body).toMatchObject({
       startItems: {
         description: {
-          ref: "Re-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.",
+          ref: 'repo: "re-cinq/lore"\nRe-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.',
         },
       },
     });
