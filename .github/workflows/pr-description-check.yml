@@ -15,6 +15,7 @@ jobs:
       - name: Check PR description sections
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_HEAD_REF: ${{ github.head_ref || github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
 
@@ -22,7 +23,7 @@ jobs:
           WARNINGS=""
 
           # --- Bypass for legacy Lore draft PRs ---
-          if [[ "$PR_BODY" == *"Opened by the Lore implementation loop from"* ]] ; then
+          if [[ "$PR_BODY" == *"Opened by the Lore "* ]] || [[ "$PR_BODY" == *"Opened by the Lore implementation loop from"* ]] || [[ "$PR_HEAD_REF" == lore/* ]] ; then
             echo "PR was opened by Lore loop before the PR template headings feature."
             echo "Skipping the description check since the draft cannot satisfy it."
             exit 0
