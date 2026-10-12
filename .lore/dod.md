@@ -6,18 +6,18 @@
 
 ## Done when these pass
 
-- [ ] **check-secrets.sh catches an empty dockerconfigjson password** — Ensure the script detects and reports empty passwords in `.dockerconfigjson` secrets.
+- [x] **check-secrets.sh catches an empty dockerconfigjson password** — Ensure the script detects and reports empty passwords in `.dockerconfigjson` secrets.
   `scripts/infra/check-secrets.test.mjs`
 
-- [ ] **check-secrets.sh catches an expired dockerconfigjson token via curl** — Ensure the script calls curl against the registry token endpoint and reports an expired token.
+- [x] **check-secrets.sh catches an expired dockerconfigjson token via curl** — Ensure the script calls curl against the registry token endpoint and reports an expired token.
   `scripts/infra/check-secrets.test.mjs`
 
 ## Facets
 
-- [ ] Decode `.dockerconfigjson` from `kubernetes.io/dockerconfigjson` secrets managed by ESO
-- [ ] Assert `.auths` exists and names the expected registry
-- [ ] Assert `auth` value base64-decodes to a non-empty token
-- [ ] Exchange token via `curl` against registry endpoint and require HTTP 200
+- [x] Decode `.dockerconfigjson` from `kubernetes.io/dockerconfigjson` secrets managed by ESO
+- [x] Assert `.auths` exists and names the expected registry
+- [x] Assert `auth` value base64-decodes to a non-empty token
+- [x] Exchange token via `curl` against registry endpoint and require HTTP 200
 
 ## Out of scope
 
