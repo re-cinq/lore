@@ -28,8 +28,12 @@ function brief(needs: Record<string, string> = {}) {
   };
 }
 
+const PLACEHOLDER = "_Written by the ready-for-review round._";
+const REQUIRED_SECTIONS = `## Why\n\n${PLACEHOLDER}\n\n## What Changed\n\n${PLACEHOLDER}\n\n## Testing\n\n${PLACEHOLDER}`;
+
 function scene(
   open: (pr: PullDraft) => Promise<PullRef> = () => Promise.resolve(pullRef()),
+  template: string | null = null,
 ) {
   const opened: PullDraft[] = [];
   const recorded: Array<[string, PullRef]> = [];
@@ -37,6 +41,10 @@ function scene(
     recordPr: async (taskId, pr) => {
       recorded.push([taskId, pr]);
     },
+    template: (repo, branch) =>
+      repo === "re-cinq/app" && branch === BRANCH
+        ? Promise.resolve(template)
+        : Promise.reject(new Error(`Not Found: ${repo}@${branch}`)),
     pulls: (repo) =>
       repo !== "re-cinq/app"
         ? Promise.reject(new Error(`Not Found: ${repo}`))
@@ -77,7 +85,7 @@ describe("the loop-open-pr station", () => {
     expect(opened).toEqual([
       {
         title: "Add the export button",
-        body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\nCloses #77\nLore-Task: task-1`,
+        body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n${REQUIRED_SECTIONS}\n\nCloses #77\nLore-Task: task-1`,
         draft: true,
       },
     ]);
@@ -90,7 +98,7 @@ describe("the loop-open-pr station", () => {
 
     expect(opened[0]).toMatchObject({
       title: `lore: ${BRANCH}`,
-      body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\nLore-Task: task-1`,
+      body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n${REQUIRED_SECTIONS}\n\nLore-Task: task-1`,
     });
   });
 
@@ -143,5 +151,18 @@ describe("the loop-open-pr station", () => {
       outcome: "failed",
       error: "Bad credentials",
     });
+  });
+
+  it("opens the draft with the ## headings of the branch's pull request template, so a description check passes before the prose is written", async () => {
+    const { handle, opened } = scene(
+      undefined,
+      "## Why\n\ntext\n\n## Testing\n\ntext\n",
+    );
+
+    await handle(brief({ issue_number: "77" }), TOOLS);
+
+    expect(opened[0]?.body).toEqual(
+      `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n## Why\n\n${PLACEHOLDER}\n\n## Testing\n\n${PLACEHOLDER}\n\nCloses #77\nLore-Task: task-1`,
+    );
   });
 });

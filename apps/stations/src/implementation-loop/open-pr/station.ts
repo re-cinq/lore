@@ -18,15 +18,20 @@ import type {
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { pipeline } from "../../outbound/queues.js";
+import { draftBody, PR_TEMPLATE_PATH } from "./draft-body.js";
 
 export interface OpenLoopPrDeps {
   pulls(repo: string): Promise<PullOpener>;
+  /** The repository's pull request template on the branch, or null when it has none. */
+  template(repo: string, branch: string): Promise<string | null>;
   /** Writes the pull request onto the run's task, where the run page reads it: a value a station produces stays inside the floor. */
   recordPr(taskId: string, pr: PullRef): Promise<void>;
 }
 
 const productionDeps: OpenLoopPrDeps = {
   pulls: async (repo) => (await projectFor(repo)).pulls,
+  template: async (repo, branch) =>
+    (await projectFor(repo)).repo.read(PR_TEMPLATE_PATH, branch),
   recordPr: (taskId, pr) =>
     pipeline().taskQueue.setColumns(taskId, {
       pr_url: pr.url,
@@ -50,7 +55,12 @@ export function openLoopPrHandle(deps: OpenLoopPrDeps): Handle {
 
     try {
       const pulls = await deps.pulls(repo);
-      const pr = await ensurePull(pulls, branch, draftOf(branch, ticket));
+      const template = await deps.template(repo, branch);
+      const pr = await ensurePull(
+        pulls,
+        branch,
+        draftOf(branch, ticket, template),
+      );
 
       await deps.recordPr(ticket.task_id, pr);
 
@@ -61,7 +71,11 @@ export function openLoopPrHandle(deps: OpenLoopPrDeps): Handle {
   };
 }
 
-function draftOf(branch: string, ticket: LoopPrNeeds): PullDraft {
+function draftOf(
+  branch: string,
+  ticket: LoopPrNeeds,
+  template: string | null,
+): PullDraft {
   const issueNumber = Number(ticket.issue_number) || null;
 
   return {
@@ -69,7 +83,7 @@ function draftOf(branch: string, ticket: LoopPrNeeds): PullDraft {
       ? clampPrTitle(ticket.issue_title)
       : `lore: ${branch}`,
     body:
-      `Opened by the Lore implementation loop from \`${branch}\`.` +
+      draftBody(template, branch) +
       prFooter({ issueNumber, taskId: ticket.task_id }),
     draft: true,
   };
