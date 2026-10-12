@@ -45,10 +45,8 @@ Developers using Apple Silicon or ARM64 machines can pull and run the container 
 
 ## Success Criteria
 
-<!-- Pod for KPIs will fill this section -->
-
-- Every `ghcr.io/re-cinq` image ships a multi-arch manifest index so ARM64 pullers get a native layer automatically. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-arm-manifest))
-- The manifest index is correctly wired, validated on the `:<short-sha>` tag that every deploy pins and that every image is guaranteed to publish. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-native-pull))
+- **SC-001**: 4 of 4 images (`lore-api`, `lore-mcp`, `lore-stations`, `lore-ui`) publish a `linux/arm64` manifest entry in their GHCR manifest index on every push to main; baseline is 0 of 4. Deadline: on merge. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-arm-manifest))
+- **SC-002**: `docker pull ghcr.io/re-cinq/<image>:<short-sha>` of the merge commit resolves to an arm64 layer on Apple Silicon with no `--platform` flag, for all four images. Deadline: on merge. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-native-pull))
 
 ## Assumptions
 
@@ -58,15 +56,15 @@ Developers using Apple Silicon or ARM64 machines can pull and run the container 
 - Multi-arch pushes with `docker buildx` require `packages: write` permission, which is already present on the `build` job in all four workflows (`.github/workflows/build-lore-api.yml#L69-L71`, `.github/workflows/build-mcp-server.yml#L43-L45`, `.github/workflows/build-stations.yml#L43-L45`, `.github/workflows/build-ui.yml#L64-L66`); no new secret or repository permission is needed. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#constraints-p-2))
 - ARM64 support for `dgraph/standalone:v24.0.0` in `infra/compose.yaml` is out of scope; a follow-up issue is filed before this change merges and linked from the spec; until resolved, Apple Silicon developers add `platform: linux/amd64` to the Dgraph service in a local compose override; CI images are unaffected. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#constraints-p-3))
 - The `.github/workflows/build-ui.yml` `changes` job (lines L30–L56) compares `${{ github.event.before }}` to `${{ github.sha }}` via `git diff --name-only`, emitting `relevant=true/false`; the `build` job gates on `needs.changes.outputs.relevant == 'true'`; this pattern is unchanged by multi-arch, and ARM64 is present whenever the UI image is rebuilt. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#constraints-p-4))
+- No layer caching is introduced by this change; if per-leg caching is added later, it MUST be scoped per image-and-architecture (`type=gha,scope=<image>-<arch>`) to prevent the amd64 and arm64 matrix legs from evicting each other's cache entries. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#constraints-p-1))
 
 ## Open Questions
 
 <!-- Pod for Questions will fill this section -->
 
-- Should the feature use QEMU emulation (single job, simpler) or native ARM64 GitHub-hosted runners (parallel jobs + manifest merge, faster)? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#q-build-approach))
-- Does `dgraph/standalone:v24.0.0` ship a `linux/arm64` image? If not, should fixing the local-dev compose stack for ARM be in scope here or a follow-up? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#q-dgraph-arm))
-
-- Should ARM64 be built on every PR, or only on pushes to main? Options: (a) build on every PR — arm64 regressions caught at PR time, at the cost of longer PR CI; (b) build only on main — PR feedback time unchanged, arm64 break first visible on main push. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#q-arm-on-prs))
+- Settled: native ARM64 runners (see FR-001, FR-003, Assumptions, D-001).
+- Settled: out of scope; follow-up issue filed before merge (see FR-009, Assumptions).
+- Settled: ARM64 only on main; faster PRs accepted at the cost of arm64 breaks landing on main (see D-001, D-005).
 
 ## Ownership
 
