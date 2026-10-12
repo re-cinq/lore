@@ -28,3 +28,9 @@ RUN set -eu; \
 		"https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${TARGETARCH}"; \
 	echo "${yq_sha256}  /usr/local/bin/yq" | sha256sum -c -; \
 	chmod 0755 /usr/local/bin/yq
+
+# The loop runs a repository's own tests, and a JVM repository's Maven or Gradle
+# wrapper brings its build tool but not the JDK it runs on: carry Temurin 21.
+COPY --from=eclipse-temurin:21-jdk /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
