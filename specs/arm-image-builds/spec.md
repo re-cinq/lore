@@ -11,7 +11,9 @@ This feature adds multi-architecture manifest indices to the four container imag
 
 ## Problem Statement
 
-Right now, the images are built for AMD64, but for Mac and personal ARM64 boxes, developers need ARM64 images. The four images published under the `re-cinq` organisation's namespace on GitHub Container Registry (which this feature adds multi-arch support for at `ghcr.io/re-cinq`) are currently built by their own GitHub Actions workflows (`.github/workflows/build-lore-api.yml`, `build-mcp-server.yml`, `build-stations.yml`, `build-ui.yml`) using `docker/build-push-action` with no `platforms` argument, so every push to `main` produces a `linux/amd64`-only manifest. A developer on Apple Silicon or an ARM64 personal machine who pulls the image gets QEMU emulation or an outright pull failure depending on their Docker configuration.
+Right now, the images are built for AMD64, but for Mac and personal ARM64 boxes, developers need ARM64 images. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#intent-p-1))
+
+The four images published under the `re-cinq` organisation's namespace on GitHub Container Registry (which this feature adds multi-arch support for at `ghcr.io/re-cinq`) are currently built by their own GitHub Actions workflows (`.github/workflows/build-lore-api.yml`, `build-mcp-server.yml`, `build-stations.yml`, `build-ui.yml`) using `docker/build-push-action` with no `platforms` argument, so every push to `main` produces a `linux/amd64`-only manifest. A developer on Apple Silicon or an ARM64 personal machine who pulls the image gets QEMU emulation or an outright pull failure depending on their Docker configuration. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#intent-p-4))
 
 ## User Scenarios
 
@@ -45,8 +47,8 @@ Developers using Apple Silicon or ARM64 machines can pull and run the container 
 
 ## Success Criteria
 
-- **SC-001**: 4 of 4 images (`lore-api`, `lore-mcp`, `lore-stations`, `lore-ui`) publish a `linux/arm64` manifest entry in their GHCR manifest index on every push to main; baseline is 0 of 4. Deadline: on merge. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-arm-manifest))
-- **SC-002**: `docker pull ghcr.io/re-cinq/<image>:<short-sha>` of the merge commit resolves to an arm64 layer on Apple Silicon with no `--platform` flag, for all four images. Deadline: on merge. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-native-pull))
+- **SC-001**: Every `ghcr.io/re-cinq` image (`lore-api`, `lore-mcp`, `lore-stations`, `lore-ui`) ships a multi-arch manifest index containing both `linux/amd64` and `linux/arm64` on every push to main, so ARM64 pullers get a native layer automatically; baseline is 0 of 4. Deadline: on merge. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-arm-manifest))
+- **SC-002**: The manifest index is validated on the `:<short-sha>` tag that the deploy pins — produced by the manifest-merge job and guaranteed to exist for every image once that job completes: `docker pull ghcr.io/re-cinq/<image>:<short-sha>` on Apple Silicon with no `--platform` flag MUST resolve to a native `linux/arm64` layer for all four images. Deadline: on merge. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#k-native-pull))
 
 ## Assumptions
 
