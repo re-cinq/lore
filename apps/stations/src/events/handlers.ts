@@ -1,5 +1,6 @@
 // One handler per subscribed event name, resolved the same way the Floor's registry does, so both drainers agree on retry, dead-lettering, and the visibility budget.
 
+import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import { STATIONS } from "../work/registry.js";
 import {
@@ -50,6 +51,7 @@ const floorReviewDeps: FloorReviewDeps = {
       pulls,
       issues,
       uiUrl: process.env.LORE_UI_URL,
+      loreAppLogin: await loreAppLogin(),
     };
   },
 };

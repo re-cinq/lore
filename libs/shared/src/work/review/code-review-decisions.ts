@@ -21,25 +21,18 @@ export function decideReviewOnOpen(input: {
   pr: PullRef | null;
   loreAppLogin?: string;
 }): { start: boolean } {
-  if (!input.autoReview || !isEligiblePr(input.pr)) {
+  const { autoReview, pr, loreAppLogin } = input;
+
+  if (!autoReview || !isEligiblePr(pr)) {
     return { start: false };
   }
+  const author = pr.author ?? "";
 
-  const author = input.pr!.author || "";
-
-  if (author === input.loreAppLogin) {
-    return { start: true };
-  }
-
-  return { start: !isBotActor(author) };
+  return { start: author === loreAppLogin || !isBotActor(author) };
 }
 
-function isEligiblePr(pr: PullRef | null): boolean {
-  if (!pr) {
-    return false;
-  }
-
-  return pr.state === "open" && pr.draft !== true;
+function isEligiblePr(pr: PullRef | null): pr is PullRef {
+  return !!pr && pr.state === "open" && pr.draft !== true;
 }
 
 export function decideReviewOnReply(input: {

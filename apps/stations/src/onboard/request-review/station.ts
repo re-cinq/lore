@@ -1,5 +1,6 @@
 // Asks the code-review line for a review of a pull request a Lore line opened. Asked for by name because that line starts on its own only for pull requests a person opened.
 
+import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import {
   defineStation,
   type Handle,
@@ -23,7 +24,13 @@ const productionDeps: RequestReviewDeps = {
     const { pulls, issues } = await projectFor(input.repo);
 
     return startReview(
-      { floor: floorClient(), pulls, issues, uiUrl: process.env.LORE_UI_URL },
+      {
+        floor: floorClient(),
+        pulls,
+        issues,
+        uiUrl: process.env.LORE_UI_URL,
+        loreAppLogin: await loreAppLogin(),
+      },
       input,
     );
   },

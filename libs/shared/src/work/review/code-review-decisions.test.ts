@@ -64,7 +64,7 @@ describe("code-review pure decisions", () => {
         autoReview: true,
         pr: openPr({ author: "lore-app-staging[bot]" }),
         loreAppLogin: "lore-app-staging[bot]",
-      } as any).start,
+      }).start,
     ).toBe(true);
 
     expect(
@@ -72,7 +72,7 @@ describe("code-review pure decisions", () => {
         autoReview: true,
         pr: openPr({ author: "other-bot[bot]" }),
         loreAppLogin: "lore-app-staging[bot]",
-      } as any).start,
+      }).start,
     ).toBe(false);
   });
 
