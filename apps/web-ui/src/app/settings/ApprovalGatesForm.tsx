@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./SettingsView.module.css";
 import type { SettingsViewProps } from "./SettingsView";
 
@@ -22,7 +23,9 @@ export default function ApprovalGatesForm(props: ApprovalGatesFormProps) {
         />
 
         <div className={styles.actions}>
-          <button type="submit">Save Approval Config</button>
+          <SubmitButton pendingLabel="Saving…">
+            Save Approval Config
+          </SubmitButton>
         </div>
       </form>
     </>

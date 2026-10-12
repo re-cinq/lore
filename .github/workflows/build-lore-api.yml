@@ -11,6 +11,11 @@ on:
       # fix lived in shared/ only, so the server never rebuilt and prod stayed broken).
       - 'libs/shared/**'
       - 'libs/server-core/**'
+      # The floor pipeline files are bundled into this image and put to the
+      # floor at boot — a pipeline-only change must rebuild + redeploy, or the
+      # floor keeps the old line (2026-09-30: the fix for a refused pipeline
+      # merged and never shipped).
+      - 'libs/assembly-lines/**'
       # The station registry is COMPILED INTO this image (the walk reads a node's
       # runtime from it / lore-api derives its maintenance jobs from it), so a
       # registry change must rebuild it — a filter that missed this would leave
@@ -28,10 +33,6 @@ on:
       - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
       - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-lore-api.yml'
-      # task-types.yaml ships to the cluster as the lore-api ConfigMap via
-      # deploy-lore-platform.sh --set-file — a prompt edit must redeploy or
-      # pods serve stale prompts (incident history in deploy-lore-platform.sh; #866).
-      - 'scripts/task-types.yaml'
       - 'scripts/ci/deploy-lore-platform.sh'
       - 'scripts/ci/helm-lock-contention.sh'
   pull_request:
@@ -39,6 +40,7 @@ on:
       - 'apps/lore-api/**'
       - 'libs/shared/**'
       - 'libs/server-core/**'
+      - 'libs/assembly-lines/**'
       # The station registry is COMPILED INTO this image (the walk reads a node's
       # runtime from it / lore-api derives its maintenance jobs from it), so a
       # registry change must rebuild it — a filter that missed this would leave
@@ -49,7 +51,6 @@ on:
       - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
       - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-lore-api.yml'
-      - 'scripts/task-types.yaml'
   workflow_dispatch:
 
 # Cancel in-progress runs when a new commit lands on the same ref —

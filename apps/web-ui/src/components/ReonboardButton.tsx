@@ -7,5 +7,11 @@ export default function ReonboardButton(props: {
   action: () => Promise<void>;
   text: string;
 }) {
-  return <PendingActionButton {...props} pendingText="opening PR…" />;
+  return (
+    <PendingActionButton
+      {...props}
+      pendingText="starting the run…"
+      className=""
+    />
+  );
 }

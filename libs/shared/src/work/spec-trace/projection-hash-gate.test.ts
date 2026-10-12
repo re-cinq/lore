@@ -120,7 +120,8 @@ function fakeDgraph(): FakeDgraph {
   };
 }
 
-const stubEmbed = async (): Promise<number[]> => [0.1, 0.2, 0.3];
+const stubEmbed = async (texts: string[]): Promise<number[][]> =>
+  texts.map(() => [0.1, 0.2, 0.3]);
 
 describe("projectSpecFile hash gate (fake port)", () => {
   const xid = "re-cinq/lore|specs/hash-gate/spec.md";

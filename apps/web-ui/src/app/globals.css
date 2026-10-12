@@ -131,6 +131,11 @@ option {
   padding: var(--space-6) var(--space-7);
 }
 
+/* A page that lays out its own gutters marks its root `data-flush-page`, so the shell's padding does not double them (the run page). */
+.main-content:has(> [data-flush-page]) {
+  padding: 0;
+}
+
 /* Mobile header — hidden on desktop */
 
 .mobile-header {
@@ -274,9 +279,13 @@ h2 {
   color: var(--text-muted);
 }
 
+/* A surface background always brings its own foreground: code inherits text color
+   otherwise, and inside a container that sets a light-scheme color (the plan
+   editor) it rendered dark text on a dark surface. */
 code {
   font-family: var(--font-mono);
   background: var(--bg-surface);
+  color: var(--text);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-sm);
   font-size: var(--fs-sm);
@@ -284,6 +293,7 @@ code {
 
 pre {
   background: var(--bg-surface);
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-4) var(--space-5);
@@ -527,45 +537,6 @@ pre {
   }
 }
 
-/* Feature-planning "analyzing" indicator (the smart-feature wizard). */
-.planning-dots {
-  display: inline-flex;
-  gap: var(--space-2);
-  vertical-align: middle;
-  margin-left: var(--space-3);
-}
-.planning-dots span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent, #2563eb);
-  animation: planning-bounce 1s ease-in-out infinite;
-}
-.planning-dots span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-.planning-dots span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-@keyframes planning-bounce {
-  0%,
-  80%,
-  100% {
-    transform: scale(0.5);
-    opacity: 0.4;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .planning-dots span {
-    animation: none;
-    opacity: 0.7;
-  }
-}
-
 /* Load-more pager (context list) */
 
 .load-more {
@@ -626,8 +597,7 @@ pre {
   background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
 }
 
-/* Form controls + lists inside spec cards (the feature-planning wizard, add-spec
-   form, …). The global reset zeroes list padding so markers escape the card, and
+/* Form controls + lists inside spec cards (the add-spec form, …). The global reset zeroes list padding so markers escape the card, and
    bare controls have no app styling — bring both in line with the theme. */
 .spec-card ul,
 .spec-card ol {

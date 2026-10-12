@@ -2,9 +2,9 @@ import type { Pool, PoolClient } from "pg";
 import {
   createPipelineTask,
   decideOnboard,
-  errorMessage,
   onboardLockKey,
-  onboardTaskDescription,
+  onboardTicketBody,
+  onboardUpdateTicketBody,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_IN_FLIGHT_TASK_SQL,
@@ -19,56 +19,19 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { selectList, fromRow } from "@re-cinq/lore-shared/lib/row.js";
 import { REPO_COLUMNS, type Repo } from "@re-cinq/lore-shared/models/repo.js";
 
-import { getOctokit } from "../../outbound/github-client.js";
+import {
+  getInstallationRepos,
+  type InstallationRepo,
+} from "./installation-repos.js";
+import {
+  floorStartFor,
+  markRunningOnFloor,
+  type FloorStart,
+} from "./onboard-on-floor.js";
 import {
   ensureLoreWebhook,
   type EnsureLoreWebhookResult,
 } from "../webhook/webhook-ensure.js";
-
-// ── Installation repos ──────────────────────────────────────────────
-
-export interface InstallationRepo {
-  full_name: string;
-  owner: string;
-  name: string;
-}
-
-const INSTALLATION_PAGE_SIZE = 100;
-
-/** Lists all repositories the GitHub App installation has access to. */
-export async function getInstallationRepos(): Promise<InstallationRepo[]> {
-  const { rest } = await getOctokit();
-  const repos: InstallationRepo[] = [];
-
-  for (let page = 1; ; page++) {
-    const batch = await fetchInstallationPage(rest.apps, page);
-
-    repos.push(...batch);
-
-    if (batch.length < INSTALLATION_PAGE_SIZE) {
-      break;
-    }
-  }
-
-  return repos;
-}
-
-/** GitHub omits the owner login on some installation entries, so the full name is the fallback source for it. */
-async function fetchInstallationPage(
-  apps: Awaited<ReturnType<typeof getOctokit>>["rest"]["apps"],
-  page: number,
-): Promise<InstallationRepo[]> {
-  const { data: listed } = await apps.listReposAccessibleToInstallation({
-    per_page: INSTALLATION_PAGE_SIZE,
-    page,
-  });
-
-  return listed.repositories.map(({ full_name, owner, name }) => ({
-    full_name,
-    owner: owner.login || full_name.split("/")[0],
-    name,
-  }));
-}
 
 // ── Database queries ────────────────────────────────────────────────
 
@@ -153,8 +116,15 @@ export interface OnboardBlockedResult {
   task_id: string | null;
 }
 
-/** What the guarded transaction produced: the two ids, or the refusal. */
-type OnboardWrite = { repoId: string; taskId: string } | OnboardBlockedResult;
+/** What the guarded transaction produced: the two ids and the ticket the task carries, or the refusal. */
+type OnboardWrite =
+  { repoId: string; taskId: string; ticket: string } | OnboardBlockedResult;
+
+export interface OnboardOptions {
+  reonboard?: boolean;
+  /** Left out, the deployment decides: the floor when one is configured. */
+  floorStart?: FloorStart;
+}
 
 interface RepoIdentity {
   fullName: string;
@@ -166,19 +136,39 @@ interface RepoIdentity {
 export async function onboardRepo(
   pool: Pool,
   fullName: string,
-  options: { reonboard?: boolean } = {},
+  options: OnboardOptions = {},
 ): Promise<OnboardResult | OnboardBlockedResult> {
-  const written = await writeOnboardTx(pool, repoIdentity(fullName), options);
+  const floorStart = options.floorStart ?? floorStartFor(pool);
+  const written = await writeOnboardTx(pool, repoIdentity(fullName), {
+    reonboard: options.reonboard,
+  });
 
   if ("blocked" in written) {
     return written;
   }
+  const { repoId, taskId, ticket } = written;
+  const webhook = await ensuredWebhook(fullName);
 
-  // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret (best-effort).
+  await floorStart({ repo: fullName, taskId, ticket });
+
+  return onboarded({ repoId, taskId }, webhook);
+}
+
+/** Points the repo's GitHub webhook at the Lore ingress WITH the HMAC secret, best-effort. */
+async function ensuredWebhook(
+  fullName: string,
+): Promise<EnsureLoreWebhookResult> {
   const webhook = await ensureLoreWebhook(fullName);
 
   logWebhookOutcome(webhook, fullName);
 
+  return webhook;
+}
+
+function onboarded(
+  written: { repoId: string; taskId: string },
+  webhook: EnsureLoreWebhookResult,
+): OnboardResult {
   return {
     repo_id: written.repoId,
     task_id: written.taskId,
@@ -204,7 +194,7 @@ function repoIdentity(fullName: string): RepoIdentity {
 async function writeOnboardTx(
   pool: Pool,
   identity: RepoIdentity,
-  options: { reonboard?: boolean },
+  options: OnboardWriteOptions,
 ): Promise<OnboardWrite> {
   const client = await pool.connect();
 
@@ -218,37 +208,46 @@ async function writeOnboardTx(
   }
 }
 
+interface OnboardWriteOptions {
+  reonboard?: boolean;
+}
+
 /** Runs both writes (repos upsert + task) on ONE connection + transaction, holding per-repo advisory lock to avoid deadlocks and ensure atomicity. */
 async function writeOnboard(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
-  options: { reonboard?: boolean },
+  options: OnboardWriteOptions,
 ): Promise<OnboardWrite> {
-  const decision = await beginAndDecide(client, fullName, options);
+  const { decision, state } = await beginAndDecide(client, fullName, options);
 
   if (!decision.allowed) {
     return refuseOnboard(client, fullName, decision);
   }
-  const written = await insertRepoAndTask(client, { fullName, owner, name });
+  const ticket = ticketFor(fullName, state);
+  const written = await insertRepoAndTask(
+    client,
+    { fullName, owner, name },
+    ticket,
+  );
 
   await client.query("COMMIT");
 
-  return written;
+  return { ...written, ticket };
 }
 
 /** The advisory lock is taken INSIDE the transaction so it releases with it — two concurrent submissions for one repo must not both read a clear state. */
 async function beginAndDecide(
   client: PoolClient,
   fullName: string,
-  options: { reonboard?: boolean },
-): Promise<OnboardDecision> {
+  options: Pick<OnboardWriteOptions, "reonboard">,
+): Promise<{ decision: OnboardDecision; state: OnboardState }> {
   await client.query("BEGIN");
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
     onboardLockKey(fullName),
   ]);
   const state = await readOnboardState(client, fullName);
 
-  return decideOnboard(fullName, state, options);
+  return { decision: decideOnboard(fullName, state, options), state };
 }
 
 /** Reads the repo's onboarding state on `client`, which must already hold the per-repo advisory lock. */
@@ -282,25 +281,48 @@ async function refuseOnboard(
   return { blocked: block, error: message, task_id: taskId };
 }
 
+/** The ticket the onboard line implements, chosen by the repo's STATE rather than by the `reonboard` flag: the repo page's button always sends that flag, so a first enrolment raised from it must still get the onboarding ticket, and only a repo whose onboarding PR has merged gets the update one. */
+function ticketFor(
+  fullName: string,
+  state: Pick<OnboardState, "onboardingPrMerged">,
+): string {
+  return state.onboardingPrMerged
+    ? onboardUpdateTicketBody(fullName)
+    : onboardTicketBody(fullName);
+}
+
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
+  identity: RepoIdentity,
+  ticket: string,
+): Promise<{ repoId: string; taskId: string }> {
+  const repoId = await upsertRepo(client, identity);
+  const task = await createPipelineTask(client, {
+    description: ticket,
+    taskType: "onboard",
+    targetRepo: identity.fullName,
+    createdBy: "onboard-system",
+    contextBundle: { repo: identity.fullName },
+  });
+
+  // Created already running: the floor runs it, and nothing may claim it as pending.
+  await markRunningOnFloor(client, task.task_id);
+
+  return { repoId, taskId: task.task_id };
+}
+
+async function upsertRepo(
+  client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
-): Promise<OnboardWrite> {
+): Promise<string> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
        ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now() RETURNING id`,
     [owner, name, fullName],
   );
-  const task = await createPipelineTask(client, {
-    description: onboardTaskDescription(fullName),
-    taskType: "onboard",
-    targetRepo: fullName,
-    createdBy: "onboard-system",
-    contextBundle: { repo: fullName },
-  });
 
-  return { repoId: rows[0].id, taskId: task.task_id };
+  return rows[0].id;
 }
 
 /** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */
@@ -317,73 +339,5 @@ function logWebhookOutcome(
   }
   console.warn(
     `[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ""}`,
-  );
-}
-
-export { fetchRepoContext, type RepoContext } from "./repo-onboard-context.js";
-
-// ── Onboarding PR merge detection (T018) ────────────────────────────
-
-export async function checkOnboardingPRs(pool: Pool): Promise<void> {
-  const { rows } = await pool.query(
-    `SELECT id, full_name, onboarding_pr_url FROM lore.repos WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`,
-  );
-
-  for (const repo of rows) {
-    try {
-      await checkOnboardingPr(pool, repo);
-    } catch (err) {
-      console.error(
-        `[repo-onboard] Error checking PR for ${repo.full_name}: ${errorMessage(err)}`,
-      );
-    }
-  }
-}
-
-/** Whether this repo's onboarding PR has merged, and what to do if it has. Failure is per repo: one repo whose PR cannot be read must not stop the sweep for the rest. */
-async function checkOnboardingPr(
-  pool: Pool,
-  repo: { id: string; full_name: string; onboarding_pr_url: string },
-): Promise<void> {
-  const match = /\/pull\/(\d+)/.exec(repo.onboarding_pr_url);
-
-  if (!match) {
-    return;
-  }
-  const [owner, name] = repo.full_name.split("/");
-  const { rest } = await getOctokit();
-  const { data: pr } = await rest.pulls.get({
-    owner,
-    repo: name,
-    pull_number: parseInt(match[1]),
-  });
-
-  if (!pr.merged) {
-    return;
-  }
-
-  await recordMergedOnboarding(pool, repo);
-}
-
-/** Marks the onboarding done and queues the first ingestion. The merge is what makes the repo's conventions readable, so this does not wait for the nightly pass — a freshly onboarded repo whose CLAUDE.md nobody has read yet is exactly the case onboarding exists to fix. */
-async function recordMergedOnboarding(
-  pool: Pool,
-  repo: { id: string; full_name: string },
-): Promise<void> {
-  await pool.query(
-    `UPDATE lore.repos SET onboarding_pr_merged = true, last_ingested_at = now() WHERE id = $1`,
-    [repo.id],
-  );
-  const { createTask } =
-    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
-
-  await createTask({
-    description: `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
-    taskType: "general",
-    targetRepo: repo.full_name,
-    createdBy: "onboard-ingest",
-  });
-  console.log(
-    `[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`,
   );
 }

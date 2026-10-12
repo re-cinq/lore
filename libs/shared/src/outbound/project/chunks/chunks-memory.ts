@@ -1,4 +1,5 @@
 import { LegacyRelocationStore } from "./chunks-memory-relocate.js";
+import { isTestFile } from "../../../domain/test-paths.js";
 import { enforceSchema, type ChunkRow } from "./chunk-row-memory.js";
 import type {
   ChunksPort,
@@ -49,7 +50,7 @@ function chunkIndexOf(row: ChunkRow): number | null {
   return (row.metadata.chunk_index as number | undefined) ?? null;
 }
 
-/** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets context-core jobs and stations test without a live {schema}.chunks table. */
+/** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets stations test without a live {schema}.chunks table. */
 export class InMemoryChunks implements ChunksPort {
   private seq = 0;
   private readonly relocation: LegacyRelocationStore;
@@ -218,9 +219,9 @@ export class InMemoryChunks implements ChunksPort {
     }));
   }
 
-  async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
+  async testChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
     return this.forRepo(repo)
-      .filter((row) => isSourceRow(row))
+      .filter((row) => isSourceRow(row) && isTestFile(row.filePath))
       .map((row) => ({
         filePath: row.filePath,
         content: row.content,

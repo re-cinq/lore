@@ -12,14 +12,10 @@ import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import {
-  parseDarkFactorySettings,
-  twoKeyFieldsTouched,
-} from "../../../work/dark-factory/dark-factory-settings.js";
+import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
-
-// THE REFUSAL IS THE POINT: a patch touching privileged dark-factory fields is refused outright (nothing written) to keep the CODEOWNER-approval ceremony on PUT /settings/dark-factory from being bypassed by this blanket merge.
+import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 
 const RepoSettingsBody = z.object({
   team: z.string().nullable().optional(),
@@ -56,18 +52,61 @@ async function serveRepoSettings(
   const repo = `${request.params.owner}/${request.params.repo}`;
   const body = request.payload as RepoSettingsBody;
   const existingTeam = await loadRepoTeam(pool, repo);
-  const darkFactory = (body.settings as { dark_factory?: unknown } | undefined)
-    ?.dark_factory;
 
-  enforceDarkFactoryAllowed(darkFactory, repo);
-  await applyRepoUpdates(pool, repo, body);
+  const gate = await enforceApproverGate(request, repo, body);
 
-  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
-  if (body.team !== undefined && (body.team || null) !== existingTeam) {
-    await notifyTeamChanged(pool, repo);
+  if (!gate.ok) {
+    return h.response(gate.body).code(gate.code);
   }
 
+  enforceNoDarkFactory(body);
+  enforceDigestValid(
+    (body.settings as { digest?: unknown } | undefined)?.digest,
+  );
+  await applyRepoUpdates(pool, repo, body);
+  await handleTeamChange(pool, repo, body.team, existingTeam);
+
   return h.response({ ok: true });
+}
+
+async function handleTeamChange(
+  pool: Pool,
+  repo: string,
+  bodyTeam: string | null | undefined,
+  existingTeam: string | null,
+): Promise<void> {
+  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
+  if (bodyTeam !== undefined && (bodyTeam || null) !== existingTeam) {
+    await notifyTeamChanged(pool, repo);
+  }
+}
+
+async function enforceApproverGate(
+  request: Request,
+  repo: string,
+  body: RepoSettingsBody,
+): Promise<{ ok: true } | ApprovalOutcome> {
+  const autoMerge = body.settings?.auto_merge as
+    { approver?: string } | undefined;
+
+  if (autoMerge?.approver !== "lore-reviewer") {
+    return { ok: true };
+  }
+
+  return checkApproval(
+    request,
+    repo,
+    ["auto_merge.approver"],
+    "Turning auto_merge.approver on is two-key",
+  );
+}
+
+function enforceNoDarkFactory(body: RepoSettingsBody): void {
+  enforceTrue(
+    body.settings?.dark_factory === undefined,
+    apiError(400),
+    "dark_factory settings were removed on 2026-10-02",
+  );
 }
 
 /** The stored team for a repo, refusing when the repo was never onboarded. */
@@ -82,35 +121,27 @@ async function loadRepoTeam(pool: Pool, repo: string): Promise<string | null> {
   return rows[0].team;
 }
 
-function enforceDarkFactoryAllowed(darkFactory: unknown, repo: string): void {
-  if (!darkFactory) {
+/** The digest block is read by a station with no user in front of it, so a malformed one (a weekday of 9, a time of "9am") is refused here rather than stored (specs/daily-digest FR1). */
+function enforceDigestValid(digest: unknown): void {
+  // null clears the block under the route's `||` merge; only a block that is there is checked.
+  if (digest === undefined || digest === null) {
     return;
   }
-
-  // Parse to DETECT, not validate — an unparseable block can't be screened, so it's refused rather than merged unexamined.
-  const parsed = safeParseDarkFactory(darkFactory);
-
-  enforceTrue(parsed.ok, apiError(400), "invalid dark_factory settings");
-  const touched = twoKeyFieldsTouched(parsed.value);
+  const parsed = DigestSettingsSchema.safeParse(digest);
 
   enforceTrue(
-    touched.length <= 0,
-    apiError(403),
-    `privileged dark-factory fields (${touched.join(", ")}) are written through PUT /api/repos/${repo}/settings/dark-factory, which requires the CODEOWNER approval PR`,
+    parsed.success,
+    apiError(400),
+    `invalid digest settings: ${digestIssues(parsed.error?.issues ?? [])}`,
   );
 }
 
-/** Never throws: an invalid block is a client error, not a 500. */
-function safeParseDarkFactory(
-  raw: unknown,
-):
-  | { ok: true; value: ReturnType<typeof parseDarkFactorySettings> }
-  | { ok: false } {
-  try {
-    return { ok: true, value: parseDarkFactorySettings(raw) };
-  } catch {
-    return { ok: false };
-  }
+function digestIssues(
+  issues: Array<{ path: PropertyKey[]; message: string }>,
+): string {
+  return issues
+    .map(({ path, message }) => `${path.join(".")} ${message}`)
+    .join("; ");
 }
 
 /** Writes the columns this patch touched; a patch that names none is a client error. */

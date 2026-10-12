@@ -8,10 +8,13 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { RepoNumberParams, githubFailureResponse } from "./github-read.js";
+import {
+  RepoNumberParams,
+  githubFailureResponse,
+  onboardedProject,
+} from "./github-read.js";
 
 // A GitHub read, not a table read, so this shape is stated rather than derived; mirrors `PullFileChange` in @re-cinq/lore-shared.
 const PullFilesSchema = z.object({
@@ -55,7 +58,7 @@ async function servePullFiles(
   const { owner, repo, number } = request.params as unknown as RepoNumberParams;
 
   try {
-    const project = await projectFor(`${owner}/${repo}`);
+    const project = await onboardedProject(`${owner}/${repo}`);
     const files = await project.pulls.listFileChanges(number);
 
     return h.response({ files });

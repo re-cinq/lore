@@ -1,50 +1,18 @@
-/** Light OpenTelemetry helpers; trace/metric emitters built on @opentelemetry/api (no-ops until SDK registered). */
+/** Light OpenTelemetry helpers: the spans lore-api and the adapter emit, with their metric half recorded through the shared instruments (`@re-cinq/lore-shared/otel/metrics.js`). No-ops until an SDK is registered. */
 
-import { trace, metrics } from "@opentelemetry/api";
+import { trace } from "@opentelemetry/api";
+import {
+  isGapCandidate,
+  recordEpisodeWritten,
+  recordRetrieval,
+  recordTaskCreated,
+  recordToolCall,
+  traceHttp,
+} from "@re-cinq/lore-shared/otel/metrics.js";
 
-const GAP_THRESHOLD = 0.72;
-
-export function isGapCandidate(topScore: number): boolean {
-  return topScore < GAP_THRESHOLD;
-}
+export { isGapCandidate, traceHttp };
 
 const tracer = trace.getTracer("lore");
-const meter = metrics.getMeter("lore");
-const retrievalHistogram = meter.createHistogram("lore.retrieval.score", {
-  description: "Top retrieval score per search call",
-});
-const retrievalCounter = meter.createCounter("lore.retrieval.count", {
-  description: "Total retrieval calls",
-});
-const gapCounter = meter.createCounter("lore.retrieval.gap_candidates", {
-  description: "Low-confidence retrievals (potential gaps)",
-});
-
-// ── Tool + HTTP metrics ─────────────────────────────────────────────
-
-const toolLatency = meter.createHistogram("lore.tool.duration_ms", {
-  description: "MCP tool call duration in milliseconds",
-  unit: "ms",
-});
-const toolCounter = meter.createCounter("lore.tool.calls", {
-  description: "Total MCP tool calls",
-});
-const toolErrors = meter.createCounter("lore.tool.errors", {
-  description: "MCP tool call errors",
-});
-const httpLatency = meter.createHistogram("lore.http.duration_ms", {
-  description: "HTTP request duration in milliseconds",
-  unit: "ms",
-});
-const httpCounter = meter.createCounter("lore.http.requests", {
-  description: "Total HTTP requests",
-});
-const taskCounter = meter.createCounter("lore.tasks.created", {
-  description: "Pipeline tasks created",
-});
-const episodeCounter = meter.createCounter("lore.episodes.written", {
-  description: "Episodes written",
-});
 
 export function traceTool(call: {
   tool: string;
@@ -60,35 +28,15 @@ export function traceTool(call: {
     "lore.success": success,
   });
   span.end();
-
-  toolLatency.record(durationMs, { tool });
-  toolCounter.add(1, { tool, success: String(success) });
-
-  if (!success) {
-    toolErrors.add(1, { tool });
-  }
-}
-
-export function traceHttp(
-  method: string,
-  path: string,
-  statusCode: number,
-  durationMs: number,
-): void {
-  httpLatency.record(durationMs, { method, path: normalizePath(path) });
-  httpCounter.add(1, {
-    method,
-    path: normalizePath(path),
-    status: String(statusCode),
-  });
+  recordToolCall(call);
 }
 
 export function traceTaskCreated(taskType: string, repo: string): void {
-  taskCounter.add(1, { task_type: taskType, repo });
+  recordTaskCreated(taskType, repo);
 }
 
 export function traceEpisodeWritten(source: string): void {
-  episodeCounter.add(1, { source });
+  recordEpisodeWritten(source);
 }
 
 export function traceRetrieval(params: {
@@ -98,14 +46,7 @@ export function traceRetrieval(params: {
   resultCount: number;
 }): void {
   recordRetrievalSpan(params);
-  retrievalHistogram.record(params.topScore, {
-    namespace: params.namespace,
-  });
-  retrievalCounter.add(1, { namespace: params.namespace });
-
-  if (isGapCandidate(params.topScore)) {
-    gapCounter.add(1, { namespace: params.namespace });
-  }
+  recordRetrieval(params.namespace, params.topScore);
 }
 
 // One span per retrieval, carrying what was asked and how well it was answered. `gap_candidate` is recorded ON the span as well as counted, so a trace explains its own metric.
@@ -125,14 +66,4 @@ function recordRetrievalSpan(params: {
     "lore.gap_candidate": isGapCandidate(params.topScore),
   });
   span.end();
-}
-
-function normalizePath(path: string): string {
-  // Collapse UUIDs and IDs to keep cardinality low
-  return path
-    .replace(/\/[0-9a-f-]{36}/g, "/:id")
-    .replace(/\?.*/, "")
-    .split("/")
-    .slice(0, 3)
-    .join("/");
 }

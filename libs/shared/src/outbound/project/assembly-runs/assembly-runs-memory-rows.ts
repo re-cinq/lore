@@ -49,3 +49,18 @@ export function newRunLifecycle(now: Date) {
     finishedAt: null,
   };
 }
+
+/** Flips an ENDED row back to running without its verdict (mirrors the Pg guard); false for a row still open. */
+export function reopenRow(row: AssemblyRunRecord): boolean {
+  if (row.status === "queued" || row.status === "running") {
+    return false;
+  }
+  Object.assign(row, {
+    status: "running",
+    outcome: null,
+    reason: null,
+    finishedAt: null,
+  });
+
+  return true;
+}

@@ -1,4 +1,9 @@
-import { type Check, type CheckStatus, passSummary } from "@/lib/enrollment";
+import {
+  type Check,
+  type CheckStatus,
+  passSummary,
+  setupTriggerText,
+} from "@/lib/enrollment";
 import EnrollmentHelp from "./EnrollmentHelp";
 import LocalSetupSteps from "./LocalSetupSteps";
 import CopyButton from "./CopyButton";
@@ -25,7 +30,10 @@ interface EnrollmentSectionProps {
 export default function EnrollmentSection(props: EnrollmentSectionProps) {
   return (
     <div className={`spec-card ${styles.section}`}>
-      <EnrollmentHeader checks={props.checks} />
+      <EnrollmentHeader
+        checks={props.checks}
+        reonboardAction={props.reonboardAction}
+      />
 
       <div className={`meta ${styles.groupLabel}`}>Repo integration</div>
       <div className={styles.checks}>
@@ -37,9 +45,13 @@ export default function EnrollmentSection(props: EnrollmentSectionProps) {
   );
 }
 
-/** The section title, with how many of the checks are green. */
-function EnrollmentHeader({ checks }: { checks: Check[] }) {
+/** The section title, how many of the checks are green, and the update trigger when the page can act. */
+function EnrollmentHeader({
+  checks,
+  reonboardAction,
+}: Pick<EnrollmentSectionProps, "checks" | "reonboardAction">) {
   const { passed, total } = passSummary(checks);
+  const triggerText = setupTriggerText(checks);
 
   return (
     <div className={styles.header}>
@@ -48,6 +60,9 @@ function EnrollmentHeader({ checks }: { checks: Check[] }) {
       <span className={`meta ${styles.summary}`}>
         {passed}/{total} checks passing
       </span>
+      {reonboardAction && triggerText ? (
+        <ReonboardButton action={reonboardAction} text={triggerText} />
+      ) : null}
     </div>
   );
 }
@@ -55,14 +70,12 @@ function EnrollmentHeader({ checks }: { checks: Check[] }) {
 /** Every repo-integration check, each carrying whichever fix action applies to it. */
 function CheckRows({
   checks,
-  reonboardAction,
   setupWebhookAction,
-}: EnrollmentSectionProps) {
+}: Pick<EnrollmentSectionProps, "checks" | "setupWebhookAction">) {
   return checks.map((check) => (
     <CheckRow
       key={check.id}
       check={check}
-      reonboardAction={reonboardAction}
       setupWebhookAction={setupWebhookAction}
     />
   ));
@@ -70,7 +83,6 @@ function CheckRows({
 
 interface CheckRowProps {
   check: Check;
-  reonboardAction?: () => Promise<void>;
   setupWebhookAction?: () => Promise<void>;
 }
 
@@ -83,7 +95,7 @@ function CheckRow(props: CheckRowProps) {
       <span className={styles.label}>{check.label}</span>
       <span className="enroll-dots" />
       <CheckDetail check={check} />
-      <CheckActions {...props} />
+      <SetupWebhookAction {...props} />
       <CheckCopy check={check} />
       <CheckSecret check={check} />
     </div>
@@ -125,23 +137,6 @@ function CheckDetail({ check }: { check: Check }) {
   );
 }
 
-/** Whichever fix actions this check offers; each renders nothing when it does not apply. */
-function CheckActions({
-  check,
-  reonboardAction,
-  setupWebhookAction,
-}: CheckRowProps) {
-  return (
-    <>
-      <ReonboardAction check={check} reonboardAction={reonboardAction} />
-      <SetupWebhookAction
-        check={check}
-        setupWebhookAction={setupWebhookAction}
-      />
-    </>
-  );
-}
-
 function CheckCopy({ check }: { check: Check }) {
   if (!check.copy) {
     return null;
@@ -162,20 +157,6 @@ function CheckSecret({ check }: { check: Check }) {
   }
 
   return <SecretReveal value={check.secret.value} label={check.secret.label} />;
-}
-
-function ReonboardAction({
-  check,
-  reonboardAction,
-}: {
-  check: Check;
-  reonboardAction?: () => Promise<void>;
-}) {
-  if (check.action?.kind !== "reonboard" || !reonboardAction) {
-    return null;
-  }
-
-  return <ReonboardButton action={reonboardAction} text={check.action.text} />;
 }
 
 function SetupWebhookAction({

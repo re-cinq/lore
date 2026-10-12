@@ -66,6 +66,7 @@ describe("buildImpactAnnotations", () => {
           {
             specPath: "specs/widget/spec.md",
             specTitle: "Widget Spec",
+            section: "FR-1: Rendering",
             statementText: "The widget MUST render on mount.",
             statementAnchor: "specs/widget/spec.md",
             tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
@@ -77,19 +78,44 @@ describe("buildImpactAnnotations", () => {
       [{ path: "src/widget.ts", ranges: [[5, 8]] }],
     );
 
-    expect(annotations).toMatchObject([
+    expect(annotations).toEqual([
       {
         path: "src/widget.ts",
         start_line: 5,
         end_line: 8,
         annotation_level: "warning",
+        title: "Lore: coupled spec statement",
+        message:
+          'specs/widget/spec.md › FR-1: Rendering\n"The widget MUST render on mount."',
       },
     ]);
-    expect(annotations[0].message).toContain("Widget Spec");
-    expect(annotations[0].message).toContain(
-      "The widget MUST render on mount.",
+  });
+
+  it("names only the spec path and the statement without its validated-by links when the statement has no section", () => {
+    const annotations = buildImpactAnnotations(
+      {
+        status: "ok",
+        testSelectors: [],
+        orphaned: [],
+        statements: [
+          {
+            specPath: "specs/widget/spec.md",
+            specTitle: "Widget Spec",
+            statementText:
+              "Accepts a|b on mount. ([validated by `renders`](test/widget.test.ts#L12), [`mounts`](test/widget.test.ts#L30))",
+            statementAnchor: "specs/widget/spec.md",
+            tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
+            changedFile: "src/widget.ts",
+            evidence: "coverage",
+          },
+        ],
+      },
+      [{ path: "src/widget.ts", ranges: [[5, 8]] }],
     );
-    expect(annotations[0].message).toContain("test/widget.test.ts");
+
+    expect(annotations[0].message).toEqual(
+      'specs/widget/spec.md\n"Accepts a|b on mount."',
+    );
   });
 
   it("emits a notice annotation on the deleted range for an orphaned statement", () => {
@@ -111,15 +137,17 @@ describe("buildImpactAnnotations", () => {
       [{ path: "src/legacy.ts", ranges: [], deleted: [[10, 20]] }],
     );
 
-    expect(annotations).toMatchObject([
+    expect(annotations).toEqual([
       {
         path: "src/legacy.ts",
         start_line: 10,
         end_line: 20,
         annotation_level: "notice",
+        title: "Lore: only coverage removed",
+        message:
+          'Removes the only coverage for:\nspecs/legacy/spec.md\n"Coverage reports MUST attribute ranges per test."',
       },
     ]);
-    expect(annotations[0].message).toContain("only coverage");
   });
 
   it("renders indirect statements as notice-level rather than warning so they appear in a quieter PR section", () => {

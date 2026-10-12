@@ -80,8 +80,10 @@ generality, no refactoring yet.
 - *Triangulate* — leave generalization to the NEXT test. Do not guess the general
   solution now.
 
-Run the suite — the whole suite if it is fast, otherwise the new test plus everything
-touching the files involved. All of it must pass.
+Run the tests you are working against — the one you just wrote plus the acceptance
+tests that define done — by naming their files. Never the repository's whole suite:
+CI runs that on every push, and the pod's Bash hook refuses a bare `npm test` or
+`vitest run` with no path. All of what you run must pass.
 
 **Never edit the test to make it pass.** If the test is wrong, say so and stop; that is
 a finding, not a green bar.

@@ -78,19 +78,13 @@ describe("needsWebhookSecret", () => {
 });
 
 describe("overviewSettings", () => {
-  it("reads enabled true and the trust level from the settings JSONB", () => {
-    expect(
-      overviewSettings({
-        dark_factory: { enabled: true },
-        trust: { level: "implementation" },
-      }),
-    ).toEqual({ darkFactoryEnabled: true, trustLevel: "implementation" });
+  it("reads trust level implementation from the settings JSONB", () => {
+    expect(overviewSettings({ trust: { level: "implementation" } })).toEqual({
+      trustLevel: "implementation",
+    });
   });
 
-  it("reads unset trust and dark factory off from empty settings", () => {
-    expect(overviewSettings(null)).toEqual({
-      darkFactoryEnabled: false,
-      trustLevel: "unset",
-    });
+  it("reads unset trust from empty settings", () => {
+    expect(overviewSettings(null)).toEqual({ trustLevel: "unset" });
   });
 });

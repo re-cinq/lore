@@ -157,7 +157,7 @@ it lands inside Decision 4's security model:
   over MCP-over-HTTP behind a public `:443` host with bearer auth. Because the entry is reached over an
   egress-host-checked `http` URL (Decision 4, "Egress hosts"), the stdio `mcp_servers[].command`
   two-key gate (Decision 4, "Command execution") does not apply — nothing executes in the pod.
-- **The seed carries it.** `buildAgentDefinition` emits `resources.mcp_servers: [{ name: lore,
+- **The rendered recipe carries it.** The catalog sync's `agentDefToCrds` emits `resources.mcp_servers: [{ name: lore,
   transport: http, url: <gateway>, headers_secret: lore-mcp-auth }]` and lists
   `lore_create_pipeline_task` in `disallowed_tools` (closing the task-recursion vector), mirroring the
   already-shipped `output.sinks[].http` + `headers_secret` precedent proven to reach a public endpoint
@@ -182,7 +182,7 @@ URL; the ai-agent-subsystem init **fetches** and knows nothing of the registry.
   validated.
 - **Lore is the registry.** The `lore-mcp` gateway serves the curated agent skill bundles +
   `settings.json` (baked into *its* image — Lore content in a Lore service, never the subsystem);
-  `buildAgentDefinition` seeds `skills_source: <gateway>/skills` + the per-task-type skill names.
+  `agentDefToCrds` renders `skills_source: <gateway>/skills` + the per-task-type skill names.
 - **Why fetch, not baked or inline.** Baking Lore skills into the subsystem image would make it
   Lore-aware; inlining content bloats the CR and can't carry multi-file skills. A name + URL keeps the
   subsystem agnostic and is exactly the "define in Lore, referenced by name" model.

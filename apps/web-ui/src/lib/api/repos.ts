@@ -114,7 +114,7 @@ export function putOrgSettings(
   });
 }
 
-/** General (non-privileged) repo settings write — lore-api REFUSES a patch touching a privileged dark-factory field (403); those go through its own endpoint + CODEOWNER approval PR. */
+/** The repo settings write: a merge into the stored block, not a replace. */
 export function putRepoSettings(
   repo: string,
   patch: { team?: string | null; settings?: Record<string, unknown> },

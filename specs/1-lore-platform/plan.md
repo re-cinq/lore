@@ -282,8 +282,8 @@ GitHub Issues for human-visible tracking:
 Context Cores as OCI bundles were not implemented. Instead, YAML context
 assembly templates in `mcp-server/templates/` (default, review,
 implementation, research) configure what context is assembled and at what
-priority. `context-core-builder.ts` exists in the agent but OCI promotion
-is not wired.
+priority. `context-core-builder.ts` was deleted with Lore's own Floor on
+2026-10-02; OCI promotion was never wired.
 
 #### Observability
 
@@ -472,7 +472,7 @@ Opt-in per repo via `auto_review` setting:
 |------|----------|-------|
 | Knowledge graph temporal traversal | Medium | `get_entity_history` not implemented; graph is flat SQL (1-hop), not Graphiti traversal |
 | p99 latency benchmark | Medium | Hybrid search functional but 200ms target not verified under load |
-| Context Core OCI promotion | Low | `context-core-builder.ts` exists; OCI artifact push and `crane pull` in install.sh not wired |
+| Context Core OCI promotion | Low | Dropped: `context-core-builder.ts` was deleted with Lore's own Floor on 2026-10-02; OCI artifact push and `crane pull` in install.sh were never wired |
 | Graphiti + FalkorDB deployment | Low | `scripts/graphiti/ontology.yaml` exists; deployment deferred indefinitely |
 | Langfuse dependency in autoresearch | Low | `autoresearch.ts` reads gap signals from Langfuse (`LANGFUSE_PK/SK/HOST`). If Langfuse is not configured, the autoresearch loop silently skips. Cloud Monitoring gap metrics (`lore/gap_candidates`) are written but not consumed by autoresearch. |
 

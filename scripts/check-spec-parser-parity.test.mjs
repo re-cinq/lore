@@ -9,6 +9,8 @@ import * as sharedLinks from "@re-cinq/lore-shared/spec-link-parser.js";
 import * as vendoredStatus from "@re-cinq/eslint-plugin-re-lint/spec/spec-status.js";
 import * as vendoredCoverage from "@re-cinq/eslint-plugin-re-lint/spec/spec-status-coverage.js";
 import * as vendoredLinks from "@re-cinq/eslint-plugin-re-lint/spec/spec-link-parser.js";
+import * as sharedGrounding from "@re-cinq/lore-shared/feature-planning/grounding.js";
+import * as vendoredGrounding from "@re-cinq/eslint-plugin-re-lint/spec/grounding.js";
 
 /**
  * The spec-traceability parsers exist twice: libs/shared is the source of
@@ -81,6 +83,27 @@ test("linksForStatements agrees on every spec and ADR", () => {
       JSON.stringify(sharedLinks.linksForStatements(content)) !==
       JSON.stringify(vendoredLinks.linksForStatements(content))
     );
+  });
+
+  assert.deepEqual(
+    disagreements.map((doc) => doc.path),
+    [],
+  );
+});
+
+/**
+ * The grounding parser is vendored too, for `no-ungrounded-spec-name`. The
+ * planning line feeds it a tree and file contents; the eslint rule feeds it the
+ * paths a document names that are on disk. Both start from the same two pure
+ * reads of the text, so those are what must agree.
+ */
+test("namedPaths + declaredNewPaths agree on every spec and ADR", () => {
+  const disagreements = corpus.filter(({ content }) => {
+    const same = (fn) =>
+      JSON.stringify(sharedGrounding[fn](content)) ===
+      JSON.stringify(vendoredGrounding[fn](content));
+
+    return !same("namedPaths") || !same("declaredNewPaths");
   });
 
   assert.deepEqual(

@@ -1,0 +1,46 @@
+line:
+  id: lore-run-settled
+  entry: settle
+  exit: done
+  start:
+    on:
+      - internal.run.settled
+    args:
+      run_id: "{runId}"
+      line_id: "{lineId}"
+      outcome: "{outcome}"
+  args:
+    # One run per settled run: the floor may report a settlement more than once.
+    run_id:
+      kind: value
+      subject: true
+    line_id:
+      kind: value
+    outcome:
+      kind: value
+  nodes:
+    - id: settle
+      station: run-settled
+    - id: done
+  edges:
+    - from: settle
+      to: done
+      on: success
+    - from: settle
+      to: done
+      on: failed
+stations:
+  run-settled:
+    description: Runs whenever a run on the floor ends and settles what Lore tracks for it, such as the task's status, the backlog ticket, or a failed check for a review that never finished.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: run_id
+        kind: value
+      - name: line_id
+        kind: value
+      - name: outcome
+        kind: value
+    produces: []

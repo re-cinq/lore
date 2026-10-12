@@ -14,10 +14,16 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
+import { parseSlackUsers } from "@re-cinq/lore-shared/digest/people.js";
 
 // Org-wide `lore.settings` (ADR-032); the write is an ALLOWLIST, not a passthrough — an open upsert would let a caller invent settings the platform then reads.
 
-const WRITABLE_KEYS = new Set(["api_url", "ingest_token", "approval_config"]);
+const WRITABLE_KEYS = new Set([
+  "api_url",
+  "ingest_token",
+  "approval_config",
+  "slack_users",
+]);
 
 const SettingsBody = z.object({
   entries: z
@@ -113,9 +119,33 @@ async function serveOrgSettingsWrite(
       .code(400);
   }
 
+  enforceTrue(
+    !entries.some(isInvalidSlackUsers),
+    apiError(400),
+    "slack_users must map GitHub logins to Slack user ids (U…)",
+  );
+
   await applySettingEntries(pool, entries);
 
   return h.response({ ok: true });
+}
+
+/** The daily digest reads slack_users with no user in front of it, so a map it could not use is refused here (specs/daily-digest FR12). */
+function isInvalidSlackUsers({
+  key,
+  value,
+}: SettingsBody["entries"][number]): boolean {
+  if (key !== "slack_users" || !value.trim()) {
+    return false;
+  }
+
+  try {
+    parseSlackUsers(value);
+
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /** Upserts each posted entry, skipping the blanks the form re-posts for untouched fields. */

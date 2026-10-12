@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { prFooter } from "./pr-body.js";
+import { linkedIssueNumber, prFooter } from "./pr-body.js";
 
 describe("prFooter (T047)", () => {
   it("emits Lore-Task only when no issue exists", () => {
@@ -40,5 +40,33 @@ describe("prFooter (T047)", () => {
     expect(prFooter({ taskId: "uuid-1", coverage: "partial" })).toBe(
       "\n\nLore-Task: uuid-1",
     );
+  });
+});
+
+describe("linkedIssueNumber", () => {
+  it("returns 12 for Closes #12", () => {
+    expect(linkedIssueNumber("Closes #12")).toBe(12);
+  });
+
+  it("returns null for Refs #7, which relates to an issue without claiming to resolve it", () => {
+    expect(
+      linkedIssueNumber("Adds the route.\n\nRefs #7\nLore-Task: uuid-1"),
+    ).toBeNull();
+  });
+
+  it("returns 5 when Closes #5 comes before Fixes #8", () => {
+    expect(linkedIssueNumber("Closes #5 and Fixes #8")).toBe(5);
+  });
+
+  it("returns 3 for lowercase fixes #3", () => {
+    expect(linkedIssueNumber("fixes #3")).toBe(3);
+  });
+
+  it("returns null for see #9 without a keyword", () => {
+    expect(linkedIssueNumber("see #9")).toBeNull();
+  });
+
+  it("returns null for a null body", () => {
+    expect(linkedIssueNumber(null)).toBeNull();
   });
 });

@@ -3,7 +3,9 @@ import type {
   IssueRef,
   IssueFilter,
   CloseReason,
+  IssueEdit,
 } from "../lib/github-port.js";
+import type { IssueComment } from "../pulls/pull-requests-port.js";
 
 /** Value-object sub-facade over GitHubPort (repo-bound); cheap to construct, keeps Project stateless. */
 export class IssueCollection {
@@ -35,8 +37,24 @@ export class IssueCollection {
     return this.github.createLabels(this.repo, labels);
   }
 
+  addSubIssue(parentNumber: number, childNumber: number): Promise<void> {
+    return this.github.addSubIssue(this.repo, parentNumber, childNumber);
+  }
+
+  update(number: number, edit: IssueEdit): Promise<void> {
+    return this.github.updateIssue(this.repo, number, edit);
+  }
+
   comment(number: number, body: string): Promise<void> {
     return this.github.commentOnIssue(this.repo, number, body);
+  }
+
+  listComments(number: number): Promise<IssueComment[]> {
+    return this.github.listIssueComments(this.repo, number);
+  }
+
+  updateComment(id: number, body: string): Promise<void> {
+    return this.github.updateIssueComment(this.repo, id, body);
   }
 
   close(number: number, reason?: CloseReason): Promise<void> {
@@ -53,5 +71,9 @@ export class IssueCollection {
 
   getLabels(number: number): Promise<string[]> {
     return this.github.getIssueLabels(this.repo, number);
+  }
+
+  openBlockers(number: number): Promise<number[]> {
+    return this.github.listOpenBlockers(this.repo, number);
   }
 }

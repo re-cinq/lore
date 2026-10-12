@@ -47,6 +47,11 @@ const HOST_NOT_CONFIGURED = {
   reason: "webhook_host_not_configured",
 };
 
+/** A repository's own hook on GitHub: its state, its repair and its secret. */
+export function repoWebhookRoutes(): ServerRoute[] {
+  return [webhookStatusRoute(), webhookEnsureRoute(), webhookSecretRoute()];
+}
+
 export function webhookStatusRoute(): ServerRoute {
   return {
     method: "GET",

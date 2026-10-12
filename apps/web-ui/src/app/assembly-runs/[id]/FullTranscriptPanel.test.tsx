@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import FullTranscriptPanel from "./FullTranscriptPanel";
@@ -185,6 +186,23 @@ describe("FullTranscriptPanel", () => {
     expect(await screen.findByText(/iteration 2/)).toBeTruthy();
   });
 
+  it("shows only iteration 2's turns when told the attempt", async () => {
+    stubFetch(
+      turnsResponse([
+        wireTurn("1", "implement", 1),
+        wireTurn("2", "implement", 2),
+      ]),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" iteration={2} />,
+    );
+
+    await openPanel(container);
+
+    expect(await screen.findByText(/full text of turn 2/)).toBeTruthy();
+    expect(screen.queryByText(/full text of turn 1/)).toBeNull();
+  });
+
   it("switching nodes refilters without refetching", async () => {
     const fetchMock = stubFetch(
       turnsResponse([wireTurn("1", "implement"), wireTurn("2", "review")]),
@@ -226,6 +244,42 @@ describe("FullTranscriptPanel", () => {
     expect(
       await screen.findByText(/No stored turns for implement/),
     ).toBeTruthy();
+  });
+
+  it("says a running or queued node has no turns yet rather than that they were pruned", async () => {
+    stubFetch(turnsResponse([]));
+    const { container } = render(
+      <FullTranscriptPanel
+        runId="run-1"
+        nodeId="implement"
+        nodeStatus="running"
+      />,
+    );
+
+    await openPanel(container);
+
+    expect(
+      await screen.findByText(
+        "No turns yet: this step is still running or queued.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/retention horizon/)).toBeNull();
+  });
+
+  it("keeps the retention explanation for a finished node with no stored turns", async () => {
+    stubFetch(turnsResponse([]));
+    const { container } = render(
+      <FullTranscriptPanel
+        runId="run-1"
+        nodeId="implement"
+        nodeStatus="failed"
+      />,
+    );
+
+    await openPanel(container);
+
+    expect(await screen.findByText(/retention horizon/)).toBeTruthy();
+    expect(screen.queryByText(/No turns yet/)).toBeNull();
   });
 
   it("surfaces a fetch failure instead of an empty transcript", async () => {
@@ -548,4 +602,68 @@ describe("FullTranscriptPanel as a terminal conversation", () => {
       "task Running → PR created",
     );
   });
+});
+
+describe("FullTranscriptPanel under React Strict Mode", () => {
+  it("shows the run's turns rather than Loading after the development double mount", async () => {
+    stubFetch(turnsResponse([wireTurn("1", "implement")]));
+    render(
+      <StrictMode>
+        <FullTranscriptPanel runId="run-1" nodeId="implement" />
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
+  });
+});
+
+describe("FullTranscriptPanel following a live run", () => {
+  it("fetches only the turns after the newest one when a live event arrives, and shows them", async () => {
+    const fetchMock = stubFetch(
+      turnsResponse([wireTurn("1", "implement")]),
+      turnsResponse([wireTurn("2", "implement")]),
+    );
+    const { container, rerender } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" liveEventId="10" />,
+    );
+
+    await openPanel(container);
+    await screen.findByText(/full text of turn 1/);
+    rerender(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" liveEventId="11" />,
+    );
+
+    expect(await screen.findByText(/full text of turn 2/)).toBeTruthy();
+    expect(String(fetchMock.mock.calls[1][0])).toContain("after=1");
+  });
+
+  it("stops following at the load cap and says so, instead of growing a live transcript without bound", async () => {
+    const heldBeforeCap = MAX_TURNS_LOADED - 1;
+    const fetchMock = stubFetch(
+      turnsResponse(fullPage(1, "other")),
+      turnsResponse(
+        Array.from({ length: heldBeforeCap - TURNS_PAGE_LIMIT }, (_, i) =>
+          wireTurn(String(TURNS_PAGE_LIMIT + 1 + i), "other"),
+        ),
+      ),
+      turnsResponse([
+        wireTurn(String(MAX_TURNS_LOADED), "other"),
+        wireTurn(String(MAX_TURNS_LOADED + 1), "other"),
+      ]),
+    );
+    const { container, rerender } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" liveEventId="10" />,
+    );
+
+    await openPanel(container);
+    rerender(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" liveEventId="11" />,
+    );
+    await screen.findByText(new RegExp(`first ${MAX_TURNS_LOADED} turns`));
+    rerender(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" liveEventId="12" />,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  }, 15_000);
 });

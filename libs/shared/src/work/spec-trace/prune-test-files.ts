@@ -92,7 +92,7 @@ interface DoomedChunkRow {
   uid: string;
   stmts?: UidRef[];
   acs?: UidRef[];
-  covOut?: { uid: string; covered?: UidRef[] };
+  covOut?: { uid: string; covered?: UidRef[] }[];
 }
 
 /** The doomed subtree of one test file, or null when the file has no graph presence. */
@@ -136,21 +136,18 @@ function collectCoverageUids(chunks: DoomedChunkRow[]): {
   coverageUids: string[];
   coveredUids: string[];
 } {
-  const coverageUids = new Set<string>();
-  const coveredUids = new Set<string>();
+  const allCovOuts = chunks.flatMap((chunk) => chunk.covOut ?? []);
 
-  for (const chunk of chunks) {
-    const covOut = chunk.covOut;
-
-    if (covOut) {
-      coverageUids.add(covOut.uid);
-      (covOut.covered ?? []).forEach((coveredRef) =>
-        coveredUids.add(coveredRef.uid),
-      );
-    }
-  }
-
-  return { coverageUids: [...coverageUids], coveredUids: [...coveredUids] };
+  return {
+    coverageUids: [...new Set(allCovOuts.map((covOut) => covOut.uid))],
+    coveredUids: [
+      ...new Set(
+        allCovOuts.flatMap((covOut) =>
+          (covOut.covered ?? []).map((coveredRef) => coveredRef.uid),
+        ),
+      ),
+    ],
+  };
 }
 
 /** The `[owner, chunk]` pairs to delete, one per node claiming this chunk. */

@@ -75,7 +75,7 @@ An unset memory pool returns 503 `database unavailable`. ([validated by `returns
 
 A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L89))
 
-The route is registered as `GET /api/agent-stats`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L131), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/agent-stats.ts#L17))
+The route is registered as `GET /api/agent-stats`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L149), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/agent-stats.ts#L17))
 
 ## Out of Scope
 

@@ -1,0 +1,284 @@
+// The browser's one live socket (ADR-048): an upgrade at /api/ws on lore-api's own listener, one connection per tab, channels opened by the client and served by the run and plan handlers. Ping/pong keeps it honest through the ingress; a socket that stops answering is terminated and its channels closed.
+
+import type { IncomingMessage, Server as HttpServer } from "node:http";
+import { WebSocketServer, type WebSocket } from "ws";
+import { ChannelRegistry, type ChannelHandle } from "./channel-registry.js";
+import { openPlanChannel, type CollabServer } from "./plan-channel.js";
+import {
+  base64ToBytes,
+  encodeServerMessage,
+  parseClientMessage,
+  type LiveClientMessage,
+  type LiveServerMessage,
+  type OpenMessage,
+} from "./protocol.js";
+import {
+  openRunChannel,
+  type ChannelOutlet,
+  type RunChannelDeps,
+} from "./run-channel.js";
+import { openRunsChannel, type RunsChannelDeps } from "./runs-channel.js";
+import { webRequest } from "./web-request.js";
+import { UpgradeGate, type LiveSocketLimits } from "./upgrade-gate.js";
+
+export type { LiveSocketLimits } from "./upgrade-gate.js";
+
+const PING_MS = 25_000;
+
+/** Largest client frame: a plan update rides one `send`; anything bigger is not a browser tab. */
+const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
+
+const OPEN = 1;
+
+type ChannelMessage = Exclude<LiveClientMessage, OpenMessage>;
+
+let connectionSeq = 0;
+
+export interface LiveSocketDeps {
+  run: RunChannelDeps;
+  runs: RunsChannelDeps;
+  collab: CollabServer;
+  limits?: LiveSocketLimits;
+  pingMs?: number;
+  maxSockets?: number;
+  maxSocketsPerAddress?: number;
+  log?: (message: string) => void;
+}
+
+export interface LiveSocketMount {
+  /** Terminates every connection and stops accepting upgrades; for the server's stop. */
+  close(): void;
+  readonly connectionCount: number;
+}
+
+export function mountLiveSocket(
+  listener: HttpServer,
+  deps: LiveSocketDeps,
+): LiveSocketMount {
+  const sockets = new WebSocketServer({
+    noServer: true,
+    maxPayload: MAX_PAYLOAD_BYTES,
+  });
+  const onUpgrade = new UpgradeGate(sockets, deps, serve).onUpgrade;
+
+  listener.on("upgrade", onUpgrade);
+
+  return {
+    close: () => {
+      listener.off("upgrade", onUpgrade);
+      terminateAll(sockets);
+    },
+    get connectionCount() {
+      return sockets.clients.size;
+    },
+  };
+}
+
+function terminateAll(sockets: WebSocketServer): void {
+  for (const ws of sockets.clients) {
+    ws.terminate();
+  }
+  sockets.close();
+}
+
+/** One tab's connection: parses, dispatches to the channel handlers, and tears every channel down when the socket goes. */
+class LiveConnection {
+  private readonly registry = new ChannelRegistry();
+  private alive = true;
+  private readonly id = `conn:${++connectionSeq}`;
+
+  constructor(
+    private readonly ws: WebSocket,
+    private readonly request: IncomingMessage,
+    private readonly deps: LiveSocketDeps,
+  ) {}
+
+  start(): void {
+    const ping = setInterval(() => this.ping(), this.deps.pingMs ?? PING_MS);
+
+    this.ws.on("pong", () => (this.alive = true));
+    this.ws.on("message", (raw) => this.onMessage(raw.toString()));
+    this.ws.on("error", (err) => this.log(`socket error: ${err.message}`));
+    this.ws.on("close", () => {
+      clearInterval(ping);
+      this.registry.closeAll();
+    });
+  }
+
+  private ping(): void {
+    if (!this.alive) {
+      this.ws.terminate();
+
+      return;
+    }
+    this.alive = false;
+    this.ws.ping();
+  }
+
+  private send(message: LiveServerMessage): void {
+    if (this.ws.readyState === OPEN) {
+      this.ws.send(encodeServerMessage(message));
+    }
+  }
+
+  private onMessage(text: string): void {
+    const message = parseClientMessage(text);
+
+    if (message === null) {
+      this.send({ type: "error", code: "bad_message" });
+
+      return;
+    }
+    this.dispatch(message);
+  }
+
+  private dispatch(message: LiveClientMessage): void {
+    if (message.type === "open") {
+      return this.open(message);
+    }
+
+    return this.dispatchToChannel(message);
+  }
+
+  private dispatchToChannel(message: ChannelMessage): void {
+    switch (message.type) {
+      case "send":
+        return this.handleOf(message.channel)?.receive(
+          base64ToBytes(message.data),
+        );
+      case "watch":
+        return this.handleOf(message.channel)?.watch?.(message.runs);
+      default:
+        return this.close(message.channel);
+    }
+  }
+
+  /** The channel's handle, or undefined after telling the client it names no open channel. */
+  private handleOf(channel: string): ChannelHandle | undefined {
+    const handle = this.registry.get(channel);
+
+    if (!handle) {
+      this.send({ type: "error", channel, code: "unknown_channel" });
+    }
+
+    return handle;
+  }
+
+  private close(channel: string): void {
+    const handle = this.handleOf(channel);
+
+    if (!handle) {
+      return;
+    }
+    this.registry.forget(channel);
+    handle.close();
+    this.send({ type: "closed", channel, reason: "client" });
+  }
+
+  /** The id is taken the moment the open arrives, so a second open for it while the first still verifies its token is refused rather than raced. */
+  private open(message: OpenMessage): void {
+    const { channel } = message;
+
+    if (this.deps.limits?.allowOpen(this.id) === false) {
+      this.send({ type: "error", channel, code: "rate_limited" });
+
+      return;
+    }
+    const refusal = this.registry.refusal(channel);
+
+    if (refusal) {
+      this.send({ type: "error", channel, code: refusal });
+
+      return;
+    }
+    const placeholder = { cancelled: false };
+
+    this.registry.add(channel, {
+      receive: () => {},
+      close: () => (placeholder.cancelled = true),
+    });
+    void this.settle(message, placeholder);
+  }
+
+  private async settle(
+    message: OpenMessage,
+    placeholder: { cancelled: boolean },
+  ): Promise<void> {
+    const { channel } = message;
+    const handle = await this.openHandle(message);
+
+    if (handle === null) {
+      this.registry.forget(channel);
+
+      return;
+    }
+
+    if (placeholder.cancelled) {
+      handle.close();
+
+      return;
+    }
+    this.registry.add(channel, handle);
+  }
+
+  /** The handler's own refusals arrive as `closed` envelopes; a handler that throws (a database away) is reported as a server close rather than dropping the whole socket. */
+  private async openHandle(
+    message: OpenMessage,
+  ): Promise<ChannelHandle | null> {
+    const outlet = this.outletFor(message.channel);
+
+    try {
+      return await this.handlerFor(message, outlet);
+    } catch (err) {
+      this.log(`open ${message.kind} failed: ${(err as Error).message}`);
+      outlet.send({
+        type: "closed",
+        channel: message.channel,
+        reason: "server",
+      });
+
+      return null;
+    }
+  }
+
+  private handlerFor(
+    message: OpenMessage,
+    outlet: ChannelOutlet,
+  ): Promise<ChannelHandle | null> {
+    switch (message.kind) {
+      case "plan":
+        return Promise.resolve(
+          openPlanChannel(
+            message.channel,
+            webRequest(this.request),
+            outlet,
+            this.deps.collab,
+          ),
+        );
+      case "runs":
+        return openRunsChannel(message, outlet, this.deps.runs);
+      default:
+        return openRunChannel(message, outlet, this.deps.run);
+    }
+  }
+
+  private outletFor(channel: string): ChannelOutlet {
+    return {
+      send: (message) => this.send(message),
+      bufferedBytes: () => this.ws.bufferedAmount,
+      ended: () => this.registry.forget(channel),
+    };
+  }
+
+  private log(message: string): void {
+    (this.deps.log ?? console.error)(`[live-socket] ${message}`);
+  }
+}
+
+function serve(
+  ws: WebSocket,
+  request: IncomingMessage,
+  deps: LiveSocketDeps,
+): void {
+  new LiveConnection(ws, request, deps).start();
+}

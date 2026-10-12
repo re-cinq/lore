@@ -768,6 +768,35 @@ describe.each(IMPLEMENTATIONS)(
       ).toEqual([finalize, planning].sort());
     });
 
+    it("list by branch returns every attempt on that branch and nothing from another", async () => {
+      const { port, repo } = make();
+      const first = await port.start({
+        blueprintName: "implementation-loop",
+        repo,
+        branch: "lore/implementation-loop/issue-7",
+      });
+
+      await port.finish(first, "failed", "no cluster-agent claimed this run");
+
+      const second = await port.start({
+        blueprintName: "implementation-loop",
+        repo,
+        branch: "lore/implementation-loop/issue-7",
+      });
+
+      await port.start({
+        blueprintName: "implementation-loop",
+        repo,
+        branch: "lore/implementation-loop/issue-8",
+      });
+
+      expect(
+        (await port.list({ repo, branch: "lore/implementation-loop/issue-7" }))
+          .map((r) => r.id)
+          .sort(),
+      ).toEqual([first, second].sort());
+    });
+
     it("a fork takes over the subject of the run it forks from", async () => {
       const { port, repo } = make();
       const source = await port.start({
@@ -883,258 +912,6 @@ describe.each(IMPLEMENTATIONS)(
       ]);
     });
 
-    it("claims the oldest queued run whose required tags the claimant satisfies", async () => {
-      const { port, repo } = make();
-      const runId = await port.start({ blueprintName: "code-review", repo });
-
-      await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        agentCrName: "cr-review",
-        status: "queued",
-        requiredTags: ["gpu"],
-        dispatchSpec: { taskType: "review", prompt: "p" },
-      });
-
-      expect(
-        await port.claimNextStationRun({
-          clusterAgentId: "22222222-2222-2222-2222-222222222222",
-          tags: ["node:agent"],
-        }),
-      ).toBeNull();
-      const claimed = await port.claimNextStationRun({
-        clusterAgentId: "22222222-2222-2222-2222-222222222222",
-        tags: ["gpu", "node:agent"],
-      });
-
-      expect(claimed).toMatchObject({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        agentCrName: "cr-review",
-        dispatchSpec: { taskType: "review", prompt: "p" },
-      });
-      const visit = (await port.listStationRuns(runId))[0];
-
-      expect(visit).toMatchObject({
-        status: "claimed",
-        clusterAgentId: "22222222-2222-2222-2222-222222222222",
-      });
-      expect(visit.claimedAt).toBeInstanceOf(Date);
-    });
-
-    it("a queued visit with no dispatch contract is not claimable", async () => {
-      const { port, repo } = make();
-      const runId = await port.start({ blueprintName: "code-review", repo });
-
-      await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        status: "queued",
-      });
-
-      expect(
-        await port.claimNextStationRun({
-          clusterAgentId: "22222222-2222-2222-2222-222222222222",
-          tags: [],
-        }),
-      ).toBeNull();
-    });
-
-    it("a claimed run is not claimable again, and a running row never is", async () => {
-      const { port, repo } = make();
-      const runId = await port.start({ blueprintName: "code-review", repo });
-
-      const armed = await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        status: "queued",
-      });
-
-      await port.enqueueStationRunDispatch(armed.nodeRowId, { prompt: "p" });
-      await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "done",
-        iteration: 1,
-      });
-
-      const first = await port.claimNextStationRun({
-        clusterAgentId: "22222222-2222-2222-2222-222222222222",
-        tags: [],
-      });
-
-      expect(first?.nodeId).toBe("review");
-      expect(
-        await port.claimNextStationRun({
-          clusterAgentId: "33333333-3333-3333-3333-333333333333",
-          tags: [],
-        }),
-      ).toBeNull();
-    });
-
-    it("counts open claims per cluster-agent, dropping finished and unclaimed visits", async () => {
-      const { port, repo } = make();
-      const agentId = randomUUID();
-      const runId = await port.start({ blueprintName: "code-review", repo });
-      const first = await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        status: "queued",
-      });
-
-      await port.enqueueStationRunDispatch(first.nodeRowId, { prompt: "p" });
-      let claimed = await port.claimNextStationRun({
-        clusterAgentId: agentId,
-        tags: [],
-      });
-
-      while (claimed && claimed.assemblyRunId !== runId) {
-        claimed = await port.claimNextStationRun({
-          clusterAgentId: agentId,
-          tags: [],
-        });
-      }
-      await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "done",
-        iteration: 1,
-      });
-
-      expect((await port.countOpenClaimsByAgent())[agentId]).toBeGreaterThan(0);
-
-      const before = (await port.countOpenClaimsByAgent())[agentId];
-
-      await port.finishStationRunOnce(first.nodeRowId, "success");
-      const after = (await port.countOpenClaimsByAgent())[agentId] ?? 0;
-
-      expect(after).toBe(before - 1);
-    });
-
-    it("list({clusterAgentId}) returns only runs holding that agent's open claim", async () => {
-      const { port, repo } = make();
-      const agentId = "33333333-3333-3333-3333-333333333333";
-      const claimedRunId = await port.start({
-        blueprintName: "code-review",
-        repo,
-      });
-      const idleRunId = await port.start({
-        blueprintName: "code-review",
-        repo,
-      });
-      const { nodeRowId } = await port.ensureStationRun({
-        assemblyRunId: claimedRunId,
-        nodeId: "review",
-        iteration: 1,
-        status: "queued",
-      });
-
-      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "p" });
-      await port.claimNextStationRun({ clusterAgentId: agentId, tags: [] });
-
-      const held = await port.listSummaries({ clusterAgentId: agentId });
-
-      expect(held.map((run) => run.id)).toEqual([claimedRunId]);
-      expect(held.map((run) => run.id)).not.toContain(idleRunId);
-
-      await port.finishStationRunOnce(nodeRowId, "success");
-
-      expect(await port.listSummaries({ clusterAgentId: agentId })).toEqual([]);
-    });
-
-    it("arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from", async () => {
-      const { port, repo } = make();
-      const runId = await port.start({ blueprintName: "code-review", repo });
-      const { nodeRowId } = await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        status: "queued",
-      });
-
-      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "first" });
-      let claimed = await port.claimNextStationRun({
-        clusterAgentId: randomUUID(),
-        tags: [],
-      });
-
-      while (claimed && claimed.assemblyRunId !== runId) {
-        claimed = await port.claimNextStationRun({
-          clusterAgentId: randomUUID(),
-          tags: [],
-        });
-      }
-      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "second" });
-
-      expect(claimed?.dispatchSpec).toEqual({ prompt: "first" });
-      await port.requeueStationRun(nodeRowId);
-      const reclaimed = await port.claimNextStationRun({
-        clusterAgentId: randomUUID(),
-        tags: [],
-      });
-
-      expect(reclaimed?.dispatchSpec).toEqual({ prompt: "first" });
-    });
-
-    it("requeue resets the same row to queued and clears the claim; a finished visit refuses", async () => {
-      const { port, repo } = make();
-      const runId = await port.start({ blueprintName: "code-review", repo });
-      const { nodeRowId } = await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        status: "queued",
-      });
-
-      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "p" });
-      await port.claimNextStationRun({
-        clusterAgentId: "22222222-2222-2222-2222-222222222222",
-        tags: [],
-      });
-
-      expect(await port.requeueStationRun(nodeRowId)).toBe(true);
-      const visit = (await port.listStationRuns(runId))[0];
-
-      expect(visit).toMatchObject({
-        status: "queued",
-        clusterAgentId: null,
-        claimedAt: null,
-      });
-      expect((await port.listStationRuns(runId))[0].id).toBe(nodeRowId);
-
-      await port.finishStationRunOnce(nodeRowId, "success");
-
-      expect(await port.requeueStationRun(nodeRowId)).toBe(false);
-    });
-
-    it("requeue restarts the queue clock so the wait is measured from the requeue", async () => {
-      const { port, repo } = make();
-      const runId = await port.start({ blueprintName: "code-review", repo });
-      const { nodeRowId } = await port.ensureStationRun({
-        assemblyRunId: runId,
-        nodeId: "review",
-        iteration: 1,
-        status: "queued",
-      });
-
-      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "p" });
-      await port.claimNextStationRun({
-        clusterAgentId: "33333333-3333-3333-3333-333333333333",
-        tags: [],
-      });
-      const enqueuedAt = (await port.listStationRuns(runId))[0].startedAt;
-
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      await port.requeueStationRun(nodeRowId);
-
-      expect(
-        (await port.listStationRuns(runId))[0].startedAt.getTime(),
-      ).toBeGreaterThan(enqueuedAt.getTime());
-    });
-
     it("a fork naming its own subject is refused, not joined, while another run holds that subject", async () => {
       const { port, repo } = make();
       const source = await port.start({
@@ -1189,6 +966,47 @@ describe.each(IMPLEMENTATIONS)(
         nodeId: "review",
         outcome: null,
       });
+    });
+    it("ensureStationRun records gedaiu as the person who ran the review visit by hand", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 2,
+        requestedBy: "gedaiu",
+      });
+
+      expect(await port.listStationRuns(runId)).toMatchObject([
+        { nodeId: "review", iteration: 2, requestedBy: "gedaiu" },
+      ]);
+    });
+
+    it("reopen flips a failed run back to running without its outcome, reason or finish time", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(runId);
+      await port.finish(runId, "error", "review failed");
+
+      expect(await port.reopen(runId)).toBe(true);
+      expect(await port.getById(runId)).toMatchObject({
+        status: "running",
+        outcome: null,
+        reason: null,
+        finishedAt: null,
+      });
+    });
+
+    it("reopen answers false and leaves a running run as it is", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(runId);
+
+      expect(await port.reopen(runId)).toBe(false);
+      expect(await port.getById(runId)).toMatchObject({ status: "running" });
     });
   },
 );

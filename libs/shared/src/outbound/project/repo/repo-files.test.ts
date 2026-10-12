@@ -23,6 +23,9 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
     getDefaultBranch: async () => "main",
     listCommitsSince: async () => [],
     getIssueLabels: async () => [],
+    listOpenBlockers: async () => [],
+    addSubIssue: async () => {},
+    updateIssue: async () => {},
     createIssue: async () => ({
       repo: "re-cinq/lore",
       number: 1,
@@ -42,6 +45,8 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
     commitFile: async (_repo, branch, { path }) => {
       writes.push(`commit:${branch}:${path}`);
     },
+    listIssueComments: async () => [],
+    updateIssueComment: async () => {},
     upsertCheckRun: async () => {},
   };
 }

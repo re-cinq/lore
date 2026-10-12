@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { PipelineTask } from "../../../domain/types.js";
+import { enforceDescriptionFits } from "../../../domain/task-description.js";
+import { namedTaskType } from "../../../domain/task-types/retired-task-types.js";
 import {
   enforceTrustAllowsTaskType,
   type CreateTaskInput,
@@ -15,7 +17,6 @@ import type {
   TaskListResult,
   FindOpenLikeInput,
   DriftTaskRow,
-  FeatureTaskRow,
 } from "./task-store-port.js";
 import { TaskTransitionStore } from "./task-store-memory-transitions.js";
 import { TaskQueryStore } from "./task-store-memory-queries.js";
@@ -61,6 +62,16 @@ type CreateFields = {
   priority: string;
   createdAt: string;
 };
+
+// The columns a create writes only when the input names them, as the Pg insert does.
+function groupAndIssueColumns(input: CreateTaskInput): Partial<SeedStoreTask> {
+  return {
+    ...(input.taskGroupId ? { task_group_id: input.taskGroupId } : {}),
+    ...(input.issueNumber === undefined
+      ? {}
+      : { issue_number: input.issueNumber, issue_url: input.issueUrl ?? null }),
+  };
+}
 
 function createdFrom(fields: CreateFields, id: string): CreatedTask {
   return {
@@ -139,9 +150,7 @@ export class InMemoryTaskStore implements TaskStorePort {
       updated_at: fields.createdAt,
     };
 
-    return input.taskGroupId
-      ? { ...task, task_group_id: input.taskGroupId }
-      : task;
+    return { ...task, ...groupAndIssueColumns(input) };
   }
 
   private applyContextRefs(task: SeedStoreTask, input: CreateTaskInput): void {
@@ -160,17 +169,13 @@ export class InMemoryTaskStore implements TaskStorePort {
     repo: string | undefined,
     taskType: string,
   ): void {
-    enforceTrue(
-      input.description.length <= 10000,
-      Error,
-      "Description too long (max 10000 chars)",
-    );
+    enforceDescriptionFits(input.description);
     this.enforceTrustGate(repo, taskType);
   }
 
   async create(input: CreateTaskInput): Promise<CreatedTask> {
     const fields: CreateFields = {
-      taskType: input.taskType ?? "general",
+      taskType: namedTaskType(input.taskType),
       repo: input.targetRepo,
       createdBy: input.createdBy ?? "ui",
       priority: input.priority === "immediate" ? "immediate" : "normal",
@@ -283,13 +288,6 @@ export class InMemoryTaskStore implements TaskStorePort {
     specPath: string,
   ): Promise<DriftTaskRow[]> {
     return this.queries.driftTasksForSpec(repo, taskType, specPath);
-  }
-
-  specTasksForFeature(
-    repo: string,
-    featureId: string,
-  ): Promise<FeatureTaskRow[]> {
-    return this.queries.specTasksForFeature(repo, featureId);
   }
 
   private findById(id: string): SeedStoreTask | undefined {

@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import { buildServer } from "../../../app/build-server.js";
-import {
-  makePool,
-  useRateLimitSafeClock,
-} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { useRateLimitSafeClock } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({
   createTask: vi.fn(),
@@ -18,6 +15,8 @@ import {
   retryTask,
 } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
+const NO_TYPED_TASKS =
+  "Lore no longer runs typed tasks, so nothing is created here. To have something implemented or written, open an issue with a priority:high, priority:medium or priority:low label and the implementation loop picks it up. To have a feature specified, start a plan on the repository's Plans page. Every open pull request is reviewed already; comment `@lore review` on one to have it reviewed again.";
 const SLACK_SECRET = "slack-secret";
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -108,7 +107,7 @@ describe("POST /api/webhook/slack", () => {
   it("returns usage help when text is empty", async () => {
     const res = await slack({ text: "", channel_id: "C1", user_name: "u" });
 
-    expect(text(res.result)).toContain("Usage:");
+    expect(text(res.result)).toContain("`/lore retry <task_id>`");
   });
 
   it("retries a task", async () => {
@@ -126,143 +125,20 @@ describe("POST /api/webhook/slack", () => {
     expect(text(res.result)).toContain("Retry failed");
   });
 
-  it("defaults the channel id to empty and returns the no-repo message when channel_id is absent", async () => {
-    const res = await slack({ text: "do something" }, {}, null);
-
-    expect(text(res.result)).toContain("No repo mapped");
-  });
-
-  it("returns the no-repo message when the channel is unmapped", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [] });
-    const res = await slack(
-      { text: "do something", channel_id: "C-unmapped" },
-      {},
-      pool,
-    );
-
-    expect(text(res.result)).toContain("No repo mapped");
-  });
-
-  it("returns the no-repo message when pool is null", async () => {
-    const res = await slack(
-      { text: "do something", channel_id: "C1" },
-      {},
-      null,
-    );
-
-    expect(text(res.result)).toContain("No repo mapped");
-  });
-
-  it("falls through to no-repo when the channel query throws", async () => {
-    const pool = makePool();
-
-    pool.query.mockRejectedValue(new Error("lookup fail"));
-    const res = await slack(
-      { text: "do something", channel_id: "C1" },
-      {},
-      pool,
-    );
-
-    expect(text(res.result)).toContain("No repo mapped");
-  });
-
-  it("creates an immediate task with a known type", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
-    vi.mocked(createTask).mockResolvedValue({ task_id: "s1" } as any);
-    const res = await slack(
-      {
-        text: "! implementation add caching",
+  it.each(["runbook database failover", "! fix the login bug", "retry"])(
+    "creates no task for /lore %s and says where that work goes now",
+    async (typed) => {
+      const res = await slack({
+        text: typed,
         channel_id: "C1",
         user_name: "bob",
-      },
-      {},
-      pool,
-    );
+      });
 
-    expect(text(res.result)).toContain("Priority: `immediate`");
-    expect(createTask).toHaveBeenCalledWith({
-      description: "add caching",
-      taskType: "implementation",
-      targetRepo: "o/r",
-      createdBy: "slack:bob",
-      contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
-      priority: "immediate",
-    });
-  });
-
-  it("creates a normal-priority task and reports the backlog", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
-    vi.mocked(createTask).mockResolvedValue({ task_id: "s2" } as any);
-    const res = await slack(
-      { text: "review check this", channel_id: "C1", user_name: "bob" },
-      {},
-      pool,
-    );
-
-    expect(text(res.result)).toContain("backlog");
-  });
-
-  it("reports a failed task creation", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
-    vi.mocked(createTask).mockRejectedValue(new Error("create fail"));
-    const res = await slack(
-      { text: "do something", channel_id: "C1" },
-      {},
-      pool,
-    );
-
-    expect(text(res.result)).toContain("Failed to create task");
-  });
-
-  it("treats a bare retry with no task id as a general-task description", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
-    vi.mocked(createTask).mockResolvedValue({ task_id: "r1" } as any);
-    const res = await slack(
-      { text: "retry", channel_id: "C1", user_name: "bob" },
-      {},
-      pool,
-    );
-
-    expect(createTask).toHaveBeenCalledWith({
-      description: "retry",
-      taskType: "general",
-      targetRepo: "o/r",
-      createdBy: "slack:bob",
-      contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
-      priority: "normal",
-    });
-    expect(text(res.result)).toContain("Type: `general`");
-  });
-
-  it("creates an immediate general-typed task when no known type follows the bang", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
-    vi.mocked(createTask).mockResolvedValue({ task_id: "b1" } as any);
-    const res = await slack(
-      { text: "! fix the login bug", channel_id: "C1", user_name: "bob" },
-      {},
-      pool,
-    );
-
-    expect(createTask).toHaveBeenCalledWith({
-      description: "fix the login bug",
-      taskType: "general",
-      targetRepo: "o/r",
-      createdBy: "slack:bob",
-      contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
-      priority: "immediate",
-    });
-    expect(text(res.result)).toContain("Priority: `immediate`");
-  });
+      expect(res.result).toEqual({
+        response_type: "ephemeral",
+        text: NO_TYPED_TASKS,
+      });
+      expect(createTask).not.toHaveBeenCalled();
+    },
+  );
 });

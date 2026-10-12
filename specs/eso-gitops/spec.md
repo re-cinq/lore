@@ -93,7 +93,6 @@ terraform/
 ├── lore-agent.tf              # Helm release for agent
 ├── lore-mcp.tf                # Helm release for MCP server
 ├── lore-ui.tf                 # Helm release for UI (or deployment)
-├── configmaps.tf              # task-types.yaml ConfigMaps
 └── outputs.tf                 # API URL, webhook URL
 ```
 

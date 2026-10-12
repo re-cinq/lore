@@ -89,6 +89,8 @@ describe("readCiFailures", () => {
             app: "github-actions",
             job_id: 102476456760,
             ...failure,
+            npm_script: null,
+            unreadable: [],
           },
         ],
       },

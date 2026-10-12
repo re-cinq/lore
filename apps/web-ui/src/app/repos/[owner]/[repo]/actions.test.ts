@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 describe("reonboard", () => {
-  it("creates an onboard task and redirects to the new task page", async () => {
+  it("creates an onboard task and redirects to the run of the new task", async () => {
     createOnboardTask.mockResolvedValue({ ok: true, taskId: "task-9" });
 
     await reonboard("re-cinq/x");
@@ -27,10 +27,10 @@ describe("reonboard", () => {
     expect(createOnboardTask).toHaveBeenCalledWith("re-cinq/x", {
       reonboard: true,
     });
-    expect(redirect).toHaveBeenCalledWith("/tasks/task-9");
+    expect(redirect).toHaveBeenCalledWith("/assembly-runs/task-9");
   });
 
-  it("redirects to the in-flight task instead of queueing a duplicate", async () => {
+  it("redirects to the run of the in-flight task instead of queueing a duplicate", async () => {
     createOnboardTask.mockResolvedValue({
       ok: false,
       block: "in-flight",
@@ -40,7 +40,7 @@ describe("reonboard", () => {
 
     await reonboard("re-cinq/x");
 
-    expect(redirect).toHaveBeenCalledWith("/tasks/task-running");
+    expect(redirect).toHaveBeenCalledWith("/assembly-runs/task-running");
   });
 
   it("redirects back to the repo page when no task is created", async () => {

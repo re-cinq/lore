@@ -30,9 +30,7 @@ export function SummaryCards(props: SummaryCardsProps) {
         label="Kubernetes (estimated)"
         figure={usd(compute.est_total_usd)}
         estimate
-      >
-        <Subnote>+ {usd(compute.live_usd_per_hour)}/h burning now</Subnote>
-      </StatCard>
+      />
       {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
       {gcp.available && <GcpBilledCard gcp={gcp} />}
     </div>
@@ -49,6 +47,11 @@ function LoreComputedCards({ llm }: Pick<SummaryCardsProps, "llm">) {
       <StatCard label="API calls" figure={num(llm.calls)} />
       <StatCard label="Input tokens" figure={num(llm.input_tokens)} />
       <StatCard label="Output tokens" figure={num(llm.output_tokens)} />
+      <StatCard label="Cache read tokens" figure={num(llm.cache_read_tokens)} />
+      <StatCard
+        label="Cache write tokens"
+        figure={num(llm.cache_write_tokens)}
+      />
     </>
   );
 }

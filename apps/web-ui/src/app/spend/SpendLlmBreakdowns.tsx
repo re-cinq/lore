@@ -29,7 +29,10 @@ export function LlmBreakdowns({ llm }: LlmProps) {
 
       <VendorCosts byVendor={llm.by_vendor} />
 
-      <BillingSource byCluster={llm.by_cluster} />
+      <BillingSource
+        byBillingMode={llm.by_billing_mode}
+        floorUnavailable={llm.floor_unavailable}
+      />
 
       <LlmBreakdownsBySlice llm={llm} />
     </>

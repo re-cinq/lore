@@ -179,6 +179,8 @@ The heavy batch jobs (`context_reindex`, `eval_runner`, `context_core_builder`,
 as K8s CronJobs — the carve-out still holds where runs are org-wide, memory-heavy,
 or hours long. The detection pattern (`detect` node + tick fan-out) is the
 intended porting path for any of them that can be made per-repo.
+*(Amended 2026-10-02: `eval_runner` and `context_core_builder` are in neither
+runtime — they were deleted with Lore's own Floor; see the 2026-08 table below.)*
 
 ## Amendment (2026-09-08): `context_reindex` is retired
 
@@ -186,7 +188,7 @@ The nightly full re-index CronJob had failed on every run for at least four
 nights, and nothing noticed — because nothing depended on it any more.
 Ingestion had already become merge-time only: the `ci-ingest` hook starts
 the ingest assembly line, whose station chunks and embeds (through
-`POST /api/embed`) on its own. The job, its `cronJobs` entry, the
+`POST /api/embeddings`) on its own. The job, its `cronJobs` entry, the
 `apps/floor/src/work/context-jobs/reindex/` module, and the reindex-only
 chunk-port surface (`reindexOwnedFilePaths`, `chunkedFilePaths`,
 `staleChunkerFiles`, `touchChunksForFiles`, `pruneChunksForFiles`,
@@ -309,8 +311,8 @@ their schedules:
 | Job | Shape | New home |
 |---|---|---|
 | `context_reindex` | tree-sitter chunking + embeddings over a checkout | **retired 2026-09-08** — no replacement; the merge-time ingest assembly line is the only ingestion |
-| `eval_runner` | shells out to the `promptfoo` binary, reads `EVALS_DIR` off disk | a **Station** |
-| `context_core_builder` | same promptfoo shell-out, plus promote/reject thresholds | a **Station** — sequenced after the eval line by an edge instead of by two cron times |
+| `eval_runner` | shells out to the `promptfoo` binary, reads `EVALS_DIR` off disk | **deleted 2026-10-02** with Lore's own Floor, never a Station — context evals are a nightly GitHub Actions job that asks lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443) |
+| `context_core_builder` | same promptfoo shell-out, plus promote/reject thresholds | **deleted 2026-10-02** with Lore's own Floor, never a Station — the new evals keep no stored baseline, and migration 0101 dropped `pipeline.eval_runs` and `pipeline.context_core_history` |
 | `consolidation` | Haiku pattern-extraction over recent facts | a **Station** |
 | `importance_decay` | half-life scoring + DB writes | **`lore-api`** |
 | `memory_ttl` | one `DELETE` | **`lore-api`** |
@@ -324,3 +326,23 @@ a pod each, which is the point: neither ever needed one.
 
 `delivery/job-runner.ts` is expected to end up empty and be deleted; when it does,
 the Floor's Dockerfile no longer needs to ship the batch job tree.
+
+## Amendment (2026-09-25): per-repo schedules on a coarse tick
+
+The detection pattern assumed one cadence per job. The daily digest
+(`specs/daily-digest/spec.md`) is the first job whose cadence belongs to the
+repo: each repo's settings carry a time of day, a weekday set and a timezone,
+and repos sharing a Slack channel must land in one message. The pattern
+stretches without a new mechanism:
+
+- The Floor cron emitter ticks **coarsely** (`daily_digest`, every 15 minutes)
+  and the tick handler decides per repo whether it is due — a pure function of
+  the repo's `settings.digest` and the last time it was posted — then fans out
+  one subject-keyed line per **channel**, not per repo.
+- The watermark lives in a **domain table** (`lore.digest_posts`), not in
+  `pipeline.job_runs`: what "already posted today" means is a fact about the
+  channel and the repo's local day, which a job-run row started by a tick does
+  not carry. The `<job>:<channel>` job_run row stays for the run itself.
+- A run whose agent never reports (a dead pod) writes no watermark, so the
+  next tick would start it again; the fan-out caps a subject at three runs a
+  day, which is the bound the cadence gives it.

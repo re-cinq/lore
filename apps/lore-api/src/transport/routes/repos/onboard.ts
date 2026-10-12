@@ -1,4 +1,5 @@
 import { errorMessage } from "@re-cinq/lore-shared";
+import { rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -85,6 +86,8 @@ async function serveOnboard(
       ? h.response(result).code(409)
       : h.response(result);
   } catch (err) {
+    // A refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
     console.error("[onboard] API error:", errorMessage(err));
 
     return h.response({ error: errorMessage(err) }).code(500);

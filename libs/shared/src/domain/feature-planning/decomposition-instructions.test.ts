@@ -1,11 +1,34 @@
 import { describe, it, expect } from "vitest";
-import {
-  DECOMPOSITION_INSTRUCTIONS,
-  DECOMPOSITION_EXAMPLE,
-} from "./decomposition-instructions.js";
+import { DECOMPOSITION_EXAMPLE } from "./decomposition-instructions.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseAgentDefaultFile } from "../agent-defaults/agent-default-file.js";
 import { parseDecomposition } from "./decomposition-result.js";
 
-describe("DECOMPOSITION_INSTRUCTIONS", () => {
+const DECOMPOSITION_INSTRUCTIONS =
+  parseAgentDefaultFile(
+    "feature-decompose",
+    readFileSync(
+      resolve(import.meta.dirname, "../../agent-defaults/feature-decompose.md"),
+      "utf-8",
+    ),
+  ).prompt ?? "";
+
+const ISSUE_DETAIL = [
+  "title",
+  "context",
+  "changes",
+  "acceptance_criteria",
+  "test_plan",
+  "references",
+  "plan_quotes",
+] as const;
+
+function isBlank(value: unknown): boolean {
+  return Array.isArray(value) ? value.length === 0 : !value;
+}
+
+describe("the shipped feature-decompose prompt", () => {
   it("documents the output contract — stories, acceptance criteria, and task dependencies", () => {
     for (const token of [
       "stories",
@@ -36,5 +59,33 @@ describe("DECOMPOSITION_EXAMPLE", () => {
     const everyTask = parsed.stories.flatMap((s) => s.tasks);
 
     expect(everyTask.some((t) => t.depends_on.length > 0)).toBe(true);
+  });
+
+  it("writes every example task as a self-contained issue: title, context, changes, acceptance criteria, test plan and references", () => {
+    const everyTask = parseDecomposition(
+      JSON.parse(DECOMPOSITION_EXAMPLE),
+    ).stories.flatMap((s) => s.tasks);
+    const missing = everyTask
+      .filter((t) => ISSUE_DETAIL.some((field) => isBlank(t[field])))
+      .map((t) => t.id);
+
+    expect(missing).toEqual([]);
+  });
+
+  it("tells the agent each task becomes its own issue a developer implements from alone", () => {
+    expect({
+      ownIssue: DECOMPOSITION_INSTRUCTIONS.includes(
+        "Every task becomes its own GitHub issue",
+      ),
+      fields: [
+        "title",
+        "context",
+        "changes",
+        "acceptance_criteria",
+        "test_plan",
+        "references",
+        "plan_quotes",
+      ].every((field) => DECOMPOSITION_INSTRUCTIONS.includes(`"${field}"`)),
+    }).toEqual({ ownIssue: true, fields: true });
   });
 });
