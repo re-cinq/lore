@@ -35,11 +35,7 @@ export function BillingSource({
         rowKey={(r) => r.mode}
         cells={sourceCells}
       />
-      {floorUnavailable && (
-        <p className={`meta ${styles.subnote}`}>
-          Floor costs unavailable: only Lore&apos;s own model calls are counted.
-        </p>
-      )}
+      {floorUnavailable && <FloorUnavailableNote />}
       <BillingSourceNote />
     </>
   );
@@ -47,6 +43,14 @@ export function BillingSource({
 
 function sourceCells(row: ByBillingMode[number]) {
   return [SOURCE_LABELS[row.mode], num(row.calls), usd(row.cost_usd)];
+}
+
+function FloorUnavailableNote() {
+  return (
+    <p className={`meta ${styles.subnote}`}>
+      Floor costs unavailable: only Lore&apos;s own model calls are counted.
+    </p>
+  );
 }
 
 function BillingSourceNote() {
