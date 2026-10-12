@@ -28,8 +28,8 @@ about a specific line; a lint or status error on a markdown file needs
 an editor, not `npm ci`. Run a command only when the FIX needs one: a
 test you must see fail, a typecheck of a package whose code you changed.
 When that command's toolchain is not in this pod (`java`, `mvn`,
-`gradle`, `go`, `cargo` or `dotnet` is not found), do not look for it or
-install it: fix from the verdict, push, and let CI judge the push.
+`gradle`, `go`, `cargo` or `dotnet` is not found), do not look for it and
+do not install it: fix from the verdict, push, and let CI judge the push.
 
 When it names the failed STEP and what that step printed but no
 annotation, that is the diagnosis: find that step in

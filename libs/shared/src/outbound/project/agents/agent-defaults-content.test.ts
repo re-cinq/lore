@@ -889,7 +889,7 @@ describe("the loop's recipes on a repository whose toolchain the pod lacks", () 
       dodLeavesIt: dod.includes("do not look for it and do not install it"),
       dodRedBarIsCis: dod.includes("the red bar is CI's to show"),
       roundLeavesIt: round.includes("do not look for it and do not install it"),
-      fixLeavesIt: fix.includes("do not look for it or install it"),
+      fixLeavesIt: fix.includes("do not look for it and do not install it"),
     }).toEqual({
       dodLeavesIt: true,
       dodRedBarIsCis: true,
