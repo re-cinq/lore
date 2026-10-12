@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { grafanaUrl, headlampUrl } from "./headlamp-url";
+import { grafanaUrl, headlampUrl, utopiaUrl } from "./headlamp-url";
 
 describe("headlampUrl", () => {
   it("returns the dashboard address the deployment names", () => {
@@ -43,5 +43,21 @@ describe("grafanaUrl", () => {
       undefined,
       undefined,
     ]);
+  });
+});
+
+describe("utopiaUrl", () => {
+  it("returns the Utopia address the deployment names", () => {
+    expect(utopiaUrl({ UTOPIA_URL: "https://utopia.example.com" })).toBe(
+      "https://utopia.example.com",
+    );
+  });
+
+  it("names no address when the variable is unset, empty or only whitespace", () => {
+    expect([
+      utopiaUrl({}),
+      utopiaUrl({ UTOPIA_URL: "" }),
+      utopiaUrl({ UTOPIA_URL: "   " }),
+    ]).toEqual([undefined, undefined, undefined]);
   });
 });
