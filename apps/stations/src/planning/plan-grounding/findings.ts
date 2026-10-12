@@ -5,6 +5,8 @@ import { djb2Hash } from "@re-cinq/lore-shared/llm/prompt-cache.js";
 import { GROUND_PREFIX, type Finding } from "../plan-findings-ops.js";
 
 const SLOT_MARKER = /<!--\s*slot:([^\s>]+?)\s*-->/;
+/** How the plan's markdown quotes what is said ABOUT the plan: a question and its answers, a comment, a finding. */
+const DISCUSSION = /^>\s*\*\*(Question|Answer|Comment|Finding)\*\*/;
 
 /** The slot whose marker precedes this 1-based line, or none when no marker does. */
 export function slotOfLine(planMd: string, line: number): string | null {
@@ -14,14 +16,22 @@ export function slotOfLine(planMd: string, line: number): string | null {
   return markers.at(-1) ?? null;
 }
 
-/** One finding per section and stale name: a name two statements of a section both carry is one thing to fix. */
+/** Whether this 1-based line is a question, answer, comment or finding rather than a statement of the plan. */
+export function isDiscussionLine(planMd: string, line: number): boolean {
+  return DISCUSSION.test(planMd.split("\n")[line - 1] ?? "");
+}
+
+/** One finding per section and stale name: a name two statements of a section both carry is one thing to fix. A name in a question its people answered, a comment or an earlier finding is not a statement, so it is not reported. */
 export function planGroundFindings(
   planMd: string,
   grounded: GroundedFile,
 ): Finding[] {
   const byKey = new Map<string, Finding>();
+  const stated = grounded.findings.filter(
+    (found) => !isDiscussionLine(planMd, found.line),
+  );
 
-  for (const found of grounded.findings) {
+  for (const found of stated) {
     const slot = slotOfLine(planMd, found.line);
 
     if (slot) {
