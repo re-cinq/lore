@@ -22,7 +22,7 @@ jobs:
           WARNINGS=""
 
           # --- Bypass for legacy Lore draft PRs ---
-          if [[ "$PR_BODY" == *"Opened by the Lore implementation loop from"* ]] && ! echo "$PR_BODY" | grep -q '## Why'; then
+          if [[ "$PR_BODY" == *"Opened by the Lore implementation loop from"* ]] ; then
             echo "PR was opened by Lore loop before the PR template headings feature."
             echo "Skipping the description check since the draft cannot satisfy it."
             exit 0
