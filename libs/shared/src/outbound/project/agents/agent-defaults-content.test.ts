@@ -878,3 +878,23 @@ describe("the planning recipes check a plan against what the platform has (issue
     });
   });
 });
+
+describe("the loop's recipes on a repository whose toolchain the pod lacks", () => {
+  it("has dod, tdd-round and fix-ci leave a toolchain the pod lacks to CI instead of hunting for one", () => {
+    const dod = promptOnOneLine("loop-dod");
+    const round = promptOnOneLine("loop-tdd-round");
+    const fix = promptOnOneLine("loop-fix-ci");
+
+    expect({
+      dodLeavesIt: dod.includes("do not look for it and do not install it"),
+      dodRedBarIsCis: dod.includes("the red bar is CI's to show"),
+      roundLeavesIt: round.includes("do not look for it and do not install it"),
+      fixLeavesIt: fix.includes("do not look for it and do not install it"),
+    }).toEqual({
+      dodLeavesIt: true,
+      dodRedBarIsCis: true,
+      roundLeavesIt: true,
+      fixLeavesIt: true,
+    });
+  });
+});
