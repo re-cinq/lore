@@ -35,8 +35,7 @@ export function BillingSource({
         rowKey={(r) => r.mode}
         cells={sourceCells}
       />
-      {floorUnavailable && <FloorUnavailableNote />}
-      <BillingSourceNote />
+      <BillingSourceNotes floorUnavailable={floorUnavailable} />
     </>
   );
 }
@@ -50,6 +49,19 @@ function FloorUnavailableNote() {
     <p className={`meta ${styles.subnote}`}>
       Floor costs unavailable: only Lore&apos;s own model calls are counted.
     </p>
+  );
+}
+
+function BillingSourceNotes({
+  floorUnavailable,
+}: {
+  floorUnavailable: boolean;
+}) {
+  return (
+    <>
+      {floorUnavailable && <FloorUnavailableNote />}
+      <BillingSourceNote />
+    </>
   );
 }
 
