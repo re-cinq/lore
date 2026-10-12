@@ -38,7 +38,7 @@ function serve(fixture: Fixture) {
   const readFile: ReadRepoFile = async (repo, path, ref) => {
     reads.push(`${repo}:${ref}:${path}`);
 
-    return fixture.files?.[ref] ?? null;
+    return fixture.files?.[`${ref}:${path}`] ?? null;
   };
 
   server.auth.scheme("stub", () => ({
@@ -80,7 +80,7 @@ describe("GET /api/assembly-runs/{id}/dod", () => {
     await runs.finish(id, "success");
     const { server, reads } = serve({
       runs,
-      files: { "lore/ticket-7": DOD },
+      files: { "lore/ticket-7:.lore/dod.md": DOD },
     });
     const res = await server.inject(`/api/assembly-runs/${id}/dod`);
 
@@ -95,7 +95,33 @@ describe("GET /api/assembly-runs/{id}/dod", () => {
     const res = await server.inject(`/api/assembly-runs/${id}/dod`);
 
     expect(res.result).toEqual({ present: false });
-    expect(reads).toEqual(["o/r:lore/ticket-7:.lore/dod.md"]);
+    expect(reads).toEqual([
+      "o/r:lore/ticket-7:.lore/loop.yml",
+      "o/r:lore/ticket-7:.lore/dod.md",
+    ]);
+  });
+
+  it("reads the definition of done at solutions/widgets/.lore/dod.md when the branch's .lore/loop.yml names it", async () => {
+    const runs = new InMemoryAssemblyRuns();
+    const id = await startRun(runs, "lore/ticket-7");
+    const { server, reads } = serve({
+      runs,
+      files: {
+        "lore/ticket-7:.lore/loop.yml":
+          "dod_path: solutions/widgets/.lore/dod.md\n",
+        "lore/ticket-7:solutions/widgets/.lore/dod.md": DOD,
+      },
+    });
+    const res = await server.inject(`/api/assembly-runs/${id}/dod`);
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      present: true,
+      ticketClaim: "Users can archive a note.",
+    });
+    expect(reads).toEqual([
+      "o/r:lore/ticket-7:.lore/loop.yml",
+      "o/r:lore/ticket-7:solutions/widgets/.lore/dod.md",
+    ]);
   });
 
   it("answers present false when the file is not a definition of done", async () => {
@@ -103,7 +129,7 @@ describe("GET /api/assembly-runs/{id}/dod", () => {
     const id = await startRun(runs, "lore/ticket-7");
     const { server } = serve({
       runs,
-      files: { "lore/ticket-7": "# Notes\n\nnothing here\n" },
+      files: { "lore/ticket-7:.lore/dod.md": "# Notes\n\nnothing here\n" },
     });
     const res = await server.inject(`/api/assembly-runs/${id}/dod`);
 
@@ -143,7 +169,7 @@ describe("GET /api/assembly-runs/{id}/dod", () => {
     const { server } = serve({
       runs,
       testReports,
-      files: { "lore/ticket-7": DOD },
+      files: { "lore/ticket-7:.lore/dod.md": DOD },
     });
     const res = await server.inject(`/api/assembly-runs/${id}/dod`);
 
@@ -184,7 +210,10 @@ describe("GET /api/assembly-runs/{id}/dod", () => {
   it("reports every acceptance test unknown and no report when CI has posted nothing", async () => {
     const runs = new InMemoryAssemblyRuns();
     const id = await startRun(runs, "lore/ticket-7");
-    const { server } = serve({ runs, files: { "lore/ticket-7": DOD } });
+    const { server } = serve({
+      runs,
+      files: { "lore/ticket-7:.lore/dod.md": DOD },
+    });
     const res = await server.inject(`/api/assembly-runs/${id}/dod`);
 
     expect(JSON.parse(res.payload)).toMatchObject({

@@ -17,7 +17,7 @@ is at `{ticket_path}`: read it before anything else. Pass `repo` (the
 owner/name your task names above) on every `lore_*` call: the gateway has
 no checkout to detect it from.
 
-START by reading `.lore/dod.md` on this branch. Its "Done when these pass"
+START by reading `{dod_path}` on this branch. Its "Done when these pass"
 list is the bar; its Facets checklist is where the last round got to. It
 names the strategy, the
 acceptance tests that define done, and the facets expected. It is the
@@ -30,7 +30,7 @@ and runs all of it on every push, on hardware sized for it. Name the
 files you run: the pod's Bash hook refuses a bare `npm test` or a
 `vitest run` with no path. What the
 acceptance tests say now is where you actually are — not what you
-remember, and not what `.lore/dod.md` predicted.
+remember, and not what `{dod_path}` predicted.
 
 If this pod cannot run them — the command that runs them (`java`, `mvn`,
 `gradle`, `go`, `cargo`, `dotnet`) is not found, or a wrapper such as
@@ -53,7 +53,7 @@ old code alone and working until the acceptance tests are green, and make
 the caller switch its own round. Under `characterize`, the
 characterization tests are part of the green bar you must keep — a
 refactor that reddens them is a behaviour change. Under `mechanical`,
-there is no red phase at all: run the EXISTING tests `.lore/dod.md`
+there is no red phase at all: run the EXISTING tests `{dod_path}`
 names, see them green, perform the exact edits its Facets record, run
 them again, and commit on green — the diff is the deliverable, and a
 round that invents a new test for it has left the strategy.
@@ -99,17 +99,17 @@ tests were yours and how many were regressions.
 RULES:
 - Do not fix unrelated smells you notice. Name them in your final message;
   act on none of them.
-- Keep `.lore/dod.md` current: TICK the box of the facet you closed
+- Keep `{dod_path}` current: TICK the box of the facet you closed
   (`- [ ]` becomes `- [x]`) and append any new facet you discovered as an
   unchecked one. It is a live checklist, not an append-only log, and the
   next round reads it to see where the ticket actually stands.
 - Commit when the test YOU wrote is green. Acceptance tests may still be
   red — that is the ordinary state mid-ticket, and the next round takes
   the next facet.
-- If `/workspace/round-brief.md` exists, read it before `.lore/dod.md`. Its
+- If `/workspace/round-brief.md` exists, read it before `{dod_path}`. Its
   `The previous round reported` section is where the last round stopped.
   Its `CI reported failures` section is the verdict
-  on the previous push, and it outranks `.lore/dod.md`: a red build means
+  on the previous push, and it outranks `{dod_path}`: a red build means
   the ticket is NOT done, however many facets are ticked. Every finding
   it lists — each `path:line message` — is work this round owes before
   anything else. Fix ALL of them in this visit, format, push; there is no
@@ -170,7 +170,7 @@ reporting whether this round delivered anything.
   This is the ordinary outcome, whether or not acceptance tests remain
   red. CI reads the branch next and sends you back if there is more.
 - You wrote nothing because there was nothing left to write — every facet
-  in `.lore/dod.md` is closed, its acceptance tests pass, AND no
+  in `{dod_path}` is closed, its acceptance tests pass, AND no
   `CI reported failures` section is in the round brief (a red verdict IS something
   left to write; fix its findings and report the line above instead):
   LORE_NODE_RESULT: {"outcome":"success","extras":{"tdd_next":"acceptance green"}}

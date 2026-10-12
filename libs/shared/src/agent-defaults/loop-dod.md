@@ -50,7 +50,7 @@ for it and do not install it: no `sudo`, no `apt`, no `find /`, no
 download. The pull request's CI runs these tests on every push and proves
 the red bar instead. Write the tests as the contract says, read each one
 against the ticket's claim in place of running it, then commit and push.
-In `.lore/dod.md`, right under the strategy, write that the red bar is
+In `{dod_path}`, right under the strategy, write that the red bar is
 CI's to show and name the CI job that runs the tests. In your final
 message, quote the command CI runs where the failure output would be.
 
@@ -72,7 +72,7 @@ ticket as noise. The honest moves instead:
 SCOPE FIDELITY, EQUALLY NON-NEGOTIABLE. The ticket below carries the
 issue's title AND body — the reported problem is in there, not in your
 reading of it:
-- Open `.lore/dod.md` by QUOTING the ticket's central claim, verbatim.
+- Open `{dod_path}` by QUOTING the ticket's central claim, verbatim.
   The claim is what the reporter says is wrong, in their words.
 - Every acceptance test must fail BECAUSE of that claim. Run each red
   test and read its failure output against the quote: failing for a
@@ -111,7 +111,7 @@ TRIAGE — pick exactly one strategy and say which:
   behaviour: if no existing test pins what the edit touches, the ticket
   is not mechanical.
 
-Record the triage in `.lore/dod.md`, committed with the tests (under
+Record the triage in `{dod_path}`, committed with the tests (under
 `mechanical` the file is the whole commit). Write it for the next pod,
 which has your branch and none of your reasoning — and for the human who
 opens the branch to see where the ticket stands. Use EXACTLY this shape.
@@ -163,7 +163,7 @@ RULES:
   first — mirror their framework, directory, file suffix and naming.
 - No mocks, no stubs. Exercise real values. A behaviour that seems to need
   a double is telling you where the seam is missing; say so in
-  `.lore/dod.md` and pick `parallel-change` or `characterize` accordingly.
+  `{dod_path}` and pick `parallel-change` or `characterize` accordingly.
 - Write no production code. Not a stub, not a signature, not a TODO.
 - Do not edit `| Status |` on any spec. Nothing is implemented yet.
 
@@ -213,7 +213,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 THE LAST LINE YOU PRINT decides where this ticket goes. Print exactly one,
 on its own line, as the final thing in your message:
 - Red acceptance tests are committed and pushed — or, under `mechanical`,
-  `.lore/dod.md` naming green existing tests is (state the strategy you
+  `{dod_path}` naming green existing tests is (state the strategy you
   picked in the extra):
   LORE_NODE_RESULT: {"outcome":"success","extras":{"dod_strategy":"direct"}}
 - The ticket cannot be expressed as acceptance tests that fail for ITS

@@ -61,6 +61,8 @@ function floorTicketDeps(): FloorTicketDeps {
     claim: (taskId) => moveTask(taskId, { from: "pending", to: "running" }),
     ensureBranch: async (repo, branch) =>
       ensureBranch((await projectFor(repo)).repo, branch),
+    readRepoFile: async (repo, path, ref) =>
+      (await projectFor(repo)).repo.read(path, ref),
     failTask: async (taskId, reason) => {
       await moveTask(taskId, { from: "running", to: "failed", reason });
     },

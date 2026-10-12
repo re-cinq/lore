@@ -9,6 +9,7 @@ import {
 } from "../../outbound/floor/floor-items.js";
 import { startLine } from "../review/floor-line-start.js";
 import type { StartedTicket } from "./implementation-loop-tick.js";
+import { dodPathOf, LOOP_CONFIG_PATH } from "./loop-config.js";
 import type { OpenPr } from "./resume-branch.js";
 
 export const LOOP_LINE = "implementation-loop";
@@ -40,6 +41,8 @@ export interface FloorTicketDeps {
   /** Takes the pending task for the floor; false when something else claimed it first. */
   claim(taskId: string): Promise<boolean>;
   ensureBranch(repo: string, branch: string): Promise<void>;
+  /** A file's text on a ref; null when the ref has no such file. */
+  readRepoFile(repo: string, path: string, ref: string): Promise<string | null>;
   failTask(taskId: string, reason: string): Promise<void>;
 }
 
@@ -54,7 +57,7 @@ export async function startTicketOnFloor(
 
   try {
     await deps.ensureBranch(ticket.repo, ticket.branch);
-    await startLoopRun(deps.floor, ticket);
+    await startLoopRun(deps.floor, await withDodPath(deps, ticket));
   } catch (err) {
     await deps.failTask(
       ticket.taskId,
@@ -62,6 +65,20 @@ export async function startTicketOnFloor(
     );
     throw err;
   }
+}
+
+/** The ticket with the definition-of-done path its branch's loop config names. */
+async function withDodPath(
+  deps: FloorTicketDeps,
+  ticket: StartedTicket,
+): Promise<LoopRunStart> {
+  const loopConfig = await deps.readRepoFile(
+    ticket.repo,
+    LOOP_CONFIG_PATH,
+    ticket.branch,
+  );
+
+  return { ...ticket, dodPath: dodPathOf(loopConfig) };
 }
 
 /** What a loop run is started for: a backlog ticket, or a plan's task. */
@@ -77,6 +94,8 @@ export interface LoopRunStart {
   backlog?: string;
   /** The pull request the branch already has, a start item so the run page shows it before its open-pr node finds it again. */
   openPr?: OpenPr | null;
+  /** Where the agents keep the definition of done on the branch. */
+  dodPath: string;
 }
 
 export async function startLoopRun(
@@ -95,7 +114,7 @@ export async function startLoopRun(
 }
 
 function loopStartItems(
-  { repo, branch, taskId, issue, backlog, openPr }: LoopRunStart,
+  { repo, branch, taskId, issue, backlog, openPr, dodPath }: LoopRunStart,
   ticketHash: string,
 ) {
   return {
@@ -103,6 +122,7 @@ function loopStartItems(
     backlog: valueItem(backlog ?? BACKLOG),
     task_id: valueItem(taskId),
     ticket: fileItem(ticketHash),
+    dod_path: valueItem(dodPath),
     issue_title: valueItem(issue.title),
     ...(issue.number ? { issue_number: valueItem(issue.number) } : {}),
     ...(openPr ? { pr_url: valueItem(openPr.url) } : {}),

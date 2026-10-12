@@ -17,13 +17,15 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { PgTestReports } from "@re-cinq/lore-shared/project/test-reports/test-reports-pg.js";
+import {
+  dodPathOf,
+  LOOP_CONFIG_PATH,
+} from "@re-cinq/lore-shared/backlog/loop-config.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 
-// GET /api/assembly-runs/{id}/dod — the run's Definition of Done (`.lore/dod.md` on its branch) with each acceptance test matched against the branch's latest CI report (specs/implementation-loop FR16). A terminal run answers "not present" without a GitHub read: pr-ready removes the file, and a finished branch has nothing left to show.
-
-export const DOD_PATH = ".lore/dod.md";
+// GET /api/assembly-runs/{id}/dod — the run's Definition of Done (`.lore/dod.md` on its branch, or the path the branch's `.lore/loop.yml` names) with each acceptance test matched against the branch's latest CI report (specs/implementation-loop FR16). A terminal run answers "not present" without a GitHub read: pr-ready removes the file, and a finished branch has nothing left to show.
 
 const AcceptanceTestStatusSchema = z.object({
   path: z.string(),
@@ -97,11 +99,22 @@ async function serveRunDod(
     return ABSENT;
   }
   const [text, report] = await Promise.all([
-    deps.readFile(run.repo, DOD_PATH, branch),
+    dodText(deps.readFile, run.repo, branch),
     deps.testReports.latestForBranch(run.repo, branch),
   ]);
 
   return progress(parseDodMarkdown(text ?? ""), report);
+}
+
+/** The definition of done on the branch, at the path the branch's loop config names. */
+async function dodText(
+  readFile: ReadRepoFile,
+  repo: string,
+  branch: string,
+): Promise<string | null> {
+  const dodPath = dodPathOf(await readFile(repo, LOOP_CONFIG_PATH, branch));
+
+  return readFile(repo, dodPath, branch);
 }
 
 /** The injected ports, or ones built on the pool; refusing with 503 when neither is possible. */

@@ -35,6 +35,7 @@ function scene(overrides: Partial<Omit<FloorTicketDeps, "floor">> = {}) {
 
       return Promise.resolve();
     },
+    readRepoFile: () => Promise.resolve(null),
     failTask: (taskId, reason) => {
       steps.push(`failed ${taskId}: ${reason}`);
 
@@ -79,6 +80,7 @@ describe("startTicketOnFloor", () => {
         backlog: { kind: "value", ref: "tickets", by: "lore" },
         task_id: { kind: "value", ref: "task-1", by: "lore" },
         ticket: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
+        dod_path: { kind: "value", ref: ".lore/dod.md", by: "lore" },
         issue_title: {
           kind: "value",
           ref: "Add the export button",
@@ -106,6 +108,48 @@ describe("startTicketOnFloor", () => {
         },
       },
     });
+  });
+
+  it("starts the run with dod_path solutions/widgets/.lore/dod.md when the branch's .lore/loop.yml names it", async () => {
+    const reads: string[] = [];
+    const { deps, started } = scene({
+      readRepoFile: (repo, path, ref) => {
+        reads.push(`${repo}:${ref}:${path}`);
+
+        return Promise.resolve("dod_path: solutions/widgets/.lore/dod.md\n");
+      },
+    });
+
+    await startTicketOnFloor(deps, TICKET);
+
+    expect(reads).toEqual([
+      "Acme/Widgets:lore/implementation-loop/issue-7:.lore/loop.yml",
+    ]);
+    expect(started()[0].body).toMatchObject({
+      startItems: {
+        dod_path: {
+          kind: "value",
+          ref: "solutions/widgets/.lore/dod.md",
+          by: "lore",
+        },
+      },
+    });
+  });
+
+  it("fails task-1 and starts nothing when .lore/loop.yml names a dod_path of ../dod.md", async () => {
+    const { deps, steps, started } = scene({
+      readRepoFile: () => Promise.resolve("dod_path: ../dod.md\n"),
+    });
+
+    await expect(startTicketOnFloor(deps, TICKET)).rejects.toThrow(
+      new Error(
+        '.lore/loop.yml: dod_path must be a relative path to a .md file inside the repository, not "../dod.md"',
+      ),
+    );
+    expect(started()).toEqual([]);
+    expect(steps.at(-1)).toBe(
+      'failed task-1: the ticket could not be started on the floor: .lore/loop.yml: dod_path must be a relative path to a .md file inside the repository, not "../dod.md"',
+    );
   });
 
   it("starts nothing when another process claimed task-1 first", async () => {

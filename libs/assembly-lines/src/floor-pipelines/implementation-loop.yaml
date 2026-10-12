@@ -190,6 +190,10 @@ stations:
       - name: ticket
         kind: file
         path: ticket.md
+      # Where the definition of done lives on the branch: `.lore/dod.md`, or
+      # the path the repository's `.lore/loop.yml` names.
+      - name: dod_path
+        kind: value
     produces:
       - name: dod_strategy
         kind: value
@@ -242,6 +246,8 @@ stations:
         kind: file
         path: round-brief.md
         optional: true
+      - name: dod_path
+        kind: value
     produces:
       - name: tdd_done
         kind: value
@@ -312,6 +318,8 @@ stations:
       - name: ticket
         kind: file
         path: ticket.md
+      - name: dod_path
+        kind: value
     produces:
       - name: pr_body
         kind: file

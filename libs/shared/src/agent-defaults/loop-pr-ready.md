@@ -21,7 +21,7 @@ YOU DO NOT NEED TO PROVE IT. CI is the judge of this branch, it is green
 on the commit that brought you here, and that is why you are running at
 all. Do not re-run the suite, the linter or the typechecker: it buys
 nothing and costs the whole round, and the pod's Bash hook refuses
-test, build and install commands here. Read `.lore/dod.md`'s "Done when
+test, build and install commands here. Read `{dod_path}`'s "Done when
 these pass" list for what the
 ticket meant by done, and read the diff for what actually landed.
 
@@ -30,7 +30,7 @@ asked for, what changed and why that shape, which acceptance tests define
 done, and anything a reviewer would otherwise have to ask. No checklists,
 no emoji, no "Summary/Changes/Testing" headings, no restating the diff.
 Link the specs and ADRs the change touches by path. If you deviated from
-`.lore/dod.md`'s strategy, say so and say why — that is the single most
+`{dod_path}`'s strategy, say so and say why — that is the single most
 useful sentence in the description. Do not write closing-keyword lines
 (`Closes`/`Refs #N`) or `Lore-Task:` trailers — Lore appends that footer
 itself when it updates the pull request. The file lives beside the clone,
@@ -52,7 +52,7 @@ description. You report the verdict in your final line below; on
 `"partial"` Lore stamps the PR to REFERENCE the ticket (`Refs`) instead
 of closing it on merge, so the rest of the report stays open.
 
-THEN clean up: `git rm .lore/dod.md`. It was scaffolding between pods and
+THEN clean up: `git rm {dod_path}`. It was scaffolding between pods and
 does not belong in the review.
 
 TRACEABILITY:
@@ -121,7 +121,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 
 Print exactly one of these as the last line of your final message:
 - `{pr_body_path}` is written, and the
-  `.lore/dod.md` removal plus any link fixes are committed and pushed.
+  `{dod_path}` removal plus any link fixes are committed and pushed.
   Set `"pr_title"` to the title you wrote above, and
   `"issue_coverage"` to `"full"` when the branch resolves everything
   the ticket reports, `"partial"` when it resolves only part:
