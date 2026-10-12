@@ -51,6 +51,12 @@ function fakePulls(
     enablePullRequestAutoMerge: async () => {},
     // eslint-disable-next-line re-lint/no-negative-names
     disablePullRequestAutoMerge: async () => {},
+    getBranchRule: async () => ({
+      requiredApprovals: 0,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    }),
+    getMergeability: async () => ({ mergeable: null, state: "unknown" }),
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
     },
