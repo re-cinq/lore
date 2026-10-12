@@ -10,10 +10,12 @@ const scriptPath = join(repoRoot, "scripts", "infra", "check-secrets.sh");
 
 test("check-secrets.sh catches an empty dockerconfigjson password", () => {
   const tmpDir = join(repoRoot, "tmp-test-mocks");
+
   rmSync(tmpDir, { recursive: true, force: true });
   mkdirSync(tmpDir);
 
   const kubectlMock = join(tmpDir, "kubectl");
+
   writeFileSync(kubectlMock, `#!/usr/bin/env bash
 if [[ "$*" == *"get externalsecrets"* ]]; then
   cat << 'JSON'
@@ -54,6 +56,7 @@ fi
   chmodSync(kubectlMock, 0o755);
 
   const gcloudMock = join(tmpDir, "gcloud");
+
   writeFileSync(gcloudMock, `#!/usr/bin/env bash
 if [[ "$*" == *"secrets list"* ]]; then
   echo "ghcr-token"
@@ -85,10 +88,12 @@ fi
 
 test("check-secrets.sh catches an expired dockerconfigjson token via curl", () => {
   const tmpDir = join(repoRoot, "tmp-test-mocks-2");
+
   rmSync(tmpDir, { recursive: true, force: true });
   mkdirSync(tmpDir);
 
   const kubectlMock = join(tmpDir, "kubectl");
+
   writeFileSync(kubectlMock, `#!/usr/bin/env bash
 if [[ "$*" == *"get externalsecrets"* ]]; then
   cat << 'JSON'
@@ -128,6 +133,7 @@ fi
   chmodSync(kubectlMock, 0o755);
 
   const gcloudMock = join(tmpDir, "gcloud");
+
   writeFileSync(gcloudMock, `#!/usr/bin/env bash
 if [[ "$*" == *"secrets list"* ]]; then
   echo "ghcr-token"
@@ -140,6 +146,7 @@ fi
   chmodSync(gcloudMock, 0o755);
 
   const curlMock = join(tmpDir, "curl");
+
   writeFileSync(curlMock, `#!/usr/bin/env bash
 # Simulate a 401 Unauthorized from the registry
 if [[ "$*" == *"ghcr.io/token"* ]]; then
