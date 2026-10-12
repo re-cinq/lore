@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
+import type { Pool } from "pg";
 import {
   configuredTokens,
   handleFloorGitCredential,
+  isOnboarded,
   podPermissions,
   repoOfUrl,
   type GitCredentialMint,
@@ -113,6 +115,35 @@ describe("handleFloorGitCredential", () => {
       minted: [],
       audited: [],
     });
+  });
+});
+
+describe("isOnboarded", () => {
+  it("asks lore.repos for re-cinq/otto regardless of letter case, since the pod names the repo in lowercase and the row keeps GitHub's spelling", async () => {
+    const asked: { text: string; values: unknown[] }[] = [];
+    const pool = {
+      query: async (text: string, values: unknown[]) => {
+        asked.push({ text, values });
+
+        return { rowCount: 1 };
+      },
+    } as unknown as Pool;
+
+    expect(await isOnboarded(pool, "re-cinq/otto")).toBe(true);
+    expect(asked).toEqual([
+      {
+        text: "SELECT 1 FROM lore.repos WHERE LOWER(full_name) = LOWER($1)",
+        values: ["re-cinq/otto"],
+      },
+    ]);
+  });
+
+  it("answers false for a repo no row matches", async () => {
+    const pool = {
+      query: async () => ({ rowCount: 0 }),
+    } as unknown as Pool;
+
+    expect(await isOnboarded(pool, "other/repo")).toBe(false);
   });
 });
 

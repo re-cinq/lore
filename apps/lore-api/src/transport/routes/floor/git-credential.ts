@@ -83,11 +83,19 @@ async function serveFloorGitCredential(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
+  const body = request.payload as z.infer<typeof FloorGitCredentialBody>;
   const result = await handleFloorGitCredential(
     liveDeps(getPool),
     extractBearer(request.headers.authorization) ?? "",
-    request.payload as z.infer<typeof FloorGitCredentialBody>,
+    body,
   );
+
+  if (result.code !== 200) {
+    // A refusal is a handled answer, so nothing else records it; every Otto pod died in init for a day before anyone saw the 403 behind the floor's 502.
+    console.warn(
+      `[git-credential] refused ${result.code} ${result.body.error} for ${body.repoUrl} (${body.access})`,
+    );
+  }
 
   return h.response(result.body).code(result.code);
 }
@@ -104,9 +112,13 @@ function liveDeps(getPool: () => Pool | null): FloorGitCredentialDeps {
   };
 }
 
-async function isOnboarded(pool: Pool | null, repo: string): Promise<boolean> {
+/** Matched regardless of letter case: the floor names a repository in lowercase (`floorRepoOf`), while `lore.repos.full_name` keeps GitHub's spelling, so `re-cinq/otto` must find `re-cinq/Otto`. */
+export async function isOnboarded(
+  pool: Pool | null,
+  repo: string,
+): Promise<boolean> {
   const found = await pool?.query(
-    "SELECT 1 FROM lore.repos WHERE full_name = $1",
+    "SELECT 1 FROM lore.repos WHERE LOWER(full_name) = LOWER($1)",
     [repo],
   );
 
