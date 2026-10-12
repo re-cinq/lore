@@ -66,6 +66,7 @@ const loreOnly: SpendWindow = {
     ],
     by_cluster: [],
     by_billing_mode: [],
+    floor_unavailable: false,
     by_vendor: [
       { vendor: "anthropic", calls: 82, cost_usd: 24.02 },
       { vendor: "gemini", calls: 3, cost_usd: 13.68 },

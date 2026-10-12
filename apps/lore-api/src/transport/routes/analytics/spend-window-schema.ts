@@ -115,6 +115,8 @@ export const SpendWindowSchema = z.object({
         cost_usd: z.number(),
       }),
     ),
+    // True when the floor could not answer its billing_mode costs: by_billing_mode then holds Lore's own calls only.
+    floor_unavailable: z.boolean(),
   }),
   // Anthropic's own billing, interval-scoped, reported beside (never reconciled with) the computed figures; available=false when no admin key has ever synced, rows empty either way.
   billed: z.object({

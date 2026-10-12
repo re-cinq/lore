@@ -4136,6 +4136,7 @@ export interface components {
           calls: number;
           cost_usd: number;
         }[];
+        floor_unavailable: boolean;
       };
       billed: {
         available: boolean;

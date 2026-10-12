@@ -540,6 +540,27 @@ describe("GET /api/analytics/spend-window", () => {
     ]);
   });
 
+  it("answers 200 with Lore's own 42 calls on the org key and floor_unavailable true when the floor rejects the billing_mode group", async () => {
+    const floor = {
+      costs: {
+        summary: async () => {
+          throw new Error("400 unknown group: billing_mode");
+        },
+      },
+    };
+    const res = await get(await serverWith(BASE_ROWS, { floor }));
+
+    expect({
+      status: res.statusCode,
+      split: JSON.parse(res.payload).llm.by_billing_mode,
+      floorUnavailable: JSON.parse(res.payload).llm.floor_unavailable,
+    }).toEqual({
+      status: 200,
+      split: [{ mode: "api_key", calls: 42, cost_usd: 82.5 }],
+      floorUnavailable: true,
+    });
+  });
+
   it("still renders cluster spend empty when the registry table is absent", async () => {
     const server = await serverWith(BASE_ROWS, {}, [], (sql) =>
       sql.includes("pipeline.cluster_agents"),
