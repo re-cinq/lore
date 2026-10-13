@@ -13,9 +13,9 @@
 
 ## Facets
 
-- [ ] add route for a single PR's blocked reason
-- [ ] add route for all blocked PRs in a repo
-- [ ] map reason codes to labels in the API response
+- [x] add route for a single PR's blocked reason
+- [x] add route for all blocked PRs in a repo
+- [x] map reason codes to labels in the API response
 
 ## Out of scope
 

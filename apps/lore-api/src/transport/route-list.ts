@@ -53,6 +53,7 @@ import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
 import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
+import { blockedReasonsRoutes } from "./routes/blocked-reasons.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
 import { githubWebhookRoute } from "./routes/webhooks/webhook-github.js";
 import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
@@ -178,6 +179,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     autoMergeKpisRoute(getPool),
     triageRoute(),
     onboardRoute(getPool),
+    ...blockedReasonsRoutes(getPool),
     ...contextAndGraphRoutes(getPool),
   ];
 }
