@@ -89,7 +89,7 @@ Templates are centrally managed — tune once, every agent benefits.
 3. Lower-priority sections are truncated or omitted to fit.
 
 **Acceptance Criteria:**
-- Output never exceeds `max_tokens`. ([validated by `context-assembly.test.ts:122`](libs/server-core/src/work/context/context-assembly.test.ts#L122))
+- Output never exceeds `max_tokens`. ([validated by `context-assembly.test.ts:122`](libs/server-core/src/work/context/context-assembly.test.ts#L134))
 - Higher-priority sections are preserved; lower-priority ones
   are trimmed.
 - If the budget is very small, only the most essential context
@@ -111,7 +111,7 @@ context it did, via the web-ui **Assembled** tab.
 **Acceptance Criteria:**
 - A `debug=1` assembly returns a per-section trace carrying each source's status
   and, when omitted, the reason (no results / no rule matched / budget exhausted).
-  ([validated by `context-assembly.test.ts:282`](libs/server-core/src/work/context/context-assembly.test.ts#L282))
+  ([validated by `context-assembly.test.ts:282`](libs/server-core/src/work/context/context-assembly.test.ts#L294))
 - The trace maps 1:1 to a nested `context/section/document` tag tree, dropping
   omitted sections and marking only the last document of a truncated section.
   ([validated by `tag-tree.test.ts:52`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L52), [`tag-tree.test.ts:62`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L62))
@@ -159,16 +159,16 @@ The tool retrieves from all available sources:
   query matches (`search_tsv @@`), never unmatched chunks ranked by recency: a
   zero `ts_rank` is a score, not a NULL, so without the filter a query matching
   nothing returned the newest chunks of the type, the same three for every
-  question, for the four weeks the vector leg was down (2026-08-13 → 09-09). ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L189), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L419), [`keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L296))
+  question, for the four weeks the vector leg was down (2026-08-13 → 09-09). ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L201), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L419), [`keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L296))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
   `file_path` — or a `content_hash`, a file and its copied twin at another path
   being one document — are de-duplicated, keeping the highest-scoring copy; the
-  hash rides on every hit for that purpose. ([validated by `context-assembly.test.ts:216`](libs/server-core/src/work/context/context-assembly.test.ts#L216), [`context-assembly-format.test.ts:23`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L23), [`context-assembly-format.test.ts:62`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L134), [`keeps a path-less item at rank 2 between two keyed survivors instead of moving it last`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L140), [`collapses trace-impact-workflow.ts and its twin sharing content_hash abc123 to one item`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L107), [`carries the chunk content_hash onto the item so twins across paths can collapse`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L310))
+  hash rides on every hit for that purpose. ([validated by `context-assembly.test.ts:216`](libs/server-core/src/work/context/context-assembly.test.ts#L228), [`context-assembly-format.test.ts:23`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L23), [`context-assembly-format.test.ts:62`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L134), [`keeps a path-less item at rank 2 between two keyed survivors instead of moving it last`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L140), [`collapses trace-impact-workflow.ts and its twin sharing content_hash abc123 to one item`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L107), [`carries the chunk content_hash onto the item so twins across paths can collapse`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L310))
 - FR-2.9: **Code retrieval.** A dedicated `code` source retrieves
   `content_type='code'` chunks via the same hybrid ranking, so implementation and
   review tasks receive the actual source files they edit (previously code was
-  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L243), [`context-assembly.test.ts:229`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L230), [`context-assembly.test.ts:376`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L377))
+  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L255), [`context-assembly.test.ts:229`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L230), [`context-assembly.test.ts:376`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L377))
 - FR-2.10: **Keyword leg searches distinctive terms.** A paragraph-length query
   is reduced to its distinctive terms (stopwords + ≤2-char words dropped, capped)
   for the keyword leg, so common filler words don't dominate ranking. The
@@ -218,7 +218,7 @@ The tool retrieves from all available sources:
 ### FR-3: Template System
 
 - FR-3.1: Templates are YAML files in a configurable directory
-  (default: `mcp-server/templates/`). ([validated by `context-assembly.test.ts:54`](libs/server-core/src/work/context/context-assembly.test.ts#L54))
+  (default: `mcp-server/templates/`). ([validated by `context-assembly.test.ts:54`](libs/server-core/src/work/context/context-assembly.test.ts#L66))
 - FR-3.2: A template defines:
   - `sections`: ordered list of context sections to include.
   - `section.source`: which source to pull from (repo, adrs,
@@ -242,10 +242,10 @@ The tool retrieves from all available sources:
   other sections.
 - FR-4.2a: **Relevance cut-off across sections.** *(added 2026-10-02)* Before the budget is divided, every chunk whose similarity sits more than `RELEVANCE_MARGIN` (0.08) below the best chunk of the whole assembly is dropped, whichever section it is in. A section fills its share with whatever it has, so without this a section with nothing to say about the question still spent a quarter of the budget. A section cut to nothing is omitted with the reason "nothing close enough to the question", and its share goes to the sections that remain. An item with no similarity (a rule, a graph line, a keyword-only hit when the embedder is down) was not measured and is never cut. The margin was measured, not guessed: on 113 questions written from the ADRs and specs of seven repositories and replayed against a copy of production (2026-10-02), the cut-off with three chunks per document took the mean context from 7,465 to 5,128 tokens, the questions answered from 95 to 98, the documents found from 101 to 104, and the share of returned tokens the answer used from 25% to 33%. ([validated by drops the ADR at similarity 0.62 when the best chunk anywhere is at 0.75, and keeps the spec at 0.70](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L61), [validated by says why a section whose every chunk fell under the cut-off was left out](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L75), [validated by keeps the best chunk itself, wherever it is, and anything within 0.08 of it](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L91), [validated by never cuts an item that carries no similarity, such as a memory or a keyword-only hit](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L107), [validated by gives a cut section's share of the budget to the sections that remain](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L119))
 - FR-4.3: Token counting uses a simple approximation
-  (chars / 4) — no tokenizer dependency. ([validated by `context-assembly.test.ts:26`](libs/server-core/src/work/context/context-assembly.test.ts#L26))
+  (chars / 4) — no tokenizer dependency. ([validated by `context-assembly.test.ts:26`](libs/server-core/src/work/context/context-assembly.test.ts#L38))
 - FR-4.4: When content exceeds a section's budget, it is truncated
   at a paragraph boundary with a "(truncated)" marker; content under
-  budget is returned unchanged. ([validated by `context-assembly.test.ts:40`](libs/server-core/src/work/context/context-assembly.test.ts#L40), [`context-assembly.test.ts:34`](libs/server-core/src/work/context/context-assembly.test.ts#L34))
+  budget is returned unchanged. ([validated by `context-assembly.test.ts:40`](libs/server-core/src/work/context/context-assembly.test.ts#L52), [`context-assembly.test.ts:34`](libs/server-core/src/work/context/context-assembly.test.ts#L46))
 - FR-4.5: **Per-document cap.** When a section has more than one document,
   no single document may exceed half the section budget — so one mega-doc
   (e.g. CLAUDE.md) cannot crowd out several smaller, more-relevant chunks. A
@@ -263,7 +263,7 @@ The tool retrieves from all available sources:
   per contributing chunk. Provenance lives in tag attributes (`source`, `type`,
   `relevance`, `tokens`, `truncated`); the chunk's own markdown is contained
   inside the tag, so document headings and YAML `---` fences cannot collide with
-  the structural skeleton. ([validated by `context-assembly-format.test.ts:117`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L189), [`context-assembly-format.test.ts:91`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L163), [`context-assembly.test.ts:151`](libs/server-core/src/work/context/context-assembly.test.ts#L151), [`context-assembly-format.test.ts:17`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L17))
+  the structural skeleton. ([validated by `context-assembly-format.test.ts:117`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L189), [`context-assembly-format.test.ts:91`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L163), [`context-assembly.test.ts:151`](libs/server-core/src/work/context/context-assembly.test.ts#L163), [`context-assembly-format.test.ts:17`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L17))
 - FR-5.2: Format:
   ```xml
   <context query="…" template="implementation" budget="8000">
@@ -291,7 +291,7 @@ The tool retrieves from all available sources:
 
 - Debug mode (`debug=1`) returns a full assembly trace: per-section status,
   allocated budget, raw vs final tokens, truncation, omit reason, and the
-  contributing documents with provenance. ([validated by `context-assembly.test.ts:282`](libs/server-core/src/work/context/context-assembly.test.ts#L282))
+  contributing documents with provenance. ([validated by `context-assembly.test.ts:282`](libs/server-core/src/work/context/context-assembly.test.ts#L294))
 - Audit log records each `lore_assemble_context` call with: query, template used,
   sources hit, total tokens returned. *(Audit-log persistence is tracked as
   follow-up — the in-memory trace lands first.)*

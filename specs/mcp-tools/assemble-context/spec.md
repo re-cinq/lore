@@ -95,19 +95,19 @@ context" text, the "requires PostgreSQL or LORE_API_URL" text, or the
 ## Acceptance Criteria
 
 The engine returns empty text and an empty section list when no source returns
-rows. ([validated by `returns empty text when no sources return data`](libs/server-core/src/work/context/context-assembly.test.ts#L68))
+rows. ([validated by `returns empty text when no sources return data`](libs/server-core/src/work/context/context-assembly.test.ts#L80))
 
 A repo source returning a `doc` chunk yields a Conventions section containing
-that chunk's content. ([validated by `assembles context from repo source`](libs/server-core/src/work/context/context-assembly.test.ts#L86))
+that chunk's content. ([validated by `assembles context from repo source`](libs/server-core/src/work/context/context-assembly.test.ts#L98))
 
 Content exceeding the budget is truncated so the assembled text stays within the
-token budget and the section is marked truncated. ([validated by `respects token budget`](libs/server-core/src/work/context/context-assembly.test.ts#L122))
+token budget and the section is marked truncated. ([validated by `respects token budget`](libs/server-core/src/work/context/context-assembly.test.ts#L134))
 
 Retrieved documents are emitted as XML tags carrying source/type/relevance
-provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](libs/server-core/src/work/context/context-assembly.test.ts#L151))
+provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](libs/server-core/src/work/context/context-assembly.test.ts#L163))
 
 The debug trace reports per-section inclusion status and an omit reason for empty
-sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](libs/server-core/src/work/context/context-assembly.test.ts#L282))
+sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](libs/server-core/src/work/context/context-assembly.test.ts#L294))
 
 On the proxy path, a reachable backend response is authoritative over any cached
 copy: an empty-but-reachable context is returned as-is (never a stale cache), and
