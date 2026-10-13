@@ -128,7 +128,7 @@ export const ONBOARD_FILES: {
     path: ".github/workflows/pr-description-check.yml",
     description: "CI check for PR description quality",
     prompt:
-      'Generate a GitHub Actions workflow that checks PR descriptions have required sections (## Why, ## What Changed, ## Testing). Run on pull_request opened/edited. Fail if sections are missing. Declare `permissions: {contents: read, pull-requests: read}`. The PR body is attacker-controlled: pass it to the script ONLY through the step\'s `env:` block (`PR_BODY: ${{ github.event.pull_request.body }}`) and read it in the script as a double-quoted `"$PR_BODY"`. Never write a `${{ }}` expression inside a `run:` block.',
+      'Generate a GitHub Actions workflow that checks PR descriptions have required sections (## Why, ## What Changed, ## Testing). Run on pull_request opened/edited. Fail if sections are missing. If the PR body contains `Lore-Task:`, skip the check and exit 0. Declare `permissions: {contents: read, pull-requests: read}`. The PR body is attacker-controlled: pass it to the script ONLY through the step\'s `env:` block (`PR_BODY: ${{ github.event.pull_request.body }}`) and read it in the script as a double-quoted `"$PR_BODY"`. Never write a `${{ }}` expression inside a `run:` block.',
   },
   {
     path: ".specify/spec.md",

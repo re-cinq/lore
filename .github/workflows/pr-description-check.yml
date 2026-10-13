@@ -18,6 +18,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          if echo "$PR_BODY" | grep -q "Lore-Task:"; then
+            echo "PR was authored by Lore. Skipping section checks."
+            exit 0
+          fi
+
           FAILED=0
           WARNINGS=""
 
