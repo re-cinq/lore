@@ -23,6 +23,7 @@ describe("GET /api/repos/{owner}/{repo}/auto-merge/kpis", () => {
 
   it("returns 503 when pool is null", async () => {
     const res = await get(null);
+
     expect(res.statusCode).toBe(503);
   });
 

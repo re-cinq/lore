@@ -28,15 +28,19 @@ async function serveAutoMergeKpis(
   getPool: () => Pool | null,
 ): Promise<ResponseObject> {
   const pool = getPool();
+
   enforceTrue(pool, apiError(503), "Database pool not available");
+
   try {
     const res = await pool.query(
       `SELECT task_group_id, pr_number, merged_without_human, dependent_merged_before_dependency, sensitive_merged_without_codeowner FROM pipeline.v_auto_merge_kpis WHERE repo = $1`,
       [`${request.params.owner}/${request.params.repo}`],
     );
+
     return h.response({ kpis: res.rows });
   } catch (err) {
     rethrowBoom(err);
+
     return h.response({ error: errorMessage(err) }).code(500);
   }
 }
