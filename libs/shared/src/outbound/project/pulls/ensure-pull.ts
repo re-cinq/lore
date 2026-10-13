@@ -6,15 +6,20 @@ export interface PullOpener {
   open(branch: string, pr: PullDraft): Promise<PullRef>;
 }
 
-/** The pull request already open on the branch, or a new one: a station dispatched twice must never fork review across two pull requests. */
+/** The pull request already open on the branch, or a new one: a station dispatched twice must never fork review across two pull requests. A station that has something to bring an already-open pull request up to date passes it as `reused`. */
 export async function ensurePull(
   pulls: PullOpener,
   branch: string,
   draft: PullDraft,
+  reused?: (pr: PullRef) => Promise<void>,
 ): Promise<PullRef> {
   const open = await pulls.list();
+  const existing = open.find((pr) => pr.branch === branch);
 
-  return (
-    open.find((pr) => pr.branch === branch) ?? (await pulls.open(branch, draft))
-  );
+  if (!existing) {
+    return pulls.open(branch, draft);
+  }
+  await reused?.(existing);
+
+  return existing;
 }

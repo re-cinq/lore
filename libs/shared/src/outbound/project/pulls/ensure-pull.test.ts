@@ -44,4 +44,23 @@ describe("ensurePull", () => {
     expect((await ensurePull(pulls, "lore/x", DRAFT)).number).toBe(42);
     expect(opened).toEqual([]);
   });
+
+  it("hands pull request 42 already open on lore/x to the reused hook, and calls it for nothing it opened", async () => {
+    const reused: number[] = [];
+    const hook = (pr: PullRef) => {
+      reused.push(pr.number);
+
+      return Promise.resolve();
+    };
+
+    await ensurePull(
+      pullsHolding([pullRef("lore/x", 42)]).pulls,
+      "lore/x",
+      DRAFT,
+      hook,
+    );
+    await ensurePull(pullsHolding([]).pulls, "lore/x", DRAFT, hook);
+
+    expect(reused).toEqual([42]);
+  });
 });
