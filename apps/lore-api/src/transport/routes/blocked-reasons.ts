@@ -33,6 +33,86 @@ const BlockedPullsSchema = z.object({
 
 type BlockedReason = z.infer<typeof BlockedReasonSchema>;
 
+const reasonRouteOpts = zodResponse(
+  { ...bearerScope("read"), validate: { params: zodValidate(PrParam) } },
+  BlockedReasonSchema,
+  {
+    name: "BlockedReason",
+    description: "Read the blocked reason for a specific PR",
+  },
+);
+
+const pullsRouteOpts = zodResponse(
+  { ...bearerScope("read"), validate: { params: zodValidate(RepoParam) } },
+  BlockedPullsSchema,
+  {
+    name: "BlockedPulls",
+    description: "Read the blocked PRs for a specific repo",
+  },
+);
+
+export function blockedReasonsRoutes(
+  getPool: () => Pool | null,
+): ServerRoute[] {
+  return [
+    {
+      method: "GET",
+      path: "/api/repos/{owner}/{repo}/pulls/{number}/blocked-reason",
+      options: reasonRouteOpts,
+      handler: handleBlockedReason(getPool),
+    },
+    {
+      method: "GET",
+      path: "/api/repos/{owner}/{repo}/blocked-pulls",
+      options: pullsRouteOpts,
+      handler: handleBlockedPulls(getPool),
+    },
+  ];
+}
+
+const sqlReason =
+  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2";
+
+function handleBlockedReason(getPool: () => Pool | null) {
+  return async (req: Request, h: ResponseToolkit) => {
+    const pool = getPool();
+    if (!pool) return h.response().code(503);
+    const { owner, repo, number } = req.params as z.infer<typeof PrParam>;
+    try {
+      const { rows } = await pool.query(sqlReason, [
+        `${owner}/${repo}`,
+        number,
+      ]);
+      const res =
+        rows.length === 0
+          ? emptyReason(`${owner}/${repo}`, number)
+          : mapRow(rows[0]);
+      return h.response(res);
+    } catch (err) {
+      console.error("[blocked-reason] Error:", errorMessage(err));
+      return h.response().code(500);
+    }
+  };
+}
+
+const sqlPulls =
+  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1";
+
+function handleBlockedPulls(getPool: () => Pool | null) {
+  return async (req: Request, h: ResponseToolkit) => {
+    const pool = getPool();
+    if (!pool) return h.response().code(503);
+    const { owner, repo } = req.params as z.infer<typeof RepoParam>;
+    try {
+      const { rows } = await pool.query(sqlPulls, [`${owner}/${repo}`]);
+      return h.response({ pulls: rows.map(mapRow) });
+    } catch (err) {
+      console.error("[blocked-pulls] Error:", errorMessage(err));
+      return h.response().code(500);
+    }
+  };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapRow(row: any): BlockedReason {
   return {
@@ -56,114 +136,24 @@ const emptyReason = (repo: string, prNumber: number) => ({
   updatedAt: null,
 });
 
-function handleBlockedReason(getPool: () => Pool | null) {
-  return async (request: Request, h: ResponseToolkit) => {
-    const pool = getPool();
-    if (!pool) return h.response().code(503);
-    const { owner, repo, number } = request.params as z.infer<typeof PrParam>;
-
-    try {
-      const { rows } = await pool.query(
-        "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2",
-        [`${owner}/${repo}`, number],
-      );
-
-      return h.response(
-        rows.length === 0
-          ? emptyReason(`${owner}/${repo}`, number)
-          : mapRow(rows[0]),
-      );
-    } catch (err) {
-      console.error("[blocked-reason] Error:", errorMessage(err));
-      return h.response().code(500);
-    }
-  };
-}
-
-function handleBlockedPulls(getPool: () => Pool | null) {
-  return async (request: Request, h: ResponseToolkit) => {
-    const pool = getPool();
-    if (!pool) return h.response().code(503);
-    const { owner, repo } = request.params as z.infer<typeof RepoParam>;
-
-    try {
-      const { rows } = await pool.query(
-        "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1",
-        [`${owner}/${repo}`],
-      );
-
-      return h.response({ pulls: rows.map(mapRow) });
-    } catch (err) {
-      console.error("[blocked-pulls] Error:", errorMessage(err));
-      return h.response().code(500);
-    }
-  };
-}
-
-export function blockedReasonsRoutes(
-  getPool: () => Pool | null,
-): ServerRoute[] {
-  return [
-    {
-      method: "GET",
-      path: "/api/repos/{owner}/{repo}/pulls/{number}/blocked-reason",
-      options: zodResponse(
-        {
-          ...bearerScope("read"),
-          validate: { params: zodValidate(PrParam) },
-        },
-        BlockedReasonSchema,
-        {
-          name: "BlockedReason",
-          description: "Read the blocked reason for a specific PR",
-        },
-      ),
-      handler: handleBlockedReason(getPool),
-    },
-    {
-      method: "GET",
-      path: "/api/repos/{owner}/{repo}/blocked-pulls",
-      options: zodResponse(
-        {
-          ...bearerScope("read"),
-          validate: { params: zodValidate(RepoParam) },
-        },
-        BlockedPullsSchema,
-        {
-          name: "BlockedPulls",
-          description: "Read the blocked PRs for a specific repo",
-        },
-      ),
-      handler: handleBlockedPulls(getPool),
-    },
-  ];
-}
+const labels: Record<string, string | ((d: string | null) => string)> = {
+  waiting_on_ci: "Waiting for CI",
+  required_check_missing: (d) =>
+    `A required check has not run: ${d || "unknown"}`,
+  needs_approval: "Needs one approval",
+  needs_code_owner: "Needs a code owner's approval",
+  base_behind: (d) => `Behind ${d || "base"}; needs the base merged in`,
+  blocked_by_pr: (d) => `Waiting for #${d || "unknown"} to merge first`,
+  review_in_flight: "Lore's review is still running",
+  merge_conflict: (d) => `Conflicts with ${d || "base"}`,
+  github_refused: (d) => `GitHub refused the merge: ${d || "unknown"}`,
+};
 
 function labelForReason(
   reason: string | null,
   detail: string | null,
 ): string | null {
   if (!reason) return null;
-  switch (reason) {
-    case "waiting_on_ci":
-      return "Waiting for CI";
-    case "required_check_missing":
-      return `A required check has not run: ${detail || "unknown"}`;
-    case "needs_approval":
-      return "Needs one approval";
-    case "needs_code_owner":
-      return "Needs a code owner's approval";
-    case "base_behind":
-      return `Behind ${detail || "base"}; needs the base merged in`;
-    case "blocked_by_pr":
-      return `Waiting for #${detail || "unknown"} to merge first`;
-    case "review_in_flight":
-      return "Lore's review is still running";
-    case "merge_conflict":
-      return `Conflicts with ${detail || "base"}`;
-    case "github_refused":
-      return `GitHub refused the merge: ${detail || "unknown"}`;
-    default:
-      return reason;
-  }
+  const label = labels[reason];
+  return typeof label === "function" ? label(detail) : label || reason;
 }
