@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Add the migration SQL under `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations`
+- [x] Add the migration SQL under `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations`
 
 ## Out of scope
 
