@@ -204,7 +204,7 @@ The tool retrieves from all available sources:
 - FR-2.18: **No linked repos, no cross-repo search.** With no repo linked in
   settings the `cross_repo` section is `disabled` and no chunk query runs; the
   org is never searched. Chunks from a linked repo are not transfer-scored, since
-  linking is an explicit opt-in. ([validated by `%s marks cross_repo disabled and never searches chunks without linked repos`](libs/server-core/src/work/context/context-assembly.test.ts#L390))
+  linking is an explicit opt-in. ([validated by `%s marks cross_repo disabled and never searches chunks without linked repos`](libs/server-core/src/work/context/context-assembly.test.ts#L402))
 - FR-2.19: **The vector leg survives a sparse content type.** HNSW applies the
   repo/`content_type` filter after the index returns its `hnsw.ef_search`
   candidates, so a rare type (ADRs, specs) in a large shared schema could leave
