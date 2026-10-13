@@ -64,4 +64,24 @@ describe("hybridSearch defects (not yet fixed — must stay red until ported fro
     expect(results[0]?.rrf_score).toBe(1.0);
     expect(results[2]?.rrf_score).toBeLessThan(results[1]?.rrf_score ?? 1);
   });
+
+  it("binds the search to a specific repo so results from other repos are excluded (FR-2.14)", async () => {
+    const { pool, calls } = fakePool({ rows: [{ ok: 1 }] }, { rows: [] });
+
+    setPool(pool);
+    // The signature must accept `repo` (e.g. as a 4th argument) to bind the search,
+    // or converge with hybridChunkItems.
+    await (hybridSearch as any)(
+      "auto-merge squash",
+      ORG_SHARED,
+      3,
+      "re-cinq/lore",
+    );
+
+    const hybridSql = calls[1]?.text ?? "";
+    const params = calls[1]?.params ?? [];
+
+    expect(hybridSql).toContain("repo = $");
+    expect(params).toContain("re-cinq/lore");
+  });
 });

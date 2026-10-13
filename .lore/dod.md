@@ -1,25 +1,30 @@
 # Definition of Done
 
-> `hybridSearch` (`libs/server-core/src/outbound/db.ts`) and `hybridChunkItems` (`libs/shared/src/outbound/project/knowledge/context-assembly-chunk-search.ts`) are two implementations of the same idea. The relevance batch #1922–#1937 improved only the second. `lore_search_context` — newly routed through the first by #1971 — therefore still exhibits the defects that batch was written to remove.
+> Two hybrid-search implementations have diverged: the corpus search still has the defects #1924 fixed
+> 
+> Three divergences explain it:
+> 1. Full-sentence tsquery.
+> 2. No normalisation.
+> 3. No repo binding. The hits come from other repos' content in org_shared. hybridChunkItems binds the repo (FR-2.14).
 
-**Strategy: `direct`** — `hybridSearch` is a callable function that accepts a fake pool; the SQL it sends to that pool and the scores it returns are both directly observable without a live database.
+**Strategy: `direct`** — The seam already exists via the exported `hybridSearch` module and its test suite. The red bar is CI's to show because local execution fails on a workspace import resolution error; the CI build job proves the red bar.
 
 ## Done when these pass
 
-- [x] **keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question** — the hybrid SQL emitted to the pool contains `websearch_to_tsquery` and does not contain `plainto_tsquery`
+- [ ] **keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question** — A query should be reduced to distinct terms to avoid returning zero hits for a full-sentence AND condition.
   `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
-
-- [x] **normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)** — when the pool returns rows with raw RRF scores (~1/61), the returned `rrf_score` for the top result is 1.0
+- [ ] **normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)** — RRF scores need normalization for legibility and to spread properly.
+  `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
+- [ ] **binds the search to a specific repo so results from other repos are excluded (FR-2.14)** — Results must be scoped to the targeted repository rather than polluting from the entire org_shared schema.
   `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
 
 ## Facets
 
-- [x] Replace `plainto_tsquery($2)` in `buildHybridSearchSQL` with `websearch_to_tsquery('english', $2)` and pass extracted key terms as `$2` instead of the raw query string
-- [x] Apply `normalizeScores` to the rows returned by `hybridSearch` before returning (mirrors what `toItems` does in `context-assembly-chunk-search.ts`)
-- [ ] (Optional convergence) Decide whether `hybridSearch`'s callers can move onto `hybridChunkItems`, or extract a shared core; document the reason if two wrappers remain
+- [ ] Extract shared search core or port `hybridChunkItems` behaviour to `hybridSearch`.
+- [ ] Ensure key term extraction applies before `websearch_to_tsquery`.
+- [ ] Add score normalisation.
+- [ ] Enforce repo filtering on query schema when searching org_shared.
 
 ## Out of scope
 
-- Repo binding (defect 3 from the ticket): `hybridSearch` has no `repo` parameter; adding one changes the public interface and all callers — a larger step than the two behavioral fixes this ticket asks for
-- Moving callers of `hybridSearch` onto `hybridChunkItems` (full convergence) — the ticket marks this as optional
-- Any change to `hybridChunkItems` or its tests
+- Removing `plainto_tsquery` from non-hybrid contexts if used elsewhere.
