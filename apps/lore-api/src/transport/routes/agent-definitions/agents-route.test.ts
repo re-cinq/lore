@@ -37,6 +37,16 @@ vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })),
 }));
 
+export const fakeClusterAgentsList = vi.fn();
+vi.mock(
+  "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js",
+  () => ({
+    PgClusterAgents: vi.fn().mockImplementation(() => ({
+      list: fakeClusterAgentsList,
+    })),
+  }),
+);
+
 import {
   verifyApproval,
   TwoKeyError,
@@ -126,6 +136,59 @@ describe("routes — agents", () => {
   });
 
   describe("writes", () => {
+    beforeEach(() => {
+      fakeClusterAgentsList.mockResolvedValue([
+        { id: "id-1", status: "active", paused: false, cluster_info: null },
+      ]);
+    });
+
+    it("rejects an agent creation when no live cluster serves the model family", async () => {
+      fakeClusterAgentsList.mockResolvedValue([
+        {
+          id: "id-1",
+          status: "active",
+          paused: false,
+          cluster_info: { served_models: ["claude-opus"] },
+        },
+      ]);
+      fakeAgents.create.mockResolvedValue(def);
+      const { res } = await call(BASE, "POST", {
+        name: "general",
+        model: "gemini-2.5-pro",
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.result as any).error).toMatch(/no live cluster/i);
+    });
+
+    it("does not reject agent creation when a cluster has absent capability data", async () => {
+      fakeClusterAgentsList.mockResolvedValue([
+        { id: "id-1", status: "active", paused: false, cluster_info: null },
+      ]);
+      fakeAgents.create.mockResolvedValue(def);
+      const { res } = await call(BASE, "POST", {
+        name: "general",
+        model: "gemini-2.5-pro",
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it("allows saving an unsupported model when force=true is passed (warning path)", async () => {
+      fakeClusterAgentsList.mockResolvedValue([
+        {
+          id: "id-1",
+          status: "active",
+          paused: false,
+          cluster_info: { served_models: ["claude-opus"] },
+        },
+      ]);
+      fakeAgents.create.mockResolvedValue(def);
+      const { res } = await call(`${BASE}?force=true`, "POST", {
+        name: "general",
+        model: "gemini-2.5-pro",
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
     it("creates an agent (admin tier) and audits it", async () => {
       fakeAgents.create.mockResolvedValue(def);
       const { res, pool } = await call(BASE, "POST", {
