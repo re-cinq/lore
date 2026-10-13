@@ -120,6 +120,8 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 `hybridSearch` normalises returned `rrf_score` values so the highest-ranked result is 1.0 rather than a raw RRF fraction near 1/61. ([validated by `normalises rrf_score — top result is 1, not raw RRF`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L43))
 
+`hybridSearch` binds the search to a specific repo so results from other repos are excluded. ([validated by `binds the search to a specific repo so results from other repos are excluded (FR-2.14)`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L61))
+
 ## Out of Scope
 
 - Hybrid vector+BM25 ranking internals (RRF) — owned by the retrieval layer.
