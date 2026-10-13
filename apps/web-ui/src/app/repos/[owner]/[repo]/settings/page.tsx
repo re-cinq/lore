@@ -75,7 +75,9 @@ async function saveSettings(
 }
 
 function refusalMessage(result: { status: string; message?: string }): string {
-  return result.message ?? "Lore API is not configured";
+  return result.status === "unconfigured"
+    ? "Lore API is not configured"
+    : (result.message ?? "Save failed — check the Lore API logs");
 }
 
 // Bidirectional cross-repo linkage: add this repo to the linked repo's own list.

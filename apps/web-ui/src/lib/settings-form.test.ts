@@ -101,4 +101,16 @@ describe("parseSettingsForm", () => {
       "auto_merge" in parseSettingsForm(form({ auto_merge_approver: "bob" })),
     ).toBe(false);
   });
+
+  it("omits auto_merge when auto_merge_approver lore-reviewer equals the saved approver", () => {
+    expect(
+      "auto_merge" in
+        parseSettingsForm(
+          form({
+            auto_merge_approver: "lore-reviewer",
+            auto_merge_approver_saved: "lore-reviewer",
+          }),
+        ),
+    ).toBe(false);
+  });
 });

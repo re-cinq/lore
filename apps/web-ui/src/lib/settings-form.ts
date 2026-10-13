@@ -25,11 +25,14 @@ export function parseSettingsForm(formData: FormData) {
 
 const AUTO_MERGE_APPROVERS = ["none", "lore-reviewer"];
 
-/** The auto_merge block, or undefined when the approver field is missing or not a known approver. */
+/** Undefined when the approver is missing, unknown or unchanged: lore-api puts every lore-reviewer write behind two-key. */
 function autoMergeBlock(formData: FormData): { approver: string } | undefined {
   const approver = formData.get("auto_merge_approver") as string | null;
+  const saved = formData.get("auto_merge_approver_saved");
 
-  return approver && AUTO_MERGE_APPROVERS.includes(approver)
+  return approver &&
+    AUTO_MERGE_APPROVERS.includes(approver) &&
+    approver !== saved
     ? { approver }
     : undefined;
 }

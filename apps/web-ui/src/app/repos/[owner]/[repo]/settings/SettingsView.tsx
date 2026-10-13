@@ -207,6 +207,11 @@ function RunPolicyFields({
     <>
       <TrustLevelField trustLevel={trustLevel} />
       <AutoReviewField autoReview={autoReview} />
+      <input
+        type="hidden"
+        name="auto_merge_approver_saved"
+        value={autoMergeApprover}
+      />
       <AutoMergeApproverField autoMergeApprover={autoMergeApprover} />
     </>
   );
