@@ -11,19 +11,19 @@
 
 ## Done when these pass
 
-- [ ] **keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question** — A query should be reduced to distinct terms to avoid returning zero hits for a full-sentence AND condition.
+- [x] **keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question** — A query should be reduced to distinct terms to avoid returning zero hits for a full-sentence AND condition.
   `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
-- [ ] **normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)** — RRF scores need normalization for legibility and to spread properly.
+- [x] **normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)** — RRF scores need normalization for legibility and to spread properly.
   `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
-- [ ] **binds the search to a specific repo so results from other repos are excluded (FR-2.14)** — Results must be scoped to the targeted repository rather than polluting from the entire org_shared schema.
+- [x] **binds the search to a specific repo so results from other repos are excluded (FR-2.14)** — Results must be scoped to the targeted repository rather than polluting from the entire org_shared schema.
   `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
 
 ## Facets
 
-- [ ] Extract shared search core or port `hybridChunkItems` behaviour to `hybridSearch`.
-- [ ] Ensure key term extraction applies before `websearch_to_tsquery`.
-- [ ] Add score normalisation.
-- [ ] Enforce repo filtering on query schema when searching org_shared.
+- [x] Extract shared search core or port `hybridChunkItems` behaviour to `hybridSearch`.
+- [x] Ensure key term extraction applies before `websearch_to_tsquery`.
+- [x] Add score normalisation.
+- [x] Enforce repo filtering on query schema when searching org_shared.
 
 ## Out of scope
 

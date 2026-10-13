@@ -85,14 +85,15 @@ async function runHybridSQL(
   keywordQuery: string,
   schema: string,
   limit: number,
+  repo?: string,
 ): Promise<SearchResult[]> {
   const embeddingStr = `[${embedding.join(",")}]`;
-  const sql = buildHybridSearchSQL(schema);
-  const { rows } = await getPool().query(sql, [
-    embeddingStr,
-    keywordQuery,
-    limit,
-  ]);
+  const sql = buildHybridSearchSQL(schema, !!repo);
+  const params: unknown[] = [embeddingStr, keywordQuery, limit];
+  if (repo) {
+    params.push(repo);
+  }
+  const { rows } = await getPool().query(sql, params);
 
   return normalizeSearchScores(rows as SearchResult[]);
 }
@@ -101,6 +102,7 @@ export async function hybridSearch(
   query: string,
   schema: string,
   limit: number = 8,
+  repo?: string,
 ): Promise<SearchResult[]> {
   if (!(await isDbAvailable())) {
     return [];
@@ -111,12 +113,12 @@ export async function hybridSearch(
   const embedding = await getQueryEmbedding(query);
 
   if (!embedding) {
-    return keywordOnlySearch(query, resolvedSchema, limit);
+    return keywordOnlySearch(query, resolvedSchema, limit, repo);
   }
 
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
 
-  return runHybridSQL(embedding, keywordQuery, resolvedSchema, limit);
+  return runHybridSQL(embedding, keywordQuery, resolvedSchema, limit, repo);
 }
 
 // Keyword-only, for when no embedding could be obtained. Degraded rather than empty: a repo whose embeddings are unavailable still answers a search, and the caller cannot tell the difference except in ranking.
@@ -124,16 +126,22 @@ async function keywordOnlySearch(
   query: string,
   schema: string,
   limit: number,
+  repo?: string,
 ): Promise<SearchResult[]> {
+  const params: unknown[] = [query, limit];
+  if (repo) {
+    params.push(repo);
+  }
+  const repoFilter = repo ? "AND repo = $3" : "";
   const { rows } = await getPool().query(
     `
       SELECT id, content, metadata,
              ts_rank(search_tsv, plainto_tsquery($1)) AS rrf_score
       FROM ${schema}.chunks
-      WHERE search_tsv @@ plainto_tsquery($1)
+      WHERE search_tsv @@ plainto_tsquery($1) ${repoFilter}
       ORDER BY rrf_score DESC
       LIMIT $2;`,
-    [query, limit],
+    params,
   );
 
   return rows as SearchResult[];
@@ -146,19 +154,22 @@ function normalizeSearchScores(rows: SearchResult[]): SearchResult[] {
 }
 
 // eslint-disable-next-line max-lines-per-function -- one SQL statement, returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
-function buildHybridSearchSQL(schema: string): string {
+function buildHybridSearchSQL(schema: string, hasRepo = false): string {
+  const repoFilter = hasRepo ? "AND repo = $4" : "";
+  const vectorWhere = hasRepo ? "WHERE repo = $4" : "";
   return `
 WITH vector_results AS (
   SELECT id, content, metadata,
          ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS vec_rank
   FROM ${schema}.chunks
+  ${vectorWhere}
   LIMIT 20
 ),
 keyword_results AS (
   SELECT id, content, metadata,
          ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $2)) DESC) AS kw_rank
   FROM ${schema}.chunks
-  WHERE search_tsv @@ websearch_to_tsquery('english', $2)
+  WHERE search_tsv @@ websearch_to_tsquery('english', $2) ${repoFilter}
   LIMIT 20
 )
 SELECT
