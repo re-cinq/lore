@@ -59,4 +59,39 @@ describe("saveSettings action", () => {
       error: "Missing rule: requires 1 approval",
     });
   });
+
+  it("returns an unconfigured error when the API is not configured", async () => {
+    putRepoSettings.mockResolvedValue({ status: "unconfigured" });
+
+    const action = await saveSettingsAction();
+    const formData = new FormData();
+
+    formData.set("full_name", "re-cinq/lore");
+
+    const state = await action({ saved: false }, formData);
+
+    expect(state).toEqual({
+      saved: false,
+      error: "Lore API is not configured",
+    });
+  });
+
+  it("sends auto_merge approver lore-reviewer to putRepoSettings", async () => {
+    putRepoSettings.mockResolvedValue({ status: "ok", data: { ok: true } });
+
+    const action = await saveSettingsAction();
+    const formData = new FormData();
+
+    formData.set("full_name", "re-cinq/lore");
+    formData.set("auto_merge_approver", "lore-reviewer");
+
+    await action({ saved: false }, formData);
+
+    expect(putRepoSettings).toHaveBeenCalledWith("re-cinq/lore", {
+      team: null,
+      settings: expect.objectContaining({
+        auto_merge: { approver: "lore-reviewer" },
+      }),
+    });
+  });
 });

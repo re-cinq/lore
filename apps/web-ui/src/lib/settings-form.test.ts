@@ -89,4 +89,16 @@ describe("parseSettingsForm", () => {
     expect("slack_channel_id" in result).toBe(false);
     expect("dispatch_label" in result).toBe(false);
   });
+
+  it("auto_merge approver none when auto_merge_approver is none", () => {
+    expect(
+      parseSettingsForm(form({ auto_merge_approver: "none" })).auto_merge,
+    ).toEqual({ approver: "none" });
+  });
+
+  it("omits auto_merge when auto_merge_approver is not a known approver", () => {
+    expect(
+      "auto_merge" in parseSettingsForm(form({ auto_merge_approver: "bob" })),
+    ).toBe(false);
+  });
 });

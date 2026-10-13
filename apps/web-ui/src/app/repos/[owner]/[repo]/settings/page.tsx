@@ -62,8 +62,8 @@ async function saveSettings(
     settings: updates,
   });
 
-  if (result.status === "error") {
-    return { saved: false, error: result.message };
+  if (result.status !== "ok") {
+    return { saved: false, error: refusalMessage(result) };
   }
 
   await Promise.all(
@@ -72,6 +72,10 @@ async function saveSettings(
   revalidatePath(`/repos/${fullName}/settings`);
 
   return { saved: true };
+}
+
+function refusalMessage(result: { status: string; message?: string }): string {
+  return result.message ?? "Lore API is not configured";
 }
 
 // Bidirectional cross-repo linkage: add this repo to the linked repo's own list.
