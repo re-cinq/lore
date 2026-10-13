@@ -238,25 +238,19 @@ function AutoReviewField({ autoReview }: { autoReview: string }) {
   );
 }
 
-function AutoMergeApproverField({
-  autoMergeApprover,
-}: {
-  autoMergeApprover: string;
-}) {
+const INSTALL_URL = "https://github.com/apps/lore-reviewer/installations/new";
+
+function AutoMergeApproverField(props: { autoMergeApprover: string }) {
   return (
     <>
       <label>Auto-merge Approver</label>
-      <select name="auto_merge_approver" defaultValue={autoMergeApprover}>
+      <select name="auto_merge_approver" defaultValue={props.autoMergeApprover}>
         <option value="none">none</option>
         <option value="lore-reviewer">lore-reviewer</option>
       </select>
       <span className={`meta ${styles.hint}`}>
         Requires the second App to be installed on the repository.{" "}
-        <a
-          href="https://github.com/apps/lore-reviewer/installations/new"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={INSTALL_URL} target="_blank" rel="noopener noreferrer">
           Install lore-reviewer
         </a>
       </span>

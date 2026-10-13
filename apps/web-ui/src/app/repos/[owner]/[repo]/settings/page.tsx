@@ -55,26 +55,19 @@ async function saveSettings(
 ): Promise<SaveState> {
   "use server";
   const fullName = formData.get("full_name") as string;
-  const team = formData.get("team") as string;
-
   const updates = parseSettingsForm(formData);
-  const selectedRepos = updates.cross_repo_repos as string[];
 
   const result = await putRepoSettings(fullName, {
-    team: team || null,
+    team: (formData.get("team") as string) || null,
     settings: updates,
   });
 
-  if (result.status === "error") {
-    return { saved: false, error: result.message };
-  }
+  if (result.status === "error") return { saved: false, error: result.message };
 
   await Promise.all(
-    selectedRepos.map((linkedRepo) => linkBack(fullName, linkedRepo)),
+    (updates.cross_repo_repos as string[]).map((r) => linkBack(fullName, r)),
   );
-
   revalidatePath(`/repos/${fullName}/settings`);
-
   return { saved: true };
 }
 
