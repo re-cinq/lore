@@ -70,34 +70,54 @@ interface ReviewContext {
   branch?: string;
 }
 
+async function getReviewOutput(brief: Brief, tools: Parameters<Handle>[1]) {
+  const outRaw = (await tools.read("review_output")).toString("utf8");
+  const agentOutput = resultTextFromOutput(outRaw);
+  const verdict = reviewVerdictOf(agentOutput);
+  enforceTrue(verdict, Error, `no review verdict for ${brief.needs.pr_url}`);
+  return { agentOutput, verdict };
+}
+
+async function getReviewPullContext(deps: PostReviewDeps, brief: Brief) {
+  const prUrl = brief.needs.pr_url;
+  const loc = parsePullRequestUrl(prUrl);
+  const project = await deps.project(loc.repo);
+  const pull = await project.pulls.get(loc.prNumber);
+  const headSha = briefedShaOf(brief) ?? pull?.headSha;
+  enforceTrue(headSha, Error, `no head sha for #${loc.prNumber}`);
+  return { project, pull, prUrl, loc, headSha };
+}
+
 async function processPostReview(
   deps: PostReviewDeps,
   brief: Brief,
   tools: Parameters<Handle>[1],
 ) {
-  const prUrl = brief.needs.pr_url;
-  const location = parsePullRequestUrl(prUrl);
-  const agentOutput = resultTextFromOutput(
-    (await tools.read("review_output")).toString("utf8"),
-  );
-
-  const verdict = reviewVerdictOf(agentOutput);
-  enforceTrue(verdict, Error, `no review verdict in the output for ${prUrl}`);
-
-  const project = await deps.project(location.repo);
-  const pull = await project.pulls.get(location.prNumber);
-  const headSha = briefedShaOf(brief) ?? pull?.headSha;
-  enforceTrue(headSha, Error, `no head sha for #${location.prNumber}`);
+  const output = await getReviewOutput(brief, tools);
+  const ctx = await getReviewPullContext(deps, brief);
 
   return finishReview(deps, brief, {
-    project,
-    prUrl,
-    prNumber: location.prNumber,
-    nodeId: pull?.nodeId,
-    agentOutput,
-    verdict,
-    headSha,
-    branch: pull?.branch,
+    project: ctx.project,
+    prUrl: ctx.prUrl,
+    prNumber: ctx.loc.prNumber,
+    nodeId: ctx.pull?.nodeId,
+    agentOutput: output.agentOutput,
+    verdict: output.verdict,
+    headSha: ctx.headSha,
+    branch: ctx.pull?.branch,
+  });
+}
+
+async function postReviewToPr(
+  deps: PostReviewDeps,
+  brief: Brief,
+  opts: ReviewContext,
+  approver: string,
+) {
+  return postToPullRequest(brief, opts.project.pulls, opts.prNumber, {
+    agentOutput: opts.agentOutput,
+    model: await deps.reviewModel(brief.visitId),
+    allowApprove: approver === "lore-reviewer",
   });
 }
 
@@ -106,22 +126,10 @@ async function finishReview(
   brief: Brief,
   opts: ReviewContext,
 ) {
-  const summary = verdictSummary(
-    opts.verdict,
-    findingCountOf(opts.agentOutput),
-  );
+  const count = findingCountOf(opts.agentOutput);
+  const summary = verdictSummary(opts.verdict, count);
   const approver = await getApprover(opts.project);
-
-  const posted = await postToPullRequest(
-    brief,
-    opts.project.pulls,
-    opts.prNumber,
-    {
-      agentOutput: opts.agentOutput,
-      model: await deps.reviewModel(brief.visitId),
-      allowApprove: approver === "lore-reviewer",
-    },
-  );
+  const posted = await postReviewToPr(deps, brief, opts, approver);
 
   if (posted) {
     await performPostReviewActions(opts.project, { ...opts, approver });
@@ -160,20 +168,21 @@ async function performPostReviewActions(
   await armAutoMergeIfNeeded(project, opts);
 }
 
+interface RecordApprovalOpts {
+  prNumber: number;
+  headSha: string;
+  verdict: ReviewVerdict;
+  approver: string;
+}
+
 async function recordApprovalIfNeeded(
   project: ReviewProject,
-  opts: {
-    prNumber: number;
-    headSha: string;
-    verdict: ReviewVerdict;
-    approver: string;
-  },
+  opts: RecordApprovalOpts,
 ): Promise<void> {
-  if (
-    opts.verdict === "success" &&
-    opts.approver === "lore-reviewer" &&
-    project.writeAuditRow
-  ) {
+  const shouldApprove =
+    opts.verdict === "success" && opts.approver === "lore-reviewer";
+
+  if (shouldApprove && project.writeAuditRow) {
     await project.writeAuditRow({
       event_type: "lore_reviewer_approved",
       payload: {
