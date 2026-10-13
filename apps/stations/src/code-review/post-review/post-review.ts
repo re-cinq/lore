@@ -92,6 +92,7 @@ export interface ReviewDelivery {
   positions: CommentablePositions;
   visit: ReviewVisit;
   model?: string;
+  allowApprove?: boolean;
 }
 
 /** Posts the review, giving up as little as GitHub forces at each step. Two different refusals used to land in the same place: ONE finding on a line outside the diff 422d the atomic post and downgraded the whole verdict to a comment, and a PR the review App itself authored is refused outright, which is every implementation-loop PR. So the ladder drops the inline comments first and the formal verdict only last. */
@@ -148,10 +149,10 @@ async function postSummaryReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
-  { visit, model }: ReviewDelivery,
+  { visit, model, allowApprove }: ReviewDelivery,
 ): Promise<void> {
   await pulls.createReview(prNumber, {
-    event: reviewEvent(output),
+    event: reviewEvent(output, allowApprove),
     body: signed(
       composeBody(output, output.findings, model, STEPPED_DOWN_HEADING),
       visit,
@@ -185,19 +186,25 @@ async function postInlineReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
-  { positions, visit, model }: ReviewDelivery,
+  { positions, visit, model, allowApprove }: ReviewDelivery,
 ): Promise<void> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
 
   await pulls.createReview(prNumber, {
-    event: reviewEvent(output),
+    event: reviewEvent(output, allowApprove),
     body: signed(composeBody(output, overflow, model), visit),
     comments: inline.map(toReviewComment),
   });
 }
 
 /** Always APPROVE or REQUEST_CHANGES (never suggestion-only COMMENT) — the signal auto-merge's bot-approval gate reads. */
-function reviewEvent(output: ReviewOutput): PRReviewEvent {
+function reviewEvent(
+  output: ReviewOutput,
+  allowApprove?: boolean,
+): PRReviewEvent {
+  if (output.verdict === "approved" && allowApprove === false) {
+    return "COMMENT";
+  }
   return output.verdict === "approved" ? "APPROVE" : "REQUEST_CHANGES";
 }
 

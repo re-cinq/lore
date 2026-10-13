@@ -33,7 +33,10 @@ export interface ReviewProject {
   };
   upsertCheckRun(input: CheckRunInput): Promise<void>;
   getBranchRule?(branch: string): Promise<{ requiresApprovals: number }>;
-  writeAuditRow?(row: any): Promise<void>;
+  getSettings?(): Promise<{
+    auto_merge?: { approver: "none" | "lore-reviewer" };
+  }>;
+  writeAuditRow?(row: { event_type: string; payload: unknown }): Promise<void>;
 }
 
 export interface PostReviewDeps {
@@ -75,29 +78,62 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
 
     const summary = verdictSummary(verdict, findingCountOf(agentOutput));
 
-    await postToPullRequest(brief, project, location, {
+    let approver: "none" | "lore-reviewer" = "none";
+    if (project.getSettings) {
+      const settings = await project.getSettings();
+      approver = settings.auto_merge?.approver ?? "none";
+    }
+
+    const posted = await postToPullRequest(brief, project, location, {
       agentOutput,
       model: await deps.reviewModel(brief.visitId),
+      allowApprove: approver === "lore-reviewer",
     });
-    await project.upsertCheckRun(reviewCheck({ headSha, verdict, summary }));
 
-    if (pull?.branch && project.getBranchRule) {
-      const rule = await project.getBranchRule(pull.branch);
-      if (rule.requiresApprovals > 0) {
-        if (project.pulls.enableAutoMerge) {
-          await project.pulls.enableAutoMerge(location.prNumber, "SQUASH");
-        }
-        if (project.writeAuditRow) {
-          await project.writeAuditRow({
-            event_type: "auto_merge_armed",
-            payload: { prNumber: location.prNumber, headSha },
-          });
-        }
+    if (posted) {
+      if (
+        verdict === "success" &&
+        approver === "lore-reviewer" &&
+        project.writeAuditRow
+      ) {
+        await project.writeAuditRow({
+          event_type: "lore_reviewer_approved",
+          payload: {
+            prNumber: location.prNumber,
+            headSha,
+            approver: "lore-reviewer",
+          },
+        });
       }
+      await armAutoMergeIfNeeded(project, pull, location, headSha);
     }
+
+    await project.upsertCheckRun(reviewCheck({ headSha, verdict, summary }));
 
     return reported(summary, prUrl);
   };
+}
+
+async function armAutoMergeIfNeeded(
+  project: ReviewProject,
+  pull: Pick<PullRef, "headSha" | "branch"> | null,
+  location: PullRequestLocation,
+  headSha: string,
+): Promise<void> {
+  if (!pull?.branch || !project.getBranchRule) return;
+
+  const rule = await project.getBranchRule(pull.branch);
+  if (rule.requiresApprovals > 0) {
+    if (project.pulls.enableAutoMerge) {
+      await project.pulls.enableAutoMerge(location.prNumber, "SQUASH");
+    }
+    if (project.writeAuditRow) {
+      await project.writeAuditRow({
+        event_type: "auto_merge_armed",
+        payload: { prNumber: location.prNumber, headSha },
+      });
+    }
+  }
 }
 
 function briefedShaOf(brief: Brief): string | undefined {
@@ -121,13 +157,18 @@ async function postToPullRequest(
   brief: Brief,
   project: ReviewProject,
   { prNumber }: PullRequestLocation,
-  { agentOutput, model }: { agentOutput: string; model?: string },
-): Promise<void> {
+  {
+    agentOutput,
+    model,
+    allowApprove,
+  }: { agentOutput: string; model?: string; allowApprove?: boolean },
+): Promise<boolean> {
   const diff = await diffOf(project.pulls, prNumber);
   const posted = await maybePostReview(project.pulls, prNumber, agentOutput, {
     positions: commentablePositions(diff),
     visit: brief,
     model,
+    allowApprove,
   });
 
   enforceTrue(
@@ -135,6 +176,8 @@ async function postToPullRequest(
     Error,
     `nothing to post for #${prNumber}: no findings block`,
   );
+
+  return posted.mode !== "deduped";
 }
 
 function diffOf(pulls: ReviewPoster, prNumber: number): Promise<string> {

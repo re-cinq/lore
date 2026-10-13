@@ -300,7 +300,6 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
         },
       );
 
-      // To test idempotency, we run it twice with the same visit context.
       const handle = postReviewHandle(deps);
       await handle(
         brief({ head_sha: "abc123" }),

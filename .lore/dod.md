@@ -8,23 +8,23 @@
 
 - [x] **given a branch requiring approval, when review completes, then it calls enableAutoMerge with SQUASH and writes an audit row** — It calls enableAutoMerge with SQUASH and writes an audit row.
   `apps/stations/src/code-review/post-review/station.test.ts`
-- [ ] **given approver is lore-reviewer, when review approves, then it submits APPROVE and writes lore_reviewer_approved audit row** — It approves as lore-reviewer and records the approval.
+- [x] **given approver is lore-reviewer, when review approves, then it submits APPROVE and writes lore_reviewer_approved audit row** — It approves as lore-reviewer and records the approval.
   `apps/stations/src/code-review/post-review/station.test.ts`
-- [ ] **given approver is none, when review approves, then it arms but does not approve** — It arms auto-merge without approving.
+- [x] **given approver is none, when review approves, then it arms but does not approve** — It arms auto-merge without approving.
   `apps/stations/src/code-review/post-review/station.test.ts`
-- [ ] **given an unprotected branch, when review completes, then it does not arm auto-merge** — It does not arm auto-merge on an unprotected branch.
+- [x] **given an unprotected branch, when review completes, then it does not arm auto-merge** — It does not arm auto-merge on an unprotected branch.
   `apps/stations/src/code-review/post-review/station.test.ts`
-- [ ] **given a re-run on the same PR state, when review completes, then it does not re-arm or re-approve** — Approving and arming happen only once per PR state.
+- [x] **given a re-run on the same PR state, when review completes, then it does not re-arm or re-approve** — Approving and arming happen only once per PR state.
   `apps/stations/src/code-review/post-review/station.test.ts`
 
 ## Facets
 
 - [x] Add `enableAutoMerge` to PR port
 - [x] Read `getBranchRule` from project port
-- [ ] Read `getSettings` from project port
+- [x] Read `getSettings` from project port
 - [x] Record audit row for `auto_merge_armed`
-- [ ] Record audit row for `lore_reviewer_approved`
-- [ ] Perform idempotency check
+- [x] Record audit row for `lore_reviewer_approved`
+- [x] Perform idempotency check
 - [ ] Resolve PR number to GraphQL node ID for enableAutoMerge
 
 ## Out of scope
