@@ -37,7 +37,7 @@ vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })),
 }));
 
-export const fakeClusterAgentsList = vi.fn();
+const fakeClusterAgentsList = vi.fn();
 vi.mock(
   "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js",
   () => ({

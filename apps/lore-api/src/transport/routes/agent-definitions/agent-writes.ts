@@ -16,7 +16,7 @@ import {
 import {
   PgClusterAgents,
   ClusterAgent,
-} from "@re-cinq/lore-shared/outbound/project/cluster-agents/cluster-agents-pg.js";
+} from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 
 type WriteOutcome = { code: number; body: object };
 type Ceremony = Awaited<ReturnType<typeof resolveCeremony>>["ceremony"];
@@ -109,7 +109,7 @@ async function checkModelSupport(
 
   const list = await PgClusterAgents(pool).list();
   const reporting = list.filter(
-    (a) => a.status === "active" && a.cluster_info != null,
+    (a: ClusterAgent) => a.status === "active" && a.cluster_info != null,
   );
 
   if (reporting.length === 0) {
