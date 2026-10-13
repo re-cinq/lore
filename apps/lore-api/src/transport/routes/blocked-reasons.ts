@@ -6,9 +6,9 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { zodResponse } from "../../http/zod-response.js";
-import { bearerScope } from "../../http/bearer-scope.js";
-import { zodValidate } from "../../http/zod-validate.js";
+import { zodResponse } from "../http/zod-response.js";
+import { bearerScope } from "../http/bearer-scope.js";
+import { zodValidate } from "../http/zod-validate.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 
 const PrParam = z.object({
