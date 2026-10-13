@@ -95,7 +95,11 @@ async function getReviewOutput(brief: Brief, tools: Parameters<Handle>[1]) {
   const agentOutput = resultTextFromOutput(outRaw);
   const verdict = reviewVerdictOf(agentOutput);
 
-  enforceTrue(verdict, Error, `no review verdict for ${brief.needs.pr_url}`);
+  enforceTrue(
+    verdict,
+    Error,
+    `no review verdict in the output for ${brief.needs.pr_url}`,
+  );
 
   return { agentOutput, verdict };
 }
