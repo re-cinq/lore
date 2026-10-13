@@ -34,38 +34,58 @@ const toolsReading = (output: string): Tools => ({
   signal: new AbortController().signal,
 });
 
-function fakeProject(refusal?: string, model?: string) {
+function fakeProject(
+  refusal?: string,
+  model?: string,
+  overrides?: {
+    branchRule?: any;
+    settings?: any;
+  },
+) {
   const reviews: CreateReviewInput[] = [];
   const comments: string[] = [];
   const checks: CheckRunInput[] = [];
   const repos: string[] = [];
-  const project: ReviewProject = {
+  const autoMergeCalls: any[] = [];
+  const auditRows: any[] = [];
+
+  const project: any = {
     pulls: {
-      createReview: async (_number, input) => {
+      createReview: async (_number: number, input: CreateReviewInput) => {
         enforceTrue(refusal === undefined, Error, refusal ?? "");
         reviews.push(input);
       },
-      comment: async (_number, body) => {
+      comment: async (_number: number, body: string) => {
         enforceTrue(refusal === undefined, Error, refusal ?? "");
         comments.push(body);
       },
       getDiff: async () => "",
       get: async () => ({ headSha: "livesha" }),
+      enableAutoMerge: async (number: number, method: string) => {
+        autoMergeCalls.push({ number, method });
+      },
     },
-    upsertCheckRun: async (input) => {
+    upsertCheckRun: async (input: CheckRunInput) => {
       checks.push(input);
+    },
+    getBranchRule: async () =>
+      overrides?.branchRule ?? { requiresApprovals: 0 },
+    getSettings: async () =>
+      overrides?.settings ?? { auto_merge: { approver: "none" } },
+    writeAuditRow: async (row: any) => {
+      auditRows.push(row);
     },
   };
   const deps = {
     project: async (repo: string) => {
       repos.push(repo);
 
-      return project;
+      return project as ReviewProject;
     },
     reviewModel: async () => model,
   };
 
-  return { deps, reviews, comments, checks, repos };
+  return { deps, reviews, comments, checks, repos, autoMergeCalls, auditRows };
 }
 
 describe("postReviewHandle", () => {
@@ -187,5 +207,112 @@ describe("postReviewHandle", () => {
         "not a GitHub pull request url: https://github.com/re-cinq/lore",
       ),
     );
+  });
+});
+
+describe("Feature Specification: Lore merges on protected repos, and every PR knows what blocks it", () => {
+  describe("Lore passes `mergeMethod: SQUASH` to `enablePullRequestAutoMerge`, the method the automerge label workflow already uses, so the switch changes nothing about history or CI.", () => {
+    it("given a branch requiring approval, when review completes, then it calls enableAutoMerge with SQUASH and writes an audit row", async () => {
+      const { deps, autoMergeCalls, auditRows } = fakeProject(
+        undefined,
+        undefined,
+        {
+          branchRule: { requiresApprovals: 1 },
+        },
+      );
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      );
+
+      expect(autoMergeCalls).toMatchObject([{ number: 412, method: "SQUASH" }]);
+      expect(auditRows).toContainEqual(
+        expect.objectContaining({ event_type: "auto_merge_armed" }),
+      );
+    });
+  });
+
+  describe("Lore never merges. It approves as lore-reviewer and arms GitHub's native auto-merge; GitHub performs the merge and enforces the branch rule. No pod holds merge authority.", () => {
+    it("given approver is lore-reviewer, when review approves, then it submits APPROVE and writes lore_reviewer_approved audit row", async () => {
+      const { deps, reviews, auditRows } = fakeProject(undefined, undefined, {
+        branchRule: { requiresApprovals: 1 },
+        settings: { auto_merge: { approver: "lore-reviewer" } },
+      });
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      );
+
+      expect(reviews).toMatchObject([{ event: "APPROVE" }]);
+      expect(auditRows).toContainEqual(
+        expect.objectContaining({
+          event_type: "lore_reviewer_approved",
+          payload: expect.objectContaining({ approver: "lore-reviewer" }),
+        }),
+      );
+    });
+
+    it("given approver is none, when review approves, then it arms but does not approve", async () => {
+      const { deps, reviews, autoMergeCalls } = fakeProject(
+        undefined,
+        undefined,
+        {
+          branchRule: { requiresApprovals: 1 },
+          settings: { auto_merge: { approver: "none" } },
+        },
+      );
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      );
+
+      expect(autoMergeCalls).toHaveLength(1);
+      expect(reviews.some((r) => r.event === "APPROVE")).toBe(false);
+    });
+  });
+
+  describe("Native auto-merge is armed only where the branch rule requires an approval, never on an unprotected branch, and always before lore-reviewer approves, because GitHub refuses to arm a PR that can already merge.", () => {
+    it("given an unprotected branch, when review completes, then it does not arm auto-merge", async () => {
+      const { deps, autoMergeCalls } = fakeProject(undefined, undefined, {
+        branchRule: { requiresApprovals: 0 },
+      });
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      );
+
+      expect(autoMergeCalls).toHaveLength(0);
+    });
+  });
+
+  describe("The review line runs again on every push, so approving, arming and commenting each carry an idempotency key and happen once per PR state.", () => {
+    it("given a re-run on the same PR state, when review completes, then it does not re-arm or re-approve", async () => {
+      const { deps, autoMergeCalls, reviews } = fakeProject(
+        undefined,
+        undefined,
+        {
+          branchRule: { requiresApprovals: 1 },
+          settings: { auto_merge: { approver: "lore-reviewer" } },
+        },
+      );
+
+      // To test idempotency, we run it twice with the same visit context.
+      const handle = postReviewHandle(deps);
+      await handle(
+        brief({ head_sha: "abc123" }),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      );
+      await handle(
+        brief({ head_sha: "abc123" }),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      );
+
+      expect(autoMergeCalls).toHaveLength(1);
+      expect(reviews).toHaveLength(1);
+    });
   });
 });
