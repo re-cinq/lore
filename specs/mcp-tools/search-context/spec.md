@@ -116,11 +116,11 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 `hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/outbound/db.test.ts#L59))
 
-`hybridSearch` uses `websearch_to_tsquery` with extracted key terms for the BM25 leg, not `plainto_tsquery` over the full natural-language query. ([validated by `keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L32))
+`hybridSearch` uses `websearch_to_tsquery` with extracted key terms for the BM25 leg, not `plainto_tsquery` over the full natural-language query. ([validated by `keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L31))
 
-`hybridSearch` normalises returned `rrf_score` values so the highest-ranked result is 1.0 rather than a raw RRF fraction near 1/61. ([validated by `normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L44))
+`hybridSearch` normalises returned `rrf_score` values so the highest-ranked result is 1.0 rather than a raw RRF fraction near 1/61. ([validated by `normalises rrf_score so the highest-ranked result is 1.0, not a raw 1/61 value`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L43))
 
-`hybridSearch` binds the search to a specific repo so results from other repos are excluded. ([validated by `binds the search to a specific repo so results from other repos are excluded (FR-2.14)`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L68))
+`hybridSearch` binds the search to a specific repo so results from other repos are excluded. ([validated by `binds the search to a specific repo so results from other repos are excluded - FR-2.14`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L68))
 
 ## Out of Scope
 

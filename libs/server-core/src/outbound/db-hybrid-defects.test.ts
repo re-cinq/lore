@@ -40,7 +40,7 @@ describe("hybridSearch defects (not yet fixed — must stay red until ported fro
     expect(hybridSql).not.toContain("plainto_tsquery");
   });
 
-  it("normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)", async () => {
+  it("normalises rrf_score so the highest-ranked result is 1.0, not a raw 1/61 value", async () => {
     const rawRows = [
       { id: "1", content: "top result", metadata: {}, rrf_score: 1 / 61 },
       {
@@ -65,7 +65,7 @@ describe("hybridSearch defects (not yet fixed — must stay red until ported fro
     expect(results[2]?.rrf_score).toBeLessThan(results[1]?.rrf_score ?? 1);
   });
 
-  it("binds the search to a specific repo so results from other repos are excluded (FR-2.14)", async () => {
+  it("binds the search to a specific repo so results from other repos are excluded - FR-2.14", async () => {
     const { pool, calls } = fakePool({ rows: [{ ok: 1 }] }, { rows: [] });
 
     setPool(pool);

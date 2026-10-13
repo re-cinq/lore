@@ -89,40 +89,28 @@ export async function hybridSearch(
   if (!(await isDbAvailable())) {
     return [];
   }
-
-  const resolvedSchema = await chunkSchemaOrOrgShared(getPool(), schema);
-
+  const resolved = await chunkSchemaOrOrgShared(getPool(), schema);
   const embedding = await getQueryEmbedding(query);
-
-  if (!embedding) {
-    return keywordOnlySearch(query, resolvedSchema, limit, repo);
-  }
-
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-
-  return runHybridSQL({
-    embedding,
-    keywordQuery,
-    schema: resolvedSchema,
-    limit,
-    repo,
-  });
+  return embedding
+    ? runHybridSQL(embedding, keywordQuery, resolved, limit, repo)
+    : keywordOnlySearch(query, resolved, limit, repo);
 }
 
-async function runHybridSQL(opts: {
-  embedding: number[];
-  keywordQuery: string;
-  schema: string;
-  limit: number;
-  repo?: string;
-}): Promise<SearchResult[]> {
-  const embeddingStr = `[${opts.embedding.join(",")}]`;
-  const sql = opts.repo
-    ? buildRepoBoundHybridSearchSQL(opts.schema)
-    : buildHybridSearchSQL(opts.schema);
-  const params: unknown[] = [embeddingStr, opts.keywordQuery, opts.limit];
-  if (opts.repo) {
-    params.push(opts.repo);
+async function runHybridSQL(
+  embedding: number[],
+  keywordQuery: string,
+  schema: string,
+  limit: number,
+  repo?: string,
+): Promise<SearchResult[]> {
+  const embeddingStr = `[${embedding.join(",")}]`;
+  const sql = repo
+    ? buildRepoBoundHybridSearchSQL(schema)
+    : buildHybridSearchSQL(schema);
+  const params: unknown[] = [embeddingStr, keywordQuery, limit];
+  if (repo) {
+    params.push(repo);
   }
   const { rows } = await getPool().query(sql, params);
 
