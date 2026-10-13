@@ -9,7 +9,7 @@
 | Used by     | `POST` / `PUT /api/repos/:owner/:repo/agent-definitions` when a write sets `image`; `PUT /api/repos/:owner/:repo/settings` when a write sets `auto_merge.approver = lore-reviewer` |
 | Module      | `apps/lore-api/src/work/two-key/approval-pr.ts` (`verifyApproval`), `apps/lore-api/src/transport/routes/two-key.ts` (`checkApproval`) |
 
-A write that changes what code an agent pod runs, or that installs a second GitHub identity able to approve branch-protected PRs, needs a second key beside the admin token: an open pull request labeled `dark-factory-approval` and approved by an owner of the target repository's `CLAUDE.md`.
+A write that changes what code an agent pod runs, or that installs a second GitHub identity able to approve branch-protected PRs, needs a second key beside the admin token: an open pull request labeled `dark-factory-approval` and approved by an owner of the target repository's `CLAUDE.md`. (The repository-level base image setting — the new `base_image` field on `lore.repos.settings`, written through the repo-settings route — is explicitly excluded from this ceremony; it is authorized by the same admin scope that governs agent-definition writes, requiring no approval PR.)
 
 ## Background
 
