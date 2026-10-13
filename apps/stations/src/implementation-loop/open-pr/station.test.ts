@@ -34,8 +34,10 @@ const REQUIRED_SECTIONS = `## Why\n\n${PLACEHOLDER}\n\n## What Changed\n\n${PLAC
 function scene(
   open: (pr: PullDraft) => Promise<PullRef> = () => Promise.resolve(pullRef()),
   template: string | null = null,
+  alreadyOpen: PullRef[] = [],
 ) {
   const opened: PullDraft[] = [];
+  const updated: Array<{ number: number; body: string }> = [];
   const recorded: Array<[string, PullRef]> = [];
   const handle = openLoopPrHandle({
     recordPr: async (taskId, pr) => {
@@ -49,16 +51,21 @@ function scene(
       repo !== "re-cinq/app"
         ? Promise.reject(new Error(`Not Found: ${repo}`))
         : Promise.resolve({
-            list: () => Promise.resolve([]),
+            list: () => Promise.resolve(alreadyOpen),
             open: (_branch, pr) => {
               opened.push(pr);
 
               return open(pr);
             },
+            update: (number, fields) => {
+              updated.push({ number, body: fields.body });
+
+              return Promise.resolve();
+            },
           }),
   });
 
-  return { handle, opened, recorded };
+  return { handle, opened, updated, recorded };
 }
 
 function pullRef(): PullRef {
@@ -164,5 +171,34 @@ describe("the loop-open-pr station", () => {
     expect(opened[0]?.body).toEqual(
       `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n## Why\n\n${PLACEHOLDER}\n\n## Testing\n\n${PLACEHOLDER}\n\nCloses #77\nLore-Task: task-1`,
     );
+  });
+
+  it("gives a reused draft whose body lacks the sections the draft body, so the description check passes on the next push", async () => {
+    const draft = { ...pullRef(), draft: true, body: "Opened by the loop." };
+    const { handle, opened, updated } = scene(undefined, null, [draft]);
+
+    await handle(brief({ issue_number: "77" }), TOOLS);
+
+    expect({ opened, updated }).toEqual({
+      opened: [],
+      updated: [
+        {
+          number: 42,
+          body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n${REQUIRED_SECTIONS}\n\nCloses #77\nLore-Task: task-1`,
+        },
+      ],
+    });
+  });
+
+  it("leaves a reused pull request alone when it is out of draft or already carries every section", async () => {
+    const ready = { ...pullRef(), draft: false, body: "Opened by the loop." };
+    const complete = { ...pullRef(), draft: true, body: REQUIRED_SECTIONS };
+    const outOfDraft = scene(undefined, null, [ready]);
+    const sectioned = scene(undefined, null, [complete]);
+
+    await outOfDraft.handle(brief(), TOOLS);
+    await sectioned.handle(brief(), TOOLS);
+
+    expect([outOfDraft.updated, sectioned.updated]).toEqual([[], []]);
   });
 });

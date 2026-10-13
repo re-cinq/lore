@@ -182,6 +182,13 @@ describe("the delivering recipes", () => {
     });
   });
 
+  it("has pr-ready write under the repository's PR-template headings, Why, What Changed and Testing without one", () => {
+    const ready = promptOf("loop-pr-ready");
+
+    expect(ready).toContain("`.github/PULL_REQUEST_TEMPLATE.md`");
+    expect(ready).toContain("`## Why`, `## What Changed` and `## Testing`");
+  });
+
   it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
     const ready = promptOf("loop-pr-ready");
 

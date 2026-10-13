@@ -21,7 +21,13 @@ function brief(needs: Record<string, string> = {}) {
   };
 }
 
-function scene(overrides: Partial<MarkReadyPulls> = {}) {
+const SECTIONED =
+  "## Why\n\nThe report had no export.\n\n## What Changed\n\nA CSV button.\n\n## Testing\n\nAE-09 covers it.";
+
+function scene(
+  overrides: Partial<MarkReadyPulls> = {},
+  template: string | null = null,
+) {
   const steps: unknown[] = [];
   const pulls: MarkReadyPulls = {
     update: (number, fields) => {
@@ -38,7 +44,10 @@ function scene(overrides: Partial<MarkReadyPulls> = {}) {
   };
 
   return {
-    handle: markReadyHandle({ pulls: () => Promise.resolve(pulls) }),
+    handle: markReadyHandle({
+      pulls: () => Promise.resolve(pulls),
+      template: () => Promise.resolve(template),
+    }),
     steps,
   };
 }
@@ -54,16 +63,42 @@ describe("the loop-mark-ready station", () => {
   it("rewrites pull request 42 with the agent's title and description and the Closes footer, then takes it out of draft", async () => {
     const { handle, steps } = scene();
 
-    await handle(brief(WRITTEN), tools("What changed and why.\n"));
+    await handle(brief(WRITTEN), tools(`${SECTIONED}\n`));
 
     expect(steps).toEqual([
       {
         update: 42,
         title: "Export the report as CSV",
-        body: "What changed and why.\n\nCloses #77\nLore-Task: task-1",
+        body: `${SECTIONED}\n\nCloses #77\nLore-Task: task-1`,
       },
       { ready: 42 },
     ]);
+  });
+
+  it("completes a description written without the Testing section, so the repository's description check stays green", async () => {
+    const { handle, steps } = scene();
+
+    await handle(
+      brief(WRITTEN),
+      tools("## Why\n\nBecause.\n\n## What Changed\n\nThe thing.\n"),
+    );
+
+    expect(steps[0]).toMatchObject({
+      body: "## Why\n\nBecause.\n\n## What Changed\n\nThe thing.\n\n## Testing\n\n_Not covered separately in this description._\n\nCloses #77\nLore-Task: task-1",
+    });
+  });
+
+  it("completes the description with the sections of the repository's own template", async () => {
+    const { handle, steps } = scene(
+      {},
+      "## Why\n\n<!-- -->\n\n## Risks\n\n<!-- -->\n",
+    );
+
+    await handle(brief(WRITTEN), tools("## Why\n\nBecause."));
+
+    expect(steps[0]).toMatchObject({
+      body: "## Why\n\nBecause.\n\n## Risks\n\n_Not covered separately in this description._\n\nCloses #77\nLore-Task: task-1",
+    });
   });
 
   it("writes Refs instead of Closes when the agent reported partial coverage of the issue", async () => {
@@ -71,11 +106,11 @@ describe("the loop-mark-ready station", () => {
 
     await handle(
       brief({ ...WRITTEN, issue_coverage: "partial" }),
-      tools("Half of it."),
+      tools(SECTIONED),
     );
 
     expect(steps[0]).toMatchObject({
-      body: "Half of it.\n\nRefs #77\nLore-Task: task-1",
+      body: `${SECTIONED}\n\nRefs #77\nLore-Task: task-1`,
     });
   });
 
