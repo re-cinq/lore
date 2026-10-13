@@ -45,6 +45,7 @@ In (base image selector):
 - An effective-image display alongside each agent definition in the Agents tab list, labelled by resolution layer (agent-override / repo-base / org-default). ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#scope-p-6))
 - A curated approved-image selector (approved-image catalog, not on main); the selector presents platform-published images only and free-form text entry is not permitted. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#p_35c274e2-2e79-40f5-9bc7-6e42f0f51d83))
 - Pod-based station nodes (validation, detection, gates) alongside agent nodes; the base image applies to every pod the floor dispatches through `libs/shared/src/outbound/floor/floor-client.ts`, regardless of whether it runs an agent or a station. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#p_80064f22-c6d9-43d5-9c4e-489fc0f49998))
+- Setting the base image does not require the two-key approval ceremony that governs individual agent image overrides; `apps/lore-api/src/transport/routes/repos/repo-settings.ts` accepts and persists `base_image` without calling `checkApproval` or `verifyApproval`. The authorization requirements are specified in Constraints. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#scope-p-5))
 
 Out (base image selector):
 - An org-wide base image setting; this feature is repo-scoped. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#scope-p-8))
@@ -193,8 +194,8 @@ The `base_image` key is a new field in the `lore.repos.settings` JSONB column (`
 
 ## Success Criteria
 
-- **SC-001 (Base Image Adoption):** 30% of repos with an assembly line run in the past 30 days set a repo base image within 90 days of GA. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#k-base-image-adoption))
-- **SC-002 (Per-Agent Redundancy Decrease):** Repos where 3+ individual agent image overrides share the same image value decrease by 50% within 90 days of GA. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#k-per-agent-redundancy))
+- **SC-001 (Base Image Adoption):** Measures whether the feature is actually solving the problem — teams with active lines and polyglot toolchains should gravitate to a base image rather than repeating per-agent overrides: 30% of repos with an assembly line run in the past 30 days set a repo base image within 90 days of GA. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#k-base-image-adoption))
+- **SC-002 (Per-Agent Redundancy Decrease):** A proxy for the problem being solved — these repos were manually repeating one image across every agent type because no base image existed; decline signals consolidation onto the new setting: repos where 3+ individual agent image overrides share the same image value decrease by 50% within 90 days of GA. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#k-per-agent-redundancy))
 
 ## Constraints
 
@@ -225,5 +226,5 @@ query (documented in the PR). Suites green: shared, mcp-server, floor, web-ui.
 ## Ownership
 
 - The Lore platform team owns this feature end to end: they own the agent definitions surface this extends, the Agents settings area in the UI, the approval gate mechanism, and the resolution path the external floor calls at dispatch. No other team needs to change anything for this feature to ship. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#ownership-p-1))
-- Repo operators MUST be able to set the base image once for their repo and not need to revisit individual agent definitions unless they require an exception. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#ownership-p-2))
+- Repo operators — the people who manage a repo's Lore configuration — are the primary users of this feature; they MUST be able to set the base image once for their repo and not need to revisit individual agent definitions unless they require an exception. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#ownership-p-2))
 - The Lore platform team MUST build and publish the language-specific execution images that populate the curated selector; adding support for a new programming language requires building and publishing an image variant first, after which it becomes available as a choice in the selector; repo operators MUST choose only from platform-published images and MUST NOT supply their own images through this feature. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#ownership-p-6))
