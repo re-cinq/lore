@@ -42,7 +42,9 @@ export interface ReviewProject {
       number: number,
     ): Promise<Pick<PullRef, "headSha" | "baseBranch" | "nodeId"> | null>;
     enableAutoMerge(nodeId: string, method: MergeMethod): Promise<void>;
-    getBranchRule(branch: string): Promise<Pick<BranchRule, "requiredApprovals">>;
+    getBranchRule(
+      branch: string,
+    ): Promise<Pick<BranchRule, "requiredApprovals">>;
   };
   upsertCheckRun(input: CheckRunInput): Promise<void>;
   autoMergeApprover(): Promise<AutoMergeApprover>;

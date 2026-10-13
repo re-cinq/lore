@@ -232,16 +232,28 @@ describe("PullRequests review threads", () => {
       getBranchRule: async (repo, branch) => {
         ruleReads.push({ repo, branch });
 
-        return { requiredApprovals: 1, codeOwnersReview: false, requiredChecks: [] };
+        return {
+          requiredApprovals: 1,
+          codeOwnersReview: false,
+          requiredChecks: [],
+        };
       },
     };
     const facade = new PullRequests("re-cinq/lore", port);
 
     await facade.enableAutoMerge("PR_kw_7", "squash");
 
-    expect({ armed, rule: await facade.getBranchRule("main"), ruleReads }).toEqual({
+    expect({
+      armed,
+      rule: await facade.getBranchRule("main"),
+      ruleReads,
+    }).toEqual({
       armed: [{ prId: "PR_kw_7", method: "squash" }],
-      rule: { requiredApprovals: 1, codeOwnersReview: false, requiredChecks: [] },
+      rule: {
+        requiredApprovals: 1,
+        codeOwnersReview: false,
+        requiredChecks: [],
+      },
       ruleReads: [{ repo: "re-cinq/lore", branch: "main" }],
     });
   });

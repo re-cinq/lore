@@ -43,7 +43,9 @@ export function toPullRef(repo: string, pr: OctokitPull): PullRef {
   };
 }
 
-function optionalFieldsOf(pr: OctokitPull): Partial<Pick<PullRef, OptionalPullField>> {
+function optionalFieldsOf(
+  pr: OctokitPull,
+): Partial<Pick<PullRef, OptionalPullField>> {
   return {
     ...whenPresent("nodeId", pr.node_id),
     ...whenPresent("baseBranch", pr.base?.ref),

@@ -86,7 +86,11 @@ function fakeProject(
       getBranchRule: async (branch: string) => {
         ruleReads.push(branch);
 
-        return { requiredApprovals, codeOwnersReview: false, requiredChecks: [] };
+        return {
+          requiredApprovals,
+          codeOwnersReview: false,
+          requiredChecks: [],
+        };
       },
       listReviews: async () =>
         reviews.map((review) => ({
@@ -311,7 +315,10 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
 
   describe("Lore never merges. It approves as lore-reviewer and arms GitHub's native auto-merge; GitHub performs the merge and enforces the branch rule. No pod holds merge authority.", () => {
     it("given approver is lore-reviewer, when review approves, then it submits APPROVE and writes lore_reviewer_approved audit row", async () => {
-      const { deps, reviews, auditRows } = fakeProject(undefined, undefined, { requiredApprovals: 1, approver: "lore-reviewer" });
+      const { deps, reviews, auditRows } = fakeProject(undefined, undefined, {
+        requiredApprovals: 1,
+        approver: "lore-reviewer",
+      });
 
       await postReviewHandle(deps)(
         brief(),
@@ -346,7 +353,9 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
 
   describe("Native auto-merge is armed only where the branch rule requires an approval, never on an unprotected branch, and always before lore-reviewer approves, because GitHub refuses to arm a PR that can already merge.", () => {
     it("given an unprotected branch, when review completes, then it does not arm auto-merge", async () => {
-      const { deps, autoMergeCalls } = fakeProject(undefined, undefined, { requiredApprovals: 0 });
+      const { deps, autoMergeCalls } = fakeProject(undefined, undefined, {
+        requiredApprovals: 0,
+      });
 
       await postReviewHandle(deps)(
         brief(),
