@@ -1,6 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { loadTemplates, assembleContext } from "./context-assembly.js";
 import { join } from "node:path";
+
+const originalFetch = global.fetch;
+
+beforeAll(() => {
+  global.fetch = vi
+    .fn()
+    .mockRejectedValue(new Error("Network disabled in tests"));
+});
+
+afterAll(() => {
+  global.fetch = originalFetch;
+});
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
