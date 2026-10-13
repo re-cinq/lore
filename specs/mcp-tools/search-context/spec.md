@@ -3,7 +3,7 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_search_context MCP Tool        |
-| Status  | In Progress                    |
+| Status  | Implemented/Shipped            |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_search_context`               |
