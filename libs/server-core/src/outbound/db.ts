@@ -92,6 +92,7 @@ export async function hybridSearch(
   const resolved = await chunkSchemaOrOrgShared(getPool(), schema);
   const embedding = await getQueryEmbedding(query);
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
+
   return embedding
     ? runHybridSQL({ embedding, keywordQuery, schema: resolved, limit, repo })
     : keywordOnlySearch(query, resolved, limit, repo);
@@ -110,6 +111,7 @@ async function runHybridSQL(options: {
     ? buildRepoBoundHybridSearchSQL(schema)
     : buildHybridSearchSQL(schema);
   const params: unknown[] = [embeddingStr, keywordQuery, limit];
+
   if (repo) {
     params.push(repo);
   }
@@ -142,7 +144,11 @@ async function keywordOnlySearch(
 
 function normalizeSearchScores(rows: SearchResult[]): SearchResult[] {
   const max = Math.max(0, ...rows.map((r) => r.rrf_score));
-  if (max <= 0) return rows;
+
+  if (max <= 0) {
+    return rows;
+  }
+
   return rows.map((r) => ({ ...r, rrf_score: r.rrf_score / max }));
 }
 
