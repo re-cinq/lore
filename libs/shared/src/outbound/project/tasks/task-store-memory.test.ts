@@ -49,12 +49,13 @@ describe("InMemoryTaskStore.create", () => {
     const store = new InMemoryTaskStore([], { now: tick(T0) });
     const created = await store.create({
       description: "do the thing",
+      taskType: "onboard",
       targetRepo: "a/b",
       priority: "whatever",
     });
 
     expect(created).toMatchObject({
-      task_type: "general",
+      task_type: "onboard",
       status: "pending",
       priority: "normal",
     });
@@ -74,25 +75,33 @@ describe("InMemoryTaskStore.create", () => {
     await expect(
       store.create({
         description: "impl",
-        taskType: "implementation",
+        taskType: "implementation-loop",
         targetRepo: "a/b",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
     await expect(
       store.create({
         description: "impl",
-        taskType: "implementation",
+        taskType: "implementation-loop",
         targetRepo: "unseeded/repo",
       }),
     ).resolves.toMatchObject({ status: "pending" });
   });
 
-  it("rejects a description longer than 10000 chars", async () => {
+  it("rejects a description longer than 32000 chars", async () => {
     const store = new InMemoryTaskStore();
 
     await expect(
-      store.create({ description: "x".repeat(10001) }),
-    ).rejects.toThrow(new Error("Description too long (max 10000 chars)"));
+      store.create({ description: "x".repeat(32001), taskType: "onboard" }),
+    ).rejects.toThrow(new Error("Description too long (max 32000 chars)"));
+  });
+
+  it("refuses a task with no type, as the Postgres store does", async () => {
+    const store = new InMemoryTaskStore();
+
+    await expect(store.create({ description: "do the thing" })).rejects.toThrow(
+      /^task_type is required/,
+    );
   });
 });
 
@@ -103,7 +112,7 @@ describe("InMemoryTaskStore.retry", () => {
         {
           id: "t1",
           description: "broken run",
-          task_type: "general",
+          task_type: "onboard",
           status: "failed",
           target_repo: "a/b",
           created_by: "ui",
@@ -208,20 +217,6 @@ describe("InMemoryTaskStore status writes", () => {
   });
 });
 
-const specTask = (
-  id: string,
-  featureId: string,
-  specTaskId: string,
-  description: string,
-) => ({
-  id,
-  target_repo: "a/b",
-  task_type: "spec-task",
-  status: "pending",
-  description,
-  context_bundle: { feature_id: featureId, spec_task_id: specTaskId },
-});
-
 describe("InMemoryTaskStore dedup reads", () => {
   it("findOpenLike matches type, statuses, and the description prefix — % stays a wildcard", async () => {
     const seed: SeedStoreTask[] = [
@@ -301,60 +296,6 @@ describe("InMemoryTaskStore dedup reads", () => {
     expect(
       await store.driftTasksForSpec("a/b", "spec-drift", "specs/x/spec.md"),
     ).toEqual([{ status: "pending", created_at: at(1), issue_number: 7 }]);
-  });
-
-  it("specTasksForFeature keys on the context bundle's feature_id", async () => {
-    const store = new InMemoryTaskStore([
-      specTask("t2", "feat-1", "T002", "wire the poll"),
-      specTask("t1", "feat-1", "T001", "add the port method"),
-      specTask("t3", "feat-OTHER", "T001", "someone else's work"),
-      {
-        id: "t4",
-        target_repo: "a/b",
-        task_type: "spec-task",
-        status: "pending",
-        context_bundle: null,
-      },
-      {
-        id: "t5",
-        target_repo: "a/b",
-        task_type: "implementation",
-        status: "pending",
-        context_bundle: { feature_id: "feat-1", spec_task_id: "T009" },
-      },
-    ]);
-
-    expect(await store.specTasksForFeature("a/b", "feat-1")).toEqual([
-      {
-        description: "add the port method",
-        status: "pending",
-        context_bundle: { feature_id: "feat-1", spec_task_id: "T001" },
-      },
-      {
-        description: "wire the poll",
-        status: "pending",
-        context_bundle: { feature_id: "feat-1", spec_task_id: "T002" },
-      },
-    ]);
-  });
-
-  it("specTasksForFeature scopes to the repo", async () => {
-    const store = new InMemoryTaskStore([
-      { ...specTask("t1", "feat-1", "T001", "ours"), target_repo: "a/b" },
-      { ...specTask("t2", "feat-1", "T002", "theirs"), target_repo: "c/d" },
-    ]);
-
-    expect(
-      (await store.specTasksForFeature("a/b", "feat-1")).map(
-        (t) => t.description,
-      ),
-    ).toEqual(["ours"]);
-  });
-
-  it("specTasksForFeature returns nothing for a feature with no tasks", async () => {
-    expect(
-      await new InMemoryTaskStore([]).specTasksForFeature("a/b", "feat-1"),
-    ).toEqual([]);
   });
 });
 

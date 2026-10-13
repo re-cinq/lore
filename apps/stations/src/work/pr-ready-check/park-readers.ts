@@ -3,7 +3,10 @@ import {
   ciJudgedSha,
   externalCheckRuns,
 } from "@re-cinq/lore-shared";
-import { explainFailedChecks } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
+import {
+  explainFailedChecks,
+  loreCheckName,
+} from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { decidePrReady, type PrReadyVerdict } from "./decide-ready.js";
 import {
@@ -12,10 +15,11 @@ import {
   type CiCheckVerdict,
   type CiFeedbackArgs,
 } from "./decide-ci.js";
-import type {
-  LoopRunSlice,
-  ParkedReport,
-  PrReadyCheckDeps,
+import {
+  LOOP_BLUEPRINT,
+  type LoopRunSlice,
+  type ParkedReport,
+  type PrReadyCheckDeps,
 } from "./sweep-contract.js";
 
 /** The end-of-line wait: CI plus review threads. All four reads run together — they are independent, and this job sweeps every parked run on a tick. */
@@ -57,7 +61,7 @@ async function prEvidence(
   );
 
   return {
-    checks: await explainedChecks(run.repo, checks, deps),
+    checks: await explainedChecks(run.repo, withoutOwnCheck(checks), deps),
     threads,
     openReviewRunCount,
     hasCiHistory,
@@ -121,6 +125,13 @@ async function ciEvidence(
     hasCiHistory,
     mergeable,
   };
+}
+
+/** The loop's own status check is in progress for as long as the run is, so a wait that counted it would wait on itself forever. The review checks stay: waiting on those is the point. */
+function withoutOwnCheck(checks: CheckRun[]): CheckRun[] {
+  const own = loreCheckName(LOOP_BLUEPRINT);
+
+  return checks.filter((run) => run.name !== own);
 }
 
 /** The shared explainer, bound to this sweep's job reader. */

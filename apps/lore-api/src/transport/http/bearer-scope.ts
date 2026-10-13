@@ -35,7 +35,14 @@ async function authenticateBearer(
 
   enforceTrue(bearer, (message) => denied(401, message), "unauthorized");
 
-  const scopes = await resolveTokenScopes(pool, bearer);
+  let scopes: TokenScope[] | null;
+
+  try {
+    scopes = await resolveTokenScopes(pool, bearer);
+  } catch (err) {
+    request.log(["error", "db"], err as Error);
+    throw apiError(503)("database unavailable");
+  }
 
   enforceTrue(scopes, (message) => denied(403, message), "insufficient scope");
   enforceRouteScope(request, scopes);

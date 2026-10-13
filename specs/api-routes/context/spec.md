@@ -53,8 +53,9 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 1. Parse `req.url` with base `http://localhost`. Read `repo`, `query`,
    `template` (default `"default"`), and `debug` (`"1"` or `"true"` → true).
 2. **Assembly path** — if `query` is truthy **and** `pool` is non-null:
-   1. `await assembleContext(pool, query, template, 8000, repo || undefined,
-      undefined, undefined, undefined, debug)` — max-tokens fixed at 8000.
+   1. `await assembleContext(pool, query, { templateName, maxTokens, repo,
+      agentId, crossRepo, debug, dgraph })` — `maxTokens` is the `max_tokens`
+      query parameter, 8000 when absent or non-numeric and capped at 128000.
    2. Write 200 `{ text: result.text || null, sections: result.sections,
       trace: result.trace }`. Empty/falsy text is coerced to `null`.
 3. **Chunk-join path** (no query, or no pool):
@@ -89,7 +90,7 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 
 ## Acceptance Criteria
 
-A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/transport/routes/context/context.test.ts#L21), [validated by `context.test.ts:31`](apps/lore-api/src/transport/routes/context/context.test.ts#L31))
+A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/transport/routes/context/context.test.ts#L31), [validated by `context.test.ts:31`](apps/lore-api/src/transport/routes/context/context.test.ts#L31))
 
 `max_tokens`, `agent_id`, and `cross_repo` query params are forwarded to `assembleContext` at their respective argument positions. ([validated by `context.test.ts:71`](apps/lore-api/src/transport/routes/context/context.test.ts#L70))
 
@@ -115,7 +116,7 @@ Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts
 
 A throwing engine returns 500. ([validated by `context.test.ts:202`](apps/lore-api/src/transport/routes/context/context.test.ts#L201))
 
-The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L87), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L43))
+The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L43))
 
 ## Out of Scope
 

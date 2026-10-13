@@ -3,8 +3,8 @@
 import { createHash } from "node:crypto";
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 
-/** Embeds a statement/criterion's text into its node's float32vector; injected as a seam so projection stays deterministic + offline in tests. */
-export type EmbedFn = (text: string) => Promise<number[] | null>;
+/** Embeds a file's statement/criterion texts in one go, one vector (or null) per text in input order; injected as a seam so projection stays deterministic + offline in tests. One call per file rather than per statement: a 100 KB spec embedded statement by statement outran its station's deadline. */
+export type EmbedFn = (texts: string[]) => Promise<Array<number[] | null>>;
 
 /** Dgraph float32vector literal: the array serialized as a `"[a,b,c]"` string. */
 export function vectorLiteral(vector: number[]): string {
@@ -17,7 +17,8 @@ export interface ProjectionContext {
   repo: string;
   filePath: string;
   specUid: string;
-  embed: EmbedFn;
+  /** The vector the file's single embed call returned for this text. */
+  embeddingOf: (text: string) => number[] | null;
 }
 
 /** Hex sha256 — the content-hash idiom shared by Spec, Statement, and AcceptanceCriterion nodes. */

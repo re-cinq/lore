@@ -1,58 +1,29 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  buildVertexUrl,
-  resolveVertexProject,
-  resetVertexProjectCache,
   getQueryEmbedding,
+  getQueryEmbeddings,
   embeddingHealth,
   embedderDegraded,
   resetEmbeddingHealth,
 } from "./embedding-service.js";
+import { resetGoogleProjectCache } from "../google/access-token.js";
+import { Embeddings } from "./embeddings.js";
+import { FakeEmbeddingProvider } from "./fake-embedding-provider.js";
 
 const SAVED = { ...process.env };
 
 beforeEach(() => {
-  resetVertexProjectCache();
+  resetGoogleProjectCache();
   delete process.env.GCP_PROJECT;
   delete process.env.GOOGLE_CLOUD_PROJECT;
   delete process.env.GOOGLE_ACCESS_TOKEN;
 });
 afterEach(() => {
+  Embeddings.reset();
   process.env = { ...SAVED };
   vi.unstubAllGlobals();
-  resetVertexProjectCache();
-});
-
-describe("buildVertexUrl", () => {
-  it("interpolates project and region into the predict endpoint", () => {
-    expect(buildVertexUrl("my-gcp-project", "europe-west1")).toBe(
-      "https://europe-west1-aiplatform.googleapis.com/v1/projects/my-gcp-project/locations/europe-west1/publishers/google/models/text-embedding-005:predict",
-    );
-  });
-});
-
-describe("resolveVertexProject", () => {
-  it("returns GCP_PROJECT from the environment without hitting the metadata server", async () => {
-    process.env.GCP_PROJECT = "proj-from-env";
-    const fetchMock = vi.fn();
-
-    vi.stubGlobal("fetch", fetchMock);
-    expect(await resolveVertexProject()).toBe("proj-from-env");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the GKE metadata server project-id when env is unset", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) =>
-        url.includes("/project/project-id")
-          ? ({ ok: true, text: async () => "proj-from-metadata\n" } as Response)
-          : ({ ok: false } as Response),
-      ),
-    );
-    expect(await resolveVertexProject()).toBe("proj-from-metadata");
-  });
+  resetGoogleProjectCache();
 });
 
 describe("embeddingHealth", () => {
@@ -159,5 +130,111 @@ describe("getQueryEmbedding project resolution", () => {
         String(u).includes("projects//locations"),
       ),
     ).toBe(false);
+  });
+});
+
+describe("getQueryEmbeddings", () => {
+  const vertexEchoingIndexes = () =>
+    vi.fn(async (url: string, init?: RequestInit) => {
+      enforceTrue(
+        !url.includes("service-accounts/default/token"),
+        Error,
+        "no metadata",
+      );
+      const { instances } = JSON.parse(String(init?.body)) as {
+        instances: Array<{ content: string }>;
+      };
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          predictions: instances.map((instance) => ({
+            embeddings: { values: [instance.content.length] },
+          })),
+        }),
+      } as Response;
+    });
+
+  beforeEach(() => {
+    resetEmbeddingHealth();
+    process.env.GOOGLE_ACCESS_TOKEN = "tok";
+    process.env.GCP_PROJECT = "p";
+  });
+
+  it("embeds three texts in one Vertex call and returns the vectors in input order", async () => {
+    const fetchMock = vertexEchoingIndexes();
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await getQueryEmbeddings(["a", "bb", "ccc"])).toEqual([
+      [1],
+      [2],
+      [3],
+    ]);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url.includes(":predict")),
+    ).toHaveLength(1);
+  });
+
+  it("returns null for every text when Vertex answers 403", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 403 }) as Response),
+    );
+
+    expect(await getQueryEmbeddings(["a", "b"])).toEqual([null, null]);
+    expect(embeddingHealth()).toMatchObject({ lastStatus: 403 });
+  });
+
+  it("returns an empty list for no texts without calling Vertex", async () => {
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await getQueryEmbeddings([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getQueryEmbeddings through an installed provider", () => {
+  beforeEach(() => resetEmbeddingHealth());
+
+  it("hands 'a' and 'bbb' to the installed provider in one call and returns its vectors of 1 and 3 in order", async () => {
+    const provider = new FakeEmbeddingProvider();
+
+    Embeddings.setInstance(provider);
+
+    expect(await getQueryEmbeddings(["a", "bbb"])).toEqual([[1], [3]]);
+    expect(provider.calls).toEqual([["a", "bbb"]]);
+  });
+
+  it("returns the installed provider's vector of 2 for the single query 'hi'", async () => {
+    Embeddings.setInstance(new FakeEmbeddingProvider());
+
+    expect(await getQueryEmbedding("hi")).toEqual([2]);
+  });
+
+  it("returns an empty list for no texts without calling the installed provider", async () => {
+    const provider = new FakeEmbeddingProvider();
+
+    Embeddings.setInstance(provider);
+
+    expect(await getQueryEmbeddings([])).toEqual([]);
+    expect(provider.calls).toEqual([]);
+  });
+
+  it("answers null for both texts and records a failure with status null when the provider throws", async () => {
+    Embeddings.setInstance(
+      new FakeEmbeddingProvider(() => {
+        throw new Error("provider down");
+      }),
+    );
+
+    expect(await getQueryEmbeddings(["a", "b"])).toEqual([null, null]);
+    expect(embeddingHealth()).toMatchObject({
+      lastStatus: null,
+      consecutiveFailures: 1,
+    });
   });
 });

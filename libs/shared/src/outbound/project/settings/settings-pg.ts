@@ -2,22 +2,104 @@ import { enforceTrue } from "../../../lib/enforce.js";
 import { selectList, fromRow } from "../../../lib/row.js";
 import { REPO_COLUMNS } from "../../../domain/models/repo.js";
 import type { PgPool } from "../../memory-store.js";
-import {
-  resolveDarkFactorySettings,
-  type DarkFactorySettings,
-  type ResolvedDarkFactorySettings,
-} from "../../../domain/dark-factory-settings.js";
+import { runInTransaction } from "../../db/pg-transaction.js";
 import type {
   SettingsPort,
   OnboardedRepo,
+  OnboardedRepoSettings,
   PendingOnboardingRepo,
   RepoRecord,
+  RepoRenameOutcome,
 } from "./settings-port.js";
 
 /** The repo-config writes the settings adapter delegates to (the GitHub adapter). */
 export interface RepoConfigWriter {
   setRepoVariable(repo: string, name: string, value: string): Promise<void>;
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
+}
+
+interface RepoIdentityRow {
+  id: string;
+  full_name: string;
+}
+
+const LOCK_RENAME_ROWS_SQL =
+  "SELECT id, full_name FROM lore.repos WHERE full_name = ANY($1) FOR UPDATE";
+
+const RENAME_REPO_ROW_SQL =
+  "UPDATE lore.repos SET owner = $2, name = $3, full_name = $4 WHERE id = $1";
+
+const INHERIT_EMPTY_SETTINGS_SQL = `UPDATE lore.repos target
+    SET settings = source.settings
+   FROM lore.repos source
+  WHERE source.id = $1 AND target.id = $2
+    AND (target.settings IS NULL OR target.settings = '{}'::jsonb)`;
+
+/** Cross-repo links are stored on both sides by name; each list naming the old repo is rewritten to the new one, without duplicating it. */
+const REPOINT_CROSS_REPO_LINKS_SQL = `UPDATE lore.repos
+    SET settings = jsonb_set(settings, '{cross_repo_repos}',
+          (SELECT jsonb_agg(DISTINCT CASE WHEN link = to_jsonb($1::text)
+                                          THEN to_jsonb($2::text) ELSE link END)
+             FROM jsonb_array_elements(settings->'cross_repo_repos') AS link))
+  WHERE settings->'cross_repo_repos' @> jsonb_build_array($1::text)`;
+
+const MOVE_AGENT_DEFINITIONS_SQL = `UPDATE lore.agent_definitions moved
+    SET project_id = $2
+  WHERE moved.project_id = $1
+    AND NOT EXISTS (SELECT 1 FROM lore.agent_definitions kept
+                     WHERE kept.project_id = $2 AND kept.name = moved.name)`;
+
+/** lore.plans.repo is a free-text column with no FK to lore.repos; without this a rename orphans every existing plan under the stale name. */
+const MOVE_PLANS_SQL = "UPDATE lore.plans SET repo = $2 WHERE repo = $1";
+
+/** Inside an open transaction: locks both names' rows, then renames `from` in place or merges it into `to`. */
+async function renameRepoRow(
+  db: PgPool,
+  from: string,
+  to: string,
+): Promise<RepoRenameOutcome> {
+  const { rows } = await db.query<RepoIdentityRow>(LOCK_RENAME_ROWS_SQL, [
+    [from, to],
+  ]);
+  const source = rows.find((row) => row.full_name === from);
+  const target = rows.find((row) => row.full_name === to);
+
+  if (!source) {
+    return "absent";
+  }
+  const outcome = target
+    ? await mergeRepoRows(db, source.id, target.id)
+    : await renameRepoRowInPlace(db, source.id, to);
+
+  await db.query(REPOINT_CROSS_REPO_LINKS_SQL, [from, to]);
+  await db.query(MOVE_PLANS_SQL, [from, to]);
+
+  return outcome;
+}
+
+async function renameRepoRowInPlace(
+  db: PgPool,
+  id: string,
+  to: string,
+): Promise<RepoRenameOutcome> {
+  const [owner, name] = to.split("/");
+
+  await db.query(RENAME_REPO_ROW_SQL, [id, owner, name, to]);
+
+  return "renamed";
+}
+
+/** The new row keeps its own definition where both rows define one name, and its own settings unless it has none; the old row's leftovers cascade with it. */
+async function mergeRepoRows(
+  db: PgPool,
+  sourceId: string,
+  targetId: string,
+): Promise<RepoRenameOutcome> {
+  await db.query(MOVE_AGENT_DEFINITIONS_SQL, [sourceId, targetId]);
+  await db.query(INHERIT_EMPTY_SETTINGS_SQL, [sourceId, targetId]);
+  await db.query("DELETE FROM lore.repos WHERE id = $1", [sourceId]);
+
+  return "merged";
 }
 
 /** Reads lore.repos.settings JSONB; delegates var/secret writes to GitHub adapter. */
@@ -37,32 +119,13 @@ export class PgSettings implements SettingsPort {
     return this.repoConfig;
   }
 
-  async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
-    const { rows } = await this.pool.query(
-      "SELECT settings FROM lore.repos WHERE full_name = $1",
-      [repo],
-    );
-    const settings = rows[0]?.settings as
-      { dark_factory?: DarkFactorySettings } | undefined;
-
-    return resolveDarkFactorySettings(settings?.dark_factory);
-  }
-
-  async resolveOrNull(
-    repo: string,
-  ): Promise<ResolvedDarkFactorySettings | null> {
-    const { rows } = await this.pool.query(
-      "SELECT settings FROM lore.repos WHERE full_name = $1",
-      [repo],
+  async orgSetting(key: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ value: string }>(
+      "SELECT value FROM lore.settings WHERE key = $1",
+      [key],
     );
 
-    if (rows.length === 0) {
-      return null;
-    }
-    const settings = rows[0]?.settings as
-      { dark_factory?: DarkFactorySettings } | undefined;
-
-    return resolveDarkFactorySettings(settings?.dark_factory);
+    return rows[0]?.value ?? null;
   }
 
   setRepoVariable(repo: string, name: string, value: string): Promise<void> {
@@ -73,9 +136,10 @@ export class PgSettings implements SettingsPort {
     return this.writer().setRepoSecret(repo, name, value);
   }
 
+  // Case-insensitive: the one lookup web-ui's repo layout uses to find the canonical casing of a URL typed or bookmarked with the wrong case.
   async record(repo: string): Promise<RepoRecord | null> {
     const { rows } = await this.pool.query<Record<string, unknown>>(
-      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE full_name = $1`,
+      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE LOWER(full_name) = LOWER($1)`,
       [repo],
     );
 
@@ -131,6 +195,14 @@ export class PgSettings implements SettingsPort {
     return rows as OnboardedRepo[];
   }
 
+  async onboardedRepoSettings(): Promise<OnboardedRepoSettings[]> {
+    const { rows } = await this.pool.query<OnboardedRepoSettings>(
+      "SELECT full_name, settings FROM lore.repos WHERE onboarding_pr_merged = true ORDER BY full_name",
+    );
+
+    return rows;
+  }
+
   async allRepos(): Promise<string[]> {
     const { rows } = await this.pool.query<{ full_name: string }>(
       "SELECT full_name FROM lore.repos ORDER BY full_name",
@@ -169,7 +241,7 @@ export class PgSettings implements SettingsPort {
   async markOnboardingMergedById(id: string): Promise<void> {
     await this.pool.query(
       `UPDATE lore.repos
-          SET onboarding_pr_merged = true, last_ingested_at = now()
+          SET onboarding_pr_merged = true
         WHERE id = $1`,
       [id],
     );
@@ -187,6 +259,10 @@ export class PgSettings implements SettingsPort {
       "UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2",
       [url, repo],
     );
+  }
+
+  renameRepo(from: string, to: string): Promise<RepoRenameOutcome> {
+    return runInTransaction(this.pool, (db) => renameRepoRow(db, from, to));
   }
 
   async bumpOutcomeStats(

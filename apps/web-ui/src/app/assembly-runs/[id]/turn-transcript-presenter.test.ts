@@ -9,6 +9,7 @@ import {
   parseHasMore,
   serverReportsMore,
   turnsForNode,
+  turnsForAttempt,
   conversationEntries,
   clockTime,
 } from "./turn-transcript-presenter";
@@ -105,6 +106,15 @@ describe("turnsForNode", () => {
     ];
 
     expect(turnsForNode(turns, "implement")).toEqual([turn("1", "implement")]);
+  });
+});
+
+describe("turnsForAttempt", () => {
+  it("keeps only implement's iteration 2 turns", () => {
+    const second = { ...turn("2", "implement"), iteration: 2 };
+    const turns = [turn("1", "implement"), second, turn("3", "review")];
+
+    expect(turnsForAttempt(turns, "implement", 2)).toEqual([second]);
   });
 });
 

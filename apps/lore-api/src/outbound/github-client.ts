@@ -2,6 +2,7 @@
 
 import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "@re-cinq/lore-shared/project/lib/octokit-retry-policy.js";
+import { listReviewThreads } from "@re-cinq/lore-shared/project/lib/platform-github-pulls-review-reads.js";
 import { createAppAuth } from "@octokit/auth-app";
 
 const APP_ID = process.env.GITHUB_APP_ID || "";
@@ -127,17 +128,22 @@ export async function fetchPrStatus(
     return null;
   }
 
-  const { pr, checks, reviewList } = await readPr(token, repo, prNumber);
+  const { pr, checks, reviewList, unresolvedThreads } = await readPr(
+    token,
+    repo,
+    prNumber,
+  );
 
-  return toPrStatus(pr, checks, reviewList);
+  return toPrStatus(pr, checks, reviewList, unresolvedThreads);
 }
 
 // Fetch live PR state via raw REST; returns null if GitHub not configured
-/** The PR and its two verdicts. Reviews are fetched alongside the PR and their failure swallowed — a PR nobody has reviewed yet is the normal case, and it must not cost the checks. The check runs need the head SHA, so they follow rather than join the pair. */
+/** The PR, its two verdicts and its open review threads. Reviews and threads are fetched alongside the PR and their failure swallowed — a PR nobody has reviewed yet is the normal case, and it must not cost the checks. The check runs need the head SHA, so they follow rather than join the trio. */
 async function readPr(token: string, repo: string, prNumber: number) {
-  const [pr, rawReviews] = await Promise.all([
+  const [pr, rawReviews, unresolvedThreads] = await Promise.all([
     ghFetch(token, `/repos/${repo}/pulls/${prNumber}`),
     ghFetch(token, `/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
+    countUnresolvedThreads(token, repo, prNumber),
   ]);
 
   return {
@@ -146,7 +152,27 @@ async function readPr(token: string, repo: string, prNumber: number) {
       await fetchCheckRuns(token, repo, (pr.head as { sha: string }).sha),
     ),
     reviewList: normalizeReviews(rawReviews),
+    unresolvedThreads,
   };
+}
+
+/** How many review threads still wait on someone; null when GitHub would not say, so a failed read never passes for a clean PR. Resolution is a GraphQL-only fact, hence octokit rather than {@link ghFetch}. */
+async function countUnresolvedThreads(
+  token: string,
+  repo: string,
+  prNumber: number,
+): Promise<number | null> {
+  try {
+    const threads = await listReviewThreads(
+      withoutBlindRetryOnCreates(new Octokit({ auth: token })),
+      repo,
+      prNumber,
+    );
+
+    return threads.filter((thread) => !thread.isResolved).length;
+  } catch {
+    return null;
+  }
 }
 
 // Check-runs are best-effort: any failure (missing sha, network) yields no checks.
@@ -212,6 +238,7 @@ function toPrStatus(
   pr: Record<string, unknown>,
   checks: PrCheck[],
   reviews: PrReview[],
+  unresolvedThreads: number | null,
 ): Record<string, unknown> {
   return {
     number: pr.number,
@@ -223,6 +250,7 @@ function toPrStatus(
     html_url: pr.html_url,
     checks,
     reviews,
+    unresolved_threads: unresolvedThreads,
     computed_status: deriveComputedStatus(pr, checks, reviews),
   };
 }

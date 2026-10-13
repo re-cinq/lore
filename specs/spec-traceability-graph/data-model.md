@@ -237,13 +237,45 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 
 ## Call graph (cross-file symbol references)
 
-The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L167))
+The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L168))
 
 `lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
 
-Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L126), [validated by surfaces a caller statement as indirect when only the callee chunk is changed](libs/shared/src/work/spec-trace/trace-impact.test.ts#L474))
+Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L153), [validated by surfaces a caller statement as indirect when only the callee chunk is changed](libs/shared/src/work/spec-trace/trace-impact.test.ts#L502))
 
-The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L5), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L28), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L44))
+The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L8), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L31), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L47))
+
+### Code projection (issue #1992)
+
+The `code` ingest kind is what writes the call graph. lore-code-trace's `docs --post`
+sends the repository's TypeScript and JavaScript source (tests, `.d.ts`, `node_modules/`,
+`dist/`, `build/` and `vendor/` left out) to `POST /api/repos/{owner}/{repo}/ingest` with
+`kind: "code"`, in the same chunked delta as specs and ADRs, so it lands on `main` from CI
+like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L169))
+
+lore-api parses each file with tree-sitter into its top-level functions,
+function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L75), [validated by maps the local name next to nextTransition imported from ./transition.js](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L92))
+
+A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L105))
+
+Each definition becomes one `CodeChunk` keyed `<repo>|code|<module path without extension>#<symbol>`,
+and a call to a sibling definition or to a named import from a relative path becomes a
+`CodeChunk.references` edge to the chunk with that key; calls into packages are dropped.
+A target whose file is not projected yet is a placeholder carrying only its identity, so
+the edge binds whatever order files land in. ([validated by answers advance in src/runner.ts as the caller of nextTransition](libs/shared/src/work/spec-trace/project-code-file.test.ts#L68), [validated by answers nextTransition in src/transition.ts as the callee of advance](libs/shared/src/work/spec-trace/project-code-file.test.ts#L76))
+
+A chunk's content hash covers its text and the keys it references, so a file projected
+again unchanged writes nothing. ([validated by reports projected false when src/runner.ts is projected again unchanged](libs/shared/src/work/spec-trace/project-code-file.test.ts#L84))
+
+A file over 256,000 characters is generated rather than written and is not parsed. ([validated by reports projected false for a src/generated.ts over 256000 characters](libs/shared/src/work/spec-trace/project-code-file.test.ts#L119))
+
+Dgraph does not cascade, so removing a chunk removes its edges by hand: a reference
+the new content no longer makes is dropped, a definition that left its file loses its own
+edges and is deleted, or shrinks to a placeholder while callers still point at it so they
+rebind when it returns, and a placeholder nobody references is deleted. ([validated by answers no callers once advance stops calling nextTransition](libs/shared/src/work/spec-trace/project-code-file.test.ts#L92), [validated by removes the reference edges of src/runner.ts when the file is deleted](libs/shared/src/work/spec-trace/project-code-file.test.ts#L102), [validated by answers advance again when src/transition.ts is deleted and projected back](libs/shared/src/work/spec-trace/project-code-file.test.ts#L109))
+
+A full ingest prunes the files the graph holds definition chunks for and the posted tree
+no longer names. ([validated by lists src/runner.ts and src/transition.ts as the projected code files](libs/shared/src/work/spec-trace/project-code-file.test.ts#L128))
 
 ## Branch overlay
 
@@ -274,10 +306,10 @@ type, so the same projection code hangs nodes off `Repo` on `main` and off
 
 `Overlay.xid` is a hash upsert index and `Overlay.branch` /
 `Overlay.head_commit` are indexed, so a branch's overlay is found by name and
-the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L205))
+the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L206))
 
 The `Overlay` node carries the same chunk container edges the `Repo` root does —
-`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L219))
+`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L220))
 
 ### Which branch is an overlay
 
@@ -359,17 +391,18 @@ nothing. ([validated by replaces main's answer for the file when the overlay cov
 
 ### Ending a branch's overlay
 
-The Floor never writes Dgraph itself, so a closing PR does not delete its
-branch's overlay directly: the Floor emits the same `internal.ingest.spec_trace`
-event a test report rides, with kind `overlay-drop` naming the PR's repo and
-head branch, and the ingest station performs the delete. ([validated by asks the ingest to drop the feat/x overlay when the merged feat/x PR closes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L18))
+The stations service answers a closing PR and holds no graph client, so it does
+not delete the branch's overlay itself: it asks lore-api, which does
+(`POST /api/repos/{owner}/{repo}/trace/overlay-drop`). Until 2026-10-02 the old
+Floor sent the drop through the `ingest` assembly line as a pod per drop. ([validated by drops the graph overlay of branch feat/x when its pull request closes](apps/stations/src/events/repo-handlers.test.ts#L146), [validated by posts branch feat/x to /trace/overlay-drop of o/r](libs/shared/src/outbound/project/lib/station-http.test.ts#L227), [validated by drops the overlay of branch lore/implementation-loop/issue-7 for o/r and answers dropped](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L40), [validated by answers dropped false and writes nothing when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L57), [validated by answers 400 when no branch is named](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L50))
 
 The drop follows the PR, not a run: review, triage and reply runs all work on
 the PR's head branch, so the first of them to finish would otherwise wipe an
 overlay the implementation loop is still writing. A PR closed without merging
-drops its overlay the same way. ([validated by asks for the same drop when the feat/x PR closes unmerged](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L39))
+drops its overlay the same way, and the stations service claims the close
+whether or not an external floor is configured. ([validated by claims only the closed pull request, for its overlay drop, when no floor is configured](apps/stations/src/events/subscriptions.test.ts#L60))
 
-A closed PR that names no head branch asks for nothing. ([validated by asks for nothing when the closed PR names no head branch](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L50))
+A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch](apps/stations/src/events/repo-handlers.test.ts#L158))
 
 The drop can still be missed — a branch that never opened a PR, a lost event —
 so a retention sweep reaps every overlay a repo has not restamped since a
@@ -454,7 +487,7 @@ episode carries the lesson in prose. ([validated by drops a failure older than t
 
 The Floor never writes Dgraph itself, so a settled node emits an ingest event
 carrying its outcome, and the graph decides from that outcome whether to project
-a failure or resolve earlier ones. ([validated by carries the settled node and its outcome on the ingest lane](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L38))
+a failure or resolve earlier ones.
 
 The event takes the node's IDENTITY from its station-run row and its VERDICT
 from the delivery. It cannot take the verdict from the row: the row is read
@@ -462,19 +495,19 @@ BEFORE the finish writes the outcome onto it, so its failure fields are still
 empty at that moment. Reading them there would have projected every failure with
 no detail, and a failure with no detail names no file, and a failure that names
 no file is not projected at all — the whole feature would have been silently
-inert. ([validated by takes identity from the row and the failure from the verdict](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L38), [validated by hands the graph the delivery's failure detail, not the row read before the finish wrote it](apps/floor/src/work/assembly-run/finish-node.test.ts#L787))
+inert.
 
 A verdict that names no failure carries nulls rather than omitting the fields, so
-a resolve is distinguishable from a malformed record. ([validated by carries nulls for a verdict that names no failure](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L71))
+a resolve is distinguishable from a malformed record.
 
 A success and a failure on the same station run are keyed separately, so
-recording one never suppresses the other. ([validated by keys a success separately from the failure on the same station run](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L85))
+recording one never suppresses the other.
 
 A run with a repo is recorded; a run without one is not, because its files
-belong to nothing. ([validated by records for a run that names a repo](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L18), [validated by refuses for a run with no repo, whose files belong to nothing](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L24))
+belong to nothing.
 
 An ingest run's own node outcomes are never recorded: recording one starts
-another ingest run, whose outcome would start the next, forever. ([validated by refuses for an ingest run, whose recorded outcome would start another ingest run](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L30))
+another ingest run, whose outcome would start the next, forever.
 
 The ingest lane records a failed node against the file its output named. ([validated by records a failed node against the file its output named](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L49))
 

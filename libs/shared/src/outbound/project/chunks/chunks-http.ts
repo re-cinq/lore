@@ -68,8 +68,8 @@ export class ChunksHttp implements ChunksPort {
     ).specs;
   }
 
-  async codeChunksForBackfill(_repo: string): Promise<CodeChunkFull[]> {
-    return (await this.get<{ chunks: CodeChunkFull[] }>("code-backfill"))
+  async testChunksForBackfill(_repo: string): Promise<CodeChunkFull[]> {
+    return (await this.get<{ chunks: CodeChunkFull[] }>("test-backfill"))
       .chunks;
   }
 

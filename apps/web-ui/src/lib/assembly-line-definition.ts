@@ -1,16 +1,13 @@
-// Hand mirror of libs/assembly-lines/src/loader.ts's definition types — web-ui can't import libs/, so scripts/type-drift/assembly-line-definition.drift.ts guards it. Structural, not debt (#1419): the Floor serves no OpenAPI document here.
+// The shape of a line as the run page draws it: the graph a run stored when it started, or a floor run's line mapped onto it. It mirrored the old engine's loader types until that loader was deleted (2026-10-02); the node types below are the ones stored runs carry.
 export type DefinitionNodeType =
   | "agent"
   | "validate"
   | "retrospective"
   | "detect"
-  | "comment-triage"
   | "ingest"
   | "issues"
   // One step of the merge line, parameterised by job_ref.
   | "merge_step"
-  // One step of the escalation line, parameterised the same way.
-  | "escalation_step"
   // Stations whose worker is a PERSON — the type names the form contract, `route` the page it lives on (FR6.40).
   | "feature_review"
   | "pr_review"
@@ -19,6 +16,7 @@ export type DefinitionNodeType =
 export type DefinitionEdgeCondition =
   "success" | "changes_requested" | "failed" | "always";
 
+// eslint-disable-next-line re-lint/no-row-types-outside-models -- mirrors the assembly-line YAML node, whose keys are snake_case by contract; no table holds this shape
 export interface DefinitionNode {
   id: string;
   type: DefinitionNodeType;
@@ -31,6 +29,8 @@ export interface DefinitionNode {
   description?: string;
   /** Which previous run this node continues, and what keys the thread. */
   continues?: { node: string; key: string };
+  /** Started only by hand while the line waits on a person; no edge leads here. */
+  by_hand?: boolean;
   /** Where a human station's worker acts — relative (this app) or absolute (e.g. a GitHub PR); `{args.x}` placeholders resolve API-side to a link or null. */
   route?: string;
   /** Capability tags a claiming cluster-agent must carry. */
@@ -50,6 +50,8 @@ export interface AssemblyLineDefinition {
   version: 1;
   entry: string;
   exit: string;
+  /** The node that ends the run as failed on purpose; absent when the line has none. */
+  fail?: string;
   nodes: DefinitionNode[];
   edges: DefinitionEdge[];
 }

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   decideOnboard,
   onboardLockKey,
-  onboardTaskDescription,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   type OnboardState,
@@ -15,6 +14,15 @@ const clear: OnboardState = {
 };
 
 describe("decideOnboard", () => {
+  it("blocks re-cinq/lore outright because it is the source of the templates", () => {
+    expect(decideOnboard("re-cinq/lore", clear)).toMatchObject({
+      allowed: false,
+      block: "already-onboarded",
+      taskId: null,
+      message: expect.stringContaining("special case"),
+    });
+  });
+
   it("allows a repo with no row, no PR, and no task in flight", () => {
     expect(decideOnboard("o/r", clear)).toEqual({ allowed: true });
   });
@@ -134,14 +142,5 @@ describe("onboardLockKey", () => {
   it("keys on the repo full name", () => {
     expect(onboardLockKey("o/r")).toBe("lore.onboard:o/r");
     expect(onboardLockKey("o/other")).not.toBe(onboardLockKey("o/r"));
-  });
-});
-
-describe("onboardTaskDescription", () => {
-  it("names the repo and the work instead of sending a bare repo name", () => {
-    const description = onboardTaskDescription("o/r");
-
-    expect(description).toContain("o/r");
-    expect(description.length).toBeGreaterThan("o/r".length);
   });
 });

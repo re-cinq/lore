@@ -15,19 +15,21 @@ import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
+import { triageRoute } from "./routes/triage/triage.js";
 import { contextRoute } from "./routes/context/context.js";
+import { contextEvalRoute } from "./routes/context-evals/context-evals.js";
+import { contextEvalDocumentsRoute } from "./routes/context-evals/context-eval-documents.js";
 import { chunkBrowseRoutes } from "./routes/context/chunks-browse.js";
 import { graphRoute } from "./routes/graph/graph.js";
 import { getTaskRoute } from "./routes/tasks/get-task.js";
 import { listTasksRoute } from "./routes/tasks/list-tasks.js";
 import { timelineRoute } from "./routes/tasks/task-timeline.js";
-import { taskRunsRoute } from "./routes/tasks/task-runs.js";
 import { taskViewRoutes } from "./routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
-import { startRunRoute } from "./routes/assembly-lines/start-run.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
 import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
-import { runStreamRoute } from "./routes/assembly-lines/run-stream.js";
+import { floorRunsStreamTokenRoute } from "./routes/floor/floor-runs-stream-token.js";
+import { runStreamTokenRoute } from "./routes/assembly-lines/run-stream-token.js";
 import { taskByPrRoute } from "./routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -37,12 +39,6 @@ import { taskTurnsPostRoute } from "./routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "./routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "./routes/tasks/task-post.js";
 import { taskGroupRoute } from "./routes/tasks/task-group.js";
-import {
-  specTasksSyncRoute,
-  specTasksReadyRoute,
-  specTasksClaimRoute,
-  specTasksCompleteRoute,
-} from "./routes/spec-tasks/spec-tasks.js";
 import { memoryRoute } from "./routes/memory/memory.js";
 import { memoryBrowseRoutes } from "./routes/memory/memory-browse.js";
 import { episodeRoute } from "./routes/memory/episode.js";
@@ -51,32 +47,20 @@ import { ingestRoute } from "./routes/ingest/ingest.js";
 import { ingestGraphRoute } from "./routes/ingest/ingest-graph.js";
 import { ingestStateRoute } from "./routes/ingest/ingest-state.js";
 import { ingestDeltaRoute } from "./routes/ingest/ingest-delta.js";
+import { specLinksParseRoute } from "./routes/spec-links/spec-links-parse.js";
 import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
-import { embedRoute } from "./routes/ingest/embed.js";
+import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
+import { githubWebhookRoute } from "./routes/webhooks/webhook-github.js";
+import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
 import { incidentWebhookRoute } from "./routes/webhooks/webhook-incident.js";
-import {
-  webhookStatusRoute,
-  webhookSecretRoute,
-  webhookEnsureRoute,
-} from "./routes/webhooks/webhook.js";
+import { repoWebhookRoutes } from "./routes/webhooks/webhook.js";
 import { tokensRoute } from "./routes/tokens/tokens.js";
-import { clusterAgentRegisterRoute } from "./routes/cluster-agents/register.js";
-import { clusterAgentClaimRoute } from "./routes/cluster-agents/claim.js";
-import { clusterAgentCatalogEventsRoute } from "./routes/cluster-agents/catalog-events.js";
-import { clusterAgentCatalogStatusRoute } from "./routes/cluster-agents/catalog-status.js";
 import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
 import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
 import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
-import { clusterAgentInstallRoutes } from "./routes/cluster-agents/install.js";
-import { clusterAgentPauseRoute } from "./routes/cluster-agents/pause.js";
-import { clusterAgentRestartRoute } from "./routes/cluster-agents/restart.js";
-import { clusterAgentHeartbeatRoute } from "./routes/cluster-agents/heartbeat.js";
-import { clusterAgentReleaseRoute } from "./routes/cluster-agents/release.js";
-import { clusterAgentListRoute } from "./routes/cluster-agents/list.js";
-import { darkFactoryRoute } from "./routes/dark-factory/dark-factory.js";
 import {
   agentsGetRoute,
   agentsPostRoute,
@@ -98,31 +82,71 @@ import { chunksPruneRoute } from "./routes/repos/chunks-prune.js";
 import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
-import { featuresRoutes } from "./routes/features/features.js";
+import { traceOverlayDropRoute } from "./routes/trace/trace-overlay-drop.js";
+import { plansRoutes } from "./routes/plans/plans.js";
+import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
-import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
+import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
+import { reviewStartRoute } from "./routes/floor/review-start.js";
+import { runNodeRoute } from "./routes/floor/run-node.js";
+import {
+  upgradeStateRoute,
+  upgradeRunRoute,
+} from "./routes/floor/upgrade-run.js";
+import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
+import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
+import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
+import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
+import { floorRunBlob, runBlobRoute } from "./routes/floor/run-blob.js";
+import {
+  blobPreviewsRoute,
+  floorBlobPreviews,
+} from "./routes/floor/blob-previews.js";
+import { floorRunBag, runBagRoute } from "./routes/floor/run-bag.js";
+import {
+  floorVisitEvents,
+  floorVisitModelCalls,
+  visitEventsRoute,
+  visitModelCallsRoute,
+} from "./routes/floor/visit-reads.js";
+import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 
 type PoolGetter = () => Pool | null;
 
 /** Every route the API serves, grouped by the thing it acts on. */
-export function routeList(getPool: PoolGetter): ServerRoute[] {
+export function routeList(
+  getPool: PoolGetter,
+  plans: PlanVerbSeams = {},
+): ServerRoute[] {
   return [
     ...platformRoutes(getPool),
     ...repoRoutes(getPool),
-    ...taskRoutes(getPool),
+    ...taskRoutes(getPool, plans),
     ...memoryRoutes(getPool),
     ...ingestRoutes(getPool),
     ...webhookRoutes(getPool),
-    ...clusterAgentRoutes(getPool),
-    githubCredentialsRoute(getPool),
-    githubInstallationsRoute(getPool),
-    githubInstallationsListRoute(getPool),
+    ...integrationRoutes(getPool),
     ...agentDefinitionRoutes(getPool),
     ...analyticsRoutes(getPool),
     ...traceRoutes(),
+  ];
+}
+
+/** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review and the stations the run page starts. */
+function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
+    floorGitCredentialRoute(getPool),
+    reviewStartRoute(),
+    runNodeRoute(),
+    upgradeStateRoute(),
+    upgradeRunRoute(),
+    floorRunsRoute(floorRunPages),
+    ...runHistoryRoutes(getPool),
+    githubInstallationsRoute(getPool),
+    githubInstallationsListRoute(getPool),
   ];
 }
 
@@ -137,7 +161,7 @@ function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** A repo and what Lore knows about it: its record, its settings, and the context and graph read off it. */
+/** A repo and what Lore knows about it: its record, its settings, and its external state. */
 function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     repoStatusRoute(getPool),
@@ -150,17 +174,26 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ciFailuresRoute(),
     ciJobLogRoute(),
     issueRoute(),
+    triageRoute(),
+    onboardRoute(getPool),
+    ...contextAndGraphRoutes(getPool),
+  ];
+}
+
+/** The context, evaluation, and graph read off a repo. */
+function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     contextRoute(getPool),
+    contextEvalRoute(getPool),
+    contextEvalDocumentsRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
-    onboardRoute(getPool),
-    ...darkFactoryRoute(getPool),
   ];
 }
 
 /** Pipeline tasks and the assembly runs that execute them; the emitted order is the order the OpenAPI generator walks, so the two halves stay concatenated rather than interleaved. */
-function taskRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [...taskRunRoutes(getPool), ...specTaskRoutes(getPool)];
+function taskRoutes(getPool: PoolGetter, plans: PlanVerbSeams): ServerRoute[] {
+  return [...taskRunRoutes(getPool), ...backlogRoutes(getPool, plans)];
 }
 
 /** One task: its record, the runs that executed it, and the logs those runs left behind. */
@@ -169,13 +202,12 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     getTaskRoute(),
     listTasksRoute(),
     timelineRoute(getPool),
-    taskRunsRoute(getPool),
     ...taskViewRoutes(getPool),
     ...assemblyLineRoutes(getPool),
-    startRunRoute(),
     runReadRoute(getPool),
     runDodRoute(getPool),
-    runStreamRoute(getPool),
+    runStreamTokenRoute(getPool),
+    floorRunsStreamTokenRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
@@ -184,16 +216,15 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** The spec-task DAG and the feature backlog above it, plus the transcript sinks a running node writes into. */
-function specTaskRoutes(getPool: PoolGetter): ServerRoute[] {
+/** The feature backlog, the plans above it, and the transcript sinks a running node writes into. */
+function backlogRoutes(
+  getPool: PoolGetter,
+  plans: PlanVerbSeams,
+): ServerRoute[] {
   return [
-    specTasksSyncRoute(getPool),
-    specTasksReadyRoute(getPool),
-    specTasksClaimRoute(getPool),
-    specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
-    ...featuresRoutes(getPool),
+    ...plansRoutes(getPool, plans),
     ...implementationLoopRoutes(getPool),
   ];
 }
@@ -212,11 +243,12 @@ function memoryRoutes(getPool: PoolGetter): ServerRoute[] {
 function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     ingestRoute(getPool),
-    ingestGraphRoute(getPool),
+    ingestGraphRoute(),
     ingestStateRoute(getPool),
     ingestDeltaRoute(getPool),
+    specLinksParseRoute(),
     eventPayloadRoute(getPool),
-    embedRoute(),
+    embeddingsRoute(),
     // The sweep is a write of knowledge (rows leave the store), not a graph read.
     chunksPruneRoute(getPool),
     reembedRoute(getPool),
@@ -226,28 +258,12 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
 /** Inbound from other systems, and the credentials that gate them. */
 function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    slackWebhookRoute(getPool),
+    slackWebhookRoute(),
+    githubWebhookRoute(getPool),
+    slackEventsRoute(),
     incidentWebhookRoute(getPool),
-    webhookStatusRoute(),
-    webhookEnsureRoute(),
-    webhookSecretRoute(),
+    ...repoWebhookRoutes(),
     ...tokensRoute(getPool),
-  ];
-}
-
-/** The pull-only dispatch surface: a cluster agent registers, claims, heartbeats and releases through here. */
-function clusterAgentRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [
-    clusterAgentRegisterRoute(getPool),
-    clusterAgentClaimRoute(getPool),
-    clusterAgentCatalogEventsRoute(getPool),
-    ...clusterAgentInstallRoutes(),
-    clusterAgentPauseRoute(getPool),
-    clusterAgentRestartRoute(getPool),
-    clusterAgentHeartbeatRoute(getPool),
-    clusterAgentReleaseRoute(getPool),
-    clusterAgentListRoute(getPool),
-    clusterAgentCatalogStatusRoute(getPool),
   ];
 }
 
@@ -255,7 +271,7 @@ function clusterAgentRoutes(getPool: PoolGetter): ServerRoute[] {
 function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     agentsGetRoute(getPool),
-    agentDefinitionUsageRoute(getPool),
+    agentDefinitionUsageRoute(),
     orgAgentDefinitionsRoute(getPool),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),
@@ -288,5 +304,22 @@ function traceRoutes(): ServerRoute[] {
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),
+    traceOverlayDropRoute(),
+  ];
+}
+
+/** A run's turns, events, node logs, the blobs it references and its bag, answered from Postgres for a run it has and from the external floor otherwise. */
+function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
+  const stored = storedRunHistoryOf(getPool);
+
+  return [
+    runTurnsRoute(turnPageReader(stored)),
+    runEventsRoute(eventPageReader(stored)),
+    nodeLogsRoute(nodeLogsReader(stored)),
+    runBlobRoute(floorRunBlob),
+    blobPreviewsRoute(floorBlobPreviews),
+    runBagRoute(floorRunBag),
+    visitModelCallsRoute(floorVisitModelCalls),
+    visitEventsRoute(floorVisitEvents),
   ];
 }

@@ -3,9 +3,8 @@ import { enforceTrue } from "../../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import type {
   StationRunFailure,
-  StationRunStartInput,
-  ClaimedStationRun,
   StationRunRecord,
+  StationRunStartInput,
 } from "./assembly-runs-port.js";
 
 export interface SeedAssemblyLineNode {
@@ -25,6 +24,8 @@ export interface SeedAssemblyLineNode {
   failureClass: string | null;
   failureDetail: string | null;
   commitSha: string | null;
+  /** Optional (older test seeds); reads as null — the walk launched it. */
+  requestedBy?: string | null;
   startedAt: Date;
   finishedAt: Date | null;
 }
@@ -52,8 +53,9 @@ function newNodeRow(
     iteration: input.iteration,
     agentCrName: input.agentCrName ?? null,
     input: input.input ?? null,
-    status: input.status ?? "running",
-    requiredTags: input.requiredTags ?? [],
+    status: "running",
+    requiredTags: [],
+    requestedBy: input.requestedBy ?? null,
     ...emptyNodeOutcome(startedAt),
   };
 }
@@ -84,21 +86,6 @@ function isSameVisit(
   );
 }
 
-function toClaimed(
-  node: SeedAssemblyLineNode,
-  dispatchSpec: unknown,
-): ClaimedStationRun {
-  return {
-    nodeRowId: node.id,
-    stationRunId: node.stationRunId,
-    assemblyRunId: node.assemblyRunId,
-    nodeId: node.nodeId,
-    iteration: node.iteration,
-    agentCrName: node.agentCrName,
-    dispatchSpec,
-  };
-}
-
 /** A seed row in the port's spelling: pre-flip seeds omit the claim columns, so they read with the push-era defaults (running, no claim, no tags). */
 function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
   return {
@@ -107,13 +94,13 @@ function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
     clusterAgentId: node.clusterAgentId ?? null,
     requiredTags: node.requiredTags ?? [],
     claimedAt: node.claimedAt ?? null,
+    requestedBy: node.requestedBy ?? null,
   };
 }
 
 /** In-memory station-run (node-level) rows for one InMemoryAssemblyRuns instance — the "which pod ran which node, claimed by which cluster" half of the double, split out from the assembly-run (line-level) half. */
 export class StationRunStore {
   readonly nodes: SeedAssemblyLineNode[] = [];
-  private readonly dispatchSpecs = new Map<string, unknown>();
 
   constructor(private readonly clock: () => Date) {}
 
@@ -152,9 +139,6 @@ export class StationRunStore {
   private recordNodeStart(input: StationRunStartInput): string {
     const id = String(this.nodes.length + 1);
 
-    if (input.dispatchSpec !== undefined) {
-      this.dispatchSpecs.set(id, input.dispatchSpec);
-    }
     this.nodes.push(newNodeRow(id, input, this.clock()));
 
     return id;
@@ -197,60 +181,6 @@ export class StationRunStore {
     return { nodeRowId, stationRunId: created.stationRunId, created: true };
   }
 
-  async enqueueStationRunDispatch(
-    nodeRowId: string,
-    dispatchSpec: unknown,
-  ): Promise<void> {
-    const node = this.nodes.find((n) => n.id === nodeRowId);
-
-    // "queued" as well as open (mirrors Pg WHERE) — a claimed row already has its spec; re-arming it would describe a different pod than the one being built.
-    if (node && node.outcome === null && node.status === "queued") {
-      this.dispatchSpecs.set(nodeRowId, dispatchSpec);
-    }
-  }
-
-  /** The first row a cluster agent with these tags may take: queued, unfinished, armed with a dispatch spec, and tag-compatible. */
-  private nextClaimable(tags: string[]): SeedAssemblyLineNode | undefined {
-    return this.nodes.find(
-      (n) =>
-        n.status === "queued" &&
-        n.outcome === null &&
-        this.dispatchSpecs.has(n.id) &&
-        (n.requiredTags ?? []).every((tag) => tags.includes(tag)),
-    );
-  }
-
-  async claimNextStationRun(claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  }): Promise<ClaimedStationRun | null> {
-    const next = this.nextClaimable(claimant.tags);
-
-    if (!next) {
-      return null;
-    }
-    next.status = "claimed";
-    next.clusterAgentId = claimant.clusterAgentId;
-    next.claimedAt = this.clock();
-
-    return toClaimed(next, this.dispatchSpecs.get(next.id) ?? null);
-  }
-
-  async requeueStationRun(nodeRowId: string): Promise<boolean> {
-    const node = this.nodes.find((n) => n.id === nodeRowId);
-
-    if (!node || node.outcome !== null) {
-      return false;
-    }
-    node.status = "queued";
-    node.clusterAgentId = null;
-    node.claimedAt = null;
-    // Queue clock restarts with the visit (mirrors Pg) — the reaper bounds a queued visit by startedAt, so keeping the original enqueue would fail it as never-claimed.
-    node.startedAt = this.clock();
-
-    return true;
-  }
-
   async finishStationRunOnce(
     nodeRowId: string,
     outcome: string,
@@ -266,19 +196,6 @@ export class StationRunStore {
     this.recordNodeFinish(nodeRowId, outcome, commitSha, failure);
 
     return true;
-  }
-
-  async countOpenClaimsByAgent(): Promise<Record<string, number>> {
-    const counts: Record<string, number> = {};
-
-    for (const n of this.nodes) {
-      if (n.outcome === null && (n.clusterAgentId ?? null) !== null) {
-        counts[n.clusterAgentId as string] =
-          (counts[n.clusterAgentId as string] ?? 0) + 1;
-      }
-    }
-
-    return counts;
   }
 
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
@@ -305,14 +222,5 @@ export class StationRunStore {
     const visit = this.nodes.find((n) => n.stationRunId === stationRunId);
 
     return visit ? toStationRun(visit) : null;
-  }
-
-  hasOpenClaimByAgent(runId: string, clusterAgentId: string): boolean {
-    return this.nodes.some(
-      (node) =>
-        node.assemblyRunId === runId &&
-        node.clusterAgentId === clusterAgentId &&
-        node.outcome === null,
-    );
   }
 }

@@ -15,6 +15,7 @@ import { fetchPrStatus } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
+import { onboardedProject } from "./github-read.js";
 
 const PrStatusQuery = z.object({
   repo: repoFullName,
@@ -33,6 +34,8 @@ const PrStatusSchema = z.object({
   mergeable: z.boolean(),
   checksStatus: z.enum(["success", "failure", "pending", "none"]),
   reviewStatus: z.enum(["approved", "changes_requested", "pending", "none"]),
+  /** Review threads nobody resolved yet; null when GitHub would not say. */
+  unresolved_threads: z.number().int().nullable(),
   computedStatus: z.enum([
     "merged",
     "closed",
@@ -57,6 +60,7 @@ export function prStatusRoute(): ServerRoute {
       {
         name: "PrStatus",
         description: "Checks, reviews and the computed state of a PR",
+        errors: [400, 404],
       },
     ),
     handler: (request, h) => servePrStatus(request, h),
@@ -72,6 +76,8 @@ async function servePrStatus(
     request.query as unknown as PrStatusQuery;
 
   try {
+    await onboardedProject(repo);
+
     const result = await fetchPrStatus(repo, prNumber);
 
     enforceTrue(

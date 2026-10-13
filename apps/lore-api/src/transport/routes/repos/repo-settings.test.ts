@@ -63,84 +63,26 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     expect(update?.[0]).toContain("COALESCE(settings, '{}') || $2::jsonb");
   });
 
-  it("refuses a patch that touches dark_factory.enabled", async () => {
+  it("returns 400 for a patch that carries a dark_factory block", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({
       rows: [{ full_name: "re-cinq/lore", team: null }],
     });
-    const res = await put(
-      { settings: { dark_factory: { enabled: true } } },
-      pool,
-    );
-
-    expect(res.statusCode).toBe(403);
-    expect(res.result).toMatchObject({
-      error: expect.stringContaining("dark-factory"),
-    });
-  });
-
-  it("refuses a patch that widens auto_merge.paths", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({
-      rows: [{ full_name: "re-cinq/lore", team: null }],
-    });
-    const res = await put(
-      { settings: { dark_factory: { auto_merge: { paths: ["**"] } } } },
-      pool,
-    );
-
-    expect(res.statusCode).toBe(403);
-  });
-
-  it("refuses a patch that turns a require_ gate off", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({
-      rows: [{ full_name: "re-cinq/lore", team: null }],
-    });
-    const res = await put(
-      {
-        settings: {
-          dark_factory: { auto_merge: { require_green_ci: false } },
-        },
-      },
-      pool,
-    );
-
-    expect(res.statusCode).toBe(403);
-  });
-
-  it("writes nothing at all when it refuses", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({
-      rows: [{ full_name: "re-cinq/lore", team: null }],
-    });
-    await put({ settings: { dark_factory: { enabled: true } } }, pool);
-
-    expect(
-      pool.query.mock.calls.some(([sql]) =>
-        String(sql).includes("UPDATE lore.repos"),
-      ),
-    ).toBe(false);
-  });
-
-  it("allows a non-privileged dark_factory field through", async () => {
-    const pool = makePool();
-
-    pool.query
-      .mockResolvedValueOnce({
-        rows: [{ full_name: "re-cinq/lore", team: null }],
-      })
-      .mockResolvedValue({ rows: [] });
     const res = await put(
       { settings: { dark_factory: { review: "never" } } },
       pool,
     );
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toMatchObject({
+      error: "dark_factory settings were removed on 2026-10-02",
+    });
+    expect(
+      pool.query.mock.calls.some(([sql]) =>
+        String(sql).includes("UPDATE lore.repos"),
+      ),
+    ).toBe(false);
   });
 
   it("emits internal.repo.team_changed when the team value changes", async () => {
@@ -199,18 +141,74 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     expect(res.result).toEqual({ ok: true });
   });
 
-  it("returns 400 for a dark_factory patch it cannot even parse", async () => {
+  it("returns 400 for a digest block with a weekday of 9", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({
       rows: [{ full_name: "re-cinq/lore", team: null }],
     });
     const res = await put(
-      { settings: { dark_factory: { review: "whenever-i-feel-like-it" } } },
+      { settings: { digest: { enabled: true, days: [1, 9] } } },
       pool,
     );
 
     expect(res.statusCode).toBe(400);
+    expect(pool.query.mock.calls.length).toBe(1);
+  });
+
+  it("returns 400 for a digest block whose timezone is not an IANA zone", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+    const res = await put(
+      {
+        settings: { digest: { enabled: true, timezone: "Mars/Olympus_Mons" } },
+      },
+      pool,
+    );
+
+    expect({
+      status: res.statusCode,
+      queries: pool.query.mock.calls.length,
+    }).toEqual({
+      status: 400,
+      queries: 1,
+    });
+  });
+
+  it("merges digest: null so a repo can clear its digest block", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await put({ settings: { digest: null } }, pool);
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("merges a well-formed digest block", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await put(
+      {
+        settings: {
+          digest: { enabled: true, time: "08:30", days: [1, 2, 3, 4, 5] },
+        },
+      },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(200);
   });
 
   it("returns 400 when the patch names no field to update", async () => {
@@ -221,5 +219,25 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     });
 
     expect((await put({}, pool)).statusCode).toBe(400);
+  });
+
+  it("returns 403 two_key_required for an auto_merge.approver change to lore-reviewer without the approval header", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+
+    const res = await put(
+      { settings: { auto_merge: { approver: "lore-reviewer" } } },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(res.result).toEqual({
+      error: "two_key_required",
+      field_paths: ["auto_merge.approver"],
+      detail: "Turning auto_merge.approver on is two-key",
+    });
   });
 });

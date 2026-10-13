@@ -159,7 +159,8 @@ const DUMMY_DGRAPH = {} as DgraphClientPort;
 describe("runIngestGraph", () => {
   it("passes ports.embed through to the kind's project call", async () => {
     const embedsSeen: Array<unknown> = [];
-    const stubEmbed = async (): Promise<number[]> => [0.5];
+    const stubEmbed = async (texts: string[]): Promise<number[][]> =>
+      texts.map(() => [0.5]);
     const registry: Record<string, IngestKindDef> = {
       specs: {
         prefixes: ["specs/"],

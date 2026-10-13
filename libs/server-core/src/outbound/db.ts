@@ -107,6 +107,7 @@ export async function hybridSearch(
   }
 
   const resolvedSchema = await chunkSchemaOrOrgShared(getPool(), schema);
+
   const embedding = await getQueryEmbedding(query);
 
   if (!embedding) {

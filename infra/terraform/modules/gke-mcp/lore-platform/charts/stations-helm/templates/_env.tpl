@@ -20,6 +20,14 @@ Usage:
     secretKeyRef:
       name: {{ .Values.ingestTokenSecret.name }}
       key: {{ .Values.ingestTokenSecret.key }}
+{{- if .Values.stationTokenSecret }}
+- name: LORE_STATION_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.stationTokenSecret.name }}
+      key: {{ .Values.stationTokenSecret.key }}
+      optional: true
+{{- end }}
 - name: GITHUB_APP_ID
   valueFrom:
     secretKeyRef:
@@ -35,12 +43,31 @@ Usage:
     secretKeyRef:
       name: {{ .Values.githubAppSecret.name }}
       key: {{ .Values.githubAppSecret.installationIdKey }}
+{{- if .Values.floor.enabled }}
+- name: FLOOR_API_URL
+  value: {{ .Values.floor.apiUrl | quote }}
+- name: FLOOR_SERVICE_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.floor.serviceTokenSecret.name }}
+      key: {{ .Values.floor.serviceTokenSecret.key }}
+{{- end }}
 {{- if .Values.anthropicKeySecret }}
 - name: ANTHROPIC_API_KEY
   valueFrom:
     secretKeyRef:
       name: {{ .Values.anthropicKeySecret.name }}
       key: {{ .Values.anthropicKeySecret.key }}
+      optional: true
+{{- end }}
+{{- if .Values.slackBotTokenSecret }}
+# For the stations that post to Slack (escalation notify, the daily digest).
+# Optional: without it those stations report the missing token instead of posting.
+- name: LORE_SLACK_BOT_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.slackBotTokenSecret.name }}
+      key: {{ .Values.slackBotTokenSecret.key }}
       optional: true
 {{- end }}
 {{- if .Values.anthropicAdminKeySecret }}

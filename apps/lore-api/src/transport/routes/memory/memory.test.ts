@@ -291,7 +291,7 @@ describe("POST /api/memory", () => {
       total: 1,
     } as any);
     await post({ action: "list" });
-    expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0);
+    expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0, undefined);
   });
 
   it("threads offset through and echoes paging metadata", async () => {
@@ -302,7 +302,7 @@ describe("POST /api/memory", () => {
     } as any);
     const res = await post({ action: "list", limit: 5, offset: 5 });
 
-    expect(listMemories).toHaveBeenCalledWith(undefined, 5, 5);
+    expect(listMemories).toHaveBeenCalledWith(undefined, 5, 5, undefined);
     expect(res.result).toEqual({
       memories: [{ k: 2 }],
       total: 9,
@@ -318,7 +318,7 @@ describe("POST /api/memory", () => {
       total: 0,
     } as any);
     await post({ action: "list", limit: 999 });
-    expect(listMemories).toHaveBeenCalledWith(undefined, 100, 0);
+    expect(listMemories).toHaveBeenCalledWith(undefined, 100, 0, undefined);
   });
 
   it("lists via file fallback", async () => {
@@ -363,6 +363,27 @@ describe("POST /api/memory", () => {
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });
+
+  it("redacts secrets before the value is stored, embedded or sent to fact extraction", async () => {
+    memoryDbUp();
+    vi.mocked(writeMemory).mockResolvedValue({ key: "k", version: 1 } as never);
+    vi.mocked(extractFactsForMemory).mockResolvedValue(undefined);
+    const token = `${"ghs"}_abcdefghijklmnopqrstuvwxyz0123456789`;
+    const redacted = "token is [REDACTED:api-key]";
+
+    await post({
+      action: "write",
+      key: "k",
+      value: `token is ${token}`,
+      extract_facts: true,
+    });
+
+    expect(vi.mocked(writeMemory).mock.calls[0][0].value).toBe(redacted);
+    expect(getQueryEmbedding).toHaveBeenCalledWith(redacted);
+    expect(vi.mocked(extractFactsForMemory).mock.calls[0][1].value).toBe(
+      redacted,
+    );
+  });
 });
 
 function memoryDbUp(): void {
@@ -372,3 +393,25 @@ function memoryDbUp(): void {
 function memoryDbDown(): void {
   vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
 }
+
+describe("POST /api/memory list scope", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("scopes a listing to the repo the caller names", async () => {
+    memoryDbUp();
+    vi.mocked(listMemories).mockResolvedValue({
+      memories: [],
+      total: 0,
+    } as any);
+    await post({ action: "list", repo: "o/r" });
+
+    expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0, "o/r");
+  });
+});

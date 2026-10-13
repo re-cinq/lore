@@ -185,6 +185,22 @@ export async function update(
   });
 }
 
+export async function close(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+
+  await pulls.update({
+    owner,
+    repo: name,
+    pull_number: number,
+    state: "closed",
+  });
+}
+
 export async function markReady(
   ok: Octokit,
   repo: string,
@@ -238,5 +254,35 @@ export async function resolveReviewThread(
       }
     }`,
     { threadId },
+  );
+}
+
+export async function enablePullRequestAutoMerge(
+  ok: Octokit,
+  prId: string,
+  mergeMethod: MergeMethod = "squash",
+): Promise<void> {
+  await ok.graphql(
+    `mutation ($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+      enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
+        pullRequest { id }
+      }
+    }`,
+    { pullRequestId: prId, mergeMethod: mergeMethod.toUpperCase() },
+  );
+}
+
+// eslint-disable-next-line re-lint/no-negative-names
+export async function disablePullRequestAutoMerge(
+  ok: Octokit,
+  prId: string,
+): Promise<void> {
+  await ok.graphql(
+    `mutation ($pullRequestId: ID!) {
+      disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
+        pullRequest { id }
+      }
+    }`,
+    { pullRequestId: prId },
   );
 }

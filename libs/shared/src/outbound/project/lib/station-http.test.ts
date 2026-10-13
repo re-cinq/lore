@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createStationProject } from "./station-http.js";
+import { createStationProject, dropOverlayOverHttp } from "./station-http.js";
 
 function fakeFetch(routes: Record<string, unknown>): {
   fetchImpl: typeof fetch;
@@ -53,6 +53,29 @@ describe("createStationProject", () => {
     expect(await project.settings.isOnboarded()).toBe(true);
     expect((await project.issues.list({ state: "open" }))[0].number).toBe(3);
     expect(calls.every(() => true)).toBe(true);
+  });
+
+  it("lists closed lore-managed issues with the label filter on the query", async () => {
+    const { fetchImpl } = fakeFetch({
+      "GET /api/repos/o/r/issues?state=closed&labels=lore-managed": {
+        issues: [
+          {
+            repo: "o/r",
+            number: 2262,
+            title: "T002",
+            state: "closed",
+            labels: [],
+          },
+        ],
+      },
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    expect(
+      (
+        await project.issues.list({ state: "closed", labels: ["lore-managed"] })
+      ).map((issue) => issue.number),
+    ).toEqual([2262]);
   });
 
   it("files a task via POST /tasks and opens a PR via POST /pulls", async () => {
@@ -109,5 +132,115 @@ describe("findOpenLike accepts either wire spelling", () => {
     expect(
       await find([{ id: "t1", taskType: "gap-fill", status: "running" }]),
     ).toEqual([{ id: "t1", task_type: "gap-fill", status: "running" }]);
+  });
+});
+
+describe("filing a spec-task over HTTP", () => {
+  it("carries a task's own issue #2261 on POST /tasks", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
+    });
+
+    await createStationProject("o/r", env, fetchImpl).tasks.create({
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+  });
+
+  it("carries the task group g-1 on POST /tasks", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
+    });
+
+    await createStationProject("o/r", env, fetchImpl).tasks.create({
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      taskGroupId: "g-1",
+    });
+
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({ taskType: "spec-task", taskGroupId: "g-1" });
+  });
+
+  it("names lore-api's reason in the error, not only the 500", async () => {
+    const refusing = (async () => ({
+      ok: false,
+      status: 500,
+      text: async () =>
+        JSON.stringify({ error: 'Task type "spec-task" not allowed' }),
+    })) as unknown as typeof fetch;
+
+    await expect(
+      createStationProject("o/r", env, refusing).tasks.create({
+        description: "T001",
+        taskType: "spec-task",
+        targetRepo: "o/r",
+      }),
+    ).rejects.toThrow(
+      new Error('POST /tasks failed: 500 — Task type "spec-task" not allowed'),
+    );
+  });
+});
+
+describe("tying task issues to their story issue over HTTP", () => {
+  it("links #2261 under #2260 and rewrites #2260's title and body", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/issues/2260/sub-issues": { ok: true },
+      "PATCH /api/repos/o/r/issues/2260": { ok: true },
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    await project.issues.addSubIssue(2260, 2261);
+    await project.issues.update(2260, {
+      title: "User story: Issue triage",
+      body: "- [ ] #2261 T001",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/api/repos/o/r/issues/2260/sub-issues",
+        body: { child: 2261 },
+      },
+      {
+        method: "PATCH",
+        path: "/api/repos/o/r/issues/2260",
+        body: { title: "User story: Issue triage", body: "- [ ] #2261 T001" },
+      },
+    ]);
+  });
+});
+
+describe("dropping a branch's graph overlay over HTTP", () => {
+  it("posts branch feat/x to /trace/overlay-drop of o/r", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/trace/overlay-drop": { dropped: true },
+    });
+
+    await dropOverlayOverHttp(
+      { repo: "o/r", branch: "feat/x" },
+      env,
+      fetchImpl,
+    );
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/api/repos/o/r/trace/overlay-drop",
+        body: { branch: "feat/x" },
+      },
+    ]);
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import type { Request } from "@hapi/hapi";
 import { makeOctokit } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../work/dark-factory/dark-factory-authz.js", () => {
+vi.mock("../../work/two-key/approval-pr.js", () => {
   class TwoKeyError extends Error {
     constructor(
       message: string,
@@ -17,10 +17,7 @@ vi.mock("../../work/dark-factory/dark-factory-authz.js", () => {
 vi.mock("../../outbound/github-client.js", () => ({ getOctokit: vi.fn() }));
 
 import { checkApproval } from "./two-key.js";
-import {
-  verifyApproval,
-  TwoKeyError,
-} from "../../work/dark-factory/dark-factory-authz.js";
+import { verifyApproval, TwoKeyError } from "../../work/two-key/approval-pr.js";
 import { getOctokit } from "../../outbound/github-client.js";
 
 const req = (approvalPr?: string) =>

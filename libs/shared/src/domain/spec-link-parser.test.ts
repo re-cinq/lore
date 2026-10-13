@@ -4,6 +4,8 @@ import {
   parseCodeLinksInStatement,
   linksForStatements,
   findMisplacedCoverageLinks,
+  testLinksOfDoc,
+  withoutTrailingLinkGroup,
 } from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
@@ -142,6 +144,14 @@ describe("parseCodeLinksInStatement", () => {
     expect(out).toEqual([]);
   });
 
+  it("returns only the repo path when the group also links a plan block by URL", () => {
+    const out = parseCodeLinksInStatement(
+      "Runs the task. ([from plan](https://lore.example/repos/o/r/plans/p1#b7), [impl](src/runner.ts#L88))",
+    );
+
+    expect(out).toEqual([{ label: "impl", path: "src/runner.ts", line: 88 }]);
+  });
+
   it("keeps a non-test source path in another language as a code link", () => {
     const out = parseCodeLinksInStatement(
       "Stores the row. ([store](pkg/store/store.go#L120))",
@@ -254,5 +264,69 @@ describe("findMisplacedCoverageLinks", () => {
     );
 
     expect(out).toEqual([]);
+  });
+});
+
+describe("testLinksOfDoc", () => {
+  it("returns the trailing link to apps/x/a.test.ts line 12 with its statement's line 3", () => {
+    const doc = [
+      "# Spec",
+      "",
+      "- Claims a task. ([validated by claims](apps/x/a.test.ts#L12))",
+    ].join("\n");
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toEqual([
+      {
+        label: "validated by claims",
+        path: "apps/x/a.test.ts",
+        line: 12,
+        statementLine: 3,
+        misplaced: false,
+      },
+    ]);
+  });
+
+  it("marks a test link in the middle of a statement as misplaced", () => {
+    const doc =
+      "- Claims a task ([validated by claims](apps/x/a.test.ts#L12)) and releases it.";
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toMatchObject([
+      { path: "apps/x/a.test.ts", line: 12, misplaced: true },
+    ]);
+  });
+
+  it("resolves ../../apps/x/a.test.ts against the folder of specs/a/spec.md", () => {
+    const doc =
+      "- Claims a task. ([validated by claims](../../apps/x/a.test.ts#L12))";
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toMatchObject([
+      { path: "apps/x/a.test.ts" },
+    ]);
+  });
+
+  it("returns nothing for a source file, a URL and the path/to/test.ts placeholder", () => {
+    const doc = [
+      "- Reads the queue. ([implemented by queue](apps/x/queue.ts#L4))",
+      "- Runs in CI. ([validated by ci](https://example.com/a.test.ts#L1))",
+      "- Links look like this. ([validated by name](path/to/test.ts#L42))",
+    ].join("\n");
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toEqual([]);
+  });
+});
+
+describe("withoutTrailingLinkGroup", () => {
+  it("cuts a from-plan and validated-by group off the statement", () => {
+    expect(
+      withoutTrailingLinkGroup(
+        "The run settles once. ([from plan](https://lore.example/p#b-1), [validated by settles](a.test.ts#L3))",
+      ),
+    ).toBe("The run settles once.");
+  });
+
+  it("keeps a closing parenthetical that holds no link", () => {
+    expect(withoutTrailingLinkGroup("The run settles (once).")).toBe(
+      "The run settles (once).",
+    );
   });
 });

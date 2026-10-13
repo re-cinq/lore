@@ -9,11 +9,8 @@ src/app/
   repos/[owner]/[repo]/   — repo-centric view (overview, tasks, specs, context, settings)
   assembly-runs/          — run-keyed list (pipeline.assembly_runs) + [id] resolver:
                             a run id renders run detail (header + node timeline),
-                            a task id redirects to /tasks/[id]
-  tasks/[id]/             — task detail lifecycle shell (facts, PR status, failure
-                            reason, cancel/revision/run-now, runs list); a single-run
-                            task redirects straight to /assembly-runs/[id]; all
-                            execution detail lives on the run page (#1608)
+                            a task id redirects to the task's newest run (a task
+                            has no page of its own; one with no run says so)
   specs/                  — global cross-repo spec viewer
   gaps/                   — gap detection (zero-result searches + agent findings)
   search/                 — semantic search across context
@@ -110,3 +107,13 @@ holds the path, filtering `fetchAllSpecs()` by `filePath` and rendering one
 framed `SpecDocument` per repo (normally one). Its breadcrumb reads "Specs",
 and a path with no graph data shows a "No graph data …" empty state rather
 than a hard 404.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

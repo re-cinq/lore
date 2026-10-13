@@ -190,7 +190,7 @@ done
 pg "$SUPERUSER" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 GRANT CREATE ON DATABASE lore TO lore;
 GRANT CREATE, USAGE ON SCHEMA lore, payments, platform, mobile, data, org_shared TO lore;
--- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.features,
+-- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.plans,
 -- lore.agent_definitions) granted by migrations; it needs schema USAGE too. In
 -- the cluster lore_ui already has it; mirror that locally.
 GRANT USAGE ON SCHEMA lore TO lore_ui;
@@ -203,7 +203,7 @@ BEGIN
     SELECT n.nspname, c.relname, c.relkind
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname IN ('lore', 'pipeline', 'memory') AND c.relkind IN ('r','S','v','m')
+    WHERE n.nspname IN ('lore', 'pipeline', 'memory', 'payments', 'platform', 'mobile', 'data', 'org_shared') AND c.relkind IN ('r','S','v','m')
   LOOP
     IF    r.relkind = 'r' THEN EXECUTE format('ALTER TABLE %I.%I OWNER TO lore', r.nspname, r.relname);
     ELSIF r.relkind = 'S' THEN EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO lore', r.nspname, r.relname);

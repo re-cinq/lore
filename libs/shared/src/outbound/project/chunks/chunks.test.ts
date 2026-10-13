@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PgChunks } from "./chunks-pg.js";
 import { InMemoryChunks } from "./chunks-memory.js";
 import type { ChunkInsert } from "./chunks-port.js";
+import { TEST_PATH_SQL_PATTERN } from "../../../domain/test-paths.js";
 import type { PgPool } from "../../memory-store.js";
 
 function fakePool(...results: Array<{ rows: any[] }>): {
@@ -243,7 +244,7 @@ describe("PgChunks adapter", () => {
     const chunks = new PgChunks(pool);
 
     await chunks.testChunkRanges("octo/repo");
-    await chunks.codeChunksForBackfill("octo/repo");
+    await chunks.testChunksForBackfill("octo/repo");
     await chunks.codeSymbols("octo/repo");
 
     const filters = calls
@@ -260,6 +261,15 @@ describe("PgChunks adapter", () => {
       "content_type IN ('code', 'test')",
       "content_type = 'code'",
     ]);
+  });
+
+  it("reads backfill chunks only for paths matching TEST_PATH_SQL_PATTERN, so the codebase never leaves Postgres", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, { rows: [] });
+
+    await new PgChunks(pool).testChunksForBackfill("octo/repo");
+
+    expect(calls[2]?.text).toContain("file_path ~ $2");
+    expect(calls[2]?.params).toEqual(["octo/repo", TEST_PATH_SQL_PATTERN]);
   });
 
   it("checks chunk existence in the repo's team schema", async () => {
@@ -370,6 +380,28 @@ describe("PgChunks adapter", () => {
 });
 
 describe("InMemoryChunks double", () => {
+  it("returns backfill chunks for src/a.test.ts only, not src/a.ts or specs/spec.md", async () => {
+    const chunks = new InMemoryChunks();
+
+    await chunks.insertChunk("platform", sampleChunk);
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "src/a.ts",
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      contentType: "test",
+      filePath: "src/a.test.ts",
+    });
+
+    expect(
+      (await chunks.testChunksForBackfill("octo/repo")).map(
+        (chunk) => chunk.filePath,
+      ),
+    ).toEqual(["src/a.test.ts"]);
+  });
+
   it("inserts rows with incrementing string ids and counts them per repo", async () => {
     const chunks = new InMemoryChunks();
 

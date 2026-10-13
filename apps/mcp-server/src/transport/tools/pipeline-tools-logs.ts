@@ -135,7 +135,7 @@ async function fetchLogsResult(
 function registerGetJobLogsTool(server: McpServer) {
   server.tool(
     "lore_get_job_logs",
-    "Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name + run_id), returning {logs, complete:true}. Use for scheduled jobs like eval_runner or spec_test_linker. Instead: lore_get_task_logs for a user-created pipeline task's logs (by UUID).",
+    "Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name + run_id), returning {logs, complete:true}. Use for scheduled jobs like daily_digest or spec_upkeep. Instead: lore_get_task_logs for a user-created pipeline task's logs (by UUID).",
     GET_JOB_LOGS_INPUT,
     async ({ job_name, run_id }) => {
       try {

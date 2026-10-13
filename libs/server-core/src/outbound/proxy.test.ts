@@ -6,6 +6,8 @@ import {
   proxyToApi,
   proxyGetApi,
   withReadCache,
+  textResult,
+  failedProxyError,
   type ProxyResult,
 } from "./proxy.js";
 
@@ -154,6 +156,41 @@ describe("proxy client result mapping", () => {
       status: 409,
       body,
     });
+  });
+
+  it("carries the status of a refused GET too, so a caller reports the API's verdict rather than an outage", async () => {
+    const spy = fetchReturning({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      text: async () => JSON.stringify({ error: "repo: expected owner/name" }),
+    });
+
+    global.fetch = spy as typeof fetch;
+    const result = await proxyGetApi("/api/context?repo=");
+
+    expect({
+      result,
+      text: failedProxyError(
+        "lore_assemble_context",
+        result as Extract<ProxyResult, { reason: "unreachable" }>,
+      ).content[0].text,
+    }).toMatchObject({
+      result: { ok: false, reason: "unreachable", status: 400 },
+      text: "Lore API rejected lore_assemble_context: HTTP 400 Bad Request: repo: expected owner/name",
+    });
+  });
+
+  it("still reports an outage with no status as unreachable after every attempt", () => {
+    expect(
+      failedProxyError("lore_search_memory", {
+        ok: false,
+        reason: "unreachable",
+        detail: "request timed out (15s)",
+      }).content[0].text,
+    ).toContain(
+      "Lore API unreachable for lore_search_memory after 4 attempts: request timed out (15s)",
+    );
   });
 
   it("retries a retriable 503 and succeeds on the next attempt", async () => {
@@ -373,6 +410,28 @@ describe("withReadCache", () => {
     });
   });
 
+  it("returns the API's refusal rather than a stale copy when the failure carries a status", async () => {
+    const expiredPolicy = { ...policy, ttlSeconds: 0 };
+
+    await withReadCache(expiredPolicy, async () => ({
+      ok: true,
+      body: "cached",
+    }));
+    const refused = await withReadCache(expiredPolicy, async () => ({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 400 Bad Request: repo: expected owner/name",
+      status: 400,
+    }));
+
+    expect(refused).toEqual({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 400 Bad Request: repo: expected owner/name",
+      status: 400,
+    });
+  });
+
   it("omits the HIT/STALE label when opts.label is false", async () => {
     await withReadCache(policy, async () => ({ ok: true, body: "results" }));
     const hit = await withReadCache(
@@ -398,5 +457,27 @@ describe("withReadCache", () => {
     );
 
     expect(stale).toEqual({ ok: true, body: "cached" });
+  });
+});
+
+describe("textResult", () => {
+  it("wraps a JSON array answer as {results} so a client lifting the text into structuredContent gets an object", () => {
+    expect(textResult('[{"key":"a"},{"key":"b"}]')).toEqual({
+      content: [
+        { type: "text", text: '{"results":[{"key":"a"},{"key":"b"}]}' },
+      ],
+    });
+  });
+
+  it("leaves a JSON object answer as it is", () => {
+    expect(textResult('{"memories":[]}')).toEqual({
+      content: [{ type: "text", text: '{"memories":[]}' }],
+    });
+  });
+
+  it("leaves plain text starting with a bracket as it is", () => {
+    expect(textResult("[lore] nothing found")).toEqual({
+      content: [{ type: "text", text: "[lore] nothing found" }],
+    });
   });
 });

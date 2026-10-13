@@ -15,12 +15,11 @@
 # Usage: deploy-lore-platform.sh <subchart> <image_tag> <deployment> <namespace> [image_repo] [values_overlay]
 #   e.g. deploy-lore-platform.sh lore-api 5d270e9 lore-api lore-api
 # An image_tag of "-" deploys the chart as checked out with no image override —
-# for subcharts whose images are digest-pinned in values.yaml (ai-agents).
+# for subcharts whose images are digest-pinned in values.yaml.
 # `values_overlay` (a YAML/JSON file) is passed with -f AFTER the reused values,
-# so its keys win over the release's stored user-supplied values. The release
-# carries a full legacy ai-agents block that would otherwise shadow every
-# values.yaml edit under --reset-then-reuse-values (2026-07-16: a memory-limit
-# bump deployed green and changed nothing).
+# so its keys win over the release's stored user-supplied values, which would
+# otherwise shadow every values.yaml edit under --reset-then-reuse-values
+# (2026-07-16: a memory-limit bump deployed green and changed nothing).
 set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-floor}"
@@ -110,12 +109,8 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   # --reset-then-reuse-values keeps the other subcharts' tags + terraform config.
   # Disable the lore-db ownership-reconciler hook: CI's SA can't manage lore-db
   # RBAC, and an image bump never needs to reconcile DB ownership (terraform does).
-  # taskTypesConfig is re-sent from the repo on EVERY deploy: it used to be set
-  # only by terraform apply, so the floor/lore-api ConfigMaps froze at whatever
-  # scripts/task-types.yaml said back then (2026-07-17: every code-review ran
-  # with the pre-#840 gh-based prompt and posted nothing).
   # No --wait (Autopilot wedges on it); rollout is gated by kubectl below.
-  # Keep the --set/--set-file flags in sync with
+  # Keep the --set flags in sync with
   # scripts/check-lore-platform-render.sh, which renders with these exact
   # flags in CI so template breakage surfaces before deploy.
   if helm upgrade --install lore-platform "$CHART" \
@@ -124,8 +119,6 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
       "${repo_set[@]}" \
       "${overlay_flags[@]}" \
       --set lore-db-helm.ownershipReconciler.enabled=false \
-      --set-file lore-floor.taskTypesConfig=scripts/task-types.yaml \
-      --set-file lore-api.taskTypesConfig=scripts/task-types.yaml \
       --reset-then-reuse-values \
       --cleanup-on-fail 2>"$ERRLOG"; then
     cat "$ERRLOG" >&2 || true # surface any helm warnings

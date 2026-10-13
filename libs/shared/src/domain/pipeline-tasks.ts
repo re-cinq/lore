@@ -89,11 +89,10 @@ export {
   setTaskStatusIf,
 } from "./pipeline-task-status.js";
 
-// Task lifecycle actions (retry/cancel/escalate/revise/mark-merged) live in pipeline-task-actions.ts, re-exported for import-path back-compat.
+// Task lifecycle actions (retry/cancel/escalate/mark-merged) live in pipeline-task-actions.ts, re-exported for import-path back-compat.
 export {
   retryTask,
   cancelTask,
   escalateTask,
-  reviseTask,
   markTaskMerged,
 } from "./pipeline-task-actions.js";

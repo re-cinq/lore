@@ -19,7 +19,16 @@ const ISSUES: Record<number, IssueRef> = {
 
 const UNCONFIGURED = 424;
 
+const GHOST = "re-cinq/ghost";
+
+const fakeSettings = (repo: string) => ({
+  record: async () => (repo === GHOST ? null : { fullName: repo }),
+});
+
+const githubReads = vi.fn();
+
 async function getIssue(number: number): Promise<IssueRef | null> {
+  githubReads();
   enforceTrue(
     number !== UNCONFIGURED,
     Error,
@@ -30,7 +39,10 @@ async function getIssue(number: number): Promise<IssueRef | null> {
 }
 
 vi.mock("../../../outbound/project-boot.js", () => ({
-  projectFor: async () => ({ issues: { get: getIssue } }),
+  projectFor: async (repo: string) => ({
+    issues: { get: getIssue },
+    settings: fakeSettings(repo),
+  }),
 }));
 
 import { buildServer } from "../../../app/build-server.js";
@@ -41,10 +53,14 @@ import {
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
-const get = (number: string, headers: Record<string, string> = AUTH) =>
+const get = (
+  number: string,
+  headers: Record<string, string> = AUTH,
+  repo = "re-cinq/lore",
+) =>
   buildServer(() => null).inject({
     method: "GET",
-    url: `/api/repos/re-cinq/lore/issues/${number}`,
+    url: `/api/repos/${repo}/issues/${number}`,
     headers,
   });
 
@@ -55,6 +71,7 @@ describe("GET /api/repos/{owner}/{repo}/issues/{number}", () => {
   });
   afterEach(() => {
     process.env = { ...originalEnv };
+    githubReads.mockClear();
   });
 
   it("returns 401 without a bearer token", async () => {
@@ -93,5 +110,17 @@ describe("GET /api/repos/{owner}/{repo}/issues/{number}", () => {
 
   it("returns 424 when GitHub is not configured", async () => {
     expect((await get(String(UNCONFIGURED))).statusCode).toBe(424);
+  });
+
+  it("returns 404 without reading GitHub for a repo that is not onboarded", async () => {
+    const res = await get("7", AUTH, GHOST);
+
+    expect({
+      status: res.statusCode,
+      reads: githubReads.mock.calls.length,
+    }).toEqual({
+      status: 404,
+      reads: 0,
+    });
   });
 });

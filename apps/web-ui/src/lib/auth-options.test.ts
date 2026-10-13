@@ -110,3 +110,50 @@ describe("authOptions.callbacks.signIn", () => {
     expect(result).toBe(false);
   });
 });
+
+describe("authOptions.callbacks session", () => {
+  it("carries the GitHub login gedaiu from the sign-in profile into the session", async () => {
+    const callbacks = authOptions.callbacks!;
+    const token = await callbacks.jwt!({
+      token: {},
+      account,
+      profile: { login: "gedaiu" },
+    } as unknown as Parameters<NonNullable<typeof callbacks.jwt>>[0]);
+    const session = await callbacks.session!({
+      session: { user: { name: "Bogdan" }, expires: "" },
+      token,
+    } as unknown as Parameters<NonNullable<typeof callbacks.session>>[0]);
+
+    expect(session).toMatchObject({ login: "gedaiu", accessToken: "gh-token" });
+  });
+});
+
+describe("authOptions.callbacks jwt refresh", () => {
+  it("replaces a GitHub App token that expired long ago with the refreshed one", async () => {
+    global.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            access_token: "ghu_new",
+            refresh_token: "ghr_new",
+            expires_in: 28_800,
+          }),
+        ),
+    ) as unknown as typeof fetch;
+    const callbacks = authOptions.callbacks!;
+    const token = await callbacks.jwt!({
+      token: {
+        accessToken: "ghu_old",
+        refreshToken: "ghr_old",
+        accessTokenExpires: 1,
+        login: "gedaiu",
+      },
+    } as unknown as Parameters<NonNullable<typeof callbacks.jwt>>[0]);
+
+    expect(token).toMatchObject({
+      accessToken: "ghu_new",
+      refreshToken: "ghr_new",
+      login: "gedaiu",
+    });
+  });
+});

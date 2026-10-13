@@ -100,7 +100,7 @@ describe("InMemoryUsage.logLlmCall", () => {
     });
   });
 
-  it("applies the write defaults: cost 0, status success, null error", async () => {
+  it("applies the write defaults: cost 0, status success, null error, no cache tokens", async () => {
     const usage = new InMemoryUsage();
 
     await usage.logLlmCall(CALL);
@@ -109,6 +109,22 @@ describe("InMemoryUsage.logLlmCall", () => {
       cost_usd: 0,
       status: "success",
       error: null,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
+    });
+  });
+
+  it("stores 900 cache-read and 40 cache-write tokens as the call reported them", async () => {
+    const usage = new InMemoryUsage();
+
+    await usage.logLlmCall({
+      ...CALL,
+      cacheReadTokens: 900,
+      cacheWriteTokens: 40,
+    });
+    expect(usage.rows[0]).toMatchObject({
+      cache_read_tokens: 900,
+      cache_write_tokens: 40,
     });
   });
 });

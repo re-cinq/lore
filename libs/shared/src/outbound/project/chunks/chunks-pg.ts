@@ -1,4 +1,5 @@
 import type { PgPool } from "../../memory-store.js";
+import { TEST_PATH_SQL_PATTERN } from "../../../domain/test-paths.js";
 import {
   enforceChunkSchema as enforceSchema,
   resolveChunkSchemaForRepo,
@@ -219,13 +220,14 @@ export class PgChunks implements ChunksPort {
     return rows.map((r) => ({ ...toSpecChunk(r), embedding: r.embedding }));
   }
 
-  async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
+  async testChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
     const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
       `SELECT file_path, content, metadata, embedding
        FROM ${schema}.chunks
-       WHERE repo = $1 AND content_type IN ('code', 'test')`,
-      [repo],
+       WHERE repo = $1 AND content_type IN ('code', 'test')
+         AND file_path ~ $2`,
+      [repo, TEST_PATH_SQL_PATTERN],
     );
 
     return rows.map((r) => ({
