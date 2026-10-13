@@ -16,3 +16,4 @@
 ## Out of scope
 
 - Implementing the routes or the blocked-reason station
+- [x] Fix CI failure: test spec link
