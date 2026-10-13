@@ -48,6 +48,7 @@ describe("saveSettings action", () => {
 
     const action = await saveSettingsAction();
     const formData = new FormData();
+
     formData.set("full_name", "re-cinq/lore");
     formData.set("team", "platform");
 

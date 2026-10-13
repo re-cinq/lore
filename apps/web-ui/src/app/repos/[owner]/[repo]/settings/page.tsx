@@ -62,12 +62,15 @@ async function saveSettings(
     settings: updates,
   });
 
-  if (result.status === "error") return { saved: false, error: result.message };
+  if (result.status === "error") {
+    return { saved: false, error: result.message };
+  }
 
   await Promise.all(
     (updates.cross_repo_repos as string[]).map((r) => linkBack(fullName, r)),
   );
   revalidatePath(`/repos/${fullName}/settings`);
+
   return { saved: true };
 }
 
