@@ -309,6 +309,7 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
       );
 
       const handle = postReviewHandle(deps);
+
       await handle(
         brief({ head_sha: "abc123" }),
         toolsReading("REVIEW_RESULT:APPROVED"),

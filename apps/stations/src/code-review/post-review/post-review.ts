@@ -155,6 +155,7 @@ async function postSummaryReview(
     allowApprove === false
       ? reviewEventWithoutApproval(output)
       : reviewEvent(output);
+
   await pulls.createReview(prNumber, {
     event,
     body: signed(
@@ -197,6 +198,7 @@ async function postInlineReview(
     allowApprove === false
       ? reviewEventWithoutApproval(output)
       : reviewEvent(output);
+
   await pulls.createReview(prNumber, {
     event,
     body: signed(composeBody(output, overflow, model), visit),

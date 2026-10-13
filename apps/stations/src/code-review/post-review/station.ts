@@ -94,7 +94,9 @@ async function getReviewOutput(brief: Brief, tools: Parameters<Handle>[1]) {
   const outRaw = (await tools.read("review_output")).toString("utf8");
   const agentOutput = resultTextFromOutput(outRaw);
   const verdict = reviewVerdictOf(agentOutput);
+
   enforceTrue(verdict, Error, `no review verdict for ${brief.needs.pr_url}`);
+
   return { agentOutput, verdict };
 }
 
@@ -104,7 +106,9 @@ async function getReviewPullContext(deps: PostReviewDeps, brief: Brief) {
   const project = await deps.project(loc.repo);
   const pull = await project.pulls.get(loc.prNumber);
   const headSha = briefedShaOf(brief) ?? pull?.headSha;
+
   enforceTrue(headSha, Error, `no head sha for #${loc.prNumber}`);
+
   return { project, pull, prUrl, loc, headSha };
 }
 
