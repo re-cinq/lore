@@ -70,24 +70,6 @@ interface ReviewContext {
   branch?: string;
 }
 
-async function getReviewOutput(brief: Brief, tools: Parameters<Handle>[1]) {
-  const outRaw = (await tools.read("review_output")).toString("utf8");
-  const agentOutput = resultTextFromOutput(outRaw);
-  const verdict = reviewVerdictOf(agentOutput);
-  enforceTrue(verdict, Error, `no review verdict for ${brief.needs.pr_url}`);
-  return { agentOutput, verdict };
-}
-
-async function getReviewPullContext(deps: PostReviewDeps, brief: Brief) {
-  const prUrl = brief.needs.pr_url;
-  const loc = parsePullRequestUrl(prUrl);
-  const project = await deps.project(loc.repo);
-  const pull = await project.pulls.get(loc.prNumber);
-  const headSha = briefedShaOf(brief) ?? pull?.headSha;
-  enforceTrue(headSha, Error, `no head sha for #${loc.prNumber}`);
-  return { project, pull, prUrl, loc, headSha };
-}
-
 async function processPostReview(
   deps: PostReviewDeps,
   brief: Brief,
@@ -108,17 +90,22 @@ async function processPostReview(
   });
 }
 
-async function postReviewToPr(
-  deps: PostReviewDeps,
-  brief: Brief,
-  opts: ReviewContext,
-  approver: string,
-) {
-  return postToPullRequest(brief, opts.project.pulls, opts.prNumber, {
-    agentOutput: opts.agentOutput,
-    model: await deps.reviewModel(brief.visitId),
-    allowApprove: approver === "lore-reviewer",
-  });
+async function getReviewOutput(brief: Brief, tools: Parameters<Handle>[1]) {
+  const outRaw = (await tools.read("review_output")).toString("utf8");
+  const agentOutput = resultTextFromOutput(outRaw);
+  const verdict = reviewVerdictOf(agentOutput);
+  enforceTrue(verdict, Error, `no review verdict for ${brief.needs.pr_url}`);
+  return { agentOutput, verdict };
+}
+
+async function getReviewPullContext(deps: PostReviewDeps, brief: Brief) {
+  const prUrl = brief.needs.pr_url;
+  const loc = parsePullRequestUrl(prUrl);
+  const project = await deps.project(loc.repo);
+  const pull = await project.pulls.get(loc.prNumber);
+  const headSha = briefedShaOf(brief) ?? pull?.headSha;
+  enforceTrue(headSha, Error, `no head sha for #${loc.prNumber}`);
+  return { project, pull, prUrl, loc, headSha };
 }
 
 async function finishReview(
@@ -140,6 +127,19 @@ async function finishReview(
   );
 
   return reported(summary, opts.prUrl);
+}
+
+async function postReviewToPr(
+  deps: PostReviewDeps,
+  brief: Brief,
+  opts: ReviewContext,
+  approver: string,
+) {
+  return postToPullRequest(brief, opts.project.pulls, opts.prNumber, {
+    agentOutput: opts.agentOutput,
+    model: await deps.reviewModel(brief.visitId),
+    allowApprove: approver === "lore-reviewer",
+  });
 }
 
 async function getApprover(
