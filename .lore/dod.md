@@ -15,7 +15,7 @@
 
 ## Facets
 
-- [ ] cluster-agent reports its capable model families in `cluster_info` at registration.
+- [x] cluster-agent reports its capable model families in `cluster_info` at registration.
 - [x] lore-api inspects registered cluster-agents on agent-definition writes.
 - [x] lore-api rejects writes with a 400 if `model` is unsupported and `force=true` is not present.
 - [x] lore-api accepts writes if a registered cluster lacks capability data, or if `force=true` is used.
