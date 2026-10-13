@@ -69,14 +69,7 @@ describe("hybridSearch defects (not yet fixed — must stay red until ported fro
     const { pool, calls } = fakePool({ rows: [{ ok: 1 }] }, { rows: [] });
 
     setPool(pool);
-    // The signature must accept `repo` (e.g. as a 4th argument) to bind the search,
-    // or converge with hybridChunkItems.
-    await (hybridSearch as any)(
-      "auto-merge squash",
-      ORG_SHARED,
-      3,
-      "re-cinq/lore",
-    );
+    await hybridSearch("auto-merge squash", ORG_SHARED, 3, "re-cinq/lore");
 
     const hybridSql = calls[1]?.text ?? "";
     const params = calls[1]?.params ?? [];
