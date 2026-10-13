@@ -205,6 +205,16 @@ function RunPolicyFields({
 }: RunPolicyFieldsProps) {
   return (
     <>
+      <TrustLevelField trustLevel={trustLevel} />
+      <AutoReviewField autoReview={autoReview} />
+      <AutoMergeApproverField autoMergeApprover={autoMergeApprover} />
+    </>
+  );
+}
+
+function TrustLevelField({ trustLevel }: { trustLevel: string }) {
+  return (
+    <>
       <label>Trust Level</label>
       <select name="trust_level" defaultValue={trustLevel}>
         <option value="docs">Docs only (gap-fill, runbook)</option>
@@ -212,13 +222,29 @@ function RunPolicyFields({
         <option value="implementation">Implementation (default)</option>
         <option value="full">Full (all task types)</option>
       </select>
+    </>
+  );
+}
 
+function AutoReviewField({ autoReview }: { autoReview: string }) {
+  return (
+    <>
       <label>Auto-review PRs</label>
       <select name="auto_review" defaultValue={autoReview}>
         <option value="no">No</option>
         <option value="yes">Yes</option>
       </select>
+    </>
+  );
+}
 
+function AutoMergeApproverField({
+  autoMergeApprover,
+}: {
+  autoMergeApprover: string;
+}) {
+  return (
+    <>
       <label>Auto-merge Approver</label>
       <select name="auto_merge_approver" defaultValue={autoMergeApprover}>
         <option value="none">none</option>

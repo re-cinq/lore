@@ -60,7 +60,15 @@ async function saveSettings(
   const updates = parseSettingsForm(formData);
   const selectedRepos = updates.cross_repo_repos as string[];
 
-  await putRepoSettings(fullName, { team: team || null, settings: updates });
+  const result = await putRepoSettings(fullName, {
+    team: team || null,
+    settings: updates,
+  });
+
+  if (result.status === "error") {
+    return { saved: false, error: result.message };
+  }
+
   await Promise.all(
     selectedRepos.map((linkedRepo) => linkBack(fullName, linkedRepo)),
   );

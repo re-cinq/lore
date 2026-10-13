@@ -20,7 +20,7 @@ The red bar is CI's to show. The tests are run by the `test-report` job in `lore
 - [x] SaveResultBanner supports and renders an error string when passed in `state.error`.
 - [x] SettingsView renders the `auto_merge.approver` select field.
 - [x] SettingsView includes an installation link for `lore-reviewer`.
-- [ ] Settings form save action surfaces the server's refusal message in `state.error`.
+- [x] Settings form save action surfaces the server's refusal message in `state.error`.
 
 ## Out of scope
 
