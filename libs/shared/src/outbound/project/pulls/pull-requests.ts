@@ -60,6 +60,10 @@ export class PullRequests {
     return this.pulls.addLabel(this.repo, number, label);
   }
 
+  enableAutoMerge(number: number, method?: MergeMethod): Promise<void> {
+    return this.pulls.enablePullRequestAutoMerge(String(number), method);
+  }
+
   merge(number: number, method?: MergeMethod): Promise<void> {
     return this.pulls.merge(this.repo, number, method);
   }

@@ -28,9 +28,12 @@ import {
 
 export interface ReviewProject {
   pulls: ReviewPoster & {
-    get(number: number): Promise<Pick<PullRef, "headSha"> | null>;
+    get(number: number): Promise<Pick<PullRef, "headSha" | "branch"> | null>;
+    enableAutoMerge?(number: number, method: string): Promise<void>;
   };
   upsertCheckRun(input: CheckRunInput): Promise<void>;
+  getBranchRule?(branch: string): Promise<{ requiresApprovals: number }>;
+  writeAuditRow?(row: any): Promise<void>;
 }
 
 export interface PostReviewDeps {
@@ -43,7 +46,7 @@ const productionDeps: PostReviewDeps = {
     const { pulls, repo: repository } = await projectFor(repo);
 
     return {
-      pulls,
+      pulls: pulls as unknown as ReviewProject["pulls"],
       upsertCheckRun: (input) => repository.upsertCheckRun(input),
     };
   },
@@ -61,7 +64,15 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
 
     enforceTrue(verdict, Error, `no review verdict in the output for ${prUrl}`);
     const project = await deps.project(location.repo);
-    const headSha = await headShaOf(brief, project, location.prNumber);
+
+    const pull = await project.pulls.get(location.prNumber);
+    const headSha = briefedShaOf(brief) ?? pull?.headSha;
+    enforceTrue(
+      headSha,
+      Error,
+      `no head sha for pull request #${location.prNumber}`,
+    );
+
     const summary = verdictSummary(verdict, findingCountOf(agentOutput));
 
     await postToPullRequest(brief, project, location, {
@@ -70,8 +81,27 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
     });
     await project.upsertCheckRun(reviewCheck({ headSha, verdict, summary }));
 
+    if (pull?.branch && project.getBranchRule) {
+      const rule = await project.getBranchRule(pull.branch);
+      if (rule.requiresApprovals > 0) {
+        if (project.pulls.enableAutoMerge) {
+          await project.pulls.enableAutoMerge(location.prNumber, "SQUASH");
+        }
+        if (project.writeAuditRow) {
+          await project.writeAuditRow({
+            event_type: "auto_merge_armed",
+            payload: { prNumber: location.prNumber, headSha },
+          });
+        }
+      }
+    }
+
     return reported(summary, prUrl);
   };
+}
+
+function briefedShaOf(brief: Brief): string | undefined {
+  return new Map(Object.entries(brief.needs)).get("head_sha");
 }
 
 function reported(summary: string, prUrl: string): Report {
@@ -85,19 +115,6 @@ function verdictSummary(verdict: ReviewVerdict, findingCount: number): string {
   const label = verdict === "success" ? "Approved" : "Changes requested";
 
   return `${label}, ${findingCount} ${findingCount === 1 ? "finding" : "findings"}`;
-}
-
-async function headShaOf(
-  brief: Brief,
-  { pulls }: ReviewProject,
-  prNumber: number,
-): Promise<string> {
-  const briefed = new Map(Object.entries(brief.needs)).get("head_sha");
-  const headSha = briefed ?? (await pulls.get(prNumber))?.headSha;
-
-  enforceTrue(headSha, Error, `no head sha for pull request #${prNumber}`);
-
-  return headSha;
 }
 
 async function postToPullRequest(

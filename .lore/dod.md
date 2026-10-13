@@ -6,7 +6,7 @@
 
 ## Done when these pass
 
-- [ ] **given a branch requiring approval, when review completes, then it calls enableAutoMerge with SQUASH and writes an audit row** — It calls enableAutoMerge with SQUASH and writes an audit row.
+- [x] **given a branch requiring approval, when review completes, then it calls enableAutoMerge with SQUASH and writes an audit row** — It calls enableAutoMerge with SQUASH and writes an audit row.
   `apps/stations/src/code-review/post-review/station.test.ts`
 - [ ] **given approver is lore-reviewer, when review approves, then it submits APPROVE and writes lore_reviewer_approved audit row** — It approves as lore-reviewer and records the approval.
   `apps/stations/src/code-review/post-review/station.test.ts`
@@ -19,11 +19,13 @@
 
 ## Facets
 
-- [ ] Add `enableAutoMerge` to PR port
-- [ ] Read `getBranchRule` and `getSettings` from project port
-- [ ] Record audit row for `auto_merge_armed`
+- [x] Add `enableAutoMerge` to PR port
+- [x] Read `getBranchRule` from project port
+- [ ] Read `getSettings` from project port
+- [x] Record audit row for `auto_merge_armed`
 - [ ] Record audit row for `lore_reviewer_approved`
 - [ ] Perform idempotency check
+- [ ] Resolve PR number to GraphQL node ID for enableAutoMerge
 
 ## Out of scope
 

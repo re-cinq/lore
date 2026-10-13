@@ -60,7 +60,7 @@ function fakeProject(
         comments.push(body);
       },
       getDiff: async () => "",
-      get: async () => ({ headSha: "livesha" }),
+      get: async () => ({ headSha: "livesha", branch: "main" }),
       enableAutoMerge: async (number: number, method: string) => {
         autoMergeCalls.push({ number, method });
       },
