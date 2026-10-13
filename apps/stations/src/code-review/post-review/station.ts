@@ -9,11 +9,22 @@ import {
 } from "@re-cinq/floor-station";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type {
+  BranchRule,
+  MergeMethod,
+  PullRef,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
+import { RepoSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
 import { commentablePositions } from "@re-cinq/lore-shared/review/diff-hunks.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { maybePostReview, type ReviewPoster } from "./post-review.js";
+import {
+  maybePostReview,
+  reviewAlreadyPosted,
+  reviewVisitMarker,
+  type ReviewPoster,
+} from "./post-review.js";
 import { reviewModelOf } from "./review-model.js";
 import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
 import {
@@ -23,19 +34,19 @@ import {
   type ReviewVerdict,
 } from "./review-check.js";
 
+export type AutoMergeApprover = "none" | "lore-reviewer";
+
 export interface ReviewProject {
   pulls: ReviewPoster & {
     get(
       number: number,
-    ): Promise<Pick<PullRef, "headSha" | "branch" | "nodeId"> | null>;
-    enableAutoMerge?(nodeId: string, method: string): Promise<void>;
+    ): Promise<Pick<PullRef, "headSha" | "baseBranch" | "nodeId"> | null>;
+    enableAutoMerge(nodeId: string, method: MergeMethod): Promise<void>;
+    getBranchRule(branch: string): Promise<Pick<BranchRule, "requiredApprovals">>;
   };
   upsertCheckRun(input: CheckRunInput): Promise<void>;
-  getBranchRule?(branch: string): Promise<{ requiresApprovals: number }>;
-  getSettings?(): Promise<{
-    auto_merge?: { approver: "none" | "lore-reviewer" };
-  }>;
-  writeAuditRow?(row: { event_type: string; payload: unknown }): Promise<void>;
+  autoMergeApprover(): Promise<AutoMergeApprover>;
+  audit: { write(entry: Omit<AuditLogEntry, "repo">): Promise<void> };
 }
 
 export interface PostReviewDeps {
@@ -45,203 +56,135 @@ export interface PostReviewDeps {
 
 const productionDeps: PostReviewDeps = {
   project: async (repo) => {
-    const { pulls, repo: repository } = await projectFor(repo);
+    const project = await projectFor(repo);
 
     return {
-      pulls: pulls as unknown as ReviewProject["pulls"],
-      upsertCheckRun: (input) => repository.upsertCheckRun(input),
+      pulls: project.pulls,
+      upsertCheckRun: (input) => project.repo.upsertCheckRun(input),
+      autoMergeApprover: async () =>
+        approverOf(await project.settings.rawSettings()),
+      audit: project.audit,
     };
   },
   reviewModel: reviewModelOf,
 };
 
-export function postReviewHandle(deps: PostReviewDeps): Handle {
-  return (brief, tools) => processPostReview(deps, brief, tools);
+/** `auto_merge.approver` from the repo's stored settings; anything unset or unreadable is `none`, the default. */
+export function approverOf(
+  settings: Record<string, unknown> | null,
+): AutoMergeApprover {
+  const autoMerge = RepoSettingsSchema.shape.auto_merge;
+  const parsed = autoMerge.safeParse(settings?.auto_merge);
+
+  return (parsed.success && parsed.data?.approver) || "none";
 }
 
-interface ReviewContext {
-  project: ReviewProject;
-  prUrl: string;
+/** The PR state one visit acts on: who approves, and the head commit the audit rows and the check name. */
+interface ReviewTarget {
   prNumber: number;
-  nodeId?: string;
-  agentOutput: string;
-  verdict: ReviewVerdict;
   headSha: string;
-  branch?: string;
+  approver: AutoMergeApprover;
 }
 
-async function processPostReview(
+export function postReviewHandle(deps: PostReviewDeps): Handle {
+  return async (brief, tools) => {
+    const prUrl = brief.needs.pr_url;
+    const agentOutput = resultTextFromOutput(
+      (await tools.read("review_output")).toString("utf8"),
+    );
+    const verdict = reviewVerdictOf(agentOutput);
+
+    enforceTrue(verdict, Error, `no review verdict in the output for ${prUrl}`);
+    const visit = await openVisit(deps, brief, parsePullRequestUrl(prUrl));
+
+    await deliverReview(deps, brief, visit, { agentOutput, verdict });
+    const summary = verdictSummary(verdict, findingCountOf(agentOutput));
+
+    await visit.project.upsertCheckRun(
+      reviewCheck({ headSha: visit.target.headSha, verdict, summary }),
+    );
+
+    return reported(summary, prUrl);
+  };
+}
+
+interface ReviewVisitState {
+  project: ReviewProject;
+  pull: Pick<PullRef, "baseBranch" | "nodeId"> | null;
+  target: ReviewTarget;
+  /** False on a redelivered visit whose review is already on the PR: nothing is armed, approved or audited twice. */
+  firstVisit: boolean;
+}
+
+async function openVisit(
   deps: PostReviewDeps,
   brief: Brief,
-  tools: Parameters<Handle>[1],
-) {
-  const output = await getReviewOutput(brief, tools);
-  const ctx = await getReviewPullContext(deps, brief);
-
-  return finishReview(deps, brief, {
-    project: ctx.project,
-    prUrl: ctx.prUrl,
-    prNumber: ctx.loc.prNumber,
-    nodeId: ctx.pull?.nodeId,
-    agentOutput: output.agentOutput,
-    verdict: output.verdict,
-    headSha: ctx.headSha,
-    branch: ctx.pull?.branch,
-  });
-}
-
-async function getReviewOutput(brief: Brief, tools: Parameters<Handle>[1]) {
-  const outRaw = (await tools.read("review_output")).toString("utf8");
-  const agentOutput = resultTextFromOutput(outRaw);
-  const verdict = reviewVerdictOf(agentOutput);
-
-  enforceTrue(
-    verdict,
-    Error,
-    `no review verdict in the output for ${brief.needs.pr_url}`,
-  );
-
-  return { agentOutput, verdict };
-}
-
-async function getReviewPullContext(deps: PostReviewDeps, brief: Brief) {
-  const prUrl = brief.needs.pr_url;
-  const loc = parsePullRequestUrl(prUrl);
-  const project = await deps.project(loc.repo);
-  const pull = await project.pulls.get(loc.prNumber);
+  { repo, prNumber }: { repo: string; prNumber: number },
+): Promise<ReviewVisitState> {
+  const project = await deps.project(repo);
+  const [pull, approver, posted] = await Promise.all([
+    project.pulls.get(prNumber),
+    project.autoMergeApprover(),
+    reviewAlreadyPosted(project.pulls, prNumber, reviewVisitMarker(brief)),
+  ]);
   const headSha = briefedShaOf(brief) ?? pull?.headSha;
 
-  enforceTrue(headSha, Error, `no head sha for #${loc.prNumber}`);
+  enforceTrue(headSha, Error, `no head sha for pull request #${prNumber}`);
 
-  return { project, pull, prUrl, loc, headSha };
+  return {
+    project,
+    pull,
+    target: { prNumber, headSha, approver },
+    firstVisit: !posted,
+  };
 }
 
-async function finishReview(
+// GitHub refuses to arm a PR that can already merge, so arming precedes the APPROVE that would make it mergeable.
+async function deliverReview(
   deps: PostReviewDeps,
   brief: Brief,
-  opts: ReviewContext,
-) {
-  const count = findingCountOf(opts.agentOutput);
-  const summary = verdictSummary(opts.verdict, count);
-  const approver = await getApprover(opts.project);
-  const posted = await postReviewToPr(deps, brief, opts, approver);
+  { project, pull, target, firstVisit }: ReviewVisitState,
+  { agentOutput, verdict }: { agentOutput: string; verdict: ReviewVerdict },
+): Promise<void> {
+  const approves = target.approver === "lore-reviewer";
 
-  if (posted) {
-    await performPostReviewActions(opts.project, { ...opts, approver });
+  if (firstVisit) {
+    await armAutoMerge(project, pull, target);
   }
-
-  await opts.project.upsertCheckRun(
-    reviewCheck({ headSha: opts.headSha, verdict: opts.verdict, summary }),
-  );
-
-  return reported(summary, opts.prUrl);
-}
-
-async function postReviewToPr(
-  deps: PostReviewDeps,
-  brief: Brief,
-  opts: ReviewContext,
-  approver: string,
-) {
-  return postToPullRequest(brief, opts.project.pulls, opts.prNumber, {
-    agentOutput: opts.agentOutput,
+  await postToPullRequest(brief, project.pulls, target.prNumber, {
+    agentOutput,
     model: await deps.reviewModel(brief.visitId),
-    allowApprove: approver === "lore-reviewer",
+    allowApprove: approves,
   });
-}
 
-async function getApprover(
-  project: ReviewProject,
-): Promise<"none" | "lore-reviewer"> {
-  if (!project.getSettings) {
-    return "none";
-  }
-  const settings = await project.getSettings();
-
-  return settings.auto_merge?.approver ?? "none";
-}
-
-async function performPostReviewActions(
-  project: ReviewProject,
-  opts: {
-    prNumber: number;
-    nodeId?: string;
-    headSha: string;
-    verdict: ReviewVerdict;
-    approver: string;
-    branch?: string;
-  },
-): Promise<void> {
-  await recordApprovalIfNeeded(project, opts);
-  await armAutoMergeIfNeeded(project, opts);
-}
-
-interface RecordApprovalOpts {
-  prNumber: number;
-  headSha: string;
-  verdict: ReviewVerdict;
-  approver: string;
-}
-
-async function recordApprovalIfNeeded(
-  project: ReviewProject,
-  opts: RecordApprovalOpts,
-): Promise<void> {
-  const shouldApprove =
-    opts.verdict === "success" && opts.approver === "lore-reviewer";
-
-  if (shouldApprove && project.writeAuditRow) {
-    await project.writeAuditRow({
-      event_type: "lore_reviewer_approved",
-      payload: {
-        prNumber: opts.prNumber,
-        headSha: opts.headSha,
-        approver: "lore-reviewer",
-      },
-    });
+  if (firstVisit && approves && verdict === "success") {
+    await project.audit.write(auditRow("lore_reviewer_approved", target));
   }
 }
 
-async function armAutoMergeIfNeeded(
+/** Arms native auto-merge only where the base branch's rule requires an approval: on an unprotected branch the PR is already mergeable and GitHub refuses. */
+async function armAutoMerge(
   project: ReviewProject,
-  opts: { prNumber: number; nodeId?: string; headSha: string; branch?: string },
+  pull: Pick<PullRef, "baseBranch" | "nodeId"> | null,
+  target: ReviewTarget,
 ): Promise<void> {
-  if (!opts.branch || !project.getBranchRule) {
+  if (!pull?.baseBranch || !pull.nodeId) {
     return;
   }
+  const rule = await project.pulls.getBranchRule(pull.baseBranch);
 
-  const rule = await project.getBranchRule(opts.branch);
-
-  if (rule.requiresApprovals === 0) {
+  if (rule.requiredApprovals === 0) {
     return;
   }
-
-  if (opts.nodeId) {
-    await enableAutoMerge(project, opts.nodeId);
-  }
-  await recordAutoMergeArmed(project, opts.prNumber, opts.headSha);
+  await project.pulls.enableAutoMerge(pull.nodeId, "squash");
+  await project.audit.write(auditRow("auto_merge_armed", target));
 }
 
-async function enableAutoMerge(
-  project: ReviewProject,
-  nodeId: string,
-): Promise<void> {
-  if (project.pulls.enableAutoMerge) {
-    await project.pulls.enableAutoMerge(nodeId, "SQUASH");
-  }
-}
-
-async function recordAutoMergeArmed(
-  project: ReviewProject,
-  prNumber: number,
-  headSha: string,
-): Promise<void> {
-  if (project.writeAuditRow) {
-    await project.writeAuditRow({
-      event_type: "auto_merge_armed",
-      payload: { prNumber, headSha },
-    });
-  }
+function auditRow(
+  eventType: "auto_merge_armed" | "lore_reviewer_approved",
+  { prNumber, headSha, approver }: ReviewTarget,
+): Omit<AuditLogEntry, "repo"> {
+  return { event_type: eventType, payload: { prNumber, headSha, approver } };
 }
 
 function briefedShaOf(brief: Brief): string | undefined {
@@ -265,8 +208,8 @@ async function postToPullRequest(
   brief: Brief,
   pulls: ReviewProject["pulls"],
   prNumber: number,
-  opts: { agentOutput: string; model?: string; allowApprove?: boolean },
-): Promise<boolean> {
+  opts: { agentOutput: string; model?: string; allowApprove: boolean },
+): Promise<void> {
   const diff = await pulls.getDiff(prNumber).catch(() => "");
   const posted = await maybePostReview(pulls, prNumber, opts.agentOutput, {
     positions: commentablePositions(diff),
@@ -274,9 +217,11 @@ async function postToPullRequest(
     ...opts,
   });
 
-  enforceTrue(posted, Error, `nothing to post for #${prNumber}`);
-
-  return posted.mode !== "deduped";
+  enforceTrue(
+    posted,
+    Error,
+    `nothing to post for #${prNumber}: no findings block`,
+  );
 }
 
 export function startPostReviewStation(): RunningStation {

@@ -726,6 +726,24 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("get exposes node id PR_kw_7 and base branch main", async () => {
+    state.prData = {
+      number: 7,
+      title: "t",
+      head: { ref: "feat/x", sha: "deadbeef" },
+      base: { ref: "main" },
+      node_id: "PR_kw_7",
+      state: "open",
+      html_url: "https://gh/pr/7",
+      user: { login: "bob" },
+    };
+
+    expect(await gh().get("re-cinq/lore", 7)).toMatchObject({
+      nodeId: "PR_kw_7",
+      baseBranch: "main",
+    });
+  });
+
   it("listTree throws instead of returning a truncated tree", async () => {
     state.treeData = {
       truncated: true,

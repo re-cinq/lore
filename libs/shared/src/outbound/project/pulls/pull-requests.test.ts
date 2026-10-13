@@ -221,6 +221,31 @@ describe("PullRequests review threads", () => {
     expect(readied).toEqual([{ repo: "re-cinq/lore", number: 7 }]);
   });
 
+  it("arms auto-merge on node id PR_kw_7 with squash and reads main's branch rule bound to the repo", async () => {
+    const armed: Array<{ prId: string; method?: MergeMethod }> = [];
+    const ruleReads: Array<{ repo: string; branch: string }> = [];
+    const port: PullRequestsPort = {
+      ...fakePulls([], []),
+      enablePullRequestAutoMerge: async (prId, method) => {
+        armed.push({ prId, method });
+      },
+      getBranchRule: async (repo, branch) => {
+        ruleReads.push({ repo, branch });
+
+        return { requiredApprovals: 1, codeOwnersReview: false, requiredChecks: [] };
+      },
+    };
+    const facade = new PullRequests("re-cinq/lore", port);
+
+    await facade.enableAutoMerge("PR_kw_7", "squash");
+
+    expect({ armed, rule: await facade.getBranchRule("main"), ruleReads }).toEqual({
+      armed: [{ prId: "PR_kw_7", method: "squash" }],
+      rule: { requiredApprovals: 1, codeOwnersReview: false, requiredChecks: [] },
+      ruleReads: [{ repo: "re-cinq/lore", branch: "main" }],
+    });
+  });
+
   it("delegates close with the repo it was bound to", async () => {
     const closed: Array<{ repo: string; number: number }> = [];
     const pr = new PullRequests("re-cinq/lore", fakePulls([], [], { closed }));
