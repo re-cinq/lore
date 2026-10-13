@@ -1,10 +1,5 @@
 import type { Pool } from "pg";
-import type {
-  Request,
-  ResponseObject,
-  ResponseToolkit,
-  ServerRoute,
-} from "@hapi/hapi";
+import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { zodResponse } from "../http/zod-response.js";
 import { bearerScope } from "../http/bearer-scope.js";
@@ -36,6 +31,75 @@ const BlockedPullsSchema = z.object({
   pulls: z.array(BlockedReasonSchema),
 });
 
+type BlockedReason = z.infer<typeof BlockedReasonSchema>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapRow(row: any): BlockedReason {
+  return {
+    repo: row.repo,
+    prNumber: row.pr_number,
+    reason: row.reason,
+    label: labelForReason(row.reason, row.detail),
+    detail: row.detail,
+    since: row.since ? new Date(row.since).toISOString() : null,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+  };
+}
+
+const emptyReason = (repo: string, prNumber: number) => ({
+  repo,
+  prNumber,
+  reason: null,
+  label: null,
+  detail: null,
+  since: null,
+  updatedAt: null,
+});
+
+function handleBlockedReason(getPool: () => Pool | null) {
+  return async (request: Request, h: ResponseToolkit) => {
+    const pool = getPool();
+    if (!pool) return h.response().code(503);
+    const { owner, repo, number } = request.params as z.infer<typeof PrParam>;
+
+    try {
+      const { rows } = await pool.query(
+        "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2",
+        [`${owner}/${repo}`, number],
+      );
+
+      return h.response(
+        rows.length === 0
+          ? emptyReason(`${owner}/${repo}`, number)
+          : mapRow(rows[0]),
+      );
+    } catch (err) {
+      console.error("[blocked-reason] Error:", errorMessage(err));
+      return h.response().code(500);
+    }
+  };
+}
+
+function handleBlockedPulls(getPool: () => Pool | null) {
+  return async (request: Request, h: ResponseToolkit) => {
+    const pool = getPool();
+    if (!pool) return h.response().code(503);
+    const { owner, repo } = request.params as z.infer<typeof RepoParam>;
+
+    try {
+      const { rows } = await pool.query(
+        "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1",
+        [`${owner}/${repo}`],
+      );
+
+      return h.response({ pulls: rows.map(mapRow) });
+    } catch (err) {
+      console.error("[blocked-pulls] Error:", errorMessage(err));
+      return h.response().code(500);
+    }
+  };
+}
+
 export function blockedReasonsRoutes(
   getPool: () => Pool | null,
 ): ServerRoute[] {
@@ -54,49 +118,7 @@ export function blockedReasonsRoutes(
           description: "Read the blocked reason for a specific PR",
         },
       ),
-      handler: async (request: Request, h: ResponseToolkit) => {
-        const pool = getPool();
-        if (!pool) return h.response().code(503);
-        const params = request.params as z.infer<typeof PrParam>;
-        const repoFullName = `${params.owner}/${params.repo}`;
-
-        try {
-          const { rows } = await pool.query(
-            `SELECT repo, pr_number, reason, detail, since, updated_at
-             FROM pipeline.pr_blocked_reasons
-             WHERE repo = $1 AND pr_number = $2`,
-            [repoFullName, params.number],
-          );
-
-          if (rows.length === 0) {
-            return h.response({
-              repo: repoFullName,
-              prNumber: params.number,
-              reason: null,
-              label: null,
-              detail: null,
-              since: null,
-              updatedAt: null,
-            });
-          }
-
-          const row = rows[0];
-          return h.response({
-            repo: row.repo,
-            prNumber: row.pr_number,
-            reason: row.reason,
-            label: labelForReason(row.reason, row.detail),
-            detail: row.detail,
-            since: row.since ? new Date(row.since).toISOString() : null,
-            updatedAt: row.updated_at
-              ? new Date(row.updated_at).toISOString()
-              : null,
-          });
-        } catch (err) {
-          console.error("[blocked-reason] Error:", errorMessage(err));
-          return h.response().code(500);
-        }
-      },
+      handler: handleBlockedReason(getPool),
     },
     {
       method: "GET",
@@ -112,38 +134,7 @@ export function blockedReasonsRoutes(
           description: "Read the blocked PRs for a specific repo",
         },
       ),
-      handler: async (request: Request, h: ResponseToolkit) => {
-        const pool = getPool();
-        if (!pool) return h.response().code(503);
-        const params = request.params as z.infer<typeof RepoParam>;
-        const repoFullName = `${params.owner}/${params.repo}`;
-
-        try {
-          const { rows } = await pool.query(
-            `SELECT repo, pr_number, reason, detail, since, updated_at
-             FROM pipeline.pr_blocked_reasons
-             WHERE repo = $1`,
-            [repoFullName],
-          );
-
-          return h.response({
-            pulls: rows.map((row) => ({
-              repo: row.repo,
-              prNumber: row.pr_number,
-              reason: row.reason,
-              label: labelForReason(row.reason, row.detail),
-              detail: row.detail,
-              since: row.since ? new Date(row.since).toISOString() : null,
-              updatedAt: row.updated_at
-                ? new Date(row.updated_at).toISOString()
-                : null,
-            })),
-          });
-        } catch (err) {
-          console.error("[blocked-pulls] Error:", errorMessage(err));
-          return h.response().code(500);
-        }
-      },
+      handler: handleBlockedPulls(getPool),
     },
   ];
 }
