@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Create `pipeline.v_auto_merge_kpis` view in Terraform migrations
-- [ ] Implement `GET /api/repos/{owner}/{repo}/auto-merge/kpis` handler reading from the view
-- [ ] Register route in API
+- [x] Create `pipeline.v_auto_merge_kpis` view in Terraform migrations
+- [x] Implement `GET /api/repos/{owner}/{repo}/auto-merge/kpis` handler reading from the view
+- [x] Register route in API
 
 ## Out of scope
 
