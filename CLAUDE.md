@@ -338,9 +338,10 @@ free.
 To run the full stack on your machine instead, `npm start` from the
 repo root runs `scripts/dev-local.sh`: it brings up a docker Postgres
 (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds
-`shared`→`mcp-server`→`agent`, then runs all four components under
-`concurrently` with live reload. Ports: web-ui `:3000`, mcp-server
-`:3001`, agent `:8080`, Postgres `:5432`. `npm run db:up` / `db:down`
+`shared`→`assembly-lines`→`stations`→`server-core`→`lore-api`→`mcp-server`,
+then runs lore-api, stations, the skills gateway and web-ui under
+`concurrently` with live reload. Ports: web-ui `:3000`, lore-api `:3001`,
+skills gateway `:3002`, stations `:3004`, Postgres `:5432`. `npm run db:up` / `db:down`
 manage the Postgres container on their own; `npm run db:schema` applies
 the schema DDL. `scripts/infra/setup-local-schema.sh` bootstraps the
 `lore`/`lore_ui` roles, the pgvector extension, and all schemas by

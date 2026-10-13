@@ -8,12 +8,13 @@ as subcharts under `charts/`:
 | `lore-api`           | `lore-api`   | Lore REST API server |
 | `lore-ui`            | `lore-ui`    | Next.js web UI (+ DB migrate hook) |
 | `lore-db-helm`       | `lore-db`    | CNPG ownership-reconciler hook |
-| `ai-agents`          | `ai-agents`  | agent-cr controller + CRDs + RBAC |
+| `lore-mcp-gateway`   | `lore-api`   | lore-mcp HTTP gateway for agent pods |
+| `lore-stations`      | `lore-stations` | stations service (sweeps, event drain, floor stations) |
 
 ## One release, many namespaces
 
 This is a single Helm release (`lore-platform`, recorded in the `lore-floor`
-home namespace), but its resources land in five namespaces. Each subchart
+home namespace), but its resources land in four namespaces. Each subchart
 template sets `metadata.namespace: {{ .Values.namespace }}` explicitly (instead
 of relying on `.Release.Namespace`) and pins resource names to `.Chart.Name`
 (instead of `.Release.Name`). Without that, every resource would inherit the
