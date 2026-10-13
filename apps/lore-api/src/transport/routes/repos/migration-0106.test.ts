@@ -13,7 +13,7 @@ const sql = readFileSync(
 describe("migration 0106 — the auto-merge KPI view", () => {
   it("reads lore_reviewer_approved and pr_merged audit rows, not auto_merge_armed", () => {
     expect(sql).toMatch(
-      /WHERE a\.event_type IN \('lore_reviewer_approved', 'pr_merged'\);/,
+      /WHERE a\.event_type IN \('lore_reviewer_approved', 'pr_merged'\)/,
     );
     expect(sql).not.toContain("auto_merge_armed");
   });
