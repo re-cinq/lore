@@ -349,6 +349,38 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
       expect(autoMergeCalls).toHaveLength(1);
       expect(reviews.some((r) => r.event === "APPROVE")).toBe(false);
     });
+
+    it("given approver is none on an unprotected branch, when review approves, then it submits APPROVE", async () => {
+      const { deps, reviews } = fakeProject(undefined, undefined, {
+        requiredApprovals: 0,
+        approver: "none",
+      });
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      );
+
+      expect(reviews).toMatchObject([{ event: "APPROVE" }]);
+    });
+
+    it("given a branch requiring approval, when review requests changes, then it does not arm auto-merge", async () => {
+      const { deps, autoMergeCalls, auditRows } = fakeProject(
+        undefined,
+        undefined,
+        { requiredApprovals: 1 },
+      );
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading(changesRequestedOutput),
+      );
+
+      expect({ autoMergeCalls, auditRows }).toEqual({
+        autoMergeCalls: [],
+        auditRows: [],
+      });
+    });
   });
 
   describe("Native auto-merge is armed only where the branch rule requires an approval, never on an unprotected branch, and always before lore-reviewer approves, because GitHub refuses to arm a PR that can already merge.", () => {

@@ -112,7 +112,8 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
 
 interface ReviewVisitState {
   project: ReviewProject;
-  pull: Pick<PullRef, "baseBranch" | "nodeId"> | null;
+  /** The PR's GraphQL id when its base branch's rule requires an approval: only such a PR is armed, and only there does an approval need lore-reviewer. */
+  armableNodeId: string | undefined;
   target: ReviewTarget;
   /** False on a redelivered visit whose review is already on the PR: nothing is armed, approved or audited twice. */
   firstVisit: boolean;
@@ -135,7 +136,7 @@ async function openVisit(
 
   return {
     project,
-    pull,
+    armableNodeId: await armableNodeIdOf(project, pull),
     target: { prNumber, headSha, approver },
     firstVisit: !posted,
   };
@@ -145,41 +146,55 @@ async function openVisit(
 async function deliverReview(
   deps: PostReviewDeps,
   brief: Brief,
-  { project, pull, target, firstVisit }: ReviewVisitState,
+  visit: ReviewVisitState,
   { agentOutput, verdict }: { agentOutput: string; verdict: ReviewVerdict },
 ): Promise<void> {
-  const approves = target.approver === "lore-reviewer";
+  const { project, armableNodeId, target } = visit;
+  const recordsApproval = visit.firstVisit && verdict === "success";
 
-  if (firstVisit) {
-    await armAutoMerge(project, pull, target);
+  if (recordsApproval && armableNodeId) {
+    await armAutoMerge(project, armableNodeId, target);
   }
   await postToPullRequest(brief, project.pulls, target.prNumber, {
     agentOutput,
     model: await deps.reviewModel(brief.visitId),
-    allowApprove: approves,
+    allowApprove: target.approver === "lore-reviewer" || !armableNodeId,
   });
 
-  if (firstVisit && approves && verdict === "success") {
+  if (recordsApproval) {
+    await recordLoreReviewerApproval(project, target);
+  }
+}
+
+async function armAutoMerge(
+  project: ReviewProject,
+  nodeId: string,
+  target: ReviewTarget,
+): Promise<void> {
+  await project.pulls.enableAutoMerge(nodeId, "squash");
+  await project.audit.write(auditRow("auto_merge_armed", target));
+}
+
+async function recordLoreReviewerApproval(
+  project: ReviewProject,
+  target: ReviewTarget,
+): Promise<void> {
+  if (target.approver === "lore-reviewer") {
     await project.audit.write(auditRow("lore_reviewer_approved", target));
   }
 }
 
-/** Arms native auto-merge only where the base branch's rule requires an approval: on an unprotected branch the PR is already mergeable and GitHub refuses. */
-async function armAutoMerge(
+/** Undefined on an unprotected base branch: the PR is already mergeable there, GitHub refuses to arm it, and an APPROVE merges nothing on its own. */
+async function armableNodeIdOf(
   project: ReviewProject,
   pull: Pick<PullRef, "baseBranch" | "nodeId"> | null,
-  target: ReviewTarget,
-): Promise<void> {
+): Promise<string | undefined> {
   if (!pull?.baseBranch || !pull.nodeId) {
-    return;
+    return undefined;
   }
   const rule = await project.pulls.getBranchRule(pull.baseBranch);
 
-  if (rule.requiredApprovals === 0) {
-    return;
-  }
-  await project.pulls.enableAutoMerge(pull.nodeId, "squash");
-  await project.audit.write(auditRow("auto_merge_armed", target));
+  return rule.requiredApprovals > 0 ? pull.nodeId : undefined;
 }
 
 function auditRow(
