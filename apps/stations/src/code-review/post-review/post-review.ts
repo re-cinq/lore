@@ -151,8 +151,12 @@ async function postSummaryReview(
   output: ReviewOutput,
   { visit, model, allowApprove }: ReviewDelivery,
 ): Promise<void> {
+  const event =
+    allowApprove === false
+      ? reviewEventWithoutApproval(output)
+      : reviewEvent(output);
   await pulls.createReview(prNumber, {
-    event: reviewEvent(output, allowApprove),
+    event,
     body: signed(
       composeBody(output, output.findings, model, STEPPED_DOWN_HEADING),
       visit,
@@ -189,23 +193,25 @@ async function postInlineReview(
   { positions, visit, model, allowApprove }: ReviewDelivery,
 ): Promise<void> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
-
+  const event =
+    allowApprove === false
+      ? reviewEventWithoutApproval(output)
+      : reviewEvent(output);
   await pulls.createReview(prNumber, {
-    event: reviewEvent(output, allowApprove),
+    event,
     body: signed(composeBody(output, overflow, model), visit),
     comments: inline.map(toReviewComment),
   });
 }
 
 /** Always APPROVE or REQUEST_CHANGES (never suggestion-only COMMENT) — the signal auto-merge's bot-approval gate reads. */
-function reviewEvent(
-  output: ReviewOutput,
-  allowApprove?: boolean,
-): PRReviewEvent {
-  if (output.verdict === "approved" && allowApprove === false) {
-    return "COMMENT";
-  }
+function reviewEvent(output: ReviewOutput): PRReviewEvent {
   return output.verdict === "approved" ? "APPROVE" : "REQUEST_CHANGES";
+}
+
+/** Uses COMMENT for an approved review when approval is not allowed. */
+function reviewEventWithoutApproval(output: ReviewOutput): PRReviewEvent {
+  return output.verdict === "approved" ? "COMMENT" : "REQUEST_CHANGES";
 }
 
 function toReviewComment(finding: ReviewFinding) {
