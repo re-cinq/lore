@@ -37,9 +37,22 @@ THE CONTRACT, NON-NEGOTIABLE:
   Every acceptance test must fail, and fail for the RIGHT reason — the
   behaviour is absent, not the import path typo'd or a fixture missing.
 - Quote the actual failure output in your final message. A test you did
-  not run is not a red bar, it is a guess.
+  not run is not a red bar, it is a guess — unless this pod cannot run
+  it at all, below.
 - Do not weaken, skip or `.todo` a test to make the suite tidy. Red is the
   deliverable.
+
+WHEN THIS POD CANNOT RUN THE TESTS. The pod carries Node and a few tools,
+not every language's toolchain. If the command that runs your tests is
+missing here — `java`, `mvn`, `gradle`, `go`, `cargo` or `dotnet` is not
+found, or a wrapper such as `./mvnw` reports no `JAVA_HOME` — do not look
+for it and do not install it: no `sudo`, no `apt`, no `find /`, no
+download. The pull request's CI runs these tests on every push and proves
+the red bar instead. Write the tests as the contract says, read each one
+against the ticket's claim in place of running it, then commit and push.
+In `.lore/dod.md`, right under the strategy, write that the red bar is
+CI's to show and name the CI job that runs the tests. In your final
+message, quote the command CI runs where the failure output would be.
 
 WHAT AN ACCEPTANCE TEST IS. It observes behaviour through the code's
 real entry point — a function called, a component rendered, a binary

@@ -182,6 +182,13 @@ describe("the delivering recipes", () => {
     });
   });
 
+  it("has pr-ready write under the repository's PR-template headings, Why, What Changed and Testing without one", () => {
+    const ready = promptOf("loop-pr-ready");
+
+    expect(ready).toContain("`.github/PULL_REQUEST_TEMPLATE.md`");
+    expect(ready).toContain("`## Why`, `## What Changed` and `## Testing`");
+  });
+
   it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
     const ready = promptOf("loop-pr-ready");
 
@@ -875,6 +882,26 @@ describe("the planning recipes check a plan against what the platform has (issue
       onRequest: true,
       protectedSections: true,
       noLongerForbidden: false,
+    });
+  });
+});
+
+describe("the loop's recipes on a repository whose toolchain the pod lacks", () => {
+  it("has dod, tdd-round and fix-ci leave a toolchain the pod lacks to CI instead of hunting for one", () => {
+    const dod = promptOnOneLine("loop-dod");
+    const round = promptOnOneLine("loop-tdd-round");
+    const fix = promptOnOneLine("loop-fix-ci");
+
+    expect({
+      dodLeavesIt: dod.includes("do not look for it and do not install it"),
+      dodRedBarIsCis: dod.includes("the red bar is CI's to show"),
+      roundLeavesIt: round.includes("do not look for it and do not install it"),
+      fixLeavesIt: fix.includes("do not look for it and do not install it"),
+    }).toEqual({
+      dodLeavesIt: true,
+      dodRedBarIsCis: true,
+      roundLeavesIt: true,
+      fixLeavesIt: true,
     });
   });
 });
