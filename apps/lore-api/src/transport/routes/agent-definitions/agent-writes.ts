@@ -15,10 +15,54 @@ import {
   parseAgentPatch,
   imageFieldTouched,
 } from "../../../work/agents/agents-schema.js";
+import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 
 type WriteOutcome = { code: number; body: object };
 
 type Ceremony = Awaited<ReturnType<typeof resolveCeremony>>["ceremony"];
+
+async function checkModelSupport(
+  pool: Pool,
+  request: Request,
+  model: string | null | undefined,
+): Promise<WriteOutcome | null> {
+  if (!model || request.query.force === "true") {
+    return null;
+  }
+
+  const agents = (PgClusterAgents as any)(pool);
+  const list = await agents.list();
+
+  let hasCapabilityData = false;
+  let isSupported = false;
+
+  for (const agent of list) {
+    if (agent.status !== "active") {
+      continue;
+    }
+
+    if (!agent.cluster_info) {
+      return null; // absence is not refusal
+    }
+
+    hasCapabilityData = true;
+    if (agent.cluster_info.served_models?.includes(model)) {
+      isSupported = true;
+      break;
+    }
+  }
+
+  if (hasCapabilityData && !isSupported) {
+    return {
+      code: 400,
+      body: {
+        error: `No live cluster serves the model family "${model}". Pass ?force=true to save anyway.`,
+      },
+    };
+  }
+
+  return null;
+}
 
 /** A bad body and a refused ceremony are both ANSWERS, not exceptions — each carries its own status, so only an unexpected failure reaches the route's catch. */
 export async function createAgentDefinition(
@@ -34,6 +78,12 @@ export async function createAgentDefinition(
   }
 
   const create = parsed.value;
+
+  const modelCheck = await checkModelSupport(pool, request, create.model);
+  if (modelCheck) {
+    return modelCheck;
+  }
+
   const { gate, ceremony } = await resolveCeremony({
     request,
     repo,
@@ -60,11 +110,20 @@ export async function updateAgentDefinition(
     return parsed.failure;
   }
 
+  const patch = parsed.value;
+
+  if (patch.model !== undefined) {
+    const modelCheck = await checkModelSupport(pool, request, patch.model);
+    if (modelCheck) {
+      return modelCheck;
+    }
+  }
+
   const { repo } = target;
   const { gate, ceremony } = await resolveCeremony({
     request,
     repo,
-    imageTouched: imageFieldTouched(parsed.value),
+    imageTouched: imageFieldTouched(patch),
   });
 
   if (gate && !gate.ok) {

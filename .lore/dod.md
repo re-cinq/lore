@@ -6,19 +6,19 @@
 
 ## Done when these pass
 
-- [ ] **rejects an agent creation when no live cluster serves the model family** — the API returns 400 when creating an agent with an unsupported model.
+- [x] **rejects an agent creation when no live cluster serves the model family** — the API returns 400 when creating an agent with an unsupported model.
   `apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts`
-- [ ] **does not reject agent creation when a cluster has absent capability data** — the API returns 200 when a cluster's `cluster_info` is `null`.
+- [x] **does not reject agent creation when a cluster has absent capability data** — the API returns 200 when a cluster's `cluster_info` is `null`.
   `apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts`
-- [ ] **allows saving an unsupported model when force=true is passed (warning path)** — the API allows bypassing the 400 rejection by passing `?force=true`.
+- [x] **allows saving an unsupported model when force=true is passed (warning path)** — the API allows bypassing the 400 rejection by passing `?force=true`.
   `apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts`
 
 ## Facets
 
 - [ ] cluster-agent reports its capable model families in `cluster_info` at registration.
-- [ ] lore-api inspects registered cluster-agents on agent-definition writes.
-- [ ] lore-api rejects writes with a 400 if `model` is unsupported and `force=true` is not present.
-- [ ] lore-api accepts writes if a registered cluster lacks capability data, or if `force=true` is used.
+- [x] lore-api inspects registered cluster-agents on agent-definition writes.
+- [x] lore-api rejects writes with a 400 if `model` is unsupported and `force=true` is not present.
+- [x] lore-api accepts writes if a registered cluster lacks capability data, or if `force=true` is used.
 
 ## Out of scope
 
