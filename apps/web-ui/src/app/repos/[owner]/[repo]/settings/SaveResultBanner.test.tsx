@@ -18,7 +18,6 @@ describe("SaveResultBanner", () => {
   });
 
   it("shows what the save path said is missing when it refused", () => {
-    // @ts-expect-error -- We're passing an error property that isn't in the interface yet
     render(
       <SaveResultBanner
         state={{ saved: false, error: "Missing rule: requires 1 approval" }}

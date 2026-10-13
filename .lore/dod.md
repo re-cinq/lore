@@ -12,12 +12,12 @@ The red bar is CI's to show. The tests are run by the `test-report` job in `lore
   `apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx`
 - [ ] **links to GitHub's install page for lore-reviewer on that repo** — The settings page provides an installation link.
   `apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx`
-- [ ] **shows what the save path said is missing when it refused** — The save banner displays the error text returned by the server when saving settings.
+- [x] **shows what the save path said is missing when it refused** — The save banner displays the error text returned by the server when saving settings.
   `apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx`
 
 ## Facets
 
-- [ ] SaveResultBanner supports and renders an error string when passed in `state.error`.
+- [x] SaveResultBanner supports and renders an error string when passed in `state.error`.
 - [ ] SettingsView renders the `auto_merge.approver` select field.
 - [ ] SettingsView includes an installation link for `lore-reviewer`.
 - [ ] Settings form save action surfaces the server's refusal message in `state.error`.
