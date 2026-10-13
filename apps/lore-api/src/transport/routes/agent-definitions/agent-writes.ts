@@ -1,5 +1,3 @@
-// Creating and updating an agent definition: the half that carries the two-key ceremony and the pod-resource merge. Separate from agents.ts, which owns the routes and the reads.
-
 import {
   resolveCeremony,
   createFieldsWithPodResources,
@@ -15,11 +13,90 @@ import {
   parseAgentPatch,
   imageFieldTouched,
 } from "../../../work/agents/agents-schema.js";
-import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
+import {
+  PgClusterAgents,
+  ClusterAgent,
+} from "@re-cinq/lore-shared/outbound/project/cluster-agents/cluster-agents-pg.js";
 
 type WriteOutcome = { code: number; body: object };
-
 type Ceremony = Awaited<ReturnType<typeof resolveCeremony>>["ceremony"];
+
+export async function createAgentDefinition(
+  pool: Pool,
+  request: Request,
+  repo: string,
+): Promise<WriteOutcome> {
+  return performAgentWrite({
+    pool,
+    request,
+    repo,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- genuinely null on empty body
+    parseFunc: () => parseAgentInput(request.payload ?? {}),
+    onSuccess: (value, ceremony) => createdOutcome(pool, repo, value, ceremony),
+  });
+}
+
+export async function updateAgentDefinition(
+  pool: Pool,
+  request: Request,
+  target: { repo: string; name: string },
+): Promise<WriteOutcome> {
+  return performAgentWrite({
+    pool,
+    request,
+    repo: target.repo,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- genuinely null on empty body
+    parseFunc: () => parseAgentPatch(request.payload ?? {}),
+    onSuccess: (value, ceremony) =>
+      updatedOutcome(pool, target, value, ceremony),
+  });
+}
+
+type WriteOpts<P> = {
+  pool: Pool;
+  request: Request;
+  repo: string;
+  parseFunc: () => P;
+  onSuccess: (value: P, ceremony: Ceremony) => Promise<WriteOutcome>;
+};
+
+async function performAgentWrite<
+  P extends { model?: string | null; image?: string | null },
+>(opts: WriteOpts<P>): Promise<WriteOutcome> {
+  const parsed = parsedOrInvalid(opts.parseFunc);
+
+  if (!parsed.ok) {
+    return parsed.failure;
+  }
+
+  const check = await checkModelSupport(
+    opts.pool,
+    opts.request,
+    parsed.value.model,
+  );
+
+  if (check) {
+    return check;
+  }
+
+  return finalizeWrite(opts, parsed.value);
+}
+
+async function finalizeWrite<
+  P extends { model?: string | null; image?: string | null },
+>(opts: WriteOpts<P>, value: P): Promise<WriteOutcome> {
+  const res = await resolveCeremony({
+    request: opts.request,
+    repo: opts.repo,
+    imageTouched: imageFieldTouched(value),
+  });
+
+  if (res.gate && !res.gate.ok) {
+    return { code: res.gate.code, body: res.gate.body };
+  }
+
+  return opts.onSuccess(value, res.ceremony);
+}
 
 async function checkModelSupport(
   pool: Pool,
@@ -30,123 +107,52 @@ async function checkModelSupport(
     return null;
   }
 
-  const agents = (PgClusterAgents as any)(pool);
-  const list = await agents.list();
+  const list = await PgClusterAgents(pool).list();
+  const reporting = list.filter(
+    (a) => a.status === "active" && a.cluster_info != null,
+  );
 
-  let hasCapabilityData = false;
-  let isSupported = false;
-
-  for (const agent of list) {
-    if (agent.status !== "active") {
-      continue;
-    }
-
-    if (!agent.cluster_info) {
-      return null; // absence is not refusal
-    }
-
-    hasCapabilityData = true;
-    if (agent.cluster_info.served_models?.includes(model)) {
-      isSupported = true;
-      break;
-    }
+  if (reporting.length === 0) {
+    return null; // absence is not refusal
   }
 
-  if (hasCapabilityData && !isSupported) {
-    return {
-      code: 400,
-      body: {
-        error: `No live cluster serves the model family "${model}". Pass ?force=true to save anyway.`,
-      },
-    };
-  }
-
-  return null;
+  return evalSupport(reporting, model);
 }
 
-/** A bad body and a refused ceremony are both ANSWERS, not exceptions — each carries its own status, so only an unexpected failure reaches the route's catch. */
-export async function createAgentDefinition(
-  pool: Pool,
-  request: Request,
-  repo: string,
-): Promise<WriteOutcome> {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
-  const parsed = parsedOrInvalid(() => parseAgentInput(request.payload ?? {}));
+function evalSupport(
+  reporting: ClusterAgent[],
+  model: string,
+): WriteOutcome | null {
+  const isSupported = reporting.some((agent) => {
+    const served = agent.cluster_info?.served_models;
 
-  if (!parsed.ok) {
-    return parsed.failure;
-  }
-
-  const create = parsed.value;
-
-  const modelCheck = await checkModelSupport(pool, request, create.model);
-  if (modelCheck) {
-    return modelCheck;
-  }
-
-  const { gate, ceremony } = await resolveCeremony({
-    request,
-    repo,
-    imageTouched: imageFieldTouched(create),
+    return served ? served.includes(model) : false;
   });
 
-  if (gate && !gate.ok) {
-    return { code: gate.code, body: gate.body };
+  if (isSupported) {
+    return null;
   }
 
-  return createdOutcome(pool, repo, create, ceremony);
+  return {
+    code: 400,
+    body: {
+      error: `No live cluster serves the model family "${model}". Pass ?force=true to save anyway.`,
+    },
+  };
 }
 
-/** Same shape as the create path: a bad patch and a refused ceremony are answers with their own status, not exceptions. */
-export async function updateAgentDefinition(
-  pool: Pool,
-  request: Request,
-  target: { repo: string; name: string },
-): Promise<WriteOutcome> {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
-  const parsed = parsedOrInvalid(() => parseAgentPatch(request.payload ?? {}));
-
-  if (!parsed.ok) {
-    return parsed.failure;
-  }
-
-  const patch = parsed.value;
-
-  if (patch.model !== undefined) {
-    const modelCheck = await checkModelSupport(pool, request, patch.model);
-    if (modelCheck) {
-      return modelCheck;
-    }
-  }
-
-  const { repo } = target;
-  const { gate, ceremony } = await resolveCeremony({
-    request,
-    repo,
-    imageTouched: imageFieldTouched(patch),
-  });
-
-  if (gate && !gate.ok) {
-    return { code: gate.code, body: gate.body };
-  }
-
-  return updatedOutcome(pool, target, parsed.value, ceremony);
-}
-
-/** A malformed body is the CALLER's mistake: it answers 400 with the parse issues rather than raising. */
 function parsedOrInvalid<T>(
   parse: () => T,
 ): { ok: true; value: T } | { ok: false; failure: WriteOutcome } {
   try {
     return { ok: true, value: parse() };
   } catch (err) {
-    const body = { error: "invalid_agent", issues: issuesOf(err) };
+    const errorBody = { error: "invalid_agent", issues: issuesOf(err) };
 
-    return { ok: false, failure: { code: 400, body } };
+    return { ok: false, failure: { code: 400, body: errorBody } };
   }
 }
 
-/** Writes the row and records the ceremony that authorized it. */
 async function createdOutcome(
   pool: Pool,
   repo: string,
@@ -161,49 +167,48 @@ async function createdOutcome(
   return { code: 200, body: { ok: true, agent: def, ceremony } };
 }
 
-/** Creates the row. `pod_resources` is separated out because it MERGES onto the catalog defaults rather than replacing them — a definition that sets only a memory limit must not lose the CPU request that came with its image. */
 async function writeNewDefinition(
   project: Awaited<ReturnType<typeof projectFor>>,
   create: ReturnType<typeof parseAgentInput>,
 ) {
   const { pod_resources, ...fields } = create;
-
-  return project.agentDefs.create(
-    await createFieldsWithPodResources(
-      project.agentDefs,
-      fields,
-      pod_resources,
-    ),
+  const merged = await createFieldsWithPodResources(
+    project.agentDefs,
+    fields,
+    pod_resources,
   );
+
+  return project.agentDefs.create(merged);
 }
 
-/** Applies the patch and records the ceremony that authorized it. */
 async function updatedOutcome(
   pool: Pool,
   target: { repo: string; name: string },
   patch: ReturnType<typeof parseAgentPatch>,
   ceremony: Ceremony,
 ): Promise<WriteOutcome> {
-  const { repo, name } = target;
-  const project = await projectFor(repo);
-  const def = await writePatchedDefinition(project, name, patch);
+  const project = await projectFor(target.repo);
+  const def = await writePatchedDefinition(project, target.name, patch);
 
-  await audit(pool, repo, "agent_updated", { name, ceremony });
+  await audit(pool, target.repo, "agent_updated", {
+    name: target.name,
+    ceremony,
+  });
 
   return { code: 200, body: { ok: true, agent: def, ceremony } };
 }
 
-/** Applies the patch. `pod_resources` is resolved per key against what the definition already has, so a patch that names one limit does not clear the rest.  */
 async function writePatchedDefinition(
   project: Awaited<ReturnType<typeof projectFor>>,
   name: string,
   patch: ReturnType<typeof parseAgentPatch>,
 ) {
   const { pod_resources, ...fields } = patch;
-
-  return project.agentDefs.update(
+  const resources = await resolvePodResourcesUpdate(
+    project.agentDefs,
     name,
-    fields,
-    await resolvePodResourcesUpdate(project.agentDefs, name, pod_resources),
+    pod_resources,
   );
+
+  return project.agentDefs.update(name, fields, resources);
 }

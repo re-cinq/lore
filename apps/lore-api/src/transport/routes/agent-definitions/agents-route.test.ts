@@ -156,6 +156,7 @@ describe("routes — agents", () => {
         name: "general",
         model: "gemini-2.5-pro",
       });
+
       expect(res.statusCode).toBe(400);
       expect((res.result as any).error).toMatch(/no live cluster/i);
     });
@@ -169,6 +170,7 @@ describe("routes — agents", () => {
         name: "general",
         model: "gemini-2.5-pro",
       });
+
       expect(res.statusCode).toBe(200);
     });
 
@@ -186,6 +188,7 @@ describe("routes — agents", () => {
         name: "general",
         model: "gemini-2.5-pro",
       });
+
       expect(res.statusCode).toBe(200);
     });
 
