@@ -28,6 +28,10 @@ export class PullRequests {
     return this.pulls.list(this.repo);
   }
 
+  listMergedSince(since: string): Promise<PullRef[]> {
+    return this.pulls.listMergedSince(this.repo, since);
+  }
+
   get(number: number): Promise<PullRef | null> {
     return this.pulls.get(this.repo, number);
   }
@@ -73,6 +77,10 @@ export class PullRequests {
 
   markReady(number: number): Promise<void> {
     return this.pulls.markReady(this.repo, number);
+  }
+
+  close(number: number): Promise<void> {
+    return this.pulls.close(this.repo, number);
   }
 
   getDiff(number: number): Promise<string> {

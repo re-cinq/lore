@@ -178,6 +178,19 @@ export function registerResponse(
   return { meta, ref: { $ref: `#/components/schemas/${meta.name}` } };
 }
 
+/** Schemas with no route of their own (the live socket's), held to the same one-name-one-shape rule as a response. */
+export function registerStandalone(
+  standalone: Record<string, ZodType>,
+  schemas: Record<string, JsonSchema>,
+): void {
+  for (const [name, schema] of Object.entries(standalone)) {
+    const converted = toRequestSchema(schema);
+
+    enforceUniqueShape(schemas, name, converted, `standalone:${name}`);
+    schemas[name] = converted;
+  }
+}
+
 /** Two shapes under one component name would silently publish whichever route registered last, so it fails the build instead. */
 function enforceUniqueShape(
   schemas: Record<string, JsonSchema>,

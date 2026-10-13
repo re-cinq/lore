@@ -1,7 +1,14 @@
+import type { IssueComment } from "../pulls/pull-requests-port.js";
 /** GitHub port: structural subset of agent's CodePlatform. */
 
 export type IssueState = "open" | "closed";
 export type CloseReason = "completed" | "not_planned";
+
+/** What an issue update rewrites; a field left out stays as it is. */
+export interface IssueEdit {
+  title?: string;
+  body?: string;
+}
 
 export interface IssueRef {
   repo: string;
@@ -14,11 +21,19 @@ export interface IssueRef {
   createdAt?: string;
   /** Issue body (octokit adapter only; GitHub returns null if empty). */
   body?: string;
+  /** How many blocked-by links the issue carries, open or closed (octokit list read only; absent when none). */
+  blockedByCount?: number;
+  /** Assignee logins (octokit adapter only; empty when nobody is assigned). */
+  assignees?: string[];
+  /** ISO close time (octokit adapter only; absent while open). */
+  closedAt?: string;
 }
 
 export interface IssueFilter {
   state?: IssueState;
   labels?: string[];
+  /** ISO cutoff: only issues updated at or after it; with `state: "closed"` also only those closed at or after it. */
+  since?: string;
 }
 
 export type CheckStatus = "queued" | "in_progress" | "completed";
@@ -57,11 +72,15 @@ export interface GitHubPort {
   listDirectory(repo: string, path: string): Promise<string[]>;
   listTree(repo: string, ref?: string): Promise<string[]>;
   getDefaultBranch(repo: string): Promise<string>;
+  /** The author email of the login's newest commit in the repo, or null when it has none or hides its email behind GitHub's noreply address (the daily digest's Slack match). */
+  commitEmailOf?(repo: string, login: string): Promise<string | null>;
   listCommitsSince(
     repo: string,
     since: string,
   ): Promise<Array<{ sha: string; files: string[] }>>;
   getIssueLabels(repo: string, number: number): Promise<string[]>;
+  /** Numbers of the still-open issues linked as blocking this one. */
+  listOpenBlockers(repo: string, number: number): Promise<number[]>;
   // issue writes
   createIssue(
     repo: string,
@@ -76,13 +95,24 @@ export interface GitHubPort {
     repo: string,
     labels: Array<{ name: string; color?: string; description?: string }>,
   ): Promise<void>;
+  /** Makes `childNumber` a native sub-issue of `parentNumber`. */
+  addSubIssue(
+    repo: string,
+    parentNumber: number,
+    childNumber: number,
+  ): Promise<void>;
+  updateIssue(repo: string, number: number, edit: IssueEdit): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
+  listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
+  updateIssueComment(repo: string, id: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;
   removeIssueLabel(repo: string, number: number, label: string): Promise<void>;
   // API writes (no clone) — branch + single-file commit
   /** True when branch exists (octokit only; caller must not guess). */
   branchExists?(repo: string, branch: string): Promise<boolean>;
+  /** True when the branch head is already an ancestor of the base branch — every commit is on main, a resumed run can push nothing new. `undefined` when the adapter cannot say. */
+  branchMerged?(repo: string, branch: string): Promise<boolean | undefined>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */

@@ -6,8 +6,12 @@ const MAX_STATEMENT_CHARS = 120;
 /** Trailing markdown-link parenthetical (v3 inline coverage annotation); one level of paren nesting allowed for link targets. */
 const TRAILING_LINK_GROUP = /\s*\((?:[^()]|\([^()]*\))*\)\s*$/;
 
-/** Statement text made safe for a markdown table cell: coverage links stripped, whitespace collapsed, pipes escaped, length bounded. */
-export function summarizeStatement(text: string): string {
+/** Statement text made safe for a markdown table cell: {@link statementProse} with pipes escaped. */
+export const summarizeStatement = (text: string): string =>
+  statementProse(text).replace(/\|/g, "\\|");
+
+/** A statement as one bounded line of prose: coverage links stripped, whitespace collapsed, length bounded. */
+export function statementProse(text: string): string {
   let stripped = text;
 
   // Repeat: a statement can end with several link parentheticals in a row.
@@ -23,8 +27,7 @@ export function summarizeStatement(text: string): string {
     // Strip leading blockquote/list markers only when followed by whitespace (renderer adds its own quoting; otherwise "**bold" loses a star).
     .replace(/^[>\s]*(?:[-*+]\s+|\d+\.\s+)?/, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\|/g, "\\|");
+    .trim();
 
   return flat.length > MAX_STATEMENT_CHARS
     ? `${flat.slice(0, MAX_STATEMENT_CHARS - 1)}…`

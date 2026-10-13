@@ -56,3 +56,30 @@ describe("Llm singleton", () => {
     expect(Llm.usageConfigured).toBe(false);
   });
 });
+
+describe("Llm.for", () => {
+  afterEach(() => {
+    delete process.env.LORE_EVAL_LLM_PROVIDER;
+    Llm.reset();
+  });
+
+  it("returns the process-wide provider for the eval use when LORE_EVAL_LLM_PROVIDER is unset", () => {
+    Llm.setInstance(stub);
+
+    expect(Llm.for("eval")).toBe(stub);
+  });
+
+  it("returns a vertex provider for the eval use when LORE_EVAL_LLM_PROVIDER=vertex, and keeps the process-wide one", () => {
+    process.env.LORE_EVAL_LLM_PROVIDER = "vertex";
+    Llm.setInstance(stub);
+
+    expect(Llm.for("eval").vendor).toBe("vertex");
+    expect(Llm.instance).toBe(stub);
+  });
+
+  it("hands back the same vertex provider on a second ask for the eval use", () => {
+    process.env.LORE_EVAL_LLM_PROVIDER = "vertex";
+
+    expect(Llm.for("eval")).toBe(Llm.for("eval"));
+  });
+});

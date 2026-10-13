@@ -25,7 +25,7 @@ handler** — the body shape is the only gate (`repo` must resolve).
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/lore-api/src/app/build-server.ts#L106)).
+Registered in the route table ([registration](../../../apps/lore-api/src/app/build-server.ts#L124)).
 
 - **Method + path**: `POST /api/webhook/incident`
 - **Auth**: none at the handler. The router exempts `/api/webhook/*` from

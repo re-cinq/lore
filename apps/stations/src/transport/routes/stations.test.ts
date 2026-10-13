@@ -20,7 +20,7 @@ function run(name: string): Promise<Hapi.ServerInjectResponse> {
 
 beforeEach(() => {
   registry = new Map([
-    ["approval-check", async () => "Checked 3 tasks, 1 approved"],
+    ["memory-ttl", async () => "Cleaned up 3 expired memories"],
   ]);
   app = Hapi.server({ port: 0 });
   app.route(stationsRoute({ registry: () => registry, bearerToken: TOKEN }));
@@ -28,12 +28,12 @@ beforeEach(() => {
 
 describe("POST /api/stations/{name}", () => {
   it("runs the named station and returns the summary it reported", async () => {
-    const res = await run("approval-check");
+    const res = await run("memory-ttl");
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({
-      job: "approval-check",
-      summary: "Checked 3 tasks, 1 approved",
+      job: "memory-ttl",
+      summary: "Cleaned up 3 expired memories",
     });
   });
 
@@ -47,7 +47,7 @@ describe("POST /api/stations/{name}", () => {
   it("refuses a caller with no bearer token", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/api/stations/approval-check",
+      url: "/api/stations/memory-ttl",
     });
 
     expect(res.statusCode).toBe(401);
@@ -79,9 +79,9 @@ describe("POST /api/stations/{name}", () => {
   });
 
   it("frees the latch after a run so the next tick is not locked out forever", async () => {
-    await run("approval-check");
+    await run("memory-ttl");
 
-    expect((await run("approval-check")).statusCode).toBe(200);
+    expect((await run("memory-ttl")).statusCode).toBe(200);
   });
 
   it("frees the latch after a FAILED run, so one error does not wedge the station", async () => {
@@ -99,11 +99,11 @@ describe("POST /api/stations/{name}", () => {
   });
 
   it("includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran", async () => {
-    const res = await run("approval-check");
+    const res = await run("memory-ttl");
 
     expect({ status: res.statusCode, body: res.result }).toMatchObject({
       status: 200,
-      body: { job: "approval-check", summary: "Checked 3 tasks, 1 approved" },
+      body: { job: "memory-ttl", summary: "Cleaned up 3 expired memories" },
     });
   });
 

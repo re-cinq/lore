@@ -4,6 +4,15 @@ import { render, screen, act, fireEvent } from "@testing-library/react";
 import SpendWindowPanel from "./SpendWindowPanel";
 import type { SpendWindow } from "./SpendView";
 
+const NO_UNITS = {
+  count: 0,
+  total_usd: 0,
+  avg_usd: 0,
+  median_usd: 0,
+  most: [],
+  least: [],
+};
+
 const WINDOW: SpendWindow = {
   interval: { from: "2026-08-26", to: "2026-09-02" },
   llm: {
@@ -11,6 +20,8 @@ const WINDOW: SpendWindow = {
     calls: 42,
     input_tokens: 12345,
     output_tokens: 735021,
+    cache_read_tokens: 4200000,
+    cache_write_tokens: 180000,
     by_blueprint: [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
     by_repo: [{ repo: "re-cinq/lore", usd: 80.1 }],
     by_model: [
@@ -28,6 +39,8 @@ const WINDOW: SpendWindow = {
     daily: [{ bucket_date: "2026-09-01", calls: 42, cost_usd: 81.3 }],
     by_task_type: [{ task_type: "implementation", tasks: 3, cost_usd: 60 }],
     by_cluster: [{ cluster: null, calls: 42, cost_usd: 81.4 }],
+    by_billing_mode: [{ mode: "api_key", calls: 42, cost_usd: 81.4 }],
+    floor_unavailable: false,
     by_vendor: [{ vendor: "anthropic", calls: 42, cost_usd: 81.4 }],
   },
   billed: {
@@ -57,18 +70,11 @@ const WINDOW: SpendWindow = {
       { blueprint: "implementation-loop", pods: 9, hours: 6.5, est_usd: 0.22 },
     ],
     est_total_usd: 0.22,
-    live_pods: [
-      {
-        name: "agent-job-run1-tdd-round-abc",
-        phase: "Running",
-        started_at: "2026-09-02T11:00:00.000Z",
-        requests: { cpu: "1", memory: "16Gi" },
-        usd_per_hour: 0.07,
-        usd_so_far: 0.07,
-        station_run_id: "sr-1",
-      },
-    ],
-    live_usd_per_hour: 0.07,
+  },
+  unit_costs: {
+    tickets: NO_UNITS,
+    reviews: { per_pr: NO_UNITS, by_line: [], by_model: [] },
+    nodes: [],
   },
 };
 
@@ -106,10 +112,6 @@ describe("SpendWindowPanel", () => {
     );
     expect(screen.getByText("$82.50")).toBeInTheDocument();
     expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
-    expect(
-      screen.getByText("agent-job-run1-tdd-round-abc"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("+ $0.07/h burning now")).toBeInTheDocument();
     expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(
       screen.getByText(

@@ -16,9 +16,7 @@ COPY libs/assembly-lines/tsconfig.json ./libs/assembly-lines/
 COPY libs/assembly-lines/src ./libs/assembly-lines/src
 RUN npm run build --workspace=@re-cinq/lore-assembly-lines
 
-# The stations themselves live in this package, one folder each; the service
-# hosts the ones declaring an http trigger and the pod image (Dockerfile.pod)
-# runs the assembly-line node ones from the same source.
+# The stations themselves live in this package, one folder each.
 COPY apps/stations/tsconfig.json ./apps/stations/
 COPY apps/stations/src/ ./apps/stations/src/
 RUN npm run build --workspace=@re-cinq/lore-stations
@@ -37,8 +35,10 @@ COPY --from=builder /app/libs/assembly-lines/package.json ./libs/assembly-lines/
 # since #1862), and a copy of the root node_modules alone boots into
 # ERR_MODULE_NOT_FOUND. The floor/lore-api images copy /app/libs for the same reason.
 COPY --from=builder /app/libs/shared ./libs/shared
-COPY --from=builder /app/apps/stations/dist ./apps/stations/dist
-COPY --from=builder /app/apps/stations/package.json ./apps/stations/
+# The whole package for the same reason: npm nests a dependency under
+# apps/stations/node_modules when the root holds another version of it
+# (e.g. @re-cinq/floor-station, #2638).
+COPY --from=builder /app/apps/stations ./apps/stations
 
 # node:22-slim ships the `node` user at uid 1000 (matches the pod securityContext).
 USER 1000

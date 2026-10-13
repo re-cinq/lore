@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
+import type { NodeRunStatus } from "@/lib/run-event-reducer";
 import {
   mergeTranscript,
   nodeWindow,
@@ -11,8 +12,9 @@ import {
   taskEventEntries,
 } from "@/lib/transcript-entries";
 import type { AgentRunTurn } from "@/lib/run-turn-types";
-import { conversationEntries, turnsForNode } from "./turn-transcript-presenter";
+import { conversationEntries, turnsInScope } from "./turn-transcript-presenter";
 import { walkAllTurns, walkErrorMessage } from "./transcript-walk";
+import { useFollowLiveEvents, useTranscriptTail } from "./transcript-tail";
 import {
   segmentLabel,
   segmentTurns,
@@ -23,6 +25,7 @@ import styles from "./TranscriptView.module.css";
 import {
   TranscriptCapped,
   TranscriptEmpty,
+  type TranscriptNode,
   TranscriptError,
   TranscriptLoading,
   TranscriptTurnsList,
@@ -31,10 +34,15 @@ import {
 export interface FullTranscriptPanelProps {
   runId: string;
   nodeId: string;
+  /** One attempt of the node to show alone; absent, the whole node's visits are drawn. */
+  iteration?: number;
   /** The task's status transitions; the ones inside this node's visits render as system lines. */
   taskEvents?: readonly TaskRuntimeEvent[];
   /** This node's visit rows, whose span decides which task events belong to it. */
   rows?: readonly AssemblyRunNode[];
+  /** The newest agent event the live socket delivered; each change pulls the turns stored since the last one loaded. */
+  liveEventId?: string;
+  nodeStatus?: NodeRunStatus;
 }
 
 const NO_EVENTS: readonly TaskRuntimeEvent[] = [];
@@ -42,28 +50,39 @@ const NO_ROWS: readonly AssemblyRunNode[] = [];
 
 export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
   const { runId, nodeId, taskEvents = NO_EVENTS, rows = NO_ROWS } = props;
-  const walk = useTranscriptWalk(runId);
+  const node = { id: nodeId, status: props.nodeStatus };
+  const walk = useTranscriptWalk(runId, props.liveEventId);
   const segments = useNodeSegments({
     turns: walk.turns,
     nodeId,
+    iteration: props.iteration,
     taskEvents,
     rows,
   });
 
   return (
     <CollapsibleCard title="Transcript" defaultOpen onToggle={walk.setOpen}>
-      <p className={`meta ${styles.hint}`}>
-        Untruncated turns from the transcript store (30-day retention), with the
-        task&apos;s status changes in this step folded in.
-      </p>
-      <TranscriptBody walk={walk} segments={segments} nodeId={nodeId} />
+      <TranscriptHint />
+      <TranscriptBody walk={walk} segments={segments} node={node} />
     </CollapsibleCard>
   );
 }
 
-function useTranscriptWalk(runId: string) {
+function TranscriptHint() {
+  return (
+    <p className={`meta ${styles.hint}`}>
+      Untruncated turns from the transcript store (30-day retention), with the
+      task&apos;s status changes in this step folded in.
+    </p>
+  );
+}
+
+function useTranscriptWalk(runId: string, liveEventId: string | undefined) {
   const [open, setOpen] = useState(true);
-  const { turns, capped, error } = useTranscriptData(runId, { open });
+  const { turns, capped, error } = useTranscriptData(runId, {
+    open,
+    liveEventId,
+  });
 
   return { open, setOpen, turns, capped, error };
 }
@@ -72,16 +91,17 @@ function useTranscriptWalk(runId: string) {
 interface ConversationSources {
   turns: AgentRunTurn[] | null;
   nodeId: string;
+  iteration: number | undefined;
   taskEvents: readonly TaskRuntimeEvent[];
   rows: readonly AssemblyRunNode[];
 }
 
 /** This node's turns as one terminal conversation: segmented per visit, tool calls paired with their results, the task's transitions in that window merged in by clock. */
 function useNodeSegments(sources: ConversationSources) {
-  const { turns, nodeId, taskEvents, rows } = sources;
+  const { turns, nodeId, iteration, taskEvents, rows } = sources;
   const nodeTurns = useMemo(
-    () => (turns === null ? [] : turnsForNode(turns, nodeId)),
-    [turns, nodeId],
+    () => (turns === null ? [] : turnsInScope(turns, nodeId, iteration)),
+    [turns, nodeId, iteration],
   );
   const entries = useMemo(() => {
     const agent = segmentEntries(
@@ -104,7 +124,7 @@ function useNodeSegments(sources: ConversationSources) {
 interface TranscriptBodyProps {
   walk: ReturnType<typeof useTranscriptWalk>;
   segments: ReturnType<typeof useNodeSegments>;
-  nodeId: string;
+  node: TranscriptNode;
 }
 
 interface TranscriptListProps {
@@ -112,7 +132,7 @@ interface TranscriptListProps {
   segments: ReturnType<typeof useNodeSegments>;
 }
 
-function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
+function TranscriptBody({ walk, segments, node }: TranscriptBodyProps) {
   const { turns, error } = walk;
   const { showList, ...flags } = bodyFlags(walk, segments);
 
@@ -122,7 +142,7 @@ function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
         error={error}
         flags={flags}
         turnsLoaded={(turns ?? []).length}
-        nodeId={nodeId}
+        node={node}
       />
       <TranscriptList show={showList} segments={segments} />
     </>
@@ -138,13 +158,42 @@ interface TranscriptDisplayInput {
   entryCount: number;
 }
 
-/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
-function useTranscriptData(runId: string, { open }: { open: boolean }) {
+interface TranscriptWatch {
+  open: boolean;
+  liveEventId: string | undefined;
+}
+
+/** Walks the transcript once, then follows its tail on every live event. */
+function useTranscriptData(runId: string, watch: TranscriptWatch) {
   const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
   const [capped, setCapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const startedRef = useRef(false);
   const disposedRef = useDisposedRef();
+  const tail = useTranscriptTail({ runId, disposedRef, setTurns, setCapped });
+
+  useFirstWalk(
+    { runId, open: watch.open, disposedRef },
+    { setTurns: tail.seed, setCapped, setError },
+  );
+  useFollowLiveEvents(
+    turns === null || capped ? undefined : watch.liveEventId,
+    tail.follow,
+  );
+
+  return { turns, capped, error };
+}
+
+interface FirstWalk {
+  runId: string;
+  open: boolean;
+  disposedRef: { current: boolean };
+}
+
+/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
+function useFirstWalk(walk: FirstWalk, set: TranscriptSetters) {
+  const { runId, open, disposedRef } = walk;
+  const startedRef = useRef(false);
+  const { setTurns, setCapped, setError } = set;
 
   useEffect(() => {
     if (!open || startedRef.current) {
@@ -157,9 +206,7 @@ function useTranscriptData(runId: string, { open }: { open: boolean }) {
       { disposedRef, startedRef },
       { setTurns, setCapped, setError },
     );
-  }, [open, runId, disposedRef]);
-
-  return { turns, capped, error };
+  }, [open, runId, disposedRef, setTurns, setCapped, setError]);
 }
 
 /** Which of the panel's mutually exclusive states is on screen. One decision, so the four flags are resolved together rather than each child asking separately. */
@@ -186,19 +233,19 @@ function TranscriptNotices({
   error,
   flags,
   turnsLoaded,
-  nodeId,
+  node,
 }: {
   error: string | null;
   flags: { showLoading: boolean; showCapped: boolean; showEmpty: boolean };
   turnsLoaded: number;
-  nodeId: string;
+  node: TranscriptNode;
 }) {
   return (
     <>
       <TranscriptError error={error} />
       <TranscriptLoading show={flags.showLoading} />
       <TranscriptCapped show={flags.showCapped} turnsLoaded={turnsLoaded} />
-      <TranscriptEmpty show={flags.showEmpty} nodeId={nodeId} />
+      <TranscriptEmpty show={flags.showEmpty} node={node} />
     </>
   );
 }
@@ -222,12 +269,14 @@ interface TranscriptSetters {
 function useDisposedRef() {
   const disposedRef = useRef(false);
 
-  useEffect(
-    () => () => {
+  // Set live on EVERY mount: React Strict Mode unmounts and remounts once in development, and a ref left disposed made the walk that survived the remount drop its result, pinning the panel on Loading.
+  useEffect(() => {
+    disposedRef.current = false;
+
+    return () => {
       disposedRef.current = true;
-    },
-    [],
-  );
+    };
+  }, []);
 
   return disposedRef;
 }

@@ -133,8 +133,16 @@ trust ≥ `min_trust` → merge. Otherwise a typed deferral
 > satisfied, see [ADR-012](./ADR-012-autonomous-review-loop.md): the signal is the
 > code-review line's formal `APPROVE` / `REQUEST_CHANGES` verdict (no longer a neutral
 > comment), `pr-policy.ts` reads the bot's **latest** decision so the per-push re-check
-> keeps `botApproved` current, and — a known limitation — a Lore-authored PR needs a
-> distinct `LORE_REVIEW_BOT_LOGIN` reviewer identity before the bot can self-approve.
+> keeps `botApproved` current.
+>
+> **Bot-authored PRs (2026-09-25 amendment).** The limitation recorded here — that a
+> Lore-authored PR needed a distinct `LORE_REVIEW_BOT_LOGIN` identity before the bot
+> could self-approve — is resolved without a second identity. GitHub refuses an APPROVE
+> or a REQUEST_CHANGES from the account that opened the PR, so the review's verdict was
+> never in the reviews list for an implementation-loop PR; it was always on the
+> `lore/code-review` check, which the line publishes either way. `pr-policy.ts` now reads
+> that check when the reviews list carries no bot decision. A review the bot did leave
+> still wins, so nothing changes for a human-authored PR.
 
 ### 4. Two-key authorization (FR3.9, R9)
 
@@ -266,3 +274,15 @@ deferred until pilot rollout (T059). Pilot is gated on three
 trust-tiered repos passing SC1–SC7 thresholds across 14 days each
 (SC8). After pilot, the legacy local-runner code paths (T058) are
 deleted as a follow-up.
+
+## Amendment 2026-10-02: the mode is removed
+
+The per-repo `dark_factory` settings block, the route that wrote it, the Dark
+Factory tab and the notify routing are deleted. Their only reader was the
+assembly-line engine Lore ran itself (`apps/floor`), deleted the same day
+([ADR-049](ADR-049-external-floor.md), epic #2342); no repository ever had the
+block set, and no auto-merge decision was ever recorded. What this ADR
+introduced and still holds: the `Lore-Task:` commit trailer on every
+Lore-authored commit, declarative line definitions (now the external floor's
+pipeline files), and the two-key CODEOWNERS approval ceremony, which guards an
+agent definition's `image` (ADR-025, `specs/two-key-approval`).

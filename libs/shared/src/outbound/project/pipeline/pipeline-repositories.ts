@@ -9,6 +9,7 @@ import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AgentRunEventsRepository } from "../agent-run-events/agent-run-events-port.js";
 import type { PodLogsRepository } from "../pod-logs/pod-logs-port.js";
 import type { AgentRunTurnsRepository } from "../agent-run-turns/agent-run-turns-port.js";
+import type { DigestPostsPort } from "../digest-posts/digest-posts-port.js";
 
 /** The org-wide `pipeline.*` repositories, bound to one pool; type-only so this module is safe for the light barrel (no `pg`). Build via `createPipelineRepositories`/`createInMemoryPipelineRepositories`; neither memoizes. */
 export interface PipelineRepositories {
@@ -30,4 +31,6 @@ export interface PipelineRepositories {
   podLogs: PodLogsRepository;
   /** `pipeline.agent_run_turns` — full-fidelity run transcripts. */
   agentRunTurns: AgentRunTurnsRepository;
+  /** `lore.digest_posts` — the daily digest's watermark, weekly thread and anti-repeat memory; org-wide like the rest, keyed by channel and run rather than repo. */
+  digestPosts: DigestPostsPort;
 }

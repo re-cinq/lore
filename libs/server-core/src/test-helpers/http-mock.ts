@@ -113,11 +113,11 @@ export interface MockPool {
 /** A pg Pool mock — `query` is a vi.fn; `connect` returns a client mock. */
 export function makePool(): MockPool {
   const client = {
-    query: vi.fn(),
+    query: vi.fn().mockResolvedValue({ rows: [] }),
     release: vi.fn(),
   };
   const pool = {
-    query: vi.fn(),
+    query: vi.fn().mockResolvedValue({ rows: [] }),
     connect: vi.fn().mockResolvedValue(client),
     __client: client,
   };

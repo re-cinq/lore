@@ -484,7 +484,7 @@ Week 3:
 |------|-------------|---------|
 | — | Knowledge graph temporal traversal (`get_entity_history`) | Not scheduled — flat SQL covers current needs; Graphiti permanently deferred |
 | — | p99 latency benchmark for hybrid search | No active owner; 200ms target aspirational until measured under load |
-| — | Context Core OCI promotion | `context-core-builder.ts` exists; OCI artifact push + `crane pull` in install.sh not wired |
+| — | Context Core OCI promotion | Dropped: `context-core-builder.ts` was deleted with Lore's own Floor on 2026-10-02; OCI artifact push + `crane pull` in install.sh were never wired |
 
 ## Summary
 

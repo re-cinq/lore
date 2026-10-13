@@ -1,9 +1,3 @@
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .heading {
   display: flex;
   align-items: center;
@@ -19,6 +13,6 @@
   margin-bottom: var(--space-5);
 }
 
-.emptyCell {
-  text-align: center;
+.earlier {
+  margin-top: var(--space-5);
 }

@@ -11,6 +11,10 @@ export interface LlmCallRecord {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /** Input read from the prompt cache (`cache_read_input_tokens`); defaults to 0 for a vendor that reports none. */
+  cacheReadTokens?: number;
+  /** Input written to the prompt cache (`cache_creation_input_tokens`); defaults to 0. */
+  cacheWriteTokens?: number;
   /** Defaults to 0 when the provider tracks cost internally (e.g. Claude Code). */
   costUsd?: number;
   durationMs: number;

@@ -5,53 +5,96 @@ import { split } from "./platform-github-support.js";
 
 /** GitHub Actions job reads for PlatformGitHub: what a failed job says about itself, which its check run never carries. */
 
-/** How a failed Actions job failed, or null when GitHub will not say: an App without Actions read permission is refused. A refusal must not stop the verdict, which still goes out naming the failed checks. */
+/** How a failed Actions job failed. The job, its log and its annotations are three independent reads behind two permissions (Actions, Checks), so each settles on its own: a read GitHub refuses leaves its part empty and is named in `unreadable`, never erasing the parts that were readable. A refusal must not stop the verdict, which still goes out naming the failed checks. An Actions job's id is also its check run's id, which is what the annotations hang off. */
 export async function failedJob(
-  ok: Octokit,
-  repo: string,
-  jobId: number,
-): Promise<JobFailure | null> {
-  try {
-    return await readFailedJob(ok, repo, jobId);
-  } catch (err) {
-    warnUnreadable("job", repo, jobId, err);
-
-    return null;
-  }
-}
-
-/** One line per refused read, carrying GitHub's status when it gave one. */
-function warnUnreadable(
-  what: string,
-  repo: string,
-  jobId: number,
-  err: unknown,
-) {
-  const status = (err as { status?: number }).status ?? "error";
-
-  console.warn(`[github] ${what} ${jobId} on ${repo} unreadable (${status})`);
-}
-
-/** The failure annotations, the steps that failed and what the failing one printed. The three are independent reads, so they go together. An Actions job's id is also its check run's id, which is what the annotations hang off. */
-async function readFailedJob(
   ok: Octokit,
   repo: string,
   jobId: number,
 ): Promise<JobFailure> {
   const [owner, name] = split(repo);
-  const params = { owner, repo: name, job_id: jobId };
-  const { actions } = ok.rest;
-  const [job, log, annotations] = await Promise.all([
-    actions.getJobForWorkflowRun(params),
-    actions.downloadJobLogsForWorkflowRun(params),
-    readAnnotations(ok, { owner, repo: name, check_run_id: jobId }),
+  const job = { owner, repo: name, job_id: jobId };
+  const settled = settledReads(repo, jobId);
+  const parts = await Promise.all([
+    settled("job", readFailedSteps(ok, job)),
+    settled("log", readFailureTail(ok, job)),
+    settled("annotations", readFailureAnnotations(ok, job)),
   ]);
+  const [steps, tail, annotations] = parts.map((part) => part.lines);
 
-  return {
-    annotations: failureAnnotations(annotations),
-    steps: failedStepNames(job.data.steps ?? []),
-    tail: typeof log.data === "string" ? failureTail(log.data) : [],
-  };
+  return { annotations, steps, tail, unreadable: refusedOf(parts) };
+}
+
+/** One read's outcome: what it returned, or the refusal that left it empty. */
+interface SettledRead {
+  lines: string[];
+  refused: string | null;
+}
+
+/** A settler for one job's reads: a read GitHub refuses yields no lines, is warned about, and carries its refusal as `what (status)`. */
+function settledReads(repo: string, jobId: number) {
+  return (what: string, read: Promise<string[]>): Promise<SettledRead> =>
+    read.then(
+      (lines) => ({ lines, refused: null }),
+      (err: unknown) => ({
+        lines: [],
+        refused: `${what} (${warnUnreadable(what, repo, jobId, err)})`,
+      }),
+    );
+}
+
+/** The refusals among a job's reads, in the order the reads were asked for — never the order GitHub happened to answer in. */
+function refusedOf(parts: readonly SettledRead[]): string[] {
+  return parts.flatMap((part) => (part.refused === null ? [] : [part.refused]));
+}
+
+type JobParams = { owner: string; repo: string; job_id: number };
+
+/** The names of the steps that failed the job. */
+async function readFailedSteps(ok: Octokit, job: JobParams): Promise<string[]> {
+  const { actions } = ok.rest;
+  const { data: run } = await actions.getJobForWorkflowRun(job);
+
+  return failedStepNames(run.steps ?? []);
+}
+
+/** What the failing step printed. */
+async function readFailureTail(ok: Octokit, job: JobParams): Promise<string[]> {
+  return failureTail((await downloadLog(ok, job)) ?? "");
+}
+
+/** A job's raw log as GitHub serves it; null when the body is not text. */
+async function downloadLog(
+  ok: Octokit,
+  job: JobParams,
+): Promise<string | null> {
+  const { actions } = ok.rest;
+  const { data: log } = await actions.downloadJobLogsForWorkflowRun(job);
+
+  return typeof log === "string" ? log : null;
+}
+
+/** The job's failure-level annotations as `path:line message`. */
+async function readFailureAnnotations(
+  ok: Octokit,
+  { owner, repo, job_id: checkRunId }: JobParams,
+): Promise<string[]> {
+  return failureAnnotations(
+    await readAnnotations(ok, { owner, repo, check_run_id: checkRunId }),
+  );
+}
+
+/** One line per refused read, carrying GitHub's status when it gave one; returns that status for the caller's own account. */
+function warnUnreadable(
+  what: string,
+  repo: string,
+  jobId: number,
+  err: unknown,
+): number | "error" {
+  const status = (err as { status?: number } | null)?.status ?? "error";
+
+  console.warn(`[github] ${what} ${jobId} on ${repo} unreadable (${status})`);
+
+  return status;
 }
 
 /** Every annotation on a check run, paginated: a lint step files one per finding, and one page holds 100. */
@@ -93,26 +136,20 @@ function failedStepNames(
     .map((step) => step.name);
 }
 
-/** A job's raw log, or null when GitHub refuses — the same refusal failedJob tolerates, surfaced to a reader as "GitHub will not show this" rather than as a thrown 403. */
+/** A job's raw log, or null when GitHub has no such job. A refusal (an App without Actions read permission gets 403) is thrown, so a reader is told GitHub refused rather than that the job does not exist. */
 export async function jobLog(
   ok: Octokit,
   repo: string,
   jobId: number,
 ): Promise<string | null> {
   const [owner, name] = split(repo);
-  const { actions } = ok.rest;
 
   try {
-    const { data: log } = await actions.downloadJobLogsForWorkflowRun({
-      owner,
-      repo: name,
-      job_id: jobId,
-    });
-
-    return typeof log === "string" ? log : null;
+    return await downloadLog(ok, { owner, repo: name, job_id: jobId });
   } catch (err) {
-    warnUnreadable("job log", repo, jobId, err);
-
-    return null;
+    if (warnUnreadable("job log", repo, jobId, err) === 404) {
+      return null;
+    }
+    throw err;
   }
 }

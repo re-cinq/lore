@@ -8,7 +8,7 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../../work/dark-factory/dark-factory-authz.js", () => {
+vi.mock("../../../work/two-key/approval-pr.js", () => {
   class TwoKeyError extends Error {
     constructor(
       message: string,
@@ -50,7 +50,7 @@ vi.mock(
 import {
   verifyApproval,
   TwoKeyError,
-} from "../../../work/dark-factory/dark-factory-authz.js";
+} from "../../../work/two-key/approval-pr.js";
 import { getOctokit } from "../../../outbound/github-client.js";
 
 const BASE = "/api/repos/o/r/agent-definitions";
@@ -385,6 +385,34 @@ describe("routes — agents", () => {
           podResources: { limits: { memory: "4Gi" } },
           inheritedConfig: { skills: ["lore-context"] },
         },
+      );
+    });
+
+    it("a partial PUT for pod_resources merges per sub-key, not replaces the whole block", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: {
+          pod_resources: {
+            limits: { memory: "4Gi", "ephemeral-storage": "4Gi" },
+            requests: { memory: "2Gi" },
+          },
+        },
+      });
+      fakeAgents.update.mockResolvedValue(def);
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        pod_resources: { requests: { "ephemeral-storage": "4Gi" } },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        expect.objectContaining({
+          podResources: {
+            limits: { memory: "4Gi", "ephemeral-storage": "4Gi" },
+            requests: { memory: "2Gi", "ephemeral-storage": "4Gi" },
+          },
+        }),
       );
     });
 

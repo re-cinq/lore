@@ -1,7 +1,6 @@
-// Single source of truth for the station contract's output envelope (ADR-031 D8/D9) — wrap side every station emits through, unwrap side every Floor reader consumes through; `status.output` is NDJSON, terminal line `{"type":"result","is_error":false,"result":"<agent text>"}`.
+// An agent's output as Lore's stations read it: the text of its terminal result line, and the log line a station prints.
 
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { NodeResult, NodeLlmUsage } from "./node-types.js";
+import { isAttributedLine } from "@re-cinq/lore-shared/agent-stream/unwrap-attribution.js";
 
 interface ResultLine {
   type: string;
@@ -14,52 +13,6 @@ interface MessageLine {
   type: string;
   role?: unknown;
   content?: unknown;
-}
-
-// TRANSITIONAL (delete once no pre-cutover CRs remain): peels the {"source":{...},"event":<line>} envelope pre-cutover CRs still wrap status.output in.
-interface AttributedLine {
-  source: unknown;
-  event: unknown;
-}
-
-// Attribution envelope peeled off a subsystem line (event + source, null source when bare/non-object) — unwrap side for both the status.output read path and the NDJSON telemetry sink (POST /api/agent-events).
-export function unwrapAttribution(value: unknown): {
-  source: Record<string, unknown> | null;
-  event: unknown;
-} {
-  if (!isAttributedLine(value)) {
-    return { source: null, event: value };
-  }
-
-  const source = attributionSource(value.source);
-  const event = value.event;
-
-  // TRANSITIONAL, second peel only: prod double-wraps sink-lane lines ({source, event:{source, event}}), dropping the cost row without this (#875); remove once subsystem enforces single-wrap at source (subsystem#171 unverified) — bounded at two, a third layer is left intact.
-  if (isAttributedLine(event)) {
-    const inner = attributionSource(event.source);
-
-    return {
-      source: source || inner ? { ...inner, ...source } : null,
-      event: event.event,
-    };
-  }
-
-  return { source, event };
-}
-
-function isAttributedLine(value: unknown): value is AttributedLine {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "source" in value &&
-    "event" in value
-  );
-}
-
-function attributionSource(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 // Agent text from the last terminal result line of an NDJSON stream; falls back to raw input when not a stream, no result line, or no string payload — legacy/already-unwrapped output passes through untouched.
@@ -159,148 +112,7 @@ function isAssistantChunk(value: unknown): value is MessageLine {
   return msg.type === "message" && msg.role === "assistant";
 }
 
-// Error text of the last `is_error` result line (same envelope as resultTextFromOutput), capped at 300 chars, null when not an error/no result line/not a stream — how the Floor surfaces WHY a CR's Job failed, since the infra-failure branch only sees the CR phase.
-export function terminalErrorText(output?: string): string | null {
-  if (!output) {
-    return null;
-  }
-  const lines = output.split("\n");
-
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const parsed = parseLine(lines[i].trim());
-
-    if (
-      parsed &&
-      parsed.is_error === true &&
-      typeof parsed.result === "string"
-    ) {
-      return parsed.result.substring(0, 300);
-    }
-  }
-
-  return null;
-}
-
-// The runner's relay prefix for the engine's own stderr.
-const AGENT_STDERR_PREFIX = "[agent] ";
-
-// The lifecycle phase the relayed stderr belongs to.
-const AGENT_PHASE = "agent";
-
-// The agent's own last words when it never reached a result line (engine died at BOOT, before terminalErrorText's is_error line exists) — the runner relays engine stderr as `[agent] …`; run 129235d4 (2026-08-28) showed an unread boot error misclassified as retryable `infra`, burning a 25min retry. Gated on the runner's own prefix + a lifecycle envelope reporting agent phase FAILED, so ordinary chatter never reads as a cause.
-export function agentStderrError(output?: string): string | null {
-  if (!output) {
-    return null;
-  }
-  const lines = output.split("\n").map((line) => line.trim());
-  // Scan is bounded by the failure, not stream end — a shutdown log line is not what killed the engine.
-  const failedAt = lines.findIndex(isFailedLifecycle);
-
-  if (failedAt === -1) {
-    return null;
-  }
-
-  return lastAgentStderrLine(lines, failedAt);
-}
-
-// True for a lifecycle envelope reporting the AGENT phase failed; parsed separately from `parseLine` (RESULT-only) — a marker naming no phase (phase is optional) still counts, or a phase-less variant would escape detection.
-function isFailedLifecycle(line: string): boolean {
-  try {
-    const marker = failedLifecycleMarker(JSON.parse(line));
-
-    if (marker === null) {
-      return false;
-    }
-
-    return marker.phase === undefined || marker.phase === AGENT_PHASE;
-  } catch {
-    return false;
-  }
-}
-
-// The parsed value as a FAILED lifecycle marker, or null for anything else.
-function failedLifecycleMarker(value: unknown): { phase?: unknown } | null {
-  if (typeof value !== "object" || value === null) {
-    return null;
-  }
-  const marker = value as { kind?: unknown; status?: unknown; phase?: unknown };
-  const isFailedMarker =
-    marker.kind === "lifecycle" && marker.status === "failed";
-
-  return isFailedMarker ? marker : null;
-}
-
-// The newest `[agent] …` line at or before the failure, capped — scanned backwards so the words closest to the death win.
-function lastAgentStderrLine(lines: string[], failedAt: number): string | null {
-  for (let i = failedAt; i >= 0; i--) {
-    const line = lines[i];
-
-    if (!line.startsWith(AGENT_STDERR_PREFIX)) {
-      continue;
-    }
-    const text = line.slice(AGENT_STDERR_PREFIX.length).trim();
-
-    if (text.length > 0) {
-      return text.substring(0, 300);
-    }
-  }
-
-  return null;
-}
-
-// Terminal NDJSON line a station emits: a NodeResult (incl. outcome "failed", a routable edge) emits is_error:false; pass null + message for infra failures, which fail the CR. `usage` wins over `result.usage` and rides error lines too, so partial spend is still recorded.
-export function resultLine(
-  result: NodeResult | null,
-  errorMessage?: string,
-  usage?: NodeLlmUsage,
-): string {
-  const payload = result
-    ? `LORE_NODE_RESULT: ${JSON.stringify({ outcome: result.outcome, extras: result.extras ?? {} })}`
-    : (errorMessage ?? "station failed");
-
-  enforceTrue(
-    !isWrappedAgentOutput(payload),
-    Error,
-    "refusing to wrap an already-wrapped agent output line — the envelope is applied exactly once",
-  );
-
-  return JSON.stringify({
-    type: "result",
-    is_error: result === null,
-    result: payload,
-    ...usageFields(usage ?? result?.usage),
-  });
-}
-
-// True when `text` is already a serialized result line or attribution envelope.
-function isWrappedAgentOutput(text: string): boolean {
-  try {
-    const value: unknown = JSON.parse(text);
-
-    return isResultLine(value) || isAttributedLine(value);
-  } catch {
-    return false;
-  }
-}
-
 // Progress lines for the log sinks (anything non-terminal).
 export function eventLine(message: string): string {
   return JSON.stringify({ type: "log", message });
-}
-
-// Node LLM usage as the claude-style fields the /api/agent-events cost sink reads (usage + total_cost_usd + duration_ms + model) — how a Postgres-less station pod gets a pipeline.llm_calls row; empty when unreported, keeping the envelope byte-identical to pre-usage.
-function usageFields(usage?: NodeLlmUsage): Record<string, unknown> {
-  if (!usage) {
-    return {};
-  }
-
-  return {
-    model: usage.model,
-    usage: {
-      input_tokens: usage.inputTokens,
-      output_tokens: usage.outputTokens,
-    },
-    total_cost_usd: usage.costUsd,
-    duration_ms: usage.durationMs,
-  };
 }

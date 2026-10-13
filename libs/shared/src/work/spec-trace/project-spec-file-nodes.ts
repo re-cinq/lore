@@ -116,7 +116,7 @@ async function projectAcceptanceCriterion(
   segment: SpecSegment,
 ): Promise<string> {
   const { dgraph, repo, filePath } = context;
-  const embedding = await context.embed(segment.text);
+  const embedding = context.embeddingOf(segment.text);
   const criterionUid = await upsertByXid(
     dgraph,
     "AcceptanceCriterion",
@@ -136,7 +136,7 @@ async function projectAcceptanceCriterion(
 function criterionFacts(
   { repo, specUid }: ProjectionContext,
   segment: SpecSegment,
-  embedding: number[] | null | undefined,
+  embedding: number[] | null,
 ): Record<string, unknown> {
   return {
     "AcceptanceCriterion.repo": repo,
@@ -191,7 +191,7 @@ export async function projectStatement(
   sectionUidByHeading: Map<string, string>,
   classification: Classification,
 ): Promise<void> {
-  const embedding = await context.embed(segment.text);
+  const embedding = context.embeddingOf(segment.text);
   const statementUid = await upsertStatement(context, segment, {
     classification,
     sectionUid: sectionUidByHeading.get(segment.enclosingHeading ?? ""),
@@ -209,7 +209,7 @@ export async function projectStatement(
 interface StatementExtras {
   classification: Classification;
   sectionUid: string | undefined;
-  embedding: number[] | null | undefined;
+  embedding: number[] | null;
 }
 
 /** Upserts the Statement node itself, returning its uid. */

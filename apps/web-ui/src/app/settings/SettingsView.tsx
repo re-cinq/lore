@@ -1,5 +1,7 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { SubmitButton } from "@/components/SubmitButton";
 import ApprovalGatesForm from "./ApprovalGatesForm";
+import SlackPeopleForm from "./SlackPeopleForm";
 import GithubConnectSection, {
   type GithubInstallationRow,
 } from "./GithubConnectSection";
@@ -24,6 +26,11 @@ export interface SettingsViewProps {
   /** Server actions wired to the forms ("actions up"). */
   saveSettings: (formData: FormData) => void | Promise<void>;
   saveApprovalConfig: (formData: FormData) => void | Promise<void>;
+  /** The org setting `slack_users` as one `login id` pair per line. */
+  slackPeopleLines: string;
+  /** Lines the last save refused, shown back with the text as typed; empty when nothing was refused. */
+  slackPeopleRejected: string[];
+  saveSlackPeople: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
   githubInstallations: GithubInstallationRow[];
@@ -44,6 +51,7 @@ export default function SettingsView(props: SettingsViewProps) {
       />
       <PlatformConfigForm {...props} />
       <ApprovalGatesForm {...props} />
+      <SlackPeopleForm {...props} />
       <InstallCommand {...props} />
     </div>
   );
@@ -106,7 +114,7 @@ function PlatformConfigForm(props: PlatformConfigFormProps) {
         <PlatformFields apiUrl={apiUrl} ingestToken={ingestToken} />
 
         <div className={styles.actions}>
-          <button type="submit">Save</button>
+          <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
         </div>
       </form>
 
@@ -166,9 +174,12 @@ function RegenerateTokenForm({
 }: Pick<SettingsViewProps, "regenerateToken">) {
   return (
     <form action={regenerateToken} className={styles.regenerateForm}>
-      <button type="submit" className={`danger ${styles.regenerateButton}`}>
+      <SubmitButton
+        className={`danger ${styles.regenerateButton}`}
+        pendingLabel="Regenerating…"
+      >
         Regenerate Token
-      </button>
+      </SubmitButton>
       <span className={`meta ${styles.regenerateNote}`}>
         Warning: invalidates all existing tokens. You&apos;ll need to update all
         repos and developer installs.

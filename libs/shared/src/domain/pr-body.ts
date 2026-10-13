@@ -15,3 +15,14 @@ export function prFooter(opts: {
 
   return `\n\n${lines.join("\n")}`;
 }
+
+const LINKED_ISSUE = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i;
+
+/** The issue a pull request claims to RESOLVE: the number of the first `Closes`/`Fixes`/`Resolves #N` its body names, or null. `Refs #N` is deliberately not one: it names something related, and a reviewer handed it as "the issue this answers" blocks the pull request for not doing what it never claimed (HALEngine#123, 2026-09-30). */
+export function linkedIssueNumber(
+  prBody: string | null | undefined,
+): number | null {
+  const match = LINKED_ISSUE.exec(prBody ?? "");
+
+  return match ? Number(match[1]) : null;
+}

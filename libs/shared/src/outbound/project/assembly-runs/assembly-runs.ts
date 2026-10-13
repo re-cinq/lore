@@ -50,6 +50,18 @@ export class AssemblyRuns {
     return this.port.list({ repo: this.repo, subjectKey });
   }
 
+  /** Every run on one PR, newest first, optionally narrowed to a family — how a re-check finds the sha the last verdict judged without knowing which line published it. */
+  listForPr(
+    prNumber: number,
+    definitions?: readonly string[],
+  ): Promise<AssemblyRunRecord[]> {
+    return this.port.list({
+      repo: this.repo,
+      prNumber,
+      ...(definitions ? { blueprintName: definitions } : {}),
+    });
+  }
+
   findOpenByPr(prNumber: number): Promise<AssemblyRunRecord[]> {
     return this.port.findOpenByPr(this.repo, prNumber);
   }

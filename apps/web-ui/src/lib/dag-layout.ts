@@ -5,6 +5,7 @@ import type {
   DefinitionEdge,
 } from "./assembly-line-definition";
 import { contentBoxOf, pathFor } from "./dag-layout-paths";
+import { wrapLayer } from "./dag-wrap";
 
 export type EdgeKind = "forward" | "back" | "self";
 
@@ -13,6 +14,8 @@ export type ClassifiedEdge = DefinitionEdge & { kind: EdgeKind };
 export interface LayoutNode {
   id: string;
   layer: number;
+  /** Which band (row of columns) the node's layer wrapped onto; 0 when the line is not wrapped. */
+  band: number;
   row: number;
   x: number;
   y: number;
@@ -46,6 +49,8 @@ export interface LayoutOptions {
   originX?: number;
   originY?: number;
   arcDrop?: number;
+  /** Columns per band before the line wraps onto the next band; unbounded keeps it on one. */
+  columnsPerBand?: number;
 }
 
 export type ResolvedOptions = Required<LayoutOptions>;
@@ -58,6 +63,7 @@ const DEFAULTS: ResolvedOptions = {
   originX: 90,
   originY: 60,
   arcDrop: 56,
+  columnsPerBand: Number.POSITIVE_INFINITY,
 };
 
 /** Positions, SVG path data for definition; forward/back/self-loop edges. */
@@ -68,14 +74,14 @@ export function layoutAssemblyLine(
   const opts = { ...DEFAULTS, ...options };
   const layers = layerByLongestPath(def);
   const nodes = placeNodes(def, layers, opts);
-  const floor = arcFloor(nodes, opts);
-  const edges = layoutEdges({ def, layers, nodes, opts, floor });
+  const floors = bandFloors(nodes, opts);
+  const edges = layoutEdges({ def, layers, nodes, opts, floors });
 
   return {
     nodes,
     edges,
     width: layoutWidth(nodes, opts),
-    height: floor + opts.arcDrop,
+    height: (floors.at(-1) ?? opts.originY) + opts.arcDrop,
     contentBox: contentBoxOf(nodes, edges, opts),
   };
 }
@@ -191,12 +197,39 @@ function isForwardEdge(
   return !cyclic.has(edge) && declared.has(edge.from) && declared.has(edge.to);
 }
 
-/** One node per row within its layer, in declaration order. Deterministic by construction — no sorting and no crossing minimization — because a layout that reshuffles between renders makes a live run look like it changed when only the renderer did. */
+/** One node per row within its layer, in declaration order. Deterministic by construction — no sorting and no crossing minimization — because a layout that reshuffles between renders makes a live run look like it changed when only the renderer did. A wrapped line restarts its columns on each band, and a band sits below the one before it with room for that band's arcs. */
 function placeNodes(
   def: AssemblyLineDefinition,
   layers: Map<string, number>,
   opts: ResolvedOptions,
 ): LayoutNode[] {
+  const slots = slotNodes(def, layers, opts);
+  const tops = bandTops(slots, opts);
+
+  return slots.map((slot) => ({
+    id: slot.id,
+    layer: slot.layer,
+    band: slot.band,
+    row: slot.row,
+    x: opts.originX + slot.column * opts.layerGap,
+    y: tops[slot.band] + slot.row * opts.rowGap,
+  }));
+}
+
+interface NodeSlot {
+  id: string;
+  layer: number;
+  band: number;
+  column: number;
+  row: number;
+}
+
+/** Each node's layer, band, column and row within its layer, before anything is measured. */
+function slotNodes(
+  def: AssemblyLineDefinition,
+  layers: Map<string, number>,
+  opts: ResolvedOptions,
+): NodeSlot[] {
   const rowsUsed = new Map<number, number>();
 
   return def.nodes.map((node) => {
@@ -209,28 +242,45 @@ function placeNodes(
       id: node.id,
       layer,
       row,
-      x: opts.originX + layer * opts.layerGap,
-      y: opts.originY + row * opts.rowGap,
+      ...wrapLayer(layer, opts.columnsPerBand),
     };
   });
 }
 
-/** Back-edges arc BELOW everything, so the floor clears the lowest node plus the arc's own drop. */
-function arcFloor(nodes: LayoutNode[], opts: ResolvedOptions): number {
-  return (
-    Math.max(...nodes.map((node) => node.y)) +
-    opts.nodeHeight / 2 +
-    opts.arcDrop
+/** The centre y of each band's first row: a band starts below the previous band's lowest node, its arc floor, and the same air again for the arrows that wrap down to it. */
+function bandTops(slots: NodeSlot[], opts: ResolvedOptions): number[] {
+  const bandCount = Math.max(...slots.map((slot) => slot.band)) + 1;
+  const rowsPerBand = Array.from({ length: bandCount }, (_unused, band) =>
+    Math.max(1, ...slots.filter((s) => s.band === band).map((s) => s.row + 1)),
+  );
+  const pitch = opts.nodeHeight + opts.arcDrop * 2;
+
+  return rowsPerBand.reduce<number[]>(
+    (tops, rows, band) =>
+      band === 0
+        ? [opts.originY]
+        : [
+            ...tops,
+            tops[band - 1] + (rowsPerBand[band - 1] - 1) * opts.rowGap + pitch,
+          ],
+    [],
   );
 }
 
-/** Right edge of the deepest column, node box included. */
+/** Each band's floor: back-edges and wrapping arrows pass below that band's lowest node, by the arc's own drop. */
+function bandFloors(nodes: LayoutNode[], opts: ResolvedOptions): number[] {
+  const bandCount = Math.max(...nodes.map((node) => node.band)) + 1;
+
+  return Array.from({ length: bandCount }, (_unused, band) => {
+    const ys = nodes.filter((node) => node.band === band).map((n) => n.y);
+
+    return Math.max(...ys) + opts.nodeHeight / 2 + opts.arcDrop;
+  });
+}
+
+/** Right edge of the widest band, node box included. */
 function layoutWidth(nodes: LayoutNode[], opts: ResolvedOptions): number {
-  return (
-    opts.originX +
-    Math.max(...nodes.map((node) => node.layer)) * opts.layerGap +
-    opts.nodeWidth
-  );
+  return Math.max(...nodes.map((node) => node.x)) + opts.nodeWidth;
 }
 
 interface EdgeLayoutInput {
@@ -238,17 +288,17 @@ interface EdgeLayoutInput {
   layers: Map<string, number>;
   nodes: LayoutNode[];
   opts: ResolvedOptions;
-  floor: number;
+  floors: number[];
 }
 
 /** Every classified edge with its drawn path resolved against the placed nodes. */
 function layoutEdges(input: EdgeLayoutInput): LayoutEdge[] {
-  const { def, layers, nodes, opts, floor } = input;
+  const { def, layers, nodes, opts, floors } = input;
   const byId = new Map(nodes.map((node) => [node.id, node]));
 
   return classifyEdges(def, layers).map((edge) => ({
     ...edge,
-    d: pathFor(edge, byId, opts, floor),
+    d: pathFor(edge, byId, opts, floors),
   }));
 }
 

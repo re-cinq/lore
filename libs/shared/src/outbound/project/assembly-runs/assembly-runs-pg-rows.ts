@@ -66,6 +66,7 @@ export function toNodeRecord(row: {
   agent_cr_name: string | null;
   input: unknown;
   commit_sha: string | null;
+  requested_by?: string | null;
   started_at: Date;
   finished_at: Date | null;
 }): StationRunRecord {
@@ -85,6 +86,7 @@ export function toNodeRecord(row: {
       .catch(null)
       .parse(row.input ?? null),
     commitSha: row.commit_sha,
+    requestedBy: row.requested_by ?? null,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
   };

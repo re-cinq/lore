@@ -162,29 +162,6 @@ describe("delivery failures", () => {
     ]);
   });
 
-  it("re-registers once on a refused credential and the retry then lands", async () => {
-    const events = fakeSink([refusal(401)]);
-    let reRegistrations = 0;
-    const { proxy } = build({
-      sinks: { event: events, telemetry: fakeSink() },
-      onUnauthorized: async () => {
-        reRegistrations++;
-      },
-    });
-
-    await proxy.emit({
-      kind: "event",
-      event: anEvent("kubernetes.agent.succeeded"),
-    });
-    await proxy.start();
-    await tick();
-
-    expect({ reRegistrations, delivered: events.delivered.length }).toEqual({
-      reRegistrations: 1,
-      delivered: 1,
-    });
-  });
-
   it("drops after the last attempt and names the message, because the symptom is otherwise silence", async () => {
     const events = fakeSink([refusal(503), refusal(503), refusal(503)]);
     const { proxy, logs } = build({

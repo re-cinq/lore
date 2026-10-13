@@ -6,7 +6,6 @@ import type {
   AssemblyRunStartInput,
   StationRunFailure,
   StationRunStartInput,
-  ClaimedStationRun,
   AssemblyRunRecord,
   AssemblyRunSummary,
   StationRunRecord,
@@ -41,6 +40,10 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     return lifecycle.finish(this.pool, id, outcome, reason);
   }
 
+  async reopen(id: string): Promise<boolean> {
+    return lifecycle.reopen(this.pool, id);
+  }
+
   async ensureStationRun(
     input: StationRunStartInput,
   ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
@@ -57,32 +60,6 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       commitSha,
       failure,
     });
-  }
-
-  async enqueueStationRunDispatch(
-    nodeRowId: string,
-    dispatchSpec: unknown,
-  ): Promise<void> {
-    return stationRuns.enqueueStationRunDispatch(
-      this.pool,
-      nodeRowId,
-      dispatchSpec,
-    );
-  }
-
-  async claimNextStationRun(claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  }): Promise<ClaimedStationRun | null> {
-    return stationRuns.claimNextStationRun(this.pool, claimant);
-  }
-
-  async requeueStationRun(nodeRowId: string): Promise<boolean> {
-    return stationRuns.requeueStationRun(this.pool, nodeRowId);
-  }
-
-  async countOpenClaimsByAgent(): Promise<Record<string, number>> {
-    return stationRuns.countOpenClaimsByAgent(this.pool);
   }
 
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {

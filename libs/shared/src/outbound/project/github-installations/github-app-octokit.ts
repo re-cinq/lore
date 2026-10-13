@@ -1,6 +1,7 @@
 import type { Octokit } from "octokit";
 import type { GithubInstallationPayload } from "../../../domain/github-installation/installation-from-github.js";
 import type { GithubApp } from "./github-app-port.js";
+import { enforceTrue } from "../../../lib/enforce.js";
 
 /** The App's own identity: its id and private key, with no installation pinned — which is what lets it ask about any installation of this App. */
 export interface GithubAppCredentials {
@@ -30,6 +31,20 @@ export class OctokitGithubApp implements GithubApp {
       throw err;
     }
   }
+}
+
+/** The App's slug from `GET /app` under its JWT; its bot login is the slug plus `[bot]`. */
+export async function appSlug(
+  credentials: GithubAppCredentials,
+): Promise<string> {
+  const { apps } = (await appOctokit(credentials)).rest;
+  const { data: app } = await apps.getAuthenticated();
+
+  const slug = app?.slug;
+
+  enforceTrue(slug, Error, "GET /app answered without a slug");
+
+  return slug;
 }
 
 /** Octokit authenticated as the App (a JWT from its key), loaded lazily like the rest of the GitHub adapters. */

@@ -1,5 +1,5 @@
-import type { ResolvedDarkFactorySettings } from "../../../domain/dark-factory-settings.js";
 import { REPO_COLUMNS, type Repo } from "../../../domain/models/repo.js";
+import type { RepoSettings } from "../../../domain/models/repo-settings.js";
 
 /** One lore.repos column per named field, typed off the model. */
 type RepoColumn<K extends keyof Repo> = {
@@ -12,6 +12,12 @@ export interface OnboardedRepo {
   last_ingested_at: Date | null;
 }
 
+/** An onboarded repo with its raw settings JSONB, for a sweep that decides per repo from settings alone (the daily digest's due check). */
+export interface OnboardedRepoSettings {
+  full_name: string;
+  settings: RepoSettings | null;
+}
+
 /** One lore.repos row; shape = Repo model, declared once beside its columns rather than restated here (where it drifted into a Date|string union). */
 export type RepoRecord = Repo;
 
@@ -20,11 +26,13 @@ export type PendingOnboardingRepo = RepoColumn<"id" | "fullName"> & {
   onboarding_pr_url: string;
 };
 
-/** Repo settings port; resolve() returns fully-resolved lore.repos.settings (settings-pg reads the row then calls resolveDarkFactorySettings). Also covers repo config writes and raw lore.repos record ops (relocated from Floor inline SQL). */
+/** What renaming a repo's row did: moved it in place, folded it into a row already carrying the new name, or found no row under the old name. */
+export type RepoRenameOutcome = "renamed" | "merged" | "absent";
+
+/** Repo settings port: org settings, repo config writes and the raw lore.repos record ops. */
 export interface SettingsPort {
-  resolve(repo: string): Promise<ResolvedDarkFactorySettings>;
-  /** Resolved settings, or null when the repo is not onboarded (no lore.repos row). */
-  resolveOrNull(repo: string): Promise<ResolvedDarkFactorySettings | null>;
+  /** An org-wide setting (`lore.settings`) by key; null when unset. */
+  orgSetting(key: string): Promise<string | null>;
   setRepoVariable(repo: string, name: string, value: string): Promise<void>;
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
 
@@ -44,6 +52,8 @@ export interface SettingsPort {
   repoForTeam(team: string): Promise<string | null>;
   /** All onboarded repos with their last reindex stamp (the reindex scan set). */
   onboardedRepos(): Promise<OnboardedRepo[]>;
+  /** Every onboarded repo with its settings in one read, so a 15-minute tick costs one query, not one per repo. */
+  onboardedRepoSettings(): Promise<OnboardedRepoSettings[]>;
   /** True when the repo's onboarding PR has merged (gap-detect's per-repo guard). */
   isOnboarded(repo: string): Promise<boolean>;
   /** Every repo Lore has a row for, onboarded or not. The implementation loop walks these, so a repo that switched the loop on before its onboarding merged is reported rather than never looked at. */
@@ -58,6 +68,8 @@ export interface SettingsPort {
   clearOnboardingPrUrl(id: string): Promise<void>;
   /** Set the onboarding PR url for a repo. */
   setOnboardingPrUrl(repo: string, url: string): Promise<void>;
+  /** Follows a GitHub rename (#2040): the row under `from` takes the name `to`, or, when onboarding already created a `to` row, hands it the agent definitions it lacks and is deleted. */
+  renameRepo(from: string, to: string): Promise<RepoRenameOutcome>;
   /** Increment the repo's outcome_stats (merged_count, total_files_changed, total_hours_to_merge). */
   bumpOutcomeStats(
     repo: string,

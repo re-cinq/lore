@@ -53,7 +53,27 @@ describe("PgUsage adapter", () => {
       null,
       null,
       null,
+      0,
+      0,
     ]);
+  });
+
+  it("writes 900 cache-read and 40 cache-write tokens into their own columns", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      model: "claude-sonnet-4-6",
+      inputTokens: 3,
+      outputTokens: 20,
+      cacheReadTokens: 900,
+      cacheWriteTokens: 40,
+      durationMs: 10,
+    });
+
+    const call = firstCall(calls);
+
+    expect(call.text).toContain("cache_read_tokens, cache_write_tokens");
+    expect(call.params.slice(12)).toEqual([900, 40]);
   });
 
   it("routes the id to task_id and resolves assembly_run_id from the CR name at insert", async () => {

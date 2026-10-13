@@ -56,9 +56,8 @@ async function loadRepoOverview(fullName: string) {
   return {
     readme: panels.readme,
     enrollmentChecks: buildEnrollmentChecks(panels, chunkSummary, webhook),
-    darkFactoryEnabled: settings.darkFactoryEnabled,
     trustLevel: settings.trustLevel,
-    ...weeklyCounts(panels.activityCounts),
+    tasksWeek: panels.activityCounts.tasks ?? 0,
     recentTasks: panels.recentTasks as unknown as RecentTask[],
     latestEvents: panels.latestEvents,
   };
@@ -80,15 +79,6 @@ function buildEnrollmentChecks(
       lastActivity: isoTimestamp(panels.localMcpRow?.last),
     },
   });
-}
-
-// Dark Factory dashboard counts (T052) — a figure that failed to load reads as zero, not as a gap.
-function weeklyCounts(activityCounts: OverviewPanels["activityCounts"]) {
-  return {
-    darkTasksWeek: activityCounts.tasks ?? 0,
-    autoMergedWeek: activityCounts.auto_merged ?? 0,
-    escalationsWeek: activityCounts.escalations ?? 0,
-  };
 }
 
 /** The secret is admin-scoped and fetched only for a hook that still needs setting up by hand — it is pasted into GitHub, never sent to a client. */
@@ -133,7 +123,7 @@ async function fetchRepoPanels(fullName: string) {
   return { readme, repoInfo, recentTasks, latestEvents };
 }
 
-/** How well the repo is wired into Lore: its session, its onboarding files, its webhook, its dark-factory counters. Fail-soft in the same way, and each figure falls back to null rather than to zero — "not known" is not "none". */
+/** How well the repo is wired into Lore: its session, its onboarding files, its webhook, its weekly task count. Fail-soft in the same way, and each figure falls back to null rather than to zero — "not known" is not "none". */
 async function fetchIntegrationPanels(fullName: string) {
   const [localMcpRow, githubFiles, webhook, activityCounts] = await Promise.all(
     [
@@ -143,9 +133,7 @@ async function fetchIntegrationPanels(fullName: string) {
       fetchOnboardingFiles(fullName),
       getWebhookStatus(fullName).catch(() => null),
       getRepoActivityCounts(fullName).then((r) =>
-        r.status === "ok"
-          ? r.data
-          : { tasks: null, auto_merged: null, escalations: null },
+        r.status === "ok" ? r.data : { tasks: null },
       ),
     ],
   );

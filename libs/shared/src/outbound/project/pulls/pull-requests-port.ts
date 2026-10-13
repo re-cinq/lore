@@ -21,6 +21,19 @@ export type MergeMethod = "squash" | "merge" | "rebase";
 /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (ADR-031 D3); "none" = no checks configured. */
 export type CiConclusion = "success" | "failure" | "pending" | "none";
 
+/** What a branch's protection asks of a PR before it may merge: rulesets and classic protection together, the stricter of each. */
+export interface BranchRule {
+  requiredApprovals: number;
+  codeOwnersReview: boolean;
+  requiredChecks: string[];
+}
+
+/** GitHub's own verdict on a PR: `mergeable` is null while GitHub is still computing; `state` is its `mergeable_state` (clean, blocked, behind, dirty, unstable, unknown…). */
+export interface Mergeability {
+  mergeable: boolean | null;
+  state: string;
+}
+
 export interface PullRef {
   repo: string;
   number: number;
@@ -37,6 +50,10 @@ export interface PullRef {
   headSha?: string;
   /** GitHub's mergeability: false when the PR conflicts with its base, null while GitHub is still computing it, absent from list reads (only `get` returns it). A conflicting PR gets no workflow run at all. */
   mergeable?: boolean | null;
+  /** ISO merge time; present on a merged PR read from octokit, absent on open PRs and legacy doubles. */
+  mergedAt?: string;
+  /** PR body (octokit adapter only; GitHub returns null if empty) — the digest reads its closing keywords. */
+  body?: string;
 }
 
 export interface PullReview {
@@ -56,9 +73,13 @@ export interface ReviewComment {
   created_at: string;
   /** The submitted review this inline comment belongs to. Absent on legacy doubles. */
   review_id?: number | null;
+  /** The comment that opened the thread this one replies in; null on the opening comment itself. GitHub takes a reply only against that first comment. */
+  in_reply_to_id?: number | null;
 }
 
 export interface IssueComment {
+  /** What an edit of the comment names it by. */
+  id: number;
   body: string;
   user: string;
   created_at: string;
@@ -90,6 +111,8 @@ export interface JobFailure {
   annotations: string[];
   steps: string[];
   tail: string[];
+  /** The reads GitHub refused, each as `what (status)` — so an empty part reads as "could not be read", not as "said nothing". */
+  unreadable?: string[];
 }
 
 /** One inline comment inside a review thread — the GraphQL node, REST-mappable. */
@@ -137,8 +160,11 @@ export interface PullDraft {
 
 export interface PullRequestsPort {
   list(repo: string): Promise<PullRef[]>;
+  /** PRs merged at or after `since` (ISO), newest first — the digest's "implemented" window; pages stop once GitHub's updated-at order passes the cutoff. */
+  listMergedSince(repo: string, since: string): Promise<PullRef[]>;
   get(repo: string, number: number): Promise<PullRef | null>;
   comment(repo: string, number: number, body: string): Promise<void>;
+  updateIssueComment(repo: string, id: number, body: string): Promise<void>;
   review(
     repo: string,
     number: number,
@@ -160,6 +186,11 @@ export interface PullRequestsPort {
   ): Promise<void>;
   addLabel(repo: string, number: number, label: string): Promise<void>;
   merge(repo: string, number: number, method?: MergeMethod): Promise<void>;
+  enablePullRequestAutoMerge(
+    prId: string,
+    mergeMethod?: MergeMethod,
+  ): Promise<void>;
+  disablePullRequestAutoMerge(prId: string): Promise<void>;
   open(repo: string, branch: string, pr: PullDraft): Promise<PullRef>;
   /** Rewrite an open pull request's title and/or body. */
   update(
@@ -169,6 +200,8 @@ export interface PullRequestsPort {
   ): Promise<void>;
   /** Takes a PR out of draft (starts code review); GraphQL-only (REST has no draft field), idempotent since GitHub errors the mutation on an already-ready PR. */
   markReady(repo: string, number: number): Promise<void>;
+  /** Closes a pull request without merging it. */
+  close(repo: string, number: number): Promise<void>;
   // reads
   getDiff(repo: string, number: number): Promise<string>;
   listReviews(repo: string, number: number): Promise<PullReview[]>;
@@ -178,6 +211,8 @@ export interface PullRequestsPort {
   isMerged(repo: string, number: number): Promise<boolean>;
   isClosed(repo: string, number: number): Promise<boolean>;
   getStats(repo: string, number: number): Promise<PullStats>;
+  getBranchRule(repo: string, branch: string): Promise<BranchRule>;
+  getMergeability(repo: string, number: number): Promise<Mergeability>;
   /** Files differing between two refs; agent-watcher uses it for the no-changes vs PR decision (Agent.status carries no changedFiles). */
   changedFileCount(repo: string, base: string, head: string): Promise<number>;
   /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (D3). */

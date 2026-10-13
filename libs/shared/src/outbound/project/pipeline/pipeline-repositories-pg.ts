@@ -9,6 +9,7 @@ import { DbLeaseBackend, type LeasePool } from "../leases/lease-backends.js";
 import { PgAgentRunEvents } from "../agent-run-events/agent-run-events-pg.js";
 import { PgPodLogs } from "../pod-logs/pod-logs-pg.js";
 import { PgAgentRunTurns } from "../agent-run-turns/agent-run-turns-pg.js";
+import { PgDigestPosts } from "../digest-posts/digest-posts-pg.js";
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineRepositories } from "./pipeline-repositories.js";
 
@@ -25,5 +26,6 @@ export function createPipelineRepositories(pool: PgPool): PipelineRepositories {
     agentRunEvents: new PgAgentRunEvents(pool),
     podLogs: new PgPodLogs(pool),
     agentRunTurns: new PgAgentRunTurns(pool),
+    digestPosts: new PgDigestPosts(pool),
   };
 }

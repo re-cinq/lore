@@ -49,20 +49,16 @@ describe("generateOpenApi — coverage", () => {
     expect(document.paths["/healthz"]).toBeUndefined();
   });
 
-  it("records tokens + features POSTs as documented freeform", () => {
+  it("records the tokens POST as documented freeform", () => {
     expect(coverage.freeform).toEqual(
-      expect.arrayContaining([
-        "POST /api/tokens",
-        "POST /api/repos/{owner}/{repo}/features",
-      ]),
+      expect.arrayContaining(["POST /api/tokens"]),
     );
   });
 
-  it("records the lifted domain schemas (agents, dark-factory)", () => {
+  it("records the lifted agent-definitions domain schema", () => {
     expect(coverage.lifted).toEqual(
       expect.arrayContaining([
         "POST /api/repos/{owner}/{repo}/agent-definitions",
-        "PUT /api/repos/{owner}/{repo}/settings/dark-factory",
       ]),
     );
   });
@@ -93,13 +89,7 @@ describe("generateOpenApi — request bodies", () => {
     expect(schema.properties.name).toMatchObject({ type: "string" });
   });
 
-  it("documents features + tokens POSTs as a permissive object", () => {
-    expect(
-      bodySchema(document.paths["/api/repos/{owner}/{repo}/features"].post),
-    ).toEqual({
-      type: "object",
-      additionalProperties: true,
-    });
+  it("documents the tokens POST as a permissive object", () => {
     expect(bodySchema(document.paths["/api/tokens"].post)).toEqual({
       type: "object",
       additionalProperties: true,
@@ -113,11 +103,6 @@ describe("generateOpenApi — methods, scope, security", () => {
       "get",
       "post",
     ]);
-    expect(
-      Object.keys(
-        document.paths["/api/repos/{owner}/{repo}/settings/dark-factory"],
-      ).sort(),
-    ).toEqual(["get", "put"]);
   });
 
   it("merges verbs at a shared path and normalizes the optional param", () => {
@@ -163,16 +148,13 @@ describe("generateOpenApi — tag grouping", () => {
       "Memory",
       "Tasks",
       "Repositories",
-      "Features",
+      "Plans",
       "Agents",
-      "Cluster Agents",
       "Ingestion",
       "Traceability",
-      "Dark Factory",
       "Webhooks",
       "Analytics",
       "Tokens",
-      "Cluster Agents",
       "Meta",
     ]);
     expect(document.tags.every((t) => t.description.length > 0)).toBe(true);
@@ -183,16 +165,12 @@ describe("generateOpenApi — tag grouping", () => {
     expect(document.paths["/api/memory"].post.tags).toEqual(["Memory"]);
     expect(document.paths["/api/context"].get.tags).toEqual(["Context"]);
     expect(document.paths["/api/repos"].get.tags).toEqual(["Repositories"]);
-    expect(
-      document.paths["/api/repos/{owner}/{repo}/features"].post.tags,
-    ).toEqual(["Features"]);
+    expect(document.paths["/api/repos/{owner}/{repo}/plans"].get.tags).toEqual([
+      "Plans",
+    ]);
     expect(
       document.paths["/api/repos/{owner}/{repo}/agent-definitions"].post.tags,
     ).toEqual(["Agents"]);
-    expect(
-      document.paths["/api/repos/{owner}/{repo}/settings/dark-factory"].get
-        .tags,
-    ).toEqual(["Dark Factory"]);
     expect(
       document.paths["/api/repos/{owner}/{repo}/ingest-graph"].post.tags,
     ).toEqual(["Ingestion"]);

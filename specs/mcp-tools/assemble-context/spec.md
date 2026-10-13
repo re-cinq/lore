@@ -41,7 +41,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
 | `query` | string | yes | — | Natural-language description of the context needed. Drives retrieval and ranking across all sources. |
 | `template` | string | no | `default` | Section-ordering profile. Recognized values: 'default' \| 'review' \| 'implementation' \| 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. |
 | `max_tokens` | number | no | `8000` | Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000. |
-| `repo` | string | no | — | 'owner/repo'. Auto-detected from the git remote when omitted. |
+| `repo` | string | no | — | 'owner/repo'. Auto-detected from the git remote when omitted; in the agent gateway the description says it is required. |
 | `agent_id` | string | no | — | Overrides the ambient agent id used to scope memories/facts. |
 | `cross_repo` | boolean | no | `false` | When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false. |
 
@@ -67,7 +67,7 @@ records latency + success into `memory.audit_log` and an OTEL span.
    non-fatal (stays disabled).
 4. Delegate to the engine
    `assembleContext(pool, query, template, max_tokens, repo, agent_id, enableCrossRepo)`
-   ([engine](../../../libs/shared/src/outbound/project/knowledge/context-assembly.ts#L225), re-exported
+   ([engine](../../../libs/shared/src/outbound/project/knowledge/context-assembly.ts#L228), re-exported
    [here](../../../libs/server-core/src/work/context/context-assembly.ts#L10)). The engine
    returns `{ text, sections: { tokens, … }[] }` — its retrieval/ranking/XML-emission
    contract is owned by [`context-assembly`](../../context-assembly/spec.md).
@@ -111,20 +111,34 @@ sources. ([validated by `debug trace reports per-section status and omit reason 
 
 On the proxy path, a reachable backend response is authoritative over any cached
 copy: an empty-but-reachable context is returned as-is (never a stale cache), and
-a reachable non-empty response returns the live text. ([validated by `returns an empty-but-reachable context as-is instead of a stale cached copy`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L150), [validated by `returns the live result on a reachable hit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L186))
+a reachable non-empty response returns the live text. ([validated by `returns an empty-but-reachable context as-is instead of a stale cached copy`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L140), [validated by `returns the live result on a reachable hit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L176))
+
+*(added 2026-10-01, #2103)* The shared agent gateway has no checkout, so it never
+shells out to git for a repo or branch: a call that names no repo is answered with
+"pass repo as owner/name" instead of proxying an empty one, the `repo` description
+says it is required there, and an API refusal reads as "Lore API rejected
+lore_assemble_context" with the API's reason, never as an unreachable API. A laptop's
+stdio adapter still reads its checkout's git remote.
+([validated by `asks for the repo instead of proxying an empty one when the call names none`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L216), [`reports the API's refusal as a rejection with its reason, not as an unreachable API`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L231), [`reads the checkout on a laptop when the call names nothing`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L26), [`never shells out to git in the agent gateway, which has no checkout, and leaves an omitted repo to the caller`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L33), [`takes the repo and branch the call names in either mode`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L43), [`tells the gateway's caller the repo is required, and a laptop's that it is auto-detected`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L52), [`refuses a repo that is not owner/name, with `..`, `?` or extra slashes`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L85), [`accepts owner/name with dots, dashes and underscores`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L99), [`answers with the refusal and never calls the read for a hostile repo`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L107), [`answers that no repo could be detected on a laptop outside a checkout, instead of sending an empty repo`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L128); implemented by [`repo-scope.ts`](apps/mcp-server/src/transport/tools/repo-scope.ts))
+
+*(added 2026-10-11, #2156)* On the shared agent gateway `repo` is a required parameter of every tool that reads a repo, enforced by the tool's Zod schema with the "pass repo as owner/name" hint; one gateway serves every pod, so no process-wide setting can name a call's repo and an omitted one is never filled from the environment, the working directory or a git remote. ([validated by `rejects an omitted repo in the gateway with the owner/name hint, and accepts one on a laptop`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L63))
+
+*(added 2026-10-01, #2344)* An explicit `repo` must be an owner/name (letters, digits, dots, dashes, underscores, no `..`, one slash) or the tool answers "Invalid repo" before any API call, so a caller-supplied value can never reshape the API path it is interpolated into; this holds for every tool that takes `repo`. On a laptop outside a checkout the call is answered with "Could not detect repo" instead of proxying an empty repo.
+
+*(added 2026-10-11, #2344)* A pod has no checkout to name its repo from, so the brief that starts or resumes a planning run leads with `repo: "owner/name"` on its own line, the repo its prompt tells it to pass on every Lore call. ([validated by `leads the brief with repo: "re-cinq/lore", the repo the agent passes to Lore's tools`](apps/lore-api/src/work/plans/floor-plan-line.test.ts#L662))
 
 The local task runner pre-fetched none of this: `withLoreWorkflowPreamble` opens
 every locally-run task with `lore_assemble_context` as step 1 and ends with the
 task itself, and there is no second, pre-loaded shape of the preamble to diverge
 from it (the pre-run fetch was removed 2026-08-28).
-([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L709), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L715), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L719); implemented by [`runner-local-spawn.ts:28`](apps/mcp-server/src/work/pipeline/runner-local-spawn.ts#L28))
+([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L710), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L716), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L720); implemented by [`runner-local-spawn.ts:28`](apps/mcp-server/src/work/pipeline/runner-local-spawn.ts#L28))
 
 The `/api/context` endpoint runs full assembly when a `query` param is present and
 a raw chunk fetch when it is absent.
 
 The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
-([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L188), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L196))
+([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L173), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L181))
 
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a

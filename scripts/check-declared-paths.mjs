@@ -288,8 +288,8 @@ function checkManifest(pkgDir) {
 
 /** Any compiled path spelled out in a chart, Dockerfile, workflow or script.
  *
- * Deliberately NOT anchored to `node <path>`: the Helm CronJob writes
- * `["node", "dist/transport/job-runner.js"]` in JSON-array form, and an
+ * Deliberately NOT anchored to `node <path>`: a Helm CronJob once named its
+ * entrypoint as a JSON array (`["node", "<compiled path>"]`), and an
  * anchored pattern walked straight past it — a green run that proved nothing.
  * Matching the path itself covers every spelling: array form, an `exec` shim,
  * a bare npm script. */

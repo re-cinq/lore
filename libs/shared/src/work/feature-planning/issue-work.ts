@@ -1,5 +1,6 @@
 // What the `issues` station files, decided from the decomposition alone. Pure: the station does the IO, this decides.
 
+import { DEFAULT_PRIORITY, PRIORITY_LABELS } from "../backlog/labels.js";
 import type {
   DecompositionResult,
   UserStory,
@@ -8,28 +9,44 @@ import type {
 /** Every Lore-filed issue carries this, so a repo can find or ignore them all. */
 export const BASE_STORY_LABELS = ["lore-managed", "user-story"] as const;
 
-export interface PlannedIssue {
+/** Every task issue carries this, so a repo can find or ignore them all. */
+export const BASE_TASK_LABELS = ["lore-managed"] as const;
+
+/** What a triage child issue carries instead of a priority: nothing queues it until a person picks one (specs/issue-triage). */
+export const TRIAGE_TASK_LABEL = "triage: needs-priority";
+
+export interface IssueWorkOptions {
+  /** The story issue's title; without one it is named after the first slice. */
+  planTitle?: string;
+  /** False files the task issues for a person to queue: no priority label, the triage label instead. */
+  queue?: boolean;
+}
+
+/** The ONE issue a plan becomes; its decomposed slices are sections inside it. */
+export interface PlannedStory {
   title: string;
   labels: string[];
-  storyIndex: number;
 }
 
 export interface PlannedTask {
+  /** The task issue's title: its id, then its own title or its description. */
+  title: string;
   description: string;
   labels: string[];
-  /** Which story this task belongs to, so the caller can attach the filed issue. */
+  /** Which slice (story section) this task belongs to. */
   storyIndex: number;
   task: UserStory["tasks"][number];
 }
 
 export type IssueWork =
-  | { outcome: "proceed"; issues: PlannedIssue[]; tasks: PlannedTask[] }
+  | { outcome: "proceed"; story: PlannedStory; tasks: PlannedTask[] }
   | { outcome: "changes_requested"; objection: string };
 
-/** The issues and spec-tasks a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
+/** The story issue and task issues a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
 export function decideIssueWork(
   decomposition: DecompositionResult,
   repoLabels: readonly string[],
+  { planTitle, queue = true }: IssueWorkOptions = {},
 ): IssueWork {
   const objection = firstObjection(decomposition, repoLabels);
 
@@ -40,8 +57,8 @@ export function decideIssueWork(
 
   return {
     outcome: "proceed",
-    issues: plannedIssues(stories),
-    tasks: plannedTasks(stories),
+    story: plannedStory(stories, planTitle),
+    tasks: plannedTasks(stories, queue ? taskLabels : unqueuedLabels),
   };
 }
 
@@ -94,23 +111,51 @@ function proposedLabels(story: UserStory): string[] {
   ];
 }
 
-function plannedIssues(
+function plannedStory(
   stories: DecompositionResult["stories"],
-): PlannedIssue[] {
-  return stories.map((story, storyIndex) => ({
-    title: `User story: ${story.title}`,
-    labels: [...(story.labels ?? []), ...BASE_STORY_LABELS],
-    storyIndex,
-  }));
+  planTitle: string | undefined,
+): PlannedStory {
+  return {
+    title: `User story: ${planTitle ?? stories[0].title}`,
+    labels: distinct([
+      ...stories.flatMap((story) => story.labels ?? []),
+      ...BASE_STORY_LABELS,
+    ]),
+  };
 }
 
-function plannedTasks(stories: DecompositionResult["stories"]): PlannedTask[] {
+function plannedTasks(
+  stories: DecompositionResult["stories"],
+  labelsOf: (chosen: readonly string[]) => string[],
+): PlannedTask[] {
   return stories.flatMap((story, storyIndex) =>
     story.tasks.map((task) => ({
+      title: `${task.id}: ${task.title ?? task.description}`,
       description: task.description,
-      labels: task.labels ?? [],
+      labels: labelsOf(task.labels ?? []),
       storyIndex,
       task,
     })),
   );
+}
+
+/** A task issue's labels: its own, Lore's, and the priority label that queues it for the implementation loop — added only when the decomposition chose none, because `orderBacklog` holds back a ticket carrying two. */
+function taskLabels(chosen: readonly string[]): string[] {
+  const queued = PRIORITY_LABELS.some((p) => chosen.includes(p))
+    ? []
+    : [DEFAULT_PRIORITY];
+
+  return distinct([...chosen, ...BASE_TASK_LABELS, ...queued]);
+}
+
+function unqueuedLabels(chosen: readonly string[]): string[] {
+  const unprioritized = chosen.filter(
+    (label) => !(PRIORITY_LABELS as readonly string[]).includes(label),
+  );
+
+  return distinct([...unprioritized, ...BASE_TASK_LABELS, TRIAGE_TASK_LABEL]);
+}
+
+function distinct(labels: string[]): string[] {
+  return [...new Set(labels)];
 }

@@ -81,23 +81,33 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
 1. User clicks "Add Repo" in the Lore UI.
 2. Selects a repo from their GitHub repos (dropdown, filtered by
    GitHub App installation).
-3. Lore creates a PR on the target repo containing:
-   - `.github/workflows/lore-ingest.yml` (context ingest) and
-     `.github/workflows/lore-trace-impact.yml` (advisory spec-impact)
-   - `.github/PULL_REQUEST_TEMPLATE.md` and
-     `.github/workflows/pr-description-check.yml`
-   - `.claude/settings.json` and `.github/ISSUE_TEMPLATE/*.yml`
-   - LLM-drafted `AGENTS.md` (pointing to Lore MCP) and `.specify/spec.md`
-4. User sees the PR link in the UI.
-5. Repo owner reviews and merges the PR.
-6. Lore's nightly ingestion picks up the new repo's content.
-7. Repo appears in the Lore dashboard.
+3. Lore enrols the repo: the `lore`/`lore:*` dispatch labels and the
+   priority taxonomy, the GitHub webhook, the ingest callback (repo
+   variable `LORE_INGEST_URL` + secret `LORE_INGEST_TOKEN`), and the
+   verbatim scaffolding committed on the task branch —
+   `.github/workflows/lore-ingest.yml`, `.github/workflows/lore-trace-impact.yml`,
+   `.claude/settings.json` and `.github/ISSUE_TEMPLATE/*.yml`.
+4. The onboarding ticket — the task's GitHub Issue on the target repo —
+   names every repo-specific file still owed with the prompt it is written
+   from (`AGENTS.md`, the PR template, `pr-description-check.yml`,
+   `.specify/spec.md`, the starter ADRs, `.lore/test-commands.yml` and
+   `lore-tests.yml` when absent), and the `onboard` assembly line implements
+   it: author → validate → push (opens THE pull request) → review.
+5. User sees the PR link in the UI.
+6. Repo owner reviews and merges the PR.
+7. The merge pushes the scaffolding to the default branch, so the repo's
+   own `lore-ingest.yml` and `lore-tests.yml` run on the merge commit and
+   its content is ingested — no follow-up task.
+8. Repo appears in the Lore dashboard.
 
 **Acceptance Criteria:**
 - One-click onboarding from the UI.
-- PR created via the GitHub App (lore-agent bot).
+- ONE pull request per onboarding: opened by the line's push node via the
+  GitHub App (lore-agent bot); the dashboard offers no fix-workflow PR
+  while the onboarding PR is unmerged, and no initial-ingestion task follows
+  the merge.
 - PR contains all required files with sensible defaults.
-- After merge, repo content is ingested automatically.
+- After merge, repo content is ingested by the merged workflows' own run.
 - Repo appears in dashboard within 24 hours (or immediately if
   manual ingest is triggered).
 
@@ -115,7 +125,7 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
 - Task creation is scoped to the current repo (no free-text input):
   the heading names the full repo, a hidden `target_repo` carries it,
   and the form exposes a description textarea and immediate-priority
-  checkbox. ([validated by `RepoTaskCreateView.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L21), [`RepoTaskCreateView.test.tsx:9`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L9), [`RepoTaskCreateView.test.tsx:55`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L55))
+  checkbox. *(Removed 2026-10-02: the create-task forms are deleted with the task types they offered, `specs/external-floor` FR16.7.)*
 - Repo dropdown only shows repos where the GitHub App is installed.
 - Task appears in the repo's task list immediately.
 
@@ -161,13 +171,19 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 - FR-1.1: `repos` table in PostgreSQL: id, name (owner/repo),
   team, onboarded_at, last_ingested_at, settings (JSONB). ([validated by `repos.test.ts:37`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L36))
 - FR-1.2: Repos are written to the registry on onboard (from the set the
-  GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L119))
+  GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L120))
 - FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45))
-- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L252))
+- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L236))
 
 ### FR-2: Repo Onboarding via PR
 
-The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:130`](apps/floor/src/work/task/worker.onboard.test.ts#L130))
+The system MUST onboard new repos by creating ONE pull request *(amended
+2026-09-17)*: the Floor enrols the repo and commits the verbatim scaffolding
+on the task branch, then hands the onboarding ticket to the `onboard`
+assembly line, whose push node opens the PR. The previous shape — an
+in-process handler drafting each file with one LLM call from a pre-fetched
+top-level tree, opening the PR itself, plus a dashboard fix-workflow PR and a
+post-merge ingestion task — could leave three PRs open for one onboarding.
 
 - FR-2.1: "Add Repo" button in the UI shows repos from the GitHub
   App installation that aren't onboarded yet. The onboard page renders
@@ -175,11 +191,19 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   already-onboarded hint (only when the list is non-empty), and keeps
   the typed repo name while surfacing an action error on a failed
   submit. ([validated by `OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9), [`OnboardView.test.tsx:21`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L21), [`OnboardView.test.tsx:36`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L36), [`OnboardView.test.tsx:44`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L44), [`OnboardView.test.tsx:60`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L60), [`OnboardView.test.tsx:81`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L81))
-- FR-2.2: Lore creates a per-task branch (`lore/onboard/<slug>-<id8>`) on the
-  target repo before committing. ([validated by `worker.onboard.test.ts:130`](apps/floor/src/work/task/worker.onboard.test.ts#L130))
-- FR-2.3: Commits the onboarding files onto that branch — the ingest and
-  spec-impact workflows, static scaffolding, and the LLM-drafted AGENTS.md,
-  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:113`](apps/floor/src/work/task/worker.onboard.test.ts#L113))
+- FR-2.2: Lore creates the task branch off the repo's real default branch
+  before committing to it, and only when it does not exist yet.
+- FR-2.3: The Floor brings the deterministic scaffolding on that branch to
+  today's requirements itself, by one rule for a first onboarding and an
+  update alike: a LORE-owned file — the ingest and spec-impact workflows, the
+  three `lore-*.yml` issue templates — is committed whenever the branch's copy
+  differs from the canonical content, and a REPO-owned one
+  (`.claude/settings.json`, `ISSUE_TEMPLATE/config.yml`) only when absent, so a
+  repo's own settings are never overwritten. A file already at its canonical
+  content is never committed: GitHub's contents API makes a commit even for
+  identical bytes, and an up-to-date repo would get an empty pull request.
+  Paths are read exactly, so a repo with a `.github/` directory still receives
+  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo](libs/shared/src/work/onboard-content.test.ts#L197))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   reporting each repo where no PR was opened with its reason (a thrown
@@ -187,28 +211,92 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   ingest and trace-impact fix actions, and evicting the cached
   ingest-workflow statuses before revalidating so the re-rendered page
   refetches them ([validated by `actions.test.ts:31`](apps/web-ui/src/app/actions.test.ts#L31), [`actions.test.ts:56`](apps/web-ui/src/app/actions.test.ts#L56), [`actions.test.ts:90`](apps/web-ui/src/app/actions.test.ts#L90), [`actions.test.ts:102`](apps/web-ui/src/app/actions.test.ts#L102))
+- FR-2.4b: *(amended 2026-09-17)* The fix-ingest and fix-trace-impact
+  actions are offered only for repos whose onboarding PR has merged: a repo
+  still being onboarded reads as "missing" because its scaffolding sits on
+  the unmerged onboarding branch, and a fix PR there would be a second PR
+  beside the one onboarding owns. ([validated by offers a fix for an onboarded repo whose workflow is missing or stale, not an aligned one](apps/web-ui/src/lib/workflow-fix.test.ts#L10), [validated by offers no fix for a repo whose onboarding PR has not merged, whatever its workflow status](apps/web-ui/src/lib/workflow-fix.test.ts#L25), [validated by offers nothing for a repo with no status read](apps/web-ui/src/lib/workflow-fix.test.ts#L36))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
   until merged). ([validated by `onboard.test.ts:16`](apps/web-ui/src/lib/onboard.test.ts#L16))
-- FR-2.6: After merge, adds repo to the registry and triggers
-  initial ingestion; re-onboarding creates an onboard task and
-  redirects to the new task page (or back to the repo when none is
-  created), and the fix-ingest control re-triggers ingestion for
+- The merge-check sweep reads owner, repository and PR number from an onboarding GitHub pull URL; an empty URL or a repository URL without a pull request yields no PR to check. ([validated by reads owner, repo, and PR number from a github.com pull URL](apps/stations/src/work/merge-check/merge-check.test.ts#L5), [validated by returns null for a URL that carries no pull request](apps/stations/src/work/merge-check/merge-check.test.ts#L11), [validated by returns null for an empty string](apps/stations/src/work/merge-check/merge-check.test.ts#L15))
+- FR-2.6: After merge, the merge-check station flips the repo to onboarded
+  and the merged workflows ingest on their own push run — no task follows; re-onboarding creates an onboard task and
+  redirects to its run (or back to the repo when none is
+  created), from a trigger drawn as a plain button rather than a link, and the fix-ingest control re-triggers ingestion for
   misaligned repos with a singular/plural PR label plus a failure count
   and per-repo reasons when some PRs could not be opened; a re-onboard
   raised while the previous pass is still running lands on that in-flight
-  task instead of
-  queueing a duplicate. ([validated by `actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:33`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx:11`](apps/web-ui/src/components/FixIngestButton.test.tsx#L11), [`FixIngestButton.test.tsx:19`](apps/web-ui/src/components/FixIngestButton.test.tsx#L19), [`FixIngestButton.test.tsx:40`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40), [`FixIngestButton.test.tsx:54`](apps/web-ui/src/components/FixIngestButton.test.tsx#L54))
-- FR-2.7: When some files cannot be committed, the onboarding PR still
-  opens and its body carries a needs-attention section listing each
-  failed file with its error; a commit rejected for the missing Workflows App permission (classified
-  by the shared failure detector across both GitHub phrasings, never by
-  bare status keying) is named for what it is, and the failure set is recorded in the audit log as
-  `onboard_files_failed`. ([validated by `worker.onboard.test.ts:172`](apps/floor/src/work/task/worker.onboard.test.ts#L172), [`worker.onboard.test.ts:191`](apps/floor/src/work/task/worker.onboard.test.ts#L191), [`worker.onboard.test.ts:207`](apps/floor/src/work/task/worker.onboard.test.ts#L207), [`worker.onboard.test.ts:299`](apps/floor/src/work/task/worker.onboard.test.ts#L299))
+  task's run instead of
+  queueing a duplicate. ([validated by is the plain global button, not the link-styled one](apps/web-ui/src/components/ReonboardButton.test.tsx#L17), [`actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:33`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx:11`](apps/web-ui/src/components/FixIngestButton.test.tsx#L11), [`FixIngestButton.test.tsx:19`](apps/web-ui/src/components/FixIngestButton.test.tsx#L19), [`FixIngestButton.test.tsx:40`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40), [`FixIngestButton.test.tsx:54`](apps/web-ui/src/components/FixIngestButton.test.tsx#L54))
+- FR-2.6.1 *(added 2026-09-22, #2027)*: Flipping the repo to onboarded does
+  not stamp `last_ingested_at`; only an ingest does. The stamp used to be set
+  on merge although nothing had read the repo, which silenced the
+  seven-day staleness warning on a repo no ingest had reached.
+  ([validated by marks repo-42's onboarding merged without stamping last_ingested_at](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L79),
+  [validated by marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset](libs/shared/src/outbound/project/settings/settings.test.ts#L70))
+- FR-2.7: When enrolment leaves gaps — a file that could not be committed,
+  a callback value that could not be set — the onboarding still proceeds and
+  the gaps are COMMENTED ON THE TICKET, the human surface an onboarding has
+  before its PR exists; a commit rejected for the missing Workflows App
+  permission (classified by the shared failure detector across both GitHub
+  phrasings, never by bare status keying) is named for what it is, the
+  failure set is recorded in the audit log as `onboard_files_failed`, and a
+  task with no ticket still audits and dispatches.
 - FR-2.8: The ingest callback config (repo variable `LORE_INGEST_URL`,
-  secret `LORE_INGEST_TOKEN`) is written before the PR opens so its
-  failures land in the PR body; an unset Floor-side value is reported
-  instead of being written as an empty variable, and a rejected
-  secret write is reported with its error. ([validated by `worker.onboard.test.ts:233`](apps/floor/src/work/task/worker.onboard.test.ts#L233), [`worker.onboard.test.ts:258`](apps/floor/src/work/task/worker.onboard.test.ts#L258), [`worker.onboard.test.ts:278`](apps/floor/src/work/task/worker.onboard.test.ts#L278))
+  secret `LORE_INGEST_TOKEN`) is written before the line is dispatched so
+  its failures reach the ticket; an unset Floor-side value is reported
+  instead of being written as an empty variable, and a rejected secret
+  write is reported with its error.
+- FR-2.9: An onboard task ALWAYS walks the `onboard` assembly line, dark
+  mode or not — only the line's push node opens the PR, so a single-Agent
+  dispatch would never produce one; every other task type keeps its rule
+  (dark mode or a feature-lifecycle type walks the line, otherwise a single
+  Agent). The push node records the opened PR as the repo's onboarding PR,
+  which the onboard guard blocks on and the merge-check station flips to
+  merged; a feature-planning line's PR records nothing there.
+- FR-2.10: The onboarding TICKET is the whole spec the line's agent gets:
+  it names the repo, lists the deterministic scaffolding already on the
+  branch so it is not rewritten, owes each repo-specific file with the
+  prompt it is written from — the starter ADRs only for a repo with no
+  `adrs/` or `docs/`, the test-command manifest and `lore-tests.yml` only
+  when absent — and states the rules: existing files stay untouched, no
+  `CLAUDE.md`, no code changes, and Lore opens the pull request. The API
+  route sends that body as the task description, which becomes the Issue. ([validated by names re-cinq/app as the repository being onboarded](libs/shared/src/work/onboard-content.test.ts#L123), [validated by owes every LLM-drafted path with its prompt](libs/shared/src/work/onboard-content.test.ts#L127), [validated by owes the starter ADRs only for a repo with no adrs/ or docs/ directory](libs/shared/src/work/onboard-content.test.ts#L135), [validated by owes the test-command manifest and lore-tests.yml with their own instructions, only when absent](libs/shared/src/work/onboard-content.test.ts#L152), [validated by says the deterministic scaffolding is already on the branch and must not be rewritten](libs/shared/src/work/onboard-content.test.ts#L163), [validated by forbids CLAUDE.md, existing-file rewrites and code changes, and leaves the pull request to Lore](libs/shared/src/work/onboard-content.test.ts#L173), [validated by sends the onboarding ticket body instead of the bare repo name](apps/lore-api/src/work/repo/repo-onboard.test.ts#L135))
+- FR-2.11: *(added 2026-09-17)* Lore does not monitor a repo's setup; its
+  owner triggers it by hand. The enrollment box carries ONE button, and only
+  one: a missing file's check says what is missing but offers no action of
+  its own, because a button per missing file read as one PR per file when
+  every one of them queued the same run. That button is a standing trigger
+  whose label follows the repo's state: **Open enrolment PR** while the repo
+  has no onboarding PR, **Update Lore setup** once that PR has merged —
+  standing because a setup that is complete but out of date fails no check,
+  so no per-check action would offer it — and nothing while the PR is open,
+  where the guard refuses a second run and the row's "review & merge" link is
+  the action. The API's and the MCP tool's `reonboard` reach the same run,
+  and the TICKET is chosen by the repo's state, never by that flag: the repo
+  page always sends it, so a first enrolment raised from the box still gets
+  the onboarding ticket. That run is the
+  `onboard` assembly line fed the UPDATE ticket: the Floor refreshes Lore's
+  own files under FR-2.3, and the agent adds every file a first onboarding
+  owes that is missing and realigns only the two workflows written from a Lore
+  instruction (`lore-tests.yml`, `pr-description-check.yml`), leaving
+  everything else the repository has edited alone. It opens ONE pull request,
+  or none: when the Floor had nothing to refresh and the agent nothing to add,
+  the line COMPLETES saying the setup is already current, where any other
+  line whose push delivered nothing still errors. ([validated by shows exactly one button for a repo missing two files: Open enrolment PR, never one per file](apps/web-ui/src/components/EnrollmentSection.test.tsx#L40), [validated by carries no per-file PR action on a missing github file: the box's one trigger covers every missing file](apps/web-ui/src/lib/enrollment.test.ts#L202), [validated by offers Open enrolment PR in the box for a repo with no onboarding PR, and runs the handler on click](apps/web-ui/src/components/EnrollmentSection.test.tsx#L65), [validated by offers Update Lore setup once the onboarding PR has merged, even with every check passing](apps/web-ui/src/components/EnrollmentSection.test.tsx#L79), [validated by offers neither trigger while the onboarding PR is open, nor without a handler](apps/web-ui/src/components/EnrollmentSection.test.tsx#L99), [validated by reads Open enrolment PR for a repo with no onboarding PR yet](apps/web-ui/src/lib/enrollment.test.ts#L461), [validated by reads Update Lore setup once the onboarding PR has merged](apps/web-ui/src/lib/enrollment.test.ts#L469), [validated by offers nothing while the onboarding PR is still open, where review & merge is the action](apps/web-ui/src/lib/enrollment.test.ts#L473), [validated by sends the update ticket, not the onboarding one, when o/r's onboarding PR has already merged](apps/lore-api/src/work/repo/repo-onboard.test.ts#L240), [validated by sends the onboarding ticket when reonboard is requested for o/r but its onboarding PR never merged](apps/lore-api/src/work/repo/repo-onboard.test.ts#L260), [validated by asks to update re-cinq/app's Lore setup rather than onboard it](libs/shared/src/work/onboard-content.test.ts#L217), [validated by owes every file a first onboarding owes, each only when missing](libs/shared/src/work/onboard-content.test.ts#L224), [validated by realigns only lore-tests.yml and pr-description-check.yml, the workflows written from a Lore instruction](libs/shared/src/work/onboard-content.test.ts#L235), [validated by calls an already-current setup a success, not a failure](libs/shared/src/work/onboard-content.test.ts#L243))
+- FR-2.12: *(added 2026-10-01)* Where an external floor is configured the
+  onboarding runs there (`specs/external-floor` FR11), and three things
+  differ from the requirements above. Enrolment gaps (FR-2.7, FR-2.8) are
+  carried in the PULL REQUEST's body rather than commented on a ticket,
+  because no ticket issue is filed. The line has no review or address node:
+  once the build is green it asks the code-review line for a review. And the
+  task branch is `lore/onboard/<first 8 of the task id>`. Everything else —
+  one pull request, the scaffolding rule of FR-2.3, the ticket of FR-2.10,
+  the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer](apps/stations/src/onboard/open-pr/station.test.ts#L88), [validated by starts a forced review of pull request 42 of re-cinq/app](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-…](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
+
+- FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
+  feedback. On success the user lands on the repository's page, which shows
+  its onboarding state. A refusal keeps the user on the form with the reason. ([validated by redirects to /repos/re-cinq/lore when onboarding queues task-1](apps/web-ui/src/app/onboard/page.test.tsx#L55), [stays on the form with the refusal when onboarding is refused](apps/web-ui/src/app/onboard/page.test.tsx#L65), [rejects a malformed repository without calling the API](apps/web-ui/src/app/onboard/page.test.tsx#L81))
 
 ### FR-3: Repo-Centric UI Layout
 
@@ -221,11 +309,11 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 - FR-3.3: Overview tab shows recent tasks (PR + pipeline links,
   truncated descriptions, empty state), latest events (status badge +
   Show-all, empty state), the enrollment/re-onboard controls, and the
-  repo's Dark Factory mode. ([validated by `RepoOverviewView.test.tsx:94`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L90), [`RepoOverviewView.test.tsx:106`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L106), [`RepoOverviewView.test.tsx:147`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L147), [`RepoOverviewView.test.tsx:180`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L180), [`RepoOverviewView.test.tsx:192`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L192), [`RepoOverviewView.test.tsx:202`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L202), [`RepoOverviewView.test.tsx:231`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L231), [`EnrollmentSection.test.tsx:32`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L32), [`EnrollmentSection.test.tsx:48`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L48), [`EnrollmentSection.test.tsx:56`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L56), [`EnrollmentSection.test.tsx:83`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L83), [`ReonboardButton.test.tsx:7`](apps/web-ui/src/components/ReonboardButton.test.tsx#L7), [`ReonboardButton.test.tsx:21`](apps/web-ui/src/components/ReonboardButton.test.tsx#L21))
+  repo's Dark Factory mode. ([validated by renders the enrollment section and wires the one enrolment trigger + the webhook action button](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L86), [shows trust level full and 12 tasks this week on the activity card, linked to settings](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L100), [renders a row per recent task with a PR link and a pipeline link](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L115), [truncates long task descriptions to 60 chars with an ellipsis](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L148), [shows the empty-tasks state with a create link when there are no tasks](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L160), [renders a row per latest event with a status badge and a Show all link](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L170), [shows the empty-events state with a Show all link when there are no events](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L199), [`EnrollmentSection.test.tsx:32`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L32), [`EnrollmentSection.test.tsx:48`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L48), [`EnrollmentSection.test.tsx:56`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L120), [`EnrollmentSection.test.tsx:83`](apps/web-ui/src/components/EnrollmentSection.test.tsx#L147), [`ReonboardButton.test.tsx:7`](apps/web-ui/src/components/ReonboardButton.test.tsx#L7), [`ReonboardButton.test.tsx:21`](apps/web-ui/src/components/ReonboardButton.test.tsx#L25))
 - FR-3.3a: Overview renders the repo README (or omits it when absent),
   as collapsible markdown with GFM tables, raw inline HTML, fenced
   code, and relative image/link URLs resolved against the repo's raw
-  and HTML base URLs. ([validated by `ReadmeBox.test.tsx:20`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L18), [`ReadmeBox.test.tsx:30`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L30), [`ReadmeBox.test.tsx:42`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L42), [`ReadmeBox.test.tsx:54`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L54), [`ReadmeBox.test.tsx:72`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L72), [`ReadmeBox.test.tsx:92`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L92), [`ReadmeBox.test.tsx:114`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L114), [`ReadmeBox.test.tsx:126`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L126), [`ReadmeBox.test.tsx:139`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L139), [`ReadmeBox.test.tsx:150`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L150), [`ReadmeBox.test.tsx:162`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L162), [`ReadmeBox.test.tsx:171`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L171), [`ReadmeBox.test.tsx:249`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L249), [`readme-markdown.test.ts:7`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L7), [`readme-markdown.test.ts:13`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L13), [`readme-markdown.test.ts:19`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L19), [`readme-markdown.test.ts:23`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L23), [`readme-markdown.test.ts:27`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L27), [`readme-markdown.test.ts:31`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L31), [`readme-markdown.test.ts:37`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L37), [`readme-markdown.test.ts:43`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L43), [`readme-markdown.test.ts:51`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L51), [`readme-markdown.test.ts:55`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L55), [`readme-markdown.test.ts:59`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L59), [`RepoOverviewView.test.tsx:69`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L69), [`RepoOverviewView.test.tsx:85`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L85))
+  and HTML base URLs. ([validated by `ReadmeBox.test.tsx:20`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L18), [`ReadmeBox.test.tsx:30`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L30), [`ReadmeBox.test.tsx:42`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L42), [`ReadmeBox.test.tsx:54`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L54), [`ReadmeBox.test.tsx:72`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L72), [`ReadmeBox.test.tsx:92`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L92), [`ReadmeBox.test.tsx:114`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L114), [`ReadmeBox.test.tsx:126`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L126), [`ReadmeBox.test.tsx:139`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L139), [`ReadmeBox.test.tsx:150`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L150), [`ReadmeBox.test.tsx:162`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L162), [`ReadmeBox.test.tsx:171`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L171), [`ReadmeBox.test.tsx:249`](apps/web-ui/src/app/repos/[owner]/[repo]/ReadmeBox.test.tsx#L249), [`readme-markdown.test.ts:7`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L7), [`readme-markdown.test.ts:13`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L13), [`readme-markdown.test.ts:19`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L19), [`readme-markdown.test.ts:23`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L23), [`readme-markdown.test.ts:27`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L27), [`readme-markdown.test.ts:31`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L31), [`readme-markdown.test.ts:37`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L37), [`readme-markdown.test.ts:43`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L43), [`readme-markdown.test.ts:51`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L51), [`readme-markdown.test.ts:55`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L55), [`readme-markdown.test.ts:59`](apps/web-ui/src/app/repos/[owner]/[repo]/readme-markdown.test.ts#L59), [renders the readme box when a readme is provided](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L65), [omits the readme box when readme is null](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L81))
 - FR-3.3c: The README markdown is sanitized after raw-HTML parsing: an
   injected `<script>` renders nothing executable, an `onerror` attribute
   is stripped from raw `<img>` HTML, `javascript:` hrefs are stripped
@@ -239,19 +327,19 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   status is null/empty, muted colour for an unknown status), and the
   panel fetches per-task PR status, re-fetches when the task id
   changes, and stays silent on a missing status, rejection, or a
-  resolve after unmount. ([validated by `PRStatusBadge.test.tsx:7`](apps/web-ui/src/app/tasks/PRStatusBadge.test.tsx#L7), [`PRStatusBadge.test.tsx:14`](apps/web-ui/src/app/tasks/PRStatusBadge.test.tsx#L14), [`PRStatusBadge.test.tsx:20`](apps/web-ui/src/app/tasks/PRStatusBadge.test.tsx#L20), [`PRStatusBadge.test.tsx:47`](apps/web-ui/src/app/tasks/PRStatusBadge.test.tsx#L47), [validated by `maps the %s status to its pill color`](apps/web-ui/src/app/tasks/PRStatusBadge.test.tsx#L38), [`PRStatusBadgePanel.test.tsx:40`](apps/web-ui/src/app/tasks/PRStatusBadgePanel.test.tsx#L40), [`PRStatusBadgePanel.test.tsx:48`](apps/web-ui/src/app/tasks/PRStatusBadgePanel.test.tsx#L48), [`PRStatusBadgePanel.test.tsx:62`](apps/web-ui/src/app/tasks/PRStatusBadgePanel.test.tsx#L62), [`PRStatusBadgePanel.test.tsx:71`](apps/web-ui/src/app/tasks/PRStatusBadgePanel.test.tsx#L71), [`PRStatusBadgePanel.test.tsx:79`](apps/web-ui/src/app/tasks/PRStatusBadgePanel.test.tsx#L79), [`PRStatusBadgePanel.test.tsx:90`](apps/web-ui/src/app/tasks/PRStatusBadgePanel.test.tsx#L90), [`PRStatusBadgePanel.test.tsx:110`](apps/web-ui/src/app/tasks/PRStatusBadgePanel.test.tsx#L110))
+  resolve after unmount. ([validated by `PRStatusBadge.test.tsx:7`](apps/web-ui/src/app/assembly-runs/PRStatusBadge.test.tsx#L7), [`PRStatusBadge.test.tsx:14`](apps/web-ui/src/app/assembly-runs/PRStatusBadge.test.tsx#L14), [`PRStatusBadge.test.tsx:20`](apps/web-ui/src/app/assembly-runs/PRStatusBadge.test.tsx#L20), [`PRStatusBadge.test.tsx:47`](apps/web-ui/src/app/assembly-runs/PRStatusBadge.test.tsx#L47), [validated by `maps the %s status to its pill color`](apps/web-ui/src/app/assembly-runs/PRStatusBadge.test.tsx#L37), [`PRStatusBadgePanel.test.tsx:40`](apps/web-ui/src/app/assembly-runs/PRStatusBadgePanel.test.tsx#L40), [`PRStatusBadgePanel.test.tsx:48`](apps/web-ui/src/app/assembly-runs/PRStatusBadgePanel.test.tsx#L48), [`PRStatusBadgePanel.test.tsx:62`](apps/web-ui/src/app/assembly-runs/PRStatusBadgePanel.test.tsx#L62), [`PRStatusBadgePanel.test.tsx:71`](apps/web-ui/src/app/assembly-runs/PRStatusBadgePanel.test.tsx#L71), [`PRStatusBadgePanel.test.tsx:79`](apps/web-ui/src/app/assembly-runs/PRStatusBadgePanel.test.tsx#L79), [`PRStatusBadgePanel.test.tsx:90`](apps/web-ui/src/app/assembly-runs/PRStatusBadgePanel.test.tsx#L90), [`PRStatusBadgePanel.test.tsx:110`](apps/web-ui/src/app/assembly-runs/PRStatusBadgePanel.test.tsx#L110))
 - FR-3.4: Tasks (Assembly Lines) tab shows pipeline runs filtered to
   this repo — the heading, intro copy and New Task link, a run row
   with its summed cost, and an empty-state row when there are none;
   the job-run detail page renders the job/status badges, all optional
   fields, the log output (or missing/unreadable/in-process messages),
-  and a not-found state with a back link. ([validated by `RepoTasksView.test.tsx:54`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L57), [`RepoTasksView.test.tsx:35`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L37), [`RepoTasksView.test.tsx:50`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L52), [`JobRunView.test.tsx:40`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L40), [`JobRunView.test.tsx:52`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L52), [`JobRunView.test.tsx:70`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L70), [`JobRunView.test.tsx:78`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L78), [`JobRunView.test.tsx:89`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L89), [`JobRunView.test.tsx:97`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L97), [`JobRunView.test.tsx:106`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L106))
+  and a not-found state with a back link. ([validated by `RepoTasksView.test.tsx:54`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L54), [renders the Assembly Runs heading and intro copy, and offers no way to create a task](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L37), [`RepoTasksView.test.tsx:50`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L49), [`JobRunView.test.tsx:40`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L40), [`JobRunView.test.tsx:52`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L52), [`JobRunView.test.tsx:70`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L70), [`JobRunView.test.tsx:78`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L78), [`JobRunView.test.tsx:89`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L89), [`JobRunView.test.tsx:97`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L97), [`JobRunView.test.tsx:106`](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L106))
 - FR-3.5: Context tab shows CLAUDE.md, ADRs, runbooks for this repo. ([validated by `RepoContextView.test.tsx:49`](apps/web-ui/src/app/repos/[owner]/[repo]/context/RepoContextView.test.tsx#L49))
 - FR-3.6: Specs tab shows .specify/ specs for this repo, with status
   pills and a filter-chip row (an All chip counting the true list
   length plus one chip per present status, aria-pressed on the active
   filter, a legend distinguishing status from coverage). ([validated by `SpecListView.test.tsx:7`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecListView.test.tsx#L7), [`SpecStatusChips.test.tsx:7`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L7), [`SpecStatusChips.test.tsx:15`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L15), [`SpecStatusChips.test.tsx:31`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L31), [`SpecStatusChips.test.tsx:46`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L46), [`SpecStatusChips.test.tsx:66`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L66), [`SpecStatusChips.test.tsx:82`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L82), [`SpecStatusPill.test.tsx:7`](apps/web-ui/src/components/SpecStatusPill.test.tsx#L7), [`SpecStatusPill.test.tsx:13`](apps/web-ui/src/components/SpecStatusPill.test.tsx#L13))
-- FR-3.7: Agents tab shows agent definitions scoped to this repo. ([validated by `AgentList.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L52))
+- FR-3.7: Agents tab shows agent definitions scoped to this repo. ([validated by `AgentList.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L46))
 - FR-3.8: Global search, audit, and shared pools remain as
   top-level nav items; a shared-pool detail page renders the pool
   heading/breadcrumb, a truncated creator, singular/plural entry
@@ -271,35 +359,31 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   source cards, the nested context/section/document prompt tree (with
   a rendered-markdown/raw toggle), or an HTTP/rejection error that is
   cleared on the next successful assemble. ([validated by `AssembledContextView.test.tsx:84`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L84), [`AssembledContextView.test.tsx:94`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L94), [`AssembledContextView.test.tsx:102`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L102), [`AssembledContextView.test.tsx:121`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L121), [`AssembledContextView.test.tsx:147`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L147), [`AssembledContextView.test.tsx:165`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L165), [`AssembledContextView.test.tsx:191`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L191), [`AssembledContextView.test.tsx:201`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L201), [`AssembledContextPanel.test.tsx:79`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextPanel.test.tsx#L79), [`AssembledContextPanel.test.tsx:86`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextPanel.test.tsx#L86), [`AssembledContextPanel.test.tsx:105`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextPanel.test.tsx#L105), [`AssembledContextPanel.test.tsx:122`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextPanel.test.tsx#L122), [`AssembledContextPanel.test.tsx:135`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextPanel.test.tsx#L135), [`AssembledContextPanel.test.tsx:151`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextPanel.test.tsx#L151), [`lore-api-config.test.ts:20`](apps/web-ui/src/lib/lore-api-config.test.ts#L20), [`lore-api-config.test.ts:27`](apps/web-ui/src/lib/lore-api-config.test.ts#L27), [`lore-api-config.test.ts:33`](apps/web-ui/src/lib/lore-api-config.test.ts#L33))
-- FR-3.11: Features tab lists a feature's decomposed stories/tasks
-  (each story linked to its GitHub issue, tasks with status, a labelled
-  no-story group, nothing when there are no tasks), and maps each
-  lifecycle status to its pill colour and in-flight state. ([validated by `DecompositionView.test.tsx:7`](apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/DecompositionView.test.tsx#L7), [`DecompositionView.test.tsx:15`](apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/DecompositionView.test.tsx#L15), [`feature-status.test.ts:17`](apps/web-ui/src/lib/feature-status.test.ts#L17), [`feature-status.test.ts:23`](apps/web-ui/src/lib/feature-status.test.ts#L23), [`feature-status.test.ts:27`](apps/web-ui/src/lib/feature-status.test.ts#L27), [`feature-status.test.ts:33`](apps/web-ui/src/lib/feature-status.test.ts#L33), [`feature-status.test.ts:40`](apps/web-ui/src/lib/feature-status.test.ts#L40))
 - FR-3.12: Events tab renders a row per repo event (name + status) or
   an empty state, filtering by the repo column, ordering newest-first,
   and paging one row past the page size from the given offset; the
   infinite-scroll pager shows a sentinel row while a further page exists
-  and renders nothing once no page and no appended events remain. ([validated by `EventsView.test.tsx:18`](apps/web-ui/src/app/repos/[owner]/[repo]/events/EventsView.test.tsx#L18), [`EventsView.test.tsx:46`](apps/web-ui/src/app/repos/[owner]/[repo]/events/EventsView.test.tsx#L46), [`events-data.test.ts:20`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L20), [`events-data.test.ts:32`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L32), [`events-data.test.ts:44`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L44), [`events-data.test.ts:55`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L55), [`renders a pager sentinel row when a further page exists`](apps/web-ui/src/app/repos/[owner]/[repo]/events/InfiniteEvents.test.tsx#L17), [`renders nothing when there is no further page and no events loaded yet`](apps/web-ui/src/app/repos/[owner]/[repo]/events/InfiniteEvents.test.tsx#L34))
+  and renders nothing once no page and no appended events remain. ([validated by `EventsView.test.tsx:18`](apps/web-ui/src/app/repos/[owner]/[repo]/events/EventsView.test.tsx#L18), [`EventsView.test.tsx:46`](apps/web-ui/src/app/repos/[owner]/[repo]/events/EventsView.test.tsx#L46), [`events-data.test.ts:20`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L20), [`events-data.test.ts:32`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L32), [`events-data.test.ts:44`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L44), [`events-data.test.ts:55`](apps/web-ui/src/app/repos/[owner]/[repo]/events/events-data.test.ts#L55), [`renders a pager sentinel row when a further page exists`](apps/web-ui/src/app/repos/[owner]/[repo]/events/InfiniteEvents.test.tsx#L16), [`renders nothing when there is no further page and no events loaded yet`](apps/web-ui/src/app/repos/[owner]/[repo]/events/InfiniteEvents.test.tsx#L33))
 - FR-3.13: Settings tab renders the General section prefilled from
   settings and every onboarded repo as a cross-repo option (no
   dark-factory/agent/approval-PR controls), and its save-result banner
   reports saved, applied-privileged, two-key-required (gated field
   paths + approval-PR instructions), codeowners-failed, gated-API
-  unconfigured, and generic-error outcomes. ([validated by `SettingsView.test.tsx:22`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L22), [`SettingsView.test.tsx:53`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L53), [`SettingsView.test.tsx:64`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L64), [`SaveResultBanner.test.tsx:7`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L7), [`SaveResultBanner.test.tsx:15`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L15), [`SaveResultBanner.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L21), [`SaveResultBanner.test.tsx:33`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L33), [`SaveResultBanner.test.tsx:51`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L51), [`SaveResultBanner.test.tsx:70`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L70), [`SaveResultBanner.test.tsx:79`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L79))
+  unconfigured, and generic-error outcomes. ([validated by `SettingsView.test.tsx:22`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L22), [`SettingsView.test.tsx:53`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L53), [`SettingsView.test.tsx:64`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L75), [`SaveResultBanner.test.tsx:7`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L7), [`SaveResultBanner.test.tsx:15`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SaveResultBanner.test.tsx#L15))
 - FR-3.14: The app shell renders a collapsible sidebar (every nav link
   once in declared order, active highlighting on exact/sub-routes via
   the "/" boundary, pinned Settings/Add-Repo footer actions, grouped
   collapsible sections, and in-flight spinners) with a mobile
   hamburger/overlay drawer (focus management, aria-expanded, and
   Escape/overlay/route-change close semantics) and a user menu (name /
-  email / avatar fallbacks and sign-out). ([validated by `SidebarNav.test.tsx:62`](apps/web-ui/src/app/SidebarNav.test.tsx#L62), [`SidebarNav.test.tsx:75`](apps/web-ui/src/app/SidebarNav.test.tsx#L75), [`SidebarNav.test.tsx:87`](apps/web-ui/src/app/SidebarNav.test.tsx#L87), [`SidebarNav.test.tsx:99`](apps/web-ui/src/app/SidebarNav.test.tsx#L99), [`SidebarNav.test.tsx:110`](apps/web-ui/src/app/SidebarNav.test.tsx#L110), [`SidebarNav.test.tsx:127`](apps/web-ui/src/app/SidebarNav.test.tsx#L127), [`SidebarNav.test.tsx:136`](apps/web-ui/src/app/SidebarNav.test.tsx#L136), [`SidebarNav.test.tsx:153`](apps/web-ui/src/app/SidebarNav.test.tsx#L153), [`SidebarNav.test.tsx:166`](apps/web-ui/src/app/SidebarNav.test.tsx#L166), [`SidebarNav.test.tsx:173`](apps/web-ui/src/app/SidebarNav.test.tsx#L173), [`SidebarNav.test.tsx:189`](apps/web-ui/src/app/SidebarNav.test.tsx#L189), [`SidebarNav.test.tsx:203`](apps/web-ui/src/app/SidebarNav.test.tsx#L203), [`SidebarNav.test.tsx:212`](apps/web-ui/src/app/SidebarNav.test.tsx#L212), [`SidebarNav.test.tsx:224`](apps/web-ui/src/app/SidebarNav.test.tsx#L224), [`SidebarNav.test.tsx:239`](apps/web-ui/src/app/SidebarNav.test.tsx#L239), [`SidebarNav.test.tsx:255`](apps/web-ui/src/app/SidebarNav.test.tsx#L255), [`SidebarNav.test.tsx:263`](apps/web-ui/src/app/SidebarNav.test.tsx#L263), [`SidebarNav.test.tsx:276`](apps/web-ui/src/app/SidebarNav.test.tsx#L276), [`SidebarNav.test.tsx:287`](apps/web-ui/src/app/SidebarNav.test.tsx#L287), [`SidebarNav.test.tsx:293`](apps/web-ui/src/app/SidebarNav.test.tsx#L293), [`SidebarNav.test.tsx:318`](apps/web-ui/src/app/SidebarNav.test.tsx#L318), [`AppShell.test.tsx:40`](apps/web-ui/src/app/AppShell.test.tsx#L40), [`AppShell.test.tsx:49`](apps/web-ui/src/app/AppShell.test.tsx#L49), [`AppShell.test.tsx:56`](apps/web-ui/src/app/AppShell.test.tsx#L56), [`AppShell.test.tsx:62`](apps/web-ui/src/app/AppShell.test.tsx#L62), [`AppShell.test.tsx:67`](apps/web-ui/src/app/AppShell.test.tsx#L67), [`AppShell.test.tsx:72`](apps/web-ui/src/app/AppShell.test.tsx#L72), [`AppShell.test.tsx:81`](apps/web-ui/src/app/AppShell.test.tsx#L81), [`AppShell.test.tsx:89`](apps/web-ui/src/app/AppShell.test.tsx#L89), [`AppShell.test.tsx:97`](apps/web-ui/src/app/AppShell.test.tsx#L97), [`AppShell.test.tsx:106`](apps/web-ui/src/app/AppShell.test.tsx#L106), [`AppShell.test.tsx:114`](apps/web-ui/src/app/AppShell.test.tsx#L114), [`AppShell.test.tsx:122`](apps/web-ui/src/app/AppShell.test.tsx#L122), [`AppShell.test.tsx:130`](apps/web-ui/src/app/AppShell.test.tsx#L130), [`AppShell.test.tsx:142`](apps/web-ui/src/app/AppShell.test.tsx#L142), [`AppShell.test.tsx:159`](apps/web-ui/src/app/AppShell.test.tsx#L159), [`AppShell.test.tsx:173`](apps/web-ui/src/app/AppShell.test.tsx#L173), [`UserMenu.test.tsx:32`](apps/web-ui/src/app/UserMenu.test.tsx#L32), [`UserMenu.test.tsx:39`](apps/web-ui/src/app/UserMenu.test.tsx#L39), [`UserMenu.test.tsx:46`](apps/web-ui/src/app/UserMenu.test.tsx#L46), [`UserMenu.test.tsx:53`](apps/web-ui/src/app/UserMenu.test.tsx#L53), [`UserMenu.test.tsx:61`](apps/web-ui/src/app/UserMenu.test.tsx#L61), [`UserMenu.test.tsx:68`](apps/web-ui/src/app/UserMenu.test.tsx#L68), [`UserMenu.test.tsx:74`](apps/web-ui/src/app/UserMenu.test.tsx#L74), [`UserMenu.test.tsx:80`](apps/web-ui/src/app/UserMenu.test.tsx#L80), [`UserMenu.test.tsx:88`](apps/web-ui/src/app/UserMenu.test.tsx#L88), [`UserMenu.test.tsx:99`](apps/web-ui/src/app/UserMenu.test.tsx#L99), [`UserMenu.test.tsx:105`](apps/web-ui/src/app/UserMenu.test.tsx#L105), [`UserMenu.test.tsx:111`](apps/web-ui/src/app/UserMenu.test.tsx#L111), [`UserMenu.test.tsx:122`](apps/web-ui/src/app/UserMenu.test.tsx#L122), [`UserMenu.test.tsx:130`](apps/web-ui/src/app/UserMenu.test.tsx#L130), [`UserMenu.test.tsx:137`](apps/web-ui/src/app/UserMenu.test.tsx#L137), [`UserMenu.test.tsx:145`](apps/web-ui/src/app/UserMenu.test.tsx#L145))
+  email / avatar fallbacks and sign-out). ([validated by `SidebarNav.test.tsx:61`](apps/web-ui/src/app/SidebarNav.test.tsx#L61), [`SidebarNav.test.tsx:74`](apps/web-ui/src/app/SidebarNav.test.tsx#L74), [`SidebarNav.test.tsx:86`](apps/web-ui/src/app/SidebarNav.test.tsx#L86), [`SidebarNav.test.tsx:98`](apps/web-ui/src/app/SidebarNav.test.tsx#L98), [`SidebarNav.test.tsx:110`](apps/web-ui/src/app/SidebarNav.test.tsx#L169), [`SidebarNav.test.tsx:127`](apps/web-ui/src/app/SidebarNav.test.tsx#L186), [`SidebarNav.test.tsx:136`](apps/web-ui/src/app/SidebarNav.test.tsx#L195), [`SidebarNav.test.tsx:153`](apps/web-ui/src/app/SidebarNav.test.tsx#L212), [`SidebarNav.test.tsx:166`](apps/web-ui/src/app/SidebarNav.test.tsx#L225), [`SidebarNav.test.tsx:173`](apps/web-ui/src/app/SidebarNav.test.tsx#L232), [`SidebarNav.test.tsx:189`](apps/web-ui/src/app/SidebarNav.test.tsx#L248), [`SidebarNav.test.tsx:203`](apps/web-ui/src/app/SidebarNav.test.tsx#L262), [`SidebarNav.test.tsx:212`](apps/web-ui/src/app/SidebarNav.test.tsx#L271), [`SidebarNav.test.tsx:224`](apps/web-ui/src/app/SidebarNav.test.tsx#L283), [`SidebarNav.test.tsx:239`](apps/web-ui/src/app/SidebarNav.test.tsx#L298), [`SidebarNav.test.tsx:255`](apps/web-ui/src/app/SidebarNav.test.tsx#L314), [`SidebarNav.test.tsx:263`](apps/web-ui/src/app/SidebarNav.test.tsx#L322), [`SidebarNav.test.tsx:276`](apps/web-ui/src/app/SidebarNav.test.tsx#L335), [`SidebarNav.test.tsx:287`](apps/web-ui/src/app/SidebarNav.test.tsx#L346), [`SidebarNav.test.tsx:293`](apps/web-ui/src/app/SidebarNav.test.tsx#L352), [`SidebarNav.test.tsx:318`](apps/web-ui/src/app/SidebarNav.test.tsx#L377), [`AppShell.test.tsx:40`](apps/web-ui/src/app/AppShell.test.tsx#L40), [`AppShell.test.tsx:49`](apps/web-ui/src/app/AppShell.test.tsx#L49), [`AppShell.test.tsx:56`](apps/web-ui/src/app/AppShell.test.tsx#L56), [`AppShell.test.tsx:62`](apps/web-ui/src/app/AppShell.test.tsx#L62), [`AppShell.test.tsx:67`](apps/web-ui/src/app/AppShell.test.tsx#L67), [`AppShell.test.tsx:72`](apps/web-ui/src/app/AppShell.test.tsx#L72), [`AppShell.test.tsx:81`](apps/web-ui/src/app/AppShell.test.tsx#L81), [`AppShell.test.tsx:89`](apps/web-ui/src/app/AppShell.test.tsx#L89), [`AppShell.test.tsx:97`](apps/web-ui/src/app/AppShell.test.tsx#L97), [`AppShell.test.tsx:106`](apps/web-ui/src/app/AppShell.test.tsx#L106), [`AppShell.test.tsx:114`](apps/web-ui/src/app/AppShell.test.tsx#L114), [`AppShell.test.tsx:122`](apps/web-ui/src/app/AppShell.test.tsx#L122), [`AppShell.test.tsx:130`](apps/web-ui/src/app/AppShell.test.tsx#L130), [`AppShell.test.tsx:142`](apps/web-ui/src/app/AppShell.test.tsx#L142), [`AppShell.test.tsx:159`](apps/web-ui/src/app/AppShell.test.tsx#L159), [`AppShell.test.tsx:173`](apps/web-ui/src/app/AppShell.test.tsx#L173), [`UserMenu.test.tsx:32`](apps/web-ui/src/app/UserMenu.test.tsx#L32), [`UserMenu.test.tsx:39`](apps/web-ui/src/app/UserMenu.test.tsx#L39), [`UserMenu.test.tsx:46`](apps/web-ui/src/app/UserMenu.test.tsx#L46), [`UserMenu.test.tsx:53`](apps/web-ui/src/app/UserMenu.test.tsx#L53), [`UserMenu.test.tsx:61`](apps/web-ui/src/app/UserMenu.test.tsx#L61), [`UserMenu.test.tsx:68`](apps/web-ui/src/app/UserMenu.test.tsx#L68), [`UserMenu.test.tsx:74`](apps/web-ui/src/app/UserMenu.test.tsx#L74), [`UserMenu.test.tsx:80`](apps/web-ui/src/app/UserMenu.test.tsx#L80), [`UserMenu.test.tsx:88`](apps/web-ui/src/app/UserMenu.test.tsx#L88), [`UserMenu.test.tsx:99`](apps/web-ui/src/app/UserMenu.test.tsx#L99), [`UserMenu.test.tsx:105`](apps/web-ui/src/app/UserMenu.test.tsx#L105), [`UserMenu.test.tsx:111`](apps/web-ui/src/app/UserMenu.test.tsx#L111), [`UserMenu.test.tsx:122`](apps/web-ui/src/app/UserMenu.test.tsx#L122), [`UserMenu.test.tsx:130`](apps/web-ui/src/app/UserMenu.test.tsx#L130), [`UserMenu.test.tsx:137`](apps/web-ui/src/app/UserMenu.test.tsx#L137), [`UserMenu.test.tsx:145`](apps/web-ui/src/app/UserMenu.test.tsx#L145))
 - FR-3.15: A top-level org Settings page exists — it renders the
   section headings, stat cards, the platform-config form
   (api_url/ingest_token, blank defaults), the regenerate-token danger
   form, the approval form, and the install command with the supplied
   token/api-url (or placeholders). The former global Tasks view (a
   legacy chunk-backed page predating the pipeline) was removed in
-  #1057 (issue #1049) in favor of the per-repo Assembly Lines tab. ([validated by `SettingsView.test.tsx:43`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L42), [`SettingsView.test.tsx:63`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L65), [`SettingsView.test.tsx:76`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L78), [`SettingsView.test.tsx:89`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L91), [`SettingsView.test.tsx:101`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L103), [`SettingsView.test.tsx:110`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L112), [`SettingsView.test.tsx:140`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L142), [`SettingsView.test.tsx:162`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L164), [`SettingsView.test.tsx:174`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L176))
+  #1057 (issue #1049) in favor of the per-repo Assembly Lines tab. ([validated by `SettingsView.test.tsx:43`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L45), [`SettingsView.test.tsx:63`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L68), [`SettingsView.test.tsx:76`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L81), [`SettingsView.test.tsx:89`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L94), [`SettingsView.test.tsx:101`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L106), [`SettingsView.test.tsx:110`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L115), [`SettingsView.test.tsx:140`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L145), [`SettingsView.test.tsx:162`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L167), [`SettingsView.test.tsx:174`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L179))
 - FR-3.16: Every doc card list (specs, ADRs, the global browsers)
   shares one pure filter/sort helper — status counts and visibility
   (unstatused docs shown only under "All"), a case-insensitive text
@@ -322,6 +406,26 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   amended ADR's detail page) — omitting absent keys, skipping the pill
   for an unrecognized status, and rendering nothing for empty meta. ([validated by `frontmatter:19`](apps/web-ui/src/lib/frontmatter.test.ts#L19), [`frontmatter:31`](apps/web-ui/src/lib/frontmatter.test.ts#L31), [`frontmatter:39`](apps/web-ui/src/lib/frontmatter.test.ts#L39), [`frontmatter:45`](apps/web-ui/src/lib/frontmatter.test.ts#L45), [`frontmatter:51`](apps/web-ui/src/lib/frontmatter.test.ts#L51), [`frontmatter:57`](apps/web-ui/src/lib/frontmatter.test.ts#L57), [`frontmatter:63`](apps/web-ui/src/lib/frontmatter.test.ts#L63), [`AdrMetaView:16`](apps/web-ui/src/app/repos/[owner]/[repo]/adrs/[...path]/AdrMetaView.test.tsx#L16), [`AdrMetaView:25`](apps/web-ui/src/app/repos/[owner]/[repo]/adrs/[...path]/AdrMetaView.test.tsx#L25), [`AdrMetaView:46`](apps/web-ui/src/app/repos/[owner]/[repo]/adrs/[...path]/AdrMetaView.test.tsx#L46), [`AdrMetaView:54`](apps/web-ui/src/app/repos/[owner]/[repo]/adrs/[...path]/AdrMetaView.test.tsx#L54))
 
+- FR-3.19: The sidebar footer links to the cluster dashboard (Headlamp)
+  only when the deployment names one, as an external anchor in a new tab
+  that is never highlighted as the current route. The address is the sole
+  signal that a dashboard exists — the browser cannot read the
+  `enable_headlamp` Terraform gate — so an absent, empty, or
+  whitespace-only `HEADLAMP_URL` renders no link at all; empty rather
+  than missing is the disabled case, because the umbrella release is
+  applied with `reuse_values = true` and a dropped key would be carried
+  forward from the previous release. The value is read on the server and
+  passed down as a prop, never through `NEXT_PUBLIC_`, which Next inlines
+  at build time while the hostname is only known at deploy time. ([validated by `renders no Headlamp link when the deployment names no dashboard`](apps/web-ui/src/app/SidebarNav.test.tsx#L111), [`renders no Headlamp link when the dashboard address is empty`](apps/web-ui/src/app/SidebarNav.test.tsx#L116), [`links to the named dashboard in a new tab without leaking the referrer`](apps/web-ui/src/app/SidebarNav.test.tsx#L121), [`marks the dashboard link as leaving the app rather than as a route`](apps/web-ui/src/app/SidebarNav.test.tsx#L130), [`pins the dashboard link outside the scrollable nav, beside Settings`](apps/web-ui/src/app/SidebarNav.test.tsx#L139), [`leaves the dashboard link inert while an in-app navigation is pending`](apps/web-ui/src/app/SidebarNav.test.tsx#L147), [`adds exactly one link to the sidebar and changes no other`](apps/web-ui/src/app/SidebarNav.test.tsx#L157), [`returns the dashboard address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L5), [`names no address when the variable is unset`](apps/web-ui/src/lib/headlamp-url.test.ts#L11), [`names no address when the variable is set but empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L15), [`names no address when the variable holds only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L19), [`trims surrounding whitespace off an address`](apps/web-ui/src/lib/headlamp-url.test.ts#L23))
+- FR-3.20: The sidebar footer links to the metrics dashboards (Grafana,
+  ADR-050) under the same rule: only when the deployment names one in
+  `GRAFANA_URL`, as an external anchor in a new tab beside the Headlamp
+  link, and no link at all for an absent or empty address. ([validated by `links to the named Grafana in a new tab beside the Headlamp link`](apps/web-ui/src/app/SidebarNav.test.tsx#L393), [`renders no Grafana link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L413), [`returns the Grafana address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L31), [`names no address when the variable is empty`](apps/web-ui/src/lib/headlamp-url.test.ts#L37), [`names no address when the variable is unset or holds only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L41))
+- FR-3.21: The sidebar footer links to Utopia under the same rule: only
+  when the deployment names it in `UTOPIA_URL`, as an external anchor in
+  a new tab after the Grafana link, and no link at all for an absent or
+  empty address. ([validated by `links to the named Utopia in a new tab`](apps/web-ui/src/app/SidebarNav.test.tsx#L422), [`renders no Utopia link when the deployment names none`](apps/web-ui/src/app/SidebarNav.test.tsx#L432), [`returns the Utopia address the deployment names`](apps/web-ui/src/lib/headlamp-url.test.ts#L50), [`names no address when the variable is unset, empty or only whitespace`](apps/web-ui/src/lib/headlamp-url.test.ts#L56))
+
 ### FR-4: Form and Input Styling
 
 - FR-4.1: All form controls — every text input, textarea, select, and button —
@@ -329,10 +433,10 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   native `<select>` option popups are pinned to theme surface tokens (no
   per-control hardcoding). ([validated by `globals-styling.test.ts:11`](apps/web-ui/src/app/globals-styling.test.ts#L11), [`globals-styling.test.ts:15`](apps/web-ui/src/app/globals-styling.test.ts#L15), [`globals-styling.test.ts:23`](apps/web-ui/src/app/globals-styling.test.ts#L23))
 - FR-4.2: Repo selector is a dropdown populated from the registry,
-  not free text. ([validated by `AssemblyRunCreateView.test.tsx:39`](apps/web-ui/src/app/assembly-runs/create/AssemblyRunCreateView.test.tsx#L39))
+  not free text. *(Removed 2026-10-02 with the form.)*
 - FR-4.3: Task type selector shows descriptions, not just names —
   describing the first option by default, updating the description on
-  change, and keeping the `task_type` field name for submission. ([validated by `RepoTaskCreateView.test.tsx:34`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L34), [`TaskTypeSelect.test.tsx:12`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L12), [`TaskTypeSelect.test.tsx:19`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L19), [`TaskTypeSelect.test.tsx:29`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L29))
+  change, and keeping the `task_type` field name for submission. *(Removed 2026-10-02 with the form.)*
 - FR-4.4: Forms have proper labels, validation, and error states; the
   shared submit button shows its idle label while enabled and swaps to
   the pending label and disables while the form is pending (keeping its
@@ -340,26 +444,34 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 
 ### FR-5: Onboarding PR Content
 
-The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:113`](apps/floor/src/work/task/worker.onboard.test.ts#L113), [`worker.onboard.test.ts:130`](apps/floor/src/work/task/worker.onboard.test.ts#L130))
+The onboarding PR carries deterministic files committed verbatim by the Floor plus repo-specific files the `onboard` line's agent authors from the ticket's fixed prompts, reading the repository itself, reviewed by the owner in the PR. ([validated by owes every LLM-drafted path with its prompt](libs/shared/src/work/onboard-content.test.ts#L127))
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
-  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ingest-workflow.test.ts:34`](libs/shared/src/work/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/work/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/work/trace-impact-workflow.test.ts#L25))
+  `.github/workflows/lore-trace-impact.yml`. ([validated by targets the workflows path](libs/shared/src/work/ingest-workflow.test.ts#L22), [validated by exposes FILES as a step-level env var, not inside the run block](libs/shared/src/work/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/work/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/work/trace-impact-workflow.test.ts#L25))
 - FR-5.2: `.github/PULL_REQUEST_TEMPLATE.md` carries the canonical PR sections —
   Why, What Changed, Alternatives Considered, ADRs & Architecture, Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
 - FR-5.3: `.github/workflows/pr-description-check.yml` enforces those PR sections
   in CI, treating a comment-only or blank section as empty. ([validated by `pr-section-check.test.ts:26`](libs/shared/src/work/pr-section-check.test.ts#L26), [`pr-section-check.test.ts:44`](libs/shared/src/work/pr-section-check.test.ts#L44), [`pr-section-check.test.ts:67`](libs/shared/src/work/pr-section-check.test.ts#L67), [`pr-section-check.test.ts:78`](libs/shared/src/work/pr-section-check.test.ts#L78))
 
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
-  `.claude/settings.json` carrying the Lore MCP system-prompt suffix, and the
-  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by `onboard-files.test.ts:10`](apps/floor/src/work/task/onboard-files.test.ts#L10), [`onboard-files.test.ts:20`](apps/floor/src/work/task/onboard-files.test.ts#L20))
-- FR-5.5: It LLM-drafts `AGENTS.md`, the PR template, the pr-description-check
-  workflow, and `.specify/spec.md` from fixed prompts against the repo's context
-  — the AGENTS.md prompt targets the repo's own stack and the PR-template prompt
-  names the five canonical sections. ([validated by `onboard-files.test.ts:33`](apps/floor/src/work/task/onboard-files.test.ts#L33), [`onboard-files.test.ts:40`](apps/floor/src/work/task/onboard-files.test.ts#L40), [`onboard-files.test.ts:56`](apps/floor/src/work/task/onboard-files.test.ts#L56))
+  `.claude/settings.json` carrying a `SessionStart` hook that tells every
+  session to call `lore_assemble_context` first, and the
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates; a repo-owned file the repo already holds with different content is left as it is. ([validated by commits .claude/settings.json whose SessionStart hook tells the session to call lore_assemble_context first](libs/shared/src/work/onboard-content.test.ts#L23), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim](libs/shared/src/work/onboard-content.test.ts#L45), [validated by returns false when current !== null and current !== file.content](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
+- FR-5.5: The ticket owes `AGENTS.md`, the PR template, the pr-description-check
+  workflow, and `.specify/spec.md` from fixed prompts — the AGENTS.md prompt
+  targets the repo's own stack and the PR-template prompt names the five
+  canonical sections. The pr-description-check prompt passes the PR body to
+  the script only through a step `env:` entry, bans `${{ }}` inside `run:`,
+  and declares read-only permissions (#1567). ([validated by has the pr-description-check workflow read the PR body only through a step env entry, under read-only permissions (#1567)](libs/shared/src/work/onboard-content.test.ts#L85), [validated by LLM-drafts AGENTS.md from a non-empty prompt](libs/shared/src/work/onboard-content.test.ts#L58), [validated by PR-template prompt names the five canonical sections](libs/shared/src/work/onboard-content.test.ts#L65), [validated by LLM-drafts the pr-description-check workflow and the .specify spec](libs/shared/src/work/onboard-content.test.ts#L98))
 - FR-5.6: The onboarding PR scaffolds no `CLAUDE.md` (requested in the onboarding
   issue for the owner to author) and no `spec-agent.yml` — spec and ingest
-  triggering ride the ingest and spec-impact workflows above. ([validated by `onboard-files.test.ts:67`](apps/floor/src/work/task/onboard-files.test.ts#L67), [`onboard-files.test.ts:71`](apps/floor/src/work/task/onboard-files.test.ts#L71))
+  triggering ride the ingest and spec-impact workflows above. ([validated by scaffolds no CLAUDE.md, requested in the onboarding issue instead](libs/shared/src/work/onboard-content.test.ts#L109), [validated by scaffolds no spec-agent.yml](libs/shared/src/work/onboard-content.test.ts#L113))
+- FR-5.8: The starter ADRs the agent writes are numbered sequentially, so a
+  skipped topic leaves no gap. ([validated by numbers the starter ADRs it writes sequentially, so a skipped topic leaves no gap](libs/shared/src/work/onboard-content.test.ts#L150))
+- FR-5.9: The suggested test-command manifest's `list` emits each test's real
+  line range, and its `run` uses only coverage tooling the repo already
+  declares. ([validated by demands real line ranges from list and coverage tooling the repo already has](libs/shared/src/work/onboard-content.test.ts#L190))
 
 ### FR-6: Top-Level Observability Pages
 
@@ -415,7 +527,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   covering every day after it, worded "today" only when that really is one
   day and "over N days since" when the sync has fallen further behind,
   shown only when billed data is present and the unbilled spend is
-  non-zero. ([validated by [`SpendView.test.tsx:174`](apps/web-ui/src/app/spend/SpendView.test.tsx#L174), [`SpendView.test.tsx:295`](apps/web-ui/src/app/spend/SpendView.test.tsx#L295), [`SpendView.test.tsx:306`](apps/web-ui/src/app/spend/SpendView.test.tsx#L306), [`SpendView.test.tsx:318`](apps/web-ui/src/app/spend/SpendView.test.tsx#L318), [`SpendView.test.tsx:327`](apps/web-ui/src/app/spend/SpendView.test.tsx#L327), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L338), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L352), [`SpendView.test.tsx:373`](apps/web-ui/src/app/spend/SpendView.test.tsx#L373), [`SpendView.test.tsx:381`](apps/web-ui/src/app/spend/SpendView.test.tsx#L381), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L390), [`SpendView.test.tsx:402`](apps/web-ui/src/app/spend/SpendView.test.tsx#L402), [`SpendView.test.tsx:412`](apps/web-ui/src/app/spend/SpendView.test.tsx#L412), [`SpendView.test.tsx:420`](apps/web-ui/src/app/spend/SpendView.test.tsx#L420), [`SpendView.test.tsx:203`](apps/web-ui/src/app/spend/SpendView.test.tsx#L203), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L396))
+  non-zero. ([validated by [`SpendView.test.tsx:174`](apps/web-ui/src/app/spend/SpendView.test.tsx#L179), [`SpendView.test.tsx:295`](apps/web-ui/src/app/spend/SpendView.test.tsx#L297), [`SpendView.test.tsx:306`](apps/web-ui/src/app/spend/SpendView.test.tsx#L308), [`SpendView.test.tsx:318`](apps/web-ui/src/app/spend/SpendView.test.tsx#L320), [`SpendView.test.tsx:327`](apps/web-ui/src/app/spend/SpendView.test.tsx#L329), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L340), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L354), [`SpendView.test.tsx:373`](apps/web-ui/src/app/spend/SpendView.test.tsx#L375), [`SpendView.test.tsx:381`](apps/web-ui/src/app/spend/SpendView.test.tsx#L383), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L392), [`SpendView.test.tsx:402`](apps/web-ui/src/app/spend/SpendView.test.tsx#L404), [`SpendView.test.tsx:412`](apps/web-ui/src/app/spend/SpendView.test.tsx#L414), [`SpendView.test.tsx:420`](apps/web-ui/src/app/spend/SpendView.test.tsx#L422), [`SpendView.test.tsx:203`](apps/web-ui/src/app/spend/SpendView.test.tsx#L207), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L398))
 - FR-6.7: The knowledge-graph force layout (`lib/graph-layout`) seeds
   feature positions within a radius at distinct spots (larger features
   further out), partitions links into connected components, places
@@ -443,12 +555,12 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   finished+completed, warning for iteration_max, muted for lease_held,
   danger for finished-but-failed, neutral for an unknown finished
   outcome, and muted/danger/running for queued/failed/running
-  regardless of outcome. ([validated by `assembly-run-presenter.test.ts:11`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L11), [`assembly-run-presenter.test.ts:21`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L21), [`assembly-run-presenter.test.ts:29`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L29), [`assembly-run-presenter.test.ts:34`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L34), [`assembly-run-presenter.test.ts:40`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L40), [`assembly-run-presenter.test.ts:47`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L47), [`assembly-run-presenter.test.ts:54`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L54), [`assembly-run-presenter.test.ts:61`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L61), [`assembly-run-presenter.test.ts:72`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L72), [`assembly-run-presenter.test.ts:87`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L87), [`assembly-run-presenter.test.ts:94`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L94), [`assembly-run-presenter.test.ts:105`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L105))
+  regardless of outcome. ([validated by `assembly-run-presenter.test.ts:11`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L12), [`assembly-run-presenter.test.ts:21`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L22), [`assembly-run-presenter.test.ts:29`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L30), [`assembly-run-presenter.test.ts:34`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L35), [`assembly-run-presenter.test.ts:40`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L68), [`assembly-run-presenter.test.ts:47`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L75), [`assembly-run-presenter.test.ts:54`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L82), [`assembly-run-presenter.test.ts:61`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L89), [`assembly-run-presenter.test.ts:72`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L100), [`assembly-run-presenter.test.ts:87`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L115), [`assembly-run-presenter.test.ts:94`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L122), [`assembly-run-presenter.test.ts:105`](apps/web-ui/src/lib/assembly-run-presenter.test.ts#L133))
 - FR-6.11: The run-row mapper (`lib/assembly-runs`) resolves a
   run's PR from its task join or from `args.pr_number` for a code-review
   run without a task PR, maps a run with no task and no PR to null
   pr/creator/cost, and computes node and run durations (left null while
-  still running). ([validated by `assembly-runs.test.ts:33`](apps/web-ui/src/lib/assembly-runs.test.ts#L35), [`assembly-runs.test.ts:47`](apps/web-ui/src/lib/assembly-runs.test.ts#L62), [`assembly-runs.test.ts:67`](apps/web-ui/src/lib/assembly-runs.test.ts#L84), [`assembly-runs.test.ts:84`](apps/web-ui/src/lib/assembly-runs.test.ts#L103), [`assembly-runs.test.ts:93`](apps/web-ui/src/lib/assembly-runs.test.ts#L112), [`assembly-runs.test.ts:118`](apps/web-ui/src/lib/assembly-runs.test.ts#L139))
+  still running). ([validated by `assembly-runs.test.ts:33`](apps/web-ui/src/lib/assembly-runs.test.ts#L37), [`assembly-runs.test.ts:47`](apps/web-ui/src/lib/assembly-runs.test.ts#L64), [`assembly-runs.test.ts:67`](apps/web-ui/src/lib/assembly-runs.test.ts#L86), [`assembly-runs.test.ts:84`](apps/web-ui/src/lib/assembly-runs.test.ts#L105), [`assembly-runs.test.ts:93`](apps/web-ui/src/lib/assembly-runs.test.ts#L114), [`assembly-runs.test.ts:118`](apps/web-ui/src/lib/assembly-runs.test.ts#L155))
 
 ### FR-7: Shared UI Components
 
@@ -502,6 +614,22 @@ The app is built from a shared set of presentational components. ([validated by 
   configured org is absent (including on a failed or throwing GitHub
   API call) — unset, every authenticated user is allowed through.
   ([validated by `auth-options.test.ts:28`](apps/web-ui/src/lib/auth-options.test.ts#L28), [`auth-options.test.ts:38`](apps/web-ui/src/lib/auth-options.test.ts#L38), [`auth-options.test.ts:54`](apps/web-ui/src/lib/auth-options.test.ts#L54), [`auth-options.test.ts:69`](apps/web-ui/src/lib/auth-options.test.ts#L69), [`auth-options.test.ts:84`](apps/web-ui/src/lib/auth-options.test.ts#L84), [`auth-options.test.ts:98`](apps/web-ui/src/lib/auth-options.test.ts#L98))
+- FR-7.10: A session keeps working past its GitHub token's lifetime. A GitHub
+  App's user token expires after eight hours, so sign-in keeps its refresh
+  token and expiry, and a request that finds the token (nearly) expired trades
+  the refresh token for a new pair through GitHub's refresh grant; a classic
+  OAuth token, which never expires, is left alone. When GitHub refuses the
+  refresh the session drops its token and the middleware counts it as signed
+  out, so the person is asked to sign in again rather than told they have no access to a repo they can see.
+  ([validated by `github-session-token.test.ts:25`](apps/web-ui/src/lib/github-session-token.test.ts#L25), [`github-session-token.test.ts:39`](apps/web-ui/src/lib/github-session-token.test.ts#L39), [`github-session-token.test.ts:47`](apps/web-ui/src/lib/github-session-token.test.ts#L47), [`github-session-token.test.ts:59`](apps/web-ui/src/lib/github-session-token.test.ts#L59), [`github-session-token.test.ts:70`](apps/web-ui/src/lib/github-session-token.test.ts#L70), [`github-session-token.test.ts:95`](apps/web-ui/src/lib/github-session-token.test.ts#L95), [`auth-options.test.ts:132`](apps/web-ui/src/lib/auth-options.test.ts#L132), [`github-session-token.test.ts:108`](apps/web-ui/src/lib/github-session-token.test.ts#L108), [`github-session-token.test.ts:112`](apps/web-ui/src/lib/github-session-token.test.ts#L112), [`github-session-token.test.ts:116`](apps/web-ui/src/lib/github-session-token.test.ts#L116))
+
+- FR-7.11: A `/repos/{owner}/{repo}...` path whose casing doesn't match
+  `lore.repos.full_name` — an old bookmark, a typed URL, or one surviving a
+  repo rename — redirects to the canonically-cased path before any tab
+  renders, since every `lore.repos`/`lore.plans` lookup compares `full_name`
+  exactly and a case mismatch otherwise reads as "this repo has nothing"
+  instead of 404ing.
+  ([validated by redirects re-cinq/otto/plans to re-cinq/Otto/plans when full_name is re-cinq/Otto](apps/web-ui/src/lib/canonical-repo-path.test.ts#L5), [validated by keeps the query string on the redirect](apps/web-ui/src/lib/canonical-repo-path.test.ts#L11), [validated by returns null when the path already matches full_name's casing](apps/web-ui/src/lib/canonical-repo-path.test.ts#L21), [validated by returns null for the repo root with no trailing tab](apps/web-ui/src/lib/canonical-repo-path.test.ts#L27), [validated by returns null when lore-api names no repo (left to 404 downstream)](apps/web-ui/src/lib/canonical-repo-path.test.ts#L33), [validated by returns null for a path outside /repos](apps/web-ui/src/lib/canonical-repo-path.test.ts#L39), [validated by finds re-cinq/lore for the wrong-case re-cinq/Lore](libs/shared/src/outbound/project/settings/settings-record.test.ts#L61), [validated by matches full_name case-insensitively, so a wrong-case URL still finds the row](libs/shared/src/outbound/project/settings/settings-record.test.ts#L107))
 
 ### FR-8: Connect GitHub
 
@@ -556,7 +684,7 @@ and a repo is served by the installation of its owner.
 - FR-8.15: The web UI reads the connected accounts from lore-api's
   `/api/github/installations`. ([validated by reads the connected accounts from lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L25))
 - FR-8.16: The settings page shows the GitHub section with the accounts
-  Lore is connected to. ([validated by renders the GitHub section with the connected re-cinq organization](apps/web-ui/src/app/settings/SettingsView.test.tsx#L188))
+  Lore is connected to. ([validated by renders the GitHub section with the connected re-cinq organization](apps/web-ui/src/app/settings/SettingsView.test.tsx#L191))
 - FR-8.17: The install link is built from the GitHub App's public slug, the
   one piece of the App the web UI needs; with no slug configured there is
   no link to build. ([validated by builds the lore-agent App's install URL from its slug](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L5), [builds no install URL while no slug is configured](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L11))

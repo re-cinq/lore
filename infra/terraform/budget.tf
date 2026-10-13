@@ -86,11 +86,10 @@ resource "google_billing_budget" "lore" {
     }
   }
 
-  # Weekly pace exceeded: the month is forecast to blow the amount.
-  threshold_rules {
-    threshold_percent = 1.0
-    spend_basis       = "FORECASTED_SPEND"
-  }
+  # The Budgets API returns threshold_rules sorted (current spend ascending,
+  # then forecasted), and the provider diffs the list by position. Declaring
+  # them in any other order is a permanent in-place diff that fails every
+  # apply run without Billing Account Costs Manager.
 
   # Money actually spent, at roughly one-week strides through the month.
   threshold_rules {
@@ -104,6 +103,12 @@ resource "google_billing_budget" "lore" {
   }
   threshold_rules {
     threshold_percent = 1.0
+  }
+
+  # Weekly pace exceeded: the month is forecast to blow the amount.
+  threshold_rules {
+    threshold_percent = 1.0
+    spend_basis       = "FORECASTED_SPEND"
   }
 
   dynamic "all_updates_rule" {

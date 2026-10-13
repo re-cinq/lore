@@ -1,17 +1,18 @@
 import { randomUUID } from "node:crypto";
-import {
-  resolveDarkFactorySettings,
-  type DarkFactorySettings,
-  type ResolvedDarkFactorySettings,
-} from "../../../domain/dark-factory-settings.js";
 import type {
   SettingsPort,
   OnboardedRepo,
+  OnboardedRepoSettings,
   PendingOnboardingRepo,
   RepoRecord,
+  RepoRenameOutcome,
 } from "./settings-port.js";
 
 /** A seeded `lore.repos` row for the in-memory settings double. */
+function hasSettings(settings: SeedRepo["settings"]): boolean {
+  return Boolean(settings) && Object.keys(settings ?? {}).length > 0;
+}
+
 export interface SeedRepo {
   id?: string;
   onboarding_pr_url?: string | null;
@@ -22,6 +23,8 @@ export interface SeedRepo {
   last_ingested_at?: Date | null;
   onboarding_pr_merged?: boolean;
   onboarded_at?: Date | null;
+  /** Names of the per-repo `lore.agent_definitions` rows keyed to this repo's id. */
+  agent_definitions?: string[];
 }
 
 function toRepoRecord(row: SeedRepo): RepoRecord {
@@ -80,31 +83,17 @@ export class InMemorySettings implements SettingsPort {
   readonly vars: Array<{ repo: string; name: string; value: string }> = [];
   readonly secrets: Array<{ repo: string; name: string; value: string }> = [];
 
+  /** Org-wide settings by key, seeded by a test that reads one. */
+  readonly org: Record<string, string> = {};
+
   constructor(public readonly repos: SeedRepo[] = []) {}
+
+  async orgSetting(key: string): Promise<string | null> {
+    return this.org[key] ?? null;
+  }
 
   private row(repo: string): SeedRepo | undefined {
     return this.repos.find((r) => r.full_name === repo);
-  }
-
-  async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
-    return resolveDarkFactorySettings(this.darkFactory(repo));
-  }
-
-  async resolveOrNull(
-    repo: string,
-  ): Promise<ResolvedDarkFactorySettings | null> {
-    if (!this.row(repo)) {
-      return null;
-    }
-
-    return resolveDarkFactorySettings(this.darkFactory(repo));
-  }
-
-  private darkFactory(repo: string): DarkFactorySettings | undefined {
-    const settings = this.row(repo)?.settings as
-      { dark_factory?: DarkFactorySettings } | undefined;
-
-    return settings?.dark_factory;
   }
 
   async setRepoVariable(
@@ -123,8 +112,11 @@ export class InMemorySettings implements SettingsPort {
     this.secrets.push({ repo, name, value });
   }
 
+  // Case-insensitive, mirroring PgSettings.record: the lookup web-ui's repo layout uses to find the canonical casing of a wrong-case URL.
   async record(repo: string): Promise<RepoRecord | null> {
-    const row = this.row(repo);
+    const row = this.repos.find(
+      (r) => r.full_name.toLowerCase() === repo.toLowerCase(),
+    );
 
     if (!row) {
       return null;
@@ -174,6 +166,15 @@ export class InMemorySettings implements SettingsPort {
       }));
   }
 
+  async onboardedRepoSettings(): Promise<OnboardedRepoSettings[]> {
+    return this.repos
+      .filter((r) => r.onboarding_pr_merged === true)
+      .map((r) => ({
+        full_name: r.full_name,
+        settings: (r.settings ?? null) as OnboardedRepoSettings["settings"],
+      }));
+  }
+
   async allRepos(): Promise<string[]> {
     return this.repos.map((r) => r.full_name);
   }
@@ -209,7 +210,6 @@ export class InMemorySettings implements SettingsPort {
 
     if (row) {
       row.onboarding_pr_merged = true;
-      row.last_ingested_at = new Date();
     }
   }
 
@@ -230,6 +230,59 @@ export class InMemorySettings implements SettingsPort {
       return;
     }
     this.repos.push({ full_name: repo, onboarding_pr_url: url });
+  }
+
+  async renameRepo(from: string, to: string): Promise<RepoRenameOutcome> {
+    const source = this.row(from);
+    const target = this.row(to);
+
+    if (!source) {
+      return "absent";
+    }
+    const outcome = target
+      ? this.mergeRepoRows(source, target)
+      : this.renameRowInPlace(source, to);
+
+    this.repointCrossRepoLinks(from, to);
+
+    return outcome;
+  }
+
+  private renameRowInPlace(source: SeedRepo, to: string): RepoRenameOutcome {
+    source.full_name = to;
+
+    return "renamed";
+  }
+
+  private mergeRepoRows(source: SeedRepo, target: SeedRepo): RepoRenameOutcome {
+    const targetNames = target.agent_definitions ?? [];
+    const moved = (source.agent_definitions ?? []).filter(
+      (name) => !targetNames.includes(name),
+    );
+
+    target.agent_definitions = [...targetNames, ...moved];
+    target.settings = hasSettings(target.settings)
+      ? target.settings
+      : source.settings;
+    this.repos.splice(this.repos.indexOf(source), 1);
+
+    return "merged";
+  }
+
+  /** Cross-repo links are stored on both sides by name, so every list naming the old repo is pointed at the new one. */
+  private repointCrossRepoLinks(from: string, to: string): void {
+    for (const repo of this.repos) {
+      const links = repo.settings?.cross_repo_repos;
+
+      if (Array.isArray(links) && links.includes(from)) {
+        repo.settings = {
+          ...repo.settings,
+          cross_repo_repos: [
+            ...new Set(links.map((link) => (link === from ? to : link))),
+          ],
+        };
+      }
+    }
   }
 
   async bumpOutcomeStats(

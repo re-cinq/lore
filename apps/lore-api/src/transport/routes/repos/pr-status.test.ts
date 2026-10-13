@@ -10,6 +10,16 @@ vi.mock("../../../outbound/github-client.js", () => ({
   fetchPrStatus: vi.fn(),
 }));
 
+const GHOST = "re-cinq/ghost";
+
+vi.mock("../../../outbound/project-boot.js", () => ({
+  projectFor: async (repo: string) => ({
+    settings: {
+      record: async () => (repo === GHOST ? null : { fullName: repo }),
+    },
+  }),
+}));
+
 import { fetchPrStatus } from "../../../outbound/github-client.js";
 
 const originalEnv = { ...process.env };
@@ -64,5 +74,14 @@ describe("GET /api/pr-status", () => {
     const res = await get("/api/pr-status?repo=o/r&pr_number=5");
 
     expect(res.statusCode).toBe(500);
+  });
+
+  it("returns 404 without reading GitHub for a repo that is not onboarded", async () => {
+    const res = await get(`/api/pr-status?repo=${GHOST}&pr_number=5`);
+
+    expect({
+      status: res.statusCode,
+      reads: vi.mocked(fetchPrStatus).mock.calls.length,
+    }).toEqual({ status: 404, reads: 0 });
   });
 });

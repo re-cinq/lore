@@ -133,4 +133,123 @@ describe("parseDecomposition", () => {
       }),
     ).toThrow(/task.*description/i);
   });
+
+  it("keeps a task's issue detail — title, context, changes, acceptance criteria, test plan and references", () => {
+    const [task] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "Add the issue-triage line stub",
+              title: "Add the issue-triage line stub",
+              context: "The line every later task fills in.",
+              changes: "Create issue-triage.yaml with empty nodes and edges.",
+              acceptanceCriteria: ["the loader accepts the file"],
+              test_plan: "Run the assembly-lines loader tests.",
+              references: "specs/issue-triage/plan.md#assembly-line-graph",
+            },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect(task).toEqual({
+      id: "T001",
+      description: "Add the issue-triage line stub",
+      depends_on: [],
+      parallelizable: false,
+      phase: 0,
+      title: "Add the issue-triage line stub",
+      context: "The line every later task fills in.",
+      changes: "Create issue-triage.yaml with empty nodes and edges.",
+      acceptance_criteria: ["the loader accepts the file"],
+      test_plan: "Run the assembly-lines loader tests.",
+      references: ["specs/issue-triage/plan.md#assembly-line-graph"],
+    });
+  });
+
+  it("keeps the spec lines a task names as positive whole numbers, 57 written as a string included", () => {
+    const [task] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "d",
+              spec_lines: [42, "57", 0, 3.5, "x"],
+            },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect(task.spec_lines).toEqual([{ line: 42 }, { line: 57 }]);
+  });
+
+  it("keeps line 7 of specs/b/spec.md and line 42 of specs/a/spec.md when the lines are keyed by spec, a directory naming its spec.md", () => {
+    const [task] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "d",
+              spec_lines: { "specs/a/spec.md": [42, 0], "specs/b": ["7"] },
+            },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect(task.spec_lines).toEqual([
+      { file: "specs/a/spec.md", line: 42 },
+      { file: "specs/b/spec.md", line: 7 },
+    ]);
+  });
+
+  it("keeps the commit abc123 the decomposition read the spec at", () => {
+    expect(parseDecomposition({ spec_commit: "abc123", stories: [] })).toEqual({
+      spec_commit: "abc123",
+      stories: [],
+    });
+  });
+
+  it("leaves a task without issue detail with none of those fields", () => {
+    const [task] = parseDecomposition({
+      stories: [{ title: "S", tasks: [{ id: "T001", description: "d" }] }],
+    }).stories[0].tasks;
+
+    expect(Object.keys(task).sort()).toEqual([
+      "depends_on",
+      "description",
+      "id",
+      "parallelizable",
+      "phase",
+    ]);
+  });
+
+  it("keeps the plan passages a task quotes, a single string as a one-item list", () => {
+    const [task] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "Add the reproduce node",
+              plan_quotes: "Reproduction runs before any diagnosis.",
+            },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect(task).toMatchObject({
+      plan_quotes: ["Reproduction runs before any diagnosis."],
+    });
+  });
 });

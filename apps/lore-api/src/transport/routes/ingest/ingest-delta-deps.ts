@@ -4,6 +4,10 @@ import {
   ingestSpecTrace,
   projectAdrFile,
   projectSpecFile,
+  projectCodeFile,
+  listCodeFilePaths,
+  deleteCodeFile,
+  listGraphDocPaths,
   deleteSpecSubtree,
   deleteAdrSubtree,
   pruneTestFiles,
@@ -12,22 +16,32 @@ import {
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 
+/** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
+export interface DocProjection {
+  force: boolean;
+}
+
+type ProjectDoc = (
+  repo: string,
+  path: string,
+  content: string,
+  projection: DocProjection,
+) => Promise<{ projected: boolean }>;
+
 /** The graph writes one incremental delta needs, as a seam the route's tests can replace. */
 export interface IngestDeltaDeps {
   /** Availability gate + the client the default projectors close over. */
   dgraph(): DgraphClientPort | null;
-  projectSpec(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
-  projectAdr(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
+  projectSpec: ProjectDoc;
+  projectAdr: ProjectDoc;
+  projectCode: ProjectDoc;
+  /** Every spec path the graph holds for the repo, which a full ingest prunes against. */
+  listSpecs(repo: string): Promise<string[]>;
+  listAdrs(repo: string): Promise<string[]>;
+  listCode(repo: string): Promise<string[]>;
   deleteSpec(repo: string, path: string): Promise<void>;
   deleteAdr(repo: string, path: string): Promise<void>;
+  deleteCode(repo: string, path: string): Promise<void>;
   ingestReport(repo: string, payload: unknown): Promise<SpecTraceOutcome>;
   pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
   /** The repo's default branch: a test report for any other branch is work in flight and goes to that branch's overlay. */
@@ -45,6 +59,37 @@ function requireClient(
   return client!;
 }
 
+type DocDeps = Pick<
+  IngestDeltaDeps,
+  | "projectSpec"
+  | "projectAdr"
+  | "projectCode"
+  | "listSpecs"
+  | "listAdrs"
+  | "listCode"
+  | "deleteSpec"
+  | "deleteAdr"
+  | "deleteCode"
+>;
+
+/** The doc-kind writes: project one file, list what the graph holds, delete one subtree. */
+function docDeps(must: () => DgraphClientPort): DocDeps {
+  return {
+    projectSpec: (repo, path, content, projection) =>
+      projectSpecFile({ repo, filePath: path, content }, must(), projection),
+    projectAdr: (repo, path, content, projection) =>
+      projectAdrFile({ repo, filePath: path, content }, must(), projection),
+    projectCode: (repo, path, content, projection) =>
+      projectCodeFile({ repo, filePath: path, content }, must(), projection),
+    listSpecs: (repo) => listGraphDocPaths(must(), "Spec", repo),
+    listAdrs: (repo) => listGraphDocPaths(must(), "ADR", repo),
+    deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
+    deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
+    listCode: (repo) => listCodeFilePaths(must(), repo),
+    deleteCode: (repo, path) => deleteCodeFile(must(), repo, path),
+  };
+}
+
 /** The production deps, with the dgraph client created once and shared by every projector. */
 export const defaultDeps = (): IngestDeltaDeps => {
   let client: DgraphClientPort | null | undefined;
@@ -54,12 +99,7 @@ export const defaultDeps = (): IngestDeltaDeps => {
 
   return {
     dgraph,
-    projectSpec: (repo, path, content) =>
-      projectSpecFile({ repo, filePath: path, content }, must()),
-    projectAdr: (repo, path, content) =>
-      projectAdrFile({ repo, filePath: path, content }, must()),
-    deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
-    deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
+    ...docDeps(must),
     ingestReport: (repo, payload) =>
       ingestSpecTrace(must(), repo, "test-report", payload),
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),

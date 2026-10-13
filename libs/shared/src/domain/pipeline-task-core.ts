@@ -1,6 +1,5 @@
 /** Core pipeline-task CRUD (create/read/record-event/update-status) — split out so pipeline-task-actions.ts (retry/cancel/escalate/revise/mark-merged) can depend on it without pipeline-tasks.ts importing back from pipeline-task-actions.ts. */
 
-import { enforceTrue } from "../lib/enforce.js";
 import type { PgPool } from "./memory-store-types.js";
 import { selectList } from "../lib/row.js";
 import { PIPELINE_TASK_COLUMNS } from "./models/pipeline-task.js";
@@ -8,17 +7,22 @@ import { TASK_EVENT_COLUMNS } from "./models/task-event.js";
 import type { PipelineTask } from "./types.js";
 import { enforceRepoTrustForTaskType } from "./pipeline-task-trust.js";
 import { setTaskStatus } from "./pipeline-task-status.js";
+import { enforceDescriptionFits } from "./task-description.js";
+import { namedTaskType } from "./task-types/retired-task-types.js";
 
 export interface CreateTaskInput {
   description: string;
   taskType?: string;
-  /** Already resolved by the caller (mcp applies getDefaultRepo). */
+  /** Already resolved by the caller (mcp applies the default repo). */
   targetRepo?: string;
   createdBy?: string;
   contextBundle?: Record<string, unknown>;
   priority?: string;
   taskGroupId?: string;
   contextRefs?: { fact_ids: string[]; memory_ids: string[] };
+  /** The issue this task implements, already filed by its producer (the issues station's per-task issue), so its PR closes it. */
+  issueNumber?: number;
+  issueUrl?: string;
 }
 
 // The createTask API response body — task_id renames the row's id; not a column restatement.
@@ -79,7 +83,7 @@ export async function createTask(
   pool: PgPool,
   input: CreateTaskInput,
 ): Promise<CreatedTask> {
-  const taskType = input.taskType ?? "general";
+  const taskType = namedTaskType(input.taskType);
   const createdBy = input.createdBy ?? "ui";
   const priority = resolvePriority(input.priority);
   const resolved = { taskType, createdBy, priority };
@@ -102,11 +106,7 @@ async function enforceCreatable(
   input: CreateTaskInput,
   taskType: string,
 ): Promise<void> {
-  enforceTrue(
-    input.description.length <= 10000,
-    Error,
-    "Description too long (max 10000 chars)",
-  );
+  enforceDescriptionFits(input.description);
 
   if (input.targetRepo) {
     await enforceRepoTrustForTaskType(pool, input.targetRepo, taskType);
@@ -151,11 +151,26 @@ async function recordTaskCreated(
   const { input, resolved } = created;
 
   await saveContextRefs(pool, taskId, input.contextRefs);
+  await saveIssue(pool, taskId, input);
   await recordEvent(
     pool,
     taskId,
     { from: null, to: "pending" },
     { created_by: resolved.createdBy, priority: resolved.priority },
+  );
+}
+
+async function saveIssue(
+  pool: PgPool,
+  taskId: string,
+  { issueNumber, issueUrl }: CreateTaskInput,
+): Promise<void> {
+  if (issueNumber === undefined) {
+    return;
+  }
+  await pool.query(
+    `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
+    [issueNumber, issueUrl ?? null, taskId],
   );
 }
 

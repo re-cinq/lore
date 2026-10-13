@@ -4,7 +4,7 @@
 |-----------|------------------------------------------------|
 | Feature   | Running Stations in Any Kubernetes Cluster     |
 | Branch    | feat/cluster-agent-registry (stacked to feat/clusters-ui) |
-| Status    | In Progress                                    |
+| Status    | Retired                                        |
 | Created   | 2026-08-26                                     |
 | Owner     | Platform Engineering                           |
 | Builds on | [ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md) |
@@ -15,6 +15,15 @@ cluster, a GPU box — by registering one cluster-agent per execution cluster,
 tagging every station run with the capabilities it requires, and flipping node
 dispatch from a push to the one configured cluster to an atomic pull-based
 claim, the GitLab Runner model applied to AI stations.
+
+> **Retired on 2026-10-02.** Nothing gives a Lore cluster agent work since
+> `apps/floor` was deleted, and the external floor runs every agent pod with
+> its own. lore-api's cluster-agent routes are deleted: register, claim,
+> release, heartbeat, catalog-events, catalog-status, pause, restart, the
+> list and the installer hand-out, with the run-credential route a claim
+> minted a URL for. The charts and the Clusters page went before them. What
+> follows is the record of how the registry, the claim and the satellites
+> worked; `apps/cluster-agent` is deleted.
 
 ## Problem Statement
 
@@ -69,17 +78,17 @@ rather than smuggled through existing columns:
   default, and the backfill value for every existing row). `status` is
   meaningful only while `outcome IS NULL`; terminality stays exactly what it
   is today — a non-null `outcome` — so `nextTransition()`'s await logic
-  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by `advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1005))
+  (`visits.some(v => v.outcome === null)`) is untouched.
 - `started_at` keeps its NOT NULL row-creation meaning (now: enqueue time).
   Execution timing moves to the new `claimed_at`: the reaper measures the
   node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
   so time spent waiting for a capable cluster is not charged against
-  execution. ([validated by `assembly-run-reaper.test.ts:156`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L156), [`assembly-run-reaper.test.ts:789`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L789), [`assembly-run-reaper.test.ts:139`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L139))
+  execution.
 - A run that sits `queued` longer than a configurable queue-wait bound
   (default 30 minutes) is failed terminally with the existing
   `failure_class` mechanics and a detail naming the unmatched
   `required_tags` — a line stalled because no registered cluster carries a
-  tag must say so, not report a generic infra timeout. ([validated by `assembly-run-reaper.test.ts:185`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L185), [`assembly-run-reaper.test.ts:639`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L639), [`assembly-run-reaper.test.ts:435`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L435), [`assembly-run-reaper.test.ts:253`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L253), [`assembly-run-reaper.test.ts:258`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L258), [`assembly-run-reaper.test.ts:179`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L179), [`assembly-run-reaper.test.ts:731`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L731))
+  tag must say so, not report a generic infra timeout.
 
 - The queue-timeout's detail names **why** nobody claimed it, read from the
   registry at the moment the row is failed: nobody registered at all, none
@@ -91,16 +100,16 @@ rather than smuggled through existing columns:
   switched off by an operator (#1648, #1621, #1654). The sentence sent its
   reader hunting a missing agent, which is a different page at 3am from a paused
   one. The read happens AFTER the offline sweep, which mutates the very rows it
-  reads. ([validated by returns capable with the agents that can take the work](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L50), [returns registry-empty when nobody has ever registered](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L59), [returns none-registered when the registry has agents but none offers the tag](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L65), [returns all-unavailable naming the paused agent that is the only provider](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L74), [names each unavailable provider and why, when several match](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L90), [is capable when one provider is paused and another is not](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L106), [requires every tag, not just one of them](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L117), [names the paused provider rather than reporting nobody registered](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L125), [says a capable agent was active but did not claim, which reads as wedged](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L140), [pluralizes when several capable agents all ignored it](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L155), [says so plainly when the registry is empty](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L170), [names the paused cluster that could have claimed it, rather than blaming an absent one](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L656), [says a capable cluster ignored it when one was up the whole time](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L674), [reads the registry AFTER the offline sweep, so a just-dead cluster reads offline, not wedged](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L687); implemented by [`capacity.ts`](libs/shared/src/outbound/project/cluster-agents/capacity.ts))
+  reads. (reads the registry AFTER the offline sweep, so a just-dead cluster reads offline, not wedged; implemented by `capacity.ts`)
 
 - The sweep takes its clock and its queue-wait bound as inputs rather than
   reading `Date.now()` and the environment inside itself, so a walk can be aged
-  past the bound without sleeping through it or mutating `process.env`. ([validated by [bounds the wait by the injected queueWaitMs rather than the ambient env](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L707), [reads the clock through the injected now, so a sweep can be aged without waiting](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L718))
+  past the bound without sleeping through it or mutating `process.env`. ([validated by bounds the wait by the injected queueWaitMs rather than the ambient env)
 - Requeueing (FR4) resets the **same row** back to `queued`, clearing
   `cluster_agent_id` and `claimed_at`. No second row is inserted, so the
   row-id-as-visit-order contract the fork replay depends on
   (`assembly-runs-pg.ts`) sees exactly one row per node visit, claimed or
-  not. ([validated by `assembly-run-reaper.test.ts:758`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L758), [`assembly-run-reaper.test.ts:128`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L128), [`assembly-run-reaper.test.ts:116`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L116), [`assembly-runs.contract.test.ts:938`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L978))
+  not.
 
 ## FR1 — Cluster-agent registry and identity
 
@@ -110,26 +119,27 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   lore-api (all `/api/cluster-agents/*` endpoints live in
   `apps/lore-api/src/transport/routes/cluster-agents/`), authenticating with a
   pre-shared registration token (`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`),
-  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L31), [`registration.test.ts:113`](apps/cluster-agent/src/events/claim/registration.test.ts#L113), [`registration.test.ts:146`](apps/cluster-agent/src/events/claim/registration.test.ts#L146), [`registration.test.ts:81`](apps/cluster-agent/src/events/claim/registration.test.ts#L81), [`registration.test.ts:167`](apps/cluster-agent/src/events/claim/registration.test.ts#L167), [`registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L234))
+  and receives a durable id and a per-agent bearer token.
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
-  agent authenticates with it. ([validated by `cluster-agents.test.ts:68`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L70), [`cluster-agents.test.ts:78`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L78))
+  agent authenticates with it.
 - A failed registration attempt is retried on a 30-second schedule doubling
   to a 5-minute cap, and never crashes the process — the agent's other
-  duties (the watch, the inbound routes) do not depend on it. ([validated by `registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L234), [`registration.test.ts:261`](apps/cluster-agent/src/events/claim/registration.test.ts#L261))
+  duties (the watch, the inbound routes) do not depend on it.
 - "Failed" means every way an attempt can fail, not only a refused HTTP status:
   a 200 carrying an ingress error page, a body without `{id, token}`, and an
   identity Secret the Role can neither read nor write are all answered `null`
   and retried. A throw here has no catch above it — `pollUntil` ends, the boot
   registrant dies, and the pod goes on answering `/healthz` 200 while claiming
   nothing; through the shared re-registration the same throw ends the claim
-  loop, the heartbeat loop or the proxy's drain instead. ([validated by `registration.test.ts:303`](apps/cluster-agent/src/events/claim/registration.test.ts#L303), [`registration.test.ts:317`](apps/cluster-agent/src/events/claim/registration.test.ts#L317), [`registration.test.ts:325`](apps/cluster-agent/src/events/claim/registration.test.ts#L325), [`registration.test.ts:336`](apps/cluster-agent/src/events/claim/registration.test.ts#L336), [`registration.test.ts:353`](apps/cluster-agent/src/events/claim/registration.test.ts#L353))
-- Which identity store to use is decided at boot, beside the registration
-  triple: a Secret named without its namespace refuses to start, naming the
-  variable. Resolved later — inside the registrant's promise — the same
-  misconfiguration was one log line behind a green probe, which is the
-  unregistered mode the refusal above exists to abolish. ([validated by chooses the file store when no identity Secret is named](apps/cluster-agent/src/outbound/identity-store.test.ts#L90), [`identity-store.test.ts:96`](apps/cluster-agent/src/outbound/identity-store.test.ts#L96), [`identity-store.test.ts:110`](apps/cluster-agent/src/outbound/identity-store.test.ts#L110), [`identity-store.test.ts:120`](apps/cluster-agent/src/outbound/identity-store.test.ts#L120))
+  loop, the heartbeat loop or the proxy's drain instead.
+- Where the identity persists is decided at boot, beside the registration
+  triple: the identity Secret and its namespace are both required, and a
+  missing one refuses to start, naming the variable. Resolved later — inside
+  the registrant's promise — the same misconfiguration was one log line behind
+  a green probe, which is the unregistered mode the refusal above exists to
+  abolish.
 - Registration is idempotent on `name` — but only for the identity holder:
   re-registering an existing name **with the current per-agent bearer token**
   updates `tags` and `cluster_info` and **keeps that token**. Re-registering a
@@ -141,21 +151,23 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   creation, so a rollout silently 401'd every in-flight run's telemetry for the
   rest of its life. The rotation bought no recovery either: a token that does
   not match is rejected `409` either way, so the only case that rotated was the
-  one that needed no new token at all.)* ([validated by `register.test.ts:67`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:44`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L44), [`cluster-agents.test.ts:48`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L48), [`cluster-agents.test.ts:58`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L58), [`cluster-agents.test.ts:62`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L62), [`registration.test.ts:159`](apps/cluster-agent/src/events/claim/registration.test.ts#L159))
+  one that needed no new token at all.)*
 - Two concurrent first registrations of the same name resolve to one
   identity: the insert is conflict-safe, and the loser receives the same
-  `409` as any other taken name — never a 500. ([validated by `register.test.ts:122`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L122), [`cluster-agents.test.ts:120`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L120))
+  `409` as any other taken name — never a 500.
 - Credential handling is uniform across the cluster-agent endpoints: the
   `Authorization` header is parsed by the shared `extractBearer` — anchored
   to the start, scheme case-insensitive per RFC 7235, first value of a
   multi-value header — and secrets (registration token, token hashes) are
   compared constant-time via the shared `secretEquals`. ([validated by `bearer.test.ts:5`](libs/shared/src/transport/http/bearer.test.ts#L5), [`bearer.test.ts:9`](libs/shared/src/transport/http/bearer.test.ts#L9), [`bearer.test.ts:14`](libs/shared/src/transport/http/bearer.test.ts#L14), [`bearer.test.ts:18`](libs/shared/src/transport/http/bearer.test.ts#L18), [`secret-equals.test.ts:5`](libs/shared/src/lib/secret-equals.test.ts#L5))
-- The satellite persists its identity (`{id, token}`) in the Kubernetes
-  Secret `lore-cluster-agent-identity`, written through the Kubernetes API
-  (the chart's container is `readOnlyRootFilesystem` and the Secret mount is
-  read-only, so a file write could never persist it) — so pod restarts do
-  not re-register; re-registration presents the persisted token. Local runs
-  keep the file store at `LORE_CLUSTER_AGENT_IDENTITY_FILE`. ([validated by `kube-identity-store.test.ts:37`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L37), [`kube-identity-store.test.ts:41`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L41), [`kube-identity-store.test.ts:51`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L51), [`kube-identity-store.test.ts:64`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L64), [`identity-store.test.ts:40`](apps/cluster-agent/src/outbound/identity-store.test.ts#L40), [`identity-store.test.ts:16`](apps/cluster-agent/src/outbound/identity-store.test.ts#L16), [`identity-store.test.ts:25`](apps/cluster-agent/src/outbound/identity-store.test.ts#L25), [`identity-store.test.ts:33`](apps/cluster-agent/src/outbound/identity-store.test.ts#L33), [`identity-store.test.ts:49`](apps/cluster-agent/src/outbound/identity-store.test.ts#L49), [`identity-store.test.ts:60`](apps/cluster-agent/src/outbound/identity-store.test.ts#L60), [`identity-store.test.ts:69`](apps/cluster-agent/src/outbound/identity-store.test.ts#L69), [`identity-store.test.ts:80`](apps/cluster-agent/src/outbound/identity-store.test.ts#L80), [`registration.test.ts:133`](apps/cluster-agent/src/events/claim/registration.test.ts#L133))
+- Every cluster-agent — the satellite, the central one and a laptop's under
+  `npm start` — persists its identity (`{id, token}`) in the Kubernetes Secret
+  `lore-cluster-agent-identity`, written through the Kubernetes API (the
+  chart's container is `readOnlyRootFilesystem` and the Secret mount is
+  read-only, so a file write could never persist it) — so pod restarts do not
+  re-register; re-registration presents the persisted token. There is no file
+  store: the agent only ever runs against a cluster, so a second backend was a
+  path nothing deployed exercised.
 - The registry ships as the next migration in sequence
   (`NNNN_cluster_agent_registry.sql`) under
   `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`:
@@ -163,7 +175,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   `claimed_at` on `pipeline.station_runs`.
 - A `ClusterAgent` Zod model in `libs/shared/src/domain/models/` and a
   port + Pg adapter + InMemory double under
-  `libs/shared/src/outbound/project/cluster-agents/` follow the house pattern. ([validated by `cluster-agents.test.ts:93`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L95), [`cluster-agents.test.ts:141`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L141), [`cluster-agents.test.ts:248`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L248), [`cluster-agents.test.ts:297`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L297), [`cluster-agents.test.ts:320`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L320))
+  `libs/shared/src/outbound/project/cluster-agents/` follow the house pattern.
 
 ## FR2 — Capability tags
 
@@ -171,7 +183,7 @@ Capabilities are a flat tag set, matched by inclusion — no scheduler, no
 scoring.
 
 - A cluster-agent declares `tags: text[]` at registration (for example
-  `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`registration.test.ts:92`](apps/cluster-agent/src/events/claim/registration.test.ts#L92), [`registration.test.ts:100`](apps/cluster-agent/src/events/claim/registration.test.ts#L100), [`registration.test.ts:72`](apps/cluster-agent/src/events/claim/registration.test.ts#L72))
+  `["node:agent", "node:validate", "gpu"]`).
 - Every station run carries `required_tags: text[]`; a cluster-agent may
   claim a run only when `required_tags <@ tags`. The node type's own tag
   (`node:<type>`) is ALWAYS required — a run is claimable only by an agent
@@ -179,15 +191,21 @@ scoring.
   workloads central: ingest pods mount `LORE_INGEST_TOKEN`, which never
   ships to satellites, so satellites simply never register `node:ingest`
   (the first registered satellite legally drained the production ingest
-  queue into pods that could never start, #1576). ([validated by `required-tags.test.ts:9`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L9), [`required-tags.test.ts:15`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L15), [`required-tags.test.ts:26`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L26), [`advance-line.test.ts:1038`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1038))
+  queue into pods that could never start, #1576).
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
   loader schema, added ON TOP of the type tag; an absent list inherits the
   repo-level default `settings.station_default_tags`, and an absent default
   adds nothing beyond the type tag. The default is applied at enqueue time,
   never baked into the parsed definition, so it stays out of
-  `definitionHash`. ([validated by `required-tags.test.ts:49`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L49), [`required-tags.test.ts:63`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L63), [validated by `loader.test.ts:1001`](libs/assembly-lines/src/loader.test.ts#L1023), [`loader.test.ts:1019`](libs/assembly-lines/src/loader.test.ts#L1041), [`loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1049), [`snapshot-graph.test.ts:88`](libs/assembly-lines/src/snapshot-graph.test.ts#L88), [`advance-line.test.ts:1063`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1063), [`required-tags.test.ts:33`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L33), [`required-tags.test.ts:41`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L41), [`required-tags.test.ts:49`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L49))
+  `definitionHash`.
 - Only a run whose stored `required_tags` are `{}` (rows enqueued before the
-  type-tag invariant) is claimable by every registered cluster-agent. ([validated by `required-tags.test.ts:19`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L19))
+  type-tag invariant) is claimable by every registered cluster-agent.
+- A pod that downloads an input file (a planning pod's `plan.md`) fetches it
+  from its own cluster's agent-files endpoint, which only a cluster-agent
+  configured with `LORE_AGENT_FILES_URL` serves. Such a run also requires
+  `agent-files`, and a cluster-agent offers that tag exactly when the URL is
+  set — derived at registration, never configured — so a satellite without the
+  endpoint never claims a pass that would start with no file.
 
 ## FR3 — Claim-based dispatch
 
@@ -203,12 +221,12 @@ one dispatch mechanism, not a special case plus a remote case.
   never become `queued` and are therefore never claimable. Arming is
   queued-only: a row another cluster has already claimed was handed its spec
   with the claim, so re-arming it would leave the row describing something
-  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1048), [`advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1005), [`advance-line.test.ts:1090`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1090), [`advance-line.test.ts:1103`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1103), [`advance-line.test.ts:1130`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1130))
+  other than the pod being built from it.
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
-  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L120), [`assembly-runs.contract.test.ts:846`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L886), [`assembly-runs.contract.test.ts:906`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L946))
+  claimants are safe.
 - The central cluster runs the same claim loop: cluster-agent-helm registers
   it as `central` — the name the Floor reaper resolves CR visibility by —
   with the full tag set, including the central-only tags satellites never
@@ -223,45 +241,57 @@ one dispatch mechanism, not a special case plus a remote case.
   *(2026-08-29: the `claim.enabled` chart flag and the
   `enable_cluster_agent_registration` terraform gate are deleted with it —
   a flag whose false value is a silently broken factory is not a choice.)*
-  ([validated by refuses to boot when LORE_API_URL is unset, naming it](apps/cluster-agent/src/events/claim/registration.test.ts#L45), [`registration.test.ts:51`](apps/cluster-agent/src/events/claim/registration.test.ts#L51), [`registration.test.ts:60`](apps/cluster-agent/src/events/claim/registration.test.ts#L60), [`registration.test.ts:66`](apps/cluster-agent/src/events/claim/registration.test.ts#L66))
 - A claim the agent then fails to LAUNCH is handed back:
-  `POST /api/cluster-agents/{id}/release` requeues that visit on the same row,
-  naming the cause. The claim CASes the row to `claimed` before any pod exists,
-  so a launch that throws — a recipe the catalog does not hold, a mint refused,
-  a Secret write that lost its race — leaves a claimed row with nothing behind
-  it. Unsaid, that row waits: centrally for the reaper to notice a missing CR,
-  and on a satellite, whose CRs the centre cannot see, for the whole node
-  budget. It requeues rather than fails because the cause is usually about the
-  cluster that claimed, and another may launch it; a row that keeps coming back
-  is for the queue-wait bound to end. ([validated by requeues the visit a claimant could not launch](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L38), [`release.test.ts:51`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L51), [`release.test.ts:62`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L67), [`release.test.ts:73`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L78), [`release.test.ts:84`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L89), [hands the visit back under the per-agent token, naming the cause](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L347), [swallows a refused release rather than ending the loop over it](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L371))
+  `POST /api/cluster-agents/{id}/release` names the cause. The claim CASes the
+  row to `claimed` before any pod exists, so a launch that throws — a recipe the
+  catalog does not hold, a mint refused, a Secret write that lost its race —
+  leaves a claimed row with nothing behind it. Unsaid, that row waits:
+  centrally for the reaper to notice a missing CR, and on a satellite, whose
+  CRs the centre cannot see, for the whole node budget. A hand-back is counted
+  on the row *(amended 2026-09-14, #2006)*. A retryable cause requeues the
+  same row, because it is usually about the cluster that claimed and another
+  may launch it; the attempt that reaches `LORE_STATION_LAUNCH_ATTEMPTS`
+  (default 3) fails the visit instead, and a cause no retry can clear — the
+  shared classifier's permanent classes, including an installation token
+  refused for a repository the App cannot reach — fails it on the first
+  hand-back. The failed visit carries the launch error as its detail. The
+  claim takes the fewest-attempts row first, so a visit that has bounced waits
+  behind fresh work. The rule used to leave a returning row "for the
+  queue-wait bound to end", which never happened: every requeue restarts that
+  clock, so on 2026-09-12 and three times on 2026-09-14 one visit for the
+  renamed `re-cinq/HAL-engine` was handed the next poll every fifteen seconds
+  and nothing queued behind it was claimed for hours. A graph run whose visit
+  failed this way takes its failed edge on the next reaper tick; a single-CR
+  run, which has no watcher event to close it, is ended by that tick with the
+  launch error as its reason. ([validated by returns github-permission for an installation token refused for a repository the App cannot reach](libs/shared/src/lib/error-classify.test.ts#L64))
 - A claim whose CR ALREADY EXISTS is not a fresh launch. A requeued visit
   converges on the name its previous attempt used, and that attempt's CR may
   still be standing — its terminal event has already been consumed, so nothing
   further will settle the row. The claimant reports the two apart rather than
-  logging a launch that did not happen. ([validated by reports already-running when the CR was already there](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L241))
+  logging a launch that did not happen.
 - Shutdown stops claiming before it waits for anything else. A claim that lands
   during the drain is a visit recorded as claimed by an agent whose launch —
   mint, Secret write, catalog clone, CR create — `process.exit` then cuts in the
-  middle, on every rollout, and the queue is busiest exactly when rollouts hurt. ([validated by keeps running until stopped](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L388), [`claim-loop.test.ts:368`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L396))
+  middle, on every rollout, and the queue is busiest exactly when rollouts hurt.
 - Claim and heartbeat calls authenticate with the per-agent bearer token
   issued at registration, like every other lore-api call the agent makes; a
   refused token (401 or 403) is reported as `unauthorized` rather than a bare
   error, so the loop can tell "re-register and retry" apart from every other
-  failure shape. ([validated by `claim.test.ts:50`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L57), [`claim.test.ts:60`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L69), [`claim.test.ts:69`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L78), [`claim-loop.test.ts:121`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L122), [reports unauthorized on a 401](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L210), [`claim-loop.test.ts:188`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L216), [re-registers on unauthorized and keeps polling at the base interval](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L323))
+  failure shape.
 - A claim call that fails outright — a non-2xx refusal, an unparseable body, a
   rejected fetch — is never allowed to throw out of the loop; it comes back as
   an `error` outcome the loop logs and continues past, and a launch failure
-  costs no extra delay of its own. ([validated by reports an error on an unexpected HTTP 500](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L253), [`claim-loop.test.ts:232`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L260), [`claim-loop.test.ts:238`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L266), [continues at the base interval after a launch error](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L332))
+  costs no extra delay of its own.
 - A claim request with no matching queued run returns `204`. An idle agent
   backs its polling off (doubling to a 60 s ceiling, resetting on the first
   hit), so a fleet of quiet satellites costs the API a bounded trickle
-  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L87), [`claim.test.ts:133`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L167), [`claim-loop.test.ts:61`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L62), [`claim-loop.test.ts:65`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L66), [`claim-loop.test.ts:71`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L72), [`claim-loop.test.ts:79`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L80), [`claim-loop.test.ts:90`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L91), [`claim-loop.test.ts:135`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L136), [holds the base sleep on the first empty, doubles across consecutive ones, and drains straight through a hit](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L309))
+  rather than O(N) at the floor interval.
 - A claim that HITS does not sleep before the next poll. The queue has just
   proved it has work, and a fan-out enqueues many visits at once — at the base
   interval a cluster launched one pod every 15 seconds, so ten queued nodes took
   two and a half minutes and forty took ten, while the reaper's queue-wait bound
   counted from enqueue. The next poll either finds more work or answers `204`,
-  which is where the back-off begins. ([`claim-loop.test.ts:86`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L87))
+  which is where the back-off begins.
 - The claim response carries the **complete `LoreTaskSpec`** the visit was
   enqueued with — the same object the push path handed the launch backend.
   The claiming cluster-agent materialises everything cluster-local itself:
@@ -273,7 +303,7 @@ one dispatch mechanism, not a special case plus a remote case.
   satellite run of one recipe differ; agent pods assemble their own through the
   live lore-mcp gateway), and the Agent CR is created under the exact CR name
   the Floor recorded on the station-run row — so no synced catalog is
-  required and no inbound push ever occurs. ([validated by `claim-loop.test.ts:139`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L142), [`claim-loop.test.ts:154`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L166), [`claim-loop.test.ts:183`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L195), [`claim-loop.test.ts:210`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L222), [`claim-loop.test.ts:229`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L241), [`claim-loop.test.ts:297`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L309), [`claim-loop.test.ts:229`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L241))
+  required and no inbound push ever occurs.
 - "The exact name the Floor recorded" means the ROW's, not the copy the dispatch
   spec carries. Both are written together today, but the spec's copy is the one
   that can go stale — a re-dispatch converging on an existing row keeps the spec
@@ -281,7 +311,7 @@ one dispatch mechanism, not a special case plus a remote case.
   report, the reconcile pass, the fork replay. A claim whose two names disagree
   is refused rather than launched under either, since a CR no row names produces
   a terminal event that matches nothing and a node that waits out its timeout
-  reading as a run nobody launched. ([validated by `claim-loop.test.ts:141`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L142), [falls back to the spec's own name for a row with none recorded](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L166), [refuses to launch when neither the row nor the spec names a CR](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L179), [`claim-loop.test.ts:183`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L195))
+  reading as a run nobody launched.
 - Outcome reporting rides the existing path: the cluster-agent's watch
   reports terminal phases through the event-router front door with dedupe
   keys, and the central Floor's event loop advances the assembly line
@@ -294,13 +324,13 @@ one dispatch mechanism, not a special case plus a remote case.
   answers `found:false` indistinguishably from "no such CR". The event already
   carries the full status, so nothing is fetched; params that do not describe a
   terminal run settle nothing rather than defaulting.
-  ([validated by settles the run from the event's own report, with no cluster read](apps/floor/src/events/handlers/kubernetes.test.ts#L21), [`kubernetes.test.ts:33`](apps/floor/src/events/handlers/kubernetes.test.ts#L33), [`kubernetes.test.ts:49`](apps/floor/src/events/handlers/kubernetes.test.ts#L49), [`kubernetes.test.ts:55`](apps/floor/src/events/handlers/kubernetes.test.ts#L55), [`agent-watcher-logic.test.ts:219`](apps/floor/src/domain/agent-watcher-logic.test.ts#L219), [`agent-watcher-logic.test.ts:240`](apps/floor/src/domain/agent-watcher-logic.test.ts#L240), [`agent-watcher-logic.test.ts:244`](apps/floor/src/domain/agent-watcher-logic.test.ts#L244), [`agent-watcher-logic.test.ts:248`](apps/floor/src/domain/agent-watcher-logic.test.ts#L248), [`agent-watcher-logic.test.ts:258`](apps/floor/src/domain/agent-watcher-logic.test.ts#L258))
+ 
 - What the run was dispatched WITH is recovered from what the Floor wrote down —
   the run row first (it recorded the repo, branch and description at dispatch),
   then the backing task, preferring the branch dispatch actually used. These
   were read off `Agent.spec`, the one copy that exists only in the executing
   cluster and only until the prune.
-  ([validated by reads what the run row recorded at dispatch, not what a cluster still holds](apps/floor/src/domain/agent-watcher-logic.test.ts#L286), [`agent-watcher-logic.test.ts:309`](apps/floor/src/domain/agent-watcher-logic.test.ts#L309), [`agent-watcher-logic.test.ts:326`](apps/floor/src/domain/agent-watcher-logic.test.ts#L326), [`agent-watcher-logic.test.ts:338`](apps/floor/src/domain/agent-watcher-logic.test.ts#L338), [`agent-watcher-logic.test.ts:350`](apps/floor/src/domain/agent-watcher-logic.test.ts#L350), [`agent-watcher-logic.test.ts:295`](apps/floor/src/domain/agent-watcher-logic.test.ts#L295))
+ 
 
 - **Whether an agent may be handed work is one rule, shared** *(added 2026-08-30)*.
   It was a bare `if (agent.paused)` inside the claim route, where nothing else
@@ -310,13 +340,13 @@ one dispatch mechanism, not a special case plus a remote case.
   Deliberately narrower than the capacity read that predicts who WILL claim: an
   `offline` agent may still claim, because a claim arriving from it is itself
   proof it is alive, and refusing those would turn a network blip into a cluster
-  that can never re-enter service. ([validated by refuses a paused agent, which is the operator's switch](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L26), [allows an OFFLINE agent, because the claim itself proves it is alive](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L32), [allows an ordinary active agent](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L44))
+  that can never re-enter service.
 - The acceptance tier therefore spans registry → claim → walk → reaper on the
   real `implementation-loop` blueprint: a paused central leaves `validate`
   unclaimed and the run fails once naming it, an active central claims that same
   node and the walk reaches `push`, and a satellite carrying only `node:agent`
   cannot take it at all — which is why one paused cluster starves the line
-  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1184`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1185), [`single-cr-dispatch-acceptance.test.ts:188`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L188), [`single-cr-dispatch-acceptance.test.ts:175`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L175))
+  rather than failing over to the other.
 
 ## FR4 — Liveness, recovery, and dead-agent reaping
 
@@ -325,41 +355,41 @@ against the central cluster-agent. A satellite's CRs are invisible to that
 pull, so recovery splits by who holds the claim:
 
 - A cluster-agent posts `POST /api/cluster-agents/{id}/heartbeat` every 30 s,
-  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:166`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L168), [`cluster-agents.test.ts:359`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L359), [`heartbeat.test.ts:22`](apps/lore-api/src/transport/routes/cluster-agents/heartbeat.test.ts#L22), [`heartbeat.test.ts:39`](apps/lore-api/src/transport/routes/cluster-agents/heartbeat.test.ts#L39), [`heartbeat-loop.test.ts:29`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L29), [`heartbeat-loop.test.ts:33`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L33), [`heartbeat-loop.test.ts:44`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L44), [`heartbeat-loop.test.ts:86`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L86), [`heartbeat-loop.test.ts:62`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L62))
+  bumping `last_seen_at`.
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
-  work. ([validated by `cluster-agents.test.ts:218`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L218), [`cluster-agents.test.ts:336`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L336), [`assembly-run-reaper.test.ts:968`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L968))
+  work.
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
   is skipped entirely; their recovery signal is the claiming agent's
   liveness, never a CR read that would come back null and trigger a
-  duplicate central launch. ([validated by `assembly-run-reaper.test.ts:191`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L191), [`assembly-run-reaper.test.ts:204`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L204), [`assembly-run-reaper.test.ts:742`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L742), [`cr-visibility.test.ts:5`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L5), [`cr-visibility.test.ts:11`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L11), [`cr-visibility.test.ts:20`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L20), [`cr-visibility.test.ts:29`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L29), [`cr-visibility.test.ts:35`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L35))
+  duplicate central launch.
 - The same restriction binds the **terminal-event door**, not only the reaper:
   it MUST NOT read a satellite-claimed run's CR back, and MUST NOT treat the
   null it would get as an empty output — this is the fallback path, taken
-  only when the event carries no status of its own. ([validated by `code-review-acceptance.test.ts:7`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L7), [`code-review-acceptance.test.ts:19`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L19), [`code-review-acceptance.test.ts:34`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L34))
+  only when the event carries no status of its own.
 - A duplicate terminal delivery that carries no status for a node whose first
   delivery already settled it has no open station-run row, and is dropped
   without any CR read — reading the central cluster for it would turn a
   satellite's null into a phantom re-settlement (#1627, ADR-044 amendment
-  2026-09-09). ([validated by `node-event-handler.test.ts:417`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L417))
+  2026-09-09).
 - The same rule routes the live pod-log read (`GET /api/agent-logs/{name}`):
   the central cluster-agent is asked only for a CR whose station-run row it
   claimed, or a legacy row with no claim record; a row a satellite claimed is
   answered from the stored chunk archive by CR name without any central call,
-  and reports `no-pod` when nothing is archived. ([validated by `agent-logs.test.ts:130`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L130), [`agent-logs.test.ts:134`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L134), [`agent-logs.test.ts:143`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L143), [`agent-logs.test.ts:154`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L154), [`agent-pod-logs.test.ts:342`](apps/floor/src/work/station/agent-pod-logs.test.ts#L342), [`agent-pod-logs.test.ts:362`](apps/floor/src/work/station/agent-pod-logs.test.ts#L362))
+  and reports `no-pod` when nothing is archived.
 - Two reported-state lookups make that routing possible without a cluster: a
   station run is found by its Agent CR name, newest row first, and a CR's
   stored pod-log chunks are listed and reassembled by that same name — the key
-  a reader still holds when the Job name is known only to another cluster. ([validated by `assembly-runs.test.ts:1775`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1775), [`assembly-runs.test.ts:1800`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1800), [`pod-logs.test.ts:120`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L120), [`pod-logs.test.ts:134`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L134))
+  a reader still holds when the Job name is known only to another cluster. ([validated by `assembly-runs.test.ts:1772`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1772), [`assembly-runs.test.ts:1797`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1797), [`pod-logs.test.ts:120`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L120), [`pod-logs.test.ts:134`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L134))
 - The per-task token reclaim is a write with the same boundary: the DELETE
   goes to central when any of the task's station runs is visible from here or
   the task has no station run at all (a legacy single-CR task launched
   centrally), and is skipped with one log line when every run was claimed by a
   cluster this Floor cannot reach — reclaiming those is the claimant's job
-  (#1988). ([validated by `per-task-token.test.ts:5`](apps/floor/src/work/watcher/per-task-token.test.ts#L5), [`per-task-token.test.ts:9`](apps/floor/src/work/watcher/per-task-token.test.ts#L9), [`per-task-token.test.ts:21`](apps/floor/src/work/watcher/per-task-token.test.ts#L21), [`per-task-token.test.ts:27`](apps/floor/src/work/watcher/per-task-token.test.ts#L27))
+  (#1988).
 - The follow-up this restriction always pointed at: the terminal event MAY
   carry the CR's status directly (`params.status`, reported by cluster-agent
   at the source — the same `AgentNodeStatus` `statusFromAgentCr` builds for
@@ -371,7 +401,7 @@ pull, so recovery splits by who holds the claim:
   agent actually produced. An event from an older, not-yet-redeployed
   cluster-agent carries no `status` and falls straight back to the restriction
   above — this is additive, not a replacement, and rolls out in either
-  direction with no coordination required. ([validated by `k8s-map.test.ts:76`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L68), [`k8s-map.test.ts:82`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L82), [`node-event-handler.test.ts:345`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L345), [`node-event-handler.test.ts:363`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L363), [`code-review-acceptance.test.ts:43`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L43), [`code-review-acceptance.test.ts:58`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L58))
+  direction with no coordination required.
 
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
   the lifecycle section); the reaper — the same process that set the agent
@@ -380,14 +410,14 @@ pull, so recovery splits by who holds the claim:
   time since `claimed_at`, so another agent picks the run up and the outage
   is attributable. Re-execution resumes on the run's existing branch —
   branch-as-state already makes a node re-run land on whatever commits the
-  dead attempt pushed. ([validated by an offline claimant flips nothing on a queued row](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L950), [`assembly-run-reaper.test.ts:936`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L936), [`assembly-run-reaper.test.ts:950`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L950), [`assembly-run-reaper.test.ts:1027`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1027))
+  dead attempt pushed.
 - A run whose claiming agent is **alive** but which exceeds its node timeout
   (measured from `claimed_at`) is failed terminally, exactly the reaper's
   timeout semantics today — a live agent past budget is a stuck node, not a
   lost one, and requeueing it would double-execute its side effects.
 - A returning agent re-registers under its persisted identity and resumes
   claiming; its stale claims have already been requeued, and dedupe keys make
-  any late duplicate report safe. ([validated by `heartbeat-loop.test.ts:100`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L112), [`heartbeat-loop.test.ts:74`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L74), [`assembly-runs.contract.test.ts:1073`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1113))
+  any late duplicate report safe.
 
 - **A cluster forgets what it finished with** *(added 2026-08-30)*. Every run
   leaves an Agent CR plus the per-task `pt-*` AgentDefinition and Station it ran
@@ -401,7 +431,6 @@ pull, so recovery splits by who holds the claim:
   already failed once at a lower ceiling. An hourly sweep deletes terminal CRs
   past a retention window, then the clones no surviving CR still references,
   bounded per tick so a first pass over a backlog cannot storm the apiserver.
-  ([validated by [deletes a terminal CR older than the retention window](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L45), [keeps a terminal CR inside the window, which is the forensic record](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L51), [never deletes a CR that has not gone terminal, however old](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L57), [bounds one tick, so a first sweep over a backlog does not storm the apiserver](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L66), [keeps three days of evidence by default](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L139), [ignores a zero or unparseable retention rather than deleting everything](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L146), [sweeps hourly unless the environment says otherwise](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L132); implemented by [`decide-prune.ts`](apps/cluster-agent/src/work/reap/decide-prune.ts))
 - The window is deliberately generous — three days by default, and a zero or
   unparseable override falls back rather than deleting every terminal run the
   moment it lands. Run `129235d4` was diagnosed two days after it died from
@@ -412,26 +441,22 @@ pull, so recovery splits by who holds the claim:
   past the window — the clone is written before the CR that names it, so
   "nothing references it" is briefly true of a task mid-dispatch, and a builtin
   `def-*` recipe is catalog rather than litter and is never a candidate.
-  ([validated by [deletes a pt-* clone once no surviving CR references it](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L76), [keeps a clone a surviving CR still references](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L90), [never touches a builtin def-* recipe, whatever its age](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L107), [keeps a young orphan clone, so a task mid-dispatch does not lose its recipe](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L119), [reports nothing to do for an empty cluster](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L128))
 - When the sweep deletes an orphaned `pt-*` definition it also deletes the
   corresponding `GH_TOKEN_*` key from `agent-secrets`. For a satellite the
   Floor's `DELETE /api/cluster/per-task-tokens/{taskId}` call targets the
   central cluster-agent only and never reaches the satellite, so the prune loop
   is the sole reclaim path — without it the key accumulates indefinitely.
-  ([validated by [deletes the per-task token key from agent-secrets when pruning an orphaned definition](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L107)])
 - The sweep runs hourly and keeps three days, both overridable by the
   environment; a retention of zero or one that does not parse is ignored in
   favour of the default, because reading it literally would delete every
   record of every run the moment the variable is fat-fingered — the opposite
   of what a retention window is for.
-  ([validated by [sweeps hourly unless the environment says otherwise](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L157), [`prune-loop.test.ts:169`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L164), [`prune-loop.test.ts:176`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L171))
 - The sweep never throws: a cluster it cannot reach, or one object wedged by a
   finalizer, is an outcome it logs and carries on from — a single stuck object
   must not keep the rest of a 40MiB backlog in the cache. It runs in the
   cluster-agent rather than the Floor, because the Floor cannot reach a
   satellite's cluster at all: a Floor-side reaper would tidy central and leave
   every satellite to grow until its controller died.
-  ([validated by [deletes what the plan names and reports the counts](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L48), [reports nothing when the cluster is already tidy](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L65), [skips one object it cannot delete and still sweeps the rest](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L73), [answers with an outcome, never a throw, when the cluster is unreachable](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L89), [logs a sweep and a failure, and stops when the latch closes](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L137); implemented by [`prune-loop.ts`](apps/cluster-agent/src/work/reap/prune-loop.ts))
 - The sweep calls the cluster through its port rather than handing over bare
   method references: an unbound `deleteAgent` loses its receiver, the live
   adapter's first act is `this.remove(...)`, and the resulting throw is
@@ -441,29 +466,34 @@ pull, so recovery splits by who holds the claim:
   live adapter is exercised against the real sweep instead. An object the
   apiserver reports without a creation stamp reads as brand new, since
   defaulting the other way would delete whatever the parse failed to
-  understand. ([validated by [deletes through the live adapter without losing `this`](apps/cluster-agent/src/integration-tests/kube-pruner.test.ts#L39), [reads an object the apiserver reports without a creation stamp as brand new](apps/cluster-agent/src/integration-tests/kube-pruner.test.ts#L61))
+  understand.
 
 ## FR5 — Reporting credentials for satellites
+
+> **Removed on 2026-10-02.** The event-router accepts the bus-wide token
+> only: the per-agent lookup in `pipeline.cluster_agents` went with Lore's
+> cluster agent, the one reporter that used it. The statements below record
+> how a satellite reported.
 
 A satellite must report outcomes without holding the bus-wide credential.
 
 - The event-router's `POST /api/events` accepts, in addition to
   `LORE_INGEST_TOKEN`, per-agent bearer tokens verified against
   `pipeline.cluster_agents.token_hash` (the router already holds the pool;
-  this is a lookup, not a new dependency). ([validated by [`reporter-auth.test.ts:57`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L57), [`reporter-auth.test.ts:93`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L93), [`reporter-auth.test.ts:103`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L103))
+  this is a lookup, not a new dependency).
 - Satellites report with their per-agent token; `LORE_INGEST_TOKEN` never
   leaves the central cluster — and a per-agent token authorises the
   reporting front door only, never the router's other surfaces. The
   satellite's reporter RESOLVES that token per call rather than capturing it:
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
-  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/transport/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L93), [validated by falls back to LORE_INGEST_TOKEN during the boot window before the per-agent token is available](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L5), [validated by returns the agentToken thunk unchanged on a satellite, so rotations are still picked up](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L14), [validated by does not pick up LORE_INGEST_TOKEN that appears in the env after the satellite's token is selected](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L23))
+  was wired at all, leaving every node to the reaper instead.
 - The central cluster-agent likewise prefers its per-agent token once
   registration has completed; `LORE_INGEST_TOKEN` is the boot-window
   fallback only — used while the first registration is still in flight,
   before `agentToken` is available. This gives the same revocation surface
   for both deployments and removes `LORE_INGEST_TOKEN` as a separate
-  reporting credential path. ([validated by switches to the per-agent token on a central cluster once registration completes](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L32))
+  reporting credential path.
 - A report the router REFUSES (401/403) re-registers before it retries, via
   the same single-flight re-registration the claim and heartbeat loops share
   *(2026-08-28)*: the token rotates whenever another instance of this
@@ -473,14 +503,21 @@ A satellite must report outcomes without holding the bus-wide credential.
   tell a rotation from a blip. And the overlap itself is closed at the source:
   both cluster-agent Deployments roll out `Recreate`, since a singleton
   registrant that overlaps its own successor rotates the successor's token.
-  ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/outbound/project/events/event-proxy.test.ts#L165), [`event-reporter-http.test.ts:116`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L116), [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
 - Deregistering or rotating a cluster-agent's token immediately invalidates
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal
   report — dedupe keys make a duplicate safe, and losing the report would
-  lose the work. ([validated by [`reporter-auth.test.ts:68`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L68), [`reporter-auth.test.ts:81`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L81))
+  lose the work.
 
 ## FR6 — Standalone satellite chart
+
+> **Removed on 2026-10-02.** The standalone chart
+> (`cluster-agent-standalone-helm`), its render check and
+> `scripts/install-satellite.sh` are deleted, with the central
+> `cluster-agent-helm` and `ai-agents` subcharts: no cluster can be registered
+> as a satellite any more, because nothing gives a cluster agent work since
+> `apps/floor` was deleted. The statements below record how a satellite was
+> installed.
 
 One `helm install` turns any cluster with outbound HTTPS into a Lore
 execution node.
@@ -502,16 +539,16 @@ execution node.
 - The local dev flow gains a flag that installs the standalone chart against
   minikube, making "laptop cluster registers, claims a run, PR appears" the
   acceptance walk for the whole feature.
-- The seeded catalog's http telemetry sink (`agent-events-auth`, a bus-wide
+- The rendered catalog's http telemetry sink (`agent-events-auth`, a bus-wide
   `LORE_AGENT_INTERNAL_TOKEN`-backed credential every recipe declares) is
-  guarded behind `.Values.agentEventsUrl`: the standalone chart leaves it
+  guarded behind the cluster-agent's `catalog.eventsUrl`: the standalone chart leaves it
   unset, so the sink is omitted from every recipe entirely rather than
   rendered pointed at an unreachable URL with a secret no satellite can
   hold. Unguarded, this was a hard `CreateContainerConfigError` on every
   satellite pod, of every node type — the first real satellite's every
   claimed run failed at init (#1575, found live 2026-08-26). Unset stays the
   default: a satellite reports its terminal outcome and nothing live, which
-  is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:235`](apps/floor/src/work/agent/agent-catalog.test.ts#L235))
+  is the honest state for a cluster with nowhere to report to.
 - The installer's default tags advertise `node:agent` only *(2026-08-28)*.
   Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`)
   mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the
@@ -536,25 +573,25 @@ that.
   agent `status` is deliberately not checked, since a cluster that has gone
   quiet is still the sender of what it is delivering. The rule is one shared
   function both doors call — two front doors disagreeing about who a
-  satellite is would only surface in production. ([validated by `registry-or-shared-token.test.ts:51`](libs/shared/src/transport/http/registry-or-shared-token.test.ts#L51), [`registry-or-shared-token.test.ts:63`](libs/shared/src/transport/http/registry-or-shared-token.test.ts#L63), [`registry-or-shared-token.test.ts:76`](libs/shared/src/transport/http/registry-or-shared-token.test.ts#L76), [`registry-or-shared-token.test.ts:90`](libs/shared/src/transport/http/registry-or-shared-token.test.ts#L90), [`registry-or-shared-token.test.ts:128`](libs/shared/src/transport/http/registry-or-shared-token.test.ts#L128), [`agent-events.test.ts:104`](apps/floor/src/transport/http/routes/agent-events.test.ts#L104), [`agent-events.test.ts:119`](apps/floor/src/transport/http/routes/agent-events.test.ts#L119))
+  satellite is would only surface in production.
 - The check runs inside the handler rather than as a hapi auth strategy,
   because a strategy holds exactly one expected token. An unconfigured shared
   token is therefore a `500`, not a `401` — an operator redeploys to fix it,
   no caller can — and the refusal names the env var that door actually reads
-  rather than the ingest token every other door uses. ([validated by `agent-events.test.ts:92`](apps/floor/src/transport/http/routes/agent-events.test.ts#L92), [`registry-or-shared-token.test.ts:98`](libs/shared/src/transport/http/registry-or-shared-token.test.ts#L98), [`registry-or-shared-token.test.ts:114`](libs/shared/src/transport/http/registry-or-shared-token.test.ts#L114))
+  rather than the ingest token every other door uses.
 - The satellite publishes its own per-agent token into `agent-secrets` under
   the `agent-events-auth` key the seeded recipes name, as the whole
   `Authorization: Bearer <token>` line the subsystem sends verbatim. It is
   written after EVERY successful registration, not only the first: a rotation
   mints a new token, and the pods' copy must never outlive it. A write
   failure is logged and swallowed — telemetry is not worth failing a
-  registration over. ([validated by `agent-events-secret.test.ts:25`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L26), [`agent-events-secret.test.ts:34`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L34), [`agent-events-secret.test.ts:48`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L48), [`registration.test.ts:179`](apps/cluster-agent/src/events/claim/registration.test.ts#L179), [`registration.test.ts:197`](apps/cluster-agent/src/events/claim/registration.test.ts#L197), [`registration.test.ts:216`](apps/cluster-agent/src/events/claim/registration.test.ts#L216))
+  registration over.
 - The SATELLITE publishes it; a cluster inside the platform does not. There ESO
   templates the same key from `LORE_AGENT_INTERNAL_TOKEN` and rewrites it every
   hour, so an agent writing it too makes two writers of one key, alternating,
   with run pods carrying whichever landed before they started. Holding the
-  bus-wide token is what says which cluster this is. ([validated by `agent-events-secret.test.ts:65`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L65), [`agent-events-secret.test.ts:69`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L69))
-- The sink is reachable through its own ingress (`lore-agent-events.tf`,
+  bus-wide token is what says which cluster this is.
+- _(Retired 2026-10-02: the ingress and its variable are removed with the Floor that served the sink; a satellite reports its terminal outcome only.)_ The sink was reachable through its own ingress (`lore-agent-events.tf`,
   gated on `lore_agent_events_hostname`), not another path on the Floor's
   webhook door: that one carries GitHub's HMAC-verified control-plane
   traffic, this is data-plane telemetry from different callers with a
@@ -565,7 +602,7 @@ that.
 - Opting in is per satellite and off by default: `agentEventsUrl` on the
   standalone chart (`--telemetry-url` on the installer) sets both the chart's
   own value and the subchart's, since Helm threads neither into the other.
-  Unset renders no sink at all, which is FR6's guard doing its job. ([validated by `check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
+  Unset renders no sink at all, which is FR6's guard doing its job.
 - A GitHub credential for the cluster-agent's per-task token provisioner is
   optional and chart-managed: `github.token` (a PAT) or the
   `github.app.appId`/`privateKey`/`installationId` triple, mirroring the
@@ -584,53 +621,59 @@ proxy everything else in that cluster reports through.
 - `POST /api/cluster/agent-events` accepts NDJSON and hands it to the proxy
   VERBATIM. This service does not parse stream-json and must not learn to: the
   Floor owns that projection, and a relay that reshapes its payload is a second
-  parser to keep in sync. ([validated by [queues the body verbatim](apps/cluster-agent/src/transport/routes/agent-events.test.ts#L40), [posts the body verbatim to the Floor's sink](apps/cluster-agent/src/outbound/telemetry-sink.test.ts#L29))
+  parser to keep in sync.
 - The relay accepts either credential this cluster legitimately holds — the
   bus-wide `LORE_INGEST_TOKEN` centrally, or the per-agent token a satellite
   received at registration and published into `agent-secrets` for exactly these
   pods. Both are resolved PER REQUEST: a captured list would start refusing the
-  cluster's own pods the moment a re-registration rotated the token. ([validated by [accepts the satellite's own per-agent token](apps/cluster-agent/src/transport/routes/agent-events.test.ts#L47), [resolves the token per call](apps/cluster-agent/src/outbound/telemetry-sink.test.ts#L49))
+  cluster's own pods the moment a re-registration rotated the token.
 - A credential matching neither is refused `401`, and a cluster holding NO
   credential yet refuses `500` rather than accepting anything — before
-  registration completes there is no door to open. ([validated by [refuses a token that matches none](apps/cluster-agent/src/transport/routes/agent-events.test.ts#L56), [refuses when this cluster holds no credential yet](apps/cluster-agent/src/transport/routes/agent-events.test.ts#L65), [refuses a request carrying no authorization header](apps/cluster-agent/src/transport/routes/agent-events.test.ts#L74))
+  registration completes there is no door to open.
 - A body past the Floor's own 8 MiB cap is refused `413` here rather than
-  buffered and then found undeliverable. ([validated by [refuses a body past the cap](apps/cluster-agent/src/transport/routes/agent-events.test.ts#L80))
+  buffered and then found undeliverable.
 - Before registration completes there is no token to present, and the relay
   forwards ANYWAY rather than dropping the batch: the Floor refuses it, the
   ladder reads that refusal as a rotation, re-registers, and the retry carries
   the freshly minted credential. Refusing to send would lose the batch with
-  nothing left to trigger the recovery. ([validated by [posts with no authorization header before this cluster has registered](apps/cluster-agent/src/outbound/telemetry-sink.test.ts#L69))
+  nothing left to trigger the recovery.
 - Forwarding rides the proxy's ladder, so a refusal re-registers before it
   retries exactly as a terminal report does — the relay's onward leg carries the
-  status on its throw so the ladder can tell a rotation from a blip. ([validated by [throws with the status attached](apps/cluster-agent/src/outbound/telemetry-sink.test.ts#L85), [refuses an event message](apps/cluster-agent/src/outbound/telemetry-sink.test.ts#L97))
-- A pod-log read the kubelet will not serve is an ordinary absence, not a fault: the pod already reaped arrives as a 404, and a container whose stdout is gone arrives as a **400** carrying its reason only in prose (`container "agent" ... is terminated`). Both answer 404 from the log route, and the client attaches the upstream status to its throw structurally, so the Floor's reader can tell "log gone, fall back to the durable archive" from a genuine fault — a 403 missing Role rule or a 5xx stays a 500, because the archive cannot substitute for a permission the cluster-agent does not have. Before this, opening a finished node's logs returned a bare 500 while Cloud Logging still held the transcript. ([validated by returns true for a pod that is already gone](apps/cluster-agent/src/lib/k8s-errors.test.ts#L103), [`k8s-errors.test.ts:107`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L107), [`k8s-errors.test.ts:116`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L116), [`k8s-errors.test.ts:124`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L124), [`k8s-errors.test.ts:128`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L128), [answers 404 when the kubelet reports the container terminated](apps/cluster-agent/src/transport/routes/cluster.test.ts#L277), [`cluster.test.ts:302`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L302), [`cluster.test.ts:319`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L319), [carries the upstream status on the thrown error](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L70), [`cluster-agent-client.test.ts:81`](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L81))
+  status on its throw so the ladder can tell a rotation from a blip.
+- A pod-log read the kubelet will not serve is an ordinary absence, not a fault: the pod already reaped arrives as a 404, and a container whose stdout is gone arrives as a **400** carrying its reason only in prose (`container "agent" ... is terminated`). Both answer 404 from the log route, and the client attaches the upstream status to its throw structurally, so the Floor's reader can tell "log gone, fall back to the durable archive" from a genuine fault — a 403 missing Role rule or a 5xx stays a 500, because the archive cannot substitute for a permission the cluster-agent does not have. Before this, opening a finished node's logs returned a bare 500 while Cloud Logging still held the transcript.
 - Opting in is one knob, `floorUrl` / `LORE_FLOOR_URL`, and it is OFF by
   default: it mounts the route, creates the Service the pods resolve, and points
   the run-pod egress hole at the cluster-agent instead of the Floor. A chart
   value that silently makes another one required would break every existing
-  satellite on upgrade, so nothing is derived. ([validated by [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
+  satellite on upgrade, so nothing is derived.
 
 ## FR7 — Registered-clusters visibility
+
+> **The Clusters page was removed on 2026-10-02.** The `/cluster-agents`
+> page, its Connect panel and its Pause and Restart buttons (FR7, FR9, FR10)
+> are deleted from the web UI: with `apps/floor` gone nothing gives Lore's
+> cluster agent work, and the external floor runs every pod with its own.
+> The statements below record how the page worked.
 
 Operators need to see which clusters exist, what they can run, and whether
 they are alive.
 
 - `GET /api/cluster-agents` lists registered agents with `name`, `tags`,
   `status`, `last_seen_at`, and the count of runs each is currently
-  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:88`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L88), [`assembly-runs.contract.test.ts:1042`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1082))
+  executing.
 - A web-ui page renders that list, marking offline agents and linking the
   running-claims count to the assembly-runs list filtered to that agent
   (`/assembly-runs?cluster_agent_id=…`, backed by the port's
-  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:945`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1017), [validated by `ClusterAgentsView.test.tsx:65`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L61), [`ClusterAgentsView.test.tsx:89`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L89), [`ClusterAgentsView.test.tsx:107`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L107), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
+  `clusterAgentId` open-claim filter).
 - The app hands out the connect-a-cluster values it already holds (#1572):
   admin-scoped `GET /api/cluster-agents/install-info` answers the central
   URLs and the registration token (or names exactly what is unconfigured),
   `GET /api/cluster-agents/install.sh` serves a runnable installer with the
   same values baked in and shell-quoted, and the Clusters page renders the
   ready-to-paste command from them. The LLM credential and GHCR pull
-  credentials stay deliberately un-baked. ([validated by `install.test.ts:11`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L11), [`install.test.ts:22`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L22), [`install.test.ts:38`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L38), [`install.test.ts:49`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L49), [`install.test.ts:61`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L61), [`install.test.ts:68`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L68), [`ConnectClusterPanel.test.tsx:22`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L22), [`ConnectClusterPanel.test.tsx:35`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L35), [`ConnectClusterPanel.test.tsx:46`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L46))
+  credentials stay deliberately un-baked.
 - The audit log's `cluster_agent_offline` entries surface on the same page,
-  so a flapping cluster is diagnosable without database access. ([validated by `ClusterAgentsView.test.tsx:126`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L122), [`ClusterAgentsView.test.tsx:144`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L144), [`ClusterAgentsView.test.tsx:190`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L190), [`ClusterAgentsView.test.tsx:207`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L207), [`ClusterAgentsView.test.tsx:211`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L211), [`audit-read.test.ts:7`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L33))
+  so a flapping cluster is diagnosable without database access. ([validated by `audit-read.test.ts:7`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L33))
 
 ## FR9 — Pausing a cluster
 
@@ -644,23 +687,23 @@ nothing matches is a trick that loses the cluster's real tags.
   is fully alive, keeps heartbeating and finishes what it already claimed —
   it is only passed over when new work is handed out. Conflating them would
   make pausing a cluster look exactly like losing one, and the reaper would
-  pull its live work away. ([validated by `cluster-agents.test.ts:186`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L188), [`cluster-agents.test.ts:209`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L209), [`cluster-agents.test.ts:349`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L349), [`pause.test.ts:45`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L45))
+  pull its live work away.
 - `PUT /api/cluster-agents/{id}/paused` flips it, scoped `write` — unlike its
   register/claim/heartbeat siblings this route serves the UI, and the cluster
-  being paused is precisely not the caller. Unknown id answers `404`. ([validated by `pause.test.ts:23`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L23), [`pause.test.ts:35`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L35), [`pause.test.ts:53`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L53))
+  being paused is precisely not the caller. Unknown id answers `404`.
 - A paused agent's claim answers `204` — byte-identical to "nothing queued
   for you", so the switch needs no new client behaviour at all: the
   satellite's existing idle backoff simply keeps polling until an operator
   un-pauses it. The queued run is untouched and another cluster may take it.
   Enforced at the route, which already resolves the agent, rather than in the
   claim SQL: pausing is a fact about the cluster-agent, and the station-run
-  queue has no business knowing about the registry. ([validated by `claim.test.ts:90`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L99))
+  queue has no business knowing about the registry.
 - The Clusters page carries the switch as a per-row toggle, and shows
   `paused` as a badge beside liveness rather than instead of it. Each row's
   button takes the agent id as a BOUND parameter of the server action, never
   an inline closure over it: the view is a server component, and React
   refuses to serialize a plain function to a client component — which took
-  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:23`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L23), [`actions.test.ts:34`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L34))
+  the whole page down the first time (fixed the same day).
 
 ## FR10 — Restarting a cluster
 
@@ -675,7 +718,6 @@ it a Kubernetes client, which ADR-024 deliberately withholds.
   the container and re-pulls whatever `latest` now points at. The exit is
   deferred one tick so the response reaches the caller first, and the route
   carries the same bearer guard as every other `/api/cluster/*` route.
-  ([validated by answers 204 and fires the restart hook once the response is sent](apps/cluster-agent/src/transport/routes/cluster.test.ts#L240), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/transport/routes/cluster.test.ts#L266))
 - `POST /api/cluster-agents/{id}/restart` on lore-api is the only caller with
   a path to that route, and only for the CENTRAL agent: lore-api dials one
   static in-cluster `CLUSTER_AGENT_URL` (terraform), and dispatch being
@@ -683,13 +725,12 @@ it a Kubernetes client, which ADR-024 deliberately withholds.
   satellite's cluster-agent has no inbound path from lore-api at all. Any
   other registered id is refused `400` before an attempt that would just hang
   or connection-refuse; an unknown id answers `404`.
-  ([validated by `restart.test.ts:23`](apps/lore-api/src/transport/routes/cluster-agents/restart.test.ts#L23), [`restart.test.ts:39`](apps/lore-api/src/transport/routes/cluster-agents/restart.test.ts#L39), [`restart.test.ts:52`](apps/lore-api/src/transport/routes/cluster-agents/restart.test.ts#L52))
 - The Clusters page renders a Restart button only on the row named `central`
   — the one row lore-api can actually reach — bound to that row's agent id
   the same way the Pause button is (never an inline closure over a server
   component's prop). A restart kills whatever the process is mid-way through,
   unlike Pause, so the button asks for a second click before it fires and a
-  Cancel backs out without restarting. ([validated by `ClusterAgentsView.test.tsx:170`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L166), [`RestartClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L7), [`RestartClusterButton.test.tsx:19`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L19), [`RestartClusterButton.test.tsx:29`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L29), [`actions.test.ts:48`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L48), [`actions.test.ts:57`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L57))
+  Cancel backs out without restarting.
 
 ## Data Model
 
@@ -717,7 +758,7 @@ DEFAULT '{}'`, `claimed_at timestamptz`, and `dispatch_spec jsonb` (the
 complete machine contract a claimant runs with, written at enqueue — only
 armed rows are claimable), plus a partial index on `(status) WHERE outcome
 IS NULL` to back the claim scan. A queued visit with no armed dispatch
-contract is never handed to a claimant. ([validated by `assembly-runs.contract.test.ts:855`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L927))
+contract is never handed to a claimant.
 
 ## Rollout: from push to pull without a flag-day
 
@@ -754,7 +795,7 @@ every deploy leaves a working dispatch path:
    claimed elsewhere was never readable from here — `HttpAgentApi.get` answered
    `found:false` indistinguishably from "no such CR". The single-CR row's queue
    wait and offline-requeue are picked up by the reaper's definition-less arm,
-   which previously bounded nothing. ([validated by `assembly-run-reaper.test.ts:506`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L506), [`assembly-run-reaper.test.ts:530`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L530))
+   which previously bounded nothing.
 
 Rollback at any stage is the reverse deploy; step 3's flip is the only
 behavioural change, and it is a single deploy boundary, not a long-lived
@@ -784,25 +825,25 @@ config flag.
   exercised together against a migrated Postgres — an agent presenting the
   registration token is registered and can then claim with the per-agent token
   it was minted, while a wrong registration token and another agent's per-agent
-  token are both refused. ([validated by refuses registration without the pre-shared token](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L234), [`cluster-agent-claim.test.ts:217`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L221), [`cluster-agent-claim.test.ts:118`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L122))
+  token are both refused.
 - FR2: a run requiring `gpu` is never handed to an agent without it; a run
   with empty `required_tags` is claimable by any agent. Asserted against the
   real `required_tags <@ tags` containment as well as the in-memory double,
   because that operator reads correctly in either direction and is wrong in
-  one of them. ([validated by does not hand a run to an agent missing one of its required tags](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L174), [`single-cr-dispatch-acceptance.test.ts:188`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L188), [`single-cr-dispatch-acceptance.test.ts:175`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L175), [`single-cr-dispatch-acceptance.test.ts:201`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L201))
+  one of them.
 - FR3: two agents claiming concurrently never receive the same run; a
   human-station or service-node row is never returned by a claim; the
   minikube acceptance walk ends with a PR authored from a locally executed
   station run. A queued row that has not been armed yet is likewise never
   handed out — the walk writes the row and its dispatch spec in two
   statements, and a claim between them would consume a visit with nothing to
-  launch. ([validated by never hands one visit to two clusters](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L245), [`cluster-agent-claim.test.ts:197`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L201), [`cluster-agent-claim.test.ts:141`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L145), [`single-cr-dispatch-acceptance.test.ts:220`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L220))
+  launch.
 - FR3 (single-CR): a task type with no assembly line takes the same path. The
   round trip is walked cluster-free through the production functions of all
   three processes — the Floor's launch seam, the claim, the CR the claiming
   cluster builds, the terminal event its watch reports, and the report the
   Floor settles from — so a hand-off that is correct on one side and wrong on
-  the other fails here rather than in a silent run. ([validated by reaches the Floor's terminal report carrying the task it started from](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L65), [`single-cr-dispatch-acceptance.test.ts:97`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L97), [`single-cr-dispatch-acceptance.test.ts:129`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L129), [`single-cr-dispatch-acceptance.test.ts:149`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L149))
+  the other fails here rather than in a silent run.
 - FR4: killing a satellite mid-run requeues its claim within the offline
   threshold (5 min) plus two reaper cycles (one to mark offline, one to
   requeue), with a `cluster_agent_offline` audit entry; a satellite-claimed
@@ -824,17 +865,17 @@ config flag.
   more than one open row, since an unreadable one is deliberately left for the
   reaper, and an event without an iteration — the older cluster-agent's, the
   only kind needing a read at all — would otherwise let a satellite's open row
-  deny a readable central run its read and strand it. ([validated by settles the row whose CR the event names](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L621))
+  deny a readable central run its read and strand it.
 - An unresolved central cluster-agent id routes the per-task token reclaim to
   central rather than skipping it. Not knowing which cluster claimed a run is
   not evidence a satellite did, and failing closed there stops reclaiming every
   pull-dispatched run's Secret — the `agent-secrets` leak of #1647. The DELETE
   is best-effort and central holds only what it claimed, so attempting it is
-  the safe direction. ([validated by routes to central when the central id is unresolved](apps/floor/src/work/watcher/per-task-token.test.ts#L41))
+  the safe direction.
 - A CR this Floor was allowed to ask for and did not find falls back to the
   stored archive by CR name, and reports `no-agent` only when the archive holds
   nothing either. A missing CR means pruned (the retention reap, #1673) or
-  never ours — neither means the agent produced nothing. ([validated by falls back to the archive when a readable CR is absent](apps/floor/src/work/station/agent-pod-logs.test.ts#L383), [`agent-pod-logs.test.ts:399`](apps/floor/src/work/station/agent-pod-logs.test.ts#L399))
+  never ours — neither means the agent produced nothing.
 
 ### Why these three
 

@@ -1,4 +1,5 @@
 import { enforceTrue } from "../../lib/enforce.js";
+import { specFileOf } from "./issue-coverage.js";
 // Feature spec decomposition into user stories/tasks (ADR-029); lenient parse, pure, no I/O.
 
 export interface DecompTask {
@@ -10,6 +11,23 @@ export interface DecompTask {
   file_path?: string;
   /** Agent labels from repo REAL list; validated (see decideIssueWork) to prevent GitHub silent invention. */
   labels?: string[];
+  /** The task's own issue: a developer implements it from this plus the linked references, nothing else. */
+  title?: string;
+  context?: string;
+  changes?: string;
+  acceptance_criteria?: string[];
+  test_plan?: string;
+  references?: string[];
+  /** The spec.md lines where the statements this task implements begin; its issue links each, and the issue-coverage check counts them. */
+  spec_lines?: SpecLine[];
+  /** The approved plan's passages the task comes from, quoted as written: the plan is not in the repository. */
+  plan_quotes?: string[];
+}
+
+/** A line of the spec the plan is chiefly about, or of `file` when the plan's spec PR wrote it in another spec. */
+export interface SpecLine {
+  file?: string;
+  line: number;
 }
 
 export interface UserStory {
@@ -22,6 +40,8 @@ export interface UserStory {
 }
 
 export interface DecompositionResult {
+  /** The commit the spec was read at, so its line numbers mean what decompose saw. */
+  spec_commit?: string;
   stories: UserStory[];
 }
 
@@ -40,7 +60,14 @@ export function parseDecomposition(raw: unknown): DecompositionResult {
     "decomposition: stories must be an array",
   );
 
-  return { stories: stories.map(normalizeStory) };
+  const specCommit = (raw as Record<string, unknown>).spec_commit;
+
+  return {
+    ...(typeof specCommit === "string" && specCommit
+      ? { spec_commit: specCommit }
+      : {}),
+    stories: stories.map(normalizeStory),
+  };
 }
 
 function normalizeStory(raw: unknown): UserStory {
@@ -168,6 +195,59 @@ function applyTaskOptionals(
   if (labels.length) {
     task.labels = labels;
   }
+  const specLines = asLineList(t.spec_lines);
+
+  if (specLines.length) {
+    task.spec_lines = specLines;
+  }
+  Object.assign(task, taskIssueDetail(t));
+}
+
+/** The detail a task's issue carries, read leniently from anything shaped like a task (the decomposition, or a spec-task's context bundle); each field only when written. */
+export type TaskIssueDetail = Pick<
+  DecompTask,
+  | "title"
+  | "context"
+  | "changes"
+  | "acceptance_criteria"
+  | "test_plan"
+  | "references"
+  | "plan_quotes"
+>;
+
+export function taskIssueDetail(source: object): TaskIssueDetail {
+  const t = source as Record<string, unknown>;
+
+  return {
+    ...textField("title", t.title),
+    ...textField("context", t.context),
+    ...textField("changes", t.changes),
+    ...textField("test_plan", t.test_plan ?? t.testPlan),
+    ...listField(
+      "acceptance_criteria",
+      t.acceptance_criteria ?? t.acceptanceCriteria,
+    ),
+    ...listField("references", t.references),
+    ...listField("plan_quotes", t.plan_quotes),
+  };
+}
+
+function textField<K extends string>(
+  key: K,
+  value: unknown,
+): Partial<Record<K, string>> {
+  return typeof value === "string" && value.trim()
+    ? ({ [key]: value } as Record<K, string>)
+    : {};
+}
+
+function listField<K extends string>(
+  key: K,
+  value: unknown,
+): Partial<Record<K, string[]>> {
+  const list = asStringList(value);
+
+  return list.length ? ({ [key]: list } as Record<K, string[]>) : {};
 }
 
 function taskFilePath(t: Record<string, unknown>): string | undefined {
@@ -194,4 +274,25 @@ function asStringList(v: unknown): string[] {
   }
 
   return [];
+}
+
+// A bare list names lines of the main spec; an object keyed by spec path names lines of each spec the plan wrote.
+function asLineList(v: unknown): SpecLine[] {
+  if (Array.isArray(v)) {
+    return wholeLines(v).map((line) => ({ line }));
+  }
+  const byFile = v && typeof v === "object" ? Object.entries(v) : [];
+
+  return byFile.flatMap(([path, lines]) =>
+    wholeLines(Array.isArray(lines) ? lines : []).map((line) => ({
+      file: specFileOf(path),
+      line,
+    })),
+  );
+}
+
+function wholeLines(values: unknown[]): number[] {
+  return values
+    .map(Number)
+    .filter((line) => Number.isInteger(line) && line > 0);
 }

@@ -36,7 +36,7 @@ export function decideMergeResume(
 /** Pure: whether a closed-PR event should resume a line, and for which PR. Used to hang off handleMergedTask, which a running feature-planning task's PR-less row never reached; reading the merge off the event itself needs no task row. An unmerged close settles the line rather than resuming it. */
 export function decideResumeFromClosedPr(
   params: Record<string, unknown>,
-): { repo: string; prNumber: number } | null {
+): MergedPr | null {
   const repo = params.repo;
   const prNumber = params.pr_number;
 
@@ -48,25 +48,46 @@ export function decideResumeFromClosedPr(
     return null;
   }
 
-  return { repo, prNumber };
+  const baseRef = params.base_ref;
+
+  return {
+    repo,
+    prNumber,
+    ...(typeof baseRef === "string" && baseRef ? { baseRef } : {}),
+  };
+}
+
+/** A merged PR, and the branch it merged into when the event carries it. */
+export interface MergedPr {
+  repo: string;
+  prNumber: number;
+  baseRef?: string;
 }
 
 export interface DecomposeResumeDeps {
   assemblyRuns: Pick<AssemblyRunsPort, "findOpenByPr" | "listStationRuns">;
   /** Delivers the resume; production binds the event reporter so this module never resolves one itself, a test records instead. */
-  report: (target: ParkedTarget, outcome: "success") => Promise<void>;
+  report: (
+    target: ParkedTarget,
+    outcome: "success",
+    args?: Record<string, unknown>,
+  ) => Promise<void>;
 }
 
 /** Bind the event reporter — the production `report`. */
 export function eventReport(
   reporter: EventReporter,
 ): DecomposeResumeDeps["report"] {
-  return (target, outcome) => reportToParkedNode(reporter, target, { outcome });
+  return (target, outcome, args) =>
+    reportToParkedNode(reporter, target, {
+      outcome,
+      ...(args ? { args } : {}),
+    });
 }
 
 /** Reports the merge to whichever open line for this PR is parked on its `merged` node; called for every merged task since a merged PR isn't labelled "spec PR" — safe because only a line actually parked on `merged` qualifies. */
 export async function resumeDecomposition(
-  pr: { repo: string; prNumber: number },
+  pr: MergedPr,
   deps: DecomposeResumeDeps,
 ): Promise<void> {
   const open = await deps.assemblyRuns.findOpenByPr(pr.repo, pr.prNumber);
@@ -83,8 +104,13 @@ export async function resumeDecomposition(
       continue;
     }
 
-    await deps.report(target, "success");
+    await deps.report(target, "success", resumeArgs(pr));
 
     return;
   }
+}
+
+// The steps after the merge clone `args.ref` over the line's branch: the spec now lives on the branch the PR merged into, and GitHub deletes the merged head branch — decompose died on "pathspec did not match" cloning it (run 18773dbb, 2026-09-30).
+function resumeArgs(pr: MergedPr): Record<string, unknown> | undefined {
+  return pr.baseRef ? { ref: pr.baseRef } : undefined;
 }

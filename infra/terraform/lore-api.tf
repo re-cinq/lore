@@ -32,6 +32,10 @@ resource "kubernetes_ingress_v1" "lore_api" {
     annotations = {
       "cert-manager.io/cluster-issuer"            = "letsencrypt-prod"
       "external-dns.alpha.kubernetes.io/hostname" = local.lore_api_hostname
+      # The plan editor holds a WebSocket to /api/plans/collab for as long as
+      # the page is open; nginx's 60 s default would drop it mid-sentence.
+      "nginx.ingress.kubernetes.io/proxy-read-timeout" = "3600"
+      "nginx.ingress.kubernetes.io/proxy-send-timeout" = "3600"
     }
   }
 

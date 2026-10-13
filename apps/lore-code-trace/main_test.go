@@ -3,11 +3,31 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 )
+
+func TestExitCodeMapsRetryExhaustionAndOrdinaryErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "retry exhaustion", err: errRetryExhausted, want: 75},
+		{name: "ordinary error", err: errors.New("ingest failed"), want: 1},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := exitCode(test.err); got != test.want {
+				t.Errorf("exitCode(%v) = %d, want %d", test.err, got, test.want)
+			}
+		})
+	}
+}
 
 // End-to-end through run(): a real temp git repo + an echo-based manifest exercise
 // manifest load, git metadata, orchestration, and the print path — no mocks.
