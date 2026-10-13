@@ -18,6 +18,7 @@ export const PgClusterAgents = function (pool: Pool) {
       const res = await pool.query(
         `SELECT id, status, cluster_info FROM pipeline.cluster_agents`,
       );
+
       return res.rows;
     },
   };
