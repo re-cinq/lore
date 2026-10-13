@@ -1,4 +1,4 @@
-// The plan validator's findings (specs/7-feature-planning): a deterministic pass over an approved plan, delivered as plan-validation-result.json and turned into findings on the plan by the Floor.
+// The plan validator's findings (specs/7-feature-planning): a deterministic pass over an approved plan, delivered as plan-validation.json and turned into findings on the plan by the plan-findings station.
 
 import { z } from "zod";
 

@@ -1,34 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
-import { InMemoryEventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-memory.js";
-import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
-import { startSpecRework, type SpecReviewReads } from "./spec-rework.js";
+import {
+  assertReworkable,
+  gatherOpenReview,
+  type SpecReviewReads,
+} from "./spec-rework.js";
 
 const PLAN = { id: "p1", status: "approved" };
-
-const GRAPH: RunGraph = {
-  name: "feature-planning",
-  entry: "analyse-specs",
-  exit: "done",
-  nodes: [
-    { id: "write", type: "agent", station: "s", station_inherited: false },
-    { id: "push", type: "agent", station: "s", station_inherited: false },
-    {
-      id: "merged",
-      type: "pr_review",
-      station: "s",
-      station_inherited: false,
-    },
-    {
-      id: "done",
-      type: "retrospective",
-      station: "s",
-      station_inherited: false,
-    },
-  ],
-  edges: [],
-};
 
 const THREADS = [
   {
@@ -74,26 +52,6 @@ const withReview = (reads: Partial<SpecReviewReads> = {}): SpecReviewReads => ({
   ...reads,
 });
 
-async function parkedOnMerged(runs: InMemoryAssemblyRuns, args: object) {
-  const id = await runs.start({
-    blueprintName: "feature-planning",
-    repo: "re-cinq/lore",
-    branch: "lore/feature-planning/faster-checkout-abcd1234",
-    subjectKey: "plan:p1",
-    args: args as Record<string, unknown>,
-  });
-
-  await runs.markRunning(id);
-  await runs.stampBlueprint(id, "hash", GRAPH);
-  await runs.ensureStationRun({
-    assemblyRunId: id,
-    nodeId: "merged",
-    iteration: 1,
-  });
-
-  return id;
-}
-
 function line(lineId: string, facts: Partial<PlanLine> = {}): PlanLine {
   return {
     lineId,
@@ -110,149 +68,83 @@ function line(lineId: string, facts: Partial<PlanLine> = {}): PlanLine {
   };
 }
 
-function subject(pulls: SpecReviewReads = withReview()) {
-  const runs = new InMemoryAssemblyRuns();
-  const reporter = new InMemoryEventReporter();
+describe("assertReworkable", () => {
+  it("returns spec PR number 7 for an approved plan whose line waits on the PR", () => {
+    expect(assertReworkable(PLAN, line("run-1"))).toBe(7);
+  });
 
-  return {
-    runs,
-    reporter,
-    deps: {
-      runs,
-      pulls,
-      station: {
-        runs,
-        reporter,
-        graphOf: async () => GRAPH,
-        humanStationIds: () => new Set(["merged"]),
-      },
-    },
-  };
-}
+  it("refuses with 409 while the spec PR is not waiting for review", () => {
+    expect(() =>
+      assertReworkable(
+        PLAN,
+        line("run-1", { open: "push", parkedMerged: null }),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({ statusCode: 409 }),
+        message: "the spec PR is not waiting for review",
+      }),
+    );
+  });
 
-describe("startSpecRework", () => {
-  it("stores spec PR #7's unresolved review on the run's args and asks the Floor to run write again, naming gedaiu", async () => {
-    const { runs, reporter, deps } = subject();
-    const id = await parkedOnMerged(runs, { spec_review_reopen: true });
+  it("refuses with 409 a line that has no spec PR", () => {
+    expect(() =>
+      assertReworkable(PLAN, line("run-1", { prNumber: null, prUrl: null })),
+    ).toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({ statusCode: 409 }),
+        message: "the line has no spec PR",
+      }),
+    );
+  });
 
-    const answered = await startSpecRework(deps, {
-      plan: PLAN,
-      line: line(id),
-      actor: "gedaiu",
-    });
+  it("refuses with 409 a plan that is not approved", () => {
+    expect(() =>
+      assertReworkable({ id: "p1", status: "draft" }, line("run-1")),
+    ).toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({ statusCode: 409 }),
+        message: "the plan is not approved",
+      }),
+    );
+  });
+});
 
-    expect({
-      answered,
-      args: (await runs.getById(id))?.args,
-      events: reporter.rows.map((row) => row.params),
-    }).toEqual({
-      answered: id,
-      args: {
-        spec_review: JSON.stringify({
-          pr_number: 7,
-          reviews: [
-            {
-              id: 9,
-              author: "ana",
-              state: "CHANGES_REQUESTED",
-              body: "Split FR3.",
-            },
-          ],
-          comments: [
-            {
-              id: 41,
-              path: "specs/checkout/spec.md",
-              line: 12,
-              author: "ana",
-              body: "FR2 contradicts the plan",
-            },
-          ],
-        }),
-        spec_review_reopen: null,
-      },
-      events: [
+describe("gatherOpenReview", () => {
+  it("gathers spec PR #7's unresolved comment 41 and the review that requested changes", async () => {
+    expect(await gatherOpenReview(withReview(), 7)).toEqual({
+      pr_number: 7,
+      reviews: [
         {
-          assemblyRunId: id,
-          nodeId: "write",
-          actor: "gedaiu",
-          repo: "re-cinq/lore",
+          id: 9,
+          author: "ana",
+          state: "CHANGES_REQUESTED",
+          body: "Split FR3.",
+        },
+      ],
+      comments: [
+        {
+          id: 41,
+          path: "specs/checkout/spec.md",
+          line: 12,
+          author: "ana",
+          body: "FR2 contradicts the plan",
         },
       ],
     });
   });
 
-  it("refuses with 409 while the spec PR is not waiting for review, storing and asking nothing", async () => {
-    const { runs, reporter, deps } = subject();
-    const id = await parkedOnMerged(runs, {});
-
-    await expect(
-      startSpecRework(deps, {
-        plan: PLAN,
-        line: line(id, { open: "push", parkedMerged: null }),
-        actor: "gedaiu",
-      }),
-    ).rejects.toMatchObject({
-      output: { statusCode: 409 },
-      message: "the spec PR is not waiting for review",
+  it("refuses with 409 when every thread is resolved and no review said anything", async () => {
+    const quiet = withReview({
+      listReviewThreads: async () => [],
+      listReviews: async () =>
+        [{ id: 10, state: "APPROVED", body: "  ", user: "bob" }] as never,
     });
-    expect({
-      args: (await runs.getById(id))?.args,
-      events: reporter.rows,
-    }).toEqual({
-      args: {},
-      events: [],
-    });
-  });
 
-  it("refuses with 409 a line that has no spec PR", async () => {
-    const { runs, deps } = subject();
-    const id = await parkedOnMerged(runs, {});
-
-    await expect(
-      startSpecRework(deps, {
-        plan: PLAN,
-        line: line(id, { prNumber: null, prUrl: null }),
-        actor: "gedaiu",
-      }),
-    ).rejects.toMatchObject({
-      output: { statusCode: 409 },
-      message: "the line has no spec PR",
-    });
-  });
-
-  it("refuses with 409 when every thread is resolved and no review said anything, asking nothing", async () => {
-    const { runs, reporter, deps } = subject(
-      withReview({
-        listReviewThreads: async () => [],
-        listReviews: async () =>
-          [{ id: 10, state: "APPROVED", body: "  ", user: "bob" }] as never,
-      }),
-    );
-    const id = await parkedOnMerged(runs, {});
-
-    await expect(
-      startSpecRework(deps, { plan: PLAN, line: line(id), actor: "gedaiu" }),
-    ).rejects.toMatchObject({
+    await expect(gatherOpenReview(quiet, 7)).rejects.toMatchObject({
       output: { statusCode: 409 },
       message:
         "nothing on the spec PR is waiting for the writer: no unresolved comment and no review body",
-    });
-    expect(reporter.rows).toEqual([]);
-  });
-
-  it("refuses with 409 a plan that is not approved", async () => {
-    const { runs, deps } = subject();
-    const id = await parkedOnMerged(runs, {});
-
-    await expect(
-      startSpecRework(deps, {
-        plan: { id: "p1", status: "draft" },
-        line: line(id),
-        actor: "gedaiu",
-      }),
-    ).rejects.toMatchObject({
-      output: { statusCode: 409 },
-      message: "the plan is not approved",
     });
   });
 });

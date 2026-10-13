@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RunGraphView from "./RunGraphView";
 import {
@@ -311,5 +311,148 @@ describe("RunGraphView selection and facts line", () => {
     const shape = renderGraph(codeReviewDefinition, null, "definition");
 
     expect(shape.container.querySelector("[data-meta]")).toBeNull();
+  });
+});
+
+describe("RunGraphView node types and wrapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const boxTopOf = (container: HTMLElement, id: string) =>
+    Number(nodeEl(container, id).querySelector("rect")?.getAttribute("y"));
+
+  function panelOfWidth(width: number) {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(
+          private readonly report: (
+            entries: { contentRect: { width: number } }[],
+          ) => void,
+        ) {}
+
+        observe() {
+          this.report([{ contentRect: { width } }]);
+        }
+
+        disconnect() {}
+      },
+    );
+  }
+
+  it("files the review step under agent and the done step under marker", () => {
+    const { container } = renderGraph();
+
+    expect({
+      review: nodeEl(container, "review").getAttribute("data-family"),
+      done: nodeEl(container, "done").getAttribute("data-family"),
+    }).toEqual({ review: "agent", done: "marker" });
+  });
+
+  it("lists in the legend only the families this line has, agent and marker", () => {
+    const { getByRole } = renderGraph();
+
+    expect(
+      Array.from(
+        getByRole("list", { name: "Step types" }).querySelectorAll("li"),
+      ).map((legendRow) => legendRow.textContent),
+    ).toEqual(["Agent", "Marker"]);
+  });
+
+  it("wraps done onto a second row when the panel is 500px wide", () => {
+    panelOfWidth(500);
+    const { container } = renderGraph();
+
+    expect(boxTopOf(container, "done")).toBeGreaterThan(
+      boxTopOf(container, "review"),
+    );
+  });
+
+  it("keeps review and done on one row when the panel is 1200px wide", () => {
+    panelOfWidth(1200);
+    const { container } = renderGraph();
+
+    expect(boxTopOf(container, "done")).toBe(boxTopOf(container, "review"));
+  });
+
+  it("draws the graph at its natural size instead of scaling it to the panel", () => {
+    const { container } = renderGraph();
+    const svg = container.querySelector("svg[role='img']");
+
+    expect({
+      width: Number(svg?.getAttribute("width")) > 0,
+      height: Number(svg?.getAttribute("height")) > 0,
+    }).toEqual({ width: true, height: true });
+  });
+});
+
+describe("RunGraphView station tooltip", () => {
+  const described = {
+    ...codeReviewDefinition,
+    nodes: [
+      {
+        id: "review",
+        type: "agent" as const,
+        description: "An AI agent reviews the pull request.",
+      },
+      { id: "done", type: "retrospective" as const },
+    ],
+  };
+
+  it("shows what review does after a hover, tied to the node by aria-describedby", async () => {
+    const { container } = renderGraph(described);
+
+    fireEvent.pointerOver(nodeEl(container, "review"));
+    const tooltip = await screen.findByRole("tooltip");
+
+    expect({
+      text: tooltip.textContent,
+      describedBy: nodeEl(container, "review").getAttribute("aria-describedby"),
+    }).toEqual({
+      text: "ReviewAgentAn AI agent reviews the pull request.",
+      describedBy: tooltip.id,
+    });
+  });
+
+  it("hides the tooltip once the pointer leaves review", async () => {
+    const { container } = renderGraph(described);
+
+    fireEvent.pointerOver(nodeEl(container, "review"));
+    await screen.findByRole("tooltip");
+    fireEvent.pointerOut(nodeEl(container, "review"));
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("shows the tooltip at once when review takes keyboard focus", () => {
+    const { container } = render(
+      <RunGraphView
+        graph={deriveVisibleGraph(described, null, "definition")}
+        definition={described}
+        onSelectNode={() => {}}
+      />,
+    );
+
+    act(() => nodeEl(container, "review").focus());
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "An AI agent reviews the pull request.",
+    );
+  });
+
+  it("hides the tooltip on Escape", () => {
+    const { container } = render(
+      <RunGraphView
+        graph={deriveVisibleGraph(described, null, "definition")}
+        definition={described}
+        onSelectNode={() => {}}
+      />,
+    );
+
+    act(() => nodeEl(container, "review").focus());
+    fireEvent.keyDown(nodeEl(container, "review"), { key: "Escape" });
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 });

@@ -1,4 +1,3 @@
-import type { ResolvedDarkFactorySettings } from "../../../domain/dark-factory-settings.js";
 import { REPO_COLUMNS, type Repo } from "../../../domain/models/repo.js";
 import type { RepoSettings } from "../../../domain/models/repo-settings.js";
 
@@ -30,11 +29,10 @@ export type PendingOnboardingRepo = RepoColumn<"id" | "fullName"> & {
 /** What renaming a repo's row did: moved it in place, folded it into a row already carrying the new name, or found no row under the old name. */
 export type RepoRenameOutcome = "renamed" | "merged" | "absent";
 
-/** Repo settings port; resolve() returns fully-resolved lore.repos.settings (settings-pg reads the row then calls resolveDarkFactorySettings). Also covers repo config writes and raw lore.repos record ops (relocated from Floor inline SQL). */
+/** Repo settings port: org settings, repo config writes and the raw lore.repos record ops. */
 export interface SettingsPort {
-  resolve(repo: string): Promise<ResolvedDarkFactorySettings>;
-  /** Resolved settings, or null when the repo is not onboarded (no lore.repos row). */
-  resolveOrNull(repo: string): Promise<ResolvedDarkFactorySettings | null>;
+  /** An org-wide setting (`lore.settings`) by key; null when unset. */
+  orgSetting(key: string): Promise<string | null>;
   setRepoVariable(repo: string, name: string, value: string): Promise<void>;
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
 

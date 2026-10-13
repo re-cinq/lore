@@ -1,20 +1,15 @@
-// The three derived cells of an agent-definitions row (used by / mode / rollout), as text plus the flag saying the text is bad news.
+// The two derived cells of an agent-definitions row (used by / mode), as text plus the flag saying the text is bad news.
 
 import type { AgentDefinition } from "@/lib/agents-mirror";
-import type {
-  AgentApplyStatus,
-  AgentUsage,
-  AgentUsageRef,
-} from "@/lib/agents-api";
+import type { AgentUsage, AgentUsageRef } from "@/lib/agents-api";
 
-/** The three cells derived from usage. A null `usage` means the endpoint was unreachable, NOT that the definition is unused — each helper renders that as unknown rather than as a claim nothing references it. */
+/** The two cells derived from usage. A null `usage` means the endpoint was unreachable, NOT that the definition is unused — each helper renders that as unknown rather than as a claim nothing references it. */
 export function rowCells(agent: AgentDefinition, usage: AgentUsage | null) {
   const refs = usage === null ? null : usage.refs;
 
   return {
     use: usageLine(agent, refs),
     mode: modeLabel(agent, refs),
-    rollout: rolloutCell(agent, usage === null ? null : usage.applied),
   };
 }
 
@@ -88,47 +83,4 @@ function ownRefs(
   refs: Record<string, AgentUsageRef[] | undefined> | null,
 ): AgentUsageRef[] | null {
   return refs ? (refs[def.name] ?? null) : null;
-}
-
-/** Cluster rollout verdict; no verdict ≠ applied (reason: refusals once lived in stdout). */
-function rolloutCell(
-  def: AgentDefinition,
-  applied: Record<string, AgentApplyStatus[]> | null,
-): { text: string; bad: boolean } {
-  if (applied === null) {
-    return { text: "—", bad: false };
-  }
-  const own = ownApplied(def, applied);
-
-  if (own.length === 0) {
-    return { text: "not reported", bad: false };
-  }
-  const problems = rolloutProblems(own);
-
-  if (problems.length === 0) {
-    return { text: `applied · ${own.length} cluster(s)`, bad: false };
-  }
-
-  return { text: problemText(problems), bad: true };
-}
-
-/** Verdicts for THIS definition: an org row and a repo row share a name, so the project scope has to match too. */
-function ownApplied(
-  def: AgentDefinition,
-  applied: Record<string, AgentApplyStatus[]>,
-): AgentApplyStatus[] {
-  return (applied[def.name] ?? []).filter(
-    (s) => (s.project_id ?? null) === (def.project_id ?? null),
-  );
-}
-
-/** Every cluster that did not land the definition; `deleted` counts as landed — the cluster acted on the row. */
-function rolloutProblems(own: AgentApplyStatus[]): AgentApplyStatus[] {
-  return own.filter((s) => s.state !== "applied" && s.state !== "deleted");
-}
-
-function problemText(problems: AgentApplyStatus[]): string {
-  return problems
-    .map((s) => `${s.cluster}: ${s.state}${s.reason ? ` — ${s.reason}` : ""}`)
-    .join("; ");
 }

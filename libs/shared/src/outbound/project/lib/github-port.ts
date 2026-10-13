@@ -1,3 +1,4 @@
+import type { IssueComment } from "../pulls/pull-requests-port.js";
 /** GitHub port: structural subset of agent's CodePlatform. */
 
 export type IssueState = "open" | "closed";
@@ -102,12 +103,16 @@ export interface GitHubPort {
   ): Promise<void>;
   updateIssue(repo: string, number: number, edit: IssueEdit): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
+  listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
+  updateIssueComment(repo: string, id: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;
   removeIssueLabel(repo: string, number: number, label: string): Promise<void>;
   // API writes (no clone) — branch + single-file commit
   /** True when branch exists (octokit only; caller must not guess). */
   branchExists?(repo: string, branch: string): Promise<boolean>;
+  /** True when the branch head is already an ancestor of the base branch — every commit is on main, a resumed run can push nothing new. `undefined` when the adapter cannot say. */
+  branchMerged?(repo: string, branch: string): Promise<boolean | undefined>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */

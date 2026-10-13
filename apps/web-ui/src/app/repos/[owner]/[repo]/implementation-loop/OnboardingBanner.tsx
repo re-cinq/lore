@@ -39,7 +39,7 @@ function OnboardingNextStep({ onboarding, retry }: OnboardingStepProps) {
 
   if (onboarding.last_task?.in_flight) {
     return (
-      <Link href={`/tasks/${onboarding.last_task.id}`}>
+      <Link href={`/assembly-runs/${onboarding.last_task.id}`}>
         Onboarding is running
       </Link>
     );

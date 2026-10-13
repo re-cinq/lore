@@ -30,9 +30,7 @@ export function SummaryCards(props: SummaryCardsProps) {
         label="Kubernetes (estimated)"
         figure={usd(compute.est_total_usd)}
         estimate
-      >
-        <Subnote>+ {usd(compute.live_usd_per_hour)}/h burning now</Subnote>
-      </StatCard>
+      />
       {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
       {gcp.available && <GcpBilledCard gcp={gcp} />}
     </div>

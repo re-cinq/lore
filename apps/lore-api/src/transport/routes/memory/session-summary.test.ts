@@ -149,4 +149,25 @@ describe("POST /api/session-summary", () => {
     expect(res.result).toEqual({ status: "ok", episode_id: 42 });
     await new Promise((r) => setTimeout(r, 5));
   });
+
+  it("redacts secrets before the episode write and both extractions", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test";
+    globalThis.fetch = vi.fn() as typeof fetch;
+    vi.mocked(extractAndUpdateGraph).mockResolvedValueOnce(undefined as never);
+    const token = `${"ghp"}_abcdefghijklmnopqrstuvwxyz0123456789`;
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: 43 }] });
+    await post({ session_log: `pushed with ${token} today` }, pool);
+    const insert = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("INSERT INTO memory.episodes"),
+    );
+    const stored = insert?.[1][1] as string;
+
+    expect(stored).toBe(
+      "Session in unknown\n\npushed with [REDACTED:api-key] today",
+    );
+    expect(vi.mocked(extractFactsFromEpisode).mock.calls[0][1]).toBe(stored);
+    expect(vi.mocked(extractAndUpdateGraph).mock.calls[0][1]).toBe(stored);
+  });
 });

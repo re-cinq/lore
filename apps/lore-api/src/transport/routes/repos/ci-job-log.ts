@@ -11,11 +11,14 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { projectFor } from "../../../outbound/project-boot.js";
 import { readCiJobLog } from "../../../work/ci/ci-job-log.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { githubFailureResponse, httpStatusOf } from "./github-read.js";
+import {
+  githubFailureResponse,
+  httpStatusOf,
+  onboardedProject,
+} from "./github-read.js";
 
 const JobParams = z.object({
   owner: z.string().min(1),
@@ -54,7 +57,7 @@ const ROUTE_OPTIONS = zodResponse(
   {
     name: "CiJobLog",
     description:
-      "The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep",
+      "The tail of one GitHub Actions job's log, timestamps stripped. With grep, only the lines containing it are kept and the tail is taken from those",
     errors: [400, 404],
   },
 );
@@ -77,7 +80,7 @@ async function serveCiJobLog(
   const query = request.query as unknown as JobLogQuery;
 
   try {
-    const project = await projectFor(`${owner}/${repo}`);
+    const project = await onboardedProject(`${owner}/${repo}`);
     const log = await readCiJobLog(project.pulls, jobId, query);
 
     enforceTrue(log !== null, apiError(404), "job log not found");

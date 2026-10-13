@@ -19,56 +19,19 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { selectList, fromRow } from "@re-cinq/lore-shared/lib/row.js";
 import { REPO_COLUMNS, type Repo } from "@re-cinq/lore-shared/models/repo.js";
 
-import { getOctokit } from "../../outbound/github-client.js";
+import {
+  getInstallationRepos,
+  type InstallationRepo,
+} from "./installation-repos.js";
+import {
+  floorStartFor,
+  markRunningOnFloor,
+  type FloorStart,
+} from "./onboard-on-floor.js";
 import {
   ensureLoreWebhook,
   type EnsureLoreWebhookResult,
 } from "../webhook/webhook-ensure.js";
-
-// ── Installation repos ──────────────────────────────────────────────
-
-export interface InstallationRepo {
-  full_name: string;
-  owner: string;
-  name: string;
-}
-
-const INSTALLATION_PAGE_SIZE = 100;
-
-/** Lists all repositories the GitHub App installation has access to. */
-export async function getInstallationRepos(): Promise<InstallationRepo[]> {
-  const { rest } = await getOctokit();
-  const repos: InstallationRepo[] = [];
-
-  for (let page = 1; ; page++) {
-    const batch = await fetchInstallationPage(rest.apps, page);
-
-    repos.push(...batch);
-
-    if (batch.length < INSTALLATION_PAGE_SIZE) {
-      break;
-    }
-  }
-
-  return repos;
-}
-
-/** GitHub omits the owner login on some installation entries, so the full name is the fallback source for it. */
-async function fetchInstallationPage(
-  apps: Awaited<ReturnType<typeof getOctokit>>["rest"]["apps"],
-  page: number,
-): Promise<InstallationRepo[]> {
-  const { data: listed } = await apps.listReposAccessibleToInstallation({
-    per_page: INSTALLATION_PAGE_SIZE,
-    page,
-  });
-
-  return listed.repositories.map(({ full_name, owner, name }) => ({
-    full_name,
-    owner: owner.login || full_name.split("/")[0],
-    name,
-  }));
-}
 
 // ── Database queries ────────────────────────────────────────────────
 
@@ -153,8 +116,15 @@ export interface OnboardBlockedResult {
   task_id: string | null;
 }
 
-/** What the guarded transaction produced: the two ids, or the refusal. */
-type OnboardWrite = { repoId: string; taskId: string } | OnboardBlockedResult;
+/** What the guarded transaction produced: the two ids and the ticket the task carries, or the refusal. */
+type OnboardWrite =
+  { repoId: string; taskId: string; ticket: string } | OnboardBlockedResult;
+
+export interface OnboardOptions {
+  reonboard?: boolean;
+  /** Left out, the deployment decides: the floor when one is configured. */
+  floorStart?: FloorStart;
+}
 
 interface RepoIdentity {
   fullName: string;
@@ -166,19 +136,39 @@ interface RepoIdentity {
 export async function onboardRepo(
   pool: Pool,
   fullName: string,
-  options: { reonboard?: boolean } = {},
+  options: OnboardOptions = {},
 ): Promise<OnboardResult | OnboardBlockedResult> {
-  const written = await writeOnboardTx(pool, repoIdentity(fullName), options);
+  const floorStart = options.floorStart ?? floorStartFor(pool);
+  const written = await writeOnboardTx(pool, repoIdentity(fullName), {
+    reonboard: options.reonboard,
+  });
 
   if ("blocked" in written) {
     return written;
   }
+  const { repoId, taskId, ticket } = written;
+  const webhook = await ensuredWebhook(fullName);
 
-  // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret (best-effort).
+  await floorStart({ repo: fullName, taskId, ticket });
+
+  return onboarded({ repoId, taskId }, webhook);
+}
+
+/** Points the repo's GitHub webhook at the Lore ingress WITH the HMAC secret, best-effort. */
+async function ensuredWebhook(
+  fullName: string,
+): Promise<EnsureLoreWebhookResult> {
   const webhook = await ensureLoreWebhook(fullName);
 
   logWebhookOutcome(webhook, fullName);
 
+  return webhook;
+}
+
+function onboarded(
+  written: { repoId: string; taskId: string },
+  webhook: EnsureLoreWebhookResult,
+): OnboardResult {
   return {
     repo_id: written.repoId,
     task_id: written.taskId,
@@ -204,7 +194,7 @@ function repoIdentity(fullName: string): RepoIdentity {
 async function writeOnboardTx(
   pool: Pool,
   identity: RepoIdentity,
-  options: { reonboard?: boolean },
+  options: OnboardWriteOptions,
 ): Promise<OnboardWrite> {
   const client = await pool.connect();
 
@@ -218,33 +208,38 @@ async function writeOnboardTx(
   }
 }
 
+interface OnboardWriteOptions {
+  reonboard?: boolean;
+}
+
 /** Runs both writes (repos upsert + task) on ONE connection + transaction, holding per-repo advisory lock to avoid deadlocks and ensure atomicity. */
 async function writeOnboard(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
-  options: { reonboard?: boolean },
+  options: OnboardWriteOptions,
 ): Promise<OnboardWrite> {
   const { decision, state } = await beginAndDecide(client, fullName, options);
 
   if (!decision.allowed) {
     return refuseOnboard(client, fullName, decision);
   }
+  const ticket = ticketFor(fullName, state);
   const written = await insertRepoAndTask(
     client,
     { fullName, owner, name },
-    ticketFor(fullName, state),
+    ticket,
   );
 
   await client.query("COMMIT");
 
-  return written;
+  return { ...written, ticket };
 }
 
 /** The advisory lock is taken INSIDE the transaction so it releases with it — two concurrent submissions for one repo must not both read a clear state. */
 async function beginAndDecide(
   client: PoolClient,
   fullName: string,
-  options: { reonboard?: boolean },
+  options: Pick<OnboardWriteOptions, "reonboard">,
 ): Promise<{ decision: OnboardDecision; state: OnboardState }> {
   await client.query("BEGIN");
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
@@ -299,23 +294,35 @@ function ticketFor(
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
-  { fullName, owner, name }: RepoIdentity,
+  identity: RepoIdentity,
   ticket: string,
-): Promise<OnboardWrite> {
+): Promise<{ repoId: string; taskId: string }> {
+  const repoId = await upsertRepo(client, identity);
+  const task = await createPipelineTask(client, {
+    description: ticket,
+    taskType: "onboard",
+    targetRepo: identity.fullName,
+    createdBy: "onboard-system",
+    contextBundle: { repo: identity.fullName },
+  });
+
+  // Created already running: the floor runs it, and nothing may claim it as pending.
+  await markRunningOnFloor(client, task.task_id);
+
+  return { repoId, taskId: task.task_id };
+}
+
+async function upsertRepo(
+  client: PoolClient,
+  { fullName, owner, name }: RepoIdentity,
+): Promise<string> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
        ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now() RETURNING id`,
     [owner, name, fullName],
   );
-  const task = await createPipelineTask(client, {
-    description: ticket,
-    taskType: "onboard",
-    targetRepo: fullName,
-    createdBy: "onboard-system",
-    contextBundle: { repo: fullName },
-  });
 
-  return { repoId: rows[0].id, taskId: task.task_id };
+  return rows[0].id;
 }
 
 /** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */

@@ -1,5 +1,7 @@
 # Contract: Station images
 
+> **Retired 2026-10-02.** This contract was between Lore's own Floor and the pods it dispatched. The Floor, the builtin stations that implemented the contract and their `lore-station` image are deleted (`specs/external-floor` FR16.10, FR16.12). A station of a line on the external floor is written with `@re-cinq/floor-station`. What follows is the record of the old contract.
+
 How a container becomes an assembly-line **station** — a pod that runs exactly one
 non-agent node (validate, detect, gate, retrospective, github_action,
 ingest, or a custom type) dispatched by the Floor as an Agent CR
@@ -147,4 +149,4 @@ nodes:
 ```
 
 Builtins resolve to `def-<node type>` (a `lore.agent_definitions` row each cluster-agent renders; first seeded from
-`libs/shared/src/agent-defaults/def-<type>.md`).
+`libs/shared/src/agent-defaults/def-<type>.md`, deleted on 2026-10-02 with the node stations).

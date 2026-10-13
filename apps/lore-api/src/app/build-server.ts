@@ -3,10 +3,13 @@ import "@re-cinq/lore-shared/http/hapi-params.js";
 
 import type { Pool } from "pg";
 import { routeList } from "../transport/route-list.js";
+import type { PlanVerbSeams } from "../transport/routes/plans/plan-verbs-for.js";
 import Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
 import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
 import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
+import { rateLimit } from "../transport/http/auth.js";
+import { trustedClientAddress } from "../transport/http/client-ip.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
@@ -15,33 +18,37 @@ import {
   summarizeCoverage,
 } from "../transport/openapi/build-document.js";
 import { MAX_JSON_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
+import { logRequestErrors } from "@re-cinq/lore-shared/http/server-boot.js";
 import {
   registerPlanning,
   type RegisteredPlanning,
 } from "./register-planning.js";
-import { mountLiveSocket } from "../work/assembly-line-station/live-socket.js";
-import { runChannelDepsFromPool } from "../work/assembly-line-station/station-wiring.js";
+import {
+  mountLiveSocket,
+  type LiveSocketLimits,
+} from "../work/assembly-line-station/live-socket.js";
+import {
+  runChannelDepsFromPool,
+  runsChannelDepsFromPool,
+} from "../work/assembly-line-station/station-wiring.js";
 
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
 const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
 
-export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
-  const server = Hapi.server({
-    port,
-    host: "0.0.0.0",
-    routes: {
-      // ADR-034: parse JSON regardless of Content-Type (preserve pre-hapi agnostic behavior).
-      payload: { maxBytes: MAX_JSON_BODY_BYTES, override: "application/json" },
-      // Zod schemas fail through zodFailAction, shaping every 400 as { error }.
-      validate: { failAction: zodFailAction },
-    },
-  });
+/** `planFloor` stands in for the deployment's floor under the plan routes; a test hands in a recorded one. */
+export function buildServer(
+  getPool: () => Pool | null,
+  port = 0,
+  planFloor?: PlanVerbSeams["floorDeps"],
+): Hapi.Server {
+  const server = newServer(port);
 
+  logRequestErrors(server);
   registerRequestTracing(server, TRACING);
   registerRateLimit(server);
   registerBearerScope(server, getPool);
 
-  const routes = registerRoutes(server, getPool);
+  const routes = registerRoutes(server, getPool, planFloor);
 
   // Surface OpenAPI coverage at boot (FR7, drift-guard test enforces via CI).
   if (!process.env.VITEST) {
@@ -51,12 +58,26 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   return server;
 }
 
+function newServer(port: number): Hapi.Server {
+  return Hapi.server({
+    port,
+    host: "0.0.0.0",
+    routes: {
+      // ADR-034: parse JSON regardless of Content-Type (preserve pre-hapi agnostic behavior).
+      payload: { maxBytes: MAX_JSON_BODY_BYTES, override: "application/json" },
+      // Zod schemas fail through zodFailAction, shaping every 400 as { error }.
+      validate: { failAction: zodFailAction },
+    },
+  });
+}
+
 /** Plans register first: the plan routes run on what that registration hands back, and the live socket tunnels to its collaboration server (ADR-048). */
 function registerRoutes(
   server: Hapi.Server,
   getPool: () => Pool | null,
+  planFloor: PlanVerbSeams["floorDeps"],
 ): ServerRoute[] {
-  const { collab, plans } = registerPlanning(server, getPool);
+  const { collab, plans } = registerPlanning(server, getPool, planFloor);
   const routes = routeList(getPool, plans);
 
   server.route(routes);
@@ -65,6 +86,16 @@ function registerRoutes(
   return routes;
 }
 
+const LIVE_SOCKET_LIMITS: LiveSocketLimits = {
+  addressOf: (request) =>
+    trustedClientAddress(
+      request.socket.remoteAddress,
+      request.headers["x-forwarded-for"],
+    ),
+  allowUpgrade: (address) => rateLimit("ws", address),
+  allowOpen: (connection) => rateLimit("wsOpen", connection),
+};
+
 function registerLiveSocket(
   server: Hapi.Server,
   getPool: () => Pool | null,
@@ -72,7 +103,9 @@ function registerLiveSocket(
 ): void {
   const liveSocket = mountLiveSocket(server.listener, {
     run: runChannelDepsFromPool(getPool),
+    runs: runsChannelDepsFromPool(getPool),
     collab,
+    limits: LIVE_SOCKET_LIMITS,
   });
 
   server.ext("onPreStop", () => liveSocket.close());

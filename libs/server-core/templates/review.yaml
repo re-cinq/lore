@@ -37,3 +37,8 @@ sections:
     source: graph
     priority: 3
     max_tokens: 2000
+
+  - header: "Linked Repos"
+    source: cross_repo
+    priority: 3
+    max_tokens: 1500

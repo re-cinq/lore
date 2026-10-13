@@ -27,6 +27,8 @@ import type {
   CheckRun,
   ReviewThread,
   PullFileChange,
+  BranchRule,
+  Mergeability,
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
 import * as issues from "./platform-github-issues.js";
@@ -34,6 +36,7 @@ import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
+import * as branchRule from "./platform-github-branch-rule.js";
 import * as pullsReviewReads from "./platform-github-pulls-review-reads.js";
 import * as pullsWrite from "./platform-github-pulls-write.js";
 import * as actionsReads from "./platform-github-actions.js";
@@ -130,6 +133,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return issues.commentOnIssue(await this.octo(), repo, number, body);
   }
 
+  async updateIssueComment(
+    repo: string,
+    id: number,
+    body: string,
+  ): Promise<void> {
+    return issues.updateIssueComment(await this.octo(), repo, id, body);
+  }
+
   async closeIssue(
     repo: string,
     number: number,
@@ -189,6 +200,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async branchExists(repo: string, branch: string): Promise<boolean> {
     return repoContent.branchExists(await this.octo(), repo, branch);
+  }
+
+  async branchMerged(
+    repo: string,
+    branch: string,
+  ): Promise<boolean | undefined> {
+    return repoContent.branchMerged(await this.octo(), repo, branch);
   }
 
   async createBranch(
@@ -259,6 +277,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async getStats(repo: string, number: number): Promise<PullStats> {
     return pullsRead.getStats(await this.octo(), repo, number);
+  }
+
+  async getBranchRule(repo: string, branch: string): Promise<BranchRule> {
+    return branchRule.getBranchRule(await this.octo(), repo, branch);
+  }
+
+  async getMergeability(repo: string, number: number): Promise<Mergeability> {
+    return branchRule.getMergeability(await this.octo(), repo, number);
   }
 
   async changedFileCount(
@@ -375,6 +401,22 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsWrite.merge(await this.octo(), repo, number, method);
   }
 
+  async enablePullRequestAutoMerge(
+    prId: string,
+    mergeMethod?: MergeMethod,
+  ): Promise<void> {
+    return pullsWrite.enablePullRequestAutoMerge(
+      await this.octo(),
+      prId,
+      mergeMethod,
+    );
+  }
+
+  // eslint-disable-next-line re-lint/no-negative-names
+  async disablePullRequestAutoMerge(prId: string): Promise<void> {
+    return pullsWrite.disablePullRequestAutoMerge(await this.octo(), prId);
+  }
+
   async open(repo: string, branch: string, draft: PullDraft): Promise<PullRef> {
     return pullsWrite.open(await this.octo(), repo, branch, draft);
   }
@@ -401,13 +443,17 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   // ── auth ────────────────────────────────────────────────────────────
 
-  /** GitHub App installation token for the git-auth helper's clone/push credential; not on GitHubPort — consumers depend on the structural shape, keeping the Project facade token-free. Always FRESH (octokit caches tokens up to 59 minutes, so a cached one can die mid-run) and, given a repo, scoped to that one repo. */
-  async getInstallationToken(repo?: string): Promise<string> {
+  /** GitHub App installation token for the git-auth helper's clone/push credential; not on GitHubPort — consumers depend on the structural shape, keeping the Project facade token-free. Always FRESH (octokit caches tokens up to 59 minutes, so a cached one can die mid-run) and, given a repo, scoped to that one repo. Given `permissions`, the token carries only those, not every permission the App holds. */
+  async getInstallationToken(
+    repo?: string,
+    permissions?: Record<string, "read" | "write">,
+  ): Promise<string> {
     const ok = await this.octo();
     const auth = (await ok.auth({
       type: "installation",
       refresh: true,
       ...(repo ? { repositoryNames: [repo.split("/")[1]] } : {}),
+      ...(permissions ? { permissions } : {}),
     })) as { token: string };
 
     return auth.token;

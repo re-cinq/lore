@@ -10,11 +10,17 @@ import { stationsRoute } from "./routes/stations.js";
 import { dbHealthRoute } from "@re-cinq/lore-shared/http/db-health-route.js";
 import { serviceStations } from "../events/runner/service-stations.js";
 import { stationHost } from "../events/runner/station-host.js";
+import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
+import { traceHttp } from "@re-cinq/lore-shared/otel/metrics.js";
 
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
   const server = Hapi.server({ port: opts.port ?? 0, host: "0.0.0.0" });
 
   logRequestErrors(server);
+  registerRequestTracing(server, {
+    tracerName: "lore.stations.http",
+    observe: traceHttp,
+  });
 
   server.route([
     stationsRoute({

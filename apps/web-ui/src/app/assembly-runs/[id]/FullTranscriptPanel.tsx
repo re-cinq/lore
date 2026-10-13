@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
+import type { NodeRunStatus } from "@/lib/run-event-reducer";
 import {
   mergeTranscript,
   nodeWindow,
@@ -11,7 +12,7 @@ import {
   taskEventEntries,
 } from "@/lib/transcript-entries";
 import type { AgentRunTurn } from "@/lib/run-turn-types";
-import { conversationEntries, turnsForNode } from "./turn-transcript-presenter";
+import { conversationEntries, turnsInScope } from "./turn-transcript-presenter";
 import { walkAllTurns, walkErrorMessage } from "./transcript-walk";
 import { useFollowLiveEvents, useTranscriptTail } from "./transcript-tail";
 import {
@@ -24,6 +25,7 @@ import styles from "./TranscriptView.module.css";
 import {
   TranscriptCapped,
   TranscriptEmpty,
+  type TranscriptNode,
   TranscriptError,
   TranscriptLoading,
   TranscriptTurnsList,
@@ -32,12 +34,15 @@ import {
 export interface FullTranscriptPanelProps {
   runId: string;
   nodeId: string;
+  /** One attempt of the node to show alone; absent, the whole node's visits are drawn. */
+  iteration?: number;
   /** The task's status transitions; the ones inside this node's visits render as system lines. */
   taskEvents?: readonly TaskRuntimeEvent[];
   /** This node's visit rows, whose span decides which task events belong to it. */
   rows?: readonly AssemblyRunNode[];
   /** The newest agent event the live socket delivered; each change pulls the turns stored since the last one loaded. */
   liveEventId?: string;
+  nodeStatus?: NodeRunStatus;
 }
 
 const NO_EVENTS: readonly TaskRuntimeEvent[] = [];
@@ -45,22 +50,30 @@ const NO_ROWS: readonly AssemblyRunNode[] = [];
 
 export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
   const { runId, nodeId, taskEvents = NO_EVENTS, rows = NO_ROWS } = props;
+  const node = { id: nodeId, status: props.nodeStatus };
   const walk = useTranscriptWalk(runId, props.liveEventId);
   const segments = useNodeSegments({
     turns: walk.turns,
     nodeId,
+    iteration: props.iteration,
     taskEvents,
     rows,
   });
 
   return (
     <CollapsibleCard title="Transcript" defaultOpen onToggle={walk.setOpen}>
-      <p className={`meta ${styles.hint}`}>
-        Untruncated turns from the transcript store (30-day retention), with the
-        task&apos;s status changes in this step folded in.
-      </p>
-      <TranscriptBody walk={walk} segments={segments} nodeId={nodeId} />
+      <TranscriptHint />
+      <TranscriptBody walk={walk} segments={segments} node={node} />
     </CollapsibleCard>
+  );
+}
+
+function TranscriptHint() {
+  return (
+    <p className={`meta ${styles.hint}`}>
+      Untruncated turns from the transcript store (30-day retention), with the
+      task&apos;s status changes in this step folded in.
+    </p>
   );
 }
 
@@ -78,16 +91,17 @@ function useTranscriptWalk(runId: string, liveEventId: string | undefined) {
 interface ConversationSources {
   turns: AgentRunTurn[] | null;
   nodeId: string;
+  iteration: number | undefined;
   taskEvents: readonly TaskRuntimeEvent[];
   rows: readonly AssemblyRunNode[];
 }
 
 /** This node's turns as one terminal conversation: segmented per visit, tool calls paired with their results, the task's transitions in that window merged in by clock. */
 function useNodeSegments(sources: ConversationSources) {
-  const { turns, nodeId, taskEvents, rows } = sources;
+  const { turns, nodeId, iteration, taskEvents, rows } = sources;
   const nodeTurns = useMemo(
-    () => (turns === null ? [] : turnsForNode(turns, nodeId)),
-    [turns, nodeId],
+    () => (turns === null ? [] : turnsInScope(turns, nodeId, iteration)),
+    [turns, nodeId, iteration],
   );
   const entries = useMemo(() => {
     const agent = segmentEntries(
@@ -110,7 +124,7 @@ function useNodeSegments(sources: ConversationSources) {
 interface TranscriptBodyProps {
   walk: ReturnType<typeof useTranscriptWalk>;
   segments: ReturnType<typeof useNodeSegments>;
-  nodeId: string;
+  node: TranscriptNode;
 }
 
 interface TranscriptListProps {
@@ -118,7 +132,7 @@ interface TranscriptListProps {
   segments: ReturnType<typeof useNodeSegments>;
 }
 
-function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
+function TranscriptBody({ walk, segments, node }: TranscriptBodyProps) {
   const { turns, error } = walk;
   const { showList, ...flags } = bodyFlags(walk, segments);
 
@@ -128,7 +142,7 @@ function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
         error={error}
         flags={flags}
         turnsLoaded={(turns ?? []).length}
-        nodeId={nodeId}
+        node={node}
       />
       <TranscriptList show={showList} segments={segments} />
     </>
@@ -219,19 +233,19 @@ function TranscriptNotices({
   error,
   flags,
   turnsLoaded,
-  nodeId,
+  node,
 }: {
   error: string | null;
   flags: { showLoading: boolean; showCapped: boolean; showEmpty: boolean };
   turnsLoaded: number;
-  nodeId: string;
+  node: TranscriptNode;
 }) {
   return (
     <>
       <TranscriptError error={error} />
       <TranscriptLoading show={flags.showLoading} />
       <TranscriptCapped show={flags.showCapped} turnsLoaded={turnsLoaded} />
-      <TranscriptEmpty show={flags.showEmpty} nodeId={nodeId} />
+      <TranscriptEmpty show={flags.showEmpty} node={node} />
     </>
   );
 }

@@ -31,29 +31,8 @@ export const LIST_DEFS_SQL = `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.project_id IS NULL OR r.full_name = $1`;
 
-export const CATALOG_ENTRY_SQL = `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
-      WHERE a.name = $1 AND (a.project_id IS NULL OR a.project_id = $2)`;
-
-/** Override earns qualified name only if cluster applied its CR; prevents dispatch at unresolvable stationRef (2026-09-01 outage). */
-export const QUALIFIED_STATION_SQL = `SELECT a.project_id FROM lore.agent_definitions a
-       JOIN lore.repos r ON r.id = a.project_id
-      WHERE a.name = $1 AND r.full_name = $2
-        AND NOT (
-          EXISTS (
-            SELECT 1 FROM lore.catalog_apply_status s
-             WHERE s.name = a.name AND s.project_id = a.project_id
-               AND s.state = 'refused'
-          )
-          AND NOT EXISTS (
-            SELECT 1 FROM lore.catalog_apply_status s
-             WHERE s.name = a.name AND s.project_id = a.project_id
-               AND s.state = 'applied'
-          )
-        )`;
-
-/** Upserts the ORG-DEFAULT row (project_id IS NULL); the catalog event rides along so cluster-agents see the change. */
-export const UPDATE_ORG_DEF_SQL = `WITH written AS (
-       INSERT INTO lore.agent_definitions
+/** Upserts the ORG-DEFAULT row (project_id IS NULL). */
+export const UPDATE_ORG_DEF_SQL = `INSERT INTO lore.agent_definitions
          (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, ${mergedConfigSql("$8::jsonb", 9, 10, 11)}, NULL)
        ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
@@ -65,54 +44,31 @@ export const UPDATE_ORG_DEF_SQL = `WITH written AS (
          review_required = EXCLUDED.review_required,
          config = ${mergedConfigSql("lore.agent_definitions.config", 9, 10, 11)},
          updated_at = now()
-       RETURNING ${RET_COLS}
-     ), event AS (
-       INSERT INTO lore.catalog_events (name, project_id, op)
-       SELECT name, project_id, 'upsert' FROM written
-     )
-     SELECT ${RET_COLS} FROM written`;
+       RETURNING ${RET_COLS}`;
 
-/** Written CTE row and catalog_events append land in ONE statement — a definition cannot exist without its change event. */
-export const CREATE_DEF_SQL = `WITH written AS (
-         INSERT INTO lore.agent_definitions
-           (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM lore.repos WHERE full_name = $9))
-         RETURNING ${RET_COLS}
-       ), event AS (
-         INSERT INTO lore.catalog_events (name, project_id, op)
-         SELECT name, project_id, 'upsert' FROM written
-       )
-       SELECT ${RET_COLS} FROM written`;
+export const CREATE_DEF_SQL = `INSERT INTO lore.agent_definitions
+         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM lore.repos WHERE full_name = $9))
+       RETURNING ${RET_COLS}`;
 
-/** Upserts the PROJECT row, so editing an inherited org default forks a row rather than rewriting the default for every other repo. The catalog event goes in the same statement: a definition change nothing observed is a change the running fleet never picks up. */
-export const UPDATE_DEF_SQL = `WITH written AS (
-         INSERT INTO lore.agent_definitions
-           (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, ${mergedConfigSql("$8::jsonb", 10, 11, 12)}, (SELECT id FROM lore.repos WHERE full_name = $9))
-         ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
-           model = EXCLUDED.model,
-           timeout_minutes = EXCLUDED.timeout_minutes,
-           prompt = EXCLUDED.prompt,
-           image = EXCLUDED.image,
-           execution_mode = EXCLUDED.execution_mode,
-           review_required = EXCLUDED.review_required,
-           config = ${mergedConfigSql("lore.agent_definitions.config", 10, 11, 12)},
-           updated_at = now()
-         RETURNING ${RET_COLS}
-       ), event AS (
-         INSERT INTO lore.catalog_events (name, project_id, op)
-         SELECT name, project_id, 'upsert' FROM written
-       )
-       SELECT ${RET_COLS} FROM written`;
+/** Upserts the PROJECT row, so editing an inherited org default forks a row rather than rewriting the default for every other repo. */
+export const UPDATE_DEF_SQL = `INSERT INTO lore.agent_definitions
+         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, ${mergedConfigSql("$8::jsonb", 10, 11, 12)}, (SELECT id FROM lore.repos WHERE full_name = $9))
+       ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
+         model = EXCLUDED.model,
+         timeout_minutes = EXCLUDED.timeout_minutes,
+         prompt = EXCLUDED.prompt,
+         image = EXCLUDED.image,
+         execution_mode = EXCLUDED.execution_mode,
+         review_required = EXCLUDED.review_required,
+         config = ${mergedConfigSql("lore.agent_definitions.config", 10, 11, 12)},
+         updated_at = now()
+       RETURNING ${RET_COLS}`;
 
-export const DELETE_DEF_SQL = `WITH removed AS (
-         DELETE FROM lore.agent_definitions
-          WHERE name = $1
-            AND project_id = (SELECT id FROM lore.repos WHERE full_name = $2)
-         RETURNING name, project_id
-       )
-       INSERT INTO lore.catalog_events (name, project_id, op)
-       SELECT name, project_id, 'delete' FROM removed`;
+export const DELETE_DEF_SQL = `DELETE FROM lore.agent_definitions
+        WHERE name = $1
+          AND project_id = (SELECT id FROM lore.repos WHERE full_name = $2)`;
 
 // Boot seeding of the shipped defaults (specs/lore-agents FR27). One advisory lock serializes every replica's boot.
 export const SEED_LOCK_SQL = `SELECT pg_advisory_xact_lock(hashtext('lore.agent-defaults-seed'))`;
@@ -122,30 +78,17 @@ export const SEED_ROWS_SQL = `SELECT name, model, timeout_minutes, prompt, execu
         WHERE project_id IS NULL AND name = ANY($1::text[])
           FOR UPDATE`;
 
-export const SEED_INSERT_SQL = `WITH written AS (
-         INSERT INTO lore.agent_definitions
-           (name, model, timeout_minutes, prompt, execution_mode, review_required, config, shipped_default, project_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, NULL)
-         RETURNING name, project_id
-       ), event AS (
-         INSERT INTO lore.catalog_events (name, project_id, op)
-         SELECT name, project_id, 'upsert' FROM written
-       )
-       SELECT name FROM written`;
+export const SEED_INSERT_SQL = `INSERT INTO lore.agent_definitions
+         (name, model, timeout_minutes, prompt, execution_mode, review_required, config, shipped_default, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, NULL)
+       RETURNING name`;
 
-export const SEED_UPDATE_SQL = `WITH written AS (
-         UPDATE lore.agent_definitions
-            SET model = $2, timeout_minutes = $3, prompt = $4, execution_mode = $5,
-                review_required = $6, config = $7::jsonb, shipped_default = $8::jsonb,
-                updated_at = now()
-          WHERE name = $1 AND project_id IS NULL
-          RETURNING name, project_id
-       ), event AS (
-         INSERT INTO lore.catalog_events (name, project_id, op)
-         SELECT name, project_id, 'upsert' FROM written
-       )
-       SELECT name FROM written`;
+export const SEED_UPDATE_SQL = `UPDATE lore.agent_definitions
+          SET model = $2, timeout_minutes = $3, prompt = $4, execution_mode = $5,
+              review_required = $6, config = $7::jsonb, shipped_default = $8::jsonb,
+              updated_at = now()
+        WHERE name = $1 AND project_id IS NULL
+        RETURNING name`;
 
-// Remembering a new default changes no rendered field, so it writes no catalog event.
 export const SEED_REMEMBER_SQL = `UPDATE lore.agent_definitions SET shipped_default = $2::jsonb
         WHERE name = $1 AND project_id IS NULL`;

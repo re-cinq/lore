@@ -1,14 +1,12 @@
 // The browser's one live socket (ADR-048): an upgrade at /api/ws on lore-api's own listener, one connection per tab, channels opened by the client and served by the run and plan handlers. Ping/pong keeps it honest through the ingress; a socket that stops answering is terminated and its channels closed.
 
 import type { IncomingMessage, Server as HttpServer } from "node:http";
-import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import { ChannelRegistry, type ChannelHandle } from "./channel-registry.js";
 import { openPlanChannel, type CollabServer } from "./plan-channel.js";
 import {
   base64ToBytes,
   encodeServerMessage,
-  LIVE_SOCKET_PATH,
   parseClientMessage,
   type LiveClientMessage,
   type LiveServerMessage,
@@ -19,7 +17,11 @@ import {
   type ChannelOutlet,
   type RunChannelDeps,
 } from "./run-channel.js";
-import { urlOf, webRequest } from "./web-request.js";
+import { openRunsChannel, type RunsChannelDeps } from "./runs-channel.js";
+import { webRequest } from "./web-request.js";
+import { UpgradeGate, type LiveSocketLimits } from "./upgrade-gate.js";
+
+export type { LiveSocketLimits } from "./upgrade-gate.js";
 
 const PING_MS = 25_000;
 
@@ -28,10 +30,18 @@ const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 
 const OPEN = 1;
 
+type ChannelMessage = Exclude<LiveClientMessage, OpenMessage>;
+
+let connectionSeq = 0;
+
 export interface LiveSocketDeps {
   run: RunChannelDeps;
+  runs: RunsChannelDeps;
   collab: CollabServer;
+  limits?: LiveSocketLimits;
   pingMs?: number;
+  maxSockets?: number;
+  maxSocketsPerAddress?: number;
   log?: (message: string) => void;
 }
 
@@ -49,7 +59,7 @@ export function mountLiveSocket(
     noServer: true,
     maxPayload: MAX_PAYLOAD_BYTES,
   });
-  const onUpgrade = upgradeHandler(sockets, deps);
+  const onUpgrade = new UpgradeGate(sockets, deps, serve).onUpgrade;
 
   listener.on("upgrade", onUpgrade);
 
@@ -64,18 +74,6 @@ export function mountLiveSocket(
   };
 }
 
-/** Another mount (the plans library's) shares the listener; a foreign path is its business and is left untouched. */
-function upgradeHandler(sockets: WebSocketServer, deps: LiveSocketDeps) {
-  return (request: IncomingMessage, socket: Duplex, head: Buffer): void => {
-    if (urlOf(request).pathname !== LIVE_SOCKET_PATH) {
-      return;
-    }
-    sockets.handleUpgrade(request, socket, head, (ws) =>
-      serve(ws, request, deps),
-    );
-  };
-}
-
 function terminateAll(sockets: WebSocketServer): void {
   for (const ws of sockets.clients) {
     ws.terminate();
@@ -87,6 +85,7 @@ function terminateAll(sockets: WebSocketServer): void {
 class LiveConnection {
   private readonly registry = new ChannelRegistry();
   private alive = true;
+  private readonly id = `conn:${++connectionSeq}`;
 
   constructor(
     private readonly ws: WebSocket,
@@ -134,33 +133,41 @@ class LiveConnection {
   }
 
   private dispatch(message: LiveClientMessage): void {
+    if (message.type === "open") {
+      return this.open(message);
+    }
+
+    return this.dispatchToChannel(message);
+  }
+
+  private dispatchToChannel(message: ChannelMessage): void {
     switch (message.type) {
-      case "open":
-        return this.open(message);
       case "send":
-        return this.forward(message.channel, message.data);
+        return this.handleOf(message.channel)?.receive(
+          base64ToBytes(message.data),
+        );
+      case "watch":
+        return this.handleOf(message.channel)?.watch?.(message.runs);
       default:
         return this.close(message.channel);
     }
   }
 
-  private forward(channel: string, encodedBytes: string): void {
+  /** The channel's handle, or undefined after telling the client it names no open channel. */
+  private handleOf(channel: string): ChannelHandle | undefined {
     const handle = this.registry.get(channel);
 
     if (!handle) {
       this.send({ type: "error", channel, code: "unknown_channel" });
-
-      return;
     }
-    handle.receive(base64ToBytes(encodedBytes));
+
+    return handle;
   }
 
   private close(channel: string): void {
-    const handle = this.registry.get(channel);
+    const handle = this.handleOf(channel);
 
     if (!handle) {
-      this.send({ type: "error", channel, code: "unknown_channel" });
-
       return;
     }
     this.registry.forget(channel);
@@ -171,6 +178,12 @@ class LiveConnection {
   /** The id is taken the moment the open arrives, so a second open for it while the first still verifies its token is refused rather than raced. */
   private open(message: OpenMessage): void {
     const { channel } = message;
+
+    if (this.deps.limits?.allowOpen(this.id) === false) {
+      this.send({ type: "error", channel, code: "rate_limited" });
+
+      return;
+    }
     const refusal = this.registry.refusal(channel);
 
     if (refusal) {
@@ -232,15 +245,21 @@ class LiveConnection {
     message: OpenMessage,
     outlet: ChannelOutlet,
   ): Promise<ChannelHandle | null> {
-    if (message.kind === "plan") {
-      const request = webRequest(this.request);
-
-      return Promise.resolve(
-        openPlanChannel(message.channel, request, outlet, this.deps.collab),
-      );
+    switch (message.kind) {
+      case "plan":
+        return Promise.resolve(
+          openPlanChannel(
+            message.channel,
+            webRequest(this.request),
+            outlet,
+            this.deps.collab,
+          ),
+        );
+      case "runs":
+        return openRunsChannel(message, outlet, this.deps.runs);
+      default:
+        return openRunChannel(message, outlet, this.deps.run);
     }
-
-    return openRunChannel(message, outlet, this.deps.run);
   }
 
   private outletFor(channel: string): ChannelOutlet {

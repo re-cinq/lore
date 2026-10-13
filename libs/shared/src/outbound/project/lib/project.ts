@@ -7,11 +7,9 @@ import { Settings } from "../settings/settings.js";
 import { Memory } from "../memory/memory.js";
 import { TaskList } from "../tasks/task-list.js";
 import { AssemblyRuns } from "../assembly-runs/assembly-runs.js";
-import { Notify } from "../notify/notify.js";
 import { KnowledgeView } from "../knowledge/knowledge.js";
 import { TestSuite } from "../test-runner/test-suite.js";
 import { TraceView } from "../trace/trace.js";
-import { Agents } from "../agents/agents.js";
 import { AgentDefs } from "../agents/agent-defs.js";
 import { Workspace } from "../workspace/workspace.js";
 
@@ -25,11 +23,9 @@ import type { SettingsPort } from "../settings/settings-port.js";
 import type { MemoryPort } from "../memory/memory-port.js";
 import type { TaskStorePort } from "../tasks/task-store-port.js";
 import type { AssemblyRunsPort } from "../assembly-runs/assembly-runs-port.js";
-import type { NotifyPort } from "../notify/notify-port.js";
 import type { KnowledgePort } from "../knowledge/knowledge-port.js";
 import type { TestRunnerPort } from "../test-runner/test-runner-port.js";
 import type { TracePort } from "../trace/trace-port.js";
-import type { AgentRunnerPort } from "../agents/agent-runner-port.js";
 import type { AgentDefsPort } from "../agents/agent-defs-port.js";
 import type { GitPort } from "../workspace/git-port.js";
 import type { LeaseBackend } from "../leases/lease-backends.js";
@@ -81,10 +77,6 @@ export class Project {
     );
   }
 
-  get notify(): Notify {
-    return new Notify(this.fullName, this.port<NotifyPort>("notify"));
-  }
-
   get knowledge(): KnowledgeView {
     return new KnowledgeView(
       this.fullName,
@@ -103,15 +95,6 @@ export class Project {
   /** Vector-store chunk reads for detection runs (repo's resolved schema). */
   get chunks(): ChunkStore {
     return new ChunkStore(this.fullName, this.port<ChunksPort>("chunks"));
-  }
-
-  /** Execution: one ephemeral Agent run (trust-gated). See `agentDefs` for config. */
-  get agents(): Agents {
-    return new Agents(
-      this.fullName,
-      this.port<AgentRunnerPort>("agentRunner"),
-      this.env,
-    );
   }
 
   /** Agent *definitions* — the stored config CRUD (model/timeout/prompt/image). */

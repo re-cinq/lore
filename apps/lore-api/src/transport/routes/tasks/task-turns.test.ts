@@ -9,19 +9,40 @@ import {
 
 const TASK_SCOPED = { authorization: "Bearer task-only" };
 const TASK_ID = "0b7e3f7e-1111-4222-8333-444455556666";
-const FLOOR_URL = "http://lore-floor.test:8080";
-const INTERNAL = "internal-secret";
-
 const originalEnv = { ...process.env };
-const fetchMock = vi.fn();
+
+const TURN_INSERT = "INSERT INTO pipeline.agent_run_turns";
+let lastPool: ReturnType<typeof makePool>;
 
 const taskPool = () => {
   const pool = makePool();
 
-  pool.query.mockResolvedValue({ rows: [{ id: TASK_ID }] });
+  pool.query.mockImplementation(async (sql: unknown) =>
+    String(sql).includes(TURN_INSERT)
+      ? { rows: [] }
+      : { rows: [{ id: TASK_ID }] },
+  );
+  lastPool = pool;
 
   return pool;
 };
+
+const storedBatches = (pool = lastPool) =>
+  pool.query.mock.calls
+    .filter(([sql]) => String(sql).includes(TURN_INSERT))
+    .map(
+      ([, params]) =>
+        JSON.parse((params as string[])[0]) as Array<{
+          task_id: string;
+          agent_cr_name: null;
+          event_type: string | null;
+          envelope: string;
+          dedup_key: string;
+        }>,
+    );
+
+const sent = () =>
+  (storedBatches().at(-1) ?? []).map((row) => JSON.parse(row.envelope));
 
 const post = (
   payload: string,
@@ -40,18 +61,13 @@ describe("POST /api/task-turns/{taskId}", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
-    process.env.LORE_AGENT_URL = FLOOR_URL;
-    process.env.LORE_AGENT_INTERNAL_TOKEN = INTERNAL;
-    fetchMock.mockResolvedValue({ ok: true, status: 200 });
-    vi.stubGlobal("fetch", fetchMock);
   });
   afterEach(() => {
     process.env = { ...originalEnv };
-    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
-  it("wraps each line in the task attribution envelope and forwards NDJSON to the Floor", async () => {
+  it("wraps each line in the task attribution envelope and stores it in the turn store, keyed by the task", async () => {
     const lines = [
       JSON.stringify({ type: "system", subtype: "init" }),
       JSON.stringify({ type: "assistant", message: { content: "hi" } }),
@@ -59,18 +75,13 @@ describe("POST /api/task-turns/{taskId}", () => {
     ];
     const res = await post(lines.join("\n"));
 
-    expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ forwarded: 3, skipped: 0 });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
-
-    expect(url).toBe(`${FLOOR_URL}/api/agent-events`);
-    expect(init.headers).toMatchObject({
-      Authorization: `Bearer ${INTERNAL}`,
-    });
-    const sent = (init.body as string).split("\n").map((l) => JSON.parse(l));
-
-    expect(sent).toEqual(
+    expect(storedBatches()[0].map((row) => row.task_id)).toEqual([
+      TASK_ID,
+      TASK_ID,
+      TASK_ID,
+    ]);
+    expect(sent()).toEqual(
       lines.map((l) => ({
         source: {
           task: TASK_ID,
@@ -79,6 +90,21 @@ describe("POST /api/task-turns/{taskId}", () => {
         event: JSON.parse(l),
       })),
     );
+  });
+
+  it("stores a bearer token in a posted line as its REDACTED marker", async () => {
+    const res = await post(
+      JSON.stringify({
+        type: "assistant",
+        text: "curl -H 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345'",
+      }),
+    );
+
+    expect(res.result).toEqual({ forwarded: 1, skipped: 0 });
+    expect(sent()[0].event).toEqual({
+      type: "assistant",
+      text: "curl -H 'Authorization: [REDACTED:bearer-token]'",
+    });
   });
 
   it("skips non-JSON lines, file-kind events, and pre-attributed envelopes", async () => {
@@ -93,10 +119,7 @@ describe("POST /api/task-turns/{taskId}", () => {
     const res = await post(payload);
 
     expect(res.result).toEqual({ forwarded: 1, skipped: 3 });
-    const [, init] = fetchMock.mock.calls[0];
-    const sent = JSON.parse(init.body as string);
-
-    expect(sent).toMatchObject({
+    expect(sent()[0]).toMatchObject({
       source: { task: TASK_ID },
       event: JSON.parse(good),
     });
@@ -110,11 +133,22 @@ describe("POST /api/task-turns/{taskId}", () => {
     expect(res.result).toEqual({ forwarded: 1, skipped: 2 });
   });
 
-  it("returns 200 without calling the Floor when no line survives filtering", async () => {
+  it("returns 200 and stores nothing when no line survives filtering", async () => {
     const res = await post("not json at all");
 
     expect(res.result).toEqual({ forwarded: 0, skipped: 1 });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(storedBatches()).toEqual([]);
+  });
+
+  it("stores each turn under its event type, with its key as the dedup key", async () => {
+    await post(JSON.stringify({ type: "assistant" }));
+    const [row] = storedBatches()[0];
+
+    expect({ type: row.event_type, agent: row.agent_cr_name }).toEqual({
+      type: "assistant",
+      agent: null,
+    });
+    expect(row.dedup_key).toBe(sent()[0].source.turn_key);
   });
 
   it("returns 404 when the task does not exist", async () => {
@@ -124,28 +158,13 @@ describe("POST /api/task-turns/{taskId}", () => {
     const res = await post(JSON.stringify({ type: "assistant" }), pool);
 
     expect(res.statusCode).toBe(404);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(storedBatches(pool)).toEqual([]);
   });
 
   it("returns 503 when no pool is available", async () => {
     const res = await post(JSON.stringify({ type: "assistant" }), null);
 
     expect(res.statusCode).toBe(503);
-  });
-
-  it("returns 503 when the Floor relay env is not configured", async () => {
-    delete process.env.LORE_AGENT_URL;
-    const res = await post(JSON.stringify({ type: "assistant" }));
-
-    expect(res.statusCode).toBe(503);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("returns 502 when the Floor rejects the forward", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 500 });
-    const res = await post(JSON.stringify({ type: "assistant" }));
-
-    expect(res.statusCode).toBe(502);
   });
 
   it("returns 400 when taskId is not a uuid", async () => {
@@ -171,28 +190,15 @@ describe("POST /api/task-turns/{taskId}", () => {
 
     expect(res.statusCode).toBe(403);
   });
-
-  it("returns 503 when the internal token is missing even though the floor URL is set", async () => {
-    delete process.env.LORE_AGENT_INTERNAL_TOKEN;
-    const res = await post(JSON.stringify({ type: "assistant" }));
-
-    expect(res.statusCode).toBe(503);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
 });
 
 describe("POST /api/task-turns turn_key stamping — re-ingest dedup (#1389)", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
-    process.env.LORE_AGENT_URL = FLOOR_URL;
-    process.env.LORE_AGENT_INTERNAL_TOKEN = INTERNAL;
-    fetchMock.mockResolvedValue({ ok: true, status: 200 });
-    vi.stubGlobal("fetch", fetchMock);
   });
   afterEach(() => {
     process.env = { ...originalEnv };
-    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -200,9 +206,7 @@ describe("POST /api/task-turns turn_key stamping — re-ingest dedup (#1389)", (
   const L2 = JSON.stringify({ type: "assistant" });
 
   const sentKeys = () =>
-    (fetchMock.mock.calls.at(-1)?.[1].body as string)
-      .split("\n")
-      .map((line) => JSON.parse(line).source.turn_key as string);
+    sent().map((envelope) => envelope.source.turn_key as string);
 
   it("stamps the same keys when the same body is retried", async () => {
     await post([L1, L2].join("\n"));

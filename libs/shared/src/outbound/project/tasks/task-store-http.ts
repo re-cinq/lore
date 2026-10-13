@@ -5,8 +5,6 @@ import type {
   DriftTaskRow,
   FindOpenLikeInput,
   CreateTaskInput,
-  ReconcileSpecTasksInput,
-  ReconciledSpecTasks,
 } from "./task-store-port.js";
 
 /** The repo-scoped API calls the task store makes; the station project's HTTP client. */
@@ -16,7 +14,7 @@ interface TaskHttp {
   put<T>(path: string, body: unknown): Promise<T>;
 }
 
-/** TaskStorePort subset a station pod reaches over HTTP: driftTasksForSpec + findOpenLike + create + reconcileSpecTasks. */
+/** TaskStorePort subset a station pod reaches over HTTP: driftTasksForSpec + findOpenLike + create. */
 export class TaskStoreHttp {
   constructor(private readonly http: TaskHttp) {}
   async driftTasksForSpec(
@@ -61,11 +59,5 @@ export class TaskStoreHttp {
         ? { issueNumber: input.issueNumber, issueUrl: input.issueUrl }
         : {}),
     });
-  }
-  async reconcileSpecTasks(
-    _repo: string,
-    input: ReconcileSpecTasksInput,
-  ): Promise<ReconciledSpecTasks> {
-    return this.http.put<ReconciledSpecTasks>("/tasks/spec-tasks", input);
   }
 }

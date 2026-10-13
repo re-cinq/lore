@@ -14,9 +14,14 @@ function serve() {
     livePlan: async () => {
       throw new Error("no live plan in this test");
     },
+    refineAsks: {
+      pending: () => Promise.resolve(null),
+      clear: () => Promise.resolve(),
+    },
     writer: {
       applyOps: async () => [],
       proposeChanges: async () => [],
+      finishRefine: () => Promise.resolve(),
       failRefine: async (request) => {
         failed.push(request);
       },
@@ -71,6 +76,22 @@ describe("POST /api/plans/{id}/refine-failed", () => {
   });
 });
 
+describe("POST /api/plans/{id}/refine-settled", () => {
+  it("settles nothing for a first draft, which no one asked to refine", async () => {
+    const { server } = serve();
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/plans/p1/refine-settled",
+      payload: { outcome: "success" },
+    });
+
+    expect({ status: res.statusCode, body: res.result }).toEqual({
+      status: 200,
+      body: { settled: false },
+    });
+  });
+});
+
 describe("GET /api/plans/{id}/agent-view", () => {
   it("answers the intent section as one paragraph block with its hash", async () => {
     const meta = { ...planMeta("feature", "Faster checkout"), id: "p1" };
@@ -82,9 +103,14 @@ describe("GET /api/plans/{id}/agent-view", () => {
     server.route(
       planFileRoutes({
         livePlan: async () => ({ meta, blocks }),
+        refineAsks: {
+          pending: () => Promise.resolve(null),
+          clear: () => Promise.resolve(),
+        },
         writer: {
           applyOps: async () => [],
           proposeChanges: async () => [],
+          finishRefine: () => Promise.resolve(),
           failRefine: async () => {},
         },
       }),

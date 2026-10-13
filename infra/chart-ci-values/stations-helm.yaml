@@ -13,9 +13,8 @@ courierJobs:
     path: /api/stations/ci-example
   - name: ci-with-body
     schedule: "30 5 * * *"
-    path: /api/assembly-runs
+    path: /api/stations/ci-with-body
     body:
-      definition: ci-example
       repo: re-cinq/lore
       args:
         lookback_days: 7

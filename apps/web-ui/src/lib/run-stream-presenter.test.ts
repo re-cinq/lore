@@ -10,6 +10,7 @@ import {
   reconnectDelayMs,
   resolveChipState,
   resolveStreamMode,
+  endedLabel,
 } from "./run-stream-presenter";
 
 describe("historyUrl", () => {
@@ -168,6 +169,7 @@ describe("resolveChipState", () => {
         mode: "history-only",
         connection: "offline",
         fallbackPollActive: true,
+        runStatus: "running",
       }),
     ).toBe("polling");
   });
@@ -178,6 +180,7 @@ describe("resolveChipState", () => {
         mode: "history-only",
         connection: "connecting",
         fallbackPollActive: false,
+        runStatus: "running",
       }),
     ).toBe("offline");
   });
@@ -188,11 +191,51 @@ describe("resolveChipState", () => {
         mode: "live",
         connection: "reconnecting",
         fallbackPollActive: false,
+        runStatus: "running",
       }),
     ).toBe("reconnecting");
   });
 
+  it("returns ended for a finished run whatever the connection and the poll", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "offline",
+        fallbackPollActive: true,
+        runStatus: "finished",
+      }),
+    ).toBe("ended");
+  });
+
+  it("returns ended for a failed run", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "connecting",
+        fallbackPollActive: false,
+        runStatus: "failed",
+      }),
+    ).toBe("ended");
+  });
+
   it("labels the polling chip state Polling", () => {
     expect(connectionLabel("polling")).toBe("Polling");
+  });
+});
+
+describe("endedLabel", () => {
+  it("labels a cancelled end Cancelled", () => {
+    expect(endedLabel("cancelled")).toBe("Cancelled");
+  });
+
+  it("labels a failed end Failed", () => {
+    expect(endedLabel("failed")).toBe("Failed");
+  });
+
+  it("labels a completed end, and one with no outcome, Finished", () => {
+    expect([endedLabel("completed"), endedLabel(null)]).toEqual([
+      "Finished",
+      "Finished",
+    ]);
   });
 });

@@ -39,6 +39,8 @@ const WINDOW: SpendWindow = {
     daily: [{ bucket_date: "2026-09-01", calls: 42, cost_usd: 81.3 }],
     by_task_type: [{ task_type: "implementation", tasks: 3, cost_usd: 60 }],
     by_cluster: [{ cluster: null, calls: 42, cost_usd: 81.4 }],
+    by_billing_mode: [{ mode: "api_key", calls: 42, cost_usd: 81.4 }],
+    floor_unavailable: false,
     by_vendor: [{ vendor: "anthropic", calls: 42, cost_usd: 81.4 }],
   },
   billed: {
@@ -68,18 +70,6 @@ const WINDOW: SpendWindow = {
       { blueprint: "implementation-loop", pods: 9, hours: 6.5, est_usd: 0.22 },
     ],
     est_total_usd: 0.22,
-    live_pods: [
-      {
-        name: "agent-job-run1-tdd-round-abc",
-        phase: "Running",
-        started_at: "2026-09-02T11:00:00.000Z",
-        requests: { cpu: "1", memory: "16Gi" },
-        usd_per_hour: 0.07,
-        usd_so_far: 0.07,
-        station_run_id: "sr-1",
-      },
-    ],
-    live_usd_per_hour: 0.07,
   },
   unit_costs: {
     tickets: NO_UNITS,
@@ -122,10 +112,6 @@ describe("SpendWindowPanel", () => {
     );
     expect(screen.getByText("$82.50")).toBeInTheDocument();
     expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
-    expect(
-      screen.getByText("agent-job-run1-tdd-round-abc"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("+ $0.07/h burning now")).toBeInTheDocument();
     expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(
       screen.getByText(

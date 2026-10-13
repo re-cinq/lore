@@ -274,3 +274,15 @@ deferred until pilot rollout (T059). Pilot is gated on three
 trust-tiered repos passing SC1–SC7 thresholds across 14 days each
 (SC8). After pilot, the legacy local-runner code paths (T058) are
 deleted as a follow-up.
+
+## Amendment 2026-10-02: the mode is removed
+
+The per-repo `dark_factory` settings block, the route that wrote it, the Dark
+Factory tab and the notify routing are deleted. Their only reader was the
+assembly-line engine Lore ran itself (`apps/floor`), deleted the same day
+([ADR-049](ADR-049-external-floor.md), epic #2342); no repository ever had the
+block set, and no auto-merge decision was ever recorded. What this ADR
+introduced and still holds: the `Lore-Task:` commit trailer on every
+Lore-authored commit, declarative line definitions (now the external floor's
+pipeline files), and the two-key CODEOWNERS approval ceremony, which guards an
+agent definition's `image` (ADR-025, `specs/two-key-approval`).

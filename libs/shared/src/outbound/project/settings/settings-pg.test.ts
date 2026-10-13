@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { PgSettings, type RepoConfigWriter } from "./settings-pg.js";
-import { resolveDarkFactorySettings } from "../../../domain/dark-factory-settings.js";
 import type { PgPool } from "../../memory-store.js";
 
 function fakePool(
@@ -33,42 +32,21 @@ function fakeWriter(
 }
 
 describe("PgSettings", () => {
-  it("resolves the repo's dark_factory settings from the JSONB row", async () => {
+  it("reads the org setting slack_users from lore.settings by its key", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const store = new PgSettings(
-      fakePool(capture, [{ settings: { dark_factory: { enabled: true } } }]),
-      fakeWriter([]),
-    );
+    const store = new PgSettings(fakePool(capture, [{ value: '{"a":"U1"}' }]));
 
-    const resolved = await store.resolve("re-cinq/lore");
-
-    expect(capture[0].params).toEqual(["re-cinq/lore"]);
-    expect(resolved).toEqual(resolveDarkFactorySettings({ enabled: true }));
+    expect(await store.orgSetting("slack_users")).toBe('{"a":"U1"}');
+    expect(capture[0]).toEqual({
+      text: "SELECT value FROM lore.settings WHERE key = $1",
+      params: ["slack_users"],
+    });
   });
 
-  it("falls back to defaults when the repo has no settings row", async () => {
-    const store = new PgSettings(fakePool([], []), fakeWriter([]));
+  it("answers null for an org setting that is not set", async () => {
+    const store = new PgSettings(fakePool([], []));
 
-    expect(await store.resolve("missing/repo")).toEqual(
-      resolveDarkFactorySettings(undefined),
-    );
-  });
-
-  it("resolveOrNull returns null when the repo is not onboarded", async () => {
-    const store = new PgSettings(fakePool([], []), fakeWriter([]));
-
-    expect(await store.resolveOrNull("missing/repo")).toBeNull();
-  });
-
-  it("resolveOrNull resolves the settings when the repo row exists", async () => {
-    const store = new PgSettings(
-      fakePool([], [{ settings: { dark_factory: { enabled: true } } }]),
-      fakeWriter([]),
-    );
-
-    expect(await store.resolveOrNull("re-cinq/lore")).toEqual(
-      resolveDarkFactorySettings({ enabled: true }),
-    );
+    expect(await store.orgSetting("slack_users")).toBeNull();
   });
 
   it("delegates a variable write to the repo-config writer", async () => {

@@ -45,16 +45,6 @@ const UnitCostsSchema = z.object({
   ),
 });
 
-const LiveSchema = z.object({
-  name: z.string(),
-  phase: z.string(),
-  started_at: z.string().nullable(),
-  requests: z.record(z.string(), z.string()),
-  usd_per_hour: z.number(),
-  usd_so_far: z.number(),
-  station_run_id: z.string().nullable(),
-});
-
 export const SpendWindowSchema = z.object({
   interval: z.object({ from: z.string(), to: z.string() }),
   llm: z.object({
@@ -117,6 +107,16 @@ export const SpendWindowSchema = z.object({
         cost_usd: z.number(),
       }),
     ),
+    // Which credential paid: Lore's own calls on the org API key, plus the floor's agent visits by the credential each ran on (calls counts a visit as one). A mode with no spend is absent.
+    by_billing_mode: z.array(
+      z.object({
+        mode: z.enum(["api_key", "subscription", "unknown"]),
+        calls: z.number(),
+        cost_usd: z.number(),
+      }),
+    ),
+    // True when the floor could not answer its billing_mode costs: by_billing_mode then holds Lore's own calls only.
+    floor_unavailable: z.boolean(),
   }),
   // Anthropic's own billing, interval-scoped, reported beside (never reconciled with) the computed figures; available=false when no admin key has ever synced, rows empty either way.
   billed: z.object({
@@ -167,8 +167,6 @@ export const SpendWindowSchema = z.object({
       }),
     ),
     est_total_usd: z.number(),
-    live_pods: z.array(LiveSchema),
-    live_usd_per_hour: z.number(),
   }),
   // What a unit of work costs (#2116): per ticket, per PR review, per node visit.
   unit_costs: UnitCostsSchema,

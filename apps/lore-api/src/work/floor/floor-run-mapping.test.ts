@@ -47,9 +47,12 @@ const visit: VisitView = {
   brief: { needs: {}, iteration: 2 },
   report: null,
   worker: null,
+  branch: null,
   requestedBy: "alice",
   deadline: null,
   resumedFrom: null,
+  openedAt: "2026-09-30T10:05:00.000Z",
+  finishedAt: null,
   agentSettings: null,
 };
 
@@ -98,11 +101,33 @@ describe("lineBodyToRunGraph", () => {
       ],
     });
   });
+
+  it("carries the line's fail node gave-up onto the graph", () => {
+    const failing = lineBodyToRunGraph(
+      "code-review",
+      { ...line, fail: "gave-up" },
+      stationKinds,
+    );
+
+    expect(failing.fail).toBe("gave-up");
+  });
 });
 
 describe("floorRunToAssemblyRun", () => {
   const convert = (run: RunView, visits: VisitView[] = []) =>
     floorRunToAssemblyRun({ run, visits, graph });
+
+  it("carries task-1 as the task of a run started with task_id task-1", () => {
+    const started = {
+      ...openRun,
+      startItems: {
+        ...openRun.startItems,
+        task_id: { kind: "value" as const, ref: "task-1", by: "lore" },
+      },
+    };
+
+    expect(convert(started).taskId).toBe("task-1");
+  });
 
   it("maps an open run with no visits to a queued record", () => {
     expect(convert(openRun)).toEqual({
@@ -171,6 +196,54 @@ describe("floorRunToAssemblyRun", () => {
   });
 });
 
+describe("a visit waiting on a person", () => {
+  const authored = lineBodyToRunGraph(
+    "feature-planning",
+    {
+      entry: "author",
+      exit: "done",
+      args: {},
+      nodes: [
+        { id: "author", station: "plan-author" },
+        { id: "merged", station: "spec-pr-merged" },
+        { id: "analyze", station: "plan-analyze" },
+        { id: "done" },
+      ],
+      edges: [],
+    },
+    {
+      "plan-author": "author",
+      "spec-pr-merged": "human",
+      "plan-analyze": "agent",
+    },
+  );
+  const run = {
+    id: "run-1",
+    repo: "re-cinq/lore",
+    createdAt: CREATED_AT,
+    graph: authored,
+  };
+
+  it("draws the human station that produces something as feature_review and the one that waits outside as pr_review, neither naming a station", () => {
+    expect(authored.nodes.slice(0, 2)).toMatchObject([
+      { id: "author", type: "feature_review", station: null },
+      { id: "merged", type: "pr_review", station: null },
+    ]);
+  });
+
+  it("gives the author visit no pod name, since no pod runs it", () => {
+    expect(
+      visitToStationRun({ ...visit, nodeId: "author" }, run).agentCrName,
+    ).toBeNull();
+  });
+
+  it("keeps the pod name floor-visit-1 on the analyze visit of the same run", () => {
+    expect(
+      visitToStationRun({ ...visit, nodeId: "analyze" }, run).agentCrName,
+    ).toBe("floor-visit-1");
+  });
+});
+
 describe("visitToStationRun", () => {
   const run = { id: "run-1", repo: "re-cinq/lore", createdAt: CREATED_AT };
 
@@ -190,11 +263,72 @@ describe("visitToStationRun", () => {
       failureDetail: null,
       agentCrName: "floor-visit-1",
       input: null,
+      needs: {},
+      produced: null,
+      routeUrl: null,
       commitSha: null,
       requestedBy: "alice",
-      startedAt: CREATED_AT,
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
       finishedAt: null,
     });
+  });
+
+  it("finishes a visit reported at 10:20 at 10:20", () => {
+    const reported: VisitView = {
+      ...visit,
+      report: { outcome: "success", produced: {} },
+      finishedAt: "2026-09-30T10:20:00.000Z",
+    };
+
+    expect(visitToStationRun(reported, run)).toMatchObject({
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
+      finishedAt: new Date("2026-09-30T10:20:00.000Z"),
+    });
+  });
+
+  it("carries the brief's needs target and pr_url as the visit's bag", () => {
+    const needs = {
+      target: "github.com/re-cinq/lore@fix/login",
+      pr_url: "https://github.com/re-cinq/lore/pull/412",
+    };
+
+    expect(
+      visitToStationRun({ ...visit, brief: { needs, iteration: 2 } }, run),
+    ).toMatchObject({ needs });
+  });
+
+  it("carries the report's produced plan as the visit's produced", () => {
+    const reported: VisitView = {
+      ...visit,
+      report: { outcome: "success", produced: { plan: "sha256-abc" } },
+    };
+
+    expect(visitToStationRun(reported, run)).toMatchObject({
+      produced: { plan: "sha256-abc" },
+    });
+  });
+
+  it("resolves the author node's route to /repos/re-cinq/lore/plans/plan-7 from the run's repo and the visit's needs", () => {
+    const author: VisitView = {
+      ...visit,
+      nodeId: "author",
+      brief: { needs: { plan_id: "plan-7" }, iteration: 1 },
+    };
+    const withRoutes = {
+      ...run,
+      args: {},
+      routes: { author: "/repos/{repo}/plans/{plan_id}" },
+    };
+
+    expect(visitToStationRun(author, withRoutes).routeUrl).toBe(
+      "/repos/re-cinq/lore/plans/plan-7",
+    );
+  });
+
+  it("gives a node whose station names no route a null routeUrl", () => {
+    expect(
+      visitToStationRun(visit, { ...run, routes: { author: "/x" } }).routeUrl,
+    ).toBeNull();
   });
 
   it("maps a visit with a deadline and no worker to claimed with tags and claim time", () => {
@@ -213,7 +347,7 @@ describe("visitToStationRun", () => {
       status: "claimed",
       requiredTags: ["gpu"],
       claimedAt: new Date("2026-09-30T10:00:00.000Z"),
-      startedAt: new Date("2026-09-30T10:00:00.000Z"),
+      startedAt: new Date("2026-09-30T10:05:00.000Z"),
     });
   });
 

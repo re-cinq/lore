@@ -46,7 +46,7 @@ describe("decideIssueWork", () => {
         ],
       }),
       REPO_LABELS,
-      "Live run view",
+      { planTitle: "Live run view" },
     );
 
     expect(work.outcome === "proceed" && work.story).toEqual({
@@ -63,7 +63,7 @@ describe("decideIssueWork", () => {
     );
   });
 
-  it("files every task as its own issue, titled by its id and title and labelled spec-task", () => {
+  it("files every task as its own issue, titled by its id and title and labelled priority:medium so the backlog loop queues it", () => {
     const [slice] = decomposition().stories;
     const work = decideIssueWork(
       decomposition({
@@ -81,7 +81,7 @@ describe("decideIssueWork", () => {
       {
         title: "T001: Stream node events",
         description: "stream node events over SSE",
-        labels: ["area:floor", "lore-managed", "spec-task"],
+        labels: ["area:floor", "lore-managed", "priority:medium"],
         storyIndex: 0,
       },
     ]);
@@ -179,7 +179,47 @@ describe("decideIssueWork", () => {
       },
     ).toEqual({
       story: ["lore-managed", "user-story"],
-      task: ["lore-managed", "spec-task"],
+      task: ["lore-managed", "priority:medium"],
     });
+  });
+  it("keeps the one priority label a decomposition chose itself, since two of them hold the ticket out of the backlog", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          {
+            ...slice,
+            tasks: [{ ...slice.tasks[0], labels: ["priority:high"] }],
+          },
+        ],
+      }),
+      [...REPO_LABELS, "priority:high"],
+    );
+
+    expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
+      "priority:high",
+      "lore-managed",
+    ]);
+  });
+
+  it("files triage child issues with triage: needs-priority and no priority label, so a person queues them", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          {
+            ...slice,
+            tasks: [{ ...slice.tasks[0], labels: ["priority:high"] }],
+          },
+        ],
+      }),
+      [...REPO_LABELS, "priority:high"],
+      { queue: false },
+    );
+
+    expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
+      "lore-managed",
+      "triage: needs-priority",
+    ]);
   });
 });

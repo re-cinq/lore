@@ -36,10 +36,10 @@ function repoTabs(base: string) {
     { href: `${base}/specs`, label: "Specs" },
     { href: `${base}/plans`, label: "Plans" },
     { href: `${base}/implementation-loop`, label: "Backlog" },
+    { href: `${base}/triage`, label: "Triage" },
     { href: `${base}/adrs`, label: "ADRs" },
     { href: `${base}/graph`, label: "Graph" },
     { href: `${base}/agents`, label: "Agents" },
-    { href: `${base}/dark-factory`, label: "Dark Factory" },
     { href: `${base}/settings`, label: "Settings" },
   ];
 }

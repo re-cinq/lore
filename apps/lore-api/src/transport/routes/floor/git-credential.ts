@@ -4,11 +4,15 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
+import type { Pool } from "pg";
 import { z } from "zod";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
-import { zodResponse } from "../../http/zod-response.js";
+import {
+  zodResponse,
+  type DeclaredErrorStatus,
+} from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
 const FloorGitCredentialBody = z.object({
@@ -31,8 +35,34 @@ export function repoOfUrl(repoUrl: string): string | null {
   return match ? `${match[1]}/${match[2]}` : null;
 }
 
+type Access = z.infer<typeof FloorGitCredentialBody>["access"];
+
+/** What a pod token may do: a read clones, a write pushes a branch (workflow files included: onboarding and loop tickets touch them) and opens or comments on its pull request. Never secrets, hooks or checks. */
+export function podPermissions(access: Access): Record<string, Access> {
+  if (access === "read") {
+    return { contents: "read", metadata: "read" };
+  }
+
+  return {
+    contents: "write",
+    pull_requests: "write",
+    issues: "write",
+    workflows: "write",
+    metadata: "read",
+  };
+}
+
+const ROUTE_DOC = {
+  name: "FloorGitCredential",
+  description:
+    "A freshly minted installation token for the requested repo, as the git credential-helper username/password pair",
+  errors: [400, 401, 403] as DeclaredErrorStatus[],
+};
+
 /** The git-credential provider an external floor engine asks for a repo token; its own shared bearer (`FLOOR_GIT_CREDENTIAL_TOKEN`) is the auth, so no bearer scope applies. */
-export function floorGitCredentialRoute(): ServerRoute {
+export function floorGitCredentialRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
   return {
     method: "POST",
     path: "/api/floor/git-credential",
@@ -42,71 +72,130 @@ export function floorGitCredentialRoute(): ServerRoute {
         validate: { payload: zodValidate(FloorGitCredentialBody) },
       },
       GitCredentialPair,
-      {
-        name: "FloorGitCredential",
-        description:
-          "A freshly minted installation token for the requested repo, as the git credential-helper username/password pair",
-        errors: [400, 401],
-      },
+      ROUTE_DOC,
     ),
-    handler: serveFloorGitCredential,
+    handler: (request, h) => serveFloorGitCredential(getPool, request, h),
   };
 }
 
 async function serveFloorGitCredential(
+  getPool: () => Pool | null,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const github = new PlatformGitHub(process.env);
+  const body = request.payload as z.infer<typeof FloorGitCredentialBody>;
   const result = await handleFloorGitCredential(
-    {
-      token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
-      mint: (repo) => github.getInstallationToken(repo),
-    },
+    liveDeps(getPool),
     extractBearer(request.headers.authorization) ?? "",
-    request.payload as z.infer<typeof FloorGitCredentialBody>,
+    body,
   );
+
+  if (result.code !== 200) {
+    // A refusal is a handled answer, so nothing else records it; every Otto pod died in init for a day before anyone saw the 403 behind the floor's 502.
+    console.warn(
+      `[git-credential] refused ${result.code} ${result.body.error} for ${body.repoUrl} (${body.access})`,
+    );
+  }
 
   return h.response(result.body).code(result.code);
 }
 
-/** The configured shared token (absent when this deployment does not serve an external floor) and the minter that turns a repo into a fresh GitHub token. */
+function liveDeps(getPool: () => Pool | null): FloorGitCredentialDeps {
+  const github = new PlatformGitHub(process.env);
+
+  return {
+    tokens: configuredTokens(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
+    mint: (repo, access) =>
+      github.getInstallationToken(repo, podPermissions(access)),
+    isOnboarded: (repo) => isOnboarded(getPool(), repo),
+    audit: (mint) => auditMint(getPool(), mint),
+  };
+}
+
+/** Matched regardless of letter case: the floor names a repository in lowercase (`floorRepoOf`), while `lore.repos.full_name` keeps GitHub's spelling, so `re-cinq/otto` must find `re-cinq/Otto`. */
+export async function isOnboarded(
+  pool: Pool | null,
+  repo: string,
+): Promise<boolean> {
+  const found = await pool?.query(
+    "SELECT 1 FROM lore.repos WHERE LOWER(full_name) = LOWER($1)",
+    [repo],
+  );
+
+  return Boolean(found?.rowCount);
+}
+
+async function auditMint(
+  pool: Pool | null,
+  { repo, access, actor }: GitCredentialMint,
+): Promise<void> {
+  await pool?.query(
+    "INSERT INTO pipeline.audit_log (event_type, repo, actor, payload) VALUES ('git_credential_mint', $1, $2, $3)",
+    [repo, actor, JSON.stringify({ access })],
+  );
+}
+
+/** One mint as the audit log records it. The actor is the caller's identity, never its bearer: the bearer is the shared secret. */
+export interface GitCredentialMint {
+  repo: string;
+  access: Access;
+  actor: "floor";
+}
+
+/** The accepted shared tokens (none when this deployment does not serve an external floor), the minter, the onboarded-repo check and the audit sink. */
 export interface FloorGitCredentialDeps {
-  token: string | undefined;
-  mint: (repo: string) => Promise<string>;
+  tokens: string[];
+  mint: (repo: string, access: Access) => Promise<string>;
+  isOnboarded: (repo: string) => Promise<boolean>;
+  audit: (mint: GitCredentialMint) => Promise<void>;
 }
 
 export type FloorGitCredentialResult =
   | { code: 200; body: { username: string; password: string } }
-  | { code: 400 | 401 | 503; body: { error: string } };
+  | { code: 400 | 401 | 403 | 503; body: { error: string } };
 
 export async function handleFloorGitCredential(
   deps: FloorGitCredentialDeps,
   bearer: string,
   body: z.infer<typeof FloorGitCredentialBody>,
 ): Promise<FloorGitCredentialResult> {
-  if (!deps.token) {
+  const repo = repoOfUrl(body.repoUrl);
+  const refused = refusal(deps.tokens, bearer, repo);
+
+  if (refused) {
+    return refused;
+  }
+
+  if (!repo || !(await deps.isOnboarded(repo))) {
+    return { code: 403, body: { error: "repo-not-onboarded" } };
+  }
+  const password = await deps.mint(repo, body.access);
+
+  await deps.audit({ repo, access: body.access, actor: "floor" });
+
+  return { code: 200, body: { username: "x-access-token", password } };
+}
+
+function refusal(
+  tokens: string[],
+  bearer: string,
+  repo: string | null,
+): FloorGitCredentialResult | null {
+  if (tokens.length === 0) {
     return { code: 503, body: { error: "not-configured" } };
   }
 
-  if (!bearer || !secretEquals(bearer, deps.token)) {
+  if (!bearer || !tokens.some((token) => secretEquals(bearer, token))) {
     return { code: 401, body: { error: "bad-token" } };
   }
-  const repo = repoOfUrl(body.repoUrl);
 
-  if (!repo) {
-    return { code: 400, body: { error: "not-a-github-repo-url" } };
-  }
-
-  return {
-    code: 200,
-    body: { username: "x-access-token", password: await deps.mint(repo) },
-  };
+  return repo ? null : { code: 400, body: { error: "not-a-github-repo-url" } };
 }
 
-/** A secret written through a pipe often ends in a newline, and an HTTP header never carries one: compared as stored, the right token would be refused forever. */
-export function configuredToken(
-  stored: string | undefined,
-): string | undefined {
-  return stored?.trim() || undefined;
+/** `current,next` while a rotation is under way, so neither side has to restart at the same moment. Each is trimmed: a secret written through a pipe often ends in a newline, and an HTTP header never carries one. */
+export function configuredTokens(stored: string | undefined): string[] {
+  return (stored ?? "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
 }

@@ -101,12 +101,12 @@ const GENERAL_FIELDS = [
   {
     label: "Allowed Task Types (comma-separated)",
     name: "task_types",
-    placeholder: "general, runbook, implementation",
+    placeholder: "runbook, gap-fill, review",
   },
   {
     label: "Default Dispatch Task Type",
     name: "dispatch_default_type",
-    placeholder: "general",
+    placeholder: "the implementation loop's backlog (default)",
   },
   {
     label: "Slack Channel ID",

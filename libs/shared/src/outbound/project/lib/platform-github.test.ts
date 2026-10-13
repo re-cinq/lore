@@ -20,6 +20,8 @@ const state: {
     conclusion: string | null;
     output: { title: string | null; summary: string | null };
   }>;
+  statuses?: Array<{ context: string; state: string }>;
+  statusesForbidden?: boolean;
   token: string;
   labelError?: { status?: number };
   reviewCall?: Record<string, unknown>;
@@ -33,6 +35,7 @@ const state: {
   blockersData?: Array<{ number: number; state: string }>;
   blockersCall?: Record<string, unknown>;
   requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
+  requestAnswers?: Record<string, unknown>;
   issueUpdateCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
@@ -76,8 +79,13 @@ vi.mock("octokit", () => ({
     };
     request = async (route: string, params: Record<string, unknown>) => {
       (state.requestCalls ??= []).push({ route, params });
+      const answer = state.requestAnswers?.[route];
 
-      return { data: {} };
+      if (answer instanceof Error) {
+        throw answer;
+      }
+
+      return { data: answer ?? {} };
     };
     graphql = async (query: string, vars: Record<string, unknown>) => {
       state.graphqlCalls.push({ query, vars });
@@ -165,6 +173,15 @@ vi.mock("octokit", () => ({
       },
       git: { getTree: async () => ({ data: state.treeData }) },
       repos: {
+        getCombinedStatusForRef: async () => {
+          if (state.statusesForbidden) {
+            throw Object.assign(new Error("Resource not accessible"), {
+              status: 403,
+            });
+          }
+
+          return { data: { statuses: state.statuses ?? [] } };
+        },
         listCommits: async () => ({ data: state.branchCommits ?? [] }),
       },
       issues: {
@@ -211,6 +228,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
   beforeEach(() => {
     state.files = [];
     state.checkRuns = [];
+    state.statuses = undefined;
     state.token = "";
     state.labelError = undefined;
     state.reviewCall = undefined;
@@ -644,6 +662,17 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("getInstallationToken for re-cinq/lore with contents:read asks GitHub for a token narrowed to contents:read", async () => {
+    await gh().getInstallationToken("re-cinq/lore", { contents: "read" });
+
+    expect(state.authCalls.at(-1)).toEqual({
+      type: "installation",
+      refresh: true,
+      repositoryNames: ["lore"],
+      permissions: { contents: "read" },
+    });
+  });
+
   it("createLabels swallows a 422 (already exists) and continues", async () => {
     state.labelError = { status: 422 };
     await expect(
@@ -1070,5 +1099,197 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     await expect(
       gh().jobLog("re-cinq/lore", 102476456760),
     ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("PlatformGitHub auto-merge", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.graphqlCalls = [];
+  });
+
+  it("enablePullRequestAutoMerge sends PR_123 with merge method SQUASH when no method is given", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123");
+
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("enablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_123", mergeMethod: "SQUASH" },
+      },
+    ]);
+  });
+
+  it("enablePullRequestAutoMerge sends merge method REBASE for rebase", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123", "rebase");
+
+    expect(state.graphqlCalls[0]?.vars).toEqual({
+      pullRequestId: "PR_123",
+      mergeMethod: "REBASE",
+    });
+  });
+
+  it("disablePullRequestAutoMerge sends PR_456 to the disable mutation", async () => {
+    await gh().disablePullRequestAutoMerge("PR_456");
+
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("disablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_456" },
+      },
+    ]);
+  });
+});
+
+describe("PlatformGitHub branch rule and mergeability reads", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+  const RULES = "GET /repos/{owner}/{repo}/rules/branches/{branch}";
+  const CLASSIC = "GET /repos/{owner}/{repo}/branches/{branch}/protection";
+  const missing = () => Object.assign(new Error("Not Found"), { status: 404 });
+
+  beforeEach(() => {
+    state.requestAnswers = undefined;
+    state.prData = undefined;
+  });
+
+  it("getBranchRule reads 1 approval, Code Owners review and checks build and lint from a ruleset", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "pull_request",
+          parameters: {
+            required_approving_review_count: 1,
+            require_code_owner_review: true,
+          },
+        },
+        {
+          type: "required_status_checks",
+          parameters: {
+            required_status_checks: [{ context: "build" }, { context: "lint" }],
+          },
+        },
+      ],
+      [CLASSIC]: missing(),
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 1,
+      codeOwnersReview: true,
+      requiredChecks: ["build", "lint"],
+    });
+  });
+
+  it("getBranchRule merges classic protection's 2 approvals and test check with a ruleset's build check", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "required_status_checks",
+          parameters: { required_status_checks: [{ context: "build" }] },
+        },
+      ],
+      [CLASSIC]: {
+        required_pull_request_reviews: {
+          required_approving_review_count: 2,
+          require_code_owner_reviews: false,
+        },
+        required_status_checks: {
+          contexts: ["test"],
+          checks: [{ context: "test" }, { context: "build" }],
+        },
+      },
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 2,
+      codeOwnersReview: false,
+      requiredChecks: ["build", "test"],
+    });
+  });
+
+  it("getBranchRule answers 0 approvals and no checks for an unprotected branch", async () => {
+    state.requestAnswers = { [RULES]: [], [CLASSIC]: missing() };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 0,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    });
+  });
+
+  it("getMergeability reads mergeable true with state blocked", async () => {
+    state.prData = { mergeable: true, mergeable_state: "blocked" };
+
+    expect(await gh().getMergeability("re-cinq/lore", 42)).toEqual({
+      mergeable: true,
+      state: "blocked",
+    });
+  });
+
+  it("getMergeability reads mergeable null with state unknown while GitHub computes it", async () => {
+    state.prData = { mergeable: null, mergeable_state: "unknown" };
+
+    expect(await gh().getMergeability("re-cinq/lore", 42)).toEqual({
+      mergeable: null,
+      state: "unknown",
+    });
+  });
+});
+
+describe("PlatformGitHub commit statuses", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.checkRuns = [];
+    state.statuses = undefined;
+    state.statusesForbidden = false;
+  });
+
+  it("ciConclusion reads a ref that reports only commit statuses, all success, as success", async () => {
+    state.statuses = [{ context: "ci/azure", state: "success" }];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("success");
+  });
+
+  it("ciConclusion reports failure for a failing or erroring commit status", async () => {
+    state.statuses = [
+      { context: "ci/a", state: "success" },
+      { context: "ci/b", state: "error" },
+    ];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("failure");
+  });
+
+  it("ciConclusion reports pending for a pending commit status", async () => {
+    state.statuses = [{ context: "ci/azure", state: "pending" }];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("pending");
+  });
+
+  it("ciConclusion reports none for a ref with neither check runs nor statuses", async () => {
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("none");
+  });
+
+  it("listChecks reports a pending commit status as in progress with no conclusion", async () => {
+    state.statuses = [{ context: "ci/azure", state: "pending" }];
+    expect(await gh().listChecks("re-cinq/lore", "abc")).toContainEqual(
+      expect.objectContaining({
+        name: "ci/azure",
+        status: "in_progress",
+        conclusion: null,
+      }),
+    );
+  });
+
+  it("ciConclusion reads check runs alone when the installation may not read commit statuses (403)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    state.statusesForbidden = true;
+    state.checkRuns = [
+      {
+        name: "build",
+        status: "completed",
+        conclusion: "success",
+        output: { title: null, summary: null },
+      },
+    ];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("success");
+    warn.mockRestore();
   });
 });

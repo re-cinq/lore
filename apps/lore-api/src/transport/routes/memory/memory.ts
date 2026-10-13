@@ -1,5 +1,5 @@
 import { zodResponse } from "../../http/zod-response.js";
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, redactSecrets } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -80,6 +80,7 @@ const MemoryBody = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("list"),
     agent_id: z.string().optional(),
+    repo: z.string().optional(),
     limit: listLimit,
     offset: listOffset,
   }),
@@ -178,13 +179,19 @@ async function serveMemoryAction(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const pool = getPool();
-  const body = request.payload as MemoryBody;
+  const body = redactedBody(request.payload as MemoryBody);
 
   try {
     return h.response(await memoryActionResult(pool, body));
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+function redactedBody(body: MemoryBody): MemoryBody {
+  return body.action === "write"
+    ? { ...body, value: redactSecrets(body.value) }
+    : body;
 }
 
 /** Dispatches the body's `action` to the verb that answers it. */
@@ -311,7 +318,7 @@ async function listAction(
   body: Extract<MemoryBody, { action: "list" }>,
 ): Promise<object> {
   const result = isMemoryDbAvailable()
-    ? await listMemories(body.agent_id, body.limit, body.offset)
+    ? await listMemories(body.agent_id, body.limit, body.offset, body.repo)
     : listMemoriesFile(body.agent_id, body.limit, body.offset);
 
   return { ...result, limit: body.limit, offset: body.offset };

@@ -13,6 +13,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit } from "../common-schemas.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import type { AssemblyRunStatus } from "@re-cinq/lore-shared/models/assembly-run.js";
 import { enrichmentsFor } from "./floor-run-enrichment.js";
@@ -37,11 +38,11 @@ const RunsQuery = z.object({
   blueprint: z.string().max(200).optional(),
   // A task-centric caller (planning wizard) knows only its task id; draws the newest attempt since a retry mints a fresh row.
   task_id: z.string().max(100).optional(),
-  // Runs with an open station-run claimed by this cluster-agent — the registered-clusters running-claims drill-down (FR7).
-  cluster_agent_id: z.string().uuid().optional(),
   // Browse by SUBJECT across blueprints, so a reader can find "the run for this feature" without resolving via task id + blueprint name (which hid a finalize run from its own page).
   subject_key: z.string().max(200).optional(),
   limit: clampedLimit.default(50),
+  // engine=lore lists only the Postgres runs, so a repository's old-engine runs are not crowded out of the limit by floor runs.
+  engine: z.literal("lore").optional(),
 });
 
 type RunsQuery = z.infer<typeof RunsQuery>;
@@ -50,13 +51,20 @@ export function assemblyLineRoutes(
   getPool: () => Pool | null,
   // Injected by tests; production builds one per request off the pool, as run-read.ts does.
   runs?: AssemblyRunsPort,
+  // Injected by tests; production reads Postgres alone through a plain PgAssemblyRuns.
+  localRuns?: AssemblyRunsPort,
 ): ServerRoute[] {
   // The port a handler reads through, named once so three handlers don't each rebuild it.
   const portFor = (pool: Pool): AssemblyRunsPort =>
     runs ?? runsReadingFloor(pool);
 
+  const listPortOf = (pool: Pool, query: RunsQuery): AssemblyRunsPort =>
+    query.engine === "lore"
+      ? (localRuns ?? new PgAssemblyRuns(pool))
+      : portFor(pool);
+
   return withLegacyAlias([
-    listRunsRoute(getPool, portFor),
+    listRunsRoute(getPool, listPortOf),
     runNodesRoute(getPool, portFor),
     runTokenUsageRoute(getPool, portFor),
     // runDetailRoute stays OUTSIDE the alias: it is already spelled the legacy way, and aliasing it to itself makes hapi reject the duplicate route.
@@ -88,37 +96,34 @@ const runHandler = (
 
 function listRunsRoute(
   getPool: () => Pool | null,
-  portFor: (pool: Pool) => AssemblyRunsPort,
+  portOf: (pool: Pool, query: RunsQuery) => AssemblyRunsPort,
 ): ServerRoute {
   const validate = { query: zodValidate(RunsQuery) };
-  const meta = {
-    name: "AssemblyRunList",
-    description: "A page of runs, newest first",
-  };
 
   return {
     method: "GET",
     path: "/api/assembly-runs",
-    options: zodResponse(
-      { ...bearerScope("read"), validate },
-      RunListSchema,
-      meta,
+    options: zodResponse({ ...bearerScope("read"), validate }, RunListSchema, {
+      name: "AssemblyRunList",
+      description: "A page of runs, newest first",
+    }),
+    handler: withPool(getPool, (pool, request, h) =>
+      serveRunList(pool, portOf, request, h),
     ),
-    handler: runHandler(getPool, portFor, serveRunList),
   };
 }
 
 /** A page of runs, newest first. Filters are applied in SQL rather than after the fetch, because a busy org's run table is large and the page is small. */
 async function serveRunList(
   pool: Pool,
-  portFor: (pool: Pool) => AssemblyRunsPort,
+  portOf: (pool: Pool, query: RunsQuery) => AssemblyRunsPort,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const query = request.query as unknown as RunsQuery;
 
   try {
-    const runs = await runListRows(pool, portFor(pool), query);
+    const runs = await runListRows(pool, portOf(pool, query), query);
 
     return h.response({ runs });
   } catch (err) {
@@ -151,7 +156,7 @@ async function selectRuns(
   query: RunsQuery,
 ): Promise<Awaited<ReturnType<AssemblyRunsPort["listSummaries"]>>> {
   if (query.task_id) {
-    return await port.list({ taskId: query.task_id, limit: query.limit });
+    return await runsOfTask(port, query.task_id, query.limit);
   }
 
   return await port.listSummaries({
@@ -159,9 +164,21 @@ async function selectRuns(
     blueprintName: query.blueprint,
     status: query.status ? [query.status as AssemblyRunStatus] : undefined,
     subjectKey: query.subject_key,
-    clusterAgentId: query.cluster_agent_id,
     limit: query.limit,
   });
+}
+
+/** Postgres holds the full record of a run Lore's own engine walked; a task with none there has its run on the floor, which only the summaries read reaches. */
+async function runsOfTask(
+  port: AssemblyRunsPort,
+  taskId: string,
+  limit: number,
+): Promise<Awaited<ReturnType<AssemblyRunsPort["listSummaries"]>>> {
+  const walkedHere = await port.list({ taskId, limit });
+
+  return walkedHere.length > 0
+    ? walkedHere
+    : await port.listSummaries({ taskId, limit });
 }
 
 function runNodesRoute(

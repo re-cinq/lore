@@ -1,6 +1,7 @@
 "use client";
 
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
+import { FormError } from "@/components/FormError";
 import Icon from "@/components/Icon";
 import { StatusPill } from "@/components/StatusPill";
 import type { PlanPageState } from "@/lib/plan-page-state";
@@ -23,6 +24,8 @@ interface PlanOutlineActionsProps extends Pick<
   prTitle: string | null;
   /** Review threads on the PR nobody resolved yet; null when GitHub could not be asked. */
   prUnresolvedThreads: number | null;
+  /** Why lore-api refused the last Refine: the Refine button sits in its section, often far below, so the outline says it. */
+  refusal?: string | null;
 }
 
 const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
@@ -58,10 +61,11 @@ const SPEC_PR_TITLES: Partial<Record<PlanPageState, string>> = {
   delivered: "Spec merged",
 };
 
-/** The action the plan's state calls for, drawn under the outline: validate and approve while writing, reopen or retry once approved, and the spec PR wherever one exists. */
+/** The action the plan's state calls for, drawn under the outline: why a Refine was refused, validate and approve while writing, reopen or retry once approved, and the spec PR wherever one exists. */
 export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
   return (
     <div className={styles.actions}>
+      <FormError message={props.refusal} />
       <SpecPr {...props} />
       <StateAction {...props} />
     </div>

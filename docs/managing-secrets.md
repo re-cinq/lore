@@ -48,19 +48,17 @@ Terraform removes the second source of truth, which removes the failure.
 
    | Change | Restart |
    |---|---|
-   | Anthropic key | `lore-floor`, `lore-api`, `lore-stations` |
-   | DB password | `lore-floor`, `lore-api`, `lore-ui` |
-   | Ingest / internal token | `lore-floor`, `lore-api`, `lore-ui` |
-   | Slack credentials | `lore-floor`, `lore-api` |
+   | Anthropic key | `lore-api`, `lore-stations` |
+   | DB password | `lore-api`, `lore-ui`, `lore-stations` |
+   | Ingest / internal token | `lore-api`, `lore-ui`, `lore-stations` |
+   | Slack credentials | `lore-api`, `lore-stations` |
    | OAuth / NextAuth | `lore-ui` |
-   | GitHub App | `lore-floor`, `lore-api` |
+   | GitHub App | `lore-api`, `lore-ui`, `lore-stations` |
    | GHCR pull secret | none — read at image-pull time |
 
-   The ai-agents controller needs no restart; agent pods re-read `agent-secrets`
-   when they spawn.
 
    ```bash
-   kubectl rollout restart deployment -n lore-floor
+   kubectl rollout restart deployment -n lore-api
    ```
 
 3. **Re-sign anything that holds the other half.** A shared secret is two-sided.
@@ -180,6 +178,30 @@ openssl rand -base64 32 | head -c 32 \
 `head -c 32` is load-bearing: oauth2-proxy accepts a cookie secret of exactly 16,
 24 or 32 bytes and refuses to start otherwise.
 
+## The Grafana sign-in credentials (`lore-grafana-*`)
+
+The metrics stack (`infra/terraform/monitoring.tf`, `enable_monitoring`) puts its own
+oauth2-proxy in front of Grafana at `grafana_hostname`, with its OWN Google OAuth web
+client: a redirect URI or a rotation on one dashboard then never touches the other.
+Same recipe as Headlamp's, three containers behind `enable_monitoring`:
+
+1. Cloud Console → APIs & Services → **Credentials** → Create OAuth client ID →
+   *Web application*, name `grafana`.
+2. Authorized redirect URI, exactly: `https://<grafana_hostname>/oauth2/callback`
+3. Consent screen: the same **Internal** screen Headlamp uses.
+
+```bash
+printf '%s' "<client id>"     | gcloud secrets versions add lore-grafana-oauth-client-id     --data-file=-
+printf '%s' "<client secret>" | gcloud secrets versions add lore-grafana-oauth-client-secret --data-file=-
+openssl rand -base64 32 | head -c 32 \
+  | gcloud secrets versions add lore-grafana-cookie-secret --data-file=-
+```
+
+Then `kubectl -n monitoring annotate externalsecret grafana-oauth force-sync=$(date +%s)`
+and `kubectl -n monitoring rollout restart deploy/grafana-oauth2-proxy`, since the proxy
+reads the secret as environment at start. First install order is Headlamp's too:
+containers first, seed, then the rest.
+
 **Order matters here, more than for the other secrets.** The Helm provider waits
 for a release to become Ready, and oauth2-proxy cannot start without its secret, so
 a single `terraform apply` on a fresh install fails on that release's 5-minute
@@ -204,6 +226,40 @@ deciding who reads the cluster, and the `headlamp-view` ClusterRole (read-only, 
 Secrets) is the only thing bounding what they can read. Treat a leak of the client
 secret as cluster-wide read exposure, and note that the Kubernetes audit log will
 name the ServiceAccount rather than the person.
+
+## The Utopia credentials (`lore-utopia-*`)
+
+Utopia (`infra/terraform/utopia.tf`, `enable_utopia`) is the deeplethe/utopia
+knowledge-graph app behind its own oauth2-proxy at `utopia_hostname`. Its OIDC
+cannot create accounts, so Google is the gate and Utopia keeps its own accounts
+inside it: the first person to register becomes the administrator. Five
+containers behind `enable_utopia`.
+
+The Google client is the Grafana recipe with the name `utopia` and the redirect
+URI `https://<utopia_hostname>/oauth2/callback`, on the same **Internal** consent
+screen. Then:
+
+```bash
+printf '%s' "<client id>"     | gcloud secrets versions add lore-utopia-oauth-client-id     --data-file=-
+printf '%s' "<client secret>" | gcloud secrets versions add lore-utopia-oauth-client-secret --data-file=-
+openssl rand -base64 32 | head -c 32 \
+  | gcloud secrets versions add lore-utopia-cookie-secret --data-file=-
+# hex, so it needs no URL-encoding inside UTOPIA_DATABASE_URL
+openssl rand -hex 24 | tr -d '\n' | gcloud secrets versions add lore-utopia-db-password --data-file=-
+# exactly 32 bytes as 64 hex digits: the key Utopia seals stored model credentials with
+openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add lore-utopia-secret-key --data-file=-
+```
+
+**The sealing key is seeded on purpose.** Left unset, Utopia generates it into
+`secret.key` on its data disk on first start, and a lost disk then loses every
+model key and source credential stored since. Seeded, the disk holds only files
+and the search index. Never rotate it: the rows it sealed become unreadable.
+
+The database password is read by Terraform into the CNPG credentials Secret, as
+`lore-db-password` is, so a rotation needs `terraform apply`, then a restart of
+`deploy/utopia` in the `utopia` namespace; the OAuth trio needs the same
+`force-sync` annotation and `rollout restart deploy/utopia-oauth2-proxy` as Grafana's.
+First install order is Headlamp's too: containers first, seed, then the rest.
 
 ## Change a non-secret value
 
@@ -274,8 +330,7 @@ Then rename your local `secrets.tfvars` to `terraform.tfvars` and delete every
 secret variable from it; what remains is identifiers and hostnames. Set the two
 `enable_*` gates to match what you had (`enable_anthropic_admin_key`,
 `enable_ui_admin_token`) — these replaced the old "is this variable non-empty"
-checks. (`enable_cluster_agent_registration` was a third until 2026-08-29; every
-cluster-agent registers now, so its token is an unconditional platform secret.)
+checks.
 
 **Land the whole change before anyone applies.** In the window between step 1 and
 the merge, a stale checkout running the old code will rewrite the versions from

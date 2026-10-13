@@ -16,10 +16,10 @@ export function isAssemblyRunAuthError(
   return result instanceof NextResponse;
 }
 
-/** Session → run → repo-access → upstream-env ladder shared by every run proxy route (events/turns/node-logs on the Floor, the stream on lore-api). */
+/** Session → run → repo-access → upstream-env ladder shared by every run proxy route. */
 export async function authorizeAssemblyRunAccess(
   id: string,
-  upstream: RunUpstream = "floor",
+  upstream: RunUpstream = "lore-api",
 ): Promise<AssemblyRunAuth | NextResponse> {
   const session = await resolveSessionRun(id);
 
@@ -66,7 +66,7 @@ export interface RunProxyContext extends UpstreamConfig {
 export function assemblyRunProxyRoute(
   errorContext: string,
   proxy: (ctx: RunProxyContext) => Promise<Response>,
-  upstream: RunUpstream = "floor",
+  upstream: RunUpstream = "lore-api",
 ) {
   return async function GET(
     req: Request,

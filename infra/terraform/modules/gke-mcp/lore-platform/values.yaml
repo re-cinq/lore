@@ -11,9 +11,6 @@
 # the per-subchart namespaces so the umbrella's multi-namespace layout is
 # explicit at the top level.
 
-lore-floor:
-  namespace: lore-floor
-
 lore-api:
   namespace: lore-api
 
@@ -22,6 +19,3 @@ lore-ui:
 
 lore-db-helm:
   namespace: lore-db
-
-ai-agents:
-  namespace: ai-agents

@@ -26,7 +26,7 @@ hook's payload shape and its skip/duplicate semantics.
 ## Interface
 
 Registered as `exact("/api/session-summary", "POST")`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L99)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts#L117)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/session-summary`
@@ -72,8 +72,9 @@ Numbered control flow of `handleSessionSummary(req, res, pool)`:
    { status: "skipped", reason: "empty session" })` and return.
 6. **Frame content** — `content = \`Session in ${repo || "unknown"}\n\n${summary}\``.
 7. Resolve `agent = agent_id || "session-hook"`.
-8. **Hash** — `contentHash = sha256(content)` (hex). Note: unlike `/api/episode`,
-   the content is **not** passed through `redactSecrets` here.
+8. **Hash** — `contentHash = sha256(content)` (hex). The summary is passed
+   through `redactSecrets` before framing, so the stored episode and both
+   extractions see the redacted text.
 9. **DB-availability gate** — if `!pool`, `json(res, 503, { error: "database not
    available" })` and return. (This is checked after normalization, so an empty
    session skips with 200 even when the DB is down.)
@@ -106,7 +107,7 @@ Numbered control flow of `handleSessionSummary(req, res, pool)`:
 
 ## Dependencies & side effects
 
-- **Hashing**: `node:crypto` `createHash("sha256")`. (No redaction on this route.)
+- **Hashing**: `node:crypto` `createHash("sha256")`. `redactSecrets` runs on the summary before hashing.
 - **DB table**: `memory.episodes` — INSERT with `ON CONFLICT (agent_id,
   content_hash) DO NOTHING`, `source` hardcoded `'session'`. Null `pool` → 503.
 - **Extraction jobs**: `extractFactsFromEpisode` (`features/memory/facts.ts`),
@@ -162,4 +163,4 @@ seam mocks both and asserts only the trigger/skip/swallow contract.)*
 - Token issuance and the scope schema.
 
 Code: handler [`handleSessionSummary`](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts#L24)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L99).
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L117).

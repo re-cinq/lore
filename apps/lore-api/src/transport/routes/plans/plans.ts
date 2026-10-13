@@ -145,7 +145,7 @@ function draftingRoute(
     options: DRAFTING_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
-      const verbs = await planVerbsFor(pool, plan, seams);
+      const verbs = await planVerbsFor(plan, seams);
       const body = request.payload as z.infer<typeof DraftingBody>;
 
       return h.response({ task_id: await verbs.draft(plan, body) }).code(202);
@@ -156,6 +156,7 @@ function draftingRoute(
 const DraftingBody = z.object({
   known: z.string(),
   createdBy: z.string().min(1),
+  storyIssue: z.number().int().positive().optional(),
 });
 
 const DraftingSchema = z.object({ task_id: z.string() });
@@ -172,7 +173,7 @@ const DRAFTING_OPTIONS = zodResponse(
   },
 );
 
-// One section back to the agent; 409 while it is still at work, so the editor withdraws the ask.
+// One section back to the agent; while no author waits on the plan, a 409 naming why, so the editor withdraws the ask and the page says it.
 function refineRoute(
   getPool: () => Pool | null,
   seams: PlanVerbSeams,
@@ -183,7 +184,7 @@ function refineRoute(
     options: REFINE_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
-      const verbs = await planVerbsFor(pool, plan, seams);
+      const verbs = await planVerbsFor(plan, seams);
       const refine = request.payload as z.infer<typeof RefineBody>;
 
       await verbs.refine(plan, refine);
@@ -194,11 +195,13 @@ function refineRoute(
 }
 
 const RefineBody = z.object({
+  actor: z.string().min(1),
   slot: z.string().min(1),
   title: z.string(),
   baseHash: z.string().min(1),
   inputs: z.unknown(),
   uses: z.unknown(),
+  storyIssue: z.number().int().positive().optional(),
 });
 
 const RefineSchema = z.object({ slot: z.string() });

@@ -66,3 +66,19 @@ func changedSince(dir, base string) (changed, deleted []string, err error) {
 	changed, deleted = parseNameStatus(out)
 	return changed, deleted, nil
 }
+
+// trackedFiles lists every path git tracks at HEAD, unquoted for the same
+// reason changedSince is.
+func trackedFiles(dir string) ([]string, error) {
+	out, err := gitOutput(dir, "-c", "core.quotePath=false", "ls-files")
+	if err != nil {
+		return nil, err
+	}
+	paths := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" {
+			paths = append(paths, unquotePath(line))
+		}
+	}
+	return paths, nil
+}

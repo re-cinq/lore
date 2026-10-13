@@ -31,13 +31,16 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
     vi.clearAllMocks();
   });
 
-  it("inserts a spec-trace event for the specs kind and creates no task", async () => {
+  it("answers 410 for the specs kind of o/r, naming the workflow step that replaced the route, and inserts no event", async () => {
     const pool = makePool();
     const res = await post({ kinds: ["specs"], commit: "abc123" }, pool);
 
-    expect(insertCalls(pool)[0]?.[1]?.[0]).toBe("internal.ingest.spec_trace");
-    expect(res.statusCode).toBe(200);
-    expect(res.result).toMatchObject({ triggered: ["specs"] });
+    expect(res.statusCode).toBe(410);
+    expect(res.result).toEqual({
+      error:
+        "Specs and ADRs are no longer projected by this route. The repository's lore-ingest.yml posts them itself with `lore-code-trace docs --post`: update the workflow from the onboarding template.",
+    });
+    expect(insertCalls(pool)).toEqual([]);
   });
 
   it("rejects the tests kind with 400 (test projection is CI-only)", async () => {

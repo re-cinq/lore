@@ -27,9 +27,9 @@ async function serverWith(
   server.auth.default("bearer-scope");
   server.route(
     spendWindowRoute(() => poolWith(rows, issued, rejectWhen), {
-      livePods: async () => [],
       env: {},
       now: () => NOW,
+      floor: null,
       ...deps,
     }),
   );
@@ -349,30 +349,6 @@ describe("GET /api/analytics/spend-window", () => {
     expect(issued.some(({ sql }) => sql.includes("credit_ledger"))).toBe(false);
   });
 
-  it("prices each live pod from its ACTUAL requests and sums the burn rate", async () => {
-    const server = await serverWith(BASE_ROWS, {
-      livePods: async () => [
-        {
-          name: "agent-job-run1-tdd-round-abc",
-          phase: "Running",
-          startedAt: "2026-09-02T11:00:00.000Z",
-          requests: { cpu: "1", memory: "16Gi" },
-          labels: { "lore.re-cinq.com/station-run-id": "sr-1" },
-        },
-      ],
-    });
-    const body = JSON.parse((await get(server)).payload);
-    const pod = body.compute.live_pods[0];
-
-    expect(pod).toMatchObject({
-      name: "agent-job-run1-tdd-round-abc",
-      usd_per_hour: 0.07,
-      usd_so_far: 0.07,
-      station_run_id: "sr-1",
-    });
-    expect(body.compute.live_usd_per_hour).toBe(0.07);
-  });
-
   it("defaults to the last 7 days and rejects a bad interval as a 400 naming the rule", async () => {
     const server = await serverWith(BASE_ROWS);
     const ok = await get(server);
@@ -404,18 +380,6 @@ describe("GET /api/analytics/spend-window", () => {
 
     expect(podHoursSql).toContain("sr.started_at + interval '2 hours'");
     expect(podHoursSql).not.toMatch(/coalesce\(sr\.finished_at,\s*now\(\)\)/);
-  });
-
-  it("an unreachable cluster-agent degrades to an empty live list, never a failed page", async () => {
-    const server = await serverWith(BASE_ROWS, {
-      livePods: async () => {
-        throw new Error("should be caught by the default deps, not reach here");
-      },
-    });
-    const res = await get(server);
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload).compute.live_pods).toEqual([]);
   });
 
   it("reports the billed half unavailable (not a confident zero) when the sync has never run", async () => {
@@ -504,6 +468,97 @@ describe("GET /api/analytics/spend-window", () => {
     expect(sql).toContain("LEFT JOIN pipeline.station_runs");
     expect(sql).toContain("LEFT JOIN pipeline.cluster_agents");
     expect(sql).toContain("cluster_agent_id");
+  });
+
+  it("splits billing mode into Lore's own calls on the org key plus the floor's visits by credential", async () => {
+    const asked: unknown[][] = [];
+    const floor = {
+      costs: {
+        summary: async (...args: unknown[]) => {
+          asked.push(args);
+
+          return [
+            {
+              key: "api_key",
+              costUsd: 10,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 3,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+            {
+              key: "subscription",
+              costUsd: 7,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 5,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+            {
+              key: "unknown",
+              costUsd: 2,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 1,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+          ];
+        },
+      },
+    };
+    const res = await get(
+      await serverWith(BASE_ROWS, { floor }),
+      "/api/analytics/spend-window?from=2026-09-01&to=2026-09-01",
+    );
+
+    expect({
+      asked,
+      split: JSON.parse(res.payload).llm.by_billing_mode,
+    }).toEqual({
+      asked: [
+        [
+          { since: "2026-09-01T00:00:00Z", until: "2026-09-02T00:00:00.000Z" },
+          "billing_mode",
+        ],
+      ],
+      split: [
+        { mode: "api_key", calls: 45, cost_usd: 92.5 },
+        { mode: "subscription", calls: 5, cost_usd: 7 },
+        { mode: "unknown", calls: 1, cost_usd: 2 },
+      ],
+    });
+  });
+
+  it("counts only Lore's own calls, on the org key, when no floor is configured", async () => {
+    const res = await get(await serverWith(BASE_ROWS));
+
+    expect(JSON.parse(res.payload).llm.by_billing_mode).toEqual([
+      { mode: "api_key", calls: 42, cost_usd: 82.5 },
+    ]);
+  });
+
+  it("answers 200 with Lore's own 42 calls on the org key and floor_unavailable true when the floor rejects the billing_mode group", async () => {
+    const floor = {
+      costs: {
+        summary: async () => {
+          throw new Error("400 unknown group: billing_mode");
+        },
+      },
+    };
+    const res = await get(await serverWith(BASE_ROWS, { floor }));
+
+    expect({
+      status: res.statusCode,
+      split: JSON.parse(res.payload).llm.by_billing_mode,
+      floorUnavailable: JSON.parse(res.payload).llm.floor_unavailable,
+    }).toEqual({
+      status: 200,
+      split: [{ mode: "api_key", calls: 42, cost_usd: 82.5 }],
+      floorUnavailable: true,
+    });
   });
 
   it("still renders cluster spend empty when the registry table is absent", async () => {

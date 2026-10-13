@@ -35,6 +35,9 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.metricsPort }}
+              protocol: TCP
           env:
             {{- include "lore-stations.env" . | nindent 12 }}
           # /healthz answers 503 while Postgres is unreachable — every station

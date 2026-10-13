@@ -59,7 +59,7 @@ outcomes feed back into the memories that contributed to the task.
   hit (both facts and memories).
 - `half_life_days` increased by +2 per retrieval (capped at 365).
 - Importance scoring in `memory-lifecycle.ts` uses `half_life_days`
-  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L231))
+  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L257))
 
 ### Scenario 2: Confidence Tiers on Facts
 
@@ -188,6 +188,10 @@ repo B
   before invalidating.
 - FR-4.3: `lore_assemble_context` checks for conflicts on assembled
   facts and prefixes with `[CONFLICT]` annotation.
+- FR-4.4: The decay job's invalidated-fact purge deletes the
+  `memory.fact_conflicts` rows and clears the `invalidated_by`
+  references that point at the facts it removes, and a failing purge does
+  not stop the memory eviction or the stale transition. ([validated by `memory-lifecycle.test.ts:623`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L623), [`memory-lifecycle.contract.test.ts:59`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L59), [`memory-lifecycle.contract.test.ts:47`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L47), [`importance-decay.test.ts:154`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L154))
 
 ### FR-5: Transfer Scoring
 
@@ -220,11 +224,11 @@ repo B
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L231))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L206), [`memory-ranking.test.ts:176`](libs/shared/src/domain/memory-ranking.test.ts#L176), [`memory-ranking.test.ts:269`](libs/shared/src/domain/memory-ranking.test.ts#L269))
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L257))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L232), [`memory-ranking.test.ts:176`](libs/shared/src/domain/memory-ranking.test.ts#L202), [`memory-ranking.test.ts:269`](libs/shared/src/domain/memory-ranking.test.ts#L295))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:275`](libs/shared/src/domain/memory-ranking.test.ts#L275))
-- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts:225`](libs/shared/src/domain/memory-ranking.test.ts#L225))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:275`](libs/shared/src/domain/memory-ranking.test.ts#L301))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts:225`](libs/shared/src/domain/memory-ranking.test.ts#L251))
 
 ## Non-Functional Requirements
 

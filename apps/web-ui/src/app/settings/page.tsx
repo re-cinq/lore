@@ -102,7 +102,7 @@ function taskStatsFrom(stats: Awaited<ReturnType<typeof getTaskStats>>) {
 const DEFAULT_APPROVAL_CONFIG: SettingsApprovalConfig = {
   required: false,
   label: "approved",
-  auto_approve: ["general", "gap-fill"],
+  auto_approve: ["gap-fill"],
   repos: {},
 };
 

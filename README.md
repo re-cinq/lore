@@ -27,8 +27,8 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 ## Repository layout
 
 ```
-apps/        services      floor · event-router · cluster-agent · lore-api · stations · mcp-server · web-ui
-             images/tools  lore-station (station pod image) · lore-code-trace (Go binary) · vscode-extension
+apps/        services      lore-api · stations · mcp-server · web-ui
+             images/tools  lore-code-trace (Go binary) · vscode-extension
 libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines) · server-core (@re-cinq/lore-server-core)
 infra/       deploy & runtime           terraform (the `lore-platform` umbrella chart) · compose.yaml · chart-ci-values
 specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
@@ -44,21 +44,19 @@ Every app and library documents itself in its own README — the shared code sta
 
 ### Deployables
 
-Nine workloads ship as one umbrella Helm chart, `lore-platform`, which spans a namespace per subchart. Each owns one thing, and the boundaries are enforced by credentials rather than convention.
+Five workloads ship as one umbrella Helm chart, `lore-platform`, which spans a namespace per subchart. Each owns one thing, and the boundaries are enforced by credentials rather than convention.
 
 | Deployable | Namespace | What it owns |
 |---|---|---|
-| **Floor** ([`apps/floor`](apps/floor/README.md)) | `lore-floor` | The three exclusive powers of [ADR-024](adrs/ADR-024-ubiquitous-language-execution-model.md): the `pipeline.events` drain loop and its reapers, the AssemblyRun walk plus Station dispatch, and the in-process SSE bus. Pinned to one replica, because only a single instance may coordinate. Holds **no** Kubernetes client. |
-| **event-router** ([`apps/event-router`](apps/event-router/README.md)) | `lore-event-router` | The only writer of `pipeline.events` ([ADR-044](adrs/ADR-044-event-router-owns-the-event-bus.md)). One front door — `POST /api/events` — for every producer, authenticating GitHub by HMAC and everyone else by bearer token, plus the claim/ack/reap endpoints the Floor drains through. |
-| **cluster-agent** ([`apps/cluster-agent`](apps/cluster-agent/README.md)) | `lore-cluster-agent` | The only process that talks to this cluster's Kubernetes API. Holds no database; every route under `/api/cluster/*` is a domain operation rather than a Kubernetes verb, so no `resourceVersion` ever crosses the wire. It also PUSHES: a WATCH is the one cluster capability that cannot be a request, so this owns the Agent-CR watch and reports terminal phases to the event-router over HTTP — which is what lets there be more than one execution cluster. |
-| **lore-api** ([`apps/lore-api`](apps/lore-api/README.md)) | `lore-api` | The remote REST backend (`/api/*`) — hybrid search, agent memory, task CRUD, ingest ([ADR-032](adrs/ADR-032-split-local-remote-api.md)). No MCP. |
-| **stations** ([`apps/stations`](apps/stations/README.md)) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Self-contained units of work that moved to where the data already is rather than being tunnelled through the Floor. |
+| **lore-api** ([`apps/lore-api`](apps/lore-api/README.md)) | `lore-api` | The remote REST backend (`/api/*`) — hybrid search, agent memory, task CRUD, ingest ([ADR-032](adrs/ADR-032-split-local-remote-api.md)), and the door for GitHub's webhooks (`POST /api/webhook/github`; the public `/api/events` URL is rewritten onto it), which it writes to `pipeline.events` itself ([ADR-044](adrs/ADR-044-event-router-owns-the-event-bus.md)). No MCP. |
+| **stations** ([`apps/stations`](apps/stations/README.md)) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Also the scheduler: it emits the `cron.*.tick` events and answers them, drains the PR-lifecycle events, and hosts Lore's stations for the external floor. |
 | **lore-mcp gateway** ([`apps/mcp-server`](apps/mcp-server/README.md)) | `lore-api` | The same MCP adapter served over HTTP, so agent pods get live scoped Lore access for a whole run instead of a one-shot hydration. Also serves the agent-skills registry. |
 | **web-ui** ([`apps/web-ui`](apps/web-ui/README.md)) | `lore-ui` | The Next.js dashboard. Holds no database pool — it reads through lore-api. Its chart also runs the ordered SQL migrations hook on every deploy. |
 | **lore-db** ([`charts/lore-db-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/lore-db-helm/README.md)) | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
-| **ai-agent-subsystem** ([`charts/ai-agents-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/README.md)) | `ai-agents` | The external controller that turns an `Agent` custom resource into an ephemeral Job pod. |
 
-Dgraph — the spec-traceability graph — is deployed alongside the umbrella from terraform rather than as a subchart. `apps/mcp-server` also runs on each developer's laptop over stdio; the `lore-station` pod image (built from [`apps/stations`](apps/stations/README.md)) and [`apps/lore-code-trace`](apps/lore-code-trace/README.md) are an image and a binary, not services.
+The assembly-line engine is not one of them: every line runs on the external floor ([re-cinq/floor](https://github.com/re-cinq/floor), [ADR-049](adrs/ADR-049-external-floor.md)), deployed beside the umbrella and reached only through its client. Lore's own Floor (`apps/floor`) was deleted on 2026-10-02.
+
+Dgraph — the spec-traceability graph — is deployed alongside the umbrella from terraform rather than as a subchart. `apps/mcp-server` also runs on each developer's laptop over stdio; [`apps/lore-code-trace`](apps/lore-code-trace/README.md) is a binary, not a service.
 
 
 ### The context lifecycle
@@ -120,13 +118,35 @@ Lore is modeled as an autonomous software **factory** ("Dark Factory" is a *mode
 | **Floor** | the long-running coordinator runtime: drains the event bus, walks AssemblyRuns, dispatches Stations, reaps leases | 1 → N (per team / cluster / trust tier) |
 | **AssemblyLine** | the authored blueprint — a graph of Stations with distinct responsibilities that hand off / wait on each other | per task type |
 | **AssemblyRun** | one execution of an AssemblyLine, which **clones** the blueprint at start and reads the clone thereafter, so an edit cannot change the graph under a walk in flight | per attempt |
-| **Station** | the unit that runs exactly one piece of work — an Agent pod, a deterministic `lore-station` pod, a **human station** whose worker is a person (it names the page they act on), or a **service station** reached by name over HTTP | per node |
+| **Station** | the unit that runs exactly one piece of work — an Agent pod, a station of the stations service, a **human station** whose worker is a person (it names the page they act on), or a **service station** reached by name over HTTP | per node |
 | **StationRun** | one visit to a Station within an AssemblyRun — a revisit under `iteration_max` is a new StationRun | per visit |
 | **Agent** | a single ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyRuns ⊃ StationRuns ⊃ Agents** — blueprint-side, **AssemblyLine ⊃ Stations**.
 
 > **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator deployment was historically called "Lore Agent"; it is now the **Floor** (`apps/floor`, the `lore-floor` deployment).
+
+## Issue Triage Flow
+
+Lore automates bug triage through a dedicated assembly line that verifies, diagnoses, and routes incoming issues before they reach a human maintainer. When an issue is labeled `triage: needs-triage` (or `lore:triage`), the following automated flow occurs:
+
+1. **Bug Reproduction:** A sandboxed agent attempts to reproduce the bug by running the provided reproduction repository.
+2. **Root Cause Diagnosis & Spec Verification:** If reproduced, an agent traces the error to pinpoint the root cause and cross-references it with existing documentation and specifications to ensure it is a genuine bug.
+3. **Obsolete/Large Issue Detection:** Issues describing problems already solved are automatically closed as obsolete. Complex, multi-part issues are decomposed into smaller, linked tasks.
+4. **Human-Gated Handoff:** Once verified and diagnosed, the issue pauses for human review. A maintainer can then apply the `lore:implementation` label to transition it to the implementation loop.
+
+### Triage Label Taxonomy
+
+The triage flow is tracked via the `triage:*` label taxonomy:
+
+- `triage: needs-triage` — Initial state; triggers the automated assembly line.
+- `triage: needs-reproduction` — Applied if the reproduction step fails due to missing information.
+- `triage: reproduced` — Applied after the agent successfully reproduces the bug.
+- `triage: unable-to-reproduce` — Applied if the agent fails to reproduce the bug.
+- `triage: diagnosed` — Applied after successful root cause diagnosis and verification against specs.
+- `triage: skipped` — Applied if execution is skipped due to environment constraints (e.g., missing hardware or external services).
+- `triage: not-actionable` — Applied if the issue is deemed invalid, intended behavior, or noise.
+- `triage: failed` — Applied if the triage pipeline crashes or exhausts its retries.
 
 ## How Lore connects to Claude Code (in plain terms)
 
@@ -171,7 +191,7 @@ Pick the guide that matches what you're doing.
 
 ### Building Lore
 
-- [Architecture](docs/building-lore/architecture.md) — topology, task lifecycle, scheduling, ingestion, memory, execution modes, and Dark Factory mode
+- [Architecture](docs/building-lore/architecture.md) — topology, task lifecycle, scheduling, ingestion, memory, and execution modes
 - [Scheduled Jobs](docs/building-lore/scheduled-jobs.md) — the recurring job registry
 - [Contributing](docs/building-lore/contributing.md) — run the stack locally, project layout, tech stack, and design principles
 

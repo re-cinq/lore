@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recordedFloor } from "@re-cinq/lore-shared/floor/recorded-floor.js";
+import type { LiveFrame } from "@re-cinq/floor-client";
 import { floorFrames } from "./floor-frames.js";
 import { FloorRunReader } from "./floor-run-reader.js";
 import {
@@ -78,5 +79,25 @@ describe("floorFrames", () => {
 
   it("sends nothing for an unsupported frame", async () => {
     expect(floorFrames({ type: "unsupported" }, await run())).toEqual([]);
+  });
+
+  it("turns a run a start by hand reopened into a running run status", async () => {
+    expect(
+      floorFrames(
+        { type: "run_reopened", seq: 11, run: FLOOR_RUN },
+        await run(),
+      ),
+    ).toMatchObject([
+      { type: "run_status", run: { id: "run-1", status: "running" } },
+    ]);
+  });
+
+  it("sends nothing for a frame type the floor adds later, rather than throwing", async () => {
+    const later = {
+      type: "a_frame_from_a_newer_floor",
+      seq: 12,
+    } as unknown as LiveFrame;
+
+    expect(floorFrames(later, await run())).toEqual([]);
   });
 });

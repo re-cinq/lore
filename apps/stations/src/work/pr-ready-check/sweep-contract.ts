@@ -16,8 +16,6 @@ export const LOOP_BLUEPRINT = "implementation-loop";
 /** Every line that parks on its PR's CI (`await-ci`) after pushing: the loop, and the lines whose in-pod `validate` deferred to CI (2026-09-29). */
 export const CI_WAIT_BLUEPRINTS = [
   LOOP_BLUEPRINT,
-  "implementation",
-  "general",
   "gap-fill",
   "onboard",
 ] as const;

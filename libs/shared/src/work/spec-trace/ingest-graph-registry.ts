@@ -5,6 +5,11 @@ import type { EmbedFn, ProjectionOptions } from "./project-spec-file.js";
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
+import {
+  deleteCodeFile,
+  listCodeFilePaths,
+  projectCodeFile,
+} from "./project-code-file.js";
 import { matchesAnyGlob } from "./ingest-patterns.js";
 import {
   listGraphDocPaths,
@@ -42,13 +47,15 @@ export interface IngestGraphPorts {
   listTree(ref?: string): Promise<string[]>;
   readFile(path: string, ref?: string): Promise<string>;
   buildTestReport?: () => Promise<unknown>;
-  /** Batch statement embedder passed to each kind's project; omitted = the projector's default (Vertex via GCP ADC, absent in station pods). */
+  /** Batch statement embedder passed to each kind's project; omitted = the projector's default (the process's embedding provider, which has no credential in station pods). */
   embed?: EmbedFn;
 }
 
 /** One file-projectable kind: how to discover its files + how to project one. */
 export interface IngestKindDef {
   prefixes: string[];
+  /** File extensions this kind selects; defaults to [".md"] when absent. */
+  extensions?: string[];
   project(
     doc: SourceDocument,
     dgraph: DgraphClientPort,
@@ -66,7 +73,7 @@ export interface IngestKindDef {
   };
 }
 
-/** The seed kind registry — specs/adrs are markdown file-projectable; tests is special-cased in runIngestGraph; CodeChunks are coverage-defined (minted by ingestCoverageReport), not an ingest kind. */
+/** The seed kind registry — specs/adrs are markdown file-projectable; tests is special-cased in runIngestGraph; code is TypeScript/JavaScript source file-projectable via projectCodeFile. */
 export const INGEST_KINDS: Record<string, IngestKindDef> = {
   specs: {
     prefixes: ["specs/", ".specify/"],
@@ -84,6 +91,16 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
     prune: {
       listDocPaths: (dgraph, repo) => listGraphDocPaths(dgraph, "ADR", repo),
       deleteSubtree: deleteAdrSubtree,
+    },
+  },
+  code: {
+    prefixes: ["src/", "lib/", "libs/", "apps/", "packages/"],
+    extensions: [".ts", ".js", ".tsx", ".jsx"],
+    project: projectCodeFile,
+    runsOn: "runner+local",
+    prune: {
+      listDocPaths: listCodeFilePaths,
+      deleteSubtree: deleteCodeFile,
     },
   },
 };
@@ -169,15 +186,17 @@ function filesMatchingPatterns(
   );
 }
 
-/** Markdown tree paths under the kind's built-in prefixes, further narrowed by the substring `glob`. */
+/** Tree paths under the kind's built-in prefixes with matching extensions, further narrowed by the substring `glob`. */
 function filesUnderKindPrefixes(
   tree: string[],
   def: IngestKindDef,
   glob?: string,
 ): string[] {
+  const exts = def.extensions ?? [".md"];
+
   return tree.filter(
     (path) =>
-      path.endsWith(".md") &&
+      exts.some((ext) => path.endsWith(ext)) &&
       def.prefixes.some((prefix) => path.startsWith(prefix)) &&
       (!glob || path.includes(glob)),
   );

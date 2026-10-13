@@ -28,7 +28,6 @@ const PRIMARY_LINKS = [
   { href: "/", label: "Repos" },
   { href: "/assembly-runs", label: "Assembly Runs" },
   { href: "/agents", label: "Agents" },
-  { href: "/cluster-agents", label: "Clusters" },
   { href: "/search", label: "Search" },
   { href: "/audit", label: "Audit" },
   { href: "/pools", label: "Pools" },
@@ -385,5 +384,53 @@ describe("SidebarNav accordion groups", () => {
     fireEvent.click(insights);
     expect(insights).toHaveAttribute("aria-expanded", "true");
     expect(linkByLabel("Analytics")).toHaveAttribute("href", "/analytics");
+  });
+});
+
+describe("SidebarNav metrics dashboards link", () => {
+  const GRAFANA = "https://grafana.example.com";
+
+  it("links to the named Grafana in a new tab beside the Headlamp link", () => {
+    render(
+      <SidebarNav
+        headlampUrl="https://headlamp.example.com"
+        grafanaUrl={GRAFANA}
+      />,
+    );
+    const link = linkByLabel("Grafana");
+
+    expect({
+      href: link.getAttribute("href"),
+      target: link.getAttribute("target"),
+      headlamp: linkByLabel("Headlamp").getAttribute("href"),
+    }).toEqual({
+      href: GRAFANA,
+      target: "_blank",
+      headlamp: "https://headlamp.example.com",
+    });
+  });
+
+  it("renders no Grafana link when the deployment names none", () => {
+    render(<SidebarNav />);
+    expect(screen.queryByRole("link", { name: /Grafana/ })).toBeNull();
+  });
+});
+
+describe("SidebarNav Utopia link", () => {
+  const UTOPIA = "https://utopia.example.com";
+
+  it("links to the named Utopia in a new tab", () => {
+    render(<SidebarNav utopiaUrl={UTOPIA} />);
+    const link = linkByLabel("Utopia");
+
+    expect({
+      href: link.getAttribute("href"),
+      target: link.getAttribute("target"),
+    }).toEqual({ href: UTOPIA, target: "_blank" });
+  });
+
+  it("renders no Utopia link when the deployment names none", () => {
+    render(<SidebarNav />);
+    expect(screen.queryByRole("link", { name: /Utopia/ })).toBeNull();
   });
 });

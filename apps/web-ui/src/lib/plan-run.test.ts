@@ -78,6 +78,24 @@ describe("fetchPlanRun", () => {
     expect((await fetchPlanRun("re-cinq/lore", "p1"))?.id).toBe("run-old");
   });
 
+  it("answers the newest run that was not cancelled, run-real, over the cancelled shell run-shell created after it", async () => {
+    runsAnswer([
+      { ...ROW, id: "run-shell", status: "finished", outcome: "cancelled" },
+      { ...ROW, id: "run-real", status: "finished", outcome: "failed" },
+    ]);
+
+    expect((await fetchPlanRun("re-cinq/lore", "p1"))?.id).toBe("run-real");
+  });
+
+  it("answers the newest run, run-new, when every run was cancelled", async () => {
+    runsAnswer([
+      { ...ROW, id: "run-new", status: "finished", outcome: "cancelled" },
+      { ...ROW, id: "run-old", status: "finished", outcome: "cancelled" },
+    ]);
+
+    expect((await fetchPlanRun("re-cinq/lore", "p1"))?.id).toBe("run-new");
+  });
+
   it("answers null for a plan no run has started for", async () => {
     runsAnswer([]);
 

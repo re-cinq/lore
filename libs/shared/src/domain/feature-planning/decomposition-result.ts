@@ -1,4 +1,5 @@
 import { enforceTrue } from "../../lib/enforce.js";
+import { specFileOf } from "./issue-coverage.js";
 // Feature spec decomposition into user stories/tasks (ADR-029); lenient parse, pure, no I/O.
 
 export interface DecompTask {
@@ -17,6 +18,16 @@ export interface DecompTask {
   acceptance_criteria?: string[];
   test_plan?: string;
   references?: string[];
+  /** The spec.md lines where the statements this task implements begin; its issue links each, and the issue-coverage check counts them. */
+  spec_lines?: SpecLine[];
+  /** The approved plan's passages the task comes from, quoted as written: the plan is not in the repository. */
+  plan_quotes?: string[];
+}
+
+/** A line of the spec the plan is chiefly about, or of `file` when the plan's spec PR wrote it in another spec. */
+export interface SpecLine {
+  file?: string;
+  line: number;
 }
 
 export interface UserStory {
@@ -29,6 +40,8 @@ export interface UserStory {
 }
 
 export interface DecompositionResult {
+  /** The commit the spec was read at, so its line numbers mean what decompose saw. */
+  spec_commit?: string;
   stories: UserStory[];
 }
 
@@ -47,7 +60,14 @@ export function parseDecomposition(raw: unknown): DecompositionResult {
     "decomposition: stories must be an array",
   );
 
-  return { stories: stories.map(normalizeStory) };
+  const specCommit = (raw as Record<string, unknown>).spec_commit;
+
+  return {
+    ...(typeof specCommit === "string" && specCommit
+      ? { spec_commit: specCommit }
+      : {}),
+    stories: stories.map(normalizeStory),
+  };
 }
 
 function normalizeStory(raw: unknown): UserStory {
@@ -175,6 +195,11 @@ function applyTaskOptionals(
   if (labels.length) {
     task.labels = labels;
   }
+  const specLines = asLineList(t.spec_lines);
+
+  if (specLines.length) {
+    task.spec_lines = specLines;
+  }
   Object.assign(task, taskIssueDetail(t));
 }
 
@@ -187,6 +212,7 @@ export type TaskIssueDetail = Pick<
   | "acceptance_criteria"
   | "test_plan"
   | "references"
+  | "plan_quotes"
 >;
 
 export function taskIssueDetail(source: object): TaskIssueDetail {
@@ -202,6 +228,7 @@ export function taskIssueDetail(source: object): TaskIssueDetail {
       t.acceptance_criteria ?? t.acceptanceCriteria,
     ),
     ...listField("references", t.references),
+    ...listField("plan_quotes", t.plan_quotes),
   };
 }
 
@@ -247,4 +274,25 @@ function asStringList(v: unknown): string[] {
   }
 
   return [];
+}
+
+// A bare list names lines of the main spec; an object keyed by spec path names lines of each spec the plan wrote.
+function asLineList(v: unknown): SpecLine[] {
+  if (Array.isArray(v)) {
+    return wholeLines(v).map((line) => ({ line }));
+  }
+  const byFile = v && typeof v === "object" ? Object.entries(v) : [];
+
+  return byFile.flatMap(([path, lines]) =>
+    wholeLines(Array.isArray(lines) ? lines : []).map((line) => ({
+      file: specFileOf(path),
+      line,
+    })),
+  );
+}
+
+function wholeLines(values: unknown[]): number[] {
+  return values
+    .map(Number)
+    .filter((line) => Number.isInteger(line) && line > 0);
 }

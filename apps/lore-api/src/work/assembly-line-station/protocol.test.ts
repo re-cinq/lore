@@ -43,6 +43,36 @@ describe("parseClientMessage", () => {
     });
   });
 
+  it("reads an open of the runs channel and a watch of two run ids", () => {
+    expect([
+      parseClientMessage(
+        JSON.stringify({
+          type: "open",
+          channel: "c1",
+          kind: "runs",
+          subject: "floor",
+          token: "t-1",
+        }),
+      ),
+      parseClientMessage(
+        JSON.stringify({
+          type: "watch",
+          channel: "c1",
+          runs: ["run-1", "run-2"],
+        }),
+      ),
+    ]).toEqual([
+      {
+        type: "open",
+        channel: "c1",
+        kind: "runs",
+        subject: "floor",
+        token: "t-1",
+      },
+      { type: "watch", channel: "c1", runs: ["run-1", "run-2"] },
+    ]);
+  });
+
   it("returns null for non-JSON, an unknown type, a run open without a token, and a non-numeric cursor", () => {
     expect(
       [

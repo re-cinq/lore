@@ -34,6 +34,7 @@ import {
   hasReviewedPr,
   headShaOf,
   isOpen,
+  lastJudgedSha,
   reviewRunsForPr,
 } from "./floor-review-runs.js";
 import { startLine } from "./floor-line-start.js";
@@ -60,6 +61,7 @@ export interface ReviewStartDeps {
   pulls: ReviewPulls;
   issues: ReviewIssues;
   uiUrl?: string;
+  loreAppLogin?: string;
 }
 
 export interface PullRequestTarget {
@@ -93,7 +95,9 @@ export async function startReview(
 ): Promise<string | null> {
   const pr = await deps.pulls.get(input.prNumber);
 
-  if (!pr || !reviewGateOpen(pr, input)) {
+  const gate = { ...input, loreAppLogin: deps.loreAppLogin };
+
+  if (!pr || !reviewGateOpen(pr, gate)) {
     return null;
   }
   await retireRechecks(deps.floor, input);
@@ -136,7 +140,9 @@ export async function startRecheck(
 ): Promise<string | null> {
   const pr = await deps.pulls.get(target.prNumber);
 
-  if (!decideReviewOnOpen({ autoReview: target.autoReview, pr }).start) {
+  const { loreAppLogin } = deps;
+
+  if (!decideReviewOnOpen({ ...target, pr, loreAppLogin }).start) {
     return null;
   }
   const runs = await reviewRunsForPr(deps.floor, target);
@@ -175,7 +181,7 @@ async function supersedeAndRecheck(
   return startRecheckLine(deps, target, pr, sinceSha);
 }
 
-/** A submitted request-changes review becomes an `address` work order; the line's own `read-review` station gathers what the review said. */
+/** A submitted request-changes review starts a reply; the line's own `read-review` station gathers what the review said, and the agent decides per comment whether it asks for a change or an answer. */
 export async function startReply(
   deps: ReviewStartDeps,
   input: StartReplyInput,
@@ -192,7 +198,6 @@ export async function startReply(
     startItems: {
       ...(await pullRequestItems(deps, pr!)),
       review_id: valueItem(input.reviewId),
-      intent: valueItem("address"),
     },
   });
 
@@ -298,7 +303,7 @@ async function judgedRange(
   prNumber: number,
   runs: RunView[],
 ): Promise<{ sinceSha?: string; newCommitMessages: string[] }> {
-  const lastSha = runs.flatMap(headShaOf)[0];
+  const lastSha = lastJudgedSha(runs);
   const commits = lastSha ? await pulls.listCommits(prNumber) : [];
   const judged = commits.findIndex((commit) => commit.sha === lastSha);
 
