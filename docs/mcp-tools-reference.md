@@ -388,7 +388,7 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 
 One-line purpose: show unclaimed `pending` backlog tasks you could pick up and run locally, grouped by repo.
 
-- **When to use:** the "what can I grab" view before the GKE agent takes them.
+- **When to use:** the "what can I grab" view of pending tasks.
 - **When not to use:** general status-filterable listing → `lore_list_pipeline_tasks`. After choosing one, run it with `lore_claim_and_run_locally`.
 
 | Parameter | Required | Default | Description |
@@ -396,7 +396,7 @@ One-line purpose: show unclaimed `pending` backlog tasks you could pick up and r
 | `repo` | no | all | Filter the API view to one repo as `owner/repo`. |
 
 - **Returns:** one short line per task, grouped by repo; `No pending tasks…` when empty.
-- **Where it runs:** prefers a live `GET /api/tasks?status=pending` over `LORE_API_URL`; when the API is unconfigured/unreachable it falls back to the locally-cached `~/.lore/pending-tasks.json` (the local fallback **ignores** the `repo` filter).
+- **Where it runs:** prefers a live `GET /api/tasks?status=pending` over `LORE_API_URL`; when the API is unconfigured/unreachable it falls back to the locally-cached `~/.lore/pending-tasks.json` (the `repo` filter applies on both paths).
 - **Cache/mutation:** read-only.
 
 #### `lore_skip_task`
@@ -424,7 +424,7 @@ One-line purpose: start a local 30s background poller that surfaces new `pending
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `repos` | no | current repo | List of repos to watch, each `owner/repo`. Defaults to the git-remote-detected repo. |
-| `task_types` | no | `['runbook','gap-fill']` | List of task types to surface. |
+| `task_types` | no | `['runbook','gap-fill']` | List of task types to surface. Both default types are retired, so no new task of either type is created; pass `task_types` naming a type that still has pending tasks, or the poller surfaces nothing new. (The schema's own description still says it defaults to implementation, general, runbook and gap-fill; the code uses only `runbook` and `gap-fill`.) |
 
 - **Returns:** a watching-confirmation message; `already active` (without spawning a second interval) when a notifier is already running.
 - **Where it runs:** local sandbox; starts a `setInterval` and writes the local cache file (the poll itself reads the API or DB).
@@ -525,7 +525,7 @@ One-line purpose: view or update the local task-runner config (`~/.lore/local-ru
 | `task_types` | no | keep | Allowlist of task-type names eligible to run locally; replaces the whole list. |
 | `model` | no | keep / `claude-sonnet-4-6` | Default Anthropic model id for locally-run tasks. |
 
-- **Returns:** the resulting config as pretty JSON. Called with no update args (or only `max_concurrent: 0`) it is read-only and returns the current config (built-in defaults — `enabled:false`, `max_concurrent:2`, the four standard task_types, model `claude-sonnet-4-6` — when the file is absent).
+- **Returns:** the resulting config as pretty JSON. Called with no update args (or only `max_concurrent: 0`) it is read-only and returns the current config (built-in defaults — `enabled:false`, `max_concurrent:2`, `task_types: ['runbook','gap-fill']` (both retired task types), model `claude-sonnet-4-6` — when the file is absent).
 - **Where it runs:** local machine; no DB, no network.
 - **Cache/mutation:** overwrites only the provided fields and persists.
 

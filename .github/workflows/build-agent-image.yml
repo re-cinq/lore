@@ -59,7 +59,8 @@ jobs:
             jq --version && yq --version && rg --version >/dev/null &&
             git --version && curl --version >/dev/null && sed --version >/dev/null &&
             python3 --version && make --version >/dev/null && unzip -v >/dev/null &&
-            tree --version && file --version >/dev/null && less --version >/dev/null'
+            tree --version && file --version >/dev/null && less --version >/dev/null &&
+            java -version && javac -version'
 
       - name: Push
         if: github.ref == 'refs/heads/main'
