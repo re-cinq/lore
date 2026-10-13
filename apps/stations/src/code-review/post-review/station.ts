@@ -15,10 +15,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { maybePostReview, type ReviewPoster } from "./post-review.js";
 import { reviewModelOf } from "./review-model.js";
-import {
-  parsePullRequestUrl,
-  type PullRequestLocation,
-} from "@re-cinq/lore-shared/floor/floor-items.js";
+import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
 import {
   findingCountOf,
   reviewCheck,
@@ -28,8 +25,10 @@ import {
 
 export interface ReviewProject {
   pulls: ReviewPoster & {
-    get(number: number): Promise<Pick<PullRef, "headSha" | "branch"> | null>;
-    enableAutoMerge?(number: number, method: string): Promise<void>;
+    get(
+      number: number,
+    ): Promise<Pick<PullRef, "headSha" | "branch" | "nodeId"> | null>;
+    enableAutoMerge?(nodeId: string, method: string): Promise<void>;
   };
   upsertCheckRun(input: CheckRunInput): Promise<void>;
   getBranchRule?(branch: string): Promise<{ requiresApprovals: number }>;
@@ -60,90 +59,126 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
   return (brief, tools) => processPostReview(deps, brief, tools);
 }
 
+interface ReviewContext {
+  project: ReviewProject;
+  prUrl: string;
+  prNumber: number;
+  nodeId?: string;
+  agentOutput: string;
+  verdict: ReviewVerdict;
+  headSha: string;
+  branch?: string;
+}
+
 async function processPostReview(
   deps: PostReviewDeps,
   brief: Brief,
   tools: Parameters<Handle>[1],
-): Promise<Report> {
+) {
   const prUrl = brief.needs.pr_url;
   const location = parsePullRequestUrl(prUrl);
-  const rawOutput = (await tools.read("review_output")).toString("utf8");
-  const agentOutput = resultTextFromOutput(rawOutput);
+  const agentOutput = resultTextFromOutput(
+    (await tools.read("review_output")).toString("utf8"),
+  );
 
   const verdict = reviewVerdictOf(agentOutput);
   enforceTrue(verdict, Error, `no review verdict in the output for ${prUrl}`);
 
   const project = await deps.project(location.repo);
   const pull = await project.pulls.get(location.prNumber);
-
   const headSha = briefedShaOf(brief) ?? pull?.headSha;
-  enforceTrue(
+  enforceTrue(headSha, Error, `no head sha for #${location.prNumber}`);
+
+  return finishReview(deps, brief, {
+    project,
+    prUrl,
+    prNumber: location.prNumber,
+    nodeId: pull?.nodeId,
+    agentOutput,
+    verdict,
     headSha,
-    Error,
-    `no head sha for pull request #${location.prNumber}`,
+    branch: pull?.branch,
+  });
+}
+
+async function finishReview(
+  deps: PostReviewDeps,
+  brief: Brief,
+  opts: ReviewContext,
+) {
+  const summary = verdictSummary(
+    opts.verdict,
+    findingCountOf(opts.agentOutput),
+  );
+  const approver = await getApprover(opts.project);
+
+  const posted = await postToPullRequest(
+    brief,
+    opts.project.pulls,
+    opts.prNumber,
+    {
+      agentOutput: opts.agentOutput,
+      model: await deps.reviewModel(brief.visitId),
+      allowApprove: approver === "lore-reviewer",
+    },
   );
 
-  const summary = verdictSummary(verdict, findingCountOf(agentOutput));
-  const approver = await getApprover(project);
-
-  const posted = await postToPullRequest(brief, project, location, {
-    agentOutput,
-    model: await deps.reviewModel(brief.visitId),
-    allowApprove: approver === "lore-reviewer",
-  });
-
   if (posted) {
-    await performPostReviewActions(
-      project,
-      location,
-      headSha,
-      verdict,
-      approver,
-      pull,
-    );
+    await performPostReviewActions(opts.project, { ...opts, approver });
   }
 
-  await project.upsertCheckRun(reviewCheck({ headSha, verdict, summary }));
-  return reported(summary, prUrl);
+  await opts.project.upsertCheckRun(
+    reviewCheck({ headSha: opts.headSha, verdict: opts.verdict, summary }),
+  );
+
+  return reported(summary, opts.prUrl);
 }
 
 async function getApprover(
   project: ReviewProject,
 ): Promise<"none" | "lore-reviewer"> {
-  if (!project.getSettings) return "none";
+  if (!project.getSettings) {
+    return "none";
+  }
   const settings = await project.getSettings();
+
   return settings.auto_merge?.approver ?? "none";
 }
 
 async function performPostReviewActions(
   project: ReviewProject,
-  location: PullRequestLocation,
-  headSha: string,
-  verdict: ReviewVerdict,
-  approver: string,
-  pull: Pick<PullRef, "headSha" | "branch"> | null,
+  opts: {
+    prNumber: number;
+    nodeId?: string;
+    headSha: string;
+    verdict: ReviewVerdict;
+    approver: string;
+    branch?: string;
+  },
 ): Promise<void> {
-  await recordApprovalIfNeeded(project, location, headSha, verdict, approver);
-  await armAutoMergeIfNeeded(project, pull, location, headSha);
+  await recordApprovalIfNeeded(project, opts);
+  await armAutoMergeIfNeeded(project, opts);
 }
 
 async function recordApprovalIfNeeded(
   project: ReviewProject,
-  location: PullRequestLocation,
-  headSha: string,
-  verdict: ReviewVerdict,
-  approver: string,
+  opts: {
+    prNumber: number;
+    headSha: string;
+    verdict: ReviewVerdict;
+    approver: string;
+  },
 ): Promise<void> {
   if (
-    verdict === "success" &&
-    approver === "lore-reviewer" &&
+    opts.verdict === "success" &&
+    opts.approver === "lore-reviewer" &&
     project.writeAuditRow
   ) {
     await project.writeAuditRow({
       event_type: "lore_reviewer_approved",
       payload: {
-        prNumber: location.prNumber,
-        headSha,
+        prNumber: opts.prNumber,
+        headSha: opts.headSha,
         approver: "lore-reviewer",
       },
     });
@@ -152,25 +187,30 @@ async function recordApprovalIfNeeded(
 
 async function armAutoMergeIfNeeded(
   project: ReviewProject,
-  pull: Pick<PullRef, "headSha" | "branch"> | null,
-  location: PullRequestLocation,
-  headSha: string,
+  opts: { prNumber: number; nodeId?: string; headSha: string; branch?: string },
 ): Promise<void> {
-  if (!pull?.branch || !project.getBranchRule) return;
+  if (!opts.branch || !project.getBranchRule) {
+    return;
+  }
 
-  const rule = await project.getBranchRule(pull.branch);
-  if (rule.requiresApprovals === 0) return;
+  const rule = await project.getBranchRule(opts.branch);
 
-  await enableAutoMerge(project, location.prNumber);
-  await recordAutoMergeArmed(project, location.prNumber, headSha);
+  if (rule.requiresApprovals === 0) {
+    return;
+  }
+
+  if (opts.nodeId) {
+    await enableAutoMerge(project, opts.nodeId);
+  }
+  await recordAutoMergeArmed(project, opts.prNumber, opts.headSha);
 }
 
 async function enableAutoMerge(
   project: ReviewProject,
-  prNumber: number,
+  nodeId: string,
 ): Promise<void> {
   if (project.pulls.enableAutoMerge) {
-    await project.pulls.enableAutoMerge(prNumber, "SQUASH");
+    await project.pulls.enableAutoMerge(nodeId, "SQUASH");
   }
 }
 
@@ -200,38 +240,26 @@ function reported(summary: string, prUrl: string): Report {
 
 function verdictSummary(verdict: ReviewVerdict, findingCount: number): string {
   const label = verdict === "success" ? "Approved" : "Changes requested";
+
   return `${label}, ${findingCount} ${findingCount === 1 ? "finding" : "findings"}`;
 }
 
 async function postToPullRequest(
   brief: Brief,
-  project: ReviewProject,
-  { prNumber }: PullRequestLocation,
+  pulls: ReviewProject["pulls"],
+  prNumber: number,
   opts: { agentOutput: string; model?: string; allowApprove?: boolean },
 ): Promise<boolean> {
-  const diff = await diffOf(project.pulls, prNumber);
-  const posted = await maybePostReview(
-    project.pulls,
-    prNumber,
-    opts.agentOutput,
-    {
-      positions: commentablePositions(diff),
-      visit: brief,
-      model: opts.model,
-      allowApprove: opts.allowApprove,
-    },
-  );
+  const diff = await pulls.getDiff(prNumber).catch(() => "");
+  const posted = await maybePostReview(pulls, prNumber, opts.agentOutput, {
+    positions: commentablePositions(diff),
+    visit: brief,
+    ...opts,
+  });
 
-  enforceTrue(
-    posted,
-    Error,
-    `nothing to post for #${prNumber}: no findings block`,
-  );
+  enforceTrue(posted, Error, `nothing to post for #${prNumber}`);
+
   return posted.mode !== "deduped";
-}
-
-function diffOf(pulls: ReviewPoster, prNumber: number): Promise<string> {
-  return pulls.getDiff(prNumber).catch(() => "");
 }
 
 export function startPostReviewStation(): RunningStation {

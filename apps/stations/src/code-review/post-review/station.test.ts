@@ -60,10 +60,16 @@ function fakeProject(
         comments.push(body);
       },
       getDiff: async () => "",
-      get: async () => ({ headSha: "livesha", branch: "main" }),
-      enableAutoMerge: async (number: number, method: string) => {
-        autoMergeCalls.push({ number, method });
+      get: async () => ({
+        headSha: "livesha",
+        branch: "main",
+        nodeId: "PR_kw_test",
+      }),
+      enableAutoMerge: async (nodeId: string, method: string) => {
+        autoMergeCalls.push({ nodeId, method });
       },
+      listReviews: async () => reviews.map((r) => ({ body: r.body || "" })),
+      listIssueComments: async () => comments.map((c) => ({ body: c })),
     },
     upsertCheckRun: async (input: CheckRunInput) => {
       checks.push(input);
@@ -226,7 +232,9 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
         toolsReading("REVIEW_RESULT:APPROVED"),
       );
 
-      expect(autoMergeCalls).toMatchObject([{ number: 412, method: "SQUASH" }]);
+      expect(autoMergeCalls).toMatchObject([
+        { nodeId: "PR_kw_test", method: "SQUASH" },
+      ]);
       expect(auditRows).toContainEqual(
         expect.objectContaining({ event_type: "auto_merge_armed" }),
       );

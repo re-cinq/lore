@@ -25,7 +25,7 @@
 - [x] Record audit row for `auto_merge_armed`
 - [x] Record audit row for `lore_reviewer_approved`
 - [x] Perform idempotency check
-- [ ] Resolve PR number to GraphQL node ID for enableAutoMerge
+- [x] Resolve PR number to GraphQL node ID for enableAutoMerge
 
 ## Out of scope
 
