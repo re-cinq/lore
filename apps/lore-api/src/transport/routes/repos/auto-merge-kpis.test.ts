@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { buildServer } from "../../app/build-server.js";
+import { buildServer } from "../../../app/build-server.js";
 import {
   makePool,
   useRateLimitSafeClock,

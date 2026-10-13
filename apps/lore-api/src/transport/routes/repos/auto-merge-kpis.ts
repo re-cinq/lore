@@ -8,7 +8,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import type { Pool } from "pg";
-import { bearerScope } from "../http/bearer-scope.js";
+import { bearerScope } from "../../http/bearer-scope.js";
 
 export function autoMergeKpisRoute(getPool: () => Pool | null): ServerRoute {
   return {

@@ -11,4 +11,4 @@ SELECT
   a.repo
 FROM pipeline.audit_log a
 LEFT JOIN pipeline.tasks t ON a.task_id = t.id
-WHERE a.event_type IN ('lore_reviewer_approved', 'auto_merge_armed', 'pr_merged');
+WHERE a.event_type IN ('lore_reviewer_approved', 'pr_merged');
