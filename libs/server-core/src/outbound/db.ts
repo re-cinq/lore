@@ -93,17 +93,18 @@ export async function hybridSearch(
   const embedding = await getQueryEmbedding(query);
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
   return embedding
-    ? runHybridSQL(embedding, keywordQuery, resolved, limit, repo)
+    ? runHybridSQL({ embedding, keywordQuery, schema: resolved, limit, repo })
     : keywordOnlySearch(query, resolved, limit, repo);
 }
 
-async function runHybridSQL(
-  embedding: number[],
-  keywordQuery: string,
-  schema: string,
-  limit: number,
-  repo?: string,
-): Promise<SearchResult[]> {
+async function runHybridSQL(options: {
+  embedding: number[];
+  keywordQuery: string;
+  schema: string;
+  limit: number;
+  repo?: string;
+}): Promise<SearchResult[]> {
+  const { embedding, keywordQuery, schema, limit, repo } = options;
   const embeddingStr = `[${embedding.join(",")}]`;
   const sql = repo
     ? buildRepoBoundHybridSearchSQL(schema)
