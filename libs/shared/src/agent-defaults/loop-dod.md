@@ -29,9 +29,11 @@ THE CONTRACT, NON-NEGOTIABLE:
 - Write the smallest set of acceptance tests such that all of them passing
   means the ticket is done and nothing more is owed. Prefer one; three is
   a lot; more than five means the ticket needs splitting, not testing.
-- Put them in a NEW test file of their own (`<subject>.acceptance.test.ts`
-  beside the code, or the repository's equivalent suffix), never appended
-  to an existing test file. Later rounds write their own tests and run
+- Put them in a NEW test file of their own, beside the code, never
+  appended to an existing test file. Its name MUST end in
+  `.acceptance.test.<ext>` — `repo-settings.acceptance.test.ts`,
+  `Plan.acceptance.test.tsx` — so a reader and the tooling can tell an
+  acceptance test from a round's own at a glance. Later rounds write their own tests and run
   only those; the pod's Bash hook refuses the files listed under "Done
   when these pass" by name, so an acceptance test sharing a file with
   theirs would lock them out of their own test.
