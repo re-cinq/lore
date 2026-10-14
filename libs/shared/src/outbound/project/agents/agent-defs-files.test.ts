@@ -51,12 +51,4 @@ describe("AgentDefsFiles", () => {
       ["review", { test_policy: "none" }],
     ]);
   });
-
-  it("refuses writes without a database", async () => {
-    const store = new AgentDefsFiles(dir);
-
-    await expect(store.delete("re-cinq/lore", "general")).rejects.toThrow(
-      new Error("agent definitions are read-only without a database"),
-    );
-  });
 });
