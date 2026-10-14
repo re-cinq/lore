@@ -646,7 +646,8 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs the implementation loop on gemini-3.1-pro-preview and every code-review agent on claude-sonnet-4-6, so no model reviews its own family's pull request", () => {
+  it("runs the implementation loop on gemini-3.1-pro-preview and every code-review agent on claude-sonnet-4-6, except tdd-round, on claude-sonnet-4-6 while Gemini streams stall", () => {
+    const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
         Object.values(pipelineOf(id).agent_definitions ?? {}).map(
@@ -655,14 +656,22 @@ describe("the floor pipelines shipped in this folder", () => {
       );
 
     expect({
-      loop: [...new Set(modelsOf(["implementation-loop"]))],
+      tddRound: loop["loop-tdd-round"]?.settings.model,
+      restOfLoop: [
+        ...new Set(
+          Object.entries(loop)
+            .filter(([name]) => name !== "loop-tdd-round")
+            .map(([, definition]) => definition.settings.model),
+        ),
+      ],
       reviewers: [
         ...new Set(
           modelsOf(["code-review", "code-review-recheck", "code-review-reply"]),
         ),
       ],
     }).toEqual({
-      loop: ["gemini-3.1-pro-preview"],
+      tddRound: "claude-sonnet-4-6",
+      restOfLoop: ["gemini-3.1-pro-preview"],
       reviewers: ["claude-sonnet-4-6"],
     });
   });
