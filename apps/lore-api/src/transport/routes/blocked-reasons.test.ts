@@ -86,6 +86,35 @@ describe("Blocked-reason read routes", () => {
         updatedAt: null,
       });
     });
+
+    it("reads only a PR whose closed_at is unset, so a closed PR answers reason null", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await get(pool, "/api/repos/re-cinq/lore/pulls/123/blocked-reason");
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining("closed_at IS NULL"),
+        ["re-cinq/lore", 123],
+      );
+    });
+
+    it("answers 500 with the error message when the query fails", async () => {
+      const pool = makePool();
+
+      pool.query.mockRejectedValue(new Error("connection reset"));
+
+      const res = await get(
+        pool,
+        "/api/repos/re-cinq/lore/pulls/123/blocked-reason",
+      );
+
+      expect({ status: res.statusCode, body: res.result }).toEqual({
+        status: 500,
+        body: { error: "connection reset" },
+      });
+    });
   });
 
   describe("GET /api/repos/{owner}/{repo}/blocked-pulls", () => {

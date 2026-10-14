@@ -71,7 +71,7 @@ export function blockedReasonsRoutes(
 }
 
 const sqlReason =
-  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2";
+  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2 AND closed_at IS NULL";
 
 function handleBlockedReason(getPool: () => Pool | null) {
   return withPool(getPool, async (pool, req, h) => {
@@ -88,7 +88,7 @@ function handleBlockedReason(getPool: () => Pool | null) {
     } catch (err) {
       console.error("[blocked-reason] Error:", errorMessage(err));
 
-      return h.response().code(500);
+      return h.response({ error: errorMessage(err) }).code(500);
     }
   });
 }
@@ -107,7 +107,7 @@ function handleBlockedPulls(getPool: () => Pool | null) {
     } catch (err) {
       console.error("[blocked-pulls] Error:", errorMessage(err));
 
-      return h.response().code(500);
+      return h.response({ error: errorMessage(err) }).code(500);
     }
   });
 }
