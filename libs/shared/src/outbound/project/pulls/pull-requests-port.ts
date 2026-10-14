@@ -58,6 +58,8 @@ export interface PullRef {
   baseBranch?: string;
   /** PR body (octokit adapter only; GitHub returns null if empty) — the digest reads its closing keywords. */
   body?: string;
+  /** GitHub's native auto-merge is armed on the PR; absent on legacy doubles. */
+  autoMerge?: boolean;
 }
 
 export interface PullReview {

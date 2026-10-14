@@ -258,6 +258,20 @@ describe("PullRequests review threads", () => {
     });
   });
 
+  it("disarms auto-merge on node id PR_kw_7", async () => {
+    const disarmed: string[] = [];
+    const port = fakePulls([], []);
+
+    port.disablePullRequestAutoMerge = async (prId) => {
+      disarmed.push(prId);
+    };
+    const facade = new PullRequests("re-cinq/lore", port);
+
+    await facade.cancelAutoMerge("PR_kw_7");
+
+    expect(disarmed).toEqual(["PR_kw_7"]);
+  });
+
   it("delegates close with the repo it was bound to", async () => {
     const closed: Array<{ repo: string; number: number }> = [];
     const pr = new PullRequests("re-cinq/lore", fakePulls([], [], { closed }));

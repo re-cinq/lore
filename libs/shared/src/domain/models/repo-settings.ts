@@ -21,6 +21,13 @@ export const TrustSettingsSchema = z
   })
   .passthrough();
 
+/** Who approves Lore's PRs on a protected branch (specs/protected-branch-merge); absent reads as none. */
+export const AutoMergeSettingsSchema = z
+  .object({
+    approver: z.enum(["none", "lore-reviewer"]).optional(),
+  })
+  .passthrough();
+
 export const RepoSettingsSchema = z
   .object({
     trust: TrustSettingsSchema.optional(),
@@ -30,17 +37,12 @@ export const RepoSettingsSchema = z
       .object({ enabled: z.boolean().optional() })
       .passthrough()
       .optional(),
+    auto_merge: AutoMergeSettingsSchema.optional(),
     cross_repo: z.boolean().optional(),
     cross_repo_repos: z.array(z.string()).optional(),
     slack_channel_id: z.string().optional(),
     // The daily Slack digest (specs/daily-digest FR1); posts to slack_channel_id.
     digest: DigestSettingsSchema.nullable().optional(),
-    auto_merge: z
-      .object({
-        approver: z.enum(["none", "lore-reviewer"]).optional(),
-      })
-      .passthrough()
-      .optional(),
     dispatch_label: z.string().optional(),
     dispatch_default_type: z.string().optional(),
     test_commands: z.unknown().optional(),

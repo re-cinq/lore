@@ -3680,6 +3680,12 @@ export interface components {
             } & {
               [key: string]: unknown;
             };
+            auto_merge?: {
+              /** @enum {string} */
+              approver?: "none" | "lore-reviewer";
+            } & {
+              [key: string]: unknown;
+            };
             cross_repo?: boolean;
             cross_repo_repos?: string[];
             slack_channel_id?: string;
@@ -3693,12 +3699,6 @@ export interface components {
               group_by?: "person" | "area";
               voice?: string;
             } | null;
-            auto_merge?: {
-              /** @enum {string} */
-              approver?: "none" | "lore-reviewer";
-            } & {
-              [key: string]: unknown;
-            };
             dispatch_label?: string;
             dispatch_default_type?: string;
             test_commands?: unknown;
@@ -3790,6 +3790,12 @@ export interface components {
               } & {
                 [key: string]: unknown;
               };
+              auto_merge?: {
+                /** @enum {string} */
+                approver?: "none" | "lore-reviewer";
+              } & {
+                [key: string]: unknown;
+              };
               cross_repo?: boolean;
               cross_repo_repos?: string[];
               slack_channel_id?: string;
@@ -3803,12 +3809,6 @@ export interface components {
                 group_by?: "person" | "area";
                 voice?: string;
               } | null;
-              auto_merge?: {
-                /** @enum {string} */
-                approver?: "none" | "lore-reviewer";
-              } & {
-                [key: string]: unknown;
-              };
               dispatch_label?: string;
               dispatch_default_type?: string;
               test_commands?: unknown;
