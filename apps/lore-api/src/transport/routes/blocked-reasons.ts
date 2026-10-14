@@ -80,7 +80,9 @@ function handleBlockedReason(getPool: () => Pool | null) {
     if (!pool) {
       return h.response().code(503);
     }
-    const { owner, repo, number } = req.params as z.infer<typeof PrParam>;
+    const { owner, repo, number } = req.params as unknown as z.infer<
+      typeof PrParam
+    >;
     const fullRepo = `${owner}/${repo}`;
 
     try {
@@ -106,7 +108,7 @@ function handleBlockedPulls(getPool: () => Pool | null) {
     if (!pool) {
       return h.response().code(503);
     }
-    const { owner, repo } = req.params as z.infer<typeof RepoParam>;
+    const { owner, repo } = req.params as unknown as z.infer<typeof RepoParam>;
 
     try {
       const { rows } = await pool.query(sqlPulls, [`${owner}/${repo}`]);
