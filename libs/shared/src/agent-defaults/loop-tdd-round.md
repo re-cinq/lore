@@ -23,22 +23,22 @@ names the strategy, the
 acceptance tests that define done, and the facets expected. It is the
 brief; the ticket below is the context.
 
-Then RUN the acceptance tests it names — those, and the test you are
-about to write. Nothing else. Not the repository's full suite, not lint,
-not the typechecker, not the formatter: CI is the judge of this branch
-and runs all of it on every push, on hardware sized for it. Name the
-files you run: the pod's Bash hook refuses a bare `npm test` or a
-`vitest run` with no path. What the
-acceptance tests say now is where you actually are — not what you
-remember, and not what `.lore/dod.md` predicted.
+RUN ONLY THE TEST YOU WRITE THIS ROUND, by its file, from the package
+that owns it, with a deadline — for example `cd <package> && timeout 300 npx
+vitest run <file>`. Never run the acceptance tests `.lore/dod.md` lists, nor a
+directory that holds them: CI is the judge of this branch, runs them on
+every push, and tells you where they stand. Read that from
+`/workspace/round-brief.md` when it exists, or ask `lore_get_ci_failures`
+— not from your memory, and not from what `.lore/dod.md` predicted. Not
+the repository's full suite either, not lint, not the typechecker, not
+the formatter. The pod's Bash hook refuses an acceptance test by name and
+a runner given no test file.
 
-If this pod cannot run them — the command that runs them (`java`, `mvn`,
+If this pod cannot run your test — the command that runs it (`java`, `mvn`,
 `gradle`, `go`, `cargo`, `dotnet`) is not found, or a wrapper such as
 `./mvnw` reports no `JAVA_HOME` — do not look for it and do not install
-it: no `sudo`, no `apt`, no `find /`, no download. The round's verdict is
-CI's: the `CI reported failures` section of `/workspace/round-brief.md`,
-when there is one, says where the last push stands. Do the round from the
-code, the tests and that section, commit and push; CI judges the push,
+it: no `sudo`, no `apt`, no `find /`, no download. Do the round from the
+code, the tests and CI's verdict, commit and push; CI judges the push,
 and a red build comes back to the next round as its brief. Say in your
 final message that the round ran no tests here.
 
@@ -53,10 +53,11 @@ old code alone and working until the acceptance tests are green, and make
 the caller switch its own round. Under `characterize`, the
 characterization tests are part of the green bar you must keep — a
 refactor that reddens them is a behaviour change. Under `mechanical`,
-there is no red phase at all: run the EXISTING tests `.lore/dod.md`
-names, see them green, perform the exact edits its Facets record, run
-them again, and commit on green — the diff is the deliverable, and a
-round that invents a new test for it has left the strategy.
+there is no red phase at all: perform the exact edits its Facets
+record and commit; the EXISTING tests `.lore/dod.md` names are CI's to
+run, and its verdict says whether they stayed green. The diff is the
+deliverable, and a round that invents a new test for it has left the
+strategy.
 
 Never add a test whose assertion subject is the repo's own source text —
 readFileSync of a src/ or test file, a regex over another test,
@@ -91,8 +92,9 @@ repository as main last projected it.
 
 Main is the right coordinate for this question: a REGRESSION is by
 definition a test that existed before your branch. That list is what tells
-a red test apart from one. After your round's suite run, every red test
-you did not write this round is a regression YOU caused — stop, fix the
+a red test apart from one. When CI's verdict on your last push names a
+red test you did not write and the acceptance list does not hold, it is
+a regression YOU caused — stop, fix the
 code, and never "fix" the test. Say in your final message how many red
 tests were yours and how many were regressions.
 
