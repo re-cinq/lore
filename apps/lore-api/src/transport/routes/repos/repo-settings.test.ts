@@ -7,6 +7,24 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
+vi.mock("../../../outbound/project-boot.js", () => ({
+  projectFor: vi.fn(async () => ({
+    repo: { defaultBranch: async () => "main" },
+    pulls: {
+      getBranchRule: async () => ({
+        requiredApprovals: 1,
+        codeOwnersReview: true,
+        requiredChecks: ["build"],
+      }),
+    },
+  })),
+}));
+
+vi.mock("../../../outbound/github-client.js", () => ({
+  getOctokit: vi.fn(),
+  isAppConfigured: vi.fn().mockReturnValue(true),
+}));
+
 const originalEnv = { ...process.env };
 
 describe("PUT /api/repos/{owner}/{repo}/settings", () => {
@@ -239,5 +257,20 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
       field_paths: ["auto_merge.approver"],
       detail: "Turning auto_merge.approver on is two-key",
     });
+  });
+
+  it("returns 400 for an auto_merge.approver of admin", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+
+    const res = await put(
+      { settings: { auto_merge: { approver: "admin" } } },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(400);
   });
 });

@@ -66,6 +66,10 @@ export class PullRequests {
     return this.pulls.enablePullRequestAutoMerge(nodeId, method);
   }
 
+  cancelAutoMerge(nodeId: string): Promise<void> {
+    return this.pulls.disablePullRequestAutoMerge(nodeId);
+  }
+
   getBranchRule(branch: string): Promise<BranchRule> {
     return this.pulls.getBranchRule(this.repo, branch);
   }

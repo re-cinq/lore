@@ -23,6 +23,7 @@ interface OctokitPull {
   draft?: boolean;
   mergeable?: boolean | null;
   body?: string | null;
+  auto_merge?: unknown;
 }
 
 export function toPullRef(repo: string, pr: OctokitPull): PullRef {
@@ -39,6 +40,7 @@ export function toPullRef(repo: string, pr: OctokitPull): PullRef {
     headSha: pr.head.sha,
     // Only `pulls.get` returns this; a list read leaves it undefined, which is not the same as null (GitHub still computing).
     mergeable: pr.mergeable,
+    autoMerge: Boolean(pr.auto_merge),
     ...optionalFieldsOf(pr),
   };
 }

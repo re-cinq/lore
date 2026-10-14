@@ -16,6 +16,14 @@ import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-setting
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
 import { checkApproval, type ApprovalOutcome } from "../two-key.js";
+import { isAppConfigured } from "../../../outbound/github-client.js";
+import { projectFor } from "../../../outbound/project-boot.js";
+import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
+import { AutoMergeSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
+import {
+  disarmLorePulls,
+  missingPrerequisites,
+} from "../../../work/repo/auto-merge-approver.js";
 
 const RepoSettingsBody = z.object({
   team: z.string().nullable().optional(),
@@ -53,16 +61,17 @@ async function serveRepoSettings(
   const body = request.payload as RepoSettingsBody;
   const existingTeam = await loadRepoTeam(pool, repo);
 
+  enforceBodyInvariants(body);
+
   const gate = await enforceApproverGate(request, repo, body);
 
   if (!gate.ok) {
     return h.response(gate.body).code(gate.code);
   }
 
-  enforceNoDarkFactory(body);
-  enforceDigestValid(
-    (body.settings as { digest?: unknown } | undefined)?.digest,
-  );
+  if (approverFrom(body) === "none") {
+    await disarmAutoMerge(repo);
+  }
   await applyRepoUpdates(pool, repo, body);
   await handleTeamChange(pool, repo, body.team, existingTeam);
 
@@ -81,16 +90,19 @@ async function handleTeamChange(
   }
 }
 
+/** Switching to lore-reviewer needs the App, a protecting ruleset on the default branch, and the two-key ceremony. */
 async function enforceApproverGate(
   request: Request,
   repo: string,
   body: RepoSettingsBody,
 ): Promise<{ ok: true } | ApprovalOutcome> {
-  const autoMerge = body.settings?.auto_merge as
-    { approver?: string } | undefined;
-
-  if (autoMerge?.approver !== "lore-reviewer") {
+  if (approverFrom(body) !== "lore-reviewer") {
     return { ok: true };
+  }
+  const missing = await missingPrerequisitesOf(repo);
+
+  if (missing.length > 0) {
+    return missingPrerequisitesError(missing);
   }
 
   return checkApproval(
@@ -99,6 +111,48 @@ async function enforceApproverGate(
     ["auto_merge.approver"],
     "Turning auto_merge.approver on is two-key",
   );
+}
+
+async function missingPrerequisitesOf(repo: string): Promise<string[]> {
+  const { pulls, repo: files } = await projectFor(repo);
+
+  return missingPrerequisites({
+    appInstalled: isAppConfigured(),
+    defaultBranch: () => files.defaultBranch(),
+    getBranchRule: (branch) => pulls.getBranchRule(branch),
+  });
+}
+
+function approverFrom(body: RepoSettingsBody): string | undefined {
+  return (body.settings?.auto_merge as { approver?: string } | undefined)
+    ?.approver;
+}
+
+function enforceBodyInvariants(body: RepoSettingsBody): void {
+  enforceNoDarkFactory(body);
+  enforceDigestValid(
+    (body.settings as { digest?: unknown } | undefined)?.digest,
+  );
+  const autoMerge = AutoMergeSettingsSchema.optional();
+
+  enforceTrue(
+    autoMerge.safeParse(body.settings?.auto_merge).success,
+    apiError(400),
+    "auto_merge.approver must be none or lore-reviewer",
+  );
+}
+
+/** `error` is the sentence the settings page shows; `missing` lists the gaps for a client that wants them one by one. */
+function missingPrerequisitesError(missing: string[]): ApprovalOutcome {
+  return {
+    ok: false,
+    code: 403,
+    body: {
+      error: `Cannot enable lore-reviewer. Missing: ${missing.join(", ")}`,
+      code: "missing_prerequisites",
+      missing,
+    },
+  };
 }
 
 function enforceNoDarkFactory(body: RepoSettingsBody): void {
@@ -181,6 +235,22 @@ function repoUpdateClauses(body: RepoSettingsBody): {
   }
 
   return { updates, values };
+}
+
+/** A failed disarm never blocks the switch to none: none is the safe state, and the PR is named in the log for a person to disarm by hand. */
+async function disarmAutoMerge(repo: string): Promise<void> {
+  const { pulls, audit } = await projectFor(repo);
+  const failed = await disarmLorePulls({
+    pulls,
+    audit,
+    appLogin: await loreAppLogin(),
+  });
+
+  if (failed.length > 0) {
+    console.error(
+      `[settings] could not disarm auto-merge on ${repo} PRs ${failed.join(", ")}`,
+    );
+  }
 }
 
 async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {

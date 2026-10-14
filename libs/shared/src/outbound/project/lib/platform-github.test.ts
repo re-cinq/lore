@@ -744,6 +744,22 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("get reads an armed auto-merge as autoMerge true", async () => {
+    state.prData = {
+      number: 7,
+      title: "t",
+      head: { ref: "feat/x", sha: "deadbeef" },
+      state: "open",
+      html_url: "https://gh/pr/7",
+      user: { login: "bob" },
+      auto_merge: { merge_method: "squash" },
+    };
+
+    expect(await gh().get("re-cinq/lore", 7)).toMatchObject({
+      autoMerge: true,
+    });
+  });
+
   it("listTree throws instead of returning a truncated tree", async () => {
     state.treeData = {
       truncated: true,
