@@ -122,6 +122,7 @@ function withPool(
     if (!pool) {
       return h.response().code(503);
     }
+
     return handler(pool, req, h);
   };
 }
