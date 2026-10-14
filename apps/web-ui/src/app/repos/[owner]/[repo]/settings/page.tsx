@@ -55,19 +55,29 @@ async function saveSettings(
 ): Promise<SaveState> {
   "use server";
   const fullName = formData.get("full_name") as string;
-  const team = formData.get("team") as string;
-
   const updates = parseSettingsForm(formData);
-  const selectedRepos = updates.cross_repo_repos as string[];
 
-  await putRepoSettings(fullName, { team: team || null, settings: updates });
+  const result = await putRepoSettings(fullName, {
+    team: (formData.get("team") as string) || null,
+    settings: updates,
+  });
+
+  if (result.status !== "ok") {
+    return { saved: false, error: refusalMessage(result) };
+  }
+
   await Promise.all(
-    selectedRepos.map((linkedRepo) => linkBack(fullName, linkedRepo)),
+    (updates.cross_repo_repos as string[]).map((r) => linkBack(fullName, r)),
   );
-
   revalidatePath(`/repos/${fullName}/settings`);
 
   return { saved: true };
+}
+
+function refusalMessage(result: { status: string; message?: string }): string {
+  return result.status === "unconfigured"
+    ? "Lore API is not configured"
+    : (result.message ?? "Save failed — check the Lore API logs");
 }
 
 // Bidirectional cross-repo linkage: add this repo to the linked repo's own list.

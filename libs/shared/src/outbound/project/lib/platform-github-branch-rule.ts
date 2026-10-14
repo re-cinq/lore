@@ -22,7 +22,7 @@ interface ClassicProtection {
   };
 }
 
-/** The branch rule from the rulesets that apply to the branch and its classic protection; a branch with no classic protection answers 404, read as none. */
+/** The branch rule from the rulesets that apply to the branch and its classic protection; classic protection answers 404 when absent and 403 to an App without Administration read, both read as none. */
 export async function getBranchRule(
   ok: Octokit,
   repo: string,
@@ -38,6 +38,8 @@ export async function getBranchRule(
   return branchRuleOf(rules.data as RulesetRule[], classic);
 }
 
+const UNREADABLE_PROTECTION: Array<number | undefined> = [403, 404];
+
 async function classicProtection(
   ok: Octokit,
   where: { owner: string; repo: string; branch: string },
@@ -50,7 +52,7 @@ async function classicProtection(
 
     return protection as ClassicProtection;
   } catch (err) {
-    if ((err as { status?: number }).status === 404) {
+    if (UNREADABLE_PROTECTION.includes((err as { status?: number }).status)) {
       return {};
     }
     throw err;

@@ -216,6 +216,28 @@ describe("the delivering recipes", () => {
     expect(round).toContain("REGRESSION");
   });
 
+  it("has tdd-round run only the test it wrote and read the acceptance tests from CI", () => {
+    const round = promptOnOneLine("loop-tdd-round");
+
+    expect({
+      runsOwnTestOnly: round.includes("RUN ONLY THE TEST YOU WRITE THIS ROUND"),
+      acceptanceFromCi: round.includes(
+        "Never run the acceptance tests `.lore/dod.md` lists",
+      ),
+      oldRunAcceptance: round.includes("RUN the acceptance tests it names"),
+    }).toEqual({
+      runsOwnTestOnly: true,
+      acceptanceFromCi: true,
+      oldRunAcceptance: false,
+    });
+  });
+
+  it("has dod write acceptance tests to files of their own, so a round's guard can refuse them by name", () => {
+    expect(promptOnOneLine("loop-dod")).toContain(
+      "in a NEW test file of their own",
+    );
+  });
+
   it("has fix-ci ask what failed on a path before it reads any file", () => {
     const fix = promptOf("loop-fix-ci");
 
