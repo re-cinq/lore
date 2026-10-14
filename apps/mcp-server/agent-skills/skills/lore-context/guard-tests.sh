@@ -134,6 +134,8 @@ scoped_runner() {
 }
 
 # Basenames of the test files under "## Done when these pass", dots escaped for grep -E.
+# Basenames, not paths: after a `cd` the runner names the file relative to the
+# package, so a full-path match would let the same file through.
 acceptance=''
 if [ -n "$LORE_ACCEPTANCE_DOD" ] && [ -r "$LORE_ACCEPTANCE_DOD" ]; then
   acceptance=$(sed -n '/^## Done when these pass/,/^## /p' "$LORE_ACCEPTANCE_DOD" \
@@ -149,7 +151,7 @@ acceptance_check() {
     fi
   done
   if ! matches "$1" "$TEST_FILE"; then
-    refuse "name the test file you wrote this round. A run over a directory sweeps in the acceptance tests, which are CI's to run."
+    refuse "name the test file you wrote this round, e.g. \`cd <package> && timeout 300 npx vitest run <file.test.ts>\`. A run over a directory sweeps in the acceptance tests, which are CI's to run."
   fi
 }
 
