@@ -78,15 +78,10 @@ function handleBlockedReason(getPool: () => Pool | null) {
     const pool = getPool();
     if (!pool) return h.response().code(503);
     const { owner, repo, number } = req.params as z.infer<typeof PrParam>;
+    const fullRepo = `${owner}/${repo}`;
     try {
-      const { rows } = await pool.query(sqlReason, [
-        `${owner}/${repo}`,
-        number,
-      ]);
-      const res =
-        rows.length === 0
-          ? emptyReason(`${owner}/${repo}`, number)
-          : mapRow(rows[0]);
+      const { rows } = await pool.query(sqlReason, [fullRepo, number]);
+      const res = rows.length ? mapRow(rows[0]) : emptyReason(fullRepo, number);
       return h.response(res);
     } catch (err) {
       console.error("[blocked-reason] Error:", errorMessage(err));
