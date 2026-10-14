@@ -76,15 +76,21 @@ const sqlReason =
 function handleBlockedReason(getPool: () => Pool | null) {
   return async (req: Request, h: ResponseToolkit) => {
     const pool = getPool();
-    if (!pool) return h.response().code(503);
+
+    if (!pool) {
+      return h.response().code(503);
+    }
     const { owner, repo, number } = req.params as z.infer<typeof PrParam>;
     const fullRepo = `${owner}/${repo}`;
+
     try {
       const { rows } = await pool.query(sqlReason, [fullRepo, number]);
       const res = rows.length ? mapRow(rows[0]) : emptyReason(fullRepo, number);
+
       return h.response(res);
     } catch (err) {
       console.error("[blocked-reason] Error:", errorMessage(err));
+
       return h.response().code(500);
     }
   };
@@ -96,13 +102,19 @@ const sqlPulls =
 function handleBlockedPulls(getPool: () => Pool | null) {
   return async (req: Request, h: ResponseToolkit) => {
     const pool = getPool();
-    if (!pool) return h.response().code(503);
+
+    if (!pool) {
+      return h.response().code(503);
+    }
     const { owner, repo } = req.params as z.infer<typeof RepoParam>;
+
     try {
       const { rows } = await pool.query(sqlPulls, [`${owner}/${repo}`]);
+
       return h.response({ pulls: rows.map(mapRow) });
     } catch (err) {
       console.error("[blocked-pulls] Error:", errorMessage(err));
+
       return h.response().code(500);
     }
   };
@@ -148,7 +160,10 @@ function labelForReason(
   reason: string | null,
   detail: string | null,
 ): string | null {
-  if (!reason) return null;
+  if (!reason) {
+    return null;
+  }
   const label = labels[reason];
+
   return typeof label === "function" ? label(detail) : label || reason;
 }
