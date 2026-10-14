@@ -25,6 +25,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "14-day reap of agent_run_events + pod_log_chunks; the ADR-037 window existed with no caller until pod_log_chunks needed one too",
   },
   {
+    name: "pr_blocked_reasons_prune",
+    schedule: "53 3 * * *",
+    note: "30-day purge of pipeline.pr_blocked_reasons rows whose PR merged or closed (specs/protected-branch-merge)",
+  },
+  {
     name: "events_prune",
     schedule: "0 * * * *",
     note: "hourly housekeeping of handled event rows",
