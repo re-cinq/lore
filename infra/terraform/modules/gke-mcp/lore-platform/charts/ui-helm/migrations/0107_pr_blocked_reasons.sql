@@ -12,9 +12,6 @@ CREATE TABLE IF NOT EXISTS pipeline.pr_blocked_reasons (
   PRIMARY KEY (repo, pr_number)
 );
 
-CREATE INDEX IF NOT EXISTS pr_blocked_reasons_updated_at_idx
-  ON pipeline.pr_blocked_reasons (updated_at);
-
 CREATE INDEX IF NOT EXISTS pr_blocked_reasons_closed_at_idx
   ON pipeline.pr_blocked_reasons (closed_at) WHERE closed_at IS NOT NULL;
 
