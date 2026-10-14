@@ -11,6 +11,7 @@ export function parseSettingsForm(formData: FormData) {
     dispatch_label: optionalText(formData, "dispatch_label"),
     dispatch_default_type: optionalText(formData, "dispatch_default_type"),
     digest: parseDigestBlock(formData),
+    auto_merge: autoMergeBlock(formData),
   };
 
   const trustLevel = formData.get("trust_level") as string;
@@ -20,6 +21,20 @@ export function parseSettingsForm(formData: FormData) {
   }
 
   return withoutUndefined(updates);
+}
+
+const AUTO_MERGE_APPROVERS = ["none", "lore-reviewer"];
+
+/** Undefined when the approver is missing, unknown or unchanged: lore-api puts every lore-reviewer write behind two-key. */
+function autoMergeBlock(formData: FormData): { approver: string } | undefined {
+  const approver = formData.get("auto_merge_approver") as string | null;
+  const saved = formData.get("auto_merge_approver_saved");
+
+  return approver &&
+    AUTO_MERGE_APPROVERS.includes(approver) &&
+    approver !== saved
+    ? { approver }
+    : undefined;
 }
 
 /** A comma-separated field as its non-empty, trimmed parts. */
