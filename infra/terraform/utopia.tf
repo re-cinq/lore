@@ -558,6 +558,12 @@ resource "kubectl_manifest" "utopia_ingress_only" {
 # 443. Every in-cluster address is off the list (local.utopia_private_cidrs), so a
 # model endpoint or data-source connection string typed into Utopia's admin page
 # cannot reach lore-db, lore-api or the floor.
+#
+# DNS here is NodeLocal DNSCache: a pod's resolver is 169.254.20.10, answered by the
+# node-local-dns pod on its own node (host network), which forwards to kube-dns. A
+# rule that opens kube-dns alone leaves every lookup timing out (2026-10-14, the
+# first apply: "pool timed out while waiting for an open connection", the database
+# never seeing a packet). Both DNS tiers are opened, by pod label and by address.
 resource "kubectl_manifest" "utopia_egress" {
   count = var.enable_utopia ? 1 : 0
 
@@ -582,6 +588,13 @@ resource "kubectl_manifest" "utopia_egress" {
               }
               podSelector = { matchLabels = { "k8s-app" = "kube-dns" } }
             },
+            {
+              namespaceSelector = {
+                matchLabels = { "kubernetes.io/metadata.name" = "kube-system" }
+              }
+              podSelector = { matchLabels = { "k8s-app" = "node-local-dns" } }
+            },
+            { ipBlock = { cidr = "169.254.20.10/32" } },
           ]
           ports = [
             { protocol = "UDP", port = 53 },
