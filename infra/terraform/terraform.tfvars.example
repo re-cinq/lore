@@ -98,6 +98,8 @@ ingress_controller_namespace = "ingress-nginx"
 enable_utopia    = false
 utopia_hostname  = "utopia.example.com"
 utopia_image_tag = "0.1.0-rc8"
+# Pin the bytes once the tag runs: kubectl -n utopia get pod -l app=utopia -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
+# utopia_image_digest = "sha256:..."
 
 # Cloud Billing budget for this project, stated per week (see budget.tf: Google
 # only resets budgets monthly, so it is applied as weekly * 52 / 12, with a

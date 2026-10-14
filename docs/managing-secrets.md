@@ -232,7 +232,7 @@ name the ServiceAccount rather than the person.
 Utopia (`infra/terraform/utopia.tf`, `enable_utopia`) is the deeplethe/utopia
 knowledge-graph app behind its own oauth2-proxy at `utopia_hostname`. Its OIDC
 cannot create accounts, so Google is the gate and Utopia keeps its own accounts
-inside it: the first person to register becomes the administrator. Five
+inside it: the first person to register becomes the administrator. Six
 containers behind `enable_utopia`.
 
 The Google client is the Grafana recipe with the name `utopia` and the redirect
@@ -244,8 +244,10 @@ printf '%s' "<client id>"     | gcloud secrets versions add lore-utopia-oauth-cl
 printf '%s' "<client secret>" | gcloud secrets versions add lore-utopia-oauth-client-secret --data-file=-
 openssl rand -base64 32 | head -c 32 \
   | gcloud secrets versions add lore-utopia-cookie-secret --data-file=-
-# hex, so it needs no URL-encoding inside UTOPIA_DATABASE_URL
+# hex, so they need no URL-encoding inside the database URLs: the owner's password,
+# then the password of utopia_app, the restricted role the app runs as
 openssl rand -hex 24 | tr -d '\n' | gcloud secrets versions add lore-utopia-db-password --data-file=-
+openssl rand -hex 24 | tr -d '\n' | gcloud secrets versions add lore-utopia-app-db-password --data-file=-
 # exactly 32 bytes as 64 hex digits: the key Utopia seals stored model credentials with
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add lore-utopia-secret-key --data-file=-
 ```
@@ -254,6 +256,33 @@ openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add lore-utopia-secr
 `secret.key` on its data disk on first start, and a lost disk then loses every
 model key and source credential stored since. Seeded, the disk holds only files
 and the search index. Never rotate it: the rows it sealed become unreadable.
+
+**The runtime role on a database that predates it.** The app connects as
+`utopia_app` and migrates as the owner. On a fresh install the role is created at
+bootstrap and upstream's migration 0010 grants it the tables. On a database that was
+already migrated when the role arrived, the grants never ran, and the app would fail
+on its first query. So create the role and grant it **before** the apply that brings
+the block in; the operator then only sets its password (CNPG `managed.roles`) and the
+app restarts straight onto a working role:
+
+```bash
+kubectl -n utopia exec -it utopia-db-1 -- psql -U postgres -d utopia <<'SQL'
+CREATE ROLE utopia_app LOGIN;
+GRANT CONNECT ON DATABASE utopia TO utopia_app;
+GRANT USAGE ON SCHEMA public TO utopia_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO utopia_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO utopia_app;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO utopia_app;
+REVOKE UPDATE, DELETE, TRUNCATE ON audit_events FROM utopia_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE utopia IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO utopia_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE utopia IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO utopia_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE utopia IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO utopia_app;
+SQL
+```
+
+Rotating `lore-utopia-app-db-password` is ESO's `force-sync` annotation on
+`utopia-app-db-credentials`, which the operator then writes into the role, and a
+restart of `deploy/utopia`.
 
 The database password is read by Terraform into the CNPG credentials Secret, as
 `lore-db-password` is, so a rotation needs `terraform apply`, then a restart of
