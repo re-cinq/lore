@@ -630,7 +630,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks code-review-recheck through recheck, post-review and done on claude-sonnet-4-6 with edges for changes_requested, failed and success", () => {
+  it("walks code-review-recheck through recheck, post-review and done on gemini-4-argon with edges for changes_requested, failed and success", () => {
     const { line, agent_definitions } = pipelineOf("code-review-recheck");
 
     expect({
@@ -641,12 +641,12 @@ describe("the floor pipelines shipped in this folder", () => {
         .sort(),
     }).toEqual({
       nodes: ["recheck", "post-review", "done"],
-      model: "claude-sonnet-4-6",
+      model: "gemini-4-argon",
       recheckOutcomes: ["changes_requested", "failed", "success"],
     });
   });
 
-  it("runs the implementation loop on gemini-3.1-pro-preview and every code-review agent on claude-sonnet-4-6, except tdd-round, on claude-sonnet-4-6 while Gemini streams stall", () => {
+  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
@@ -664,15 +664,13 @@ describe("the floor pipelines shipped in this folder", () => {
             .map(([, definition]) => definition.settings.model),
         ),
       ],
-      reviewers: [
-        ...new Set(
-          modelsOf(["code-review", "code-review-recheck", "code-review-reply"]),
-        ),
-      ],
+      reviewers: modelsOf(["code-review", "code-review-recheck"]),
+      reply: modelsOf(["code-review-reply"]),
     }).toEqual({
       tddRound: "claude-sonnet-4-6",
       restOfLoop: ["gemini-3.1-pro-preview"],
-      reviewers: ["claude-sonnet-4-6"],
+      reviewers: ["gemini-4-argon", "gemini-4-argon"],
+      reply: ["claude-sonnet-4-6"],
     });
   });
 
