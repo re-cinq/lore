@@ -36,6 +36,7 @@ describe("pipeline.pr_blocked_reasons", () => {
         "detail",
         "since",
         "updated_at",
+        "closed_at",
       ]),
     );
   });
