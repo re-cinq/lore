@@ -90,7 +90,7 @@ describe("parseSettingsForm", () => {
     expect("dispatch_label" in result).toBe(false);
   });
 
-  it("auto_merge approver none when auto_merge_approver is none", () => {
+  it("treats auto_merge_approver none as a change when there is no prior saved value", () => {
     expect(
       parseSettingsForm(form({ auto_merge_approver: "none" })).auto_merge,
     ).toEqual({ approver: "none" });
