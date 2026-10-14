@@ -75,6 +75,7 @@ locals {
     # same 16/24/32-byte rule.
     var.enable_utopia ? [
       "lore-utopia-db-password",
+      "lore-utopia-app-db-password",
       "lore-utopia-secret-key",
       "lore-utopia-oauth-client-id",
       "lore-utopia-oauth-client-secret",

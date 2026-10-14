@@ -209,3 +209,31 @@ variable "utopia_data_size" {
   type        = string
   default     = "20Gi"
 }
+
+variable "utopia_image_digest" {
+  description = "The sha256 digest of the Utopia image to run (sha256:...). Set, it wins over utopia_image_tag: a digest names the bytes, a tag can be re-pushed. Read the running pod's imageID to pin it."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.utopia_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.utopia_image_digest))
+    error_message = "utopia_image_digest must be empty or look like sha256:<64 hex digits>."
+  }
+}
+
+# This cluster's Service range (gcloud container clusters describe ... servicesIpv4Cidr).
+# An egress policy that opens the public internet must close this range too, or a
+# ClusterIP becomes a way around it (utopia.tf).
+variable "cluster_services_cidr" {
+  description = "The GKE cluster's servicesIpv4Cidr, excluded from every 'public internet' egress rule."
+  type        = string
+  default     = "34.118.224.0/22"
+}
+
+# The CNPG operator runs in a shared namespace (lore-db.tf); the database ingress
+# policies let it through to the instances it manages.
+variable "cnpg_operator_namespace" {
+  description = "Namespace of the CloudNativePG operator Deployment."
+  type        = string
+  default     = "n8n"
+}
