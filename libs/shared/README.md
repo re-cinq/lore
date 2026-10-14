@@ -50,13 +50,6 @@ The `Llm` singleton (`llm.ts`) over vendor providers — `anthropic-provider.ts`
 gemini, ollama, a CLI fallback, `fake-llm.ts` for tests, and the `NoLlm`
 guard that fails loudly when no credential is configured.
 
-### `src/detect/` — the detector cores
-
-The deterministic detection-family logic (`gap-detect`, `spec-drift`,
-`spec-coverage-validate`, `spec-coverage-backfill`) shared by the Floor's
-fan-out handlers and the `lore-station` detect pods — facade-driven, so both
-callers run the same core.
-
 ### The pure modules
 
 Small, dependency-light modules with more than one consumer. The load-bearing
@@ -69,7 +62,6 @@ ones:
   trace graph, and the eslint rules.
 - **`commit-trailers.ts` / `pr-body.ts`** — the `Lore-Task:` / `Lore-Stage:`
   audit substrate on every Lore-authored commit and PR.
-- **`path-match.ts`** — `allPathsMatch()`, the auto-merge allowlist gate.
 - **`business-hours.ts`** — the IANA-TZ-aware gate for safety crons.
 - **`test-command-manifest.ts`** — the `.lore/test-commands.yml` schema and
   resolver (project-test-interface).

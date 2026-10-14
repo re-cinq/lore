@@ -29,6 +29,12 @@ THE CONTRACT, NON-NEGOTIABLE:
 - Write the smallest set of acceptance tests such that all of them passing
   means the ticket is done and nothing more is owed. Prefer one; three is
   a lot; more than five means the ticket needs splitting, not testing.
+- Put them in a NEW test file of their own (`<subject>.acceptance.test.ts`
+  beside the code, or the repository's equivalent suffix), never appended
+  to an existing test file. Later rounds write their own tests and run
+  only those; the pod's Bash hook refuses the files listed under "Done
+  when these pass" by name, so an acceptance test sharing a file with
+  theirs would lock them out of their own test.
 - RUN them — those, and nothing else. Not the repository's full suite,
   not lint, not the typechecker, not the formatter.
   CI is the judge of this branch and runs all of it on every push.
