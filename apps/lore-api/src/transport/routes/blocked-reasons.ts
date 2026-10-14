@@ -94,7 +94,7 @@ function handleBlockedReason(getPool: () => Pool | null) {
 }
 
 const sqlPulls =
-  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND reason IS NOT NULL";
+  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND reason IS NOT NULL AND closed_at IS NULL";
 
 function handleBlockedPulls(getPool: () => Pool | null) {
   return withPool(getPool, async (pool, req, h) => {

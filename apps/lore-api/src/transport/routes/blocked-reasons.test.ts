@@ -109,7 +109,7 @@ describe("Blocked-reason read routes", () => {
 
       expect(res.statusCode).toBe(200);
       expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining("pipeline.pr_blocked_reasons"),
+        expect.stringContaining("reason IS NOT NULL"),
         expect.arrayContaining(["re-cinq/lore"]),
       );
       expect(res.result).toEqual({
@@ -125,6 +125,29 @@ describe("Blocked-reason read routes", () => {
           },
         ],
       });
+    });
+
+    it("answers an empty pulls array when no PR is blocked", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+
+      const res = await get(pool, "/api/repos/re-cinq/lore/blocked-pulls");
+
+      expect(res.result).toEqual({ pulls: [] });
+    });
+
+    it("leaves out PRs whose closed_at is set", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await get(pool, "/api/repos/re-cinq/lore/blocked-pulls");
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining("closed_at IS NULL"),
+        ["re-cinq/lore"],
+      );
     });
   });
 });
