@@ -82,7 +82,7 @@ The backlog line knows why its PR is not merging and shows it, without holding t
 
 ### API routes
 
-Blocked reason lives in a separate per-repo PR-state endpoint that the UI and Slack plan query: `GET /api/repos/{owner}/{repo}/pulls/{number}/blocked-reason` and `GET /api/repos/{owner}/{repo}/blocked-pulls`, both needing read scope and served from `pipeline.pr_blocked_reasons`. This is not a field on the task row or the run row. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#q-blocked-reason-api-shape), [validated by answers blocked PRs only in the pulls array](apps/lore-api/src/transport/routes/blocked-reasons.test.ts#L92))
+Blocked reason lives in a separate per-repo PR-state endpoint that the UI and Slack plan query: `GET /api/repos/{owner}/{repo}/pulls/{number}/blocked-reason` and `GET /api/repos/{owner}/{repo}/blocked-pulls`, both needing read scope and served from `pipeline.pr_blocked_reasons`. This is not a field on the task row or the run row. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#q-blocked-reason-api-shape), [validated by answers the PR blocked reason when a reason exists](apps/lore-api/src/transport/routes/blocked-reasons.test.ts#L25), [validated by answers blocked PRs only in the pulls array](apps/lore-api/src/transport/routes/blocked-reasons.test.ts#L92))
 
 ### Audit events
 
