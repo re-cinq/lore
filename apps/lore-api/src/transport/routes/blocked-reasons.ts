@@ -70,16 +70,25 @@ export function blockedReasonsRoutes(
   ];
 }
 
-const sqlReason =
-  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2";
-
-function handleBlockedReason(getPool: () => Pool | null) {
+function withPool(
+  getPool: () => Pool | null,
+  handler: (pool: Pool, req: Request, h: ResponseToolkit) => Promise<any>,
+) {
   return async (req: Request, h: ResponseToolkit) => {
     const pool = getPool();
 
     if (!pool) {
       return h.response().code(503);
     }
+    return handler(pool, req, h);
+  };
+}
+
+const sqlReason =
+  "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2";
+
+function handleBlockedReason(getPool: () => Pool | null) {
+  return withPool(getPool, async (pool, req, h) => {
     const { owner, repo, number } = req.params as unknown as z.infer<
       typeof PrParam
     >;
@@ -95,19 +104,14 @@ function handleBlockedReason(getPool: () => Pool | null) {
 
       return h.response().code(500);
     }
-  };
+  });
 }
 
 const sqlPulls =
   "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1";
 
 function handleBlockedPulls(getPool: () => Pool | null) {
-  return async (req: Request, h: ResponseToolkit) => {
-    const pool = getPool();
-
-    if (!pool) {
-      return h.response().code(503);
-    }
+  return withPool(getPool, async (pool, req, h) => {
     const { owner, repo } = req.params as unknown as z.infer<typeof RepoParam>;
 
     try {
@@ -119,7 +123,7 @@ function handleBlockedPulls(getPool: () => Pool | null) {
 
       return h.response().code(500);
     }
-  };
+  });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
