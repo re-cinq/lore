@@ -17,6 +17,11 @@
 #                     linter/formatter/typechecker: CI publishes that verdict.
 #   any               guard off.
 #
+# LORE_ACCEPTANCE_DOD, set on the implementation loop's rounds: the path of the
+# branch's .lore/dod.md. Its "Done when these pass" tests are CI's to run, so a
+# runner naming one is refused, and so is one naming no test file at all, which
+# would sweep them in. Unset, or the file not written yet, changes nothing.
+#
 # The command is judged one segment at a time (split on ; & | and newlines,
 # parentheses and braces) so a test-file name in a comment or in a neighbouring
 # command cannot vouch for a bare runner, and quotes count as whitespace so
@@ -128,6 +133,26 @@ scoped_runner() {
     || matches "$1" "$CARGO_PACKAGE" || names_path "$1"
 }
 
+# Basenames of the test files under "## Done when these pass", dots escaped for grep -E.
+acceptance=''
+if [ -n "$LORE_ACCEPTANCE_DOD" ] && [ -r "$LORE_ACCEPTANCE_DOD" ]; then
+  acceptance=$(sed -n '/^## Done when these pass/,/^## /p' "$LORE_ACCEPTANCE_DOD" \
+    | grep -oE '`[^`]+`' | tr -d '`' | grep -E "$TEST_FILE" \
+    | sed -E 's:.*/::; s/\./\\./g')
+fi
+
+acceptance_check() {
+  [ -z "$acceptance" ] && return 0
+  for name in $acceptance; do
+    if matches "$1" "(^|$W|/)$name($W|:|$)"; then
+      refuse "acceptance tests are CI's to run, and the definition of done lists this one. Run the test you wrote this round and read CI's verdict on the acceptance tests with lore_get_ci_failures."
+    fi
+  done
+  if ! matches "$1" "$TEST_FILE"; then
+    refuse "name the test file you wrote this round. A run over a directory sweeps in the acceptance tests, which are CI's to run."
+  fi
+}
+
 segments=$(printf '%s' "$command" | tr ';|&(){}' '\n\n\n\n\n\n\n')
 scope=root
 IFS='
@@ -157,6 +182,7 @@ for seg in $segments; do
   fi
 
   if matches "$seg" "$RUNNER" || matches "$seg" "$SCRIPT"; then
+    acceptance_check "$seg"
     if [ "$scope" = "sub" ] || scoped_runner "$seg"; then
       continue
     fi
