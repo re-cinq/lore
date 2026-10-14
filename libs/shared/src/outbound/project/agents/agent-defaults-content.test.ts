@@ -238,6 +238,15 @@ describe("the delivering recipes", () => {
     );
   });
 
+  it("has dod name every acceptance test file with the .acceptance.test suffix, never as an example", () => {
+    const dod = promptOnOneLine("loop-dod");
+
+    expect({
+      required: dod.includes("Its name MUST end in `.acceptance.test.<ext>`"),
+      optional: dod.includes("or the repository's equivalent suffix"),
+    }).toEqual({ required: true, optional: false });
+  });
+
   it("has fix-ci ask what failed on a path before it reads any file", () => {
     const fix = promptOf("loop-fix-ci");
 
