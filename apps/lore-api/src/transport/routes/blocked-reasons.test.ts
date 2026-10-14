@@ -24,6 +24,7 @@ describe("Blocked-reason read routes", () => {
   describe("GET /api/repos/{owner}/{repo}/pulls/{number}/blocked-reason", () => {
     it("answers the PR blocked reason with reason null when nothing blocks it", async () => {
       const pool = makePool();
+
       pool.query.mockResolvedValue({
         rows: [
           {
@@ -62,6 +63,7 @@ describe("Blocked-reason read routes", () => {
   describe("GET /api/repos/{owner}/{repo}/blocked-pulls", () => {
     it("answers blocked PRs only in the pulls array", async () => {
       const pool = makePool();
+
       pool.query.mockResolvedValue({
         rows: [
           {
