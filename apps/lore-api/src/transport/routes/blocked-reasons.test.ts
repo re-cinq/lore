@@ -22,7 +22,7 @@ describe("Blocked-reason read routes", () => {
   });
 
   describe("GET /api/repos/{owner}/{repo}/pulls/{number}/blocked-reason", () => {
-    it("answers the PR blocked reason with reason null when nothing blocks it", async () => {
+    it("answers the PR blocked reason when a reason exists", async () => {
       const pool = makePool();
 
       pool.query.mockResolvedValue({
@@ -46,7 +46,7 @@ describe("Blocked-reason read routes", () => {
       expect(res.statusCode).toBe(200);
       expect(pool.query).toHaveBeenCalledWith(
         expect.stringContaining("pipeline.pr_blocked_reasons"),
-        expect.arrayContaining(["re-cinq/lore"]),
+        expect.arrayContaining(["re-cinq/lore", 123]),
       );
       expect(res.result).toEqual({
         repo: "re-cinq/lore",
@@ -56,6 +56,34 @@ describe("Blocked-reason read routes", () => {
         detail: null,
         since: "2026-10-13T00:00:00.000Z",
         updatedAt: "2026-10-13T00:00:00.000Z",
+      });
+    });
+
+    it("answers with reason null when nothing blocks it", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({
+        rows: [],
+      });
+
+      const res = await get(
+        pool,
+        "/api/repos/re-cinq/lore/pulls/123/blocked-reason",
+      );
+
+      expect(res.statusCode).toBe(200);
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining("pipeline.pr_blocked_reasons"),
+        expect.arrayContaining(["re-cinq/lore", 123]),
+      );
+      expect(res.result).toEqual({
+        repo: "re-cinq/lore",
+        prNumber: 123,
+        reason: null,
+        label: null,
+        detail: null,
+        since: null,
+        updatedAt: null,
       });
     });
   });
