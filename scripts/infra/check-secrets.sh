@@ -42,13 +42,14 @@ log "Checking whether running pods loaded the current versions"
 es_json="$(kubectl get externalsecrets -A -o json)"
 pods_json="$(kubectl get pods -A --field-selector=status.phase=Running -o json)"
 
-# secret_name<TAB>namespace<TAB>k8s_secret_name
+# secret_name<TAB>namespace<TAB>k8s_secret_name<TAB>target_type
 mappings="$(printf '%s' "$es_json" | jq -r '
   .items[]
   | .metadata.namespace as $ns
   | (.spec.target.name // .metadata.name) as $target
+  | (.spec.target.template.type // "") as $type
   | .spec.data[]?.remoteRef.key
-  | "\(.)\t\($ns)\t\($target)"
+  | "\(.)\t\($ns)\t\($target)\t\($type)"
 ' | sort -u)"
 
 # A pod consumes a Secret through env, envFrom, volumes, or imagePullSecrets.
@@ -70,7 +71,7 @@ pods_using() {
   '
 }
 
-while IFS=$'\t' read -r secret ns k8s_secret; do
+while IFS=$'\t' read -r secret ns k8s_secret target_type; do
   [ -n "$secret" ] || continue
 
   version_time="$(gcloud secrets versions list "$secret" \
@@ -100,6 +101,45 @@ while IFS=$'\t' read -r secret ns k8s_secret; do
     problems=1
   fi
 done <<< "$mappings"
+
+# --- dockerconfigjson validation ---
+log "Checking dockerconfigjson validity"
+while IFS=$'\t' read -r secret ns k8s_secret target_type; do
+  [ -n "$secret" ] || continue
+  
+  if [ "$target_type" = "kubernetes.io/dockerconfigjson" ]; then
+    dockerconfigjson_b64="$(kubectl get secret "$k8s_secret" -n "$ns" -o json 2>/dev/null | jq -r '.data[".dockerconfigjson"] // empty' || true)"
+    if [ -n "$dockerconfigjson_b64" ]; then
+      dockerconfigjson="$(echo "$dockerconfigjson_b64" | base64 -d)"
+      registry="$(echo "$dockerconfigjson" | jq -r '.auths | keys[0] // empty' 2>/dev/null || true)"
+      
+      if [ -z "$registry" ] || [ "$registry" = "null" ]; then
+        log "ERROR: dockerconfigjson for $ns/$k8s_secret has no registry in .auths"
+        problems=1
+      else
+        auth_b64="$(echo "$dockerconfigjson" | jq -r ".auths[\"$registry\"].auth // empty" 2>/dev/null || true)"
+        if [ -z "$auth_b64" ] || [ "$auth_b64" = "null" ]; then
+          log "ERROR: dockerconfigjson for $ns/$k8s_secret has no auth for $registry"
+          problems=1
+        else
+          auth="$(echo "$auth_b64" | base64 -d 2>/dev/null || true)"
+          token="${auth#*:}"
+          
+          if [ -z "$token" ] || [ "$token" = "$auth" ]; then
+            log "ERROR: dockerconfigjson for $ns/$k8s_secret has empty password for $registry"
+            problems=1
+          else
+            curl_url="https://${registry}/token?service=${registry}"
+            if ! curl -s -f -u "$auth" "$curl_url" >/dev/null 2>&1; then
+              log "ERROR: dockerconfigjson token for $ns/$k8s_secret ($registry) is expired or unauthorized"
+              problems=1
+            fi
+          fi
+        fi
+      fi
+    fi
+  fi
+done <<< "$(printf '%s' "$mappings" | sort -u -k2,3)"
 
 if [ "$problems" -ne 0 ]; then
   log "Secret check FAILED — see above."
