@@ -368,7 +368,9 @@ describe("guard-tests hook", () => {
   it("says acceptance tests are CI's to run and where to read their verdict", () => {
     expect(
       underDod("npx vitest run src/repo-settings.acceptance.test.ts").reason,
-    ).toMatch(/^\[lore\] blocked: acceptance tests are CI's.*lore_get_ci_failures/);
+    ).toMatch(
+      /^\[lore\] blocked: acceptance tests are CI's.*lore_get_ci_failures/,
+    );
   });
 
   it("refuses a directory run under a definition of done, since it would sweep the acceptance tests in", () => {
@@ -380,7 +382,9 @@ describe("guard-tests hook", () => {
 
   it("lets a round run the test it wrote, including a file the definition of done only mentions outside its acceptance list", () => {
     expect([
-      underDod("cd apps/lore-api && timeout 300 npx vitest run src/transport/routes/repos/repo-settings.test.ts").code,
+      underDod(
+        "cd apps/lore-api && timeout 300 npx vitest run src/transport/routes/repos/repo-settings.test.ts",
+      ).code,
       underDod('npx vitest run src/x.test.ts -t "refuses"').code,
       underDod("git log -- repo-settings.acceptance.test.ts").code,
     ]).toEqual([0, 0, 0]);
