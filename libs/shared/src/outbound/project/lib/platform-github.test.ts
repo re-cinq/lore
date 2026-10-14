@@ -1234,6 +1234,27 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
     });
   });
 
+  it("getBranchRule reads 1 approval from the ruleset when classic protection answers 403", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "pull_request",
+          parameters: { required_approving_review_count: 1 },
+        },
+      ],
+      [CLASSIC]: Object.assign(
+        new Error("Resource not accessible by integration"),
+        { status: 403 },
+      ),
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 1,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    });
+  });
+
   it("getMergeability reads mergeable true with state blocked", async () => {
     state.prData = { mergeable: true, mergeable_state: "blocked" };
 
