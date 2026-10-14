@@ -70,20 +70,6 @@ export function blockedReasonsRoutes(
   ];
 }
 
-function withPool(
-  getPool: () => Pool | null,
-  handler: (pool: Pool, req: Request, h: ResponseToolkit) => Promise<any>,
-) {
-  return async (req: Request, h: ResponseToolkit) => {
-    const pool = getPool();
-
-    if (!pool) {
-      return h.response().code(503);
-    }
-    return handler(pool, req, h);
-  };
-}
-
 const sqlReason =
   "SELECT repo, pr_number, reason, detail, since, updated_at FROM pipeline.pr_blocked_reasons WHERE repo = $1 AND pr_number = $2";
 
@@ -124,6 +110,20 @@ function handleBlockedPulls(getPool: () => Pool | null) {
       return h.response().code(500);
     }
   });
+}
+
+function withPool(
+  getPool: () => Pool | null,
+  handler: (pool: Pool, req: Request, h: ResponseToolkit) => Promise<unknown>,
+) {
+  return async (req: Request, h: ResponseToolkit) => {
+    const pool = getPool();
+
+    if (!pool) {
+      return h.response().code(503);
+    }
+    return handler(pool, req, h);
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
