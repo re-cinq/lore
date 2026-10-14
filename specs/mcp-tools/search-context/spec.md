@@ -47,7 +47,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    log `"[lore] lore_search_context: auto-detected repo {repo}"` to stderr (advisory).
 2. **DB path** — if `isDbAvailable()`:
    1. `schema = team || "org_shared"`; `results = hybridSearch(query, schema, limit)`
-      ([hybridSearch](../../../libs/server-core/src/outbound/db.ts#L82) — HNSW vector +
+      ([hybridSearch](../../../libs/server-core/src/outbound/db.ts#L83) — HNSW vector +
       BM25, fused by RRF). `hybridSearch` resolves the schema dynamically via the
       shared `chunkSchemaOrOrgShared`: a provisioned team schema is searched
       directly; an unknown, unprovisioned, or injection-shaped name falls back to
@@ -116,10 +116,11 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 `hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/outbound/db.test.ts#L59))
 
-The DB branch's ranking quality is exercised only against live Postgres + Vertex
-embeddings. *(untested beyond schema resolution: the RRF result-formatting is
-inline in the handler with no extractable seam; the file-fallback branch above
-is fully covered.)*
+`hybridSearch` uses `websearch_to_tsquery` with extracted key terms for the BM25 leg, not `plainto_tsquery` over the full natural-language query. ([validated by](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L31))
+
+`hybridSearch` normalises returned `rrf_score` values so the highest-ranked result is 1.0 rather than a raw RRF fraction near 1/61. ([validated by](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L43))
+
+`hybridSearch` binds the search to a specific repo so results from other repos are excluded. ([validated by](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L68))
 
 ## Out of Scope
 
