@@ -1167,6 +1167,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/blocked-pulls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/blocked-pulls */
+    get: operations["get_api_repos_owner_repo_blocked-pulls"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/branches": {
     parameters: {
       query?: never;
@@ -1606,6 +1623,23 @@ export interface paths {
     put?: never;
     /** POST /api/repos/{owner}/{repo}/pulls */
     post: operations["post_api_repos_owner_repo_pulls"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/pulls/{number}/blocked-reason": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/pulls/{number}/blocked-reason */
+    get: operations["get_api_repos_owner_repo_pulls_number_blocked-reason"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2555,6 +2589,26 @@ export interface components {
           truncated: boolean;
         };
       };
+    };
+    BlockedPulls: {
+      pulls: {
+        repo: string;
+        prNumber: number;
+        reason: string | null;
+        label: string | null;
+        detail: string | null;
+        since: string | null;
+        updatedAt: string | null;
+      }[];
+    };
+    BlockedReason: {
+      repo: string;
+      prNumber: number;
+      reason: string | null;
+      label: string | null;
+      detail: string | null;
+      since: string | null;
+      updatedAt: string | null;
     };
     BranchCreated: {
       /** @constant */
@@ -6651,6 +6705,33 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_repos_owner_repo_blocked-pulls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read the blocked PRs for a specific repo */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BlockedPulls"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   post_api_repos_owner_repo_branches: {
     parameters: {
       query?: never;
@@ -7612,6 +7693,34 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_pulls_number_blocked-reason": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        number: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read the blocked reason for a specific PR */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BlockedReason"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
