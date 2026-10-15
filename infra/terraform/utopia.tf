@@ -312,11 +312,20 @@ resource "kubernetes_deployment_v1" "utopia" {
             value = "true"
           }
           # Sign-in with Google, through the gate's own OAuth client: its redirect URIs
-          # carry Utopia's callback beside oauth2-proxy's. Utopia never opens an account
-          # from it; a person links Google to their existing account on the account page.
+          # carry Utopia's callback beside oauth2-proxy's.
           env {
             name  = "UTOPIA_OIDC_ISSUER"
             value = "https://accounts.google.com"
+          }
+          # Google sign-in is the only way in: a re-cinq.com login links the account with
+          # its email, or opens one. Password sign-in comes back with "true" if Google breaks.
+          env {
+            name  = "UTOPIA_OIDC_ALLOWED_DOMAINS"
+            value = "re-cinq.com"
+          }
+          env {
+            name  = "UTOPIA_PASSWORD_LOGIN"
+            value = "false"
           }
           env {
             name  = "UTOPIA_OIDC_REDIRECT_URI"
