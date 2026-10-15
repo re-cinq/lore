@@ -210,15 +210,15 @@ variable "utopia_lore_workspace_id" {
 }
 
 variable "utopia_image_repository" {
-  description = "The image Utopia runs, without its tag. The upstream image by default; a build of our own (upstream tag plus a fix we are waiting on) goes under ghcr.io/re-cinq/utopia until the release that carries it."
+  description = "The image Utopia runs, without its tag. Our build from gedaiu/utopia re-dev (upstream dev plus our open PRs) until an upstream release carries them; then ghcr.io/deeplethe/utopia again."
   type        = string
-  default     = "ghcr.io/deeplethe/utopia"
+  default     = "ghcr.io/re-cinq/utopia"
 }
 
 variable "utopia_image_tag" {
-  description = "The ghcr.io/deeplethe/utopia tag to run. Release candidates move fast and migrate the database on start, so a bump is a deliberate PR, never `latest`."
+  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.2 = upstream dev 70bf7a7 + deeplethe/utopia#1234, #1237, #1244, #1245."
   type        = string
-  default     = "0.1.0-rc8"
+  default     = "0.1.0-re.2"
 }
 
 variable "utopia_data_size" {
@@ -230,7 +230,7 @@ variable "utopia_data_size" {
 variable "utopia_image_digest" {
   description = "The sha256 digest of the Utopia image to run (sha256:...). Set, it wins over utopia_image_tag: a digest names the bytes, a tag can be re-pushed. Read the running pod's imageID to pin it."
   type        = string
-  default     = ""
+  default     = "sha256:936141d329826fa76cea57bb1df56505a6a81a1e8dd4af26d0b165fbb05930fd"
 
   validation {
     condition     = var.utopia_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.utopia_image_digest))
