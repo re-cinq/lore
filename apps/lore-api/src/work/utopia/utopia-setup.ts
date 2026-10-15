@@ -64,8 +64,8 @@ export async function storeUtopiaSetup(
   await saveUtopiaMirrorSettings(pool, repo, settings);
 }
 
-/** Idempotent on Utopia's side: a re-import of the same turtle plans no change, and a kind word bound again stays bound. */
-async function installOntology(
+/** Idempotent on Utopia's side: a re-import of the same turtle plans no change, and a kind word bound again stays bound. A base set up under an older ontology is upgraded the same way. */
+export async function installOntology(
   session: UtopiaSession,
   kbId: string,
 ): Promise<void> {

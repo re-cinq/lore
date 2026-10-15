@@ -58,18 +58,26 @@ describe("docStatementItems", () => {
         attribute(DOC, "path", "specs/mirror/spec.md"),
         attribute(DOC, "commit", COMMIT),
         attribute(DOC, "permalink", `${BLOB}/specs/mirror/spec.md`),
+        attribute(DOC, "title", "Feature Specification: Mirror"),
         relation(DOC, "contains", `${DOC}#feature-specification-mirror`),
         attribute(
           `${DOC}#feature-specification-mirror`,
           "title",
           "Feature Specification: Mirror",
         ),
+        attribute(
+          `${DOC}#feature-specification-mirror`,
+          "text",
+          "Feature Specification: Mirror",
+        ),
         attribute(`${DOC}#feature-specification-mirror`, "line_start", "1"),
         relation(DOC, "contains", `${DOC}#chain`),
         attribute(`${DOC}#chain`, "title", "Chain"),
+        attribute(`${DOC}#chain`, "text", "Chain"),
         attribute(`${DOC}#chain`, "line_start", "7"),
         relation(DOC, "contains", `${DOC}#chain-2`),
         attribute(`${DOC}#chain-2`, "title", "Chain"),
+        attribute(`${DOC}#chain-2`, "text", "Chain"),
         attribute(`${DOC}#chain-2`, "line_start", "12"),
       ],
     });
@@ -98,6 +106,7 @@ describe("docStatementItems", () => {
         relation(`${DOC}#chain`, "contains", stmt),
         attribute(stmt, "line_start", "9"),
         attribute(stmt, "permalink", `${BLOB}/specs/mirror/spec.md#L9`),
+        attribute(stmt, "text", "FR1 — Every document is pushed."),
         relation(stmt, "validated_by", test1),
         attribute(test1, "title", "pushes the doc item"),
         attribute(
@@ -151,6 +160,11 @@ describe("docStatementItems", () => {
         relation(`${DOC}#chain`, "contains", stmt),
         attribute(stmt, "line_start", "10"),
         attribute(stmt, "permalink", `${BLOB}/specs/mirror/spec.md#L10`),
+        attribute(
+          stmt,
+          "text",
+          "FR2 — Settings decide. ([see ADR](adrs/ADR-052-code-to-spec-graph-mirrored-in-utopia.md))",
+        ),
         relation(stmt, "decided_by", adr),
       ],
     });
@@ -215,4 +229,57 @@ describe("docStatementItems", () => {
       tests: 80,
     });
   });
+
+  it("gives the statement the text FR1 — Spaced words. with its coverage links stripped and its runs of spaces collapsed", () => {
+    const [, fr1] = build(
+      "## Words\n\n- FR1 —   Spaced \t words.  ([validated by a](src/a.test.ts#L1), [b](src/b.ts))\n",
+    );
+
+    expect(textsOf(fr1)).toEqual(["FR1 — Spaced words."]);
+  });
+
+  it("titles nothing for a document with no top-level heading, while its section still carries its heading as text", () => {
+    const [doc] = build("## Only a section\n\nWords.\n");
+    const section = `${DOC}#only-a-section`;
+
+    expect(doc.s.filter(([, , phrase]) => phrase !== "line_start")).toEqual([
+      relation("re-cinq/lore", "contains", DOC),
+      attribute(DOC, "path", "specs/mirror/spec.md"),
+      attribute(DOC, "commit", COMMIT),
+      attribute(DOC, "permalink", `${BLOB}/specs/mirror/spec.md`),
+      relation(DOC, "contains", section),
+      attribute(section, "title", "Only a section"),
+      attribute(section, "text", "Only a section"),
+    ]);
+  });
+
+  it("cuts a 5,003-character statement to its first 4,000 characters and an ellipsis", () => {
+    const words = "words ".repeat(834).trim();
+    const [, statement] = build(`## Long\n\n${words}\n`);
+
+    expect(textsOf(statement)).toEqual([`${words.slice(0, 4000)}…`]);
+  });
+
+  it("keeps the text on the first of four split parts and on none of .2, .3 and .4", () => {
+    const links = Array.from(
+      { length: 80 },
+      (_, i) => `[validated by case ${i}](src/a.test.ts#L${i + 1})`,
+    );
+    const pushed = build(`## Many\n\n- FR1 — Linked. (${links.join(", ")})\n`);
+
+    expect(pushed.slice(1).map(textsOf)).toEqual([
+      ["FR1 — Linked."],
+      [],
+      [],
+      [],
+    ]);
+  });
 });
+
+function textsOf(pushed: StatementItem): Array<string | null> {
+  return pushed.s
+    .filter(
+      ([, subject, phrase]) => subject.includes("#s") && phrase === "text",
+    )
+    .map(([, , , , value]) => value);
+}

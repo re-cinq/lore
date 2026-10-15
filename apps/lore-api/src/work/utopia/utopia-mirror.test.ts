@@ -1,12 +1,25 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { createServer, type Server } from "node:http";
 import type { Pool } from "pg";
+import { metrics } from "@opentelemetry/api";
+import {
+  AggregationTemporality,
+  InMemoryMetricExporter,
+  MeterProvider,
+  PeriodicExportingMetricReader,
+  type DataPoint,
+} from "@opentelemetry/sdk-metrics";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import { mirrorSource, sourceToMirror } from "./utopia-mirror.js";
 
 const ENV = { UTOPIA_API_URL: "http://utopia.test" };
-const SETTINGS = { utopia: { kb_id: "kb-1", source_id: "src-1" } };
+const SETTINGS = {
+  utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 2 },
+};
+const SETTINGS_V1 = {
+  utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 1 },
+};
 const STORED = { id: "src-1", key: "utp_k", kbId: "kb-1" };
 
 describe("mirrorSource", () => {
@@ -28,7 +41,7 @@ describe("mirrorSource", () => {
 });
 
 const seen: string[] = [];
-let refuseKnowledgeBases = false;
+let refusedPaths: string[] = [];
 let server: Server;
 let autoEnv: Record<string, string>;
 
@@ -36,6 +49,7 @@ const ANSWERS: Record<string, unknown> = {
   "GET /api/v1/workspaces/ws-lore/kbs": [],
   "POST /api/v1/workspaces/ws-lore/kbs": { id: "kb-new", name: "re-cinq/lore" },
   "POST /api/v1/kbs/kb-new/ontology/imports": { import_id: "imp-1", plan: {} },
+  "POST /api/v1/kbs/kb-1/ontology/imports": { import_id: "imp-2", plan: {} },
   "POST /api/v1/kbs/kb-new/sources": {
     ingest_token: "utp_new",
     source: { id: "src-new" },
@@ -43,7 +57,7 @@ const ANSWERS: Record<string, unknown> = {
 };
 
 const statusOf = (key: string): number => {
-  if (refuseKnowledgeBases && key.endsWith("/kbs")) {
+  if (refusedPaths.some((path) => key.endsWith(path))) {
     return 403;
   }
 
@@ -79,7 +93,7 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 beforeEach(() => {
   seen.length = 0;
-  refuseKnowledgeBases = false;
+  refusedPaths = [];
 });
 
 const writesOf = (pool: ReturnType<typeof makePool>) =>
@@ -118,7 +132,7 @@ describe("sourceToMirror", () => {
           utopia: {
             kb_id: "kb-new",
             source_id: "src-new",
-            ontology_version: 1,
+            ontology_version: 2,
           },
         },
       ],
@@ -146,7 +160,7 @@ describe("sourceToMirror", () => {
     });
   });
 
-  it("answers the stored src-1 without calling Utopia when settings already name it", async () => {
+  it("answers the stored src-1 without calling Utopia when settings already name it at ontology version 2", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({
@@ -172,19 +186,106 @@ describe("sourceToMirror", () => {
   it("rejects with Utopia's 403 and stores nothing when the knowledge base listing is refused, and the next ingest sets re-cinq/lore up", async () => {
     const pool = makePool();
 
-    refuseKnowledgeBases = true;
+    refusedPaths = ["/kbs"];
     const failure = await mirrorOf(pool, "re-cinq/lore", null).catch(
       (error: Error) => error.message,
     );
     const writesAfterFailure = writesOf(pool).length;
 
-    refuseKnowledgeBases = false;
+    refusedPaths = [];
     const retried = await mirrorOf(pool, "re-cinq/lore", null);
 
     expect({ failure, writesAfterFailure, retried }).toEqual({
       failure: "utopia answered 403: []",
       writesAfterFailure: 0,
       retried: { id: "src-new", key: "utp_new" },
+    });
+  });
+});
+
+const reader = new PeriodicExportingMetricReader({
+  exporter: new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE),
+  exportIntervalMillis: 60_000,
+});
+
+metrics.setGlobalMeterProvider(new MeterProvider({ readers: [reader] }));
+
+const mirrorFailures = async (): Promise<Array<DataPoint<unknown>>> => {
+  const { resourceMetrics } = await reader.collect();
+
+  return resourceMetrics.scopeMetrics
+    .flatMap((scope) => scope.metrics)
+    .filter(
+      ({ descriptor }) => descriptor.name === "lore.utopia.mirror_failures",
+    )
+    .flatMap((metric) => metric.dataPoints as Array<DataPoint<unknown>>);
+};
+
+const storedSrc1 = () => {
+  const pool = makePool();
+
+  pool.query.mockResolvedValue({
+    rows: [{ kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" }],
+  });
+
+  return pool;
+};
+
+describe("sourceToMirror on a base set up at ontology version 1", () => {
+  it("re-imports the ontology into kb-1 once for two concurrent ingests, binds the ten kind words, stores version 2, and answers src-1", async () => {
+    const pool = storedSrc1();
+    const sources = await Promise.all([
+      mirrorOf(pool, "re-cinq/lore", SETTINGS_V1),
+      mirrorOf(pool, "re-cinq/Lore", SETTINGS_V1),
+    ]);
+
+    expect({
+      sources,
+      calls: setUpCalls(),
+      bound: seen.length - setUpCalls().length,
+      writes: writesOf(pool),
+    }).toEqual({
+      sources: [
+        { id: "src-1", key: "utp_k" },
+        { id: "src-1", key: "utp_k" },
+      ],
+      calls: ["POST /api/v1/kbs/kb-1/ontology/imports Bearer utp_pat_lore"],
+      bound: 10,
+      writes: [SETTINGS],
+    });
+  });
+
+  it("answers src-1 and calls Utopia for nothing when the deployment has no UTOPIA_TOKEN, leaving version 1 stored", async () => {
+    const pool = storedSrc1();
+    const source = await mirrorOf(pool, "re-cinq/lore", SETTINGS_V1, {
+      ...autoEnv,
+      UTOPIA_TOKEN: "",
+    });
+
+    expect({ source, calls: seen, writes: writesOf(pool) }).toEqual({
+      source: { id: "src-1", key: "utp_k" },
+      calls: [],
+      writes: [],
+    });
+  });
+
+  it("answers src-1 and counts one mirror failure for re-cinq/lore when Utopia refuses the import with 403, leaving version 1 stored", async () => {
+    const pool = storedSrc1();
+    const before = (await mirrorFailures()).length;
+
+    refusedPaths = ["/ontology/imports"];
+    const source = await mirrorOf(pool, "re-cinq/lore", SETTINGS_V1);
+
+    expect({
+      source,
+      writes: writesOf(pool),
+      before,
+      failures: await mirrorFailures(),
+    }).toMatchObject({
+      source: { id: "src-1", key: "utp_k" },
+      writes: [],
+      before: 0,
+      failures: [{ attributes: { repo: "re-cinq/lore" }, value: 1 }],
     });
   });
 });

@@ -26,15 +26,31 @@ describe("lore ontology", () => {
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 1", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 2", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 1,
+      version: 2,
       declared: LORE_KIND_WORDS.map(() => true),
+    });
+  });
+
+  it("declares text on Section and Statement and title on Document, both strings, so a pushed statement's words and a document's title are attributes the base knows", async () => {
+    const turtle = await loreOntologyTurtle();
+    const declaration = (property: string) =>
+      new RegExp(
+        String.raw`lore:${property} a owl:DatatypeProperty ;[\s\S]*?rdfs:domain ([^;]*);\s*rdfs:range xsd:string \.`,
+      ).exec(turtle)?.[1];
+
+    expect({
+      text: declaration("text")?.trim(),
+      title: declaration("title")?.trim(),
+    }).toEqual({
+      text: "lore:Section, lore:Statement",
+      title: "lore:Document, lore:Test, lore:Section",
     });
   });
 });
