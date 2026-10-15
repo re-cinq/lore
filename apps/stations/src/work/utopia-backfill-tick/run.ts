@@ -1,4 +1,4 @@
-// Binds the nightly Utopia backfill to the ports this process holds (composition root).
+// Binds the weekly Utopia backfill to the ports this process holds (composition root).
 import { settings } from "../../outbound/queues.js";
 import { postBackfill } from "./lore-api-backfill.js";
 import { utopiaBackfillTick } from "./utopia-backfill-tick.js";

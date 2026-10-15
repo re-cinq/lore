@@ -36,9 +36,9 @@ describe("cronTickEventNames", () => {
     expect(cronTickEventNames()).not.toContain("cron.spec_task_executor.tick");
   });
 
-  it("schedules utopia_backfill nightly at 02:30 UTC", () => {
+  it("schedules utopia_backfill weekly on Sunday at 02:30 UTC", () => {
     expect(
       CRON_EMITTERS.find((emitter) => emitter.name === "utopia_backfill"),
-    ).toMatchObject({ schedule: "30 2 * * *" });
+    ).toMatchObject({ schedule: "30 2 * * 0" });
   });
 });

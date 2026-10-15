@@ -1,4 +1,4 @@
-// The nightly Utopia backfill (specs/utopia-graph-mirror FR7.7): every onboarded repo through lore-api's backfill route, one at a time, so a slow Utopia carries one repo's documents at once.
+// The weekly Utopia backfill (specs/utopia-graph-mirror FR7.7): every onboarded repo through lore-api's backfill route, one at a time, so a slow Utopia carries one repo's documents at once.
 
 import {
   UtopiaBackfillSummarySchema,

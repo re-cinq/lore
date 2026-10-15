@@ -2,7 +2,7 @@ import type { SweepStationModule } from "../lib/station.js";
 
 const TWELVE_HOURS_SECONDS = 43_200;
 
-/** The nightly Utopia backfill (specs/utopia-graph-mirror FR7.7). One run walks every repo one at a time, each call allowed half an hour, so its delivery is held for a night rather than the bus's ten minutes. */
+/** The weekly Utopia backfill (specs/utopia-graph-mirror FR7.7). One run walks every repo one at a time, each call allowed half an hour, so its delivery is held for a night rather than the bus's ten minutes. */
 export const utopiaBackfillTickStation: SweepStationModule = {
   manifest: {
     name: "utopia-backfill-tick",

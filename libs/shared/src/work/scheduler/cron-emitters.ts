@@ -51,8 +51,8 @@ export const CRON_EMITTERS: CronEmitter[] = [
   },
   {
     name: "utopia_backfill",
-    schedule: "30 2 * * *",
-    note: "every onboarded repo's specs and ADRs mirrored into Utopia again, one repo at a time, so a missed ingest mirror heals overnight (specs/utopia-graph-mirror FR7.7)",
+    schedule: "30 2 * * 0",
+    note: "every onboarded repo's specs and ADRs mirrored into Utopia again, one repo at a time, Sundays, so a missed ingest mirror heals within the week (specs/utopia-graph-mirror FR7.7)",
   },
 ];
 
