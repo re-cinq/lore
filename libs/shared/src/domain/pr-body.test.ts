@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { linkedIssueNumber, prFooter } from "./pr-body.js";
+import { linkedIssueNumber, loreTaskIdOf, prFooter } from "./pr-body.js";
 
 describe("prFooter (T047)", () => {
   it("emits Lore-Task only when no issue exists", () => {
@@ -68,5 +68,21 @@ describe("linkedIssueNumber", () => {
 
   it("returns null for a null body", () => {
     expect(linkedIssueNumber(null)).toBeNull();
+  });
+});
+
+describe("loreTaskIdOf", () => {
+  it("returns 6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c from the footer prFooter writes", () => {
+    const body = `Adds the station.${prFooter({ issueNumber: 12, taskId: "6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c" })}`;
+
+    expect(loreTaskIdOf(body)).toBe("6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c");
+  });
+
+  it("returns null for a body with no Lore-Task line", () => {
+    expect(loreTaskIdOf("Closes #12")).toBe(null);
+  });
+
+  it("returns null for an undefined body", () => {
+    expect(loreTaskIdOf(undefined)).toBe(null);
   });
 });

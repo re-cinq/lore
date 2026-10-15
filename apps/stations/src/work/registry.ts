@@ -8,6 +8,7 @@ import { mergeCheck } from "./merge-check/manifest.js";
 import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
+import { blockedReason } from "./blocked-reason/manifest.js";
 import { busPrune } from "./bus-prune/manifest.js";
 import { prBlockedReasonsPrune } from "./pr-blocked-reasons-prune/manifest.js";
 import { telemetryPrune } from "./telemetry-prune/manifest.js";
@@ -19,6 +20,7 @@ import { issueTriageTickStation } from "./issue-triage-tick/manifest.js";
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
   "anthropic-cost-sync",
+  "blocked-reason",
   "bus-prune",
   "consolidation",
   "digest-tick",
@@ -38,6 +40,7 @@ export type StationName = (typeof STATION_NAMES)[number];
 
 export const STATIONS: Record<StationName, StationModule> = {
   "anthropic-cost-sync": anthropicCostSync,
+  "blocked-reason": blockedReason,
   "bus-prune": busPrune,
   consolidation: consolidationStation,
   "digest-tick": digestTickStation,

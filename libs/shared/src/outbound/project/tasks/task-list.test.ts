@@ -122,4 +122,21 @@ describe("TaskList", () => {
 
     expect(task!.status).toBe("cancelled");
   });
+
+  it("carries issue 42 of the task it read, and null for a task with no issue", async () => {
+    const facade = new TaskList(
+      "re-cinq/lore",
+      fakeStore([
+        { ...row("a", "running"), issue_number: 42 },
+        row("b", "running"),
+      ]),
+    );
+
+    const [withIssue, without] = await Promise.all([
+      facade.getById("a"),
+      facade.getById("b"),
+    ]);
+
+    expect([withIssue?.issueNumber, without?.issueNumber]).toEqual([42, null]);
+  });
 });

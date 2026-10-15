@@ -54,6 +54,10 @@
       "types": "./dist/work/backlog/*.d.ts",
       "default": "./dist/work/backlog/*.js"
     },
+    "./blocked-reason.js": {
+      "types": "./dist/domain/blocked-reason.d.ts",
+      "default": "./dist/domain/blocked-reason.js"
+    },
     "./dod-verdict.js": {
       "types": "./dist/domain/dod-verdict.d.ts",
       "default": "./dist/domain/dod-verdict.js"

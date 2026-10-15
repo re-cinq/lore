@@ -16,6 +16,7 @@ import type {
   ReviewThread,
   PullFileChange,
   BranchRule,
+  Mergeability,
 } from "./pull-requests-port.js";
 
 /** Canonical PR surface, repo-bound; thin facade over PullRequestsPort. */
@@ -72,6 +73,10 @@ export class PullRequests {
 
   getBranchRule(branch: string): Promise<BranchRule> {
     return this.pulls.getBranchRule(this.repo, branch);
+  }
+
+  getMergeability(number: number): Promise<Mergeability> {
+    return this.pulls.getMergeability(this.repo, number);
   }
 
   merge(number: number, method?: MergeMethod): Promise<void> {
