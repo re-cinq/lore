@@ -72,6 +72,9 @@ OPTIONAL=(
   lore-utopia-oauth-client-id
   lore-utopia-oauth-client-secret
   lore-utopia-cookie-secret
+  # Behind enable_utopia_auto_setup: the Utopia write token (utp_pat_…) of the
+  # Lore person, minted in Utopia (docs/managing-secrets.md).
+  lore-utopia-lore-api-token
   # Behind enable_external_floor: the bearer tokens between Lore and the external
   # floor engine (its service token, and the one it presents to lore-api's
   # /api/floor/git-credential).

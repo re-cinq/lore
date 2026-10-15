@@ -100,6 +100,11 @@ utopia_hostname  = "utopia.example.com"
 utopia_image_tag = "0.1.0-rc8"
 # Pin the bytes once the tag runs: kubectl -n utopia get pod -l app=utopia -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
 # utopia_image_digest = "sha256:..."
+# Let lore-api create a repo's Utopia knowledge base on its first spec/ADR ingest,
+# with the write token of the Lore person in Utopia (seed lore-utopia-lore-api-token
+# first, docs/managing-secrets.md). Needs deeplethe/utopia#1244 deployed.
+enable_utopia_auto_setup = false
+utopia_lore_workspace_id = ""
 
 # Cloud Billing budget for this project, stated per week (see budget.tf: Google
 # only resets budgets monthly, so it is applied as weekly * 52 / 12, with a

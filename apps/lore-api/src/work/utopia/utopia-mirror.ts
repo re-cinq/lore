@@ -1,8 +1,9 @@
-// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec and ADR it ingests pushed there.
+// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec and ADR it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { UtopiaMirrorSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
 import {
+  utopiaAutoSetupConfigured,
   utopiaClient,
   utopiaConfigured,
   type UtopiaEnv,
@@ -15,11 +16,13 @@ import {
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
+import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
   utopiaSourceFor,
   type StoredUtopiaSource,
 } from "../../outbound/utopia-sources.js";
+import { autoSetUpRepo } from "./utopia-auto-setup.js";
 
 export interface MirroredDoc {
   path: string;
@@ -78,9 +81,10 @@ async function mirrorDepsFor(repo: string): Promise<MirrorDeps | null> {
     return null;
   }
   const { settings } = await projectFor(repo);
-  const source = mirrorSource(
+  const source = await sourceToMirror(
+    getPool(),
+    repo,
     await settings.rawSettings(),
-    await utopiaSourceFor(getPool(), repo),
   );
 
   return (
@@ -88,6 +92,23 @@ async function mirrorDepsFor(repo: string): Promise<MirrorDeps | null> {
       push: (pushed) => utopiaClient().pushStatements(source, pushed),
     }
   );
+}
+
+/** The source the repo was set up with, else a fresh setup where the deployment may run one itself, else null. A failed setup throws, so the ingest logs and counts it as a failed mirror. */
+export async function sourceToMirror(
+  pool: Pool,
+  repo: string,
+  settings: Record<string, unknown> | null,
+  env: UtopiaEnv = process.env,
+): Promise<UtopiaSource | null> {
+  const stored = await utopiaSourceFor(pool, repo);
+  const source = mirrorSource(settings, stored, env);
+
+  if (source || !utopiaAutoSetupConfigured(env)) {
+    return source;
+  }
+
+  return autoSetUpRepo(pool, repo, stored, env);
 }
 
 /** One failed item fails the document, named by its first failure, so the ingest logs and counts it. */

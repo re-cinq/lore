@@ -1,9 +1,11 @@
-// Utopia (deeplethe/utopia), the knowledge-graph service the spec→test→code chain is mirrored into: a per-source push surface and a person's session surface for setting a repository's knowledge base up.
+// Utopia (deeplethe/utopia), the knowledge-graph service the spec→test→code chain is mirrored into: a per-source push surface and a person's surface for setting a repository's knowledge base up, reached with their session or their write token.
 
 import { enforceTrue } from "../../lib/enforce.js";
 import { wireBody, type PushItem } from "../../domain/utopia/statements.js";
 
-export type UtopiaEnv = Partial<Record<"UTOPIA_API_URL", string>>;
+export type UtopiaEnv = Partial<
+  Record<"UTOPIA_API_URL" | "UTOPIA_TOKEN" | "UTOPIA_WORKSPACE_ID", string>
+>;
 
 export interface UtopiaSource {
   id: string;
@@ -39,7 +41,8 @@ export interface UtopiaSession {
 
 export interface UtopiaClient {
   pushStatements(source: UtopiaSource, pushed: PushItem): Promise<PushOutcome>;
-  withSession(jwt: string): UtopiaSession;
+  /** Acts as a person: `bearer` is their session JWT or a personal access token with `write` scope (`utp_pat_…`); Utopia answers both the same. */
+  withCredential(bearer: string): UtopiaSession;
 }
 
 export interface UtopiaClientOptions {
@@ -65,6 +68,19 @@ export function utopiaConfigured(env: UtopiaEnv = process.env): boolean {
   return Boolean(env.UTOPIA_API_URL);
 }
 
+/** True when the deployment holds a Utopia write token and the workspace to create bases in, so a repo's first ingest sets its knowledge base up without a person. */
+export function utopiaAutoSetupConfigured(
+  env: UtopiaEnv = process.env,
+): boolean {
+  return AUTO_SETUP_KEYS.every((key) => Boolean(env[key]));
+}
+
+const AUTO_SETUP_KEYS = [
+  "UTOPIA_API_URL",
+  "UTOPIA_TOKEN",
+  "UTOPIA_WORKSPACE_ID",
+] as const;
+
 export function utopiaClientFrom(
   env: UtopiaEnv,
   options: UtopiaClientOptions = {},
@@ -83,7 +99,7 @@ export function utopiaClientFrom(
         token: source.key,
         json: wireBody(pushed),
       }),
-    withSession: (jwt) => sessionOf(request, jwt),
+    withCredential: (bearer) => sessionOf(request, bearer),
   };
 }
 
@@ -168,16 +184,16 @@ async function retryAfter(
 
 interface SessionCall {
   request: Requester;
-  jwt: string;
+  bearer: string;
 }
 
-function sessionOf(request: Requester, jwt: string): UtopiaSession {
-  const call: SessionCall = { request, jwt };
+function sessionOf(request: Requester, bearer: string): UtopiaSession {
+  const call: SessionCall = { request, bearer };
 
   return {
     listKnowledgeBases: (workspaceId) =>
       request<KnowledgeBase[]>(`/workspaces/${workspaceId}/kbs`, {
-        token: jwt,
+        token: bearer,
         method: "GET",
       }),
     createKnowledgeBase: (workspaceId, name) =>
@@ -192,30 +208,30 @@ function sessionOf(request: Requester, jwt: string): UtopiaSession {
 }
 
 function createKnowledgeBase(
-  { request, jwt }: SessionCall,
+  { request, bearer }: SessionCall,
   workspaceId: string,
   name: string,
 ): Promise<KnowledgeBase> {
   return request<KnowledgeBase>(`/workspaces/${workspaceId}/kbs`, {
-    token: jwt,
+    token: bearer,
     json: { name, kind: "knowledge", ontology_packs: [] },
   });
 }
 
 async function bindKindWord(
-  { request, jwt }: SessionCall,
+  { request, bearer }: SessionCall,
   kbId: string,
   word: string,
   classKey: string,
 ): Promise<void> {
   await request(`/kbs/${kbId}/review/alignment/kind-words/${word}`, {
-    token: jwt,
+    token: bearer,
     json: { class: classKey },
   });
 }
 
 async function importOntology(
-  { request, jwt }: SessionCall,
+  { request, bearer }: SessionCall,
   kbId: string,
   file: { turtle: string; filename: string },
 ): Promise<{ importId: string }> {
@@ -228,14 +244,14 @@ async function importOntology(
   );
   const imported = await request<{ import_id: string }>(
     `/kbs/${kbId}/ontology/imports`,
-    { token: jwt, form },
+    { token: bearer, form },
   );
 
   return { importId: imported.import_id };
 }
 
 async function createStatementsSource(
-  { request, jwt }: SessionCall,
+  { request, bearer }: SessionCall,
   kbId: string,
   name: string,
 ): Promise<UtopiaSource> {
@@ -243,7 +259,7 @@ async function createStatementsSource(
     ingest_token: string;
     source: { id: string };
   }>(`/kbs/${kbId}/sources`, {
-    token: jwt,
+    token: bearer,
     json: { kind: "statements", name, config: {} },
   });
 

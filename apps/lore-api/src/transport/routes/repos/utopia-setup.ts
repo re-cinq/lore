@@ -1,6 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import type { UtopiaMirrorSettings } from "@re-cinq/lore-shared/models/repo-settings.js";
 import {
   utopiaClientFrom,
   utopiaConfigured,
@@ -19,12 +18,9 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import {
   setUpRepoInUtopia,
-  type UtopiaSetup,
+  storeUtopiaSetup,
 } from "../../../work/utopia/utopia-setup.js";
-import {
-  saveUtopiaSource,
-  utopiaSourceFor,
-} from "../../../outbound/utopia-sources.js";
+import { utopiaSourceFor } from "../../../outbound/utopia-sources.js";
 
 const UtopiaSetupBody = z.object({
   /** A person's Utopia session JWT; used for this call and never stored. */
@@ -69,7 +65,7 @@ async function serveUtopiaSetup(
 ): Promise<ResponseObject> {
   const repo = `${request.params.owner}/${request.params.repo}`;
   const body = request.payload as UtopiaSetupBody;
-  const session = configuredUtopia().withSession(body.session_token);
+  const session = configuredUtopia().withCredential(body.session_token);
 
   await enforceRepoHeld(pool, repo);
   const setup = await setUpRepoInUtopia(session, {
@@ -78,24 +74,9 @@ async function serveUtopiaSetup(
     existing: await utopiaSourceFor(pool, repo),
   });
 
-  await storeSetup(pool, repo, setup);
+  await storeUtopiaSetup(pool, repo, setup);
 
   return h.response(setup.settings);
-}
-
-/** The key first, to lore.utopia_sources, then the ids to settings: settings never name a source whose key is not stored. */
-async function storeSetup(
-  pool: Pool,
-  repo: string,
-  { settings, source }: UtopiaSetup,
-): Promise<void> {
-  await saveUtopiaSource(pool, {
-    repo,
-    kbId: source.kbId,
-    sourceId: source.id,
-    key: source.key,
-  });
-  await storeMirrorSettings(pool, repo, settings);
 }
 
 function configuredUtopia() {
@@ -115,16 +96,4 @@ async function enforceRepoHeld(pool: Pool, repo: string): Promise<void> {
   );
 
   enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
-}
-
-/** Merged, not replaced: the settings block carries everything else the repo was configured with. */
-async function storeMirrorSettings(
-  pool: Pool,
-  repo: string,
-  utopia: UtopiaMirrorSettings,
-): Promise<void> {
-  await pool.query(
-    `UPDATE lore.repos SET settings = COALESCE(settings, '{}') || $1::jsonb WHERE full_name = $2`,
-    [JSON.stringify({ utopia }), repo],
-  );
 }

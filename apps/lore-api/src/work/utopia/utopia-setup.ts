@@ -1,4 +1,4 @@
-// Sets a repository up in Utopia: its knowledge base in the person's workspace, the Lore ontology and kind words in it, and the one statements source the ingest pushes through.
+// Sets a repository up in Utopia, as a person or as the Utopia person Lore acts as: its knowledge base in their workspace, the Lore ontology and kind words in it, and the one statements source the ingest pushes through.
 
 import {
   LORE_KIND_WORDS,
@@ -10,7 +10,12 @@ import type {
   UtopiaSession,
   UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
-import type { StoredUtopiaSource } from "../../outbound/utopia-sources.js";
+import type { Pool } from "pg";
+import {
+  saveUtopiaMirrorSettings,
+  saveUtopiaSource,
+  type StoredUtopiaSource,
+} from "../../outbound/utopia-sources.js";
 
 export interface UtopiaSetupInput {
   repo: string;
@@ -42,6 +47,21 @@ export async function setUpRepoInUtopia(
     },
     source: { ...source, kbId },
   };
+}
+
+/** The key first, to lore.utopia_sources, then the ids to settings: settings never name a source whose key is not stored. */
+export async function storeUtopiaSetup(
+  pool: Pool,
+  repo: string,
+  { settings, source }: UtopiaSetup,
+): Promise<void> {
+  await saveUtopiaSource(pool, {
+    repo,
+    kbId: source.kbId,
+    sourceId: source.id,
+    key: source.key,
+  });
+  await saveUtopiaMirrorSettings(pool, repo, settings);
 }
 
 /** Idempotent on Utopia's side: a re-import of the same turtle plans no change, and a kind word bound again stays bound. */

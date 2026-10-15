@@ -147,6 +147,15 @@ spec:
             {{- if .Values.utopia.enabled }}
             - name: UTOPIA_API_URL
               value: {{ .Values.utopia.apiUrl | quote }}
+            {{- if .Values.utopia.tokenSecret }}
+            - name: UTOPIA_WORKSPACE_ID
+              value: {{ .Values.utopia.workspaceId | quote }}
+            - name: UTOPIA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.utopia.tokenSecret }}
+                  key: token
+            {{- end }}
             {{- end }}
           livenessProbe:
             tcpSocket:

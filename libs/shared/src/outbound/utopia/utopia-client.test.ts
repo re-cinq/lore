@@ -4,6 +4,7 @@ import { enforceTrue } from "../../lib/enforce.js";
 import {
   UtopiaPushError,
   utopiaClientFrom,
+  utopiaAutoSetupConfigured,
   utopiaConfigured,
 } from "./utopia-client.js";
 import { tombstone } from "../../domain/utopia/statements.js";
@@ -125,6 +126,23 @@ describe("utopiaConfigured", () => {
   });
 });
 
+describe("utopiaAutoSetupConfigured", () => {
+  it("is true with the URL, the token and the workspace id set, and false when any one of them is missing", () => {
+    const all = {
+      UTOPIA_API_URL: baseUrl,
+      UTOPIA_TOKEN: "utp_pat_1",
+      UTOPIA_WORKSPACE_ID: "ws-1",
+    };
+
+    expect([
+      utopiaAutoSetupConfigured(all),
+      utopiaAutoSetupConfigured({ ...all, UTOPIA_API_URL: "" }),
+      utopiaAutoSetupConfigured({ ...all, UTOPIA_TOKEN: undefined }),
+      utopiaAutoSetupConfigured({ ...all, UTOPIA_WORKSPACE_ID: "" }),
+    ]).toEqual([true, false, false, false]);
+  });
+});
+
 describe("pushStatements", () => {
   it("posts the item under the source key with external_id, doc_time and an empty notes list, and returns the action", async () => {
     const outcome = await client().pushStatements(
@@ -205,9 +223,11 @@ describe("pushStatements", () => {
   });
 });
 
-describe("withSession", () => {
+describe("withCredential", () => {
   it("lists a workspace's knowledge bases under the session token", async () => {
-    const kbs = await client().withSession("jwt-1").listKnowledgeBases("ws-1");
+    const kbs = await client()
+      .withCredential("jwt-1")
+      .listKnowledgeBases("ws-1");
 
     expect({ kbs, authorization: seen[0].authorization }).toEqual({
       kbs: [{ id: "kb-1", name: "re-cinq/lore" }],
@@ -215,9 +235,19 @@ describe("withSession", () => {
     });
   });
 
+  it("sends a utp_pat_1 write token as the bearer of the same request", async () => {
+    await client().withCredential("utp_pat_1").listKnowledgeBases("ws-1");
+
+    expect(seen[0]).toMatchObject({
+      method: "GET",
+      url: "/api/v1/workspaces/ws-1/kbs",
+      authorization: "Bearer utp_pat_1",
+    });
+  });
+
   it("creates a knowledge base of kind knowledge with no ontology packs", async () => {
     const kb = await client()
-      .withSession("jwt-1")
+      .withCredential("jwt-1")
       .createKnowledgeBase("ws-1", "re-cinq/lore");
 
     expect({ kb, body: JSON.parse(seen[0].body) }).toEqual({
@@ -228,7 +258,7 @@ describe("withSession", () => {
 
   it("imports the ontology as a multipart turtle file named lore-ontology.ttl", async () => {
     const imported = await client()
-      .withSession("jwt-1")
+      .withCredential("jwt-1")
       .importOntology("kb-1", "@prefix lore: <x> .", "lore-ontology.ttl");
 
     expect({
@@ -248,7 +278,7 @@ describe("withSession", () => {
 
   it("binds a kind word to its class key", async () => {
     await client()
-      .withSession("jwt-1")
+      .withCredential("jwt-1")
       .bindKindWord("kb-1", "Statement", "statement");
 
     expect(seen[0]).toMatchObject({
@@ -259,7 +289,7 @@ describe("withSession", () => {
 
   it("creates a statements source and returns its id with the ingest token as the key", async () => {
     const source = await client()
-      .withSession("jwt-1")
+      .withCredential("jwt-1")
       .createStatementsSource("kb-1", "lore");
 
     expect({ source, body: JSON.parse(seen[0].body) }).toEqual({
