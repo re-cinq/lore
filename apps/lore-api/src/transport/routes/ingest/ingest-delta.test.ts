@@ -3,19 +3,24 @@ import Hapi from "@hapi/hapi";
 import { ingestDeltaRoute, type IngestDeltaDeps } from "./ingest-delta.js";
 
 const SHA_A = "a".repeat(40); // eslint-disable-line re-lint/declare-near-use -- paired fixture shas belong together at the head of the file
-const SHA_B = "b".repeat(40);
+const SHA_B = "b".repeat(40); // eslint-disable-line re-lint/declare-near-use -- paired with SHA_A above
 
 interface Issued {
   sql: string;
   params: unknown[];
 }
 
+interface FakeDeps extends IngestDeltaDeps {
+  calls: Array<[string, ...unknown[]]>;
+  mirrored: Array<[string, ...unknown[]]>;
+}
+
 function fakeDeps(
   graph: { specs?: string[]; adrs?: string[]; code?: string[] } = {},
-): IngestDeltaDeps & {
-  calls: Array<[string, ...unknown[]]>;
-} {
+  mirrorDoc: IngestDeltaDeps["mirrorDoc"] = async () => undefined,
+): FakeDeps {
   const calls: Array<[string, ...unknown[]]> = [];
+  const mirrored: Array<[string, ...unknown[]]> = [];
   const recordProjection =
     (name: string): IngestDeltaDeps["projectSpec"] =>
     async (repo, path, content, projection) => {
@@ -32,6 +37,7 @@ function fakeDeps(
 
   return {
     calls,
+    mirrored,
     dgraph: () => ({}) as never,
     projectSpec: recordProjection("projectSpec"),
     projectAdr: recordProjection("projectAdr"),
@@ -66,6 +72,13 @@ function fakeDeps(
       return { prunedChunks: files.length };
     },
     defaultBranch: async () => "main",
+    mirrorDoc: async (repo, doc) => {
+      mirrored.push(["mirrorDoc", repo, doc]);
+      await mirrorDoc(repo, doc);
+    },
+    unmirrorDoc: async (repo, path) => {
+      mirrored.push(["unmirrorDoc", repo, path]);
+    },
   };
 }
 
@@ -146,6 +159,73 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
       projected: 1,
       deleted: 1,
     });
+  });
+
+  it("mirrors a projected spec as kind spec at the delta's commit and unmirrors the deleted one", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "specs/x/spec.md", content: "# X\n" }],
+      deleted: ["specs/old/spec.md"],
+    });
+
+    expect(deps.mirrored).toEqual([
+      [
+        "mirrorDoc",
+        "re-cinq/lore",
+        {
+          path: "specs/x/spec.md",
+          content: "# X\n",
+          kind: "spec",
+          commit: SHA_B,
+        },
+      ],
+      ["unmirrorDoc", "re-cinq/lore", "specs/old/spec.md"],
+    ]);
+  });
+
+  it("answers 200 with the projection counted when the mirror throws", async () => {
+    const deps = fakeDeps({}, async () => {
+      throw new Error("utopia answered 503: busy");
+    });
+    const server = await serverWith(deps, casAdvances);
+    const res = await post(server, {
+      kind: "adrs",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "adrs/ADR-001.md", content: "# ADR-001\n" }],
+    });
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: {
+        kind: "adrs",
+        commit: SHA_B,
+        state: "advanced",
+        projected: 1,
+        deleted: 0,
+        test_chunks: 0,
+        pruned_test_files: 0,
+      },
+    });
+  });
+
+  it("mirrors nothing for a code delta", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "src/runner.ts", content: "export {};" }],
+    });
+
+    expect(deps.mirrored).toEqual([]);
   });
 
   it("routes adr files to the adr projector and adr deletions to the adr prune", async () => {

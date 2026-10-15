@@ -144,6 +144,10 @@ spec:
                   name: {{ .Values.floor.gitCredentialTokenSecret.name }}
                   key: {{ .Values.floor.gitCredentialTokenSecret.key }}
             {{- end }}
+            {{- if .Values.utopia.enabled }}
+            - name: UTOPIA_API_URL
+              value: {{ .Values.utopia.apiUrl | quote }}
+            {{- end }}
           livenessProbe:
             tcpSocket:
               port: http

@@ -10,6 +10,7 @@ import { reposRoute } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
+import { utopiaSetupRoute } from "./routes/repos/utopia-setup.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
 import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
@@ -171,6 +172,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     repoRecordRoute(),
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
+    utopiaSetupRoute(getPool),
     prStatusRoute(),
     pullFilesRoute(),
     ciFailuresRoute(),

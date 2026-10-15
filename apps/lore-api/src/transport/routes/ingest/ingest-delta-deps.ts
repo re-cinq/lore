@@ -15,6 +15,13 @@ import {
   type DgraphClientPort,
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
+import {
+  mirrorDocFor,
+  unmirrorDocFor,
+  type MirroredDoc,
+} from "../../../work/utopia/utopia-mirror.js";
+
+export type { MirroredDoc } from "../../../work/utopia/utopia-mirror.js";
 
 /** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
 export interface DocProjection {
@@ -46,6 +53,9 @@ export interface IngestDeltaDeps {
   pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
   /** The repo's default branch: a test report for any other branch is work in flight and goes to that branch's overlay. */
   defaultBranch(repo: string): Promise<string>;
+  /** The Utopia mirror of one projected spec or ADR (specs/utopia-graph-mirror); a no-op on a repo not set up there. */
+  mirrorDoc(repo: string, doc: MirroredDoc): Promise<void>;
+  unmirrorDoc(repo: string, path: string): Promise<void>;
 }
 
 /** The client every projector needs; a delta that reached here without one is a wiring bug, not a request error. */
@@ -105,5 +115,7 @@ export const defaultDeps = (): IngestDeltaDeps => {
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),
     defaultBranch: async (repo) =>
       (await projectFor(repo)).repo.defaultBranch(),
+    mirrorDoc: mirrorDocFor,
+    unmirrorDoc: unmirrorDocFor,
   };
 };

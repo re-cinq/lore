@@ -108,6 +108,11 @@ resource "helm_release" "lore_platform" {
         enabled   = var.enable_external_floor
         skillsUrl = "${local.lore_mcp_in_cluster}/skills"
       }
+      # Utopia (utopia.tf), the knowledge graph the spec/ADR chain is mirrored into; see var.enable_utopia.
+      utopia = {
+        enabled = var.enable_utopia
+        apiUrl  = "http://utopia.${local.utopia_namespace}.svc.cluster.local"
+      }
     }
 
     # ---- Web UI (lore-ui namespace) ----

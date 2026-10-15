@@ -1,0 +1,62 @@
+# Feature Specification: The spec-to-code chain mirrored in Utopia
+
+| Field   | Value                                                                                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feature | The spec-to-code chain mirrored in Utopia                                                                                                                  |
+| Branch  | utopia-code-spec-mirror                                                                                                                                    |
+| Status  | In Progress                                                                                                                                                |
+| Created | 2026-10-15                                                                                                                                                 |
+| Owner   | Platform Engineering                                                                                                                                       |
+| Module  | `libs/shared/src/domain/utopia/`, `libs/shared/src/outbound/utopia/`, `libs/shared/src/work/utopia/`, `apps/lore-api/src/work/utopia/`, `apps/lore-api/src/transport/routes/repos/utopia-setup.ts` |
+
+Every spec and ADR lore-api ingests is also written into Utopia, the knowledge-graph service deployed beside Lore, as the chain it draws from the document: the document, its sections, their statements, and the tests, source files and ADRs each statement links. ADR-052 records why.
+
+## Background
+
+Dgraph holds the traceability graph today and is to be retired. Utopia already runs in the cluster and keeps a typed graph, but it cannot yet answer two of the reads Lore's checks make, so the chain is mirrored there beside Dgraph rather than moved. The mirror is a copy: nothing in Lore reads it yet, and its failure never fails an ingest.
+
+## The ontology
+
+- FR1.1 — The Lore ontology is one turtle file, `libs/shared/src/domain/lore-ontology.ttl`, read beside the module that names it and copied beside `dist` by the build. Its ten classes are the kind words a pushed entity carries, each bound in Utopia to the snake_case key of its label. ([validated by binds the ten class labels of the chain to their snake_case class keys](libs/shared/src/domain/lore-ontology.test.ts#L9), [validated by reads the turtle file beside the module, which declares every kind word as a class at version 1](libs/shared/src/domain/lore-ontology.test.ts#L29))
+- FR1.2 — `LORE_ONTOLOGY_VERSION` is stored with the repo's settings at setup; a change to the turtle's shape bumps it.
+
+## Names
+
+Utopia resolves an entity by its lower-cased name and flags a name that is a substring of another same-class name, so every name carries the repository and the path:
+
+- repository `owner/repo`; document `owner/repo:<path>`; section `owner/repo:<path>#<heading-slug>`, with a repeated heading suffixed `-2`, `-3` in order; statement `owner/repo:<path>#s<ordinal, four digits>`; test `owner/repo:<test path>::<test title>`; source file `owner/repo:<path>`; an ADR a statement links is the same name its own document has. ([validated by builds one doc item with the repository, the Spec document and its three sections, duplicate headings deduped as chain and chain-2](libs/shared/src/domain/utopia/doc-statements.test.ts#L43))
+
+## The items
+
+- FR2.1 — One document becomes one `doc:<path>` item: Repository `contains` Document; Document `path`, `commit` and `permalink` (`https://github.com/<repo>/blob/<commit>/<path>`); Document `contains` each Section, with the Section's `title` and `line_start`. A spec's document is a `Spec`, an ADR's an `Adr`. ([validated by types an ADR's document as Adr](libs/shared/src/domain/utopia/doc-statements.test.ts#L176))
+- FR2.2 — Each statement becomes one `stmt:<path>#<ordinal>` item: its Section `contains` the Statement; the Statement's `line_start` and `permalink` with `#L<line>`; for every test link, Statement `validated_by` Test with the Test's `title` (the link label after "validated by"), `path`, `line_start` when the link carries a line anchor, and `permalink`; for every code link, Statement `implemented_by` SourceFile with its `path`. ([validated by builds a statement item with two validated_by tests, titles taken after validated by, and one implemented_by source file](libs/shared/src/domain/utopia/doc-statements.test.ts#L78))
+- FR2.3 — A link to a file under `adrs/` is not a code link; it makes the Statement `decided_by` that Adr. ([validated by links a statement to an ADR with decided_by and treats the ADR as no code link](libs/shared/src/domain/utopia/doc-statements.test.ts#L137))
+- FR2.4 — A statement sits under the last heading before its line, so the second of two same-named sections holds its own statements. Every item carries `doc_time` when the commit's time is known and no `doc_time` otherwise. ([validated by files the sentence under the second chain section as chain-2 and omits doc_time for an undated commit](libs/shared/src/domain/utopia/doc-statements.test.ts#L159))
+- FR2.5 — An item never exceeds 200 statements or 60 KiB. A statement with more links than fit is split: the first item keeps its id and the rest take `.2`, `.3`, every one repeating the Section and Statement entities. ([validated by splits a statement with 80 test links into four items under 200 statements each that repeat the section and statement entities](libs/shared/src/domain/utopia/doc-statements.test.ts#L188))
+
+## The push
+
+- FR3.1 — An item is posted to `POST /api/v1/sources/{source}/statements` under the source's own key, as `external_id`, `doc_time`, `e`, `s` and an empty `n`; the answer's `action` is returned. ([validated by posts the item under the source key with external_id, doc_time and an empty notes list, and returns the action](libs/shared/src/outbound/utopia/utopia-client.test.ts#L129))
+- FR3.2 — A tombstone is `external_id` plus `deleted: true`, answered `marked_missing`. ([validated by posts a tombstone as external_id plus deleted true and returns marked_missing](libs/shared/src/outbound/utopia/utopia-client.test.ts#L155))
+- FR3.3 — A 429 or 5xx is retried once after a short wait; a second failure, or any other refusal, throws a `UtopiaPushError` carrying the status and the first 300 characters of the body, with no retry. ([validated by retries once after a 503 and returns the second answer](libs/shared/src/outbound/utopia/utopia-client.test.ts#L170), [validated by gives up after two 503s with a UtopiaPushError carrying the status](libs/shared/src/outbound/utopia/utopia-client.test.ts#L183), [validated by throws a UtopiaPushError with the status and the first 300 body characters on a 422 without retrying](libs/shared/src/outbound/utopia/utopia-client.test.ts#L194))
+- FR3.4 — A document's items are pushed four at a time; the outcome counts the items and how many Utopia created, updated and left unchanged, and names every item whose push threw while the rest still land. ([validated by pushes the doc item and one item per statement and counts created, updated and unchanged](libs/shared/src/work/utopia/mirror-document.test.ts#L41), [validated by names a statement item whose push threw under failed and still pushes the others](libs/shared/src/work/utopia/mirror-document.test.ts#L65))
+- FR3.5 — A deleted document is tombstoned: its `doc:` item, and its statement items for the ordinals the caller knows; with none known, the `doc:` item alone. ([validated by tombstones the doc item and the statement items of the ordinals it is given](libs/shared/src/work/utopia/mirror-document.test.ts#L96), [validated by tombstones only the doc item when no ordinals are known](libs/shared/src/work/utopia/mirror-document.test.ts#L114))
+
+## The ingest
+
+- FR4.1 — The deployment reaches Utopia through `UTOPIA_API_URL` (`utopia.enabled` in the lore-api chart, from `enable_utopia`); without it the mirror is off. ([validated by is true with UTOPIA_API_URL set and false without it](libs/shared/src/outbound/utopia/utopia-client.test.ts#L120))
+- FR4.2 — A repo is mirrored when its settings hold `utopia.source_id` and `utopia.source_key` and the deployment has a Utopia; otherwise the ingest mirrors nothing. ([validated by reads the source id and key from settings.utopia when UTOPIA_API_URL is set](apps/lore-api/src/work/utopia/utopia-mirror.test.ts#L7), [validated by is null without UTOPIA_API_URL, without a utopia block, and with a block missing its key](apps/lore-api/src/work/utopia/utopia-mirror.test.ts#L16))
+- FR4.3 — After the delta route has projected a `specs` or `adrs` delta into the graph, each file is mirrored as a spec or an ADR at the delta's commit and each deleted path is tombstoned; a `code` delta mirrors nothing. ([validated by mirrors a projected spec as kind spec at the delta's commit and unmirrors the deleted one](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L164), [validated by mirrors nothing for a code delta](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L217))
+- FR4.4 — A mirror that fails is logged as `[utopia-mirror] <repo> <path>: <message>`, counted on `lore_utopia_mirror_failures_total` by repo, and never fails the ingest, which answers 200 with what the graph did. ([validated by answers 200 with the projection counted when the mirror throws](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L191), [validated by counts a failed Utopia mirror of re-cinq/lore](libs/shared/src/outbound/otel/metrics.test.ts#L109))
+
+## Setup
+
+- FR5.1 — `POST /api/repos/{owner}/{repo}/utopia/setup` (admin scope) takes a person's Utopia session token and a workspace id. It finds the knowledge base named `owner/repo` in that workspace or creates it, imports the ontology, binds the ten kind words, creates a `statements` source named `lore`, and writes `settings.utopia` with the knowledge base, the source, its key and the ontology version. It answers the ids and the version, never the key. ([validated by creates the knowledge base, imports the ontology, binds the ten kind words, creates the lore source and stores the block with its key](apps/lore-api/src/transport/routes/repos/utopia-setup.test.ts#L126), [validated by lists a workspace's knowledge bases under the session token](libs/shared/src/outbound/utopia/utopia-client.test.ts#L209), [validated by creates a knowledge base of kind knowledge with no ontology packs](libs/shared/src/outbound/utopia/utopia-client.test.ts#L218), [validated by imports the ontology as a multipart turtle file named lore-ontology.ttl](libs/shared/src/outbound/utopia/utopia-client.test.ts#L229), [validated by binds a kind word to its class key](libs/shared/src/outbound/utopia/utopia-client.test.ts#L249), [validated by creates a statements source and returns its id with the ingest token as the key](libs/shared/src/outbound/utopia/utopia-client.test.ts#L260))
+- FR5.2 — A source already in settings for that knowledge base is kept with its key, since Utopia hands a source's key out once. ([validated by keeps the source and key already in settings for the knowledge base it finds by name](apps/lore-api/src/transport/routes/repos/utopia-setup.test.ts#L161))
+- FR5.3 — A repo Lore does not hold is a 404 before any call to Utopia; a deployment without `UTOPIA_API_URL` is a 503; a body without a session token is a 400. ([validated by answers 404 for a repo Lore does not hold and calls Utopia for nothing](apps/lore-api/src/transport/routes/repos/utopia-setup.test.ts#L187), [validated by answers 503 when UTOPIA_API_URL is unset](apps/lore-api/src/transport/routes/repos/utopia-setup.test.ts#L196), [validated by answers 400 without a session token](apps/lore-api/src/transport/routes/repos/utopia-setup.test.ts#L203))
+
+## Out of scope
+
+- Reading the mirror: the spec pages, the detectors and `query_trace` keep reading Dgraph.
+- Tests and code definitions from the test and code ingests; the ontology declares them (`covers`, `defines`, `references`, `imports`) for the slice that pushes them.
+- Tombstoning the statement items of a deleted document; the ordinals of the last push are not stored yet.
