@@ -96,15 +96,20 @@ export function deriveBlockedReason(state: PullState): BlockedReason | null {
 const VERDICTS = new Set(["APPROVED", "CHANGES_REQUESTED", "DISMISSED"]);
 
 /** Reviewers whose latest verdict is APPROVED; a plain comment changes no verdict, as on GitHub. */
-export function approvalCount(reviews: PullReview[]): number {
+export function approvers(reviews: PullReview[]): string[] {
   const latest = new Map<string, string>();
 
   for (const review of reviews.filter((r) => VERDICTS.has(r.state))) {
     latest.set(review.user, review.state);
   }
 
-  return [...latest.values()].filter((state) => state === "APPROVED").length;
+  return [...latest]
+    .filter(([, state]) => state === "APPROVED")
+    .map(([user]) => user);
 }
+
+export const approvalCount = (reviews: PullReview[]): number =>
+  approvers(reviews).length;
 
 const PASSING = new Set(["success", "neutral", "skipped"]);
 

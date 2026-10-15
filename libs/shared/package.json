@@ -58,6 +58,10 @@
       "types": "./dist/domain/blocked-reason.d.ts",
       "default": "./dist/domain/blocked-reason.js"
     },
+    "./codeowners.js": {
+      "types": "./dist/domain/codeowners.d.ts",
+      "default": "./dist/domain/codeowners.js"
+    },
     "./dod-verdict.js": {
       "types": "./dist/domain/dod-verdict.d.ts",
       "default": "./dist/domain/dod-verdict.js"
