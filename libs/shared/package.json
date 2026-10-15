@@ -209,15 +209,36 @@
     "./otel/*.js": {
       "types": "./dist/outbound/otel/*.d.ts",
       "default": "./dist/outbound/otel/*.js"
+    },
+    "./lore-ontology.js": {
+      "types": "./dist/domain/lore-ontology.d.ts",
+      "default": "./dist/domain/lore-ontology.js"
+    },
+    "./utopia/statements.js": {
+      "types": "./dist/domain/utopia/statements.d.ts",
+      "default": "./dist/domain/utopia/statements.js"
+    },
+    "./utopia/doc-statements.js": {
+      "types": "./dist/domain/utopia/doc-statements.d.ts",
+      "default": "./dist/domain/utopia/doc-statements.js"
+    },
+    "./utopia/utopia-client.js": {
+      "types": "./dist/outbound/utopia/utopia-client.d.ts",
+      "default": "./dist/outbound/utopia/utopia-client.js"
+    },
+    "./utopia/mirror-document.js": {
+      "types": "./dist/work/utopia/mirror-document.d.ts",
+      "default": "./dist/work/utopia/mirror-document.js"
     }
   },
   "scripts": {
-    "build": "tsc && npm run copy:agent-defaults",
+    "build": "tsc && npm run copy:agent-defaults && npm run copy:ontology",
     "copy:agent-defaults": "rm -rf dist/agent-defaults && mkdir -p dist/agent-defaults && cp -f src/agent-defaults/*.md dist/agent-defaults/",
     "dev": "tsc --watch",
     "test": "LORE_SKIP_DGRAPH_TESTS=1 vitest run",
     "test:dgraph": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "copy:ontology": "cp -f src/domain/lore-ontology.ttl dist/domain/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

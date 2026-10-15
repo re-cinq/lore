@@ -1799,6 +1799,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/utopia/setup": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/setup */
+    post: operations["post_api_repos_owner_repo_utopia_setup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/webhook": {
     parameters: {
       query?: never;
@@ -3703,6 +3720,11 @@ export interface components {
             dispatch_default_type?: string;
             test_commands?: unknown;
             incidents?: unknown[];
+            utopia?: {
+              kb_id: string;
+              source_id: string;
+              ontology_version?: number;
+            };
           } & {
             [key: string]: unknown;
           })
@@ -3813,6 +3835,11 @@ export interface components {
               dispatch_default_type?: string;
               test_commands?: unknown;
               incidents?: unknown[];
+              utopia?: {
+                kb_id: string;
+                source_id: string;
+                ontology_version?: number;
+              };
             } & {
               [key: string]: unknown;
             })
@@ -4520,6 +4547,11 @@ export interface components {
     TurnsRelayed: {
       forwarded: number;
       skipped: number;
+    };
+    UtopiaSetupResult: {
+      kb_id: string;
+      source_id: string;
+      ontology_version: number;
     };
     VisitEvents: {
       events: {
@@ -8007,6 +8039,43 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_setup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          session_token: string;
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The repo's Utopia knowledge base and push source, now in its settings; the source key itself is never answered */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaSetupResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

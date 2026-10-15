@@ -1,0 +1,161 @@
+@prefix lore: <https://lore.re-cinq.com/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://lore.re-cinq.com/ontology> a owl:Ontology ;
+  rdfs:label "Lore traceability" ;
+  rdfs:comment "What a repository's documents say, the tests that validate it, and the code that implements it: Document contains Section, Section validated_by Test, Section implemented_by Code." .
+
+# ---- classes: one chain from document to code ----
+
+lore:Repository a owl:Class ;
+  rdfs:label "Repository" ;
+  rdfs:comment "A GitHub repository (owner/name). The root everything in this knowledge base belongs to." ;
+  owl:disjointWith lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code .
+
+lore:Document a owl:Class ;
+  rdfs:label "Document" ;
+  rdfs:comment "A markdown document in the repository: a spec or an ADR, at a commit." ;
+  owl:disjointWith lore:Section, lore:Statement, lore:Test, lore:Code .
+
+lore:Spec a owl:Class ;
+  rdfs:label "Spec" ;
+  rdfs:comment "A feature specification (specs/<name>/spec.md)." ;
+  rdfs:subClassOf lore:Document ;
+  owl:disjointWith lore:Adr .
+
+lore:Adr a owl:Class ;
+  rdfs:label "Adr" ;
+  rdfs:comment "An architecture decision record (adrs/ADR-NNN-*.md)." ;
+  rdfs:subClassOf lore:Document .
+
+lore:Section a owl:Class ;
+  rdfs:label "Section" ;
+  rdfs:comment "A heading-level section of a document. It contains the statements written under that heading." ;
+  owl:disjointWith lore:Statement, lore:Test, lore:Code .
+
+lore:Statement a owl:Class ;
+  rdfs:label "Statement" ;
+  rdfs:comment "One sentence or list item of a section that states a behaviour; the unit a test validates and code implements." ;
+  owl:disjointWith lore:Test, lore:Code .
+
+lore:Test a owl:Class ;
+  rdfs:label "Test" ;
+  rdfs:comment "One test case (an it/test call) with its title, its file and the lines it spans." ;
+  owl:disjointWith lore:Code .
+
+lore:Code a owl:Class ;
+  rdfs:label "Code" ;
+  rdfs:comment "Source code in the repository: a file or a definition inside one." .
+
+lore:SourceFile a owl:Class ;
+  rdfs:label "SourceFile" ;
+  rdfs:comment "A source file at a commit, by repository-relative path." ;
+  rdfs:subClassOf lore:Code ;
+  owl:disjointWith lore:CodeDefinition .
+
+lore:CodeDefinition a owl:Class ;
+  rdfs:label "CodeDefinition" ;
+  rdfs:comment "A top-level definition in a source file: a function, class, constant or type, with the lines it spans." ;
+  rdfs:subClassOf lore:Code .
+
+# ---- relations ----
+
+lore:contains a owl:ObjectProperty ;
+  rdfs:label "contains" ;
+  rdfs:comment "Structure: a repository contains its documents and files; a document contains its sections; a section contains its statements." ;
+  rdfs:domain lore:Repository, lore:Document, lore:Section ;
+  rdfs:range lore:Document, lore:SourceFile, lore:Section, lore:Statement .
+
+lore:validated_by a owl:ObjectProperty ;
+  rdfs:label "validated_by" ;
+  rdfs:comment "A section or statement is validated by a test that checks the behaviour it states." ;
+  rdfs:domain lore:Section, lore:Statement ;
+  rdfs:range lore:Test .
+
+lore:implemented_by a owl:ObjectProperty ;
+  rdfs:label "implemented_by" ;
+  rdfs:comment "A section or statement is implemented by the code that realises it." ;
+  rdfs:domain lore:Section, lore:Statement ;
+  rdfs:range lore:Code .
+
+lore:decided_by a owl:ObjectProperty ;
+  rdfs:label "decided_by" ;
+  rdfs:comment "A section or statement follows from a decision recorded in an ADR." ;
+  rdfs:domain lore:Section, lore:Statement ;
+  rdfs:range lore:Adr .
+
+lore:covers a owl:ObjectProperty ;
+  rdfs:label "covers" ;
+  rdfs:comment "A test executes lines of a source file; the ranges attribute says which." ;
+  rdfs:domain lore:Test ;
+  rdfs:range lore:SourceFile .
+
+lore:defines a owl:ObjectProperty ;
+  rdfs:label "defines" ;
+  rdfs:comment "A source file defines a top-level definition." ;
+  rdfs:domain lore:SourceFile ;
+  rdfs:range lore:CodeDefinition .
+
+lore:references a owl:ObjectProperty ;
+  rdfs:label "references" ;
+  rdfs:comment "A definition calls or uses another definition." ;
+  rdfs:domain lore:CodeDefinition ;
+  rdfs:range lore:CodeDefinition .
+
+lore:imports a owl:ObjectProperty ;
+  rdfs:label "imports" ;
+  rdfs:comment "A source file imports from another source file." ;
+  rdfs:domain lore:SourceFile ;
+  rdfs:range lore:SourceFile .
+
+# ---- attributes ----
+
+lore:path a owl:DatatypeProperty ;
+  rdfs:label "path" ;
+  rdfs:comment "Repository-relative path." ;
+  rdfs:domain lore:Document, lore:SourceFile, lore:Test ;
+  rdfs:range xsd:string .
+
+lore:commit a owl:DatatypeProperty ;
+  rdfs:label "commit" ;
+  rdfs:comment "The commit sha the document or file was read at." ;
+  rdfs:domain lore:Document, lore:SourceFile ;
+  rdfs:range xsd:string .
+
+lore:permalink a owl:DatatypeProperty ;
+  rdfs:label "permalink" ;
+  rdfs:comment "GitHub URL of the thing at its commit, with line anchors where it has lines." ;
+  rdfs:domain lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code ;
+  rdfs:range xsd:anyURI .
+
+lore:title a owl:DatatypeProperty ;
+  rdfs:label "title" ;
+  rdfs:comment "A test's title as written in its it() call; a section's heading text." ;
+  rdfs:domain lore:Test, lore:Section ;
+  rdfs:range xsd:string .
+
+lore:symbol a owl:DatatypeProperty ;
+  rdfs:label "symbol" ;
+  rdfs:comment "The name of a definition." ;
+  rdfs:domain lore:CodeDefinition ;
+  rdfs:range xsd:string .
+
+lore:line_start a owl:DatatypeProperty ;
+  rdfs:label "line_start" ;
+  rdfs:comment "First line (1-based)." ;
+  rdfs:domain lore:Section, lore:Statement, lore:Test, lore:CodeDefinition ;
+  rdfs:range xsd:integer .
+
+lore:line_end a owl:DatatypeProperty ;
+  rdfs:label "line_end" ;
+  rdfs:comment "Last line (1-based, inclusive)." ;
+  rdfs:domain lore:Section, lore:Statement, lore:Test, lore:CodeDefinition ;
+  rdfs:range xsd:integer .
+
+lore:ranges a owl:DatatypeProperty ;
+  rdfs:label "ranges" ;
+  rdfs:comment "Line ranges a test executes in a file, as 'a-b,c-d'." ;
+  rdfs:domain lore:Test ;
+  rdfs:range xsd:string .

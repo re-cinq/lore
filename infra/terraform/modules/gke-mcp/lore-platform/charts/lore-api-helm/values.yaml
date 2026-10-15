@@ -116,6 +116,13 @@ floor:
     name: floor-git-credential-token
     key: token
 
+# Utopia (deeplethe/utopia), the knowledge-graph service the spec/ADR chain is
+# mirrored into (specs/utopia-graph-mirror). Off by default: terraform sets
+# enabled from var.enable_utopia. Each repo's push key lives in its settings.
+utopia:
+  enabled: false
+  apiUrl: http://utopia.utopia.svc.cluster.local
+
 # The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
 # namespace-scoped, so this names the lore-api-namespace copy that the
 # es_mcp_anthropic ExternalSecret materialises; unset simply makes the job skip.

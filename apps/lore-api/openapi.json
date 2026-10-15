@@ -7109,6 +7109,93 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/utopia/setup": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_setup",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/setup",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The repo's Utopia knowledge base and push source, now in its settings; the source key itself is never answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaSetupResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "session_token": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "workspace_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["session_token", "workspace_id"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/webhook": {
       "get": {
         "operationId": "get_api_repos_owner_repo_webhook",
@@ -13757,6 +13844,22 @@
                   "incidents": {
                     "type": "array",
                     "items": {}
+                  },
+                  "utopia": {
+                    "type": "object",
+                    "properties": {
+                      "kb_id": {
+                        "type": "string"
+                      },
+                      "source_id": {
+                        "type": "string"
+                      },
+                      "ontology_version": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["kb_id", "source_id"],
+                    "additionalProperties": false
                   }
                 },
                 "additionalProperties": {}
@@ -14139,6 +14242,22 @@
                         "incidents": {
                           "type": "array",
                           "items": {}
+                        },
+                        "utopia": {
+                          "type": "object",
+                          "properties": {
+                            "kb_id": {
+                              "type": "string"
+                            },
+                            "source_id": {
+                              "type": "string"
+                            },
+                            "ontology_version": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["kb_id", "source_id"],
+                          "additionalProperties": false
                         }
                       },
                       "additionalProperties": {}
@@ -16833,6 +16952,22 @@
           }
         },
         "required": ["forwarded", "skipped"],
+        "additionalProperties": false
+      },
+      "UtopiaSetupResult": {
+        "type": "object",
+        "properties": {
+          "kb_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "ontology_version": {
+            "type": "number"
+          }
+        },
+        "required": ["kb_id", "source_id", "ontology_version"],
         "additionalProperties": false
       },
       "VisitEvents": {

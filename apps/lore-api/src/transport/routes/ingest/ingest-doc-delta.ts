@@ -1,9 +1,11 @@
-import { selectPruneCandidates } from "@re-cinq/lore-shared";
+import { errorMessage, selectPruneCandidates } from "@re-cinq/lore-shared";
+import { recordUtopiaMirrorFailure } from "@re-cinq/lore-shared/otel/metrics.js";
 import type { IngestDeltaDeps } from "./ingest-delta-deps.js";
 
 /** The part of a delta body a file kind (specs, adrs, code) reads. */
 export interface DocDelta {
   kind: string;
+  commit: string;
   files?: Array<{ path: string; content: string }>;
   deleted?: string[];
   present?: string[];
@@ -24,8 +26,51 @@ export async function applyDocDelta(
   ];
 
   await removeDocs(remove, repo, gone);
+  await mirrorDelta(deps, repo, delta, gone);
 
   return { projected, deleted: gone.length };
+}
+
+const MIRRORED_KINDS: Partial<Record<string, "spec" | "adr">> = {
+  specs: "spec",
+  adrs: "adr",
+};
+
+/** After the graph has the delta, Utopia gets the same documents. A mirror that fails is logged and counted and never fails the ingest: the graph is the source the checks read, the mirror is a copy. */
+async function mirrorDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  delta: DocDelta,
+  gone: string[],
+): Promise<void> {
+  const kind = MIRRORED_KINDS[delta.kind];
+
+  if (!kind) {
+    return;
+  }
+
+  for (const file of delta.files ?? []) {
+    await mirrorQuietly(repo, file.path, () =>
+      deps.mirrorDoc(repo, { ...file, kind, commit: delta.commit }),
+    );
+  }
+
+  for (const path of gone) {
+    await mirrorQuietly(repo, path, () => deps.unmirrorDoc(repo, path));
+  }
+}
+
+async function mirrorQuietly(
+  repo: string,
+  path: string,
+  mirror: () => Promise<void>,
+): Promise<void> {
+  try {
+    await mirror();
+  } catch (error) {
+    console.error(`[utopia-mirror] ${repo} ${path}: ${errorMessage(error)}`);
+    recordUtopiaMirrorFailure(repo);
+  }
 }
 
 interface DocFunctions {
