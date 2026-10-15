@@ -13,17 +13,6 @@ export interface PodResourcesWrite {
   inheritedConfig: Record<string, unknown> | null;
 }
 
-/** Curated model dropdown for the Agents tab (custom text is still allowed). */
-export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "claude-opus-4-8", label: "Opus 4.8" },
-  { id: "claude-sonnet-4-6", label: "Sonnet 4.6" },
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-  { id: "claude-fable-5", label: "Fable 5" },
-  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
-];
-
 /** Read surface implemented by all adapters. */
 export interface AgentDefsReadPort {
   /** The effective definition for a task type in a repo (project → org), or null. */

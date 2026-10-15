@@ -117,7 +117,7 @@ export type {
   AgentDefsReadPort,
   AgentDefsWritePort,
 } from "./agents/agent-defs-port.js";
-export { resolveAgentConfig, KNOWN_MODELS } from "./agents/agent-defs-port.js";
+export { resolveAgentConfig } from "./agents/agent-defs-port.js";
 export type { ProjectProviders } from "./lib/providers.js";
 
 export type { GitPort, CloneOpts } from "./workspace/git-port.js";
