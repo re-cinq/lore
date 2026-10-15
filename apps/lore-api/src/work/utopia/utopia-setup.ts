@@ -10,29 +10,37 @@ import type {
   UtopiaSession,
   UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
+import type { StoredUtopiaSource } from "../../outbound/utopia-sources.js";
 
 export interface UtopiaSetupInput {
   repo: string;
   workspaceId: string;
-  /** What the repo's settings already hold, so a source set up before keeps its key. */
-  existing: UtopiaMirrorSettings | null;
+  /** The source lore.utopia_sources already holds a key for, so a source set up before keeps it. */
+  existing: StoredUtopiaSource | null;
 }
 
-/** The settings block to store; the key inside it is the source's own and leaves the server only through the ingest push. */
+/** The settings block holds no key: settings are served whole at read scope, so the key travels apart, to lore.utopia_sources. */
+export interface UtopiaSetup {
+  settings: UtopiaMirrorSettings;
+  source: StoredUtopiaSource;
+}
+
 export async function setUpRepoInUtopia(
   session: UtopiaSession,
   input: UtopiaSetupInput,
-): Promise<UtopiaMirrorSettings> {
+): Promise<UtopiaSetup> {
   const kbId = await knowledgeBaseFor(session, input.workspaceId, input.repo);
 
   await installOntology(session, kbId);
   const source = await sourceFor(session, kbId, input.existing);
 
   return {
-    kb_id: kbId,
-    source_id: source.id,
-    source_key: source.key,
-    ontology_version: LORE_ONTOLOGY_VERSION,
+    settings: {
+      kb_id: kbId,
+      source_id: source.id,
+      ontology_version: LORE_ONTOLOGY_VERSION,
+    },
+    source: { ...source, kbId },
   };
 }
 
@@ -66,17 +74,14 @@ async function knowledgeBaseFor(
     : (await session.createKnowledgeBase(workspaceId, repo)).id;
 }
 
-/** A source set up before is kept with its key, since Utopia hands a source's key out once, at creation. */
+/** A source set up before is kept only while its key is stored, since Utopia hands a source's key out once, at creation. */
 function sourceFor(
   session: UtopiaSession,
   kbId: string,
-  existing: UtopiaMirrorSettings | null,
+  existing: StoredUtopiaSource | null,
 ): Promise<UtopiaSource> {
-  if (existing && existing.kb_id === kbId) {
-    return Promise.resolve({
-      id: existing.source_id,
-      key: existing.source_key,
-    });
+  if (existing?.kbId === kbId) {
+    return Promise.resolve({ id: existing.id, key: existing.key });
   }
 
   return session.createStatementsSource(kbId, "lore");

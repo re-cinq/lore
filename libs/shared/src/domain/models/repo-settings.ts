@@ -28,11 +28,10 @@ export const AutoMergeSettingsSchema = z
   })
   .passthrough();
 
-/** The Utopia knowledge base the repo's spec/ADR chain is mirrored into (specs/utopia-graph-mirror); the key is the one source's own push key, written by the setup route. */
+/** The Utopia knowledge base and source the repo's spec/ADR chain is mirrored into (specs/utopia-graph-mirror). No key: settings are served whole at read scope, so the source's push key lives in lore.utopia_sources. */
 export const UtopiaMirrorSettingsSchema = z.object({
   kb_id: z.string(),
   source_id: z.string(),
-  source_key: z.string(),
   ontology_version: z.number().optional(),
 });
 

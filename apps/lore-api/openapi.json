@@ -13854,14 +13854,11 @@
                       "source_id": {
                         "type": "string"
                       },
-                      "source_key": {
-                        "type": "string"
-                      },
                       "ontology_version": {
                         "type": "number"
                       }
                     },
-                    "required": ["kb_id", "source_id", "source_key"],
+                    "required": ["kb_id", "source_id"],
                     "additionalProperties": false
                   }
                 },
@@ -14255,14 +14252,11 @@
                             "source_id": {
                               "type": "string"
                             },
-                            "source_key": {
-                              "type": "string"
-                            },
                             "ontology_version": {
                               "type": "number"
                             }
                           },
-                          "required": ["kb_id", "source_id", "source_key"],
+                          "required": ["kb_id", "source_id"],
                           "additionalProperties": false
                         }
                       },

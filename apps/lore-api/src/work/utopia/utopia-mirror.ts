@@ -1,4 +1,4 @@
-// The ingest-side door to the Utopia mirror: a repo whose settings hold a Utopia source, on a deployment given a Utopia, has every spec and ADR it ingests pushed there.
+// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec and ADR it ingests pushed there.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { UtopiaMirrorSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
@@ -14,7 +14,12 @@ import {
   type MirrorDeps,
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import {
+  utopiaSourceFor,
+  type StoredUtopiaSource,
+} from "../../outbound/utopia-sources.js";
 
 export interface MirroredDoc {
   path: string;
@@ -23,19 +28,27 @@ export interface MirroredDoc {
   commit: string;
 }
 
-/** The source the repo's documents are pushed to, or null when the deployment has no Utopia or the repo was never set up there. */
+/** The source the repo's documents are pushed to, or null when the deployment has no Utopia, the repo was never set up there, or the stored key belongs to another source than the one its settings name. */
 export function mirrorSource(
   settings: Record<string, unknown> | null,
+  stored: StoredUtopiaSource | null,
   env: UtopiaEnv = process.env,
 ): UtopiaSource | null {
-  if (!utopiaConfigured(env)) {
+  const named = namedSourceId(settings);
+
+  if (!utopiaConfigured(env) || !stored || stored.id !== named) {
     return null;
   }
+
+  return { id: stored.id, key: stored.key };
+}
+
+function namedSourceId(
+  settings: Record<string, unknown> | null,
+): string | null {
   const parsed = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
 
-  return parsed.success
-    ? { id: parsed.data.source_id, key: parsed.data.source_key }
-    : null;
+  return parsed.success ? parsed.data.source_id : null;
 }
 
 export async function mirrorDocFor(
@@ -65,7 +78,10 @@ async function mirrorDepsFor(repo: string): Promise<MirrorDeps | null> {
     return null;
   }
   const { settings } = await projectFor(repo);
-  const source = mirrorSource(await settings.rawSettings());
+  const source = mirrorSource(
+    await settings.rawSettings(),
+    await utopiaSourceFor(getPool(), repo),
+  );
 
   return (
     source && {

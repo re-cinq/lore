@@ -3723,7 +3723,6 @@ export interface components {
             utopia?: {
               kb_id: string;
               source_id: string;
-              source_key: string;
               ontology_version?: number;
             };
           } & {
@@ -3839,7 +3838,6 @@ export interface components {
               utopia?: {
                 kb_id: string;
                 source_id: string;
-                source_key: string;
                 ontology_version?: number;
               };
             } & {

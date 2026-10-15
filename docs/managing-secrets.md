@@ -290,20 +290,27 @@ The database password is read by Terraform into the CNPG credentials Secret, as
 `force-sync` annotation and `rollout restart deploy/utopia-oauth2-proxy` as Grafana's.
 First install order is Headlamp's too: containers first, seed, then the rest.
 
-### The Utopia source key (`lore.repos.settings.utopia.source_key`)
+### The Utopia source key (`lore.utopia_sources`)
 
 The key lore-api pushes a repo's spec/ADR chain with (ADR-052) is not a Secret
-Manager secret: it lives in the repo's settings row, beside the knowledge base
-and source ids the setup route wrote there. It is a per-source key — it can push
-to that one source of that one knowledge base and read nothing — and Utopia
-hands it out once, when the source is created.
+Manager secret. It lives in `lore.utopia_sources` (migration 0109), one row per
+repo, which only the `lore` role can read and no route ever answers; the repo's
+settings hold only the knowledge base and source ids, since the repo read routes
+serve settings whole. It is a per-source key: it can push to that one source of
+that one knowledge base and read nothing. Utopia hands it out once, when the
+source is created.
 
-To rotate it: rotate the source's token in Utopia (`rotate-token` on the source),
-delete the `utopia` block from the repo's settings (`PUT /api/repos/<o>/<r>/settings`
-with `{"settings": {"utopia": null}}`), then re-run
-`POST /api/repos/<o>/<r>/utopia/setup` with a session token and the workspace id;
-setup creates a fresh `lore` source and stores its key. With the block left in
-place, setup keeps the source it finds there and the old key stays.
+To rotate it: in Utopia, `rotate-token` on the source (or delete the source), so
+the old key stops working, then re-run `POST /api/repos/<o>/<r>/utopia/setup`
+with a session token and the workspace id. Setup keeps a source whose key the
+table still holds, so clear the row first, as `lore`:
+
+```sql
+DELETE FROM lore.utopia_sources WHERE lower(repo) = lower('<o>/<r>');
+```
+
+Setup then creates a fresh `lore` source, overwrites the row with its key and
+points the settings at it.
 
 ## Change a non-secret value
 
