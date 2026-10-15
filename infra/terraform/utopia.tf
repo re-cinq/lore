@@ -299,11 +299,12 @@ resource "kubernetes_deployment_v1" "utopia" {
             name  = "UTOPIA_DB_MAX_CONNECTIONS"
             value = "16"
           }
-          # Safe only because oauth2-proxy stands in front: every visitor who reaches
-          # this form already holds a re-cinq Google account.
+          # Closed: a re-cinq.com Google sign-in opens the account (UTOPIA_OIDC_ALLOWED_DOMAINS
+          # below), and lore-api reaches the pod around the gate (utopia_ingress_only), where
+          # an open form would be a door for anyone holding that pod.
           env {
             name  = "UTOPIA_OPEN_REGISTRATION"
-            value = "true"
+            value = "false"
           }
           # nginx terminates TLS and forwards X-Forwarded-Proto, which is what Utopia
           # reads to mark its session cookie Secure; this pins it regardless.
@@ -559,8 +560,12 @@ resource "kubernetes_ingress_v1" "utopia" {
   depends_on = [kubernetes_service_v1.utopia]
 }
 
-# Registration is open behind the gate, so the Service must not be reachable
-# around the gate: only the ingress controller may talk to the app pod.
+# Only the ingress controller (the Google gate in front of every browser) and
+# lore-api may talk to the app pod. lore-api mirrors each repository's spec and
+# ADR graph into Utopia (ADR-052) and comes in around the gate, so it holds a
+# Utopia credential of its own on every call: a source key for pushes, a
+# person's session for setup. Registration is closed, so this second door
+# cannot mint an account.
 resource "kubectl_manifest" "utopia_ingress_only" {
   count = var.enable_utopia ? 1 : 0
 
@@ -584,6 +589,21 @@ resource "kubectl_manifest" "utopia_ingress_only" {
                 matchLabels = { "kubernetes.io/metadata.name" = var.ingress_controller_namespace }
               }
             },
+          ]
+        },
+        {
+          from = [
+            {
+              namespaceSelector = {
+                matchLabels = { "kubernetes.io/metadata.name" = "lore-api" }
+              }
+              podSelector = {
+                matchLabels = { app = "lore-api" }
+              }
+            },
+          ]
+          ports = [
+            { protocol = "TCP", port = 1516 },
           ]
         },
       ]
