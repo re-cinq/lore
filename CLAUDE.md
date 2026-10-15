@@ -509,11 +509,17 @@ memory (session-tracker.ts). On exit, dumps to
 `/api/session-summary` for automatic episode + fact extraction.
 No agent cooperation needed.
 
-**Post-task auto-curation**: After every task completion (PR created,
-no-changes, failure), an episode is automatically written via
-`episode-writer.ts`. For high-signal events (PRs, failures), Haiku
-extracts a "lesson learned" and stores it as a memory entry
-(`auto-curation/{ref}`).
+**Post-run episodes**: when a floor run settles, the `run-settled` station
+posts one episode to `POST /api/session-summary` (agent `floor/<line>`): the
+run's line, repository, outcome, reason and pull request, then what each agent
+visit produced (a blob read as its output's result text) or its error, each
+value cut at 1,000 characters and the episode at 4,000
+(`apps/stations/src/code-review/run-settled/run-episode.ts`, `specs/external-floor`
+FR5.10). The route stores it and extracts its facts and graph entities. A
+cancelled run and a run no agent worked on write nothing. The old Floor's
+per-run episode went with `apps/floor` on 2026-10-02 and nothing replaced it
+until 2026-10-16. `merge-check` still writes a curated episode for a PR closed
+without merge (`episode-writer.ts`).
 
 **Importance-based memory decay**: Daily job scores memories 0-10
 using half-life decay model (`strength = 0.5^(age / half_life_days)`).
