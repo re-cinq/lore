@@ -38,6 +38,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/maintenance/{job}",
   // The run to upgrade is the path param; its inputs and the line's newest version are read from the floor.
   "POST /api/assembly-runs/{id}/upgrade",
+  // The repo is the path param; what to mirror is read from its default branch.
+  "POST /api/repos/{owner}/{repo}/utopia/backfill",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

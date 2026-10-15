@@ -33,6 +33,10 @@ export class RepoFiles {
     return this.github.getDefaultBranch(this.repo);
   }
 
+  headSha(branch: string): Promise<string> {
+    return this.github.branchHeadSha(this.repo, branch);
+  }
+
   /** The login's newest commit email here; null when unknown, including on an adapter that cannot say. */
   async commitEmailOf(login: string): Promise<string | null> {
     return (await this.github.commitEmailOf?.(this.repo, login)) ?? null;

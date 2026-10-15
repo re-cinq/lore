@@ -215,7 +215,7 @@ export async function createBranch(
   base = "main",
 ): Promise<void> {
   const { git } = ok.rest;
-  const sha = await baseSha(git, repo, base);
+  const sha = await branchHeadSha(git, repo, base);
   const create = refCreator(git, repo, branch, sha);
 
   try {
@@ -226,8 +226,8 @@ export async function createBranch(
   }
 }
 
-/** The head sha of the base branch a new branch forks from. */
-async function baseSha(
+/** The commit a branch points at; a new branch forks from its base's. */
+export async function branchHeadSha(
   git: GitApi,
   repo: string,
   base: string,

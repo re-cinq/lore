@@ -76,16 +76,19 @@ export async function unmirrorDocFor(
   }
 }
 
-async function mirrorDepsFor(repo: string): Promise<MirrorDeps | null> {
-  if (!utopiaConfigured()) {
-    return null;
-  }
+function mirrorDepsFor(repo: string): Promise<MirrorDeps | null> {
+  return utopiaConfigured()
+    ? repoMirrorDeps(getPool(), repo)
+    : Promise.resolve(null);
+}
+
+/** Pushes to the repo's source, or null when it has none to mirror to (see {@link sourceToMirror}). */
+export async function repoMirrorDeps(
+  pool: Pool,
+  repo: string,
+): Promise<MirrorDeps | null> {
   const { settings } = await projectFor(repo);
-  const source = await sourceToMirror(
-    getPool(),
-    repo,
-    await settings.rawSettings(),
-  );
+  const source = await sourceToMirror(pool, repo, await settings.rawSettings());
 
   return (
     source && {
@@ -111,11 +114,18 @@ export async function sourceToMirror(
   return autoSetUpRepo(pool, repo, stored, env);
 }
 
-/** One failed item fails the document, named by its first failure, so the ingest logs and counts it. */
+/** One failed item fails the document, so the ingest logs and counts it. */
 function settled(outcome: MirrorOutcome): void {
-  enforceTrue(
-    outcome.failed.length === 0,
-    Error,
-    `${outcome.failed.length} of ${outcome.items} items failed: ${outcome.failed[0]}`,
-  );
+  const failure = mirrorFailure(outcome);
+
+  enforceTrue(failure === null, Error, failure ?? "");
+}
+
+/** Why a document did not land whole, named by its first failed item; null when every item landed. */
+export function mirrorFailure(outcome: MirrorOutcome): string | null {
+  const { failed } = outcome;
+
+  return failed.length === 0
+    ? null
+    : `${failed.length} of ${outcome.items} items failed: ${failed[0]}`;
 }
