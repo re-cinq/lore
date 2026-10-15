@@ -16,6 +16,7 @@ import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { consolidationStation } from "./consolidation/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { issueTriageTickStation } from "./issue-triage-tick/manifest.js";
+import { utopiaBackfillTickStation } from "./utopia-backfill-tick/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
@@ -34,6 +35,7 @@ export const STATION_NAMES = [
   "pr-ready-check",
   "spec-upkeep-tick",
   "telemetry-prune",
+  "utopia-backfill-tick",
 ] as const;
 
 export type StationName = (typeof STATION_NAMES)[number];
@@ -54,4 +56,5 @@ export const STATIONS: Record<StationName, StationModule> = {
   "pr-ready-check": prReadyCheck,
   "spec-upkeep-tick": specUpkeepTickStation,
   "telemetry-prune": telemetryPrune,
+  "utopia-backfill-tick": utopiaBackfillTickStation,
 };

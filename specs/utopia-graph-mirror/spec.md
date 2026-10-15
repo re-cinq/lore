@@ -7,7 +7,7 @@
 | Status  | In Progress                                                                                                                                                |
 | Created | 2026-10-15                                                                                                                                                 |
 | Owner   | Platform Engineering                                                                                                                                       |
-| Module  | `libs/shared/src/domain/utopia/`, `libs/shared/src/outbound/utopia/`, `libs/shared/src/work/utopia/`, `apps/lore-api/src/work/utopia/`, `apps/lore-api/src/transport/routes/repos/utopia-setup.ts`, `apps/lore-api/src/transport/routes/repos/utopia-backfill.ts` |
+| Module  | `libs/shared/src/domain/utopia/`, `libs/shared/src/outbound/utopia/`, `libs/shared/src/work/utopia/`, `apps/lore-api/src/work/utopia/`, `apps/lore-api/src/transport/routes/repos/utopia-setup.ts`, `apps/lore-api/src/transport/routes/repos/utopia-backfill.ts`, `apps/stations/src/work/utopia-backfill-tick/` |
 
 Every spec and ADR lore-api ingests is also written into Utopia, the knowledge-graph service deployed beside Lore, as the chain it draws from the document: the document, its sections, their statements, and the tests, source files and ADRs each statement links. ADR-052 records why.
 
@@ -97,6 +97,17 @@ A repo whose specs and ADRs were ingested before the mirror existed, or before i
   ```bash
   LORE_API_URL=https://<lore-api host> LORE_ADMIN_TOKEN=<admin token> scripts/infra/utopia-backfill.sh
   ```
+
+## Nightly backfill
+
+A mirror that failed, or a repo set up after its documents were ingested, would wait for the next change to each document. The stations service runs the backfill every night instead, so the mirror heals without anyone running the script.
+
+- FR7.7 — The `cron.utopia_backfill.tick` fires daily at 02:30 UTC, and the `utopia-backfill-tick` sweep in the stations service answers it. ([validated by schedules utopia_backfill nightly at 02:30 UTC](libs/shared/src/work/scheduler/cron-emitters.test.ts#L39))
+- FR7.8 — The sweep posts lore-api's backfill route (FR7.4) for every onboarded repo in name order, one repo at a time, so a slow Utopia carries one repo's documents at once. ([validated by backfills re-cinq/lore then re-cinq/floor in order and reports both done](apps/stations/src/work/utopia-backfill-tick/utopia-backfill-tick.test.ts#L40))
+- FR7.9 — Each call presents the stations' lore-api token (`LORE_STATION_TOKEN`, lore-api's own `LORE_INGEST_TOKEN`, which carries every scope the admin-only route asks for) and waits up to 30 minutes for the answer; a call with no answer by then is that repo's failure. ([validated by posts re-cinq/lore's backfill with the station token and answers lore-api's 409 status and body whole](apps/stations/src/work/utopia-backfill-tick/lore-api-backfill.test.ts#L53), [validated by rejects with no answer within 50ms when lore-api holds the call past the timeout](apps/stations/src/work/utopia-backfill-tick/lore-api-backfill.test.ts#L71))
+- FR7.10 — The tick's delivery is held for 12 hours, not the bus's 10 minutes, so the reaper does not hand a night of backfills to a second run while the first is still going. ([validated by claims cron.utopia_backfill.tick with a 43200-second visibility budget, so the reaper leaves a night of one-repo-at-a-time backfills running](apps/stations/src/events/subscriptions.test.ts#L99))
+- FR7.11 — A repo answered 409 `utopia_not_set_up` is skipped. A repo answered with any other refusal, whose call threw, or with a document under `failed` is logged and counted as failed, and the next repo still runs. The sweep's summary names the repos done, skipped and failed. ([validated by skips re-cinq/otto, which answers 409 utopia_not_set_up, and still backfills re-cinq/lore](apps/stations/src/work/utopia-backfill-tick/utopia-backfill-tick.test.ts#L58), [validated by logs re-cinq/otto's 500, re-cinq/hal's refused document and re-cinq/ui's dropped socket as failed, and still backfills re-cinq/lore after them](apps/stations/src/work/utopia-backfill-tick/utopia-backfill-tick.test.ts#L72), [validated by counts re-cinq/otto's 200 with an unreadable body as failed and still backfills re-cinq/lore](apps/stations/src/work/utopia-backfill-tick/utopia-backfill-tick.test.ts#L107))
+- FR7.12 — A 503 means the deployment has no Utopia: the sweep stops there and asks for no other repo. ([validated by stops at the first 503 and asks for no other repo, since this deployment has no Utopia](apps/stations/src/work/utopia-backfill-tick/utopia-backfill-tick.test.ts#L97))
 
 ## Out of scope
 

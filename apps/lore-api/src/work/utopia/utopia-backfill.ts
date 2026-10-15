@@ -13,6 +13,7 @@ import {
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import type { Pool } from "pg";
+import type { UtopiaBackfillSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
   mirrorFailure,
@@ -30,16 +31,6 @@ export interface BackfillFiles {
 export interface BackfillDeps {
   files: BackfillFiles;
   mirror(doc: MirroredDoc): Promise<MirrorOutcome>;
-}
-
-export interface BackfillSummary {
-  commit: string;
-  documents: number;
-  created: number;
-  updated: number;
-  unchanged: number;
-  /** `<path>: <message>` for every document that did not land whole; the others still did. */
-  failed: string[];
 }
 
 export interface DocToMirror {
@@ -72,7 +63,7 @@ export function docsToMirror(
 
 export async function backfillRepo(
   deps: BackfillDeps,
-): Promise<BackfillSummary> {
+): Promise<UtopiaBackfillSummary> {
   const { files } = deps;
   const commit = await files.headSha(await files.defaultBranch());
   const docs = docsToMirror(
@@ -106,7 +97,10 @@ async function backfillDoc(
   }
 }
 
-function tally(summary: BackfillSummary, result: DocResult): BackfillSummary {
+function tally(
+  summary: UtopiaBackfillSummary,
+  result: DocResult,
+): UtopiaBackfillSummary {
   return {
     ...summary,
     created: summary.created + result.created,

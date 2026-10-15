@@ -7,7 +7,7 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { z } from "zod";
+import { UtopiaBackfillSummarySchema } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { withPool } from "../with-pool.js";
@@ -16,15 +16,6 @@ import {
   backfillRepo,
 } from "../../../work/utopia/utopia-backfill.js";
 import { enforceRepoHeld, enforceUtopiaConfigured } from "./utopia-setup.js";
-
-const UtopiaBackfillSummarySchema = z.object({
-  commit: z.string(),
-  documents: z.number(),
-  created: z.number(),
-  updated: z.number(),
-  unchanged: z.number(),
-  failed: z.array(z.string()),
-});
 
 /** POST /api/repos/{owner}/{repo}/utopia/backfill — every spec and ADR on the repo's default branch, mirrored into its Utopia knowledge base (specs/utopia-graph-mirror). */
 export function utopiaBackfillRoute(getPool: () => Pool | null): ServerRoute {

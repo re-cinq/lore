@@ -56,7 +56,7 @@ The setup route needs a person to paste a Utopia session token, so a repo stays 
 
 ## Amendment 2026-10-15: a backfill for documents ingested before the mirror
 
-The mirror only pushes what an ingest sends, so a repo's unchanged specs and ADRs never reach Utopia. `POST /api/repos/{owner}/{repo}/utopia/backfill` reads every spec and ADR CI would ingest at the default branch's head commit and pushes each through the same mirror, setting the repo up first where the deployment may; `scripts/infra/utopia-backfill.sh` runs it for every onboarded repo (specs/utopia-graph-mirror FR7).
+The mirror only pushes what an ingest sends, so a repo's unchanged specs and ADRs never reach Utopia. `POST /api/repos/{owner}/{repo}/utopia/backfill` reads every spec and ADR CI would ingest at the default branch's head commit and pushes each through the same mirror, setting the repo up first where the deployment may; `scripts/infra/utopia-backfill.sh` runs it for every onboarded repo (specs/utopia-graph-mirror FR7). The stations service also runs it nightly at 02:30 UTC, one repo at a time with the stations' own lore-api token, skipping a repo that is not set up and stopping where the deployment has no Utopia (FR7.7–FR7.12).
 
 ## Amendment 2026-10-15: the prose of specs and ADRs is mirrored
 
