@@ -1,6 +1,7 @@
 // The Utopia push source of each repo (lore.utopia_sources): its key is a credential, so it is kept apart from lore.repos.settings, which read-scope routes serve whole, and no route ever answers it.
 
 import type { Pool } from "pg";
+import type { UtopiaMirrorSettings } from "@re-cinq/lore-shared/models/repo-settings.js";
 import type { UtopiaSource } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 
 export interface SavedUtopiaSource {
@@ -47,4 +48,16 @@ export async function utopiaSourceFor(
   return row
     ? { id: row.source_id, key: row.source_key, kbId: row.kb_id }
     : null;
+}
+
+/** Merged, not replaced: the settings block carries everything else the repo was configured with. */
+export async function saveUtopiaMirrorSettings(
+  pool: Pool,
+  repo: string,
+  utopia: UtopiaMirrorSettings,
+): Promise<void> {
+  await pool.query(
+    `UPDATE lore.repos SET settings = COALESCE(settings, '{}') || $1::jsonb WHERE full_name = $2`,
+    [JSON.stringify({ utopia }), repo],
+  );
 }

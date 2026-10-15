@@ -54,6 +54,7 @@ Terraform removes the second source of truth, which removes the failure.
    | Slack credentials | `lore-api`, `lore-stations` |
    | OAuth / NextAuth | `lore-ui` |
    | GitHub App | `lore-api`, `lore-ui`, `lore-stations` |
+   | Utopia write token | `lore-api` |
    | GHCR pull secret | none — read at image-pull time |
 
 
@@ -311,6 +312,44 @@ DELETE FROM lore.utopia_sources WHERE lower(repo) = lower('<o>/<r>');
 
 Setup then creates a fresh `lore` source, overwrites the row with its key and
 points the settings at it.
+
+### The Utopia write token (`lore-utopia-lore-api-token`)
+
+With it, lore-api sets a repo's knowledge base up on the repo's first spec or ADR
+ingest instead of waiting for someone to run the setup route (ADR-052 amendment
+2026-10-15). It is a Utopia **personal access token with `write` scope**
+(`utp_pat_…`) of a Utopia person kept for Lore, the "Lore" service person, who is
+**workspace admin** of the workspace Lore's knowledge bases live in. Utopia
+accepts it on the setup routes only from deeplethe/utopia#1244 on; until that
+release is deployed, leave `enable_utopia_auto_setup` off. The token acts as that
+person and can never do more than they can, and every base it creates is in
+Utopia's audit log under their name.
+
+Behind `enable_utopia_auto_setup`, which also sets `UTOPIA_WORKSPACE_ID` from
+`utopia_lore_workspace_id`. ESO mirrors it into the `utopia-token` Secret in
+`lore-api` (key `token`), read as `UTOPIA_TOKEN`.
+
+To mint it: sign in to Utopia as the Lore person, open **Account → Agents &
+tokens → Personal access tokens**, and issue a token with scope `write`, no
+knowledge-base limit (a limited token can create no base) and the longest expiry
+you will rotate within (90 days by default). The value is shown once:
+
+```bash
+printf '%s' "utp_pat_…" \
+  | gcloud secrets versions add lore-utopia-lore-api-token --data-file=-
+kubectl -n lore-api annotate externalsecret utopia-token force-sync="$(date +%s)" --overwrite
+kubectl -n lore-api rollout restart deploy/lore-api
+```
+
+The workspace id is in the Utopia URL of the workspace (`/workspaces/<id>`); put
+it in `terraform.tfvars` as `utopia_lore_workspace_id`.
+
+To rotate: issue a new token the same way, add it as a new version, force-sync,
+restart lore-api, then revoke the old token in the same Utopia page. A token that
+expired or was revoked makes every setup fail with a 401; that is a failed
+mirror, logged and counted on `lore_utopia_mirror_failures_total`, never a failed
+ingest. Repos already set up keep pushing: they push with their own source key,
+not with this token.
 
 ## Change a non-secret value
 

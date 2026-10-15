@@ -192,6 +192,23 @@ variable "utopia_hostname" {
   default     = ""
 }
 
+variable "enable_utopia_auto_setup" {
+  description = "Let lore-api create a repo's Utopia knowledge base on the repo's first spec/ADR ingest, with the write token in GSM lore-utopia-lore-api-token (docs/managing-secrets.md). Needs a Utopia that takes a write token on its setup routes (deeplethe/utopia#1244); keep it off until that is deployed."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_utopia_auto_setup || (var.enable_utopia && var.utopia_lore_workspace_id != "")
+    error_message = "enable_utopia_auto_setup = true requires enable_utopia and a non-empty utopia_lore_workspace_id: the bases are created in that Utopia workspace."
+  }
+}
+
+variable "utopia_lore_workspace_id" {
+  description = "The Utopia workspace lore-api creates repos' knowledge bases in, when enable_utopia_auto_setup is true. The token's owner must be its admin."
+  type        = string
+  default     = ""
+}
+
 variable "utopia_image_repository" {
   description = "The image Utopia runs, without its tag. The upstream image by default; a build of our own (upstream tag plus a fix we are waiting on) goes under ghcr.io/re-cinq/utopia until the release that carries it."
   type        = string

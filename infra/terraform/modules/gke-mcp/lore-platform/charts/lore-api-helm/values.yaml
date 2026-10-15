@@ -118,10 +118,15 @@ floor:
 
 # Utopia (deeplethe/utopia), the knowledge-graph service the spec/ADR chain is
 # mirrored into (specs/utopia-graph-mirror). Off by default: terraform sets
-# enabled from var.enable_utopia. Each repo's push key lives in its settings.
+# enabled from var.enable_utopia. Each repo's push key lives in lore.utopia_sources.
+# With tokenSecret (the Secret holding a Utopia write token under `token`) and
+# workspaceId set, a repo's first spec/ADR ingest creates its knowledge base in
+# that workspace; empty, a person sets each repo up through the setup route.
 utopia:
   enabled: false
   apiUrl: http://utopia.utopia.svc.cluster.local
+  workspaceId: ""
+  tokenSecret: ""
 
 # The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
 # namespace-scoped, so this names the lore-api-namespace copy that the

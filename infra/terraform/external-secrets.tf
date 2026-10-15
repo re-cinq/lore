@@ -1153,3 +1153,38 @@ resource "kubectl_manifest" "es_utopia_ghcr" {
 
   depends_on = [kubernetes_namespace.utopia]
 }
+
+# The Utopia write token lore-api sets a repo's knowledge base up with on its
+# first spec/ADR ingest (UTOPIA_TOKEN); see var.enable_utopia_auto_setup.
+resource "kubectl_manifest" "es_utopia_token_lore_api" {
+  count = var.enable_utopia_auto_setup ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "utopia-token"
+      namespace = "lore-api"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "utopia-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-utopia-lore-api-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}

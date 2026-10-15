@@ -42,3 +42,14 @@ A spike on 2026-10-14 pushed a hand-built sample of the chain into a Utopia know
 1. Store the ordinals of the last push per document so a deletion tombstones every item.
 2. Push tests from the test ingest (`lore-code-trace`) so a Test entity carries `covers` with its line ranges, and code definitions from the code projection.
 3. Switch the spec pages to read Utopia once relations resolve to properties; then the detectors; then retire Dgraph.
+
+## Amendment 2026-10-15: Lore creates the base itself on a repo's first ingest
+
+Lore creates the base itself once Utopia accepts a write token, deeplethe/utopia#1244; until that ships the flag stays off.
+
+The setup route needs a person to paste a Utopia session token, so a repo stays unmirrored until someone runs it. With #1244, a personal access token with `write` scope (`utp_pat_…`) calls the same setup routes as its owner, and the requests are byte for byte the ones a session makes. So:
+
+- **The client's setup surface takes any bearer** (`withCredential`): a session JWT from the route, or the deployment's token.
+- **A "Lore" person in Utopia**, workspace admin of the workspace Lore's bases live in, holds the token. lore-api reads it as `UTOPIA_TOKEN` (GCP secret `lore-utopia-lore-api-token`, mirrored by ESO into `utopia-token` in `lore-api`) and the workspace as `UTOPIA_WORKSPACE_ID`, both set only under terraform's `enable_utopia_auto_setup`.
+- **The first mirrored ingest of a repo that is not set up runs the setup**, through the same function and the same writer as the route, then mirrors. Two ingests in one process share one setup; across processes the base is found by name and the source row is one per repo, so the source saved last wins. A failed setup is a failed mirror: logged, counted, never an ingest failure, and tried again on the next document.
+- **The route stays**, for a deployment that holds no token, and to set a repo up in another workspace by hand.

@@ -112,6 +112,9 @@ resource "helm_release" "lore_platform" {
       utopia = {
         enabled = var.enable_utopia
         apiUrl  = "http://utopia.${local.utopia_namespace}.svc.cluster.local"
+        # The write token a repo's first ingest sets its knowledge base up with; see var.enable_utopia_auto_setup.
+        tokenSecret = var.enable_utopia_auto_setup ? "utopia-token" : ""
+        workspaceId = var.utopia_lore_workspace_id
       }
     }
 
