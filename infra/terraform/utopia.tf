@@ -311,6 +311,35 @@ resource "kubernetes_deployment_v1" "utopia" {
             name  = "UTOPIA_COOKIE_SECURE"
             value = "true"
           }
+          # Sign-in with Google, through the gate's own OAuth client: its redirect URIs
+          # carry Utopia's callback beside oauth2-proxy's. Utopia never opens an account
+          # from it; a person links Google to their existing account on the account page.
+          env {
+            name  = "UTOPIA_OIDC_ISSUER"
+            value = "https://accounts.google.com"
+          }
+          env {
+            name  = "UTOPIA_OIDC_REDIRECT_URI"
+            value = "${local.utopia_url}/api/v1/auth/oidc/callback"
+          }
+          env {
+            name = "UTOPIA_OIDC_CLIENT_ID"
+            value_from {
+              secret_key_ref {
+                name = "utopia-oauth"
+                key  = "client-id"
+              }
+            }
+          }
+          env {
+            name = "UTOPIA_OIDC_CLIENT_SECRET"
+            value_from {
+              secret_key_ref {
+                name = "utopia-oauth"
+                key  = "client-secret"
+              }
+            }
+          }
 
           volume_mount {
             name       = "data"
@@ -369,6 +398,7 @@ resource "kubernetes_deployment_v1" "utopia" {
     kubectl_manifest.es_utopia_app,
     kubectl_manifest.es_utopia_app_db,
     kubectl_manifest.es_utopia_ghcr,
+    kubectl_manifest.es_utopia_oauth,
     kubernetes_persistent_volume_claim_v1.utopia_data,
   ]
 }
