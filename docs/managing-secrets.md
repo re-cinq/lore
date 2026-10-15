@@ -327,7 +327,10 @@ Utopia's audit log under their name.
 
 Behind `enable_utopia_auto_setup`, which also sets `UTOPIA_WORKSPACE_ID` from
 `utopia_lore_workspace_id`. ESO mirrors it into the `utopia-token` Secret in
-`lore-api` (key `token`), read as `UTOPIA_TOKEN`.
+`lore-api` (key `token`), read as `UTOPIA_TOKEN`. The reference is `optional`,
+so unlike the other secrets this one can be seeded after the apply that turns
+the flag on: until it is, lore-api starts without `UTOPIA_TOKEN` and sets no repo
+up by itself, and the restart below picks it up.
 
 To mint it: sign in to Utopia as the Lore person, open **Account → Agents &
 tokens → Personal access tokens**, and issue a token with scope `write`, no
