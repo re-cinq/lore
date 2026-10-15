@@ -342,6 +342,61 @@ describe("mapGitHubEvent — repository", () => {
   });
 });
 
+describe("mapGitHubEvent — check_suite and push", () => {
+  it("maps a completed check_suite on abc123 to github.check_suite.completed carrying PRs 4 and 9", () => {
+    const payload = {
+      ...REPO,
+      action: "completed",
+      check_suite: {
+        head_sha: "abc123",
+        pull_requests: [{ number: 4 }, { number: 9 }],
+      },
+    };
+
+    expect(mapGitHubEvent("check_suite", payload, "d20")).toEqual([
+      {
+        eventName: "github.check_suite.completed",
+        source: "github",
+        params: {
+          repo: "re-cinq/lore",
+          head_sha: "abc123",
+          pr_numbers: [4, 9],
+        },
+        dedupeKey: "github:d20",
+      },
+    ]);
+  });
+
+  it("returns nothing for a requested check_suite", () => {
+    expect(
+      mapGitHubEvent(
+        "check_suite",
+        { ...REPO, action: "requested", check_suite: { head_sha: "abc123" } },
+        "d21",
+      ),
+    ).toEqual([]);
+  });
+
+  it("maps a push to refs/heads/main to github.push on branch main", () => {
+    expect(
+      mapGitHubEvent("push", { ...REPO, ref: "refs/heads/main" }, "d22"),
+    ).toEqual([
+      {
+        eventName: "github.push",
+        source: "github",
+        params: { repo: "re-cinq/lore", branch: "main" },
+        dedupeKey: "github:d22",
+      },
+    ]);
+  });
+
+  it("returns nothing for a push of the tag refs/tags/release", () => {
+    expect(
+      mapGitHubEvent("push", { ...REPO, ref: "refs/tags/release" }, "d23"),
+    ).toEqual([]);
+  });
+});
+
 describe("mapGitHubEvent — guards", () => {
   it("returns nothing when the repository is missing", () => {
     expect(

@@ -282,6 +282,22 @@ describe("PullRequests review threads", () => {
   });
 });
 
+describe("PullRequests merge state", () => {
+  it("reads PR 7's mergeability on re-cinq/lore as behind", async () => {
+    const port: PullRequestsPort = {
+      ...fakePulls([], []),
+      getMergeability: async (repo, number) => ({
+        mergeable: true,
+        state: `${repo}#${number} behind`,
+      }),
+    };
+
+    expect(
+      await new PullRequests("re-cinq/lore", port).getMergeability(7),
+    ).toEqual({ mergeable: true, state: "re-cinq/lore#7 behind" });
+  });
+});
+
 describe("PullRequests failedJob", () => {
   it("reads a failed Actions job through the repo it was bound to", async () => {
     const asked: Array<{ repo: string; jobId: number }> = [];

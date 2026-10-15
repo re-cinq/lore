@@ -5,6 +5,7 @@ import { zodResponse } from "../http/zod-response.js";
 import { bearerScope } from "../http/bearer-scope.js";
 import { zodValidate } from "../http/zod-validate.js";
 import { errorMessage } from "@re-cinq/lore-shared";
+import { labelForReason } from "@re-cinq/lore-shared/blocked-reason.js";
 
 const PrParam = z.object({
   owner: z.string(),
@@ -149,28 +150,3 @@ const emptyReason = (repo: string, prNumber: number) => ({
   since: null,
   updatedAt: null,
 });
-
-const labels: Record<string, string | ((d: string | null) => string)> = {
-  waiting_on_ci: "Waiting for CI",
-  required_check_missing: (d) =>
-    `A required check has not run: ${d || "unknown"}`,
-  needs_approval: "Needs one approval",
-  needs_code_owner: "Needs a code owner's approval",
-  base_behind: (d) => `Behind ${d || "base"}; needs the base merged in`,
-  blocked_by_pr: (d) => `Waiting for #${d || "unknown"} to merge first`,
-  review_in_flight: "Lore's review is still running",
-  merge_conflict: (d) => `Conflicts with ${d || "base"}`,
-  github_refused: (d) => `GitHub refused the merge: ${d || "unknown"}`,
-};
-
-function labelForReason(
-  reason: string | null,
-  detail: string | null,
-): string | null {
-  if (!reason) {
-    return null;
-  }
-  const label = labels[reason];
-
-  return typeof label === "function" ? label(detail) : label || reason;
-}

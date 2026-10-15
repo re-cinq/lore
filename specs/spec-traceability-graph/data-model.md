@@ -400,7 +400,7 @@ The drop follows the PR, not a run: review, triage and reply runs all work on
 the PR's head branch, so the first of them to finish would otherwise wipe an
 overlay the implementation loop is still writing. A PR closed without merging
 drops its overlay the same way, and the stations service claims the close
-whether or not an external floor is configured. ([validated by claims only the closed pull request, for its overlay drop, when no floor is configured](apps/stations/src/events/subscriptions.test.ts#L60))
+whether or not an external floor is configured. ([validated by claims only the pull-request events the blocked-reason station reads, the close among them for its overlay drop, and no comment event when no floor is configured](apps/stations/src/events/subscriptions.test.ts#L60))
 
 A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch](apps/stations/src/events/repo-handlers.test.ts#L158))
 

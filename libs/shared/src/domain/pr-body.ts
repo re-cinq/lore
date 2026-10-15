@@ -26,3 +26,10 @@ export function linkedIssueNumber(
 
   return match ? Number(match[1]) : null;
 }
+
+const LORE_TASK_LINE = /^Lore-Task:\s*([0-9a-f-]+)\s*$/im;
+
+/** The task a Lore-authored pull request belongs to: the uuid on the `Lore-Task:` line {@link prFooter} writes, or null. */
+export function loreTaskIdOf(prBody: string | null | undefined): string | null {
+  return LORE_TASK_LINE.exec(prBody ?? "")?.[1] ?? null;
+}
