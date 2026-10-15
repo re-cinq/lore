@@ -132,8 +132,14 @@ lore:permalink a owl:DatatypeProperty ;
 
 lore:title a owl:DatatypeProperty ;
   rdfs:label "title" ;
-  rdfs:comment "A test's title as written in its it() call; a section's heading text." ;
-  rdfs:domain lore:Test, lore:Section ;
+  rdfs:comment "A document's title (its first top-level heading); a test's title as written in its it() call; a section's heading text." ;
+  rdfs:domain lore:Document, lore:Test, lore:Section ;
+  rdfs:range xsd:string .
+
+lore:text a owl:DatatypeProperty ;
+  rdfs:label "text" ;
+  rdfs:comment "The words of a statement or the heading of a section, as written in the document." ;
+  rdfs:domain lore:Section, lore:Statement ;
   rdfs:range xsd:string .
 
 lore:symbol a owl:DatatypeProperty ;

@@ -57,3 +57,12 @@ The setup route needs a person to paste a Utopia session token, so a repo stays 
 ## Amendment 2026-10-15: a backfill for documents ingested before the mirror
 
 The mirror only pushes what an ingest sends, so a repo's unchanged specs and ADRs never reach Utopia. `POST /api/repos/{owner}/{repo}/utopia/backfill` reads every spec and ADR CI would ingest at the default branch's head commit and pushes each through the same mirror, setting the repo up first where the deployment may; `scripts/infra/utopia-backfill.sh` runs it for every onboarded repo (specs/utopia-graph-mirror FR7).
+
+## Amendment 2026-10-15: the prose of specs and ADRs is mirrored
+
+Asked about dark factories against `re-cinq/lore`, Utopia's chat found the right statement items and answered that nothing explained them: each item held names, ids, line numbers and permalinks, and the pushed statements are the chunk Utopia searches and cites. So the words now travel with the structure:
+
+- **Ontology version 2** declares `text` (Section, Statement) and gives Document a `title`. Each Statement carries its words with the coverage links stripped and whitespace collapsed, cut at 4,000 characters; each Section its heading; each Document its first top-level heading. A split statement carries its text on its first item only.
+- **A base set up under version 1 is upgraded on its next ingest**, where the deployment holds a Utopia token: the ontology is re-imported, the kind words bound, the version stored, then the push goes ahead. Without a token the push goes ahead anyway and the text lands as open attributes. A failed upgrade is a failed mirror, never a failed ingest.
+- **Code text is still not copied.** A source file is linked by path; the chain says which code implements a statement, and the code itself is read from the repository.
+

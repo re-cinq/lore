@@ -1,7 +1,13 @@
 // The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec and ADR it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
 
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { UtopiaMirrorSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
+import { LORE_ONTOLOGY_VERSION } from "@re-cinq/lore-shared/lore-ontology.js";
+import {
+  UtopiaMirrorSettingsSchema,
+  type UtopiaMirrorSettings,
+} from "@re-cinq/lore-shared/models/repo-settings.js";
+import { recordUtopiaMirrorFailure } from "@re-cinq/lore-shared/otel/metrics.js";
 import {
   utopiaAutoSetupConfigured,
   utopiaClient,
@@ -22,7 +28,7 @@ import {
   utopiaSourceFor,
   type StoredUtopiaSource,
 } from "../../outbound/utopia-sources.js";
-import { autoSetUpRepo } from "./utopia-auto-setup.js";
+import { autoSetUpRepo, autoUpgradeOntology } from "./utopia-auto-setup.js";
 
 export interface MirroredDoc {
   path: string;
@@ -97,7 +103,7 @@ export async function repoMirrorDeps(
   );
 }
 
-/** The source the repo was set up with, else a fresh setup where the deployment may run one itself, else null. A failed setup throws, so the ingest logs and counts it as a failed mirror. */
+/** The source the repo was set up with, its ontology upgraded first where the base holds an older one, else a fresh setup where the deployment may run one itself, else null. A failed setup throws, so the ingest logs and counts it as a failed mirror. */
 export async function sourceToMirror(
   pool: Pool,
   repo: string,
@@ -107,11 +113,46 @@ export async function sourceToMirror(
   const stored = await utopiaSourceFor(pool, repo);
   const source = mirrorSource(settings, stored, env);
 
-  if (source || !utopiaAutoSetupConfigured(env)) {
+  if (source) {
+    await upgradeOntologyQuietly(pool, repo, settings?.utopia, env);
+
     return source;
   }
 
-  return autoSetUpRepo(pool, repo, stored, env);
+  return utopiaAutoSetupConfigured(env)
+    ? autoSetUpRepo(pool, repo, stored, env)
+    : null;
+}
+
+/** Without a write token the push goes ahead on the old ontology, its new attributes landing unbound; a failed upgrade is logged and counted as a failed mirror, and the push goes ahead all the same. */
+async function upgradeOntologyQuietly(
+  pool: Pool,
+  repo: string,
+  utopia: unknown,
+  env: UtopiaEnv,
+): Promise<void> {
+  const mirror = UtopiaMirrorSettingsSchema.parse(utopia);
+
+  if (ontologyUpgradable(mirror, env)) {
+    await autoUpgradeOntology(pool, repo, mirror, env).catch(
+      (error: unknown) => {
+        console.error(
+          `[utopia-mirror] ${repo} ontology upgrade: ${errorMessage(error)}`,
+        );
+        recordUtopiaMirrorFailure(repo);
+      },
+    );
+  }
+}
+
+function ontologyUpgradable(
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): boolean {
+  return (
+    (mirror.ontology_version ?? 0) < LORE_ONTOLOGY_VERSION &&
+    utopiaAutoSetupConfigured(env)
+  );
 }
 
 /** One failed item fails the document, so the ingest logs and counts it. */

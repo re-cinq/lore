@@ -1,4 +1,4 @@
-// One spec or ADR as Utopia statement items: a doc item (Repository contains Document contains Sections) and one item per statement (Section contains Statement, validated_by Tests, implemented_by SourceFiles, decided_by Adrs), each under Utopia's push limits.
+// One spec or ADR as Utopia statement items: a doc item (Repository contains Document contains Sections, with the document's title and each heading's text) and one item per statement (its text, Section contains Statement, validated_by Tests, implemented_by SourceFiles, decided_by Adrs), each under Utopia's push limits.
 
 import {
   linksForStatements,
@@ -8,6 +8,7 @@ import {
   type SpecLinkRef,
 } from "../spec-link-parser.js";
 import type { Statement as DocStatement } from "../spec-segment.js";
+import { stripCoverageLinks } from "../spec-link-strip.js";
 import {
   attribute,
   fitsOneItem,
@@ -39,6 +40,7 @@ interface SectionRef {
   name: string;
   title: string;
   line: number;
+  depth: number;
 }
 
 interface Fragment {
@@ -48,13 +50,19 @@ interface Fragment {
 
 type Unnamed = Omit<StatementItem, "externalId">;
 
+const MAX_TEXT_CHARS = 4000;
+
 const DOC_KIND_WORD = { spec: "Spec", adr: "Adr" } as const;
 
 export function docStatementItems(input: DocStatementsInput): StatementItem[] {
   const names = namesOf(input);
   const sections = sectionsOf(input.content, names.doc);
+  const head = docHead(names, DOC_KIND_WORD[input.kind], sections);
   const docItems = splitToFit(`doc:${input.path}`, sections, (part) =>
-    docItem(names, DOC_KIND_WORD[input.kind], part),
+    joinFragments(
+      head,
+      part.map((section) => sectionFragment(names.doc, section)),
+    ),
   );
   const perStatement = linksForStatements(input.content).flatMap(
     ({ statement, testLinks }) =>
@@ -84,13 +92,18 @@ function sectionsOf(content: string, doc: string): SectionRef[] {
 
   content.split(/\r?\n/).forEach((line, index) => {
     inFence = /^\s*```/.test(line) ? !inFence : inFence;
-    const heading = inFence ? null : /^#{1,6}\s+(\S.*)$/.exec(line);
+    const heading = inFence ? null : /^(#{1,6})\s+(\S.*)$/.exec(line);
 
     if (heading) {
-      const title = heading[1].trim();
+      const title = heading[2].trim();
       const slug = uniqueSlug(slugOf(title), seen);
 
-      sections.push({ name: `${doc}#${slug}`, title, line: index + 1 });
+      sections.push({
+        name: `${doc}#${slug}`,
+        title,
+        line: index + 1,
+        depth: heading[1].length,
+      });
     }
   });
 
@@ -112,33 +125,39 @@ function slugOf(title: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function docItem(
+/** What every part of a split doc item repeats: the repository, the document and its attributes, its title being its first top-level heading. */
+function docHead(
   names: DocNames,
   kindWord: string,
   sections: SectionRef[],
-): Unnamed {
+): Fragment {
+  const top = sections.find((section) => section.depth === 1);
+
   return {
     e: [
       [names.repo, "Repository", true],
       [names.doc, kindWord, true],
-      ...sections.map((section): Entity => [section.name, "Section", true]),
     ],
     s: [
       relation(names.repo, "contains", names.doc),
       attribute(names.doc, "path", names.path),
       attribute(names.doc, "commit", names.commit),
       attribute(names.doc, "permalink", `${names.blob}/${names.path}`),
-      ...sections.flatMap((section) => sectionStatements(names.doc, section)),
+      ...(top ? [attribute(names.doc, "title", top.title)] : []),
     ],
   };
 }
 
-function sectionStatements(doc: string, section: SectionRef): Statement[] {
-  return [
-    relation(doc, "contains", section.name),
-    attribute(section.name, "title", section.title),
-    attribute(section.name, "line_start", String(section.line)),
-  ];
+function sectionFragment(doc: string, section: SectionRef): Fragment {
+  return {
+    e: [[section.name, "Section", true]],
+    s: [
+      relation(doc, "contains", section.name),
+      attribute(section.name, "title", section.title),
+      attribute(section.name, "text", section.title),
+      attribute(section.name, "line_start", String(section.line)),
+    ],
+  };
 }
 
 function itemsOfStatement(
@@ -155,9 +174,9 @@ function itemsOfStatement(
     name,
     statement.line ?? 1,
   );
-  const links = linkFragments(names, name, statement, testLinks);
+  const parts = statementParts(names, name, statement, testLinks);
 
-  return splitToFit(`stmt:${names.path}#${ordinal}`, links, (part) =>
+  return splitToFit(`stmt:${names.path}#${ordinal}`, parts, (part) =>
     joinFragments(head, part),
   );
 }
@@ -192,13 +211,15 @@ function containerOf(
     : [names.doc, "Document", true];
 }
 
-function linkFragments(
+/** The words go first, so a statement split across items carries them on its first item alone. */
+function statementParts(
   names: DocNames,
   statement: string,
   docStatement: DocStatement,
   testLinks: SpecLinkRef[],
 ): Fragment[] {
   return [
+    textFragment(statement, docStatement.text),
     ...testLinks.map((link) => testFragment(names, statement, link)),
     ...parseCodeLinksInStatement(docStatement.text).map((link) =>
       codeFragment(names, statement, link),
@@ -207,6 +228,19 @@ function linkFragments(
       adrFragment(names, statement, adrPath),
     ),
   ];
+}
+
+function textFragment(name: string, text: string): Fragment {
+  return { e: [], s: [attribute(name, "text", pushedText(text))] };
+}
+
+/** Utopia searches and cites these words: the links are traceability the relations already carry, and a statement past MAX_TEXT_CHARS is cut so one item stays under the push limits. */
+function pushedText(text: string): string {
+  const words = stripCoverageLinks(text).replace(/\s+/g, " ").trim();
+
+  return words.length > MAX_TEXT_CHARS
+    ? `${words.slice(0, MAX_TEXT_CHARS)}…`
+    : words;
 }
 
 function testFragment(
