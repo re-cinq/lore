@@ -7109,6 +7109,74 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/utopia/backfill": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_backfill",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/backfill",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The commit the specs and ADRs were read at, how many were mirrored, Utopia's created/updated/unchanged item counts, and each document that did not land whole",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaBackfillSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/utopia/setup": {
       "post": {
         "operationId": "post_api_repos_owner_repo_utopia_setup",
@@ -16952,6 +17020,41 @@
           }
         },
         "required": ["forwarded", "skipped"],
+        "additionalProperties": false
+      },
+      "UtopiaBackfillSummary": {
+        "type": "object",
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "documents": {
+            "type": "number"
+          },
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "unchanged": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "commit",
+          "documents",
+          "created",
+          "updated",
+          "unchanged",
+          "failed"
+        ],
         "additionalProperties": false
       },
       "UtopiaSetupResult": {

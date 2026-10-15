@@ -187,6 +187,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return this.octo().then((ok) => fetchDefaultBranch(ok, repo));
   }
 
+  async branchHeadSha(repo: string, branch: string): Promise<string> {
+    const { git } = (await this.octo()).rest;
+
+    return repoContent.branchHeadSha(git, repo, branch);
+  }
+
   async commitEmailOf(repo: string, login: string): Promise<string | null> {
     return repoContent.commitEmailOf(await this.octo(), repo, login);
   }

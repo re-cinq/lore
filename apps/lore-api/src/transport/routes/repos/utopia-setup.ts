@@ -80,16 +80,20 @@ async function serveUtopiaSetup(
 }
 
 function configuredUtopia() {
+  enforceUtopiaConfigured();
+
+  return utopiaClientFrom(process.env);
+}
+
+export function enforceUtopiaConfigured(): void {
   enforceTrue(
     utopiaConfigured(),
     apiError(503),
     "no Utopia configured — UTOPIA_API_URL is unset on this deployment",
   );
-
-  return utopiaClientFrom(process.env);
 }
 
-async function enforceRepoHeld(pool: Pool, repo: string): Promise<void> {
+export async function enforceRepoHeld(pool: Pool, repo: string): Promise<void> {
   const { rows } = await pool.query(
     "SELECT full_name FROM lore.repos WHERE full_name = $1",
     [repo],

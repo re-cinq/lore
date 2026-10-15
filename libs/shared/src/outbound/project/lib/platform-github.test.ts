@@ -27,6 +27,7 @@ const state: {
   reviewCall?: Record<string, unknown>;
   prData?: Record<string, unknown>;
   treeData?: Record<string, unknown>;
+  refCall?: Record<string, unknown>;
   issuesData?: Array<Record<string, unknown>>;
   pullsPages?: Array<Array<Record<string, unknown>>>;
   pullsListCall?: Record<string, unknown>;
@@ -171,7 +172,14 @@ vi.mock("octokit", () => ({
           return { data: state.jobLog };
         },
       },
-      git: { getTree: async () => ({ data: state.treeData }) },
+      git: {
+        getTree: async () => ({ data: state.treeData }),
+        getRef: async (params: Record<string, unknown>) => {
+          state.refCall = params;
+
+          return { data: { object: { sha: "abc123" } } };
+        },
+      },
       repos: {
         getCombinedStatusForRef: async () => {
           if (state.statusesForbidden) {
@@ -783,6 +791,15 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     };
 
     expect(await gh().listTree("re-cinq/lore", "main")).toEqual(["specs/a.md"]);
+  });
+
+  it("reads heads/main of re-cinq/lore and answers its head sha abc123", async () => {
+    const sha = await gh().branchHeadSha("re-cinq/lore", "main");
+
+    expect({ sha, call: state.refCall }).toEqual({
+      sha: "abc123",
+      call: { owner: "re-cinq", repo: "lore", ref: "heads/main" },
+    });
   });
 });
 

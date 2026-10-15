@@ -152,3 +152,4 @@ export {
   type IngestGraphPorts,
   type IngestKindDef,
 } from "./spec-trace/ingest-graph-task.js";
+export { parseIngestPatterns } from "./spec-trace/ingest-patterns.js";
