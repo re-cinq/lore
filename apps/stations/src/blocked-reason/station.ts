@@ -2,14 +2,22 @@
 
 import { loreTaskIdOf } from "@re-cinq/lore-shared";
 import type { BlockedReason } from "@re-cinq/lore-shared/blocked-reason.js";
+import {
+  CODEOWNERS_PATHS,
+  ownersOfPath,
+  parseCodeowners,
+  type CodeownersRow,
+} from "@re-cinq/lore-shared/codeowners.js";
 import type { Audit } from "@re-cinq/lore-shared/project/audit/audit.js";
 import type { AppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import type { PrBlockedReasonsPort } from "@re-cinq/lore-shared/project/pr-blocked-reasons/pr-blocked-reasons-port.js";
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type { RepoFiles } from "@re-cinq/lore-shared/project/repo/repo-files.js";
 import { syncReasonComment, type CommentThread } from "./comment.js";
 import {
   approvalCount,
+  approvers,
   deriveBlockedReason,
   type PullState,
 } from "./derivation.js";
@@ -28,13 +36,16 @@ type ReasonPulls = Pick<
   | "listChecks"
   | "ciConclusion"
   | "listReviews"
+  | "listFiles"
 >;
 
 export interface BlockedReasonProject {
   pulls: ReasonPulls;
   /** The PR's conversation and its backlog issue's: both are issue comments on GitHub. */
   issues: CommentThread;
-  audit: Pick<Audit, "write">;
+  /** The default branch's files: where GitHub reads CODEOWNERS from. */
+  repo: Pick<RepoFiles, "read">;
+  audit: Pick<Audit, "write" | "recorded">;
   /** The backlog issue of a task; null when the task is unknown or has none. */
   taskIssue(taskId: string): Promise<number | null>;
 }
@@ -63,7 +74,7 @@ export async function runBlockedReason(
   const repo = String(event.params.repo ?? "");
 
   if (event.name === "github.pull_request.closed") {
-    return closePulls(deps.reasons, repo, pullNumbersIn(event.params));
+    return closePulls({ repo, login, deps }, event.params);
   }
   const project = await deps.project(repo);
   const pulls = await lorePulls(event, project.pulls, login);
@@ -73,15 +84,102 @@ export async function runBlockedReason(
   return outcomes.join("; ") || "no Lore PR to read";
 }
 
-/** A closed PR's row is stamped closed; one Lore never recorded has no row, so nothing needs the PR's author. */
-async function closePulls(
-  reasons: PrBlockedReasonsPort,
-  repo: string,
-  numbers: number[],
-): Promise<string> {
-  await Promise.all(numbers.map((number) => reasons.close(repo, number)));
+interface ClosedScope {
+  repo: string;
+  login: string;
+  deps: BlockedReasonDeps;
+}
 
-  return numbers.map((number) => `#${number} closed`).join("; ");
+/** A closed PR's row is stamped closed; one Lore never recorded has no row, so stamping needs no author. A merge is audited for Lore's PRs only. */
+async function closePulls(
+  scope: ClosedScope,
+  params: ReasonEvent["params"],
+): Promise<string> {
+  const { repo, deps } = scope;
+  const numbers = pullNumbersIn(params);
+
+  await Promise.all(numbers.map((number) => deps.reasons.close(repo, number)));
+  const closed = numbers.map((number) => `#${number} closed`);
+  const merges =
+    params.merged === true ? await auditMerges(scope, numbers) : [];
+
+  return [...closed, ...merges].join("; ");
+}
+
+async function auditMerges(
+  { repo, login, deps }: ClosedScope,
+  numbers: number[],
+): Promise<string[]> {
+  const project = await deps.project(repo);
+
+  return Promise.all(
+    numbers.map((number) => auditMerge(project, login, number)),
+  );
+}
+
+/** The `pr_merged` row the KPI view counts; a redelivered close finds it written and writes no second one. */
+async function auditMerge(
+  project: BlockedReasonProject,
+  login: string,
+  number: number,
+): Promise<string> {
+  const pr = await project.pulls.get(number);
+
+  if (pr?.author !== login) {
+    return `#${number} not Lore's`;
+  }
+
+  if (await project.audit.recorded("pr_merged", { prNumber: number })) {
+    return `#${number} merge already audited`;
+  }
+  await writeMerge(project, pr);
+
+  return `#${number} merge audited`;
+}
+
+async function writeMerge(
+  project: BlockedReasonProject,
+  pr: PullRef,
+): Promise<void> {
+  const taskId = loreTaskIdOf(pr.body);
+  const review = await mergeReview(project, pr.number);
+  const mergedAt = pr.mergedAt ?? null;
+
+  await project.audit.write({
+    event_type: "pr_merged",
+    task_id: taskId,
+    payload: { prNumber: pr.number, mergedAt, taskId, ...review },
+  });
+}
+
+/** The changed files CODEOWNERS gives an owner, and who approved: what SC-004 weighs against each other. */
+async function mergeReview(
+  { pulls, repo }: BlockedReasonProject,
+  number: number,
+): Promise<{ sensitivePaths: string[]; approvedBy: string[] }> {
+  const [files, reviews, codeowners] = await Promise.all([
+    pulls.listFiles(number),
+    pulls.listReviews(number),
+    codeownersOf(repo),
+  ]);
+
+  return {
+    sensitivePaths: files.filter(
+      (path) => ownersOfPath(path, codeowners).length > 0,
+    ),
+    approvedBy: approvers(reviews),
+  };
+}
+
+/** GitHub reads only the first CODEOWNERS present; with none, no path has an owner. */
+async function codeownersOf(
+  repo: BlockedReasonProject["repo"],
+): Promise<CodeownersRow[]> {
+  const texts = await Promise.all(
+    CODEOWNERS_PATHS.map((path) => repo.read(path)),
+  );
+
+  return parseCodeowners(texts.find((text) => text !== null) ?? "");
 }
 
 function pullNumbersIn(params: ReasonEvent["params"]): number[] {

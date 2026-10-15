@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Audit } from "./audit.js";
+import { InMemoryAudit } from "./audit-memory.js";
 import { PgAudit } from "./audit-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
@@ -57,5 +58,43 @@ describe("PgAudit adapter", () => {
       null,
       JSON.stringify({ outcome: "merged" }),
     ]);
+  });
+});
+
+describe("Audit recorded", () => {
+  it("is true for octo/repo's pr_merged of PR 7 only, not PR 8 nor octo/other's PR 9", async () => {
+    const port = new InMemoryAudit();
+    const audit = new Audit("octo/repo", port);
+
+    await audit.write({ event_type: "pr_merged", payload: { prNumber: 7 } });
+    await new Audit("octo/other", port).write({
+      event_type: "pr_merged",
+      payload: { prNumber: 9 },
+    });
+
+    expect({
+      seven: await audit.recorded("pr_merged", { prNumber: 7 }),
+      eight: await audit.recorded("pr_merged", { prNumber: 8 }),
+      nineOfOther: await audit.recorded("pr_merged", { prNumber: 9 }),
+      otherType: await audit.recorded("pr_blocked_reason", { prNumber: 7 }),
+    }).toEqual({
+      seven: true,
+      eight: false,
+      nineOfOther: false,
+      otherType: false,
+    });
+  });
+
+  it("asks pipeline.audit_log for one row of the type and repo whose payload contains the fields", async () => {
+    const { pool, calls } = fakePool();
+
+    await new Audit("octo/repo", new PgAudit(pool)).recorded("pr_merged", {
+      prNumber: 7,
+    });
+
+    expect({ text: calls[0]?.text, params: calls[0]?.params }).toEqual({
+      text: expect.stringContaining("payload @> $3::jsonb"),
+      params: ["pr_merged", "octo/repo", JSON.stringify({ prNumber: 7 })],
+    });
   });
 });

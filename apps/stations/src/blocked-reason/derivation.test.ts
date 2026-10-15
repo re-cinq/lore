@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   approvalCount,
+  approvers,
   deriveBlockedReason,
   type PullState,
 } from "./derivation.js";
@@ -101,16 +102,16 @@ describe("deriveBlockedReason", () => {
   });
 });
 
+const review = (user: string, state: string) => ({
+  id: 1,
+  state,
+  body: "",
+  user,
+  submitted_at: "2026-10-14T10:00:00Z",
+});
+
 describe("approvalCount", () => {
   it("counts 1 approval when alice approved and bob approved then requested changes", () => {
-    const review = (user: string, state: string) => ({
-      id: 1,
-      state,
-      body: "",
-      user,
-      submitted_at: "2026-10-14T10:00:00Z",
-    });
-
     expect(
       approvalCount([
         review("alice", "APPROVED"),
@@ -119,6 +120,20 @@ describe("approvalCount", () => {
         review("alice", "COMMENTED"),
       ]),
     ).toBe(1);
+  });
+});
+
+describe("approvers", () => {
+  it("names alice and the lore-reviewer App when bob's approval was dismissed and carol only commented", () => {
+    expect(
+      approvers([
+        review("alice", "APPROVED"),
+        review("bob", "APPROVED"),
+        review("bob", "DISMISSED"),
+        review("lore-reviewer[bot]", "APPROVED"),
+        review("carol", "COMMENTED"),
+      ]),
+    ).toEqual(["alice", "lore-reviewer[bot]"]);
   });
 });
 

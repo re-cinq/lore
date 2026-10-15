@@ -6,6 +6,7 @@ import { InMemoryPrBlockedReasons } from "@re-cinq/lore-shared/project/pr-blocke
 import type {
   CiConclusion,
   PullRef,
+  PullReview,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { blockedReasonComment } from "./comment.js";
 import { InMemoryCommentThread } from "./comment-thread-memory.js";
@@ -38,6 +39,9 @@ function world(pulls: PullRef[], appLogin: AppLogin = async () => LORE) {
   const audit = new InMemoryAudit();
   const reasons = new InMemoryPrBlockedReasons();
   const thread = new InMemoryCommentThread();
+  const files = new Map<number, string[]>();
+  const reviews = new Map<number, PullReview[]>();
+  const repoFiles = new Map<string, string>();
   const deps: BlockedReasonDeps = {
     appLogin,
     reasons,
@@ -53,15 +57,17 @@ function world(pulls: PullRef[], appLogin: AppLogin = async () => LORE) {
         }),
         listChecks: async () => [],
         ciConclusion: async (ref) => ci.get(ref) ?? "success",
-        listReviews: async () => [],
+        listReviews: async (number) => reviews.get(number) ?? [],
+        listFiles: async (number) => files.get(number) ?? [],
       },
+      repo: { read: async (path) => repoFiles.get(path) ?? null },
       issues: thread,
       audit: new Audit(repo, audit),
       taskIssue: async (taskId) => (taskId === TASK_ID ? 42 : null),
     }),
   };
 
-  return { deps, ci, audit, reasons, thread };
+  return { deps, ci, audit, reasons, thread, files, reviews, repoFiles };
 }
 
 const prEvent = (action: string, prNumber: number): ReasonEvent => ({
@@ -247,5 +253,104 @@ describe("runBlockedReason", () => {
       rows: w.reasons.rows.size,
       comments: w.thread.comments,
     }).toEqual({ summary: "no Lore PR to read", rows: 0, comments: [] });
+  });
+});
+
+const MERGED_AT = "2026-10-15T09:00:00Z";
+
+const mergedEvent = (prNumber: number): ReasonEvent => ({
+  name: "github.pull_request.closed",
+  params: { repo: REPO, pr_number: prNumber, merged: true },
+});
+
+const approval = (user: string): PullReview => ({
+  id: 1,
+  state: "APPROVED",
+  body: "",
+  user,
+  submitted_at: MERGED_AT,
+});
+
+describe("runBlockedReason on a merged PR", () => {
+  it("writes pr_merged for Lore's PR 7 of its task, with .github/ci.yml sensitive under .github/ @ops and alice approving", async () => {
+    const w = world([
+      pr(7, {
+        state: "closed",
+        mergedAt: MERGED_AT,
+        body: `Adds it.\n\nLore-Task: ${TASK_ID}`,
+      }),
+    ]);
+
+    w.files.set(7, [".github/ci.yml", "src/a.ts"]);
+    w.reviews.set(7, [approval("alice")]);
+    w.repoFiles.set(".github/CODEOWNERS", ".github/ @ops\n");
+    await runBlockedReason(mergedEvent(7), w.deps);
+
+    expect(w.audit.entries).toEqual([
+      {
+        event_type: "pr_merged",
+        task_id: TASK_ID,
+        repo: REPO,
+        payload: {
+          prNumber: 7,
+          mergedAt: MERGED_AT,
+          taskId: TASK_ID,
+          sensitivePaths: [".github/ci.yml"],
+          approvedBy: ["alice"],
+        },
+      },
+    ]);
+  });
+
+  it("writes taskId null and no sensitive paths for PR 7 with no Lore-Task line in a repo with no CODEOWNERS", async () => {
+    const w = world([pr(7, { state: "closed", mergedAt: MERGED_AT })]);
+
+    w.files.set(7, [".github/ci.yml"]);
+    await runBlockedReason(mergedEvent(7), w.deps);
+
+    expect(w.audit.entries.map((entry) => entry.payload)).toEqual([
+      {
+        prNumber: 7,
+        mergedAt: MERGED_AT,
+        taskId: null,
+        sensitivePaths: [],
+        approvedBy: [],
+      },
+    ]);
+  });
+
+  it("reads the root CODEOWNERS ahead of docs/CODEOWNERS, making src/a.ts sensitive under * @core", async () => {
+    const w = world([pr(7, { state: "closed", mergedAt: MERGED_AT })]);
+
+    w.files.set(7, ["src/a.ts"]);
+    w.repoFiles.set("CODEOWNERS", "* @core\n");
+    w.repoFiles.set("docs/CODEOWNERS", "docs/ @writer\n");
+    await runBlockedReason(mergedEvent(7), w.deps);
+
+    expect(w.audit.entries[0]?.payload.sensitivePaths).toEqual(["src/a.ts"]);
+  });
+
+  it("writes one pr_merged row when PR 7's merged close is delivered twice", async () => {
+    const w = world([pr(7, { state: "closed", mergedAt: MERGED_AT })]);
+
+    await runBlockedReason(mergedEvent(7), w.deps);
+    const summary = await runBlockedReason(mergedEvent(7), w.deps);
+
+    expect({ summary, rows: w.audit.entries.length }).toEqual({
+      summary: "#7 closed; #7 merge already audited",
+      rows: 1,
+    });
+  });
+
+  it("writes no pr_merged row for alice's merged PR 8 nor for Lore's PR 7 closed unmerged", async () => {
+    const w = world([
+      pr(7, { state: "closed" }),
+      pr(8, { state: "closed", mergedAt: MERGED_AT, author: "alice" }),
+    ]);
+
+    await runBlockedReason(prEvent("closed", 7), w.deps);
+    await runBlockedReason(mergedEvent(8), w.deps);
+
+    expect(w.audit.entries).toEqual([]);
   });
 });

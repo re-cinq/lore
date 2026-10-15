@@ -17,6 +17,7 @@ export function productionDeps(): BlockedReasonDeps {
       return {
         pulls: project.pulls,
         issues: project.issues,
+        repo: project.repo,
         audit: project.audit,
         taskIssue: async (taskId) =>
           (await tasks.getById(taskId))?.issueNumber ?? null,

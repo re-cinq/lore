@@ -2,13 +2,12 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Octokit } from "octokit";
 import { standingApprovers } from "./approval-reviews.js";
 import {
-  isCodeowner,
-  isTeamOnlyOwners,
-  APPROVED_PATH,
+  CODEOWNERS_PATHS,
   ownersOfPath,
   parseCodeowners,
   type CodeownersRow,
-} from "./codeowners.js";
+} from "@re-cinq/lore-shared/codeowners.js";
+import { isCodeowner, isTeamOnlyOwners, APPROVED_PATH } from "./codeowners.js";
 
 export { isCodeowner };
 
@@ -63,12 +62,6 @@ interface RepoRef {
   owner: string;
   repo: string;
 }
-
-const CODEOWNERS_CANDIDATES = [
-  ".github/CODEOWNERS",
-  "CODEOWNERS",
-  "docs/CODEOWNERS",
-];
 
 /** Verify the approval ceremony; returns evidence or throws TwoKeyError. Approval PR must match targetRepo (FR3.9). */
 export async function verifyApproval(opts: {
@@ -296,7 +289,7 @@ function throwUnapproved(
 
 /** Fetch CODEOWNERS file (.github/, root, docs/); returns [pattern, owners[]] or empty array. */
 async function fetchCodeowners(ref: RepoRef): Promise<CodeownersRow[]> {
-  for (const filepath of CODEOWNERS_CANDIDATES) {
+  for (const filepath of CODEOWNERS_PATHS) {
     const text = await readCodeownersCandidate(ref, filepath);
 
     if (text !== undefined) {
