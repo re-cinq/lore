@@ -2,7 +2,7 @@
 
 import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { STATIONS } from "../work/registry.js";
-import { eventTriggerNames } from "../work/lib/station.js";
+import { eventSubscriptionsOf } from "../work/lib/station.js";
 import {
   floorConfigured,
   type FloorEnv,
@@ -14,25 +14,21 @@ import { REPO_EVENTS } from "./repo-handlers.js";
 // One subscriber per ROLE not per replica — two stations pods share one backlog, same as two Floors.
 export const STATIONS_SUBSCRIBER = "stations";
 
+/** The repository and floor events on the bus's visibility budget, then every event a sweep declares on its trigger's own. */
 export function stationSubscriptions(
   env: FloorEnv = process.env,
 ): EventSubscription[] {
-  const byName = new Map<string, EventSubscription>();
-
-  for (const eventName of plainEventNames(env)) {
-    byName.set(eventName, { eventName });
-  }
-
-  return [...byName.values()];
-}
-
-/** Every event claimed with the default visibility budget: what the sweeps declare, the repository events, and the floor's. */
-function plainEventNames(env: FloorEnv): string[] {
-  const triggered = Object.values(STATIONS).flatMap((mod) =>
-    eventTriggerNames(mod.manifest),
+  const plain = [...REPO_EVENTS, ...floorEvents(env)].map((eventName) => ({
+    eventName,
+  }));
+  const sweeps = Object.values(STATIONS).flatMap((mod) =>
+    eventSubscriptionsOf(mod.manifest),
+  );
+  const byName = new Map<string, EventSubscription>(
+    [...plain, ...sweeps].map((s) => [s.eventName, s]),
   );
 
-  return [...triggered, ...REPO_EVENTS, ...floorEvents(env)];
+  return [...byName.values()];
 }
 
 /** A deployment with no floor starts no review and has no plan run to answer, so it claims none of the events that would. */

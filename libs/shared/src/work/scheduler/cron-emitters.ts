@@ -49,6 +49,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     schedule: "*/2 * * * *",
     note: "batch sweep that starts one issue-triage floor run per qualifying triage: needs-triage issue per repo, oldest first, up to the per-repo concurrency cap (specs/issue-triage FR9)",
   },
+  {
+    name: "utopia_backfill",
+    schedule: "30 2 * * *",
+    note: "every onboarded repo's specs and ADRs mirrored into Utopia again, one repo at a time, so a missed ingest mirror heals overnight (specs/utopia-graph-mirror FR7.7)",
+  },
 ];
 
 /** The `cron.<name>.tick` event names these emitters produce (the registry must cover each). */

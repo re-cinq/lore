@@ -95,4 +95,15 @@ describe("the sweeps that run on a tick", () => {
       ),
     ).toEqual([]);
   });
+
+  it("claims cron.utopia_backfill.tick with a 43200-second visibility budget, so the reaper leaves a night of one-repo-at-a-time backfills running", () => {
+    expect(
+      stationSubscriptions({}).find(
+        (s) => s.eventName === "cron.utopia_backfill.tick",
+      ),
+    ).toEqual({
+      eventName: "cron.utopia_backfill.tick",
+      visibilityTimeoutSeconds: 43_200,
+    });
+  });
 });

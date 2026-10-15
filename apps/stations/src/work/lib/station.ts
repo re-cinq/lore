@@ -1,5 +1,6 @@
 /** What a station is and how work reaches it (ADR-031 D6/D7). */
 
+import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
 import type {
   CostPort,
@@ -10,6 +11,8 @@ import type {
 export interface EventTrigger {
   kind: "event";
   eventNames: readonly string[];
+  /** How long one run may hold its delivery before the reaper hands it out again; the bus's 600s when absent. */
+  visibilityTimeoutSeconds?: number;
 }
 
 /** A schedule trigger. */
@@ -85,14 +88,25 @@ export interface SweepStationModule {
 
 export type StationModule = SweepStationModule;
 
-/** The event names a manifest's event triggers subscribe to, if any. */
-export const eventTriggerNames = (manifest: StationManifest): string[] => {
+/** The subscriptions a manifest's event triggers ask for, each carrying its trigger's visibility budget. */
+export const eventSubscriptionsOf = (
+  manifest: StationManifest,
+): EventSubscription[] => {
   const events = manifest.triggers.filter(
     (t): t is EventTrigger => t.kind === "event",
   );
 
-  return events.flatMap((t) => t.eventNames);
+  return events.flatMap((t) =>
+    t.eventNames.map((eventName) => ({
+      eventName,
+      visibilityTimeoutSeconds: t.visibilityTimeoutSeconds,
+    })),
+  );
 };
+
+/** The event names a manifest's event triggers subscribe to, if any. */
+export const eventTriggerNames = (manifest: StationManifest): string[] =>
+  eventSubscriptionsOf(manifest).map((s) => s.eventName);
 
 /** A port this host does not serve. */
 export const unsupportedPort = (port: string, host: string): (() => never) => {
