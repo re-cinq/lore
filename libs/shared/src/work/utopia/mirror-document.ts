@@ -33,7 +33,7 @@ export function mirrorDocument(
   deps: MirrorDeps,
   input: DocStatementsInput,
 ): Promise<MirrorOutcome> {
-  return pushAll(deps, docStatementItems(input));
+  return pushItems(deps, docStatementItems(input));
 }
 
 export function tombstoneDocument(
@@ -44,7 +44,7 @@ export function tombstoneDocument(
     (ordinal) => `stmt:${input.path}#${String(ordinal).padStart(4, "0")}`,
   );
 
-  return pushAll(
+  return pushItems(
     deps,
     [`doc:${input.path}`, ...statementIds].map((externalId) =>
       tombstone(externalId),
@@ -52,7 +52,8 @@ export function tombstoneDocument(
   );
 }
 
-async function pushAll(
+/** Pushes the items four at a time, counting what Utopia said of each; an item whose push threw is named under `failed` and the rest still land. */
+export async function pushItems(
   deps: MirrorDeps,
   queue: PushItem[],
 ): Promise<MirrorOutcome> {

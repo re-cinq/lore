@@ -1,6 +1,6 @@
-import { errorMessage, selectPruneCandidates } from "@re-cinq/lore-shared";
-import { recordUtopiaMirrorFailure } from "@re-cinq/lore-shared/otel/metrics.js";
+import { selectPruneCandidates } from "@re-cinq/lore-shared";
 import type { IngestDeltaDeps } from "./ingest-delta-deps.js";
+import { mirrorQuietly } from "./mirror-quietly.js";
 
 /** The part of a delta body a file kind (specs, adrs, code) reads. */
 export interface DocDelta {
@@ -36,7 +36,7 @@ const MIRRORED_KINDS: Partial<Record<string, "spec" | "adr">> = {
   adrs: "adr",
 };
 
-/** After the graph has the delta, Utopia gets the same documents. A mirror that fails is logged and counted and never fails the ingest: the graph is the source the checks read, the mirror is a copy. */
+/** After the graph has the delta, Utopia gets the same documents (see {@link mirrorQuietly}). */
 async function mirrorDelta(
   deps: IngestDeltaDeps,
   repo: string,
@@ -57,19 +57,6 @@ async function mirrorDelta(
 
   for (const path of gone) {
     await mirrorQuietly(repo, path, () => deps.unmirrorDoc(repo, path));
-  }
-}
-
-async function mirrorQuietly(
-  repo: string,
-  path: string,
-  mirror: () => Promise<void>,
-): Promise<void> {
-  try {
-    await mirror();
-  } catch (error) {
-    console.error(`[utopia-mirror] ${repo} ${path}: ${errorMessage(error)}`);
-    recordUtopiaMirrorFailure(repo);
   }
 }
 

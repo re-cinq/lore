@@ -17,11 +17,17 @@ import {
 import { projectFor } from "../../../outbound/project-boot.js";
 import {
   mirrorDocFor,
+  mirrorReportFor,
   unmirrorDocFor,
+  unmirrorTestFilesFor,
   type MirroredDoc,
+  type MirroredReport,
 } from "../../../work/utopia/utopia-mirror.js";
 
-export type { MirroredDoc } from "../../../work/utopia/utopia-mirror.js";
+export type {
+  MirroredDoc,
+  MirroredReport,
+} from "../../../work/utopia/utopia-mirror.js";
 
 /** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
 export interface DocProjection {
@@ -56,6 +62,9 @@ export interface IngestDeltaDeps {
   /** The Utopia mirror of one projected spec or ADR (specs/utopia-graph-mirror); a no-op on a repo not set up there. */
   mirrorDoc(repo: string, doc: MirroredDoc): Promise<void>;
   unmirrorDoc(repo: string, path: string): Promise<void>;
+  /** The Utopia mirror of one default-branch test report: one item per test file. */
+  mirrorReport(repo: string, mirrored: MirroredReport): Promise<void>;
+  unmirrorTests(repo: string, paths: string[]): Promise<void>;
 }
 
 /** The client every projector needs; a delta that reached here without one is a wiring bug, not a request error. */
@@ -117,5 +126,7 @@ export const defaultDeps = (): IngestDeltaDeps => {
       (await projectFor(repo)).repo.defaultBranch(),
     mirrorDoc: mirrorDocFor,
     unmirrorDoc: unmirrorDocFor,
+    mirrorReport: mirrorReportFor,
+    unmirrorTests: unmirrorTestFilesFor,
   };
 };
