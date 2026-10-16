@@ -6,7 +6,11 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
-import { postBackfill } from "./lore-api-backfill.js";
+import {
+  loreApiTarget,
+  postBackfill,
+  postUtopiaCommits,
+} from "./lore-api-backfill.js";
 
 const servers: Server[] = [];
 
@@ -25,6 +29,7 @@ interface Seen {
   method?: string;
   url?: string;
   authorization?: string;
+  body?: string;
 }
 
 async function loreApi(
@@ -32,12 +37,18 @@ async function loreApi(
 ): Promise<{ baseUrl: string; seen: Seen }> {
   const seen: Seen = {};
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    Object.assign(seen, {
-      method: req.method,
-      url: req.url,
-      authorization: req.headers.authorization,
+    const chunks: Buffer[] = [];
+
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      Object.assign(seen, {
+        method: req.method,
+        url: req.url,
+        authorization: req.headers.authorization,
+        body: Buffer.concat(chunks).toString("utf8"),
+      });
+      answer(res);
     });
-    answer(res);
   });
 
   servers.push(server);
@@ -65,7 +76,40 @@ describe("postBackfill", () => {
       method: "POST",
       url: "/api/repos/re-cinq/lore/utopia/backfill",
       authorization: "Bearer tok-1",
+      body: "",
     });
+  });
+
+  it("posts re-cinq/lore's commit walk for main as a JSON body with the station token and answers the 200 whole", async () => {
+    const { baseUrl, seen } = await loreApi((res) =>
+      res.writeHead(200).end('{"commits":0}'),
+    );
+
+    expect(
+      await postUtopiaCommits(
+        { baseUrl, token: "tok-1", timeoutMs: 5_000 },
+        "re-cinq/lore",
+        "main",
+      ),
+    ).toEqual({ status: 200, body: '{"commits":0}' });
+    expect(seen).toEqual({
+      method: "POST",
+      url: "/api/repos/re-cinq/lore/utopia/commits",
+      authorization: "Bearer tok-1",
+      body: '{"branch":"main"}',
+    });
+  });
+
+  it("reads lore-api's address and the station token from the environment, the ingest token failing that, and nothing without LORE_API_URL", () => {
+    expect([
+      loreApiTarget({ LORE_API_URL: "http://api", LORE_STATION_TOKEN: "st" }),
+      loreApiTarget({ LORE_API_URL: "http://api", LORE_INGEST_TOKEN: "in" }),
+      loreApiTarget({}),
+    ]).toEqual([
+      { baseUrl: "http://api", token: "st", timeoutMs: 1_800_000 },
+      { baseUrl: "http://api", token: "in", timeoutMs: 1_800_000 },
+      null,
+    ]);
   });
 
   it("rejects with no answer within 50ms when lore-api holds the call past the timeout", async () => {

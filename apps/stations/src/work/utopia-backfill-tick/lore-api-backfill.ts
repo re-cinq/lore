@@ -15,11 +15,45 @@ export interface LoreApiTarget {
   timeoutMs: number;
 }
 
+const HALF_AN_HOUR_MS = 30 * 60_000;
+
+/** lore-api as this service reaches it, with the stations' own token; null on a deployment that names no lore-api. */
+export function loreApiTarget(
+  env: NodeJS.ProcessEnv = process.env,
+): LoreApiTarget | null {
+  const baseUrl = env.LORE_API_URL;
+
+  return baseUrl
+    ? {
+        baseUrl,
+        token: env.LORE_STATION_TOKEN ?? env.LORE_INGEST_TOKEN,
+        timeoutMs: HALF_AN_HOUR_MS,
+      }
+    : null;
+}
+
 export function postBackfill(
   target: LoreApiTarget,
   repo: string,
 ): Promise<BackfillAnswer> {
-  const url = new URL(`${target.baseUrl}/api/repos/${repo}/utopia/backfill`);
+  return postLoreApi(target, `/api/repos/${repo}/utopia/backfill`);
+}
+
+/** The commit walk of one repo's default branch, for the branch a push named: lore-api skips any other branch itself. */
+export function postUtopiaCommits(
+  target: LoreApiTarget,
+  repo: string,
+  branch: string,
+): Promise<BackfillAnswer> {
+  return postLoreApi(target, `/api/repos/${repo}/utopia/commits`, { branch });
+}
+
+function postLoreApi(
+  target: LoreApiTarget,
+  path: string,
+  body?: Record<string, unknown>,
+): Promise<BackfillAnswer> {
+  const url = new URL(`${target.baseUrl}${path}`);
   const send = url.protocol === "https:" ? httpsRequest : httpRequest;
   const req = send(url, {
     method: "POST",
@@ -31,16 +65,19 @@ export function postBackfill(
     req.destroy(new Error(`no answer within ${target.timeoutMs}ms`)),
   );
 
-  return answerTo(req);
+  return answerTo(req, body === undefined ? undefined : JSON.stringify(body));
 }
 
-function answerTo(req: ClientRequest): Promise<BackfillAnswer> {
+function answerTo(
+  req: ClientRequest,
+  body: string | undefined,
+): Promise<BackfillAnswer> {
   return new Promise((resolve, reject) => {
     req.on("response", (res) => {
       readAnswer(res).then(resolve, reject);
     });
     req.on("error", reject);
-    req.end();
+    req.end(body);
   });
 }
 

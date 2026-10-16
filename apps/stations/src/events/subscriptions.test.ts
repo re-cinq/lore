@@ -74,6 +74,12 @@ describe("the review events, which only a deployment with a floor asks for", () 
     ]);
   });
 
+  it("claims github.push whether or not a floor is configured, so a merge to main reaches the Utopia commit mirror", () => {
+    expect(stationSubscriptions({}).map((s) => s.eventName)).toContain(
+      "github.push",
+    );
+  });
+
   it("claims the label and rename events whether or not a floor is configured", () => {
     const names = stationSubscriptions({}).map((s) => s.eventName);
 

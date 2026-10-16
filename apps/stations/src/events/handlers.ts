@@ -29,6 +29,12 @@ import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-ht
 import { pipeline } from "../outbound/queues.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
 import {
+  loreApiTarget,
+  postUtopiaCommits,
+} from "../work/utopia-backfill-tick/lore-api-backfill.js";
+import { commitsAnswerLine } from "../work/utopia-backfill-tick/commits-answer.js";
+import { NO_LORE_API } from "../work/utopia-backfill-tick/run.js";
+import {
   floorRepoOf,
   gitItem,
   valueItem,
@@ -92,6 +98,14 @@ const repoEventDeps: RepoEventDeps = {
   renameRepo: (from, to) => settings().renameRepo(from, to),
   // This service holds no graph client: the drop goes through lore-api.
   dropOverlay: (repo, branch) => dropOverlayOverHttp({ repo, branch }),
+  // This service holds no GitHub reader for history and no Utopia key: the walk runs in lore-api.
+  mirrorCommits: async (repo, branch) => {
+    const target = loreApiTarget();
+
+    return target
+      ? commitsAnswerLine(await postUtopiaCommits(target, repo, branch))
+      : NO_LORE_API;
+  },
   relocateChunks: (repo) =>
     relocateOnTeamChange(
       {
