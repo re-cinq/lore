@@ -51,7 +51,6 @@ interface SectionRef {
   depth: number;
 }
 
-
 const DOC_KIND_WORD = { spec: "Spec", adr: "Adr" } as const;
 
 export function docStatementItems(input: DocStatementsInput): StatementItem[] {
