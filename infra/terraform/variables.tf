@@ -216,9 +216,9 @@ variable "utopia_image_repository" {
 }
 
 variable "utopia_image_tag" {
-  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.6 = upstream dev + deeplethe/utopia#1234, #1237, #1244, #1245, #1250, with the review fixes of #1250 (a group needs two or more bases; keyboard, touch, inline on narrow screens), #1237 (no SSO account for a deactivated email; password login stays on while SSO is unconfigured), #1244 (a token creates only statements sources; audit rows name the token) and #1245 (state relations left to the aligner)."
+  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.7 = upstream dev (including deeplethe/utopia#1244, #1245, #1261, #1270) + #1234, #1237, #1250 and our open #1263, #1264, #1265, #1266 (a personal token reads the graph), #1268 (a push keeps its external_id), #1272 (role-word qualifiers in reads), #1273 (search scores and paging), #1274 (a token creates api sources) and #1280 (read a document back by its external_id)."
   type        = string
-  default     = "0.1.0-re.6"
+  default     = "0.1.0-re.7"
 }
 
 variable "utopia_data_size" {
@@ -230,7 +230,7 @@ variable "utopia_data_size" {
 variable "utopia_image_digest" {
   description = "The sha256 digest of the Utopia image to run (sha256:...). Set, it wins over utopia_image_tag: a digest names the bytes, a tag can be re-pushed. Read the running pod's imageID to pin it."
   type        = string
-  default     = "sha256:ae962e7b710473dcb7572a9b018bffcffb435fb550ed9d96df470ecf8b30a3eb"
+  default     = "sha256:9fa040337088fd57a8e99ff7c9c59dce298203b3de1d3d4777d54b76a5644bd1"
 
   validation {
     condition     = var.utopia_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.utopia_image_digest))
