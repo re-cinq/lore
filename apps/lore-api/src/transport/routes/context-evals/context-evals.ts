@@ -8,6 +8,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
+import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { withPool, type PooledHandler } from "../with-pool.js";
 import { assembleForEval } from "../../../work/context-evals/assembled-for-eval.js";
 import { documentText } from "../../../work/context-evals/eval-documents.js";
@@ -23,6 +24,8 @@ const ContextEvalBody = z.object({
   path: z.string().min(1).max(500),
   // Pins the question, so a rerun after a fix grades the same one.
   question: z.string().min(1).max(1000).optional(),
+  // The store the assembly reads; the verdict grades one store at a time (scoring "both" side by side is a follow-up).
+  backend: KnowledgeBackendSchema.optional(),
 });
 
 const DocumentEvalSchema = z.object({
@@ -89,6 +92,7 @@ function evalDeps(pool: Pool): EvalDeps {
     llm: Llm.for("eval"),
     judgeModel: process.env.LORE_EVAL_JUDGE_MODEL,
     document: (repo, path) => documentText(pool, repo, path),
-    assemble: (repo, question) => assembleForEval(pool, repo, question),
+    assemble: (repo, question, backend) =>
+      assembleForEval(pool, repo, question, backend),
   };
 }

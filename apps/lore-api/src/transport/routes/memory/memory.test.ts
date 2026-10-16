@@ -415,3 +415,44 @@ describe("POST /api/memory list scope", () => {
     expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0, "o/r");
   });
 });
+
+describe("POST /api/memory search backend", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("answers no hits and a no-reader note for backend utopia, without searching Lore", async () => {
+    memoryDbUp();
+    const res = await post({ action: "search", query: "q", backend: "utopia" });
+
+    expect({
+      body: res.result,
+      searched: vi.mocked(searchMemories).mock.calls.length,
+    }).toEqual({
+      body: { results: [], notes: ["search_memory: no Utopia reader yet"] },
+      searched: 0,
+    });
+  });
+
+  it("answers Lore's hits plus the no-reader note for backend both", async () => {
+    memoryDbUp();
+    vi.mocked(searchMemories).mockResolvedValue([{ m: 1 }] as never);
+    const res = await post({ action: "search", query: "q", backend: "both" });
+
+    expect(res.result).toEqual({
+      results: [{ m: 1 }],
+      notes: ["search_memory: no Utopia reader yet"],
+    });
+  });
+
+  it("returns 400 for a search backend of dgraph", async () => {
+    const res = await post({ action: "search", query: "q", backend: "dgraph" });
+
+    expect(res.statusCode).toBe(400);
+  });
+});

@@ -1,6 +1,7 @@
 // One document's context eval (specs/context-evals): the model writes a question the document answers, Lore assembles context for it as it would for an agent, and the result says whether the document came back, whether the question could be answered from what came back, and how much of it was used.
 
 import type { LlmProvider } from "@re-cinq/lore-shared/llm/llm-provider.js";
+import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 
 const JOB_NAME = "context-evals";
 const MAX_DOCUMENT_CHARS = 12_000;
@@ -23,8 +24,12 @@ export interface EvalDeps {
   judgeModel?: string;
   /** The ingested text of one document; null when Lore does not hold it. */
   document(repo: string, path: string): Promise<string | null>;
-  /** What an agent asking `question` about `repo` would be handed. */
-  assemble(repo: string, question: string): Promise<AssembledForEval>;
+  /** What an agent asking `question` about `repo` would be handed, from `backend` when one is named. */
+  assemble(
+    repo: string,
+    question: string,
+    backend?: KnowledgeBackend,
+  ): Promise<AssembledForEval>;
 }
 
 export interface DocumentEval {
@@ -94,6 +99,8 @@ export interface EvalTarget {
   path: string;
   /** Grade this question instead of writing one, so a rerun after a fix measures the same thing. */
   question?: string;
+  /** The store the assembly reads; unset follows the repo's setting, then Lore. */
+  backend?: KnowledgeBackend;
 }
 
 /** Evaluates one document; null when Lore holds no such document. */
@@ -114,7 +121,7 @@ async function evaluateStored(
   document: string,
 ): Promise<DocumentEval> {
   const question = await questionFor(deps.llm, target, document);
-  const assembled = await deps.assemble(target.repo, question);
+  const assembled = await deps.assemble(target.repo, question, target.backend);
   const graded = await gradeAssembled(deps, {
     document,
     question,

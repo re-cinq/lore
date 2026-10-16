@@ -123,9 +123,13 @@ A mirror that failed, or a repo set up after its documents were ingested, would 
 - FR9.7 — A report for any branch but the default one goes to that branch's overlay in the graph and is not mirrored: a statement in Utopia is validated or violated by main's tests only. ([validated by mirrors nothing for a feat/x test-report delta](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L714))
 - FR9.8 — `lore-code-trace` chunks a report by test file, so all of a file's tests travel in one delta: each chunk replaces the `test:<path>` items of its files, and a file split across two chunks would leave only the second part standing. A single file larger than the budget goes alone. ([validated by TestChunkReportKeepsBothDescriptorsOfAGoInOneChunkUnderABudgetThatFitsOneFile](apps/lore-code-trace/chunk_test.go#L56))
 
+## Reads choose a backend
+
+The side-by-side experiment of the ADR-052 amendment of 2026-10-16: every ingest writes to both stores, and each context read names the store it reads, `lore`, `utopia` or `both`, per request or through the repo's `settings.context_backend`, with Lore the default. A source Utopia cannot read yet answers `<source>: no Utopia reader yet`; Lore's data is never served under Utopia's name. The switch is specified where it lives: [context assembly](../context-assembly/spec.md) FR-1.5 to FR-1.8, [`GET /api/context`](../api-routes/context/spec.md), [`lore_search_context`](../mcp-tools/search-context/spec.md), [`lore_search_memory`](../mcp-tools/search-memory/spec.md) and [context evals](../context-evals/spec.md) FR4.4.
+
 ## Out of scope
 
-- Reading the mirror: the spec pages, the detectors and `query_trace` keep reading Dgraph.
+- Reading the mirror: the spec pages, the detectors and `query_trace` keep reading Dgraph, and no context source has a Utopia reader yet.
 - Code definitions from the code ingest; the ontology declares them (`defines`, `references`, `imports`) for the slice that pushes them.
 - Tombstoning the statement items of a deleted document; the ordinals of the last push are not stored yet.
 - The text of code: a source file is named and linked by path, and its contents are not copied into Utopia.

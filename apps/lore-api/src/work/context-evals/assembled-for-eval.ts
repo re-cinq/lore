@@ -4,7 +4,11 @@ import type { Pool } from "pg";
 import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
 import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
-import { repoWantsCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import {
+  resolveBackend,
+  type KnowledgeBackend,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 import type { AssembledForEval, AssembledSource } from "./evaluate-document.js";
 
 /** Every document the assembly kept, with the tokens it took; an item with no path keeps its tokens under an empty one. */
@@ -19,10 +23,13 @@ export async function assembleForEval(
   pool: Pool,
   repo: string,
   question: string,
+  backend?: KnowledgeBackend,
 ): Promise<AssembledForEval> {
+  const settings = await repoContextSettings(pool, repo);
   const result = await assembleContext(pool, question, {
     repo,
-    crossRepo: await repoWantsCrossRepo(pool, repo),
+    crossRepo: settings.crossRepo,
+    backend: resolveBackend(backend, settings.contextBackend),
     graph: traceFromEnv(process.env),
     debug: true,
     passive: true,

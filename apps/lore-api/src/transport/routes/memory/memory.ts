@@ -24,6 +24,10 @@ import {
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
+import {
+  KnowledgeBackendSchema,
+  searchBackend,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 import { extractFactsForMemory } from "../../../work/memory/fact-extraction.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -71,6 +75,7 @@ const MemoryBody = z.discriminatedUnion("action", [
     // Carried from lore_search_memory, which has no pool of its own to honor them with (ADR-032).
     include_invalidated: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
     graph_augment: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
+    backend: KnowledgeBackendSchema.default("lore"),
   }),
   z.object({
     action: z.literal("delete"),
@@ -109,6 +114,16 @@ const MemoryListEntrySchema = wireSchema(
   has_facts: z.boolean(),
 });
 
+const MemorySearchHitSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  score: z.number(),
+  agent_id: z.string(),
+  source: z.enum(["memory", "fact", "episode", "graph"]),
+  id: z.string().optional(),
+  confidence: z.string().optional(),
+});
+
 // One POST multiplexes write/read/search/delete/list as a named union (not split into 5 routes: the action rides in the BODY); memory-contract.test.ts is what actually holds it to that shape since zodResponse doesn't validate at runtime.
 export const MemoryOperationSchema = z.union([
   /** write — the row it landed, from the pool or the file fallback alike. */
@@ -130,17 +145,12 @@ export const MemoryOperationSchema = z.union([
   /** read, `version: "all"` — every version, newest first. */
   z.array(MemoryVersionSchema),
   /** search — hits across memories/facts/episodes/graph; file fallback searches memories only. */
-  z.array(
-    z.object({
-      key: z.string(),
-      value: z.string(),
-      score: z.number(),
-      agent_id: z.string(),
-      source: z.enum(["memory", "fact", "episode", "graph"]),
-      id: z.string().optional(),
-      confidence: z.string().optional(),
-    }),
-  ),
+  z.array(MemorySearchHitSchema),
+  /** search with backend utopia or both — Lore's hits (none for utopia) and a note for each store that could not answer. */
+  z.object({
+    results: z.array(MemorySearchHitSchema),
+    notes: z.array(z.string()),
+  }),
   /** delete — soft-delete acknowledgement. */
   z.object({ key: z.string(), deleted: z.boolean() }),
   /** list — a page, with the window the caller asked for echoed back. */
@@ -227,7 +237,9 @@ async function embeddingFor(body: MemoryBody): Promise<number[] | null> {
     return getQueryEmbedding(body.value);
   }
 
-  return body.action === "search" ? getQueryEmbedding(body.query) : null;
+  return body.action === "search" && body.backend !== "utopia"
+    ? getQueryEmbedding(body.query)
+    : null;
 }
 
 type MemoryWriteBody = Extract<MemoryBody, { action: "write" }>;
@@ -290,10 +302,26 @@ function requestedVersion(
   return version ? Number(version) : undefined;
 }
 
+type MemorySearchBody = Extract<MemoryBody, { action: "search" }>;
+
+/** Lore's hits as they always were for a Lore search; for utopia or both, `{results, notes}` so the missing Utopia reader is said, not skipped. */
 async function searchAction(
   pool: Pool | null,
-  body: Extract<MemoryBody, { action: "search" }>,
+  body: MemorySearchBody,
 ): Promise<object> {
+  const { results, notes } = await searchBackend(
+    body.backend,
+    "search_memory",
+    () => searchLoreMemories(pool, body),
+  );
+
+  return notes.length > 0 ? { results, notes } : results;
+}
+
+async function searchLoreMemories(
+  pool: Pool | null,
+  body: MemorySearchBody,
+): Promise<object[]> {
   return isMemoryDbAvailable()
     ? searchMemories(pool!, body.query, {
         agentId: body.agent_id,

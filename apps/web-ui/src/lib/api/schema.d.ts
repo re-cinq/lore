@@ -3399,6 +3399,19 @@ export interface components {
           confidence?: string;
         }[]
       | {
+          results: {
+            key: string;
+            value: string;
+            score: number;
+            agent_id: string;
+            /** @enum {string} */
+            source: "memory" | "fact" | "episode" | "graph";
+            id?: string;
+            confidence?: string;
+          }[];
+          notes: string[];
+        }
+      | {
           key: string;
           deleted: boolean;
         }
@@ -3742,6 +3755,8 @@ export interface components {
               source_id: string;
               ontology_version?: number;
             };
+            /** @enum {string} */
+            context_backend?: "lore" | "utopia" | "both";
           } & {
             [key: string]: unknown;
           })
@@ -3857,6 +3872,8 @@ export interface components {
                 source_id: string;
                 ontology_version?: number;
               };
+              /** @enum {string} */
+              context_backend?: "lore" | "utopia" | "both";
             } & {
               [key: string]: unknown;
             })
@@ -4126,6 +4143,7 @@ export interface components {
         score: number;
         source_path: string | null;
       }[];
+      notes?: string[];
     };
     SessionSummaryResult:
       | {
@@ -5626,6 +5644,8 @@ export interface operations {
           repo: string;
           path: string;
           question?: string;
+          /** @enum {string} */
+          backend?: "lore" | "utopia" | "both";
         };
       };
     };
@@ -6201,6 +6221,11 @@ export interface operations {
               include_invalidated?: boolean;
               /** @default false */
               graph_augment?: boolean;
+              /**
+               * @default lore
+               * @enum {string}
+               */
+              backend?: "lore" | "utopia" | "both";
             }
           | {
               /** @constant */

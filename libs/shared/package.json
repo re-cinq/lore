@@ -202,6 +202,10 @@
       "types": "./dist/domain/repo-context.d.ts",
       "default": "./dist/domain/repo-context.js"
     },
+    "./knowledge-backend.js": {
+      "types": "./dist/domain/knowledge-backend.d.ts",
+      "default": "./dist/domain/knowledge-backend.js"
+    },
     "./floor/*.js": {
       "types": "./dist/outbound/floor/*.d.ts",
       "default": "./dist/outbound/floor/*.js"

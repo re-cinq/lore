@@ -1,11 +1,18 @@
 // Context assembly: retrieves from all sources into a structured, token-budgeted, XML-tagged block; `debug` adds a full per-source trace (context-assembly-format.ts).
 
-import { searchMemories } from "./memory-search.js";
 import type { PgPool } from "../../memory-store.js";
 import { serializeContext } from "./context-assembly-format.js";
-import { getTemplate, loadTemplates } from "./context-assembly-templates.js";
+import {
+  activeSections,
+  getTemplate,
+  loadTemplates,
+} from "./context-assembly-templates.js";
 import type { TemplateSection } from "./context-assembly-templates.js";
-import { collectContextRefIds } from "./context-assembly-items.js";
+import {
+  collectAssembledRefs,
+  emptyAssembledRefs,
+  type AssembledRefs,
+} from "./context-assembly-items.js";
 import {
   fetchCouplingSource,
   type GraphContextSource,
@@ -13,6 +20,8 @@ import {
 import { fetchers, type SourceFetcher } from "./context-assembly-fetchers.js";
 import {
   allocateSections,
+  assemblyBudget,
+  halfBudget,
   type FetchedSection,
 } from "./context-assembly-budget.js";
 import {
@@ -29,6 +38,11 @@ import type {
   FetchResult,
   TraceSection,
 } from "./context-assembly-types.js";
+import {
+  labelledByBackend,
+  utopiaAssemblyFor,
+} from "./context-assembly-backends.js";
+import type { KnowledgeBackend } from "../../../domain/knowledge-backend.js";
 import {
   buildAssemblyTrace,
   type AssemblyTrace,
@@ -61,14 +75,6 @@ export interface AssembledResult {
   context_refs?: { fact_ids: string[]; memory_ids: string[] };
 }
 
-// Per-template default token budgets; research keeps the old 16K ceiling since it's memory/episode-heavy.
-const TEMPLATE_DEFAULT_BUDGETS: Record<string, number | undefined> = {
-  default: 8000,
-  implementation: 8000,
-  review: 8000,
-  research: 16000,
-};
-
 export interface AssembleOptions {
   templateName?: string;
   maxTokens?: number;
@@ -80,12 +86,38 @@ export interface AssembleOptions {
   graph?: GraphContextSource | null;
   /** Assemble without recording that anything was retrieved: for measuring what an agent would get (context evals), not for an agent. */
   passive?: boolean;
+  /** Which store answers (ADR-052 amendment 2026-10-16); "lore" when absent. */
+  backend?: KnowledgeBackend;
 }
 
+/** One assembly from the chosen store. "both" is Lore's then Utopia's, each labelled and each on half the budget, so the two are compared at the same cost as one. */
 export async function assembleContext(
   pool: PgPool,
   query: string,
   options: AssembleOptions = {},
+): Promise<AssembledResult> {
+  const backend = options.backend ?? "lore";
+
+  if (backend !== "both") {
+    return backend === "lore"
+      ? assembleFromLore(pool, query, options)
+      : utopiaAssemblyFor(query, options);
+  }
+  const halved = {
+    ...options,
+    maxTokens: halfBudget(options.templateName, options.maxTokens),
+  };
+
+  return labelledByBackend(
+    await assembleFromLore(pool, query, halved),
+    utopiaAssemblyFor(query, halved),
+  );
+}
+
+async function assembleFromLore(
+  pool: PgPool,
+  query: string,
+  options: AssembleOptions,
 ): Promise<AssembledResult> {
   const { repo, agentId, includeIds, debug, graph, passive } = options;
   const run = assemblyRun(query, options);
@@ -131,18 +163,6 @@ function assemblyRun(query: string, options: AssembleOptions): AssemblyRun {
   };
 }
 
-/** Never below 2000 tokens: a budget small enough to fit nothing still costs a request, and an agent that receives an empty block cannot tell it from a repo with no context at all. */
-function assemblyBudget(templateName: string, maxTokens?: number): number {
-  return Math.max(resolveEffectiveMax(templateName, maxTokens), 2000);
-}
-
-function resolveEffectiveMax(
-  templateName: string,
-  maxTokens: number | undefined,
-): number {
-  return maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
-}
-
 /** Every section fetched, packed into the budget, and serialized into one block. */
 async function assembleSections(
   { template, templateName, minTokens }: AssemblyRequest,
@@ -181,9 +201,7 @@ async function fetchSections(
   opts: { crossRepo: boolean | undefined; timings: Record<string, number> },
 ) {
   return fetchAllSections(
-    template.sections.filter(
-      (s) => s.source !== "cross_repo" || opts.crossRepo,
-    ),
+    activeSections(template, opts),
     sources,
     opts.timings,
   );
@@ -279,33 +297,6 @@ function sectionTokenCounts(
     tokens: s.documents.reduce((sum, i) => sum + i.tokens, 0),
     truncated: s.truncated,
   }));
-}
-
-interface AssembledRefs {
-  factIds: string[];
-  memoryIds: string[];
-}
-
-const emptyAssembledRefs: AssembledRefs = { factIds: [], memoryIds: [] };
-
-/** Context refs for outcome feedback; a search failure is non-fatal — the assembly still returns without refs. */
-async function collectAssembledRefs(
-  pool: PgPool,
-  query: string,
-  agentId: string | undefined,
-): Promise<AssembledRefs> {
-  const factIds: string[] = [];
-  const memoryIds: string[] = [];
-
-  try {
-    const results = await searchMemories(pool, query, { agentId, limit: 20 });
-
-    collectContextRefIds(results, memoryIds, factIds);
-  } catch {
-    /* non-fatal */
-  }
-
-  return { factIds, memoryIds };
 }
 
 function traceInput(

@@ -23,7 +23,7 @@ asynchronously, without leaking secrets into the org-wide store.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L205)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L208)).
 
 - **name**: `lore_write_episode`
 - **description** (verbatim):

@@ -32,7 +32,7 @@ Registered in the route table as `exact("/api/memory", "POST")`
 
 - **Method + path**: `POST /api/memory`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/memory"] = "write"`
-  ([scope map](../../../apps/lore-api/src/transport/routes/memory/memory.ts#L77)). No
+  ([scope map](../../../apps/lore-api/src/transport/routes/memory/memory.ts#L82)). No
   `SCOPE_OVERRIDES` entry applies. A bearer token is mandatory (the route is not
   auth-exempt); `admin` scope satisfies it, `read`-only does not.
 - **Rate bucket**: `default` (200/min) — the URL is neither `/api/webhook/*` nor
@@ -209,5 +209,5 @@ A failed lookup is swallowed so the write still succeeds. ([validated by `swallo
 - The file-store layout under `~/.lore/memory/`.
 - Token issuance and the scope schema (`/api/tokens`).
 
-Code: handler [`handleMemory`](../../../apps/lore-api/src/transport/routes/memory/memory.ts#L72)
+Code: handler [`handleMemory`](../../../apps/lore-api/src/transport/routes/memory/memory.ts#L76)
 (IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L115).
