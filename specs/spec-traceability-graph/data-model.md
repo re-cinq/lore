@@ -251,7 +251,7 @@ The `code` ingest kind is what writes the call graph. lore-code-trace's `docs --
 sends the repository's TypeScript and JavaScript source (tests, `.d.ts`, `node_modules/`,
 `dist/`, `build/` and `vendor/` left out) to `POST /api/repos/{owner}/{repo}/ingest` with
 `kind: "code"`, in the same chunked delta as specs and ADRs, so it lands on `main` from CI
-like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L257))
+like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L314))
 
 lore-api parses each file with tree-sitter into its top-level functions,
 function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L75), [validated by maps the local name next to nextTransition imported from ./transition.js](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L92))

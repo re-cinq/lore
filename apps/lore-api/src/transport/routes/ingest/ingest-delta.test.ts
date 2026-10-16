@@ -19,6 +19,7 @@ function fakeDeps(
   graph: { specs?: string[]; adrs?: string[]; code?: string[] } = {},
   mirrorDoc: IngestDeltaDeps["mirrorDoc"] = async () => undefined,
   mirrorReport: IngestDeltaDeps["mirrorReport"] = async () => undefined,
+  mirrorCode: IngestDeltaDeps["mirrorCode"] = async () => undefined,
 ): FakeDeps {
   const calls: Array<[string, ...unknown[]]> = [];
   const mirrored: Array<[string, ...unknown[]]> = [];
@@ -86,6 +87,13 @@ function fakeDeps(
     },
     unmirrorTests: async (repo, paths) => {
       mirrored.push(["unmirrorTests", repo, paths]);
+    },
+    mirrorCode: async (repo, code) => {
+      mirrored.push(["mirrorCode", repo, code]);
+      await mirrorCode(repo, code);
+    },
+    unmirrorCode: async (repo, paths) => {
+      mirrored.push(["unmirrorCode", repo, paths]);
     },
   };
 }
@@ -222,7 +230,28 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     });
   });
 
-  it("mirrors nothing for a code delta", async () => {
+  it("mirrors a main code delta's files after projecting them", async () => {
+    const projectedBeforeMirror: string[][] = [];
+    const deps: FakeDeps = fakeDeps({}, undefined, undefined, async () => {
+      projectedBeforeMirror.push(deps.calls.map(([name]) => name));
+    });
+    const server = await serverWith(deps, casAdvances);
+    const files = [{ path: "src/runner.ts", content: "export {};" }];
+
+    await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files,
+    });
+
+    expect({ mirrored: deps.mirrored, projectedBeforeMirror }).toEqual({
+      mirrored: [["mirrorCode", "re-cinq/lore", { files, commit: SHA_B }]],
+      projectedBeforeMirror: [["projectCode"]],
+    });
+  });
+
+  it("tombstones the deleted code files", async () => {
     const deps = fakeDeps();
     const server = await serverWith(deps, casAdvances);
 
@@ -230,10 +259,38 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
       kind: "code",
       commit: SHA_B,
       base_commit: SHA_A,
+      deleted: ["src/gone.ts", "src/old.ts"],
+    });
+
+    expect(deps.mirrored).toEqual([
+      ["unmirrorCode", "re-cinq/lore", ["src/gone.ts", "src/old.ts"]],
+    ]);
+  });
+
+  it("answers 200 when the code mirror throws", async () => {
+    const deps = fakeDeps({}, undefined, undefined, async () => {
+      throw new Error("utopia answered 503: busy");
+    });
+    const server = await serverWith(deps, casAdvances);
+    const res = await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: SHA_A,
       files: [{ path: "src/runner.ts", content: "export {};" }],
     });
 
-    expect(deps.mirrored).toEqual([]);
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: {
+        kind: "code",
+        commit: SHA_B,
+        state: "advanced",
+        projected: 1,
+        deleted: 0,
+        test_chunks: 0,
+        pruned_test_files: 0,
+      },
+    });
   });
 
   it("routes adr files to the adr projector and adr deletions to the adr prune", async () => {
