@@ -28,7 +28,7 @@ export interface RepoEventDeps {
   reportTriageGate(visitId: string): Promise<void>;
   /** A team change moves the repository's stored context into the team's schema, where reads now look; answers what it did. */
   relocateChunks(repo: string): Promise<string>;
-  /** A push to the default branch has lore-api walk its new commits into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR11); answers what the walk did, or why it was skipped. */
+  /** A push to the default branch has lore-api walk its new commits into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR12); answers what the walk did, or why it was skipped. */
   mirrorCommits(repo: string, branch: string): Promise<string>;
 }
 

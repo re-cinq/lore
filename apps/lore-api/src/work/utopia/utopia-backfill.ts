@@ -38,7 +38,7 @@ export interface BackfillFiles {
 export interface BackfillDeps {
   files: BackfillFiles;
   mirror(doc: MirroredDoc): Promise<MirrorOutcome>;
-  /** The default branch's commits above the stored cursor, pushed after the documents (FR11). */
+  /** The default branch's commits above the stored cursor, pushed after the documents (FR12). */
   history: CommitHistoryDeps;
 }
 

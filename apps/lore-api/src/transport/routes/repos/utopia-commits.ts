@@ -26,7 +26,7 @@ const UtopiaCommitsBody = z
 
 type UtopiaCommitsBody = z.infer<typeof UtopiaCommitsBody>;
 
-/** POST /api/repos/{owner}/{repo}/utopia/commits — the default branch's commits above the stored cursor, mirrored into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR11). */
+/** POST /api/repos/{owner}/{repo}/utopia/commits — the default branch's commits above the stored cursor, mirrored into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR12). */
 export function utopiaCommitsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",

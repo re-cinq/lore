@@ -115,7 +115,7 @@ The ontology declared these words in version 1, so no upgrade is needed. A faile
 
 ## Amendment 2026-10-16: commit history under ontology version 4
 
-The chain said what a repository's documents, tests and code are and nothing about when each changed. Now the default branch's commits are mirrored too (specs/utopia-graph-mirror FR11):
+The chain said what a repository's documents, tests and code are and nothing about when each changed. Now the default branch's commits are mirrored too (specs/utopia-graph-mirror FR12):
 
 - **Four classes and five event relations.** `Commit` `changes` the Spec, Adr or SourceFile it touched, `follows` its parents and `merges` the `PullRequest` its squash subject names; the pull request `closes` each `Issue` its body claims to resolve, `refers_to` each it only names (`Refs`, the partial footer) and `delivers` the `Task` of its `Lore-Task:` line. A commit, a pull request and an issue are named as their GitHub page's path, so `https://github.com/<name>` is each one's permalink and a pull request and an issue with one number stay apart.
 - **The commit item names paths, never what changed inside them.** CI pushes a commit's tests and definitions after the merge, and Utopia merges same-named entities whichever item came first, so the commit's `changes` and the later test-report item's `contains` meet on one SourceFile. Order does not matter and nothing is re-pushed; what a commit touched inside a file is a walk through the file.

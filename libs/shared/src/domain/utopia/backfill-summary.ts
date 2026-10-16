@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** What one walk of a repo's default-branch commits answers (specs/utopia-graph-mirror FR11): the cursor it started above, the newest commit it pushed, and Utopia's counts. */
+/** What one walk of a repo's default-branch commits answers (specs/utopia-graph-mirror FR12): the cursor it started above, the newest commit it pushed, and Utopia's counts. */
 export const UtopiaCommitsSummarySchema = z.object({
   branch: z.string(),
   /** The commit the walk started above, null for a first walk from the root. */
