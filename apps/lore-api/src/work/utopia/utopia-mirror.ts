@@ -1,4 +1,4 @@
-// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec, ADR and default-branch test run it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
+// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec, ADR, source file and default-branch test run it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -25,6 +25,11 @@ import {
   mirrorTestReport,
   tombstoneTestFiles,
 } from "@re-cinq/lore-shared/utopia/mirror-test-report.js";
+import {
+  mirrorCodeFiles,
+  tombstoneCodeFiles,
+  type CodeDeltaInput,
+} from "@re-cinq/lore-shared/utopia/mirror-code.js";
 import type { TestReportInput } from "@re-cinq/lore-shared/utopia/test-report-statements.js";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import type { Pool } from "pg";
@@ -47,6 +52,9 @@ export interface MirroredReport {
   report: unknown;
   commit: string;
 }
+
+/** A code delta's files as the delta route received them, and the commit the delta names. */
+export type MirroredCode = Omit<CodeDeltaInput, "repo">;
 
 /** The source the repo's documents are pushed to, or null when the deployment has no Utopia, the repo was never set up there, or the stored key belongs to another source than the one its settings name. */
 export function mirrorSource(
@@ -113,6 +121,28 @@ export async function unmirrorTestFilesFor(
 
   if (deps) {
     settled(await tombstoneTestFiles(deps, paths));
+  }
+}
+
+export async function mirrorCodeFor(
+  repo: string,
+  code: MirroredCode,
+): Promise<void> {
+  const deps = await mirrorDepsFor(repo);
+
+  if (deps) {
+    settled(await mirrorCodeFiles(deps, { repo, ...code }));
+  }
+}
+
+export async function unmirrorCodeFor(
+  repo: string,
+  paths: string[],
+): Promise<void> {
+  const deps = await mirrorDepsFor(repo);
+
+  if (deps) {
+    settled(await tombstoneCodeFiles(deps, paths));
   }
 }
 

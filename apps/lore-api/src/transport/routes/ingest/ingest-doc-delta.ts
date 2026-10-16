@@ -36,27 +36,59 @@ const MIRRORED_KINDS: Partial<Record<string, "spec" | "adr">> = {
   adrs: "adr",
 };
 
-/** After the graph has the delta, Utopia gets the same documents (see {@link mirrorQuietly}). */
+/** After the graph has the delta, Utopia gets the same documents and source files (see {@link mirrorQuietly}). */
 async function mirrorDelta(
   deps: IngestDeltaDeps,
   repo: string,
   delta: DocDelta,
   gone: string[],
 ): Promise<void> {
+  if (delta.kind === "code") {
+    return mirrorCodeDelta(deps, repo, delta, gone);
+  }
   const kind = MIRRORED_KINDS[delta.kind];
 
-  if (!kind) {
-    return;
+  if (kind) {
+    await mirrorDocs(deps, repo, { ...delta, kind }, gone);
   }
+}
 
+async function mirrorDocs(
+  deps: IngestDeltaDeps,
+  repo: string,
+  delta: DocDelta & { kind: "spec" | "adr" },
+  gone: string[],
+): Promise<void> {
   for (const file of delta.files ?? []) {
     await mirrorQuietly(repo, file.path, () =>
-      deps.mirrorDoc(repo, { ...file, kind, commit: delta.commit }),
+      deps.mirrorDoc(repo, { ...file, kind: delta.kind, commit: delta.commit }),
     );
   }
 
   for (const path of gone) {
     await mirrorQuietly(repo, path, () => deps.unmirrorDoc(repo, path));
+  }
+}
+
+/** A code delta's files go as one push, so its items travel four at a time across files; its gone files are tombstoned. */
+async function mirrorCodeDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  delta: DocDelta,
+  gone: string[],
+): Promise<void> {
+  const files = delta.files ?? [];
+
+  if (files.length > 0) {
+    await mirrorQuietly(repo, `code at ${delta.commit}`, () =>
+      deps.mirrorCode(repo, { files, commit: delta.commit }),
+    );
+  }
+
+  if (gone.length > 0) {
+    await mirrorQuietly(repo, gone.join(", "), () =>
+      deps.unmirrorCode(repo, gone),
+    );
   }
 }
 
