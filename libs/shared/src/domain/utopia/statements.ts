@@ -3,6 +3,9 @@
 /** `[name, kind word, true]`: the kind word is the ontology class label the knowledge base bound the word to. */
 export type Entity = [string, string, true];
 
+/** What qualifies one relation, such as the lines a test covers in a file. */
+export type Qualifiers = Readonly<Record<string, string | number>>;
+
 /** `[null, subject, phrase, object | null, value | null, qualifiers, null, null]`: a relation names an object and no value, an attribute a value and no object. */
 export type Statement = [
   null,
@@ -10,7 +13,7 @@ export type Statement = [
   string,
   string | null,
   string | null,
-  Record<string, never>,
+  Qualifiers,
   null,
   null,
 ];
@@ -44,8 +47,9 @@ export function relation(
   subject: string,
   phrase: string,
   object: string,
+  qualifiers: Qualifiers = {},
 ): Statement {
-  return [null, subject, phrase, object, null, {}, null, null];
+  return [null, subject, phrase, object, null, qualifiers, null, null];
 }
 
 export function attribute(

@@ -9,9 +9,10 @@ import {
 } from "../spec-link-parser.js";
 import type { Statement as DocStatement } from "../spec-segment.js";
 import { stripCoverageLinks } from "../spec-link-strip.js";
+import { joinFragments, splitToFit, type Fragment } from "./fragments.js";
+import { blobUrl, fileName, statementName, testName } from "./names.js";
 import {
   attribute,
-  fitsOneItem,
   relation,
   type Entity,
   type Statement,
@@ -45,13 +46,6 @@ interface SectionRef {
   depth: number;
 }
 
-interface Fragment {
-  e: Entity[];
-  s: Statement[];
-}
-
-type Unnamed = Omit<StatementItem, "externalId">;
-
 const MAX_TEXT_CHARS = 4000;
 
 const DOC_KIND_WORD = { spec: "Spec", adr: "Adr" } as const;
@@ -81,9 +75,9 @@ function namesOf(input: DocStatementsInput): DocNames {
     repo: input.repo,
     path: input.path,
     commit: input.commit,
-    doc: `${input.repo}:${input.path}`,
+    doc: fileName(input.repo, input.path),
     kindWord: DOC_KIND_WORD[input.kind],
-    blob: `https://github.com/${input.repo}/blob/${input.commit}`,
+    blob: blobUrl(input.repo, input.commit),
   };
 }
 
@@ -166,7 +160,7 @@ function itemsOfStatement(
   testLinks: SpecLinkRef[],
 ): StatementItem[] {
   const ordinal = String(statement.ordinal).padStart(4, "0");
-  const name = `${names.doc}#s${ordinal}`;
+  const name = statementName(names.repo, names.path, statement.ordinal);
   const head = statementHead(
     names,
     containerOf(names, sections, statement),
@@ -249,7 +243,7 @@ function testFragment(
 ): Fragment {
   const path = resolveLinkPath(link.path, names.path);
   const title = link.label.replace(/^validated by\s+/i, "");
-  const test = `${names.repo}:${path}::${title}`;
+  const test = testName(names.repo, path, title);
   const anchor = link.line === null ? "" : `#L${link.line}`;
 
   return {
@@ -274,7 +268,7 @@ function codeFragment(
   link: SpecLinkRef,
 ): Fragment {
   const path = resolveLinkPath(link.path, names.path);
-  const file = `${names.repo}:${path}`;
+  const file = fileName(names.repo, path);
 
   return {
     e: [[file, "SourceFile", true]],
@@ -298,48 +292,10 @@ function adrFragment(
   statement: string,
   adrPath: string,
 ): Fragment {
-  const adr = `${names.repo}:${adrPath}`;
+  const adr = fileName(names.repo, adrPath);
 
   return {
     e: [[adr, "Adr", true]],
     s: [relation(statement, "decided_by", adr)],
   };
-}
-
-/** Entities once each by name, in first-seen order, so a test two links name twice appears once in `e`. */
-function joinFragments(head: Fragment, parts: Fragment[]): Unnamed {
-  const byName = new Map<string, Entity>();
-
-  for (const entity of [head, ...parts].flatMap((fragment) => fragment.e)) {
-    byName.set(entity[0], byName.get(entity[0]) ?? entity);
-  }
-
-  return {
-    e: [...byName.values()],
-    s: [...head.s, ...parts.flatMap((fragment) => fragment.s)],
-  };
-}
-
-/** Halves the parts until every item is under the push limits; the first item keeps the plain id and the rest take `.2`, `.3`, so an unsplit item's id never changes. */
-function splitToFit<T>(
-  externalId: string,
-  parts: T[],
-  build: (parts: T[]) => Unnamed,
-): StatementItem[] {
-  return fittingGroups(parts, build).map((group, index) => ({
-    externalId: index === 0 ? externalId : `${externalId}.${index + 1}`,
-    ...build(group),
-  }));
-}
-
-function fittingGroups<T>(parts: T[], build: (parts: T[]) => Unnamed): T[][] {
-  if (parts.length <= 1 || fitsOneItem({ externalId: "", ...build(parts) })) {
-    return [parts];
-  }
-  const half = Math.ceil(parts.length / 2);
-
-  return [
-    ...fittingGroups(parts.slice(0, half), build),
-    ...fittingGroups(parts.slice(half), build),
-  ];
 }

@@ -26,14 +26,14 @@ describe("lore ontology", () => {
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 2", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 3", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 2,
+      version: 3,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });
@@ -51,6 +51,32 @@ describe("lore ontology", () => {
     }).toEqual({
       text: "lore:Section, lore:Statement",
       title: "lore:Document, lore:Test, lore:Section",
+    });
+  });
+
+  it("declares violated_by from Statement to Test, outcome as a string on Test, Test under commit, and SourceFile containing Test, so a test run's statements are terms the base knows", async () => {
+    const turtle = await loreOntologyTurtle();
+    const declaration = (property: string) =>
+      new RegExp(
+        String.raw`lore:${property} a owl:\w+ ;[\s\S]*?rdfs:domain ([^;]*);\s*rdfs:range ([^.]*) \.`,
+      )
+        .exec(turtle)
+        ?.slice(1)
+        .map((part) => part.trim());
+
+    expect({
+      violatedBy: declaration("violated_by"),
+      outcome: declaration("outcome"),
+      commit: declaration("commit"),
+      contains: declaration("contains"),
+    }).toEqual({
+      violatedBy: ["lore:Statement", "lore:Test"],
+      outcome: ["lore:Test", "xsd:string"],
+      commit: ["lore:Document, lore:SourceFile, lore:Test", "xsd:string"],
+      contains: [
+        "lore:Repository, lore:Document, lore:Section, lore:SourceFile",
+        "lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test",
+      ],
     });
   });
 });

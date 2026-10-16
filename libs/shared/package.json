@@ -226,6 +226,10 @@
       "types": "./dist/domain/utopia/doc-statements.d.ts",
       "default": "./dist/domain/utopia/doc-statements.js"
     },
+    "./utopia/test-report-statements.js": {
+      "types": "./dist/domain/utopia/test-report-statements.d.ts",
+      "default": "./dist/domain/utopia/test-report-statements.js"
+    },
     "./utopia/utopia-client.js": {
       "types": "./dist/outbound/utopia/utopia-client.d.ts",
       "default": "./dist/outbound/utopia/utopia-client.js"

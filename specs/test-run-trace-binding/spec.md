@@ -118,7 +118,7 @@ validating several statements links them all.
 A descriptor's `spec` — one anchor (string), several (`string[]`), or none — is
 parsed into a list of `{specPath, ordinal}`, dropping any entry that does not
 parse.
-([validated by `spec-anchor.test.ts:28`](libs/shared/src/work/spec-trace/spec-anchor.test.ts#L28), [validated by `spec-anchor:5`](libs/shared/src/work/spec-trace/spec-anchor.test.ts#L5), [validated by `spec-anchor:12`](libs/shared/src/work/spec-trace/spec-anchor.test.ts#L12), [validated by `spec-anchor:16`](libs/shared/src/work/spec-trace/spec-anchor.test.ts#L16), [validated by `spec-anchor:22`](libs/shared/src/work/spec-trace/spec-anchor.test.ts#L22), [validated by `spec-anchor:37`](libs/shared/src/work/spec-trace/spec-anchor.test.ts#L37))
+([validated by `spec-anchor.test.ts:28`](libs/shared/src/domain/spec-trace/spec-anchor.test.ts#L28), [validated by `spec-anchor:5`](libs/shared/src/domain/spec-trace/spec-anchor.test.ts#L5), [validated by `spec-anchor:12`](libs/shared/src/domain/spec-trace/spec-anchor.test.ts#L12), [validated by `spec-anchor:16`](libs/shared/src/domain/spec-trace/spec-anchor.test.ts#L16), [validated by `spec-anchor:22`](libs/shared/src/domain/spec-trace/spec-anchor.test.ts#L22), [validated by `spec-anchor:37`](libs/shared/src/domain/spec-trace/spec-anchor.test.ts#L37))
 
 Link paths and descriptor files are compared after normalizing a leading `./`
 or `/`, so repo-root-relative and dot-relative forms match.
