@@ -1,5 +1,9 @@
 import type { Octokit } from "octokit";
-import type { FileChange } from "./github-port.js";
+import type {
+  BranchHistoryOptions,
+  CommitDetail,
+  FileChange,
+} from "./github-port.js";
 import { enforceTrue } from "../../../lib/enforce.js";
 import { split, defaultBranch } from "./platform-github-support.js";
 import type { GitApi, ReposApi } from "./platform-github-api.js";
@@ -122,47 +126,73 @@ export async function commitEmailOf(
   return email && !email.endsWith("@users.noreply.github.com") ? email : null;
 }
 
-export async function listCommitsSince(
+/** The branch's commits above `until`, GitHub's newest-first pages walked until the cursor is seen (or the root without one), then the oldest `limit` read in detail and answered oldest-first, so a run that cannot finish the history leaves a cursor the next one continues from. */
+export async function listBranchHistory(
   ok: Octokit,
   repo: string,
-  since: string,
-): Promise<Array<{ sha: string; files: string[] }>> {
+  branch: string,
+  opts: BranchHistoryOptions,
+): Promise<CommitDetail[]> {
   const [owner, name] = split(repo);
   const { repos } = ok.rest;
-  const commits = await ok.paginate(repos.listCommits, {
-    owner,
-    repo: name,
-    since,
-    per_page: 100,
-  });
-  const result: Array<{ sha: string; files: string[] }> = [];
+  const newestFirst = await shasAbove(ok, repo, branch, opts.until);
+  const oldestFirst = newestFirst.reverse().slice(0, opts.limit);
+  const details: CommitDetail[] = [];
 
-  for (const c of commits) {
-    result.push({ sha: c.sha, files: await commitFiles(repos, repo, c.sha) });
+  for (const sha of oldestFirst) {
+    details.push(await commitDetail(repos, owner, name, sha));
   }
 
-  return result;
+  return details;
 }
 
-/** The changed paths of one commit; a commit whose detail cannot be read contributes none. */
-async function commitFiles(
-  repos: ReposApi,
+async function shasAbove(
+  ok: Octokit,
   repo: string,
-  sha: string,
+  branch: string,
+  until: string | undefined,
 ): Promise<string[]> {
   const [owner, name] = split(repo);
+  const shas: string[] = [];
 
-  try {
-    const { data: detail } = await repos.getCommit({
-      owner,
-      repo: name,
-      ref: sha,
-    });
-
-    return (detail.files ?? []).map((f) => f.filename);
-  } catch {
-    return [];
+  for await (const page of ok.paginate.iterator(ok.rest.repos.listCommits, {
+    owner,
+    repo: name,
+    sha: branch,
+    per_page: 100,
+  })) {
+    for (const { sha } of page.data) {
+      if (sha === until) {
+        return shas;
+      }
+      shas.push(sha);
+    }
   }
+
+  return shas;
+}
+
+async function commitDetail(
+  repos: ReposApi,
+  owner: string,
+  name: string,
+  sha: string,
+): Promise<CommitDetail> {
+  const { data } = await repos.getCommit({ owner, repo: name, ref: sha });
+  const [subject, ...rest] = data.commit.message.split("\n");
+
+  return {
+    sha: data.sha,
+    parents: data.parents.map((parent) => parent.sha),
+    subject: subject ?? "",
+    body: rest.join("\n").trim(),
+    author: data.commit.author?.name ?? "",
+    authoredAt: data.commit.author?.date ?? "",
+    files: (data.files ?? []).map((file) => ({
+      path: file.filename,
+      status: file.status,
+    })),
+  };
 }
 
 export async function branchExists(
