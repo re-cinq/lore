@@ -39,8 +39,9 @@ Registered on lore-api (`apps/lore-api/src/transport/routes/webhooks/webhook-git
 - **Request body** (raw, signed): a GitHub webhook JSON payload. Mapped by
   `X-GitHub-Event` (`libs/shared/src/outbound/project/events/github-map.ts`):
   `pull_request`, `pull_request_review`, `pull_request_review_comment`,
-  `issue_comment`, `issues`, `repository`, and `push` to a branch (a tag push
-  maps to nothing). Anything else, `check_run` included, maps to no event.
+  `issue_comment`, `issues`, `repository`, `check_suite` (completed), and `push`
+  to a branch (a tag push maps to nothing). Anything else, `check_run`
+  included, maps to no event.
 - **Response**: always JSON. `202 {captured, events[]}` for a verified
   delivery (including one that maps to nothing), `400` missing
   `x-github-event` or unparseable JSON, `401` bad or missing signature,
