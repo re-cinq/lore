@@ -30,8 +30,9 @@ function walkLine(body: string): string {
   if (walk.skipped) {
     return `${walk.branch}: ${walk.skipped}`;
   }
+  const stops = walk.failed.map((failure) => `; stopped at ${failure}`);
 
-  return `${walk.commits} commits from ${short(walk.from) ?? "the root"} to ${short(walk.to) ?? "none"}: ${walk.created} created, ${walk.updated} updated, ${walk.unchanged} unchanged${walk.failed.map((failure) => `; stopped at ${failure}`).join("")}`;
+  return `${walk.commits} commits from ${short(walk.from) ?? "the root"} to ${short(walk.to) ?? "none"}: ${walk.created} created, ${walk.updated} updated, ${walk.unchanged} unchanged${stops.join("")}`;
 }
 
 function parsedJson(body: string): unknown {

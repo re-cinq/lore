@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -8,14 +6,16 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { UtopiaCommitsSummarySchema } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+import {
+  UtopiaCommitsSummarySchema,
+  type UtopiaCommitsSummary,
+} from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { withPool } from "../with-pool.js";
-import { backfillDepsFor } from "../../../work/utopia/utopia-backfill.js";
 import { mirrorBranchCommits } from "../../../work/utopia/utopia-commits.js";
-import { enforceRepoHeld, enforceUtopiaConfigured } from "./utopia-setup.js";
+import { heldBackfillDeps } from "./utopia-backfill.js";
 
 const UtopiaCommitsBody = z
   .object({
@@ -57,31 +57,26 @@ async function serveUtopiaCommits(
 ): Promise<ResponseObject> {
   const repo = `${request.params.owner}/${request.params.repo}`;
   const asked = (request.payload as UtopiaCommitsBody)?.branch;
-
-  enforceUtopiaConfigured();
-  await enforceRepoHeld(pool, repo);
-  const deps = await backfillDepsFor(pool, repo);
-
-  enforceTrue(
-    deps,
-    apiError(409, { code: "utopia_not_set_up" }),
-    `${repo} has no Utopia source and this deployment cannot set one up: run POST /api/repos/${repo}/utopia/setup first`,
-  );
+  const deps = await heldBackfillDeps(pool, repo);
   const branch = await deps.files.defaultBranch();
 
-  if (asked !== undefined && asked !== branch) {
-    return h.response({
-      branch: asked,
-      from: null,
-      to: null,
-      commits: 0,
-      created: 0,
-      updated: 0,
-      unchanged: 0,
-      failed: [],
-      skipped: NOT_DEFAULT_BRANCH,
-    });
-  }
+  return h.response(
+    asked !== undefined && asked !== branch
+      ? skippedWalk(asked)
+      : await mirrorBranchCommits(deps.history, branch),
+  );
+}
 
-  return h.response(await mirrorBranchCommits(deps.history, branch));
+function skippedWalk(branch: string): UtopiaCommitsSummary {
+  return {
+    branch,
+    from: null,
+    to: null,
+    commits: 0,
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    failed: [],
+    skipped: NOT_DEFAULT_BRANCH,
+  };
 }

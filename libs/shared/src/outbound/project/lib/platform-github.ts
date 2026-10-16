@@ -38,6 +38,7 @@ import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.j
 import * as issues from "./platform-github-issues.js";
 import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
+import { listBranchHistory } from "./platform-github-history.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
 import * as branchRule from "./platform-github-branch-rule.js";
@@ -206,7 +207,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     branch: string,
     opts: BranchHistoryOptions,
   ): Promise<CommitDetail[]> {
-    return repoContent.listBranchHistory(await this.octo(), repo, branch, opts);
+    return listBranchHistory(await this.octo(), repo, branch, opts);
   }
 
   async branchExists(repo: string, branch: string): Promise<boolean> {

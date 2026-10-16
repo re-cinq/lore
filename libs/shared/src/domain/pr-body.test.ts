@@ -78,7 +78,7 @@ describe("linkedIssueNumber", () => {
 });
 
 describe("linkedIssueNumbers", () => {
-  it("returns [12, 7] for Closes #12 and Refs #7, the issues a commit's pull request names whether it resolves them or not", () => {
+  it("returns 12 then 7 for Closes #12 and Refs #7, the issues a commit's pull request names whether it resolves them or not", () => {
     expect(
       linkedIssueNumbers(
         "Adds the route.\n\nCloses #12\nRefs #7\nLore-Task: uuid-1",
@@ -86,13 +86,13 @@ describe("linkedIssueNumbers", () => {
     ).toEqual([12, 7]);
   });
 
-  it("returns [5, 8] once each when Fixes #5 is named twice before resolves #8", () => {
+  it("returns 5 then 8 once each when Fixes #5 is named twice before resolves #8", () => {
     expect(linkedIssueNumbers("Fixes #5, fixes #5 and resolves #8")).toEqual([
       5, 8,
     ]);
   });
 
-  it("returns [] for see #9 without a keyword and for a null body", () => {
+  it("returns no number for see #9 without a keyword and for a null body", () => {
     expect([linkedIssueNumbers("see #9"), linkedIssueNumbers(null)]).toEqual([
       [],
       [],

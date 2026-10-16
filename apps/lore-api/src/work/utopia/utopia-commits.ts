@@ -11,7 +11,7 @@ import type {
 } from "@re-cinq/lore-shared/utopia/commit-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
-import { docsToMirror, INGEST_MANIFEST_PATH } from "./utopia-backfill.js";
+import { docsToMirror, INGEST_MANIFEST_PATH } from "./ingested-docs.js";
 import { mirrorFailure } from "./utopia-mirror.js";
 
 export interface CommitHistoryDeps {
@@ -45,7 +45,15 @@ export async function mirrorBranchCommits(
     commits.length > 0
       ? await deps.history.read(INGEST_MANIFEST_PATH, branch)
       : null;
-  let summary: UtopiaCommitsSummary = {
+
+  return walk(deps, commits, manifest, nothingPushed(branch, from));
+}
+
+function nothingPushed(
+  branch: string,
+  from: string | null,
+): UtopiaCommitsSummary {
+  return {
     branch,
     from,
     to: null,
@@ -55,6 +63,16 @@ export async function mirrorBranchCommits(
     unchanged: 0,
     failed: [],
   };
+}
+
+/** Oldest first; the cursor moves past each commit that landed whole, and the first that did not ends the walk. */
+async function walk(
+  deps: CommitHistoryDeps,
+  commits: CommitDetail[],
+  manifest: string | null,
+  start: UtopiaCommitsSummary,
+): Promise<UtopiaCommitsSummary> {
+  let summary = start;
 
   for (const commit of commits) {
     const outcome = await mirrorOne(deps, mirrored(commit, manifest));
@@ -112,22 +130,19 @@ function mirrored(
   commit: CommitDetail,
   manifest: string | null,
 ): MirroredCommit {
-  const paths = commit.files.map((file) => file.path);
+  const { files, ...words } = commit;
+
+  return { ...words, files: classified(files, manifest) };
+}
+
+function classified(
+  files: CommitDetail["files"],
+  manifest: string | null,
+): ChangedFile[] {
+  const paths = files.map((file) => file.path);
   const docKinds = new Map(
     docsToMirror(paths, manifest).map((doc) => [doc.path, doc.kind]),
   );
-  const files: ChangedFile[] = paths.map((path) => ({
-    path,
-    kind: docKinds.get(path) ?? "code",
-  }));
 
-  return {
-    sha: commit.sha,
-    parents: commit.parents,
-    subject: commit.subject,
-    body: commit.body,
-    author: commit.author,
-    authoredAt: commit.authoredAt,
-    files,
-  };
+  return paths.map((path) => ({ path, kind: docKinds.get(path) ?? "code" }));
 }

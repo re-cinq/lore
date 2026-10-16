@@ -1,10 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
-import {
-  backfillRepo,
-  docsToMirror,
-  type BackfillFiles,
-} from "./utopia-backfill.js";
+import { backfillRepo, type BackfillFiles } from "./utopia-backfill.js";
+import { docsToMirror } from "./ingested-docs.js";
 import type { MirroredDoc } from "./utopia-mirror.js";
 
 const TREE = [

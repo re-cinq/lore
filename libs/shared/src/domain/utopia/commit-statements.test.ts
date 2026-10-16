@@ -84,12 +84,12 @@ describe("commitItems", () => {
   });
 
   it("links the pull request to issues 12 and 7 it closes or refers to and to the Lore task its body names, and carries the body as text with its whitespace collapsed", () => {
-    const [item] = build({
+    const [commitItem] = build({
       body: "Gives the pod a full CPU.\n\nCloses #12\nRefs  #7\nLore-Task: 6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c",
     });
     const task = `${REPO}/tasks/6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c`;
 
-    expect({ e: item.e, s: item.s }).toEqual({
+    expect({ e: commitItem.e, s: commitItem.s }).toEqual({
       e: [
         [REPO, "Repository", true],
         [COMMIT, "Commit", true],
@@ -135,15 +135,15 @@ describe("commitItems", () => {
   });
 
   it("names no pull request, issue or task for a commit pushed without one, even when its body says Closes #3", () => {
-    const [item] = build({
+    const [commitItem] = build({
       subject: "Fix the parser",
       body: "Closes #3\nLore-Task: 6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c",
       parents: [],
     });
 
     expect({
-      kinds: item.e.map((entity) => entity[1]),
-      phrases: item.s.map((row) => row[2]),
+      kinds: commitItem.e.map((entity) => entity[1]),
+      phrases: commitItem.s.map((row) => row[2]),
     }).toEqual({
       kinds: ["Repository", "Commit", "SourceFile", "Spec"],
       phrases: [
@@ -163,8 +163,8 @@ describe("commitItems", () => {
   });
 
   it("cuts a 5,003-character body to its first 4,000 characters and an ellipsis", () => {
-    const [item] = build({ body: "x".repeat(5003) });
-    const text = item.s.find((row) => row[2] === "text")?.[4];
+    const [commitItem] = build({ body: "x".repeat(5003) });
+    const text = commitItem.s.find((row) => row[2] === "text")?.[4];
 
     expect({ length: text?.length, end: text?.slice(-2) }).toEqual({
       length: 4001,

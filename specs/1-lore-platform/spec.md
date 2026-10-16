@@ -424,7 +424,7 @@ LOCKED` — atomically prevents duplicate work without versioning
 ### FR-5: Spec-Driven Feature Workflow
 
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
-  context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/domain/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/domain/pr-body.test.ts#L11))
+  context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/domain/pr-body.test.ts#L11), [`pr-body.test.ts:11`](libs/shared/src/domain/pr-body.test.ts#L17))
 - Decision: constitution generation (the `lore-gen-constitution` glue script)
   calls `lore_assemble_context` to populate `.specify/constitution.md` with
   real ADRs and team conventions.

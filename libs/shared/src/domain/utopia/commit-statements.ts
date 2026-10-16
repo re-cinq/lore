@@ -78,22 +78,24 @@ function commitHead(repo: string, commit: MirroredCommit): Fragment {
     ],
     s: [
       relation(repo, "contains", name),
-      attribute(name, "sha", commit.sha),
-      attribute(name, "title", commit.subject),
-      ...textOf(name, commit.body),
-      attribute(name, "author", commit.author),
-      attribute(name, "authored_at", commit.authoredAt),
-      attribute(name, "permalink", githubPage(name)),
+      ...commitAttributes(name, commit),
       ...parents.map((parent) => relation(name, "follows", parent)),
       ...pullRequest.s,
     ],
   };
 }
 
-function textOf(name: string, body: string): Statement[] {
-  const text = cutText(body);
+function commitAttributes(name: string, commit: MirroredCommit): Statement[] {
+  const text = cutText(commit.body);
 
-  return text ? [attribute(name, "text", text)] : [];
+  return [
+    attribute(name, "sha", commit.sha),
+    attribute(name, "title", commit.subject),
+    ...(text ? [attribute(name, "text", text)] : []),
+    attribute(name, "author", commit.author),
+    attribute(name, "authored_at", commit.authoredAt),
+    attribute(name, "permalink", githubPage(name)),
+  ];
 }
 
 /** The pull request a squash-merged commit names, with the issues and the Lore task its body (the pull request's) names; a commit pushed without one names neither. */
@@ -105,35 +107,44 @@ function pullRequestFragment(repo: string, commit: MirroredCommit): Fragment {
   }
   const name = pullRequestName(repo, number);
   const issues = linkedIssueNumbers(commit.body).map((issue) =>
-    numberedFragment(repo, name, "closes", issueName(repo, issue), issue),
+    issueFragment(repo, name, issue),
   );
   const task = taskFragment(repo, name, loreTaskIdOf(commit.body));
 
-  return joinFragments(
-    {
-      e: [[name, "PullRequest", true]],
-      s: [
-        relation(commitName(repo, commit.sha), "merges", name),
-        relation(repo, "contains", name),
-        attribute(name, "number", String(number)),
-        attribute(name, "permalink", githubPage(name)),
-      ],
-    },
-    [...issues, task],
-  );
+  return joinFragments(pullRequestHead(repo, commit.sha, name, number), [
+    ...issues,
+    task,
+  ]);
 }
 
-function numberedFragment(
+function pullRequestHead(
   repo: string,
-  from: string,
-  phrase: string,
+  sha: string,
   name: string,
   number: number,
 ): Fragment {
   return {
+    e: [[name, "PullRequest", true]],
+    s: [
+      relation(commitName(repo, sha), "merges", name),
+      relation(repo, "contains", name),
+      attribute(name, "number", String(number)),
+      attribute(name, "permalink", githubPage(name)),
+    ],
+  };
+}
+
+function issueFragment(
+  repo: string,
+  pullRequest: string,
+  number: number,
+): Fragment {
+  const name = issueName(repo, number);
+
+  return {
     e: [[name, "Issue", true]],
     s: [
-      relation(from, phrase, name),
+      relation(pullRequest, "closes", name),
       relation(repo, "contains", name),
       attribute(name, "number", String(number)),
       attribute(name, "permalink", githubPage(name)),
