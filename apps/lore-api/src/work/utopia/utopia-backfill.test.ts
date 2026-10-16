@@ -43,6 +43,23 @@ const filesAt = (tree: string[]): BackfillFiles => ({
     path.endsWith(".md") ? `# ${path} at ${ref}` : null,
 });
 
+const NO_HISTORY = {
+  history: { branchHistory: async () => [], read: async () => null },
+  cursor: { read: async () => "head", write: async () => {} },
+  mirror: async () => LANDED,
+};
+
+const NO_COMMITS = {
+  branch: "main",
+  from: "head",
+  to: null,
+  commits: 0,
+  created: 0,
+  updated: 0,
+  unchanged: 0,
+  failed: [],
+};
+
 const LANDED: MirrorOutcome = {
   items: 3,
   created: 2,
@@ -52,7 +69,7 @@ const LANDED: MirrorOutcome = {
 };
 
 describe("backfillRepo", () => {
-  it("mirrors the two specs and the ADR of main's head abc123 at abc123 and skips src/index.ts", async () => {
+  it("mirrors the two specs and the ADR of main's head abc123 at abc123, skips src/index.ts, and walks main's commits above the cursor after them", async () => {
     const mirrored: MirroredDoc[] = [];
     const summary = await backfillRepo({
       files: filesAt([
@@ -66,6 +83,7 @@ describe("backfillRepo", () => {
 
         return LANDED;
       },
+      history: NO_HISTORY,
     });
 
     expect({ summary, mirrored }).toEqual({
@@ -76,6 +94,7 @@ describe("backfillRepo", () => {
         updated: 3,
         unchanged: 0,
         failed: [],
+        commits: NO_COMMITS,
       },
       mirrored: [
         {
@@ -118,6 +137,7 @@ describe("backfillRepo", () => {
         "adrs/ADR-001-auth.md",
       ]),
       mirror: async ({ path }) => (outcomes[path] ?? (() => LANDED))(),
+      history: NO_HISTORY,
     });
 
     expect(summary).toEqual({
@@ -130,6 +150,7 @@ describe("backfillRepo", () => {
         "specs/b/spec.md: Utopia answered 422",
         "adrs/ADR-001-auth.md: 1 of 3 items failed: stmt:adrs/ADR-001-auth.md#0001: Utopia answered 503",
       ],
+      commits: NO_COMMITS,
     });
   });
 });

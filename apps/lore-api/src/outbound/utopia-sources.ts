@@ -61,3 +61,15 @@ export async function saveUtopiaMirrorSettings(
     [JSON.stringify({ utopia }), repo],
   );
 }
+
+/** The commit mirror's cursor alone, set inside the utopia block so the knowledge base, source and ontology version beside it stay as they are. */
+export async function saveUtopiaCommitsHead(
+  pool: Pool,
+  repo: string,
+  sha: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE lore.repos SET settings = jsonb_set(COALESCE(settings, '{}'), '{utopia,commits_head}', to_jsonb($1::text)) WHERE full_name = $2`,
+    [sha, repo],
+  );
+}
