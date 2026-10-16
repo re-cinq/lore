@@ -2,6 +2,7 @@
 
 import type { Pool } from "pg";
 import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
+import { utopiaReadsFrom } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
@@ -30,6 +31,8 @@ export async function assembleForEval(
     repo,
     crossRepo: settings.crossRepo,
     backend: resolveBackend(backend, settings.contextBackend),
+    utopiaReads: utopiaReadsFrom(process.env),
+    utopiaMirror: settings.utopiaMirror,
     graph: traceFromEnv(process.env),
     debug: true,
     passive: true,

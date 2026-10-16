@@ -59,6 +59,7 @@ describe("GET /api/context", () => {
         debug: true,
         graph: null,
         backend: "lore",
+        utopiaReads: null,
       },
     ]);
     expect(res.result).toEqual({

@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { loadTemplates, assembleContext } from "./context-assembly.js";
 import { join } from "node:path";
+import { docStatementItems } from "@re-cinq/lore-shared/utopia/doc-statements.js";
+import { wireBody } from "@re-cinq/lore-shared/utopia/statements.js";
+import type { SearchHit } from "@re-cinq/lore-shared/utopia/read-shapes.js";
+import type { UtopiaReads } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -483,5 +487,131 @@ describe("assembleContext — backend", () => {
       loreConventions: "lore: Conventions",
       utopiaConventions: true,
     });
+  });
+});
+
+describe("assembleContext — the Utopia arm", () => {
+  const STATEMENTS = "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533";
+  const ADR = "adrs/ADR-052-code-to-spec-graph-mirrored-in-utopia.md";
+  const SPEC = "specs/utopia-graph-mirror/spec.md";
+  const pushed = [
+    ...docStatementItems({
+      repo: "re-cinq/lore",
+      path: ADR,
+      commit: "fb53a29",
+      kind: "adr",
+      content:
+        "# ADR-052: Code-to-spec graph mirrored in Utopia\n\nEvery spec and ADR is pushed to Utopia.\n\nA failed mirror is logged, never an ingest failure.\n",
+    }),
+    ...docStatementItems({
+      repo: "re-cinq/lore",
+      path: SPEC,
+      commit: "fb53a29",
+      kind: "spec",
+      content: "# Utopia graph mirror\n\nA 404 reads as no document.\n",
+    }),
+  ];
+  const chunkTexts = new Map(
+    pushed.map((statementsItem) => [
+      statementsItem.externalId,
+      JSON.stringify(wireBody(statementsItem), null, 2),
+    ]),
+  );
+  const hits: SearchHit[] = [
+    `stmt:${ADR}#0001`,
+    `stmt:${SPEC}#0000`,
+    `stmt:${ADR}#0000`,
+  ].map((externalId, rank) => ({
+    chunkId: `chunk-${rank}`,
+    documentId: `document-${rank}`,
+    seq: 0,
+    text: chunkTexts.get(externalId) ?? "",
+    filename: externalId,
+    sourceId: STATEMENTS,
+    externalId,
+    score: 0.03 - rank * 0.001,
+    bm25Rank: rank + 1,
+    vectorRank: rank + 1,
+  }));
+  const reads: UtopiaReads = {
+    search: async () => ({ hits, hasMore: false, vectorUsed: true }),
+    documentByExternalId: async () => null,
+  };
+  const untouchedPool = (queries: string[]) =>
+    ({
+      query: async (sql: string) => {
+        queries.push(sql);
+
+        return { rows: [] };
+      },
+    }) as unknown as Parameters<typeof assembleContext>[0];
+  const utopiaOptions = {
+    templateName: "default",
+    repo: "re-cinq/lore",
+    backend: "utopia" as const,
+    utopiaReads: reads,
+    utopiaMirror: { kbId: "kb-1", statementsSourceId: STATEMENTS },
+  };
+
+  it("returns the ADR under Architecture Decisions with its statement texts when search answers its stmt chunks", async () => {
+    const queries: string[] = [];
+    const result = await assembleContext(
+      untouchedPool(queries),
+      "how is a failed mirror handled",
+      utopiaOptions,
+    );
+    const decisions = result.text.slice(
+      result.text.indexOf('<section name="Architecture Decisions"'),
+    );
+
+    expect({
+      queries: queries.length,
+      adr: decisions.includes(`source="${ADR}" type="adr"`),
+      texts: decisions.includes(
+        "Every spec and ADR is pushed to Utopia.\nA failed mirror is logged, never an ingest failure.",
+      ),
+      code: result.text.includes("code: no Utopia reader yet"),
+    }).toEqual({ queries: 0, adr: true, texts: true, code: true });
+  });
+
+  it("records a trace whose sections list the kept source paths", async () => {
+    const result = await assembleContext(untouchedPool([]), "mirror", {
+      ...utopiaOptions,
+      debug: true,
+    });
+    const keptPaths = Object.fromEntries(
+      (result.trace?.sections ?? [])
+        .filter(
+          (section) => section.source === "repo" || section.source === "adrs",
+        )
+        .map((section) => [
+          section.source,
+          section.items.map((kept) => kept.source_path),
+        ]),
+    );
+
+    expect(keptPaths).toEqual({ repo: [SPEC], adrs: [ADR] });
+  });
+
+  it("falls back to no-reader sections when the repo has no Utopia settings", async () => {
+    const searched: string[] = [];
+    const result = await assembleContext(untouchedPool([]), "mirror", {
+      ...utopiaOptions,
+      utopiaMirror: undefined,
+      utopiaReads: {
+        ...reads,
+        search: async (kbId, q, window) => {
+          searched.push(q);
+
+          return reads.search(kbId, q, window);
+        },
+      },
+    });
+
+    expect({
+      searched,
+      conventions: result.text.includes("repo: no Utopia reader yet"),
+      decisions: result.text.includes("adrs: no Utopia reader yet"),
+    }).toEqual({ searched: [], conventions: true, decisions: true });
   });
 });

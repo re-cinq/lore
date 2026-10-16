@@ -121,3 +121,17 @@ The chain said what a repository's documents, tests and code are and nothing abo
 - **The commit item names paths, never what changed inside them.** CI pushes a commit's tests and definitions after the merge, and Utopia merges same-named entities whichever item came first, so the commit's `changes` and the later test-report item's `contains` meet on one SourceFile. Order does not matter and nothing is re-pushed; what a commit touched inside a file is a walk through the file.
 - **A cursor, not a delta.** lore-api walks the branch above `settings.utopia.commits_head`, oldest-first, 2,000 commits a walk, and moves the cursor past each commit that landed whole, so the whole history arrives over as many walks as it takes and a failed push is retried by the next. The walks of one repo run one after the other in a process, so a push during a walk cannot move the cursor back, and the settings writer merges into the `utopia` block so a setup or an upgrade keeps the cursor. The weekly backfill runs the walk after the documents; the stations post it on every push, through a route that skips any branch but the default one.
 - **Every relation now says its temporal.** Utopia binds a pushed phrase by the declaration alone (deeplethe/utopia#1242) only when the relation is not a state, and its importer gave every imported relation `state`: the test-run amendment's hope that the phrases would bind without re-pushing was wrong, and every Lore relation has waited on the model-driven aligner. The turtle now marks the structural relations `eternal` and the commit relations `event`, holding at the item's `doc_time`, the author date; deeplethe/utopia#1291 teaches the importer to read the annotation on create and on re-import, so the version-4 upgrade of a live base flips its relations. Attributes still go to the aligner, since the rule reads no literal object.
+
+## Amendment 2026-10-16: the first Utopia reader is search over the mirrored statements
+
+The context evals count a question as found when the assembly kept the document it was written from, and they use the `default` template, whose `repo` and `adrs` sections hold specs and ADRs. Those are already mirrored as statement items, so the first reader is a search over them, not a graph read:
+
+- **One search per assembly** of the repository's knowledge base, 50 hits, and a second page only for a section the first left short. The hits of the statements source that are doc or statement items become one item per document: its title, then its statement texts in order, under the path Lore uses. Everything else still answers `<source>: no Utopia reader yet`.
+- **The same pipeline as Lore's.** A store answers a section through a reader; budget, serialization and the debug trace are shared, so an eval grades Utopia's assembly the way it grades Lore's.
+
+Caveats, each waiting on upstream:
+
+- A tombstoned document may still match a search until Utopia can exclude missing documents.
+- Search has no source filter, so a hit of another source is dropped after it is returned, and fills the page that a statements hit could have used.
+- A code item carries no text yet, so the `code` section keeps no reader.
+- Typed graph reads (coupling, violated statements) wait for Utopia re.8, whose importer types the relations the ontology declares.
