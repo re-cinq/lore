@@ -12,6 +12,7 @@ import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
 import { utopiaSetupRoute } from "./routes/repos/utopia-setup.js";
 import { utopiaBackfillRoute } from "./routes/repos/utopia-backfill.js";
+import { utopiaCommitsRoute } from "./routes/repos/utopia-commits.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
 import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
@@ -187,9 +188,13 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** The repo's Utopia knowledge base: set it up, then fill it with what was ingested before the mirror. */
+/** The repo's Utopia knowledge base: set it up, fill it with what was ingested before the mirror, and walk its commits. */
 function utopiaRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [utopiaSetupRoute(getPool), utopiaBackfillRoute(getPool)];
+  return [
+    utopiaSetupRoute(getPool),
+    utopiaBackfillRoute(getPool),
+    utopiaCommitsRoute(getPool),
+  ];
 }
 
 /** The context, evaluation, and graph read off a repo. */
