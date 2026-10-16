@@ -15,7 +15,7 @@ import { mirrorSource, sourceToMirror } from "./utopia-mirror.js";
 
 const ENV = { UTOPIA_API_URL: "http://utopia.test" };
 const SETTINGS = {
-  utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 3 },
+  utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 4 },
 };
 const SETTINGS_V1 = {
   utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 1 },
@@ -101,7 +101,9 @@ const writesOf = (pool: ReturnType<typeof makePool>) =>
     .map(([sql, params]) => [String(sql), params as string[]] as const)
     .filter(([sql]) => /^\s*(INSERT|UPDATE)/.test(sql))
     .map(([sql, params]) =>
-      /UPDATE lore\.repos/.test(sql) ? JSON.parse(params[0]) : params,
+      /UPDATE lore\.repos/.test(sql)
+        ? { utopia: JSON.parse(params[0]) }
+        : params,
     );
 
 const setUpCalls = () => seen.filter((call) => !call.includes("/kind-words/"));
@@ -132,7 +134,7 @@ describe("sourceToMirror", () => {
           utopia: {
             kb_id: "kb-new",
             source_id: "src-new",
-            ontology_version: 3,
+            ontology_version: 4,
           },
         },
       ],
@@ -160,7 +162,7 @@ describe("sourceToMirror", () => {
     });
   });
 
-  it("answers the stored src-1 without calling Utopia when settings already name it at ontology version 3", async () => {
+  it("answers the stored src-1 without calling Utopia when settings already name it at ontology version 4", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({
@@ -232,7 +234,7 @@ const storedSrc1 = () => {
 };
 
 describe("sourceToMirror on a base set up at ontology version 1", () => {
-  it("re-imports the ontology into kb-1 once for two concurrent ingests, binds the ten kind words, stores version 3, and answers src-1", async () => {
+  it("re-imports the ontology into kb-1 once for two concurrent ingests, binds the fourteen kind words, stores version 4, and answers src-1", async () => {
     const pool = storedSrc1();
     const sources = await Promise.all([
       mirrorOf(pool, "re-cinq/lore", SETTINGS_V1),
@@ -250,7 +252,7 @@ describe("sourceToMirror on a base set up at ontology version 1", () => {
         { id: "src-1", key: "utp_k" },
       ],
       calls: ["POST /api/v1/kbs/kb-1/ontology/imports Bearer utp_pat_lore"],
-      bound: 10,
+      bound: 14,
       writes: [SETTINGS],
     });
   });

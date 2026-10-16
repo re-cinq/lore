@@ -42,6 +42,7 @@ function triageScene(over: Partial<TriageRepoEventDeps> = {}) {
     renameRepo: () => Promise.resolve("renamed"),
     dropOverlay: () => Promise.resolve(),
     relocateChunks: () => Promise.resolve("moved 0 of 0"),
+    mirrorCommits: () => Promise.resolve("0 commits"),
     startIssueTriage: (repo, issueNumber, issueUrl) => {
       callOrder.push("startIssueTriage");
       started.push({ repo, issueNumber, issueUrl });
@@ -102,6 +103,11 @@ function scene() {
 
       return Promise.resolve("moved 5 of 7");
     },
+    mirrorCommits: (repo, branch) => {
+      steps.push(`mirror commits ${repo} ${branch}`);
+
+      return Promise.resolve("2 commits");
+    },
     startIssueTriage: () => Promise.resolve("run-1"),
     findParkedTriageVisit: () => Promise.resolve(null),
     reportTriageGate: () => Promise.resolve(),
@@ -114,10 +120,19 @@ function scene() {
 }
 
 describe("repoEventHandlers", () => {
-  it("answers exactly the label, rename, pull-request-closed and team-changed events", () => {
+  it("answers exactly the label, rename, pull-request-closed, push and team-changed events", () => {
     expect([...scene().handlers.keys()].sort()).toEqual(
       [...REPO_EVENTS].sort(),
     );
+  });
+
+  it("has lore-api mirror acme/widgets' commits on a push to main, and posts nothing for a push that names no branch", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.push", { repo: "acme/widgets", branch: "main" });
+    await fire("github.push", { repo: "acme/widgets" });
+
+    expect(steps).toEqual(["mirror commits acme/widgets main"]);
   });
 
   it("queues issue 7 of acme/widgets in the loop's backlog when it is labelled lore", async () => {

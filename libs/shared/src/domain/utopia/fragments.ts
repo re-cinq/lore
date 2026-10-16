@@ -14,6 +14,17 @@ export interface Fragment {
 
 export type Unnamed = Omit<StatementItem, "externalId">;
 
+export const MAX_TEXT_CHARS = 4000;
+
+/** Words Utopia searches and cites: every run of whitespace collapsed to one space, cut past MAX_TEXT_CHARS so one text never pushes its item past the limits. */
+export function cutText(text: string): string {
+  const words = text.replace(/\s+/g, " ").trim();
+
+  return words.length > MAX_TEXT_CHARS
+    ? `${words.slice(0, MAX_TEXT_CHARS)}…`
+    : words;
+}
+
 /** Entities once each by name, in first-seen order, so a test two links name twice appears once in `e`. */
 export function joinFragments(head: Fragment, parts: Fragment[]): Unnamed {
   const byName = new Map<string, Entity>();

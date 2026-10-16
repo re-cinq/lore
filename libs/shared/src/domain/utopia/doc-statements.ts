@@ -9,7 +9,12 @@ import {
 } from "../spec-link-parser.js";
 import type { Statement as DocStatement } from "../spec-segment.js";
 import { stripCoverageLinks } from "../spec-link-strip.js";
-import { joinFragments, splitToFit, type Fragment } from "./fragments.js";
+import {
+  cutText,
+  joinFragments,
+  splitToFit,
+  type Fragment,
+} from "./fragments.js";
 import { blobUrl, fileName, statementName, testName } from "./names.js";
 import {
   attribute,
@@ -45,8 +50,6 @@ interface SectionRef {
   line: number;
   depth: number;
 }
-
-const MAX_TEXT_CHARS = 4000;
 
 const DOC_KIND_WORD = { spec: "Spec", adr: "Adr" } as const;
 
@@ -227,13 +230,9 @@ function textFragment(name: string, text: string): Fragment {
   return { e: [], s: [attribute(name, "text", pushedText(text))] };
 }
 
-/** Utopia searches and cites these words: the links are traceability the relations already carry, and a statement past MAX_TEXT_CHARS is cut so one item stays under the push limits. */
+/** Utopia searches and cites these words: the links are traceability the relations already carry. */
 function pushedText(text: string): string {
-  const words = stripCoverageLinks(text).replace(/\s+/g, " ").trim();
-
-  return words.length > MAX_TEXT_CHARS
-    ? `${words.slice(0, MAX_TEXT_CHARS)}…`
-    : words;
+  return cutText(stripCoverageLinks(text));
 }
 
 function testFragment(

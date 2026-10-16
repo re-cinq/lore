@@ -14,6 +14,7 @@ import { withPool } from "../with-pool.js";
 import {
   backfillDepsFor,
   backfillRepo,
+  type BackfillDeps,
 } from "../../../work/utopia/utopia-backfill.js";
 import { enforceRepoHeld, enforceUtopiaConfigured } from "./utopia-setup.js";
 
@@ -39,6 +40,14 @@ async function serveUtopiaBackfill(
 ): Promise<ResponseObject> {
   const repo = `${request.params.owner}/${request.params.repo}`;
 
+  return h.response(await backfillRepo(await heldBackfillDeps(pool, repo)));
+}
+
+/** The repo's GitHub reads and mirror: 503 without a Utopia, 404 for a repo Lore does not hold, 409 for one with no source this deployment can set up. */
+export async function heldBackfillDeps(
+  pool: Pool,
+  repo: string,
+): Promise<BackfillDeps> {
   enforceUtopiaConfigured();
   await enforceRepoHeld(pool, repo);
   const deps = await backfillDepsFor(pool, repo);
@@ -49,5 +58,5 @@ async function serveUtopiaBackfill(
     `${repo} has no Utopia source and this deployment cannot set one up: run POST /api/repos/${repo}/utopia/setup first`,
   );
 
-  return h.response(await backfillRepo(deps));
+  return deps;
 }

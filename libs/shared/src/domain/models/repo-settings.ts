@@ -34,6 +34,8 @@ export const UtopiaMirrorSettingsSchema = z.object({
   kb_id: z.string(),
   source_id: z.string(),
   ontology_version: z.number().optional(),
+  /** The newest default-branch commit the commit mirror pushed; the next walk starts above it. */
+  commits_head: z.string().optional(),
 });
 
 export type UtopiaMirrorSettings = z.infer<typeof UtopiaMirrorSettingsSchema>;

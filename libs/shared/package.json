@@ -257,6 +257,14 @@
     "./utopia/mirror-code.js": {
       "types": "./dist/work/utopia/mirror-code.d.ts",
       "default": "./dist/work/utopia/mirror-code.js"
+    },
+    "./utopia/commit-statements.js": {
+      "types": "./dist/domain/utopia/commit-statements.d.ts",
+      "default": "./dist/domain/utopia/commit-statements.js"
+    },
+    "./utopia/mirror-commits.js": {
+      "types": "./dist/work/utopia/mirror-commits.d.ts",
+      "default": "./dist/work/utopia/mirror-commits.js"
     }
   },
   "scripts": {

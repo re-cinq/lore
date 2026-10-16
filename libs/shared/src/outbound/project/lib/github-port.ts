@@ -58,6 +58,24 @@ export interface FileChange {
   message: string;
 }
 
+export interface BranchHistoryOptions {
+  /** The sha the walk stops at, exclusive; absent, the walk reaches the root. */
+  until?: string;
+  /** At most this many commits are read in detail, the oldest ones first. */
+  limit: number;
+}
+
+/** One commit as GitHub tells it: the first line of its message is the subject, the rest the body. */
+export interface CommitDetail {
+  sha: string;
+  parents: string[];
+  subject: string;
+  body: string;
+  author: string;
+  authoredAt: string;
+  files: Array<{ path: string; status: string }>;
+}
+
 export interface GitHubPort {
   readonly name: string;
   isConfigured(): boolean;
@@ -75,10 +93,12 @@ export interface GitHubPort {
   branchHeadSha(repo: string, branch: string): Promise<string>;
   /** The author email of the login's newest commit in the repo, or null when it has none or hides its email behind GitHub's noreply address (the daily digest's Slack match). */
   commitEmailOf?(repo: string, login: string): Promise<string | null>;
-  listCommitsSince(
+  /** The branch's commits above `until` (the whole branch without it), the oldest `limit` of them read in detail, oldest-first: a cursor-driven walk resumes where the last one stopped. */
+  listBranchHistory(
     repo: string,
-    since: string,
-  ): Promise<Array<{ sha: string; files: string[] }>>;
+    branch: string,
+    opts: BranchHistoryOptions,
+  ): Promise<CommitDetail[]>;
   getIssueLabels(repo: string, number: number): Promise<string[]>;
   /** Numbers of the still-open issues linked as blocking this one. */
   listOpenBlockers(repo: string, number: number): Promise<number[]>;

@@ -122,49 +122,6 @@ export async function commitEmailOf(
   return email && !email.endsWith("@users.noreply.github.com") ? email : null;
 }
 
-export async function listCommitsSince(
-  ok: Octokit,
-  repo: string,
-  since: string,
-): Promise<Array<{ sha: string; files: string[] }>> {
-  const [owner, name] = split(repo);
-  const { repos } = ok.rest;
-  const commits = await ok.paginate(repos.listCommits, {
-    owner,
-    repo: name,
-    since,
-    per_page: 100,
-  });
-  const result: Array<{ sha: string; files: string[] }> = [];
-
-  for (const c of commits) {
-    result.push({ sha: c.sha, files: await commitFiles(repos, repo, c.sha) });
-  }
-
-  return result;
-}
-
-/** The changed paths of one commit; a commit whose detail cannot be read contributes none. */
-async function commitFiles(
-  repos: ReposApi,
-  repo: string,
-  sha: string,
-): Promise<string[]> {
-  const [owner, name] = split(repo);
-
-  try {
-    const { data: detail } = await repos.getCommit({
-      owner,
-      repo: name,
-      ref: sha,
-    });
-
-    return (detail.files ?? []).map((f) => f.filename);
-  } catch {
-    return [];
-  }
-}
-
 export async function branchExists(
   ok: Octokit,
   repo: string,

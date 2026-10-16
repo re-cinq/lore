@@ -1,20 +1,27 @@
-// Mirrors every spec and ADR on a repo's default branch into its Utopia knowledge base, for documents ingested before the mirror existed: the files CI ingests, read at the branch's head commit and pushed through the mirror an ingest uses.
+// Mirrors every spec and ADR on a repo's default branch into its Utopia knowledge base, for documents ingested before the mirror existed: the files CI ingests, read at the branch's head commit and pushed through the mirror an ingest uses. The branch's commits above the stored cursor follow them.
 
-import { parse as parseYaml } from "yaml";
-import {
-  errorMessage,
-  mapWithLimit,
-  parseIngestPatterns,
-  selectIngestFiles,
-} from "@re-cinq/lore-shared";
+import { errorMessage, mapWithLimit } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   mirrorDocument,
+  type MirrorDeps,
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import { mirrorCommit } from "@re-cinq/lore-shared/utopia/mirror-commits.js";
+import { UtopiaMirrorSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
 import type { Pool } from "pg";
 import type { UtopiaBackfillSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { saveUtopiaCommitsHead } from "../../outbound/utopia-sources.js";
+import {
+  docsToMirror,
+  INGEST_MANIFEST_PATH,
+  type DocToMirror,
+} from "./ingested-docs.js";
+import {
+  mirrorBranchCommits,
+  type CommitHistoryDeps,
+} from "./utopia-commits.js";
 import {
   mirrorFailure,
   repoMirrorDeps,
@@ -31,41 +38,37 @@ export interface BackfillFiles {
 export interface BackfillDeps {
   files: BackfillFiles;
   mirror(doc: MirroredDoc): Promise<MirrorOutcome>;
-}
-
-export interface DocToMirror {
-  path: string;
-  kind: MirroredDoc["kind"];
+  /** The default branch's commits above the stored cursor, pushed after the documents (FR12). */
+  history: CommitHistoryDeps;
 }
 
 type DocResult = Pick<MirrorOutcome, "created" | "updated" | "unchanged"> & {
   failure: string | null;
 };
 
-const INGEST_MANIFEST_PATH = ".lore/ingest.yml";
-const MIRRORED_KINDS = { specs: "spec", adrs: "adr" } as const;
-const CONCURRENCY = 2;
+export const CONCURRENCY = 2;
 const NOTHING_LANDED = { created: 0, updated: 0, unchanged: 0 };
-
-/** The files CI ingests as specs and ADRs (`isDocOfKind` in apps/lore-code-trace): globs `.lore/ingest.yml` declares for a kind replace its built-in prefixes. */
-export function docsToMirror(
-  tree: string[],
-  manifest: string | null,
-): DocToMirror[] {
-  const patterns = parseIngestPatterns(parseYaml(manifest ?? ""));
-
-  return Object.entries(MIRRORED_KINDS).flatMap(([ingestKind, kind]) =>
-    selectIngestFiles(tree, ingestKind, {
-      patterns: patterns[ingestKind],
-    }).map((path) => ({ path, kind })),
-  );
-}
 
 export async function backfillRepo(
   deps: BackfillDeps,
 ): Promise<UtopiaBackfillSummary> {
+  const branch = await deps.files.defaultBranch();
+  const documents = await backfillDocuments(deps, branch);
+  const commits = await mirrorBranchCommits(deps.history, branch);
+
+  return {
+    ...documents,
+    failed: [...documents.failed, ...commits.failed],
+    commits,
+  };
+}
+
+async function backfillDocuments(
+  deps: BackfillDeps,
+  branch: string,
+): Promise<UtopiaBackfillSummary> {
   const { files } = deps;
-  const commit = await files.headSha(await files.defaultBranch());
+  const commit = await files.headSha(branch);
   const docs = docsToMirror(
     await files.tree(commit),
     await files.read(INGEST_MANIFEST_PATH, commit),
@@ -122,10 +125,39 @@ export async function backfillDepsFor(
   if (!mirror) {
     return null;
   }
-  const { repo: files } = await projectFor(repo);
+  const { repo: files, settings } = await projectFor(repo);
 
   return {
     files,
     mirror: (doc) => mirrorDocument(mirror, { repo, ...doc }),
+    history: commitHistoryDepsFor(pool, repo, mirror, { files, settings }),
   };
+}
+
+function commitHistoryDepsFor(
+  pool: Pool,
+  repo: string,
+  mirror: MirrorDeps,
+  project: {
+    files: CommitHistoryDeps["history"];
+    settings: { rawSettings(): Promise<Record<string, unknown> | null> };
+  },
+): CommitHistoryDeps {
+  return {
+    repo,
+    history: project.files,
+    cursor: {
+      read: async () => commitsHeadOf(await project.settings.rawSettings()),
+      write: (sha) => saveUtopiaCommitsHead(pool, repo, sha),
+    },
+    mirror: (commit) => mirrorCommit(mirror, repo, commit),
+  };
+}
+
+function commitsHeadOf(
+  settings: Record<string, unknown> | null,
+): string | null {
+  const parsed = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
+
+  return parsed.success ? (parsed.data.commits_head ?? null) : null;
 }

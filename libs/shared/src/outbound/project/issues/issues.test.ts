@@ -14,7 +14,7 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     listTree: async () => [],
     getDefaultBranch: async () => "main",
     branchHeadSha: async () => "abc123",
-    listCommitsSince: async () => [],
+    listBranchHistory: async () => [],
     getIssueLabels: async (_repo, number) =>
       issues.find((i) => i.number === number)?.labels ?? [],
     listOpenBlockers: async () => [],

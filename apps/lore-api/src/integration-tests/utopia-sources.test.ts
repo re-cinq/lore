@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 import {
+  saveUtopiaCommitsHead,
+  saveUtopiaMirrorSettings,
   saveUtopiaSource,
   utopiaSourceFor,
 } from "../outbound/utopia-sources.js";
@@ -19,13 +21,46 @@ describe("lore.utopia_sources", () => {
     await pool.query(
       "DELETE FROM lore.utopia_sources WHERE repo LIKE 'it-utopia/%'",
     );
+    await pool.query("DELETE FROM lore.repos WHERE owner = 'it-utopia'");
   });
 
   afterAll(async () => {
     await pool?.query(
       "DELETE FROM lore.utopia_sources WHERE repo LIKE 'it-utopia/%'",
     );
+    await pool?.query("DELETE FROM lore.repos WHERE owner = 'it-utopia'");
     await pool?.end();
+  });
+
+  it("keeps the commit cursor c1 and the auto_review setting when the mirror settings are saved again, and the cursor write keeps the knowledge base beside it", async () => {
+    await pool.query(
+      `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged, settings)
+       VALUES ('it-utopia', 'cursor', 'it-utopia/cursor', true, '{"auto_review": true}')`,
+    );
+    await saveUtopiaMirrorSettings(pool, "it-utopia/cursor", {
+      kb_id: "kb-1",
+      source_id: "src-1",
+      ontology_version: 3,
+    });
+    await saveUtopiaCommitsHead(pool, "it-utopia/cursor", "c1");
+    await saveUtopiaMirrorSettings(pool, "it-utopia/cursor", {
+      kb_id: "kb-1",
+      source_id: "src-1",
+      ontology_version: 4,
+    });
+    const { rows } = await pool.query<{ settings: unknown }>(
+      "SELECT settings FROM lore.repos WHERE full_name = 'it-utopia/cursor'",
+    );
+
+    expect(rows[0]?.settings).toEqual({
+      auto_review: true,
+      utopia: {
+        kb_id: "kb-1",
+        source_id: "src-1",
+        ontology_version: 4,
+        commits_head: "c1",
+      },
+    });
   });
 
   it("reads the source saved for it-utopia/Lore back as it-utopia/lore, and a second save overwrites the key", async () => {

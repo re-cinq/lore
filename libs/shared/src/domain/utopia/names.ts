@@ -28,3 +28,24 @@ export function testName(repo: string, path: string, title: string): string {
 export function blobUrl(repo: string, commit: string): string {
   return `https://github.com/${repo}/blob/${commit}`;
 }
+
+/** A commit, a pull request and an issue are named as their GitHub page's path, so `https://github.com/<name>` is each one's permalink and a pull request and an issue with one number stay apart. */
+export function commitName(repo: string, sha: string): string {
+  return `${repo}/commit/${sha}`;
+}
+
+export function pullRequestName(repo: string, number: number): string {
+  return `${repo}/pull/${number}`;
+}
+
+export function issueName(repo: string, number: number): string {
+  return `${repo}/issues/${number}`;
+}
+
+export function taskName(repo: string, taskId: string): string {
+  return `${repo}/tasks/${taskId}`;
+}
+
+export function githubPage(name: string): string {
+  return `https://github.com/${name}`;
+}

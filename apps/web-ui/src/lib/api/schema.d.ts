@@ -1816,6 +1816,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/utopia/commits": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/commits */
+    post: operations["post_api_repos_owner_repo_utopia_commits"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/utopia/setup": {
     parameters: {
       query?: never;
@@ -3777,6 +3794,7 @@ export interface components {
               kb_id: string;
               source_id: string;
               ontology_version?: number;
+              commits_head?: string;
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
@@ -3894,6 +3912,7 @@ export interface components {
                 kb_id: string;
                 source_id: string;
                 ontology_version?: number;
+                commits_head?: string;
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";
@@ -4613,6 +4632,28 @@ export interface components {
       updated: number;
       unchanged: number;
       failed: string[];
+      commits?: {
+        branch: string;
+        from: string | null;
+        to: string | null;
+        commits: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+        skipped?: string;
+      };
+    };
+    UtopiaCommitsSummary: {
+      branch: string;
+      from: string | null;
+      to: string | null;
+      commits: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      failed: string[];
+      skipped?: string;
     };
     UtopiaSetupResult: {
       kb_id: string;
@@ -8135,6 +8176,43 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["UtopiaBackfillSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_commits: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          branch?: string;
+        } | null;
+      };
+    };
+    responses: {
+      /** @description The cursor the walk started above, the newest commit pushed, Utopia's created/updated/unchanged item counts, and the commit the walk stopped at; skipped names a branch that is not the default one */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaCommitsSummary"];
         };
       };
       400: components["responses"]["BadRequest"];

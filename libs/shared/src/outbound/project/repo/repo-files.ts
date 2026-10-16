@@ -1,4 +1,9 @@
-import type { CheckRunInput, GitHubPort } from "../lib/github-port.js";
+import type {
+  BranchHistoryOptions,
+  CheckRunInput,
+  CommitDetail,
+  GitHubPort,
+} from "../lib/github-port.js";
 
 /** GitHub file access via API (no clone required); use Workspace for bulk edits. */
 export class RepoFiles {
@@ -23,10 +28,11 @@ export class RepoFiles {
     return this.github.listTree(this.repo, ref);
   }
 
-  listCommitsSince(
-    since: string,
-  ): Promise<Array<{ sha: string; files: string[] }>> {
-    return this.github.listCommitsSince(this.repo, since);
+  branchHistory(
+    branch: string,
+    opts: BranchHistoryOptions,
+  ): Promise<CommitDetail[]> {
+    return this.github.listBranchHistory(this.repo, branch, opts);
   }
 
   defaultBranch(): Promise<string> {

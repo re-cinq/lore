@@ -7186,6 +7186,97 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/utopia/commits": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_commits",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/commits",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The cursor the walk started above, the newest commit pushed, Utopia's created/updated/unchanged item counts, and the commit the walk stopped at; skipped names a branch that is not the default one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaCommitsSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "branch": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/utopia/setup": {
       "post": {
         "operationId": "post_api_repos_owner_repo_utopia_setup",
@@ -14080,6 +14171,9 @@
                       },
                       "ontology_version": {
                         "type": "number"
+                      },
+                      "commits_head": {
+                        "type": "string"
                       }
                     },
                     "required": ["kb_id", "source_id"],
@@ -14482,6 +14576,9 @@
                             },
                             "ontology_version": {
                               "type": "number"
+                            },
+                            "commits_head": {
+                              "type": "string"
                             }
                           },
                           "required": ["kb_id", "source_id"],
@@ -17215,11 +17312,103 @@
             "items": {
               "type": "string"
             }
+          },
+          "commits": {
+            "type": "object",
+            "properties": {
+              "branch": {
+                "type": "string"
+              },
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "commits": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "skipped": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "branch",
+              "from",
+              "to",
+              "commits",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
           "commit",
           "documents",
+          "created",
+          "updated",
+          "unchanged",
+          "failed"
+        ],
+        "additionalProperties": false
+      },
+      "UtopiaCommitsSummary": {
+        "type": "object",
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "from": {
+            "type": ["string", "null"]
+          },
+          "to": {
+            "type": ["string", "null"]
+          },
+          "commits": {
+            "type": "number"
+          },
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "unchanged": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "skipped": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch",
+          "from",
+          "to",
+          "commits",
           "created",
           "updated",
           "unchanged",

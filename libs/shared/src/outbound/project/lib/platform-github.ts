@@ -1,6 +1,10 @@
 /* eslint-disable max-lines -- one class implementing two ports, one delegating method per port method: the length IS the port surface, and splitting the class would put half of GitHub in one file and half in another. */
 import type { Octokit } from "octokit";
-import type { FileChange } from "./github-port.js";
+import type {
+  BranchHistoryOptions,
+  CommitDetail,
+  FileChange,
+} from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { buildOctokit } from "./platform-github-auth.js";
 import type {
@@ -34,6 +38,7 @@ import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.j
 import * as issues from "./platform-github-issues.js";
 import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
+import { listBranchHistory } from "./platform-github-history.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
 import * as branchRule from "./platform-github-branch-rule.js";
@@ -197,11 +202,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return repoContent.commitEmailOf(await this.octo(), repo, login);
   }
 
-  async listCommitsSince(
+  async listBranchHistory(
     repo: string,
-    since: string,
-  ): Promise<Array<{ sha: string; files: string[] }>> {
-    return repoContent.listCommitsSince(await this.octo(), repo, since);
+    branch: string,
+    opts: BranchHistoryOptions,
+  ): Promise<CommitDetail[]> {
+    return listBranchHistory(await this.octo(), repo, branch, opts);
   }
 
   async branchExists(repo: string, branch: string): Promise<boolean> {
