@@ -199,6 +199,20 @@ describe("docStatementItems", () => {
     expect(doc.e[1]).toEqual(["re-cinq/lore:adrs/ADR-052.md", "Adr", true]);
   });
 
+  it("files a statement written before any heading under the Adr document, never a second Document of the same name", () => {
+    const [, statement] = docStatementItems({
+      repo: "re-cinq/lore",
+      path: "adrs/ADR-052.md",
+      content: "- D1 — Decided before any heading.\n\n# ADR-052\n",
+      commit: COMMIT,
+      kind: "adr",
+    });
+
+    expect(
+      statement?.e.filter(([name]) => name === "re-cinq/lore:adrs/ADR-052.md"),
+    ).toEqual([["re-cinq/lore:adrs/ADR-052.md", "Adr", true]]);
+  });
+
   it("splits a statement with 80 test links into four items under 200 statements each that repeat the section and statement entities", () => {
     const links = Array.from(
       { length: 80 },

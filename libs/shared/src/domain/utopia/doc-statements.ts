@@ -33,6 +33,8 @@ interface DocNames {
   path: string;
   commit: string;
   doc: string;
+  /** The document's own class, so every place that names it names one entity. */
+  kindWord: string;
   blob: string;
 }
 
@@ -57,7 +59,7 @@ const DOC_KIND_WORD = { spec: "Spec", adr: "Adr" } as const;
 export function docStatementItems(input: DocStatementsInput): StatementItem[] {
   const names = namesOf(input);
   const sections = sectionsOf(input.content, names.doc);
-  const head = docHead(names, DOC_KIND_WORD[input.kind], sections);
+  const head = docHead(names, sections);
   const docItems = splitToFit(`doc:${input.path}`, sections, (part) =>
     joinFragments(
       head,
@@ -80,6 +82,7 @@ function namesOf(input: DocStatementsInput): DocNames {
     path: input.path,
     commit: input.commit,
     doc: `${input.repo}:${input.path}`,
+    kindWord: DOC_KIND_WORD[input.kind],
     blob: `https://github.com/${input.repo}/blob/${input.commit}`,
   };
 }
@@ -126,17 +129,13 @@ function slugOf(title: string): string {
 }
 
 /** What every part of a split doc item repeats: the repository, the document and its attributes, its title being its first top-level heading. */
-function docHead(
-  names: DocNames,
-  kindWord: string,
-  sections: SectionRef[],
-): Fragment {
+function docHead(names: DocNames, sections: SectionRef[]): Fragment {
   const top = sections.find((section) => section.depth === 1);
 
   return {
     e: [
       [names.repo, "Repository", true],
-      [names.doc, kindWord, true],
+      [names.doc, names.kindWord, true],
     ],
     s: [
       relation(names.repo, "contains", names.doc),
@@ -208,7 +207,7 @@ function containerOf(
 
   return section
     ? [section.name, "Section", true]
-    : [names.doc, "Document", true];
+    : [names.doc, names.kindWord, true];
 }
 
 /** The words go first, so a statement split across items carries them on its first item alone. */
