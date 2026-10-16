@@ -237,7 +237,9 @@ async function embeddingFor(body: MemoryBody): Promise<number[] | null> {
     return getQueryEmbedding(body.value);
   }
 
-  return body.action === "search" ? getQueryEmbedding(body.query) : null;
+  return body.action === "search" && body.backend !== "utopia"
+    ? getQueryEmbedding(body.query)
+    : null;
 }
 
 type MemoryWriteBody = Extract<MemoryBody, { action: "write" }>;

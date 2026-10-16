@@ -61,7 +61,7 @@ One-line purpose: assemble ONE token-budgeted, template-ordered context block fr
 
 - **Returns:** on the direct-DB path, a single text block prefixed with an HTML comment carrying `template/sections/tokens` metadata; `No relevant context found for this query.` when every source is empty. On the proxy path, the API text as-is (no metadata comment), optionally prefixed with a `<!-- lore-cache: HIT/STALE -->` marker.
 - **Where it runs:** direct Postgres when `LORE_DB_HOST` is set; otherwise proxies `GET /api/context` to `LORE_API_URL`.
-- **Cache/mutation:** read-only. Proxy path uses a 600s read-through cache. Records a latency row via `trackLatency`. On the proxy path only `query`, `template`, and `repo` are forwarded; the rest are ignored.
+- **Cache/mutation:** read-only. Proxy path uses a 600s read-through cache. Records a latency row via `trackLatency`. On the proxy path `query`, `template`, `repo`, `max_tokens`, `cross_repo`, `agent_id` and `backend` are forwarded.
 
 #### `lore_search_context`
 
@@ -78,7 +78,7 @@ One-line purpose: search the ingested-document corpus (CLAUDE.md, ADRs, team doc
 | `backend` | no | `lore` | `lore`, `utopia`, or `both`. Sent to `GET /api/search-context`; `utopia` returns no passages and the note `search_context: no Utopia reader yet`, `both` Lore's passages and that note. Without an API, `utopia`/`both` are refused rather than answered from local files. |
 
 - **Returns:** one text block; each hit is `**Score:** <rrf>` (DB path) or `**Source:** <relative-path>` (file path) followed by the passage, joined by `---`; or a no-results message.
-- **Where it runs:** against the shared-DB backend directly when a DB is reachable (hybrid vector + BM25 fused by Reciprocal Rank Fusion); with no DB it degrades to a deterministic case-insensitive substring scan of local `.md` files, so it works before any ingest has run. **Never proxies to `LORE_API_URL`.**
+- **Where it runs:** against the shared-DB backend directly when a DB is reachable (hybrid vector + BM25 fused by Reciprocal Rank Fusion); with no DB it degrades to a deterministic case-insensitive substring scan of local `.md` files, so it works before any ingest has run. With `LORE_API_URL` set it proxies to `GET /api/search-context`.
 - **Cache/mutation:** read-only, not cached.
 
 ### Memory
