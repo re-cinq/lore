@@ -479,7 +479,7 @@ wrote down, and that is why it could be done in one change.
   ensure would have created a second hook delivering every event twice. The
   legacy path stays in the list for as long as any repo may still carry it;
   nothing forces the migration.
-  ([validated by lists /api/events and the legacy /api/webhook/github as Lore hook paths](apps/lore-api/src/work/webhook/webhook-status.test.ts#L119), [updates a hook already at /api/events in place instead of creating a second one](apps/lore-api/src/work/webhook/webhook-manage.test.ts#L55), [returns wrong_url when a legacy hook at lore-webhook.gcp.re-cinq.com/api/webhook/github is still installed](apps/lore-api/src/work/webhook/webhook-status.test.ts#L50))
+  ([validated by lists /api/events and the legacy /api/webhook/github as Lore hook paths](apps/lore-api/src/work/webhook/webhook-status.test.ts#L134), [updates a hook already at /api/events in place instead of creating a second one](apps/lore-api/src/work/webhook/webhook-manage.test.ts#L55), [returns wrong_url when a legacy hook at lore-webhook.gcp.re-cinq.com/api/webhook/github is still installed](apps/lore-api/src/work/webhook/webhook-status.test.ts#L50))
 - `lore_webhook_hostname` and the Floor's `/api/webhook` ingress stay: the
   `/api/webhook/ci-ingest` and `/api/webhook/ci-tests` doors ride that prefix,
   and consumer repos' Actions variable `vars.LORE_WEBHOOK_URL` — a different
