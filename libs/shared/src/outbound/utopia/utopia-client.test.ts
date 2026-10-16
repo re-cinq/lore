@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { enforceTrue } from "../../lib/enforce.js";
 import {
-  UtopiaPushError,
+  UtopiaError,
   utopiaClientFrom,
   utopiaAutoSetupConfigured,
   utopiaConfigured,
@@ -198,7 +198,7 @@ describe("pushStatements", () => {
     });
   });
 
-  it("gives up after two 503s with a UtopiaPushError carrying the status", async () => {
+  it("gives up after two 503s with a UtopiaError carrying the status", async () => {
     failPushesLeft = 2;
 
     await expect(
@@ -206,18 +206,18 @@ describe("pushStatements", () => {
         { id: "src-1", key: "utp_key" },
         tombstone("doc:specs/x/spec.md"),
       ),
-    ).rejects.toMatchObject({ name: "UtopiaPushError", status: 503 });
+    ).rejects.toMatchObject({ name: "UtopiaError", status: 503 });
   });
 
-  it("throws a UtopiaPushError with the status and the first 300 body characters on a 422 without retrying", async () => {
+  it("throws a UtopiaError with the status and the first 300 body characters on a 422 without retrying", async () => {
     const failure = await client()
       .pushStatements({ id: "src-422", key: "utp_key" }, tombstone("doc:x"))
       .catch((error: unknown) => error);
 
     expect({
-      instance: failure instanceof UtopiaPushError,
-      status: (failure as UtopiaPushError).status,
-      bodyLength: (failure as UtopiaPushError).body.length,
+      instance: failure instanceof UtopiaError,
+      status: (failure as UtopiaError).status,
+      bodyLength: (failure as UtopiaError).body.length,
       requests: seen.length,
     }).toEqual({ instance: true, status: 422, bodyLength: 300, requests: 1 });
   });

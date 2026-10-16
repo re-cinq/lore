@@ -50,14 +50,14 @@ export interface UtopiaClientOptions {
   retryDelayMs?: number;
 }
 
-export class UtopiaPushError extends Error {
+export class UtopiaError extends Error {
   readonly status: number;
   /** The first 300 characters of what Utopia answered. */
   readonly body: string;
 
   constructor(status: number, body: string) {
     super(`utopia answered ${status}: ${body}`);
-    this.name = "UtopiaPushError";
+    this.name = "UtopiaError";
     this.status = status;
     this.body = body;
   }
@@ -90,8 +90,7 @@ export function utopiaClientFrom(
     Error,
     "UTOPIA_API_URL must be set to reach Utopia",
   );
-  const base = `${env.UTOPIA_API_URL!.replace(/\/+$/, "")}/api/v1`;
-  const request = requester(base, options.retryDelayMs ?? 500);
+  const request = utopiaRequester(env.UTOPIA_API_URL!, options);
 
   return {
     pushStatements: (source, pushed) =>
@@ -111,14 +110,28 @@ export function utopiaClient(): UtopiaClient {
   return client;
 }
 
-interface RequestOptions {
+/** Requests to the routes under `/api/v1` of the deployment's URL. */
+export function utopiaRequester(
+  apiUrl: string,
+  options: UtopiaClientOptions,
+): Requester {
+  return requester(
+    `${apiUrl.replace(/\/+$/, "")}/api/v1`,
+    options.retryDelayMs ?? 500,
+  );
+}
+
+export interface RequestOptions {
   token: string;
   method?: "GET" | "POST";
   json?: unknown;
   form?: FormData;
 }
 
-type Requester = <T>(path: string, options: RequestOptions) => Promise<T>;
+export type Requester = <T>(
+  path: string,
+  options: RequestOptions,
+) => Promise<T>;
 
 const RETRY_STATUS = (status: number) => status === 429 || status >= 500;
 
@@ -126,6 +139,7 @@ const BODY_EXCERPT = 300;
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
+/** A 429 or 5xx is retried once; any other refusal throws a `UtopiaError` at once. */
 function requester(base: string, retryDelayMs: number): Requester {
   return async <T>(path: string, options: RequestOptions): Promise<T> => {
     const first = await send(`${base}${path}`, options);
@@ -136,10 +150,7 @@ function requester(base: string, retryDelayMs: number): Requester {
     enforceTrue(
       response.ok,
       () =>
-        new UtopiaPushError(
-          response.status,
-          response.body.slice(0, BODY_EXCERPT),
-        ),
+        new UtopiaError(response.status, response.body.slice(0, BODY_EXCERPT)),
       "",
     );
 
