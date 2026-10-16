@@ -18,6 +18,7 @@ interface FakeDeps extends IngestDeltaDeps {
 function fakeDeps(
   graph: { specs?: string[]; adrs?: string[]; code?: string[] } = {},
   mirrorDoc: IngestDeltaDeps["mirrorDoc"] = async () => undefined,
+  mirrorReport: IngestDeltaDeps["mirrorReport"] = async () => undefined,
 ): FakeDeps {
   const calls: Array<[string, ...unknown[]]> = [];
   const mirrored: Array<[string, ...unknown[]]> = [];
@@ -78,6 +79,13 @@ function fakeDeps(
     },
     unmirrorDoc: async (repo, path) => {
       mirrored.push(["unmirrorDoc", repo, path]);
+    },
+    mirrorReport: async (repo, report) => {
+      mirrored.push(["mirrorReport", repo, report]);
+      await mirrorReport(repo, report);
+    },
+    unmirrorTests: async (repo, paths) => {
+      mirrored.push(["unmirrorTests", repo, paths]);
     },
   };
 }
@@ -288,6 +296,72 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(JSON.parse(res.payload)).toMatchObject({
       test_chunks: 2,
       pruned_test_files: 1,
+    });
+  });
+
+  it("mirrors a main test-report at the delta's commit after projecting it", async () => {
+    const projectedBeforeMirror: string[][] = [];
+    const deps: FakeDeps = fakeDeps({}, undefined, async () => {
+      projectedBeforeMirror.push(deps.calls.map(([name]) => name));
+    });
+    const server = await serverWith(deps, casAdvances);
+    const report = {
+      tests: [{ id: "a.test.ts::t", name: "t", file: "a.test.ts" }],
+      results: [{ id: "a.test.ts::t", passed: true, covered: [] }],
+    };
+
+    await post(server, {
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      report,
+    });
+
+    expect({ mirrored: deps.mirrored, projectedBeforeMirror }).toEqual({
+      mirrored: [["mirrorReport", "re-cinq/lore", { report, commit: SHA_B }]],
+      projectedBeforeMirror: [["ingestReport"]],
+    });
+  });
+
+  it("tombstones the deleted test files of a test-report delta", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, {
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      deleted: ["gone.test.ts", "old.test.ts"],
+    });
+
+    expect(deps.mirrored).toEqual([
+      ["unmirrorTests", "re-cinq/lore", ["gone.test.ts", "old.test.ts"]],
+    ]);
+  });
+
+  it("answers 200 with test_chunks counted when the report mirror throws", async () => {
+    const deps = fakeDeps({}, undefined, async () => {
+      throw new Error("utopia answered 503: busy");
+    });
+    const server = await serverWith(deps, casAdvances);
+    const res = await post(server, {
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      report: { tests: [], results: [] },
+    });
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: {
+        kind: "test-report",
+        commit: SHA_B,
+        state: "advanced",
+        projected: 0,
+        deleted: 0,
+        test_chunks: 2,
+        pruned_test_files: 0,
+      },
     });
   });
 
@@ -635,6 +709,15 @@ describe("POST /api/repos/{owner}/{repo}/ingest from a branch", () => {
         { ...reportFor("feat/x"), overlayBranch: "feat/x" },
       ],
     ]);
+  });
+
+  it("mirrors nothing for a feat/x test-report delta", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, deltaFor("feat/x"));
+
+    expect(deps.mirrored).toEqual([]);
   });
 
   it("leaves main's stored commit where it was and answers state overlay for a feat/x delta", async () => {

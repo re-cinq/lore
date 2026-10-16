@@ -1,4 +1,4 @@
-// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec and ADR it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
+// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec, ADR and default-branch test run it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -21,6 +21,11 @@ import {
   type MirrorDeps,
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import {
+  mirrorTestReport,
+  tombstoneTestFiles,
+} from "@re-cinq/lore-shared/utopia/mirror-test-report.js";
+import type { TestReportInput } from "@re-cinq/lore-shared/utopia/test-report-statements.js";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -34,6 +39,12 @@ export interface MirroredDoc {
   path: string;
   content: string;
   kind: "spec" | "adr";
+  commit: string;
+}
+
+/** A test report as the delta route received it, and the commit the delta names. */
+export interface MirroredReport {
+  report: unknown;
   commit: string;
 }
 
@@ -80,6 +91,41 @@ export async function unmirrorDocFor(
   if (deps) {
     settled(await tombstoneDocument(deps, { repo, path }));
   }
+}
+
+export async function mirrorReportFor(
+  repo: string,
+  { report, commit }: MirroredReport,
+): Promise<void> {
+  const run = { repo, commit, ...reportRuns(report) };
+  const deps = run.tests.length > 0 ? await mirrorDepsFor(repo) : null;
+
+  if (deps) {
+    settled(await mirrorTestReport(deps, run));
+  }
+}
+
+export async function unmirrorTestFilesFor(
+  repo: string,
+  paths: string[],
+): Promise<void> {
+  const deps = await mirrorDepsFor(repo);
+
+  if (deps) {
+    settled(await tombstoneTestFiles(deps, paths));
+  }
+}
+
+/** The descriptors and results of a report the route took as unknown; a report missing either list mirrors without it. */
+function reportRuns(
+  report: unknown,
+): Pick<TestReportInput, "tests" | "results"> {
+  const { tests, results } = (report ?? {}) as Record<string, unknown>;
+
+  return {
+    tests: Array.isArray(tests) ? tests : [],
+    results: Array.isArray(results) ? results : [],
+  };
 }
 
 function mirrorDepsFor(repo: string): Promise<MirrorDeps | null> {

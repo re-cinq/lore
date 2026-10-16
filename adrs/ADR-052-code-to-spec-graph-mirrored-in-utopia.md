@@ -67,6 +67,20 @@ Asked about dark factories against `re-cinq/lore`, Utopia's chat found the right
 - **Code text is still not copied.** A source file is linked by path; the chain says which code implements a statement, and the code itself is read from the repository.
 
 
+## Amendment 2026-10-16: test runs and coverage are mirrored
+
+The mirror carried specs and ADRs, so Utopia knew which tests a statement names but not whether they ran, passed, or what code they touched. Now, after the delta route has projected a default-branch test report into the graph, lore-api pushes the same run (specs/utopia-graph-mirror FR9):
+
+- **One `test:<path>` item per test file**, split past the 200-statement limit as a statement is. Each Test carries `title`, `path`, its lines, a `permalink` and the `commit`, and an `outcome` when it ran.
+- **The statements its spec links name are `validated_by` it when it passed and `violated_by` it when it failed.** The outcome is the phrase, never a qualifier: Utopia keeps the qualifiers a relation was first written with, so a `passed` qualifier would stay on a test that later failed. Utopia's ADR 0070 (deeplethe/utopia#1278) proposes otherwise.
+- **A test `covers` each source file its run covered**, qualified by `lines` and `commit`. Until Utopia replaces qualifiers on a re-push, those two are informational: they say what the first run covered.
+- **A deleted test file is tombstoned** after the graph prunes it.
+- **A branch's report is not mirrored.** It goes to its overlay in the graph; a statement in Utopia is validated by main's tests only.
+- **`lore-code-trace` chunks a report by test file**, so a chunk never carries part of a file and replaces that file's item with the part.
+- **Ontology version 3** declares the words these items use; a base on an older version is upgraded on its next mirrored ingest, as before.
+
+A failed push is a failed mirror: logged, counted, never a failed ingest.
+
 ## Amendment 2026-10-16: trace reads go through the trace port
 
 Slice 3 swaps the store behind Lore's graph reads, so those reads should meet the graph at one seam. Three of them held a Dgraph client of their own: the `/trace` kinds `failures-touching` and `callers`, and the `coupling` source of context assembly. They now read through `TracePort`:
