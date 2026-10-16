@@ -27,6 +27,7 @@ const LANDED: MirrorOutcome = {
 };
 
 interface Walk {
+  repo?: string;
   history: CommitDetail[];
   manifest?: string | null;
   cursor?: string | null;
@@ -38,6 +39,7 @@ function walk(setup: Walk) {
   const mirrored: MirroredCommit[] = [];
   const cursors: string[] = [];
   const deps: CommitHistoryDeps = {
+    repo: setup.repo ?? "re-cinq/lore",
     history: {
       branchHistory: async (branch, opts) => {
         asked.push({ branch, ...opts });
@@ -213,6 +215,47 @@ describe("mirrorBranchCommits", () => {
         failed: [],
       },
       reads: [],
+    });
+  });
+
+  it("runs a second walk of re-cinq/lore after the first, so it reads above the cursor the first moved, while a walk of re-cinq/otto runs beside them", async () => {
+    const order: string[] = [];
+    const slow = walk({ history: [detail("c1", [])] });
+    const next = walk({ history: [] });
+    const other = walk({ repo: "re-cinq/otto", history: [] });
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    slow.deps.mirror = async () => {
+      order.push("lore first mirroring");
+      await held;
+
+      return LANDED;
+    };
+    next.deps.cursor.read = async () => {
+      order.push("lore second reading cursor");
+
+      return "c1";
+    };
+    other.deps.cursor.read = async () => {
+      order.push("otto reading cursor");
+
+      return null;
+    };
+    const first = mirrorBranchCommits(slow.deps, "main");
+    const second = mirrorBranchCommits(next.deps, "main");
+    const otto = mirrorBranchCommits(other.deps, "main");
+
+    await otto;
+    order.push("otto done");
+    release();
+    await Promise.all([first, second]);
+
+    expect({ steps: order.length, last: order.slice(-2) }).toEqual({
+      steps: 4,
+      last: ["otto done", "lore second reading cursor"],
     });
   });
 });

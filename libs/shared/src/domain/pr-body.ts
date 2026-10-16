@@ -28,17 +28,28 @@ export function linkedIssueNumber(
 }
 
 const LINKED_ISSUES =
-  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi;
+  /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi;
 
-/** Every issue a pull request names with a keyword, `Refs` included, once each in order: the issues a commit's history links, not the one it claims to resolve ({@link linkedIssueNumber}). */
-export function linkedIssueNumbers(
-  prBody: string | null | undefined,
-): number[] {
-  const numbers = [...(prBody ?? "").matchAll(LINKED_ISSUES)].map((match) =>
-    Number(match[1]),
-  );
+export interface LinkedIssue {
+  number: number;
+  /** `Closes`, `Fixes` or `Resolves` claim to resolve the issue; `Refs` only relates to it ({@link linkedIssueNumber}). */
+  resolves: boolean;
+}
 
-  return [...new Set(numbers)];
+/** Every issue a pull request names with a keyword, once each in order of first mention, the first keyword saying whether the pull request resolves it. */
+export function linkedIssues(prBody: string | null | undefined): LinkedIssue[] {
+  const byNumber = new Map<number, LinkedIssue>();
+
+  for (const [, keyword, number] of (prBody ?? "").matchAll(LINKED_ISSUES)) {
+    const issue = {
+      number: Number(number),
+      resolves: !/^refs?$/i.test(keyword),
+    };
+
+    byNumber.set(issue.number, byNumber.get(issue.number) ?? issue);
+  }
+
+  return [...byNumber.values()];
 }
 
 const SQUASH_SUBJECT_PR = /\(#(\d+)\)\s*$/;

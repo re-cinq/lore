@@ -83,7 +83,7 @@ describe("commitItems", () => {
     ]);
   });
 
-  it("links the pull request to issues 12 and 7 it closes or refers to and to the Lore task its body names, and carries the body as text with its whitespace collapsed", () => {
+  it("links the pull request to issue 12 it closes, issue 7 it refers to and the Lore task its body names, and carries the body as text with its whitespace collapsed after the head", () => {
     const [commitItem] = build({
       body: "Gives the pod a full CPU.\n\nCloses #12\nRefs  #7\nLore-Task: 6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c",
     });
@@ -102,13 +102,7 @@ describe("commitItems", () => {
         [`${REPO}:specs/utopia-graph-mirror/spec.md`, "Spec", true],
       ],
       s: [
-        ...commitHead.slice(0, 3),
-        attribute(
-          COMMIT,
-          "text",
-          "Gives the pod a full CPU. Closes #12 Refs #7 Lore-Task: 6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c",
-        ),
-        ...commitHead.slice(3),
+        ...commitHead,
         ...pullRequest,
         relation(`${REPO}/pull/2773`, "closes", `${REPO}/issues/12`),
         relation(REPO, "contains", `${REPO}/issues/12`),
@@ -118,7 +112,7 @@ describe("commitItems", () => {
           "permalink",
           `https://github.com/${REPO}/issues/12`,
         ),
-        relation(`${REPO}/pull/2773`, "closes", `${REPO}/issues/7`),
+        relation(`${REPO}/pull/2773`, "refers_to", `${REPO}/issues/7`),
         relation(REPO, "contains", `${REPO}/issues/7`),
         attribute(`${REPO}/issues/7`, "number", "7"),
         attribute(
@@ -129,6 +123,11 @@ describe("commitItems", () => {
         relation(`${REPO}/pull/2773`, "delivers", task),
         relation(REPO, "contains", task),
         attribute(task, "task_id", "6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c"),
+        attribute(
+          COMMIT,
+          "text",
+          "Gives the pod a full CPU. Closes #12 Refs #7 Lore-Task: 6f1c2e9a-0b1d-4c3e-9f2a-7d8e9f0a1b2c",
+        ),
         ...changes,
       ],
     });
@@ -150,10 +149,10 @@ describe("commitItems", () => {
         "contains",
         "sha",
         "title",
-        "text",
         "author",
         "authored_at",
         "permalink",
+        "text",
         "changes",
         "path",
         "changes",
@@ -172,12 +171,12 @@ describe("commitItems", () => {
     });
   });
 
-  it("splits a commit touching 500 files, two statements each, into eight items under 200 statements, the first keeping commit:<sha> and every part repeating the commit head and its pull request", () => {
+  it("splits a commit touching 500 files, two statements each, into eight items under 200 statements, the first keeping commit:<sha> and the body text, every part repeating the commit head and its pull request", () => {
     const files = Array.from({ length: 500 }, (_, i) => ({
       path: `src/f${i}.ts`,
       kind: "code" as const,
     }));
-    const parts = build({ files });
+    const parts = build({ files, body: "Touches everything." });
 
     expect({
       ids: parts.map((part) => part.externalId),
@@ -188,6 +187,9 @@ describe("commitItems", () => {
       changed: parts.flatMap((part) =>
         part.s.filter((row) => row[2] === "changes"),
       ).length,
+      texts: parts.map(
+        (part) => part.s.filter((row) => row[2] === "text").length,
+      ),
       docTimes: parts.map((part) => part.doc_time),
     }).toEqual({
       ids: [
@@ -197,6 +199,7 @@ describe("commitItems", () => {
       fits: true,
       heads: parts.map(() => [...commitHead, ...pullRequest]),
       changed: 500,
+      texts: [1, 0, 0, 0, 0, 0, 0, 0],
       docTimes: parts.map(() => AUTHORED),
     });
   });

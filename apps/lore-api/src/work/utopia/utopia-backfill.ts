@@ -54,10 +54,12 @@ export async function backfillRepo(
 ): Promise<UtopiaBackfillSummary> {
   const branch = await deps.files.defaultBranch();
   const documents = await backfillDocuments(deps, branch);
+  const commits = await mirrorBranchCommits(deps.history, branch);
 
   return {
     ...documents,
-    commits: await mirrorBranchCommits(deps.history, branch),
+    failed: [...documents.failed, ...commits.failed],
+    commits,
   };
 }
 
@@ -142,6 +144,7 @@ function commitHistoryDepsFor(
   },
 ): CommitHistoryDeps {
   return {
+    repo,
     history: project.files,
     cursor: {
       read: async () => commitsHeadOf(await project.settings.rawSettings()),

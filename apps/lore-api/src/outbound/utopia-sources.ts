@@ -50,15 +50,17 @@ export async function utopiaSourceFor(
     : null;
 }
 
-/** Merged, not replaced: the settings block carries everything else the repo was configured with. */
+/** Merged at both levels, not replaced: the settings block carries everything else the repo was configured with, and the utopia block carries the commit mirror's cursor, which a setup or an ontology upgrade must not wipe. */
 export async function saveUtopiaMirrorSettings(
   pool: Pool,
   repo: string,
   utopia: UtopiaMirrorSettings,
 ): Promise<void> {
   await pool.query(
-    `UPDATE lore.repos SET settings = COALESCE(settings, '{}') || $1::jsonb WHERE full_name = $2`,
-    [JSON.stringify({ utopia }), repo],
+    `UPDATE lore.repos
+        SET settings = jsonb_set(COALESCE(settings, '{}'), '{utopia}', COALESCE(settings->'utopia', '{}') || $1::jsonb)
+      WHERE full_name = $2`,
+    [JSON.stringify(utopia), repo],
   );
 }
 

@@ -171,7 +171,14 @@ lore:merges a owl:ObjectProperty ;
 
 lore:closes a owl:ObjectProperty ;
   rdfs:label "closes" ;
-  rdfs:comment "A pull request closes, or refers to, an issue its body names." ;
+  rdfs:comment "A pull request closes an issue its body claims to resolve (Closes, Fixes, Resolves)." ;
+  utopia:temporal "event" ;
+  rdfs:domain lore:PullRequest ;
+  rdfs:range lore:Issue .
+
+lore:refers_to a owl:ObjectProperty ;
+  rdfs:label "refers_to" ;
+  rdfs:comment "A pull request refers to an issue its body names without claiming to resolve it (Refs)." ;
   utopia:temporal "event" ;
   rdfs:domain lore:PullRequest ;
   rdfs:range lore:Issue .

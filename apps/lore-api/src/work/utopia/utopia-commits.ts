@@ -15,6 +15,8 @@ import { docsToMirror, INGEST_MANIFEST_PATH } from "./ingested-docs.js";
 import { mirrorFailure } from "./utopia-mirror.js";
 
 export interface CommitHistoryDeps {
+  /** The walks of one repo run one after the other in this process: a second push during a walk waits for it, then finds what landed since. */
+  repo: string;
   history: {
     branchHistory(
       branch: string,
@@ -32,7 +34,34 @@ export interface CommitHistoryDeps {
 /** One walk reads this many commits in detail at most, one GitHub call each; a longer history takes more walks, each resuming from the cursor. */
 export const MAX_COMMITS_PER_RUN = 2000;
 
-export async function mirrorBranchCommits(
+export function mirrorBranchCommits(
+  deps: CommitHistoryDeps,
+  branch: string,
+): Promise<UtopiaCommitsSummary> {
+  return queuedPerRepo(deps.repo, () => walkBranch(deps, branch));
+}
+
+const walking = new Map<string, Promise<unknown>>();
+
+/** Two overlapping walks of one repo would each read the same commits and the later to finish would move the cursor back; so one waits for the other, whatever the other's outcome. */
+function queuedPerRepo<T>(repo: string, start: () => Promise<T>): Promise<T> {
+  const key = repo.toLowerCase();
+  const ahead = walking.get(key) ?? Promise.resolve();
+  const run = ahead.then(start, start);
+
+  const release = () => {
+    if (walking.get(key) === run) {
+      walking.delete(key);
+    }
+  };
+
+  walking.set(key, run);
+  void run.then(release, release);
+
+  return run;
+}
+
+async function walkBranch(
   deps: CommitHistoryDeps,
   branch: string,
 ): Promise<UtopiaCommitsSummary> {

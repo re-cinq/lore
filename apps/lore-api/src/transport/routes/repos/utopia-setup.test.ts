@@ -130,7 +130,9 @@ const paramsOf = (pool: ReturnType<typeof makePool>, statement: RegExp) =>
     .map(([, params]) => params as string[]);
 
 const writtenSettings = (pool: ReturnType<typeof makePool>) =>
-  paramsOf(pool, /UPDATE lore\.repos/).map(([json]) => JSON.parse(json));
+  paramsOf(pool, /UPDATE lore\.repos/).map(([json]) => ({
+    utopia: JSON.parse(json),
+  }));
 
 const savedSources = (pool: ReturnType<typeof makePool>) =>
   paramsOf(pool, /INSERT INTO lore\.utopia_sources/);

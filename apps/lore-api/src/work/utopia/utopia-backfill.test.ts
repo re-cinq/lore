@@ -41,6 +41,7 @@ const filesAt = (tree: string[]): BackfillFiles => ({
 });
 
 const NO_HISTORY = {
+  repo: "re-cinq/lore",
   history: { branchHistory: async () => [], read: async () => null },
   cursor: { read: async () => "head", write: async () => {} },
   mirror: async () => LANDED,
@@ -148,6 +149,41 @@ describe("backfillRepo", () => {
         "adrs/ADR-001-auth.md: 1 of 3 items failed: stmt:adrs/ADR-001-auth.md#0001: Utopia answered 503",
       ],
       commits: NO_COMMITS,
+    });
+  });
+
+  it("names the commit the walk stopped at under failed beside the documents, so the sweep and the script see it", async () => {
+    const summary = await backfillRepo({
+      files: filesAt(["specs/a/spec.md"]),
+      mirror: async () => LANDED,
+      history: {
+        ...NO_HISTORY,
+        history: {
+          branchHistory: async () => [
+            {
+              sha: "c1",
+              parents: [],
+              subject: "One",
+              body: "",
+              author: "a",
+              authoredAt: "t",
+              files: [],
+            },
+          ],
+          read: async () => null,
+        },
+        mirror: async () => {
+          throw new Error("Utopia answered 503");
+        },
+      },
+    });
+
+    expect({
+      failed: summary.failed,
+      commits: summary.commits?.failed,
+    }).toEqual({
+      failed: ["c1: Utopia answered 503"],
+      commits: ["c1: Utopia answered 503"],
     });
   });
 });

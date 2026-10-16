@@ -84,7 +84,7 @@ describe("lore ontology", () => {
     });
   });
 
-  it("declares changes from Commit to Code and Document, follows between Commits, merges to PullRequest, closes to Issue and delivers to Task, so a commit's history is terms the base knows", async () => {
+  it("declares changes from Commit to Code and Document, follows between Commits, merges to PullRequest, closes and refers_to to Issue and delivers to Task, so a commit's history is terms the base knows", async () => {
     const turtle = await loreOntologyTurtle();
     const declaration = (property: string) =>
       new RegExp(
@@ -99,12 +99,14 @@ describe("lore ontology", () => {
       follows: declaration("follows"),
       merges: declaration("merges"),
       closes: declaration("closes"),
+      refersTo: declaration("refers_to"),
       delivers: declaration("delivers"),
     }).toEqual({
       changes: ["lore:Commit", "lore:Code, lore:Document"],
       follows: ["lore:Commit", "lore:Commit"],
       merges: ["lore:Commit", "lore:PullRequest"],
       closes: ["lore:PullRequest", "lore:Issue"],
+      refersTo: ["lore:PullRequest", "lore:Issue"],
       delivers: ["lore:PullRequest", "lore:Task"],
     });
   });
@@ -120,7 +122,7 @@ describe("lore ontology", () => {
       .length;
 
     expect({ declared, temporalOf: Object.fromEntries(temporalOf) }).toEqual({
-      declared: 14,
+      declared: 15,
       temporalOf: {
         contains: "eternal",
         validated_by: "eternal",
@@ -135,6 +137,7 @@ describe("lore ontology", () => {
         follows: "event",
         merges: "event",
         closes: "event",
+        refers_to: "event",
         delivers: "event",
       },
     });

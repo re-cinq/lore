@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   linkedIssueNumber,
-  linkedIssueNumbers,
+  linkedIssues,
   loreTaskIdOf,
   mergedPullRequestNumber,
   prFooter,
@@ -77,26 +77,25 @@ describe("linkedIssueNumber", () => {
   });
 });
 
-describe("linkedIssueNumbers", () => {
-  it("returns 12 then 7 for Closes #12 and Refs #7, the issues a commit's pull request names whether it resolves them or not", () => {
+describe("linkedIssues", () => {
+  it("returns 12 as resolved then 7 as referred to for Closes #12 and Refs #7, the issues a commit's pull request names", () => {
     expect(
-      linkedIssueNumbers(
-        "Adds the route.\n\nCloses #12\nRefs #7\nLore-Task: uuid-1",
-      ),
-    ).toEqual([12, 7]);
-  });
-
-  it("returns 5 then 8 once each when Fixes #5 is named twice before resolves #8", () => {
-    expect(linkedIssueNumbers("Fixes #5, fixes #5 and resolves #8")).toEqual([
-      5, 8,
+      linkedIssues("Adds the route.\n\nCloses #12\nRefs #7\nLore-Task: uuid-1"),
+    ).toEqual([
+      { number: 12, resolves: true },
+      { number: 7, resolves: false },
     ]);
   });
 
-  it("returns no number for see #9 without a keyword and for a null body", () => {
-    expect([linkedIssueNumbers("see #9"), linkedIssueNumbers(null)]).toEqual([
-      [],
-      [],
+  it("returns 5 then 8 once each, 5 as resolved by its first mention, when Fixes #5 comes before Refs #5 and resolves #8", () => {
+    expect(linkedIssues("Fixes #5, refs #5 and resolves #8")).toEqual([
+      { number: 5, resolves: true },
+      { number: 8, resolves: true },
     ]);
+  });
+
+  it("returns no issue for see #9 without a keyword and for a null body", () => {
+    expect([linkedIssues("see #9"), linkedIssues(null)]).toEqual([[], []]);
   });
 });
 

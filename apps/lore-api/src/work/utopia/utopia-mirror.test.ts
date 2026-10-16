@@ -101,7 +101,9 @@ const writesOf = (pool: ReturnType<typeof makePool>) =>
     .map(([sql, params]) => [String(sql), params as string[]] as const)
     .filter(([sql]) => /^\s*(INSERT|UPDATE)/.test(sql))
     .map(([sql, params]) =>
-      /UPDATE lore\.repos/.test(sql) ? JSON.parse(params[0]) : params,
+      /UPDATE lore\.repos/.test(sql)
+        ? { utopia: JSON.parse(params[0]) }
+        : params,
     );
 
 const setUpCalls = () => seen.filter((call) => !call.includes("/kind-words/"));
