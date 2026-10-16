@@ -131,9 +131,13 @@ resource "kubectl_manifest" "utopia_db_cluster" {
 
       storage = { size = "10Gi" }
 
+      # Utopia's job worker runs up to 64 jobs at once against this database: a
+      # backfill of one repo (thousands of pushed items) held it at its old 1-CPU
+      # limit and every page waited behind the queue. A full core requested, two
+      # to burst into.
       resources = {
-        requests = { cpu = "250m", memory = "512Mi" }
-        limits   = { cpu = "1", memory = "2Gi" }
+        requests = { cpu = "1", memory = "1Gi" }
+        limits   = { cpu = "2", memory = "2Gi" }
       }
 
       postgresql = {
