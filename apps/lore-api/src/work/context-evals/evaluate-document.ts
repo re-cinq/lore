@@ -2,6 +2,11 @@
 
 import type { LlmProvider } from "@re-cinq/lore-shared/llm/llm-provider.js";
 import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
+import {
+  sideBySide,
+  type SideBySideEval,
+  type SingleBackend,
+} from "./side-by-side.js";
 
 const JOB_NAME = "context-evals";
 const MAX_DOCUMENT_CHARS = 12_000;
@@ -30,6 +35,8 @@ export interface EvalDeps {
     question: string,
     backend?: KnowledgeBackend,
   ): Promise<AssembledForEval>;
+  /** Milliseconds, for the assembly latency a side-by-side eval reports; `performance.now` otherwise. */
+  clock?: () => number;
 }
 
 export interface DocumentEval {
@@ -103,16 +110,59 @@ export interface EvalTarget {
   backend?: KnowledgeBackend;
 }
 
-/** Evaluates one document; null when Lore holds no such document. */
+/** Evaluates one document; null when Lore holds no such document. Under `both` it is graded on each store's own assembly, side by side. */
 export async function evaluateDocument(
   deps: EvalDeps,
   target: EvalTarget,
-): Promise<DocumentEval | null> {
+): Promise<DocumentEval | SideBySideEval | null> {
   const stored = await deps.document(target.repo, target.path);
 
-  return stored === null
-    ? null
-    : evaluateStored(deps, target, stored.slice(0, MAX_DOCUMENT_CHARS));
+  if (stored === null) {
+    return null;
+  }
+  const document = stored.slice(0, MAX_DOCUMENT_CHARS);
+
+  return target.backend === "both"
+    ? evaluateSideBySide(deps, target, document)
+    : evaluateStored(deps, target, document);
+}
+
+async function evaluateSideBySide(
+  deps: EvalDeps,
+  target: EvalTarget,
+  document: string,
+): Promise<SideBySideEval> {
+  const question = await questionFor(deps.llm, target, document);
+  const lore = await timedAssembly(deps, target.repo, question, "lore");
+  const utopia = await timedAssembly(deps, target.repo, question, "utopia");
+  const [loreSide, utopiaSide] = await Promise.all(
+    [lore, utopia].map(async ({ assembled, latency_ms }) => ({
+      sources: assembled.sources,
+      verdict: {
+        found: isFound(assembled, target.path),
+        ...(await gradeAssembled(deps, { document, question, assembled })),
+        latency_ms,
+      },
+    })),
+  );
+
+  return sideBySide({ path: target.path, question }, loreSide, utopiaSide);
+}
+
+async function timedAssembly(
+  { assemble, clock = () => performance.now() }: EvalDeps,
+  repo: string,
+  question: string,
+  backend: SingleBackend,
+): Promise<{ assembled: AssembledForEval; latency_ms: number }> {
+  const started = clock();
+  const assembled = await assemble(repo, question, backend);
+
+  return { assembled, latency_ms: Math.round(clock() - started) };
+}
+
+function isFound(assembled: AssembledForEval, path: string): boolean {
+  return assembled.sources.some((source) => source.path === path);
 }
 
 async function evaluateStored(
@@ -131,7 +181,7 @@ async function evaluateStored(
   return {
     path: target.path,
     question,
-    found: assembled.sources.some((source) => source.path === target.path),
+    found: isFound(assembled, target.path),
     ...graded,
   };
 }

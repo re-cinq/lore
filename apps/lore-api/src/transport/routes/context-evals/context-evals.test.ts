@@ -141,4 +141,59 @@ describe("POST /api/context-evals", () => {
 
     expect(res.statusCode).toBe(400);
   });
+
+  it("answers a side-by-side verdict when the body names backend both: Lore answered and Utopia returned nothing", async () => {
+    let now = 0;
+
+    setEvalDepsForTests({
+      llm: new FakeLlm({
+        text: "Can the MCP server query Postgres directly?",
+        data: {
+          answer: "No.",
+          used_sources: [ADR],
+          addresses_question: true,
+          contradicted_sentence: "",
+          reason: "Agrees with the decision.",
+        },
+        usage: { model: "gemini-2.5-flash" },
+      }),
+      document: async () => "The adapter holds no pool.",
+      clock: () => now,
+      assemble: async (_repo, _question, backend) => {
+        now += 50;
+
+        return backend === "lore"
+          ? { text: "<context/>", sources: [{ path: ADR, tokens: 300 }] }
+          : { text: "", sources: [] };
+      },
+    });
+    const res = await post({
+      repo: "re-cinq/lore",
+      path: ADR,
+      backend: "both",
+    });
+
+    expect(JSON.parse(res.payload)).toEqual({
+      path: ADR,
+      question: "Can the MCP server query Postgres directly?",
+      lore: {
+        found: true,
+        answered: true,
+        useful_share: 1,
+        reason: "Agrees with the decision.",
+        model: "gemini-2.5-flash",
+        latency_ms: 50,
+      },
+      utopia: {
+        found: false,
+        answered: false,
+        useful_share: 0,
+        reason: "Lore returned no context for the question",
+        model: "",
+        latency_ms: 50,
+      },
+      top_k_overlap: 0,
+      only_answered_by: "lore",
+    });
+  });
 });

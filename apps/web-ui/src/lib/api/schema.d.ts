@@ -2710,15 +2710,38 @@ export interface components {
       /** @constant */
       ok: true;
     };
-    DocumentEval: {
-      path: string;
-      question: string;
-      found: boolean;
-      answered: boolean;
-      useful_share: number;
-      reason: string;
-      model: string;
-    };
+    DocumentEval:
+      | {
+          path: string;
+          question: string;
+          found: boolean;
+          answered: boolean;
+          useful_share: number;
+          reason: string;
+          model: string;
+        }
+      | {
+          path: string;
+          question: string;
+          lore: {
+            found: boolean;
+            answered: boolean;
+            useful_share: number;
+            reason: string;
+            model: string;
+            latency_ms: number;
+          };
+          utopia: {
+            found: boolean;
+            answered: boolean;
+            useful_share: number;
+            reason: string;
+            model: string;
+            latency_ms: number;
+          };
+          top_k_overlap: number;
+          only_answered_by: ("lore" | "utopia") | null;
+        };
     DodProgress: {
       present: boolean;
       ticketClaim?: string;

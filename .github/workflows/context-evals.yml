@@ -22,6 +22,12 @@ on:
         description: "Documents per repository"
         required: false
         default: "20"
+      backend:
+        description: "The store the context is assembled from. both: Lore and Utopia graded side by side, the verdict on Lore's numbers alone."
+        required: false
+        default: "lore"
+        type: choice
+        options: [lore, utopia, both]
 
 # Read-only token (#1062). Nothing here pushes, comments or installs a package.
 permissions:
@@ -81,4 +87,5 @@ jobs:
           EVAL_REPO: ${{ matrix.repo }}
           EVAL_SAMPLE: ${{ inputs.sample || '20' }}
           EVAL_PATH: ${{ inputs.path }}
+          LORE_EVAL_BACKEND: ${{ inputs.backend || 'lore' }}
         run: node scripts/context-evals/run.mjs --repo "$EVAL_REPO" --sample "$EVAL_SAMPLE" ${EVAL_PATH:+--path "$EVAL_PATH"}
