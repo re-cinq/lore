@@ -133,15 +133,23 @@ resource "kubectl_manifest" "utopia_db_cluster" {
 
       # Utopia's job worker runs up to 64 jobs at once against this database: a
       # backfill of one repo (thousands of pushed items) held it at its old 1-CPU
-      # limit and every page waited behind the queue. A full core requested, two
-      # to burst into.
+      # limit and every page waited behind the queue. On 2026-10-17 the mirrored
+      # test runs and code held it at its 2-CPU limit, waiting on disk reads:
+      # entity resolution reads every entity's embedding per pushed item, and the
+      # default 128MB of shared_buffers could not keep them. Two cores and 4Gi
+      # requested (Autopilot bills requests), four cores to burst into.
       resources = {
-        requests = { cpu = "1", memory = "1Gi" }
-        limits   = { cpu = "2", memory = "2Gi" }
+        requests = { cpu = "2", memory = "4Gi" }
+        limits   = { cpu = "4", memory = "4Gi" }
       }
 
       postgresql = {
         shared_preload_libraries = ["vector"]
+        parameters = {
+          shared_buffers       = "1GB"
+          effective_cache_size = "3GB"
+          work_mem             = "16MB"
+        }
       }
     }
   })
