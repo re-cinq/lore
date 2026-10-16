@@ -142,13 +142,13 @@ The read is served by
 `GET /api/repos/{owner}/{repo}/trace/failures-touching`, which names the
 source file in `path`. It reads through the Project's trace view, like every
 other `/trace` kind: the failure reader sits beside the other graph reads in the
-outbound tier, so a deployment's trace port answers it wherever the graph lives. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L78))
+outbound tier, so a deployment's trace port answers it wherever the graph lives. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
 A request naming no source file is refused. ([validated by returns 400 when no path names the source file](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L37))
 
 The route returns the recorded failures under a `failures` key. ([validated by returns the validate failure recorded on src/widget.ts under a failures key](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L65))
 
-It asks the trace port with the repo and the requested path. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L78))
+It asks the trace port with the repo and the requested path. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
 With no graph configured it returns an empty list rather than failing — the
 same degradation the impact route makes, because an absent graph is a missing
@@ -178,7 +178,7 @@ or which ones it calls.
 The read is served by `GET /api/repos/{owner}/{repo}/trace/callers`, which names the
 target in `symbol` and walks the reverse `CodeChunk.references` edge, or the edge
 itself when `direction=callees`, read through the Project's trace view. It answers
-one hop; `depth` is not walked yet. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L78))
+one hop; `depth` is not walked yet. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
 Each caller comes back with its file, its symbol name and the line it starts on. ([validated by answers advance in src/runner.ts as the caller of nextTransition](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L62))
 
