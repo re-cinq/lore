@@ -80,7 +80,9 @@ describe("linkedIssueNumber", () => {
 describe("linkedIssueNumbers", () => {
   it("returns [12, 7] for Closes #12 and Refs #7, the issues a commit's pull request names whether it resolves them or not", () => {
     expect(
-      linkedIssueNumbers("Adds the route.\n\nCloses #12\nRefs #7\nLore-Task: uuid-1"),
+      linkedIssueNumbers(
+        "Adds the route.\n\nCloses #12\nRefs #7\nLore-Task: uuid-1",
+      ),
     ).toEqual([12, 7]);
   });
 

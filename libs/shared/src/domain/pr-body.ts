@@ -27,10 +27,13 @@ export function linkedIssueNumber(
   return match ? Number(match[1]) : null;
 }
 
-const LINKED_ISSUES = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi;
+const LINKED_ISSUES =
+  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi;
 
 /** Every issue a pull request names with a keyword, `Refs` included, once each in order: the issues a commit's history links, not the one it claims to resolve ({@link linkedIssueNumber}). */
-export function linkedIssueNumbers(prBody: string | null | undefined): number[] {
+export function linkedIssueNumbers(
+  prBody: string | null | undefined,
+): number[] {
   const numbers = [...(prBody ?? "").matchAll(LINKED_ISSUES)].map((match) =>
     Number(match[1]),
   );
