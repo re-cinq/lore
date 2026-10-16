@@ -8,14 +8,13 @@ import {
   type CommitHistoryDeps,
 } from "./utopia-commits.js";
 
-const detail = (sha: string, files: string[]): CommitDetail => ({
+const detail = (sha: string): CommitDetail => ({
   sha,
   parents: [`${sha}-parent`],
   subject: `Change ${sha} (#1)`,
   body: "",
   author: "Szabo Bogdan",
   authoredAt: `${sha}-at`,
-  files: files.map((path) => ({ path, status: "modified" })),
 });
 
 const LANDED: MirrorOutcome = {
@@ -29,7 +28,6 @@ const LANDED: MirrorOutcome = {
 interface Walk {
   repo?: string;
   history: CommitDetail[];
-  manifest?: string | null;
   cursor?: string | null;
   outcomes?: Record<string, () => MirrorOutcome>;
 }
@@ -46,8 +44,6 @@ function walk(setup: Walk) {
 
         return setup.history;
       },
-      read: async (path) =>
-        path === ".lore/ingest.yml" ? (setup.manifest ?? null) : null,
     },
     cursor: {
       read: async () => setup.cursor ?? null,
@@ -66,13 +62,10 @@ function walk(setup: Walk) {
 }
 
 describe("mirrorBranchCommits", () => {
-  it("walks main above the stored cursor c0 with the run's limit, mirrors c1 then c2 with their paths classed as spec, adr or code, advances the cursor after each, and answers from c0 to c2", async () => {
+  it("walks the newest 200 commits of main above the stored cursor c0, mirrors c1 then c2 with their words and parents, advances the cursor after each, and answers from c0 to c2", async () => {
     const { deps, asked, mirrored, cursors } = walk({
       cursor: "c0",
-      history: [
-        detail("c1", ["specs/a/spec.md", "src/a.ts"]),
-        detail("c2", ["adrs/ADR-001-auth.md", "docs/x.md"]),
-      ],
+      history: [detail("c1"), detail("c2")],
       outcomes: { c2: () => ({ ...LANDED, created: 0, updated: 1 }) },
     });
 
@@ -81,6 +74,7 @@ describe("mirrorBranchCommits", () => {
       asked,
       mirrored,
       cursors,
+      limit: MAX_COMMITS_PER_RUN,
     }).toEqual({
       summary: {
         branch: "main",
@@ -101,10 +95,6 @@ describe("mirrorBranchCommits", () => {
           body: "",
           author: "Szabo Bogdan",
           authoredAt: "c1-at",
-          files: [
-            { path: "specs/a/spec.md", kind: "spec" },
-            { path: "src/a.ts", kind: "code" },
-          ],
         },
         {
           sha: "c2",
@@ -113,30 +103,16 @@ describe("mirrorBranchCommits", () => {
           body: "",
           author: "Szabo Bogdan",
           authoredAt: "c2-at",
-          files: [
-            { path: "adrs/ADR-001-auth.md", kind: "adr" },
-            { path: "docs/x.md", kind: "code" },
-          ],
         },
       ],
       cursors: ["c1", "c2"],
+      limit: 200,
     });
-  });
-
-  it("classes docs/x.md as spec when .lore/ingest.yml declares a specs glob under docs", async () => {
-    const { deps, mirrored } = walk({
-      manifest: "specs:\n  - docs/**\n",
-      history: [detail("c1", ["docs/x.md"])],
-    });
-
-    await mirrorBranchCommits(deps, "main");
-
-    expect(mirrored[0]?.files).toEqual([{ path: "docs/x.md", kind: "spec" }]);
   });
 
   it("stops at c2, whose push Utopia refused, leaving the cursor at c1 and c3 for the next walk, and names c2 under failed", async () => {
     const { deps, mirrored, cursors } = walk({
-      history: [detail("c1", []), detail("c2", []), detail("c3", [])],
+      history: [detail("c1"), detail("c2"), detail("c3")],
       outcomes: {
         c2: () => {
           throw new Error("Utopia answered 503");
@@ -166,7 +142,7 @@ describe("mirrorBranchCommits", () => {
 
   it("names c1 under failed when one of its items failed, and moves no cursor", async () => {
     const { deps, cursors } = walk({
-      history: [detail("c1", [])],
+      history: [detail("c1")],
       outcomes: {
         c1: () => ({ ...LANDED, failed: ["commit:c1: Utopia answered 422"] }),
       },
@@ -190,37 +166,24 @@ describe("mirrorBranchCommits", () => {
     });
   });
 
-  it("reads no manifest and answers nothing pushed when the branch holds no commit above the cursor", async () => {
-    const reads: string[] = [];
+  it("answers nothing pushed when the branch holds no commit above the cursor c9", async () => {
     const { deps } = walk({ cursor: "c9", history: [] });
 
-    deps.history.read = async (path) => {
-      reads.push(path);
-
-      return null;
-    };
-
-    expect({
-      summary: await mirrorBranchCommits(deps, "main"),
-      reads,
-    }).toEqual({
-      summary: {
-        branch: "main",
-        from: "c9",
-        to: null,
-        commits: 0,
-        created: 0,
-        updated: 0,
-        unchanged: 0,
-        failed: [],
-      },
-      reads: [],
+    expect(await mirrorBranchCommits(deps, "main")).toEqual({
+      branch: "main",
+      from: "c9",
+      to: null,
+      commits: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      failed: [],
     });
   });
 
   it("runs a second walk of re-cinq/lore after the first, so it reads above the cursor the first moved, while a walk of re-cinq/otto runs beside them", async () => {
     const order: string[] = [];
-    const slow = walk({ history: [detail("c1", [])] });
+    const slow = walk({ history: [detail("c1")] });
     const next = walk({ history: [] });
     const other = walk({ repo: "re-cinq/otto", history: [] });
     let release: () => void = () => {};

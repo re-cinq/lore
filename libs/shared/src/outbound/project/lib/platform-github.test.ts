@@ -61,10 +61,7 @@ const state: {
     annotation_level: string;
     message: string;
   }>;
-  commitDetails?: Record<string, Record<string, unknown>>;
-  detailCalls: string[];
 } = {
-  detailCalls: [],
   files: [],
   checkRuns: [],
   token: "",
@@ -194,11 +191,6 @@ vi.mock("octokit", () => ({
           return { data: { statuses: state.statuses ?? [] } };
         },
         listCommits: async () => ({ data: state.branchCommits ?? [] }),
-        getCommit: async ({ ref }: { ref: string }) => {
-          state.detailCalls.push(ref);
-
-          return { data: state.commitDetails?.[ref] };
-        },
       },
       issues: {
         addLabels: async () => ({}),
@@ -1139,60 +1131,40 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     ]);
   });
 
-  it("listBranchHistory walks main newest-first down to the cursor, reads the oldest two of the three commits above it in detail, and answers them oldest-first with subject, body, author, time, parents and changed paths", async () => {
-    const raw = (sha: string, message: string) => ({
+  it("listBranchHistory reads main newest-first from the commit listing alone, stops at the cursor, keeps the newest two of the three commits above it, and answers them oldest-first", async () => {
+    const listed = (sha: string, message: string) => ({
       sha,
       parents: [{ sha: `${sha}-parent` }],
       commit: { message, author: { name: "Szabo Bogdan", date: `${sha}-at` } },
-      files: [
-        { filename: `${sha}.ts`, status: "modified" },
-        { filename: `${sha}.md`, status: "added" },
-      ],
     });
 
     state.pullsPages = [
-      [{ sha: "c3" }, { sha: "c2" }],
-      [{ sha: "c1" }, { sha: "cursor" }, { sha: "c0" }],
+      [listed("c3", "Three (#3)\n\nCloses #9\n"), listed("c2", "Two")],
+      [listed("c1", "One"), listed("cursor", "Old"), listed("c0", "Older")],
     ];
-    state.commitDetails = {
-      c2: raw("c2", "Two (#2)\n\nCloses #9\n"),
-      c1: raw("c1", "One"),
-    };
-    state.detailCalls = [];
     const history = await gh().listBranchHistory("re-cinq/lore", "main", {
       until: "cursor",
       limit: 2,
     });
 
-    expect({ history, detailCalls: state.detailCalls }).toEqual({
-      history: [
-        {
-          sha: "c1",
-          parents: ["c1-parent"],
-          subject: "One",
-          body: "",
-          author: "Szabo Bogdan",
-          authoredAt: "c1-at",
-          files: [
-            { path: "c1.ts", status: "modified" },
-            { path: "c1.md", status: "added" },
-          ],
-        },
-        {
-          sha: "c2",
-          parents: ["c2-parent"],
-          subject: "Two (#2)",
-          body: "Closes #9",
-          author: "Szabo Bogdan",
-          authoredAt: "c2-at",
-          files: [
-            { path: "c2.ts", status: "modified" },
-            { path: "c2.md", status: "added" },
-          ],
-        },
-      ],
-      detailCalls: ["c1", "c2"],
-    });
+    expect(history).toEqual([
+      {
+        sha: "c2",
+        parents: ["c2-parent"],
+        subject: "Two",
+        body: "",
+        author: "Szabo Bogdan",
+        authoredAt: "c2-at",
+      },
+      {
+        sha: "c3",
+        parents: ["c3-parent"],
+        subject: "Three (#3)",
+        body: "Closes #9",
+        author: "Szabo Bogdan",
+        authoredAt: "c3-at",
+      },
+    ]);
   });
 
   it("jobLog returns the job's raw log", async () => {
