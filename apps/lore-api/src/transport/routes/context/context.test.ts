@@ -57,7 +57,7 @@ describe("GET /api/context", () => {
         agentId: undefined,
         crossRepo: false,
         debug: true,
-        dgraph: null,
+        graph: null,
       },
     ]);
     expect(res.result).toEqual({

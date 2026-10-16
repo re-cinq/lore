@@ -7,7 +7,7 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { createDgraphClient } from "@re-cinq/lore-shared";
+import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { repoWantsCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
@@ -180,6 +180,6 @@ async function assembleForQuery(
     crossRepo:
       opts.crossRepoRequested || (await repoWantsCrossRepo(pool, repo)),
     debug: opts.debug,
-    dgraph: createDgraphClient(process.env),
+    graph: traceFromEnv(process.env),
   });
 }

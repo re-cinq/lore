@@ -66,3 +66,14 @@ Asked about dark factories against `re-cinq/lore`, Utopia's chat found the right
 - **A base set up under version 1 is upgraded on its next ingest**, where the deployment holds a Utopia token: the ontology is re-imported, the kind words bound, the version stored, then the push goes ahead. Without a token the push goes ahead anyway and the text lands as open attributes. A failed upgrade is a failed mirror, never a failed ingest.
 - **Code text is still not copied.** A source file is linked by path; the chain says which code implements a statement, and the code itself is read from the repository.
 
+
+## Amendment 2026-10-16: trace reads go through the trace port
+
+Slice 3 swaps the store behind Lore's graph reads, so those reads should meet the graph at one seam. Three of them held a Dgraph client of their own: the `/trace` kinds `failures-touching` and `callers`, and the `coupling` source of context assembly. They now read through `TracePort`:
+
+- **The failure reader moved to the outbound tier** (`libs/shared/src/outbound/spec-trace/failure-reads.ts`), unchanged, because `outbound` may not import `work`; `libs/shared/src/work/spec-trace/failure-nodes.ts` re-exports it and keeps the writes.
+- **The port gained `failuresTouching`, `callers` and `graphContext`.** `DgraphTrace` answers each by calling the function that answered it before, so the queries and the answers are the same. The route reads both kinds through the Project's trace view, and the coupling source takes any `graphContext` reader, which the context route and the context evals build with `traceFromEnv(process.env)`.
+- **A deployment with no graph composes `NoGraphTrace`**: no failures, no callers and an empty context block, as before; the document reads refuse with the message the graphless stub threw.
+- **A Utopia adapter plugs in behind `providers.trace`**, which `createProject` prefers over the Dgraph adapter.
+
+The impact routes and the cross-repo spec and ADR listings still hold a client. Their readers live in `work/`, and they move when those readers do.

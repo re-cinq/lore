@@ -8,6 +8,26 @@ import type {
   CoveringTest,
   CoverageTarget,
 } from "../../spec-trace/tests-covering.js";
+import type { FailureHit } from "../../spec-trace/failure-reads.js";
+import type {
+  CallDirection,
+  CodeCaller,
+} from "../../spec-trace/code-callers.js";
+import type { GraphContextBlock } from "../../spec-trace/graph-context.js";
+
+export type {
+  TraceDocument,
+  SpecSummary,
+  AdrSummary,
+  SpecGraph,
+  SpecRing,
+  CoveringTest,
+  CoverageTarget,
+  FailureHit,
+  CallDirection,
+  CodeCaller,
+  GraphContextBlock,
+};
 
 /** Seam between Project facade and spec-traceability graph (Dgraph, source of truth). */
 export interface TracePort {
@@ -33,4 +53,17 @@ export interface TracePort {
     target: CoverageTarget,
     branch?: string,
   ): Promise<CoveringTest[]>;
+  /** Failures recorded against a source file, newest first, each with the sha that ended it when one did. */
+  failuresTouching(repo: string, path: string): Promise<FailureHit[]>;
+  /** One hop of the call graph: the definitions that call `symbol`, or that it calls. */
+  callers(
+    repo: string,
+    symbol: string,
+    direction: CallDirection,
+  ): Promise<CodeCaller[]>;
+  /** The repo's coupled spec statements, ranked by signal and capped at `limit`. */
+  graphContext(
+    repo: string,
+    opts?: { limit?: number },
+  ): Promise<GraphContextBlock>;
 }

@@ -1,12 +1,15 @@
 // Context assembly: retrieves from all sources into a structured, token-budgeted, XML-tagged block; `debug` adds a full per-source trace (context-assembly-format.ts).
 
 import { searchMemories } from "./memory-search.js";
-import type { DgraphClientPort, PgPool } from "../../memory-store.js";
+import type { PgPool } from "../../memory-store.js";
 import { serializeContext } from "./context-assembly-format.js";
 import { getTemplate, loadTemplates } from "./context-assembly-templates.js";
 import type { TemplateSection } from "./context-assembly-templates.js";
 import { collectContextRefIds } from "./context-assembly-items.js";
-import { fetchCouplingSource } from "./context-assembly-coupling.js";
+import {
+  fetchCouplingSource,
+  type GraphContextSource,
+} from "./context-assembly-coupling.js";
 import { fetchers, type SourceFetcher } from "./context-assembly-fetchers.js";
 import {
   allocateSections,
@@ -74,7 +77,7 @@ export interface AssembleOptions {
   crossRepo?: boolean;
   includeIds?: boolean;
   debug?: boolean;
-  dgraph?: DgraphClientPort | null;
+  graph?: GraphContextSource | null;
   /** Assemble without recording that anything was retrieved: for measuring what an agent would get (context evals), not for an agent. */
   passive?: boolean;
 }
@@ -84,11 +87,11 @@ export async function assembleContext(
   query: string,
   options: AssembleOptions = {},
 ): Promise<AssembledResult> {
-  const { repo, agentId, includeIds, debug, dgraph, passive } = options;
+  const { repo, agentId, includeIds, debug, graph, passive } = options;
   const run = assemblyRun(query, options);
   const assembled = await assembleSections(
     run,
-    { pool, dgraph, query, repo, agentId, passive },
+    { pool, graph, query, repo, agentId, passive },
     { crossRepo: run.crossRepo, timings: run.timings },
   );
   const refs = includeIds
@@ -164,7 +167,7 @@ async function assembleSections(
 
 interface SectionFetchContext {
   pool: PgPool;
-  dgraph: DgraphClientPort | null | undefined;
+  graph: GraphContextSource | null | undefined;
   query: string;
   repo?: string;
   agentId?: string;
@@ -210,14 +213,14 @@ async function fetchAllSections(
   );
 }
 
-/** Route one section to its source; the coupling source reads the spec-traceability graph (Dgraph), not the Postgres pool. */
+/** Route one section to its source; the coupling source reads the spec-traceability graph through the trace port, not the Postgres pool. */
 async function fetchSectionSource(
   source: string,
   fetcher: SourceFetcher | undefined,
   ctx: SectionFetchContext,
 ): Promise<FetchResult> {
   if (source === "coupling") {
-    return fetchCouplingSource(ctx.dgraph ?? null, ctx.repo, ctx.query);
+    return fetchCouplingSource(ctx.graph ?? null, ctx.repo, ctx.query);
   }
 
   if (fetcher) {

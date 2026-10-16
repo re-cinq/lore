@@ -53,3 +53,40 @@ describe("TraceView.testsCovering", () => {
     expect(out).toEqual(answer);
   });
 });
+
+describe("TraceView graph reads", () => {
+  const recorded: unknown[][] = [];
+  const port = {
+    failuresTouching: async (...args: unknown[]) => {
+      recorded.push(["failuresTouching", ...args]);
+
+      return [];
+    },
+    callers: async (...args: unknown[]) => {
+      recorded.push(["callers", ...args]);
+
+      return [];
+    },
+    graphContext: async (...args: unknown[]) => {
+      recorded.push(["graphContext", ...args]);
+
+      return { statements: [], adrRefs: [], testSelectors: [], truncated: false };
+    },
+  } as unknown as TracePort;
+
+  it("forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port", async () => {
+    const view = new TraceView("o/r", port);
+
+    await view.failuresTouching("src/a.ts");
+    await view.callers("advance", "callees");
+    await view.callers("nextTransition");
+    await view.graphContext({ limit: 3 });
+
+    expect(recorded).toEqual([
+      ["failuresTouching", "o/r", "src/a.ts"],
+      ["callers", "o/r", "advance", "callees"],
+      ["callers", "o/r", "nextTransition", "callers"],
+      ["graphContext", "o/r", { limit: 3 }],
+    ]);
+  });
+});

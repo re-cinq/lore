@@ -1,7 +1,7 @@
 // What an agent asking a question about a repository is handed, in the shape a context eval reads: the assembled text, and each returned document with its token cost. Assembled passively, so an eval's two hundred questions a night strengthen no memory.
 
 import type { Pool } from "pg";
-import { createDgraphClient } from "@re-cinq/lore-shared";
+import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
 import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { repoWantsCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
@@ -23,7 +23,7 @@ export async function assembleForEval(
   const result = await assembleContext(pool, question, {
     repo,
     crossRepo: await repoWantsCrossRepo(pool, repo),
-    dgraph: createDgraphClient(process.env),
+    graph: traceFromEnv(process.env),
     debug: true,
     passive: true,
   });
