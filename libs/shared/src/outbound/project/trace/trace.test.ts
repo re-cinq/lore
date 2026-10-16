@@ -70,7 +70,12 @@ describe("TraceView graph reads", () => {
     graphContext: async (...args: unknown[]) => {
       recorded.push(["graphContext", ...args]);
 
-      return { statements: [], adrRefs: [], testSelectors: [], truncated: false };
+      return {
+        statements: [],
+        adrRefs: [],
+        testSelectors: [],
+        truncated: false,
+      };
     },
   } as unknown as TracePort;
 
