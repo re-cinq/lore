@@ -15,7 +15,7 @@ import {
   resolveSentenceLink,
   type SentenceMatch,
 } from "./resolve-sentence-link.js";
-import { parseSpecAnchors } from "./spec-anchor.js";
+import { parseSpecAnchors } from "../../domain/spec-trace/spec-anchor.js";
 import type { DescriptorChunk } from "./ingest-test-report.js";
 
 /** Accumulated state for one Statement across all descriptors in a report. */

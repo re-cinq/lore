@@ -15,7 +15,7 @@ export {
   parseSpecAnchor,
   parseSpecAnchors,
   type SpecAnchor,
-} from "./spec-trace/spec-anchor.js";
+} from "../domain/spec-trace/spec-anchor.js";
 export {
   ingestSpecTrace,
   PAYLOAD_INGEST_KINDS,

@@ -64,14 +64,20 @@ lore:CodeDefinition a owl:Class ;
 
 lore:contains a owl:ObjectProperty ;
   rdfs:label "contains" ;
-  rdfs:comment "Structure: a repository contains its documents and files; a document contains its sections; a section contains its statements." ;
-  rdfs:domain lore:Repository, lore:Document, lore:Section ;
-  rdfs:range lore:Document, lore:SourceFile, lore:Section, lore:Statement .
+  rdfs:comment "Structure: a repository contains its documents and files; a document contains its sections; a section contains its statements; a test file contains its tests." ;
+  rdfs:domain lore:Repository, lore:Document, lore:Section, lore:SourceFile ;
+  rdfs:range lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test .
 
 lore:validated_by a owl:ObjectProperty ;
   rdfs:label "validated_by" ;
   rdfs:comment "A section or statement is validated by a test that checks the behaviour it states." ;
   rdfs:domain lore:Section, lore:Statement ;
+  rdfs:range lore:Test .
+
+lore:violated_by a owl:ObjectProperty ;
+  rdfs:label "violated_by" ;
+  rdfs:comment "A statement is violated by a test that checks the behaviour it states and failed at the last run." ;
+  rdfs:domain lore:Statement ;
   rdfs:range lore:Test .
 
 lore:implemented_by a owl:ObjectProperty ;
@@ -88,7 +94,7 @@ lore:decided_by a owl:ObjectProperty ;
 
 lore:covers a owl:ObjectProperty ;
   rdfs:label "covers" ;
-  rdfs:comment "A test executes lines of a source file; the ranges attribute says which." ;
+  rdfs:comment "A test executes lines of a source file. The relation's lines qualifier says which, as 'a-b,c-d', and its commit qualifier the commit the test ran at." ;
   rdfs:domain lore:Test ;
   rdfs:range lore:SourceFile .
 
@@ -120,8 +126,8 @@ lore:path a owl:DatatypeProperty ;
 
 lore:commit a owl:DatatypeProperty ;
   rdfs:label "commit" ;
-  rdfs:comment "The commit sha the document or file was read at." ;
-  rdfs:domain lore:Document, lore:SourceFile ;
+  rdfs:comment "The commit sha the document or file was read at, or the test ran at." ;
+  rdfs:domain lore:Document, lore:SourceFile, lore:Test ;
   rdfs:range xsd:string .
 
 lore:permalink a owl:DatatypeProperty ;
@@ -163,5 +169,11 @@ lore:line_end a owl:DatatypeProperty ;
 lore:ranges a owl:DatatypeProperty ;
   rdfs:label "ranges" ;
   rdfs:comment "Line ranges a test executes in a file, as 'a-b,c-d'." ;
+  rdfs:domain lore:Test ;
+  rdfs:range xsd:string .
+
+lore:outcome a owl:DatatypeProperty ;
+  rdfs:label "outcome" ;
+  rdfs:comment "How a test ended at its last run: passed or failed." ;
   rdfs:domain lore:Test ;
   rdfs:range xsd:string .
