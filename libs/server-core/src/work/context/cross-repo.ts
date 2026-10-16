@@ -1,37 +1,49 @@
 import type { Pool } from "pg";
+import {
+  KnowledgeBackendSchema,
+  type KnowledgeBackend,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 
 interface RepoSettingsRow {
-  settings?: { cross_repo?: boolean };
+  settings?: { cross_repo?: boolean; context_backend?: unknown };
 }
 
-// Whether the REPO's own settings.cross_repo flag enables cross-repo context; a caller that was asked for it explicitly never needs to ask. Best-effort: a settings lookup failure degrades to disabled rather than throwing.
-export async function repoWantsCrossRepo(
+/** What a repo's own settings say about assembling its context: whether linked repos join in (`cross_repo`) and which store answers when the request names none (`context_backend`). */
+export interface RepoContextSettings {
+  crossRepo: boolean;
+  contextBackend?: KnowledgeBackend;
+}
+
+const NO_REPO_SETTINGS: RepoContextSettings = { crossRepo: false };
+
+// One read of the repo's settings for both answers. Best-effort: a settings lookup failure degrades to the defaults rather than throwing — losing an enrichment must not cost the caller its own repo's context.
+export async function repoContextSettings(
   pool: Pool | null,
   repo: string | undefined,
-): Promise<boolean> {
+): Promise<RepoContextSettings> {
   if (!repo || !pool) {
-    return false;
+    return NO_REPO_SETTINGS;
   }
 
-  return repoAllowsCrossRepo(pool, repo);
-}
-
-// What the repo's own settings say. Best-effort: a settings lookup that fails degrades to DISABLED rather than throwing — cross-repo context is an enrichment, and losing it must not cost the caller its own repo's context.
-async function repoAllowsCrossRepo(pool: Pool, repo: string): Promise<boolean> {
   try {
     const { rows } = await pool.query<RepoSettingsRow>(
       `SELECT settings FROM lore.repos WHERE full_name = $1`,
       [repo],
     );
 
-    return rowAllowsCrossRepo(rows);
+    return contextSettingsOf(rows[0]?.settings);
   } catch {
-    return false;
+    return NO_REPO_SETTINGS;
   }
 }
 
-function rowAllowsCrossRepo(rows: RepoSettingsRow[]): boolean {
-  const settings = rows[0]?.settings;
+function contextSettingsOf(
+  settings: RepoSettingsRow["settings"],
+): RepoContextSettings {
+  const backend = KnowledgeBackendSchema.safeParse(settings?.context_backend);
 
-  return settings?.cross_repo === true;
+  return {
+    crossRepo: settings?.cross_repo === true,
+    ...(backend.success ? { contextBackend: backend.data } : {}),
+  };
 }

@@ -20,6 +20,7 @@ import { isAppConfigured } from "../../../outbound/github-client.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import { AutoMergeSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
+import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 import {
   disarmLorePulls,
   missingPrerequisites,
@@ -139,6 +140,13 @@ function enforceBodyInvariants(body: RepoSettingsBody): void {
     autoMerge.safeParse(body.settings?.auto_merge).success,
     apiError(400),
     "auto_merge.approver must be none or lore-reviewer",
+  );
+  const contextBackend = KnowledgeBackendSchema.optional();
+
+  enforceTrue(
+    contextBackend.safeParse(body.settings?.context_backend).success,
+    apiError(400),
+    "context_backend must be lore, utopia or both",
   );
 }
 

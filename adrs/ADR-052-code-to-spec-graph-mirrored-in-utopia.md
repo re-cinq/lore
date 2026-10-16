@@ -91,3 +91,12 @@ Slice 3 swaps the store behind Lore's graph reads, so those reads should meet th
 - **A Utopia adapter plugs in behind `providers.trace`**, which `createProject` prefers over the Dgraph adapter.
 
 The impact routes and the cross-repo spec and ADR listings still hold a client. Their readers live in `work/`, and they move when those readers do.
+
+## Amendment 2026-10-16: reads choose a backend
+
+Before any read moves to Utopia, Lore and Utopia run side by side, so that what each returns for the same question can be compared:
+
+- **Every ingest writes to both.** The spec and ADR mirror above is the first; each other source follows as its Utopia writer lands. Lore's stores stay the default answer.
+- **A read names its backend: `lore`, `utopia` or `both`** (`KnowledgeBackend`, `libs/shared/src/domain/knowledge-backend.ts`). `GET /api/context`, `GET /api/search-context`, the `search` action of `POST /api/memory`, `POST /api/context-evals` and the MCP tools `lore_assemble_context`, `lore_search_context` and `lore_search_memory` take an optional `backend`; context assembly falls back to the repo's `settings.context_backend`, then to `lore`. An unknown backend is a 400.
+- **No silent fallback.** A source with no Utopia reader answers `<source>: no Utopia reader yet` in Utopia's place, never Lore's data under Utopia's name; a search tool the MCP adapter would answer offline refuses `utopia` and `both` rather than read Lore's stores. `both` puts Lore's assembly first and Utopia's second, each section labelled with its store and each on half the token budget.
+- **No source has a Utopia reader yet.** They land one source at a time behind this switch; the context evals grade one backend per call, and scoring `both` side by side is a following change.

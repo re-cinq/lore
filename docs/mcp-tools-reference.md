@@ -57,6 +57,7 @@ One-line purpose: assemble ONE token-budgeted, template-ordered context block fr
 | `repo` | no | auto-detect | Target repo as `owner/repo`; auto-detected from the git remote when omitted. |
 | `agent_id` | no | ambient | Overrides the agent id used to scope memories/facts. **Direct-DB path only; ignored when proxying.** |
 | `cross_repo` | no | `false` | Also pull context from linked repos. If `false` but the repo's `settings.cross_repo` is true, cross-repo is still enabled. **Direct-DB path only; ignored when proxying.** |
+| `backend` | no | repo's `settings.context_backend`, then `lore` | `lore` (default), `utopia`, or `both` — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. Under `utopia` each section reads `<source>: no Utopia reader yet`; under `both` Lore's block comes first and Utopia's second, each on half the budget (ADR-052 amendment 2026-10-16). |
 
 - **Returns:** on the direct-DB path, a single text block prefixed with an HTML comment carrying `template/sections/tokens` metadata; `No relevant context found for this query.` when every source is empty. On the proxy path, the API text as-is (no metadata comment), optionally prefixed with a `<!-- lore-cache: HIT/STALE -->` marker.
 - **Where it runs:** direct Postgres when `LORE_DB_HOST` is set; otherwise proxies `GET /api/context` to `LORE_API_URL`.
@@ -74,6 +75,7 @@ One-line purpose: search the ingested-document corpus (CLAUDE.md, ADRs, team doc
 | `query` | yes | — | Natural-language search query (e.g. `how are pipeline tasks authenticated`). |
 | `team` | no | `org_shared` | Scope. DB path: a Postgres team schema name; an empty/no-result team transparently retries `org_shared`. File-fallback path: a `teams/<name>` subdir under `CONTEXT_PATH`; an unknown subtree returns a "search path not found" error. Omit to search org-wide. |
 | `limit` | no | `8` | Maximum number of passages to return. |
+| `backend` | no | `lore` | `lore`, `utopia`, or `both`. Sent to `GET /api/search-context`; `utopia` returns no passages and the note `search_context: no Utopia reader yet`, `both` Lore's passages and that note. Without an API, `utopia`/`both` are refused rather than answered from local files. |
 
 - **Returns:** one text block; each hit is `**Score:** <rrf>` (DB path) or `**Source:** <relative-path>` (file path) followed by the passage, joined by `---`; or a no-results message.
 - **Where it runs:** against the shared-DB backend directly when a DB is reachable (hybrid vector + BM25 fused by Reciprocal Rank Fusion); with no DB it degrades to a deterministic case-insensitive substring scan of local `.md` files, so it works before any ingest has run. **Never proxies to `LORE_API_URL`.**
@@ -167,6 +169,7 @@ One-line purpose: semantic (vector + keyword) search across org-wide memories an
 | `limit` | no | `10` | Maximum number of fused results after rank fusion and diversification. |
 | `include_invalidated` | no | `false` | Also return facts superseded by newer facts (historical queries). **Not forwarded over the proxy.** |
 | `graph_augment` | no | `false` | Enrich results with 1-hop knowledge-graph neighbors of detected entities. **Not forwarded over the proxy.** |
+| `backend` | no | `lore` | `lore`, `utopia`, or `both`. For `utopia` the API answers `{results: [], notes: ["search_memory: no Utopia reader yet"]}`, for `both` Lore's hits with that note; without an API, `utopia`/`both` are refused rather than answered from the `~/.lore` file store. |
 
 - **Returns:** a relevance-ranked JSON array of `{key, value, score, agent_id, source, id?, confidence?}` where `source` is `memory|fact|episode|graph`. Only currently-valid facts unless `include_invalidated`.
 - **Where it runs:** local DB when `LORE_DB_HOST` is set; else a ~5min cached proxy to `/api/memory` (read scope; `pool` maps to `pool_name`); `~/.lore` file fallback when no API is configured.

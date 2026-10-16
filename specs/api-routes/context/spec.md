@@ -36,6 +36,7 @@ docs/ADRs/specs when no query is supplied. This is the read counterpart to the
 | `repo` | string | no | — | `owner/name`. Drives the no-query chunk-join path; passed to the engine when a query is present. |
 | `template` | string | no | `"default"` | Template name forwarded to `assembleContext`. |
 | `debug` | string | no | — | `"1"` or `"true"` enables the engine debug trace. Any other value → false. |
+| `backend` | string | no | repo's `settings.context_backend`, then `"lore"` | `lore`, `utopia` or `both` (ADR-052 amendment 2026-10-16); anything else → 400. |
 
 ### Response
 
@@ -92,31 +93,35 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 
 A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/transport/routes/context/context.test.ts#L31), [validated by `context.test.ts:31`](apps/lore-api/src/transport/routes/context/context.test.ts#L31))
 
-`max_tokens`, `agent_id`, and `cross_repo` query params are forwarded to `assembleContext` at their respective argument positions. ([validated by `context.test.ts:71`](apps/lore-api/src/transport/routes/context/context.test.ts#L70))
+`max_tokens`, `agent_id`, and `cross_repo` query params are forwarded to `assembleContext` at their respective argument positions. ([validated by `context.test.ts:71`](apps/lore-api/src/transport/routes/context/context.test.ts#L71))
 
-The max-tokens budget defaults to 8000 when `max_tokens` is absent or non-numeric. ([validated by `context.test.ts:89`](apps/lore-api/src/transport/routes/context/context.test.ts#L88))
+The max-tokens budget defaults to 8000 when `max_tokens` is absent or non-numeric. ([validated by `context.test.ts:89`](apps/lore-api/src/transport/routes/context/context.test.ts#L89))
 
-Cross-repo search is enabled from the repo's `settings.cross_repo` when the `cross_repo` param is not set. ([validated by `context.test.ts:107`](apps/lore-api/src/transport/routes/context/context.test.ts#L106))
+Cross-repo search is enabled from the repo's `settings.cross_repo` when the `cross_repo` param is not set. ([validated by `context.test.ts:107`](apps/lore-api/src/transport/routes/context/context.test.ts#L107))
 
-An unknown `template` name is rejected with 400. ([validated by `context.test.ts:209`](apps/lore-api/src/transport/routes/context/context.test.ts#L208))
+An unknown `template` name is rejected with 400. ([validated by `context.test.ts:209`](apps/lore-api/src/transport/routes/context/context.test.ts#L209))
+
+*(added 2026-10-16)* An optional `backend` (`lore`, `utopia`, `both`) is forwarded to `assembleContext`; an unknown backend is rejected with 400. ([validated by returns 400 for a backend of dgraph](apps/lore-api/src/transport/routes/context/context.test.ts#L215), [validated by assembles from utopia when the request names backend=utopia over a repo set to both](apps/lore-api/src/transport/routes/context/context.test.ts#L221))
+
+With no `backend` param the repo's `settings.context_backend` decides, read in the same settings lookup as `cross_repo`, and `lore` when the repo names none. ([validated by assembles from both when the request names no backend and the repo's context_backend is both](apps/lore-api/src/transport/routes/context/context.test.ts#L233))
 
 `debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `context.test.ts:41`](apps/lore-api/src/transport/routes/context/context.test.ts#L41))
 
-Empty engine text is coerced to `null`. ([validated by `context.test.ts:121`](apps/lore-api/src/transport/routes/context/context.test.ts#L120))
+Empty engine text is coerced to `null`. ([validated by `context.test.ts:121`](apps/lore-api/src/transport/routes/context/context.test.ts#L121))
 
-No query but a repo + pool joins the matching chunks with the `---` separator. ([validated by `context.test.ts:131`](apps/lore-api/src/transport/routes/context/context.test.ts#L130))
+No query but a repo + pool joins the matching chunks with the `---` separator. ([validated by `context.test.ts:131`](apps/lore-api/src/transport/routes/context/context.test.ts#L131))
 
-The no-query chunk join reads from the repo's provisioned team schema, falling back to `org_shared`. ([validated by `joins the no-query chunks from the repo's provisioned team schema`](apps/lore-api/src/transport/routes/context/context.test.ts#L141))
+The no-query chunk join reads from the repo's provisioned team schema, falling back to `org_shared`. ([validated by `joins the no-query chunks from the repo's provisioned team schema`](apps/lore-api/src/transport/routes/context/context.test.ts#L142))
 
-The no-query chunk join keeps whole chunks until the `max_tokens * 4` char budget is hit (default 8000 tokens, server-capped at 128000), never the whole table; the first chunk is always included even when it alone exceeds the budget. ([validated by `context.test.ts:158`](apps/lore-api/src/transport/routes/context/context.test.ts#L157), [validated by `context.test.ts:175`](apps/lore-api/src/transport/routes/context/context.test.ts#L174), [validated by `context.test.ts:98`](apps/lore-api/src/transport/routes/context/context.test.ts#L97))
+The no-query chunk join keeps whole chunks until the `max_tokens * 4` char budget is hit (default 8000 tokens, server-capped at 128000), never the whole table; the first chunk is always included even when it alone exceeds the budget. ([validated by `context.test.ts:158`](apps/lore-api/src/transport/routes/context/context.test.ts#L158), [validated by `context.test.ts:175`](apps/lore-api/src/transport/routes/context/context.test.ts#L175), [validated by `context.test.ts:98`](apps/lore-api/src/transport/routes/context/context.test.ts#L98))
 
-An empty chunk set returns `{ text: null }`. ([validated by `context.test.ts:187`](apps/lore-api/src/transport/routes/context/context.test.ts#L186))
+An empty chunk set returns `{ text: null }`. ([validated by `context.test.ts:187`](apps/lore-api/src/transport/routes/context/context.test.ts#L187))
 
-Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts:196`](apps/lore-api/src/transport/routes/context/context.test.ts#L195))
+Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts:196`](apps/lore-api/src/transport/routes/context/context.test.ts#L196))
 
-A throwing engine returns 500. ([validated by `context.test.ts:202`](apps/lore-api/src/transport/routes/context/context.test.ts#L201))
+A throwing engine returns 500. ([validated by `context.test.ts:202`](apps/lore-api/src/transport/routes/context/context.test.ts#L202))
 
-The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L43))
+The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L50))
 
 ## Out of Scope
 

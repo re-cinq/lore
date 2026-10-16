@@ -406,3 +406,82 @@ describe("assembleContext — linked repos on the shipped templates", () => {
     },
   );
 });
+
+describe("assembleContext — backend", () => {
+  const conventionsPool = (queries: string[]) =>
+    ({
+      query: async (sql: string, params: unknown[]) => {
+        queries.push(sql);
+        const contentTypes = params?.find(Array.isArray) as
+          string[] | undefined;
+
+        return sql.includes("org_shared.chunks") &&
+          contentTypes?.includes("doc")
+          ? {
+              rows: [
+                {
+                  content: "Deploy on Friday",
+                  file_path: "CLAUDE.md",
+                  content_type: "doc",
+                },
+              ],
+            }
+          : { rows: [] };
+      },
+    }) as unknown as Parameters<typeof assembleContext>[0];
+
+  it("returns a no-Utopia-reader section for each default source and reads nothing from Lore for backend utopia", async () => {
+    const queries: string[] = [];
+    const result = await assembleContext(conventionsPool(queries), "deploys", {
+      templateName: "default",
+      repo: "owner/repo",
+      backend: "utopia",
+    });
+
+    expect({
+      queries: queries.length,
+      headers: result.sections.map((section) => section.header),
+      conventions: result.text.includes("repo: no Utopia reader yet"),
+      loreData: result.text.includes("Deploy on Friday"),
+    }).toEqual({
+      queries: 0,
+      headers: [
+        "Directory Rules",
+        "Conventions",
+        "Relevant Code",
+        "Architecture Decisions",
+        "Agent Memory",
+        "Related Entities",
+        "Recent Episodes",
+        "Recent Incidents",
+      ],
+      conventions: true,
+      loreData: false,
+    });
+  });
+
+  it("returns Lore's block then Utopia's, each on 4000 of an 8000-token budget, for backend both", async () => {
+    const result = await assembleContext(conventionsPool([]), "deploys", {
+      templateName: "default",
+      maxTokens: 8000,
+      repo: "owner/repo",
+      backend: "both",
+    });
+    const lore = result.text.indexOf('<backend name="lore">');
+    const utopia = result.text.indexOf('<backend name="utopia">');
+
+    expect({
+      loreFirst: lore >= 0 && lore < utopia,
+      budgets: result.text.match(/budget="\d+"/g),
+      loreConventions: result.sections[0]?.header,
+      utopiaConventions: result.sections.some(
+        (section) => section.header === "utopia: Conventions",
+      ),
+    }).toEqual({
+      loreFirst: true,
+      budgets: ['budget="4000"', 'budget="4000"'],
+      loreConventions: "lore: Conventions",
+      utopiaConventions: true,
+    });
+  });
+});

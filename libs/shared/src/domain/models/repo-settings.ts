@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DigestSettingsSchema } from "./digest-settings.js";
+import { KnowledgeBackendSchema } from "../knowledge-backend.js";
 
 /** The lore.repos.settings JSONB column; SNAKE_CASE keys; unknown keys pass through; every key is optional. */
 
@@ -57,6 +58,8 @@ export const RepoSettingsSchema = z
     test_commands: z.unknown().optional(),
     incidents: z.array(z.unknown()).optional(),
     utopia: UtopiaMirrorSettingsSchema.optional(),
+    // Which store context reads answer from when the request names none (ADR-052 amendment 2026-10-16).
+    context_backend: KnowledgeBackendSchema.optional(),
   })
   .passthrough();
 

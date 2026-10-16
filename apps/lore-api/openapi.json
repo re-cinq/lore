@@ -1889,6 +1889,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 1000
+                  },
+                  "backend": {
+                    "type": "string",
+                    "enum": ["lore", "utopia", "both"]
                   }
                 },
                 "required": ["repo", "path"],
@@ -2950,6 +2954,11 @@
                       "graph_augment": {
                         "default": false,
                         "type": "boolean"
+                      },
+                      "backend": {
+                        "default": "lore",
+                        "type": "string",
+                        "enum": ["lore", "utopia", "both"]
                       }
                     },
                     "required": ["action", "query"],
@@ -12762,6 +12771,51 @@
           {
             "type": "object",
             "properties": {
+              "results": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "agent_id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": ["memory", "fact", "episode", "graph"]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["key", "value", "score", "agent_id", "source"],
+                  "additionalProperties": false
+                }
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["results", "notes"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
               "key": {
                 "type": "string"
               },
@@ -13928,6 +13982,10 @@
                     },
                     "required": ["kb_id", "source_id"],
                     "additionalProperties": false
+                  },
+                  "context_backend": {
+                    "type": "string",
+                    "enum": ["lore", "utopia", "both"]
                   }
                 },
                 "additionalProperties": {}
@@ -14326,6 +14384,10 @@
                           },
                           "required": ["kb_id", "source_id"],
                           "additionalProperties": false
+                        },
+                        "context_backend": {
+                          "type": "string",
+                          "enum": ["lore", "utopia", "both"]
                         }
                       },
                       "additionalProperties": {}
@@ -15288,6 +15350,12 @@
               },
               "required": ["content", "score", "source_path"],
               "additionalProperties": false
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         },

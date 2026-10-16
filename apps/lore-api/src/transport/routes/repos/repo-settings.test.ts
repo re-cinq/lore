@@ -273,4 +273,18 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
 
     expect(res.statusCode).toBe(400);
   });
+
+  it("returns 400 for a context_backend of dgraph", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+    const res = await put({ settings: { context_backend: "dgraph" } }, pool);
+
+    expect({ status: res.statusCode, result: res.result }).toMatchObject({
+      status: 400,
+      result: { error: "context_backend must be lore, utopia or both" },
+    });
+  });
 });

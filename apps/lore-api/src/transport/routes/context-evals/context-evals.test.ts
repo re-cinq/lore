@@ -114,4 +114,31 @@ describe("POST /api/context-evals", () => {
       (await post({ repo: "re-cinq/lore", path: ADR }, null)).statusCode,
     ).toBe(503);
   });
+
+  it("assembles from utopia when the body names backend utopia", async () => {
+    const backends: unknown[] = [];
+
+    setEvalDepsForTests({
+      llm: new FakeLlm({ text: "q", data: {}, usage: { model: "m" } }),
+      document: async () => "The adapter holds no pool.",
+      assemble: async (_repo, _question, backend) => {
+        backends.push(backend);
+
+        return { text: "", sources: [] };
+      },
+    });
+    await post({ repo: "re-cinq/lore", path: ADR, backend: "utopia" });
+
+    expect(backends).toEqual(["utopia"]);
+  });
+
+  it("answers 400 for a backend of dgraph", async () => {
+    const res = await post({
+      repo: "re-cinq/lore",
+      path: ADR,
+      backend: "dgraph",
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
 });

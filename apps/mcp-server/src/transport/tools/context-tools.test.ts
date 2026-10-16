@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { toolHandlers, type ToolHandler } from "./tool-test-helpers.js";
 import { store } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
+import { z } from "zod";
 
 const contextRoot = mkdtempSync(join(tmpdir(), "lore-search-context-"));
 let searchContext: ToolHandler;
@@ -247,6 +248,87 @@ describe("lore_assemble_context in the agent gateway, which has no checkout", ()
 
     expect(result.content[0].text).toBe(
       "Lore API rejected lore_assemble_context: HTTP 400 Bad Request: repo: expected owner/name",
+    );
+  });
+});
+
+describe("the backend param on lore_assemble_context and lore_search_context", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore.example";
+    process.env.LORE_INGEST_TOKEN = "test-token";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.LORE_API_URL;
+    delete process.env.LORE_INGEST_TOKEN;
+  });
+
+  it("accepts backend both and refuses backend dgraph in the lore_assemble_context schema", async () => {
+    const { ASSEMBLE_CONTEXT_INPUT } =
+      await import("./context-tools-assemble.js");
+    const schema = z.object(ASSEMBLE_CONTEXT_INPUT);
+
+    expect({
+      both: schema.safeParse({ query: "q", backend: "both" }).data?.backend,
+      dgraph: schema.safeParse({ query: "q", backend: "dgraph" }).success,
+    }).toEqual({ both: "both", dgraph: false });
+  });
+
+  it("forwards backend=utopia to GET /api/context", async () => {
+    const fetchMock = vi.fn(async (_url: unknown) => ({
+      ok: true,
+      json: async () => ({ text: "UTOPIA CONTEXT" }),
+    }));
+
+    vi.stubGlobal("fetch", fetchMock);
+    await assembleContext({
+      query: "q-utopia",
+      template: "default",
+      repo: "owner/r",
+      backend: "utopia",
+    });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://lore.example/api/context?query=q-utopia&template=default&repo=owner%2Fr&backend=utopia",
+    );
+  });
+
+  it("forwards backend=both to GET /api/search-context and prints the API's no-reader note after the passages", async () => {
+    const fetchMock = vi.fn(async (_url: unknown) => ({
+      ok: true,
+      json: async () => ({
+        results: [{ content: "deploy on Friday", score: 0.5 }],
+        notes: ["search_context: no Utopia reader yet"],
+      }),
+    }));
+
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await searchContext({
+      query: "deploys",
+      limit: 8,
+      backend: "both",
+    });
+
+    expect({
+      url: String(fetchMock.mock.calls[0]?.[0]),
+      text: result.content[0].text,
+    }).toEqual({
+      url: "https://lore.example/api/search-context?query=deploys&limit=8&backend=both",
+      text: "**Score:** 0.500\n\ndeploy on Friday\n\nsearch_context: no Utopia reader yet",
+    });
+  });
+
+  it("refuses backend utopia instead of scanning local files when no API is configured", async () => {
+    delete process.env.LORE_API_URL;
+    const result = await searchContext({
+      query: "Friday afternoons",
+      limit: 8,
+      backend: "utopia",
+    });
+
+    expect(result.content[0].text).toBe(
+      "backend utopia is answered by the Lore API only; set LORE_API_URL. The offline search reads Lore's stores alone.",
     );
   });
 });
