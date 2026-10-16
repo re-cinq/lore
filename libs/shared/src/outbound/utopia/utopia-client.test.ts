@@ -19,6 +19,7 @@ interface Seen {
 
 const seen: Seen[] = [];
 let failPushesLeft = 0;
+let answerDelayMs = 0;
 let server: Server;
 let baseUrl: string;
 
@@ -84,6 +85,8 @@ beforeAll(async () => {
       body,
     });
     const [status, payload] = answerOf(req, body);
+
+    await new Promise((resolve) => setTimeout(resolve, answerDelayMs));
 
     res.setHeader("content-type", "application/json");
     res.statusCode = status;
@@ -274,6 +277,34 @@ describe("withCredential", () => {
       turtle: true,
       type: true,
     });
+  });
+
+  it("waits past the 50ms request timeout for an import Utopia answers after 200ms, while a push that slow is aborted", async () => {
+    const patient = utopiaClientFrom(
+      { UTOPIA_API_URL: baseUrl },
+      { retryDelayMs: 1, requestTimeoutMs: 50, importTimeoutMs: 2_000 },
+    );
+
+    answerDelayMs = 200;
+
+    try {
+      const imported = await patient
+        .withCredential("jwt-1")
+        .importOntology("kb-1", "@prefix lore: <x> .", "lore-ontology.ttl");
+      const push = await patient
+        .pushStatements({ id: "src-1", key: "utp_k" }, tombstone("doc:a.md"))
+        .then(
+          () => "answered",
+          (error: unknown) => (error as Error).name,
+        );
+
+      expect({ imported, push }).toEqual({
+        imported: { importId: "imp-1" },
+        push: "TimeoutError",
+      });
+    } finally {
+      answerDelayMs = 0;
+    }
   });
 
   it("binds a kind word to its class key", async () => {

@@ -48,6 +48,10 @@ export interface UtopiaClient {
 export interface UtopiaClientOptions {
   /** The wait before the one retry a 429 or 5xx gets. */
   retryDelayMs?: number;
+  /** How long a push or a read waits for its answer. */
+  requestTimeoutMs?: number;
+  /** How long a heavy call, an ontology import, waits for its answer. */
+  importTimeoutMs?: number;
 }
 
 export class UtopiaError extends Error {
@@ -115,10 +119,11 @@ export function utopiaRequester(
   apiUrl: string,
   options: UtopiaClientOptions,
 ): Requester {
-  return requester(
-    `${apiUrl.replace(/\/+$/, "")}/api/v1`,
-    options.retryDelayMs ?? 500,
-  );
+  return requester(`${apiUrl.replace(/\/+$/, "")}/api/v1`, {
+    retryDelayMs: options.retryDelayMs ?? 500,
+    requestTimeoutMs: options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS,
+    importTimeoutMs: options.importTimeoutMs ?? IMPORT_TIMEOUT_MS,
+  });
 }
 
 export interface RequestOptions {
@@ -126,6 +131,8 @@ export interface RequestOptions {
   method?: "GET" | "POST";
   json?: unknown;
   form?: FormData;
+  /** An ontology import plans against the whole base, writes every class and relation, and queues alignment: on a busy base it outlasts a push's wait by far. */
+  heavy?: boolean;
 }
 
 export type Requester = <T>(
@@ -139,12 +146,24 @@ const BODY_EXCERPT = 300;
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
+const IMPORT_TIMEOUT_MS = 5 * 60_000;
+
+interface RequesterTiming {
+  retryDelayMs: number;
+  requestTimeoutMs: number;
+  importTimeoutMs: number;
+}
+
 /** A 429 or 5xx is retried once; any other refusal throws a `UtopiaError` at once. */
-function requester(base: string, retryDelayMs: number): Requester {
+function requester(base: string, timing: RequesterTiming): Requester {
   return async <T>(path: string, options: RequestOptions): Promise<T> => {
-    const first = await send(`${base}${path}`, options);
+    const timeoutMs = options.heavy
+      ? timing.importTimeoutMs
+      : timing.requestTimeoutMs;
+    const call = () => send(`${base}${path}`, options, timeoutMs);
+    const first = await call();
     const response = RETRY_STATUS(first.status)
-      ? await retryAfter(retryDelayMs, () => send(`${base}${path}`, options))
+      ? await retryAfter(timing.retryDelayMs, call)
       : first;
 
     enforceTrue(
@@ -164,16 +183,15 @@ interface Answer {
   body: string;
 }
 
-async function send(url: string, options: RequestOptions): Promise<Answer> {
+async function send(
+  url: string,
+  options: RequestOptions,
+  timeoutMs: number,
+): Promise<Answer> {
   const response = await fetch(url, {
     method: options.method ?? "POST",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    headers: {
-      authorization: `Bearer ${options.token}`,
-      ...(options.json === undefined
-        ? {}
-        : { "content-type": "application/json" }),
-    },
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: headersOf(options),
     body: options.form ?? JSON.stringify(options.json),
   });
 
@@ -181,6 +199,15 @@ async function send(url: string, options: RequestOptions): Promise<Answer> {
     ok: response.ok,
     status: response.status,
     body: await response.text(),
+  };
+}
+
+function headersOf(options: RequestOptions): Record<string, string> {
+  const json = options.json === undefined;
+
+  return {
+    authorization: `Bearer ${options.token}`,
+    ...(json ? {} : { "content-type": "application/json" }),
   };
 }
 
@@ -255,7 +282,7 @@ async function importOntology(
   );
   const imported = await request<{ import_id: string }>(
     `/kbs/${kbId}/ontology/imports`,
-    { token: bearer, form },
+    { token: bearer, form, heavy: true },
   );
 
   return { importId: imported.import_id };
