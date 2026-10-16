@@ -59,7 +59,7 @@ export interface FileChange {
 }
 
 export interface BranchHistoryOptions {
-  /** The sha the walk stops at, exclusive; absent, the walk reaches the root. */
+  /** The sha the walk stops at, exclusive; absent, the walk takes the newest `limit` commits. */
   until?: string;
   /** At most this many commits, the newest ones. */
   limit: number;
