@@ -238,6 +238,14 @@
       "types": "./dist/outbound/utopia/utopia-client.d.ts",
       "default": "./dist/outbound/utopia/utopia-client.js"
     },
+    "./utopia/utopia-reads.js": {
+      "types": "./dist/outbound/utopia/utopia-reads.d.ts",
+      "default": "./dist/outbound/utopia/utopia-reads.js"
+    },
+    "./utopia/read-shapes.js": {
+      "types": "./dist/domain/utopia/read-shapes.d.ts",
+      "default": "./dist/domain/utopia/read-shapes.js"
+    },
     "./utopia/mirror-document.js": {
       "types": "./dist/work/utopia/mirror-document.d.ts",
       "default": "./dist/work/utopia/mirror-document.js"
