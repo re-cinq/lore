@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FakeLlm } from "@re-cinq/lore-shared/llm/fake-llm.js";
+import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 import {
   evaluateDocument,
   type AssembledForEval,
@@ -254,5 +255,80 @@ describe("evaluateDocument", () => {
 
     expect(llm.calls[0].prompt).toContain("x".repeat(12_000));
     expect(llm.calls[0].prompt).not.toContain("x".repeat(12_001));
+  });
+});
+
+const UTOPIA_ASSEMBLED: AssembledForEval = {
+  text: "<context>no pool in the adapter</context>",
+  sources: [
+    { path: ADR, tokens: 500 },
+    { path: "specs/mcp-server/spec.md", tokens: 500 },
+  ],
+};
+
+function sideBySideScenario() {
+  let now = 1000;
+  const asked: Array<{ question: string; backend?: KnowledgeBackend }> = [];
+  const { llm, deps } = scenario();
+  const sideDeps: EvalDeps = {
+    ...deps,
+    clock: () => now,
+    assemble: async (_repo, question, backend) => {
+      asked.push({ question, backend });
+      now += backend === "lore" ? 120 : 340;
+
+      return backend === "lore" ? ASSEMBLED : UTOPIA_ASSEMBLED;
+    },
+  };
+
+  return { llm, asked, deps: sideDeps };
+}
+
+describe("evaluateDocument with backend both", () => {
+  const both = { ...target, backend: "both" as const };
+
+  it("grades ADR-032 on Lore's and Utopia's assemblies side by side, with an overlap of 0.25 and each assembly's latency", async () => {
+    const { deps } = sideBySideScenario();
+
+    expect(await evaluateDocument(deps, both)).toEqual({
+      path: ADR,
+      question: QUESTION,
+      lore: {
+        found: true,
+        answered: true,
+        useful_share: 0.6,
+        reason: "Agrees with the decision.",
+        model: "gemini-2.5-flash",
+        latency_ms: 120,
+      },
+      utopia: {
+        found: true,
+        answered: true,
+        useful_share: 0.5,
+        reason: "Agrees with the decision.",
+        model: "gemini-2.5-flash",
+        latency_ms: 340,
+      },
+      top_k_overlap: 0.25,
+      only_answered_by: null,
+    });
+  });
+
+  it("writes one question and asks each store for it alone, lore then utopia", async () => {
+    const { deps, asked, llm } = sideBySideScenario();
+
+    await evaluateDocument(deps, both);
+
+    expect({
+      asked,
+      questionsWritten: llm.calls.filter((call) => !("toolName" in call))
+        .length,
+    }).toEqual({
+      asked: [
+        { question: QUESTION, backend: "lore" },
+        { question: QUESTION, backend: "utopia" },
+      ],
+      questionsWritten: 1,
+    });
   });
 });

@@ -24,19 +24,31 @@ const ContextEvalBody = z.object({
   path: z.string().min(1).max(500),
   // Pins the question, so a rerun after a fix grades the same one.
   question: z.string().min(1).max(1000).optional(),
-  // The store the assembly reads; the verdict grades one store at a time (scoring "both" side by side is a follow-up).
+  // The store the assembly reads; "both" grades Lore's assembly and Utopia's side by side.
   backend: KnowledgeBackendSchema.optional(),
 });
 
-const DocumentEvalSchema = z.object({
-  path: z.string(),
-  question: z.string(),
+const Grade = {
   found: z.boolean(),
   answered: z.boolean(),
   useful_share: z.number(),
   reason: z.string(),
   model: z.string(),
-});
+};
+
+const BackendVerdictSchema = z.object({ ...Grade, latency_ms: z.number() });
+
+const DocumentEvalSchema = z.union([
+  z.object({ path: z.string(), question: z.string(), ...Grade }),
+  z.object({
+    path: z.string(),
+    question: z.string(),
+    lore: BackendVerdictSchema,
+    utopia: BackendVerdictSchema,
+    top_k_overlap: z.number(),
+    only_answered_by: z.enum(["lore", "utopia"]).nullable(),
+  }),
+]);
 
 let depsOverride: EvalDeps | undefined;
 

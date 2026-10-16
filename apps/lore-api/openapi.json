@@ -10288,40 +10288,142 @@
         "additionalProperties": false
       },
       "DocumentEval": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string"
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "found": {
+                "type": "boolean"
+              },
+              "answered": {
+                "type": "boolean"
+              },
+              "useful_share": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "question",
+              "found",
+              "answered",
+              "useful_share",
+              "reason",
+              "model"
+            ],
+            "additionalProperties": false
           },
-          "question": {
-            "type": "string"
-          },
-          "found": {
-            "type": "boolean"
-          },
-          "answered": {
-            "type": "boolean"
-          },
-          "useful_share": {
-            "type": "number"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
+          {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "lore": {
+                "type": "object",
+                "properties": {
+                  "found": {
+                    "type": "boolean"
+                  },
+                  "answered": {
+                    "type": "boolean"
+                  },
+                  "useful_share": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "found",
+                  "answered",
+                  "useful_share",
+                  "reason",
+                  "model",
+                  "latency_ms"
+                ],
+                "additionalProperties": false
+              },
+              "utopia": {
+                "type": "object",
+                "properties": {
+                  "found": {
+                    "type": "boolean"
+                  },
+                  "answered": {
+                    "type": "boolean"
+                  },
+                  "useful_share": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "found",
+                  "answered",
+                  "useful_share",
+                  "reason",
+                  "model",
+                  "latency_ms"
+                ],
+                "additionalProperties": false
+              },
+              "top_k_overlap": {
+                "type": "number"
+              },
+              "only_answered_by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["lore", "utopia"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "question",
+              "lore",
+              "utopia",
+              "top_k_overlap",
+              "only_answered_by"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "path",
-          "question",
-          "found",
-          "answered",
-          "useful_share",
-          "reason",
-          "model"
-        ],
-        "additionalProperties": false
+        ]
       },
       "DodProgress": {
         "type": "object",
