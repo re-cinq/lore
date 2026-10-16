@@ -8,6 +8,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
+import { utopiaReadsFrom } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
@@ -191,5 +192,7 @@ async function assembleForQuery(
     debug: opts.debug,
     graph: traceFromEnv(process.env),
     backend: resolveBackend(opts.backend, settings.contextBackend),
+    utopiaReads: utopiaReadsFrom(process.env),
+    utopiaMirror: settings.utopiaMirror,
   });
 }
