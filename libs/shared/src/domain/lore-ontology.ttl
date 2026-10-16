@@ -2,22 +2,23 @@
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix utopia: <urn:utopia:ns:> .
 
 <https://lore.re-cinq.com/ontology> a owl:Ontology ;
   rdfs:label "Lore traceability" ;
-  rdfs:comment "What a repository's documents say, the tests that validate it, and the code that implements it: Document contains Section, Section validated_by Test, Section implemented_by Code." .
+  rdfs:comment "What a repository's documents say, the tests that validate it, the code that implements it, and the commits that changed them: Document contains Section, Section validated_by Test, Section implemented_by Code, Commit changes Code." .
 
 # ---- classes: one chain from document to code ----
 
 lore:Repository a owl:Class ;
   rdfs:label "Repository" ;
   rdfs:comment "A GitHub repository (owner/name). The root everything in this knowledge base belongs to." ;
-  owl:disjointWith lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code .
+  owl:disjointWith lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task .
 
 lore:Document a owl:Class ;
   rdfs:label "Document" ;
   rdfs:comment "A markdown document in the repository: a spec or an ADR, at a commit." ;
-  owl:disjointWith lore:Section, lore:Statement, lore:Test, lore:Code .
+  owl:disjointWith lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task .
 
 lore:Spec a owl:Class ;
   rdfs:label "Spec" ;
@@ -47,7 +48,8 @@ lore:Test a owl:Class ;
 
 lore:Code a owl:Class ;
   rdfs:label "Code" ;
-  rdfs:comment "Source code in the repository: a file or a definition inside one." .
+  rdfs:comment "Source code in the repository: a file or a definition inside one." ;
+  owl:disjointWith lore:Commit, lore:PullRequest, lore:Issue, lore:Task .
 
 lore:SourceFile a owl:Class ;
   rdfs:label "SourceFile" ;
@@ -60,61 +62,126 @@ lore:CodeDefinition a owl:Class ;
   rdfs:comment "A top-level definition in a source file: a function, class, constant or type, with the lines it spans." ;
   rdfs:subClassOf lore:Code .
 
+# ---- classes: the history that changed the chain ----
+
+lore:Commit a owl:Class ;
+  rdfs:label "Commit" ;
+  rdfs:comment "A commit on the repository's default branch: what it changed, who wrote it and when, the pull request it merged." ;
+  owl:disjointWith lore:PullRequest, lore:Issue, lore:Task .
+
+lore:PullRequest a owl:Class ;
+  rdfs:label "PullRequest" ;
+  rdfs:comment "A pull request a commit merged, by number." ;
+  owl:disjointWith lore:Issue, lore:Task .
+
+lore:Issue a owl:Class ;
+  rdfs:label "Issue" ;
+  rdfs:comment "An issue a pull request closes or refers to, by number." ;
+  owl:disjointWith lore:Task .
+
+lore:Task a owl:Class ;
+  rdfs:label "Task" ;
+  rdfs:comment "A Lore task a pull request delivers, named by its Lore-Task trailer." .
+
 # ---- relations ----
 
 lore:contains a owl:ObjectProperty ;
   rdfs:label "contains" ;
-  rdfs:comment "Structure: a repository contains its documents and files; a document contains its sections; a section contains its statements; a test file contains its tests." ;
+  rdfs:comment "Structure: a repository contains its documents, files, commits, pull requests, issues and tasks; a document contains its sections; a section contains its statements; a test file contains its tests." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:Repository, lore:Document, lore:Section, lore:SourceFile ;
-  rdfs:range lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test .
+  rdfs:range lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test, lore:Commit, lore:PullRequest, lore:Issue, lore:Task .
 
 lore:validated_by a owl:ObjectProperty ;
   rdfs:label "validated_by" ;
   rdfs:comment "A section or statement is validated by a test that checks the behaviour it states." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:Section, lore:Statement ;
   rdfs:range lore:Test .
 
 lore:violated_by a owl:ObjectProperty ;
   rdfs:label "violated_by" ;
   rdfs:comment "A statement is violated by a test that checks the behaviour it states and failed at the last run." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:Statement ;
   rdfs:range lore:Test .
 
 lore:implemented_by a owl:ObjectProperty ;
   rdfs:label "implemented_by" ;
   rdfs:comment "A section or statement is implemented by the code that realises it." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:Section, lore:Statement ;
   rdfs:range lore:Code .
 
 lore:decided_by a owl:ObjectProperty ;
   rdfs:label "decided_by" ;
   rdfs:comment "A section or statement follows from a decision recorded in an ADR." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:Section, lore:Statement ;
   rdfs:range lore:Adr .
 
 lore:covers a owl:ObjectProperty ;
   rdfs:label "covers" ;
   rdfs:comment "A test executes lines of a source file. The relation's lines qualifier says which, as 'a-b,c-d', and its commit qualifier the commit the test ran at." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:Test ;
   rdfs:range lore:SourceFile .
 
 lore:defines a owl:ObjectProperty ;
   rdfs:label "defines" ;
   rdfs:comment "A source file defines a top-level definition." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:SourceFile ;
   rdfs:range lore:CodeDefinition .
 
 lore:references a owl:ObjectProperty ;
   rdfs:label "references" ;
   rdfs:comment "A definition calls or uses another definition." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:CodeDefinition ;
   rdfs:range lore:CodeDefinition .
 
 lore:imports a owl:ObjectProperty ;
   rdfs:label "imports" ;
   rdfs:comment "A source file imports from another source file." ;
+  utopia:temporal "eternal" ;
   rdfs:domain lore:SourceFile ;
   rdfs:range lore:SourceFile .
+
+lore:changes a owl:ObjectProperty ;
+  rdfs:label "changes" ;
+  rdfs:comment "A commit changes a source file or a document: it added, modified, renamed or deleted that path." ;
+  utopia:temporal "event" ;
+  rdfs:domain lore:Commit ;
+  rdfs:range lore:Code, lore:Document .
+
+lore:follows a owl:ObjectProperty ;
+  rdfs:label "follows" ;
+  rdfs:comment "A commit follows each of its parent commits." ;
+  utopia:temporal "event" ;
+  rdfs:domain lore:Commit ;
+  rdfs:range lore:Commit .
+
+lore:merges a owl:ObjectProperty ;
+  rdfs:label "merges" ;
+  rdfs:comment "A commit merges the pull request its subject names." ;
+  utopia:temporal "event" ;
+  rdfs:domain lore:Commit ;
+  rdfs:range lore:PullRequest .
+
+lore:closes a owl:ObjectProperty ;
+  rdfs:label "closes" ;
+  rdfs:comment "A pull request closes, or refers to, an issue its body names." ;
+  utopia:temporal "event" ;
+  rdfs:domain lore:PullRequest ;
+  rdfs:range lore:Issue .
+
+lore:delivers a owl:ObjectProperty ;
+  rdfs:label "delivers" ;
+  rdfs:comment "A pull request delivers the Lore task its body names." ;
+  utopia:temporal "event" ;
+  rdfs:domain lore:PullRequest ;
+  rdfs:range lore:Task .
 
 # ---- attributes ----
 
@@ -132,20 +199,20 @@ lore:commit a owl:DatatypeProperty ;
 
 lore:permalink a owl:DatatypeProperty ;
   rdfs:label "permalink" ;
-  rdfs:comment "GitHub URL of the thing at its commit, with line anchors where it has lines." ;
-  rdfs:domain lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code ;
+  rdfs:comment "GitHub URL of the thing at its commit, with line anchors where it has lines; of a commit, a pull request or an issue, its page." ;
+  rdfs:domain lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue ;
   rdfs:range xsd:anyURI .
 
 lore:title a owl:DatatypeProperty ;
   rdfs:label "title" ;
-  rdfs:comment "A document's title (its first top-level heading); a test's title as written in its it() call; a section's heading text." ;
-  rdfs:domain lore:Document, lore:Test, lore:Section ;
+  rdfs:comment "A document's title (its first top-level heading); a test's title as written in its it() call; a section's heading text; a commit's subject line." ;
+  rdfs:domain lore:Document, lore:Test, lore:Section, lore:Commit ;
   rdfs:range xsd:string .
 
 lore:text a owl:DatatypeProperty ;
   rdfs:label "text" ;
-  rdfs:comment "The words of a statement or the heading of a section, as written in the document." ;
-  rdfs:domain lore:Section, lore:Statement ;
+  rdfs:comment "The words of a statement or the heading of a section, as written in the document; the body of a commit message." ;
+  rdfs:domain lore:Section, lore:Statement, lore:Commit ;
   rdfs:range xsd:string .
 
 lore:symbol a owl:DatatypeProperty ;
@@ -176,4 +243,34 @@ lore:outcome a owl:DatatypeProperty ;
   rdfs:label "outcome" ;
   rdfs:comment "How a test ended at its last run: passed or failed." ;
   rdfs:domain lore:Test ;
+  rdfs:range xsd:string .
+
+lore:sha a owl:DatatypeProperty ;
+  rdfs:label "sha" ;
+  rdfs:comment "The full commit sha." ;
+  rdfs:domain lore:Commit ;
+  rdfs:range xsd:string .
+
+lore:author a owl:DatatypeProperty ;
+  rdfs:label "author" ;
+  rdfs:comment "The commit author's name as git recorded it." ;
+  rdfs:domain lore:Commit ;
+  rdfs:range xsd:string .
+
+lore:authored_at a owl:DatatypeProperty ;
+  rdfs:label "authored_at" ;
+  rdfs:comment "When the commit was authored, RFC 3339." ;
+  rdfs:domain lore:Commit ;
+  rdfs:range xsd:dateTime .
+
+lore:number a owl:DatatypeProperty ;
+  rdfs:label "number" ;
+  rdfs:comment "The GitHub number of a pull request or an issue." ;
+  rdfs:domain lore:PullRequest, lore:Issue ;
+  rdfs:range xsd:integer .
+
+lore:task_id a owl:DatatypeProperty ;
+  rdfs:label "task_id" ;
+  rdfs:comment "The uuid of a Lore task." ;
+  rdfs:domain lore:Task ;
   rdfs:range xsd:string .
