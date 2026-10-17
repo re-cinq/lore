@@ -42,7 +42,7 @@ const filesAt = (tree: string[]): BackfillFiles => ({
 
 const NO_HISTORY = {
   repo: "re-cinq/lore",
-  history: { branchHistory: async () => [], read: async () => null },
+  history: { branchHistory: async () => [] },
   cursor: { read: async () => "head", write: async () => {} },
   mirror: async () => LANDED,
 };
@@ -167,10 +167,8 @@ describe("backfillRepo", () => {
               body: "",
               author: "a",
               authoredAt: "t",
-              files: [],
             },
           ],
-          read: async () => null,
         },
         mirror: async () => {
           throw new Error("Utopia answered 503");

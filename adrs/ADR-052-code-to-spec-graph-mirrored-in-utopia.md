@@ -135,3 +135,7 @@ Caveats, each waiting on upstream:
 - Search has no source filter, so a hit of another source is dropped after it is returned, and fills the page that a statements hit could have used.
 - A code item carries no text yet, so the `code` section keeps no reader.
 - Typed graph reads (coupling, violated statements) wait for Utopia re.8, whose importer types the relations the ontology declares.
+
+### Revision 2026-10-17: a commit item carries no file list, and history starts 200 commits back
+
+Utopia resolves every entity a pushed item names against the whole knowledge base, so a commit touching forty files cost forty resolutions, and on 2026-10-17 its queue grew faster than its database, sized up to four CPUs, could drain it. A commit item now carries only the commit's words, author, time, parents and links to its pull request, issues and task; `changes` stays declared in the ontology and no item pushes it. A walk takes the newest 200 commits above the cursor from GitHub's commit listing, with no read per commit: a repo's history in Utopia starts 200 commits before its first walk, and later commits arrive through the push handler as they land.

@@ -1,17 +1,13 @@
-// Mirrors a repo's default-branch commits into its Utopia knowledge base: the branch's history above the cursor its settings hold, walked oldest-first, each commit pushed through the mirror an ingest uses and the cursor moved past it, so a walk that stops leaves the next one where it was.
+// Mirrors a repo's default-branch commits into its Utopia knowledge base: the newest commits above the cursor its settings hold, pushed oldest-first through the mirror an ingest uses with the cursor moved past each, so a walk that stops leaves the next one where it was. A push to the branch runs a walk, so new commits arrive as they land.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import type {
   BranchHistoryOptions,
   CommitDetail,
 } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type {
-  ChangedFile,
-  MirroredCommit,
-} from "@re-cinq/lore-shared/utopia/commit-statements.js";
+import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
-import { docsToMirror, INGEST_MANIFEST_PATH } from "./ingested-docs.js";
 import { mirrorFailure } from "./utopia-mirror.js";
 
 export interface CommitHistoryDeps {
@@ -22,7 +18,6 @@ export interface CommitHistoryDeps {
       branch: string,
       opts: BranchHistoryOptions,
     ): Promise<CommitDetail[]>;
-    read(path: string, ref: string): Promise<string | null>;
   };
   cursor: {
     read(): Promise<string | null>;
@@ -31,8 +26,8 @@ export interface CommitHistoryDeps {
   mirror(commit: MirroredCommit): Promise<MirrorOutcome>;
 }
 
-/** One walk reads this many commits in detail at most, one GitHub call each; a longer history takes more walks, each resuming from the cursor. */
-export const MAX_COMMITS_PER_RUN = 2000;
+/** A walk takes at most the newest 200 commits above the cursor: the first walk of a repo starts its history 200 commits back instead of at the root, and every later one, run by a push, finds a handful. */
+export const MAX_COMMITS_PER_RUN = 200;
 
 export function mirrorBranchCommits(
   deps: CommitHistoryDeps,
@@ -70,12 +65,8 @@ async function walkBranch(
     ...(from === null ? {} : { until: from }),
     limit: MAX_COMMITS_PER_RUN,
   });
-  const manifest =
-    commits.length > 0
-      ? await deps.history.read(INGEST_MANIFEST_PATH, branch)
-      : null;
 
-  return walk(deps, commits, manifest, nothingPushed(branch, from));
+  return walk(deps, commits, nothingPushed(branch, from));
 }
 
 function nothingPushed(
@@ -98,13 +89,12 @@ function nothingPushed(
 async function walk(
   deps: CommitHistoryDeps,
   commits: CommitDetail[],
-  manifest: string | null,
   start: UtopiaCommitsSummary,
 ): Promise<UtopiaCommitsSummary> {
   let summary = start;
 
   for (const commit of commits) {
-    const outcome = await mirrorOne(deps, mirrored(commit, manifest));
+    const outcome = await mirrorOne(deps, commit);
 
     if (outcome.failure !== null) {
       return { ...summary, failed: [`${commit.sha}: ${outcome.failure}`] };
@@ -152,26 +142,4 @@ function advanced(
     updated: summary.updated + result.updated,
     unchanged: summary.unchanged + result.unchanged,
   };
-}
-
-/** Each changed path classed as the ingest classes it: a spec or an ADR by the manifest's globs or the built-in prefixes, anything else code. */
-function mirrored(
-  commit: CommitDetail,
-  manifest: string | null,
-): MirroredCommit {
-  const { files, ...words } = commit;
-
-  return { ...words, files: classified(files, manifest) };
-}
-
-function classified(
-  files: CommitDetail["files"],
-  manifest: string | null,
-): ChangedFile[] {
-  const paths = files.map((file) => file.path);
-  const docKinds = new Map(
-    docsToMirror(paths, manifest).map((doc) => [doc.path, doc.kind]),
-  );
-
-  return paths.map((path) => ({ path, kind: docKinds.get(path) ?? "code" }));
 }

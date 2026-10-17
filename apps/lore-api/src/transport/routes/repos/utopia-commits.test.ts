@@ -38,7 +38,6 @@ const fakeFiles = {
         body: "Closes #2",
         author: "Szabo Bogdan",
         authoredAt: "2026-10-16T08:00:00Z",
-        files: [{ path: "specs/a/spec.md", status: "modified" }],
       },
     ];
   },
