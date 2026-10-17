@@ -26,6 +26,9 @@ const fakeFiles = {
   read: async (path: string, ref: string) =>
     path.endsWith(".md") ? `# ${path}\n\nRead at ${ref}.\n` : null,
   branchHistory: async () => [],
+  trackerActivity: async () => [],
+  tags: async () => [],
+  releases: async () => [],
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({
@@ -119,6 +122,23 @@ describe("POST /api/repos/{owner}/{repo}/utopia/backfill", () => {
           from: null,
           to: null,
           commits: 0,
+          created: 0,
+          updated: 0,
+          unchanged: 0,
+          failed: [],
+        },
+        tracker: {
+          from: null,
+          to: null,
+          entries: 0,
+          created: 0,
+          updated: 0,
+          unchanged: 0,
+          failed: [],
+        },
+        releases: {
+          tags: 0,
+          releases: 0,
           created: 0,
           updated: 0,
           unchanged: 0,

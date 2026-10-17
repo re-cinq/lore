@@ -1833,6 +1833,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/utopia/releases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/releases */
+    post: operations["post_api_repos_owner_repo_utopia_releases"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/utopia/setup": {
     parameters: {
       query?: never;
@@ -1844,6 +1861,23 @@ export interface paths {
     put?: never;
     /** POST /api/repos/{owner}/{repo}/utopia/setup */
     post: operations["post_api_repos_owner_repo_utopia_setup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/utopia/tracker": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/tracker */
+    post: operations["post_api_repos_owner_repo_utopia_tracker"];
     delete?: never;
     options?: never;
     head?: never;
@@ -3795,6 +3829,7 @@ export interface components {
               source_id: string;
               ontology_version?: number;
               commits_head?: string;
+              tracker_since?: string;
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
@@ -3913,6 +3948,7 @@ export interface components {
                 source_id: string;
                 ontology_version?: number;
                 commits_head?: string;
+                tracker_since?: string;
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";
@@ -4643,6 +4679,23 @@ export interface components {
         failed: string[];
         skipped?: string;
       };
+      tracker?: {
+        from: string | null;
+        to: string | null;
+        entries: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+      };
+      releases?: {
+        tags: number;
+        releases: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+      };
     };
     UtopiaCommitsSummary: {
       branch: string;
@@ -4655,10 +4708,27 @@ export interface components {
       failed: string[];
       skipped?: string;
     };
+    UtopiaReleasesSummary: {
+      tags: number;
+      releases: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      failed: string[];
+    };
     UtopiaSetupResult: {
       kb_id: string;
       source_id: string;
       ontology_version: number;
+    };
+    UtopiaTrackerSummary: {
+      from: string | null;
+      to: string | null;
+      entries: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      failed: string[];
     };
     VisitEvents: {
       events: {
@@ -8225,6 +8295,37 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  post_api_repos_owner_repo_utopia_releases: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description How many tags and published releases were read, Utopia's created/updated/unchanged item counts, and every item it refused */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaReleasesSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   post_api_repos_owner_repo_utopia_setup: {
     parameters: {
       query?: never;
@@ -8257,6 +8358,37 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_tracker: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The update time the walk asked from, the newest one pushed, Utopia's created/updated/unchanged item counts, and the issue or pull request the walk stopped at */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaTrackerSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];

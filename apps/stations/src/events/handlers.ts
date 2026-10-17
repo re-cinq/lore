@@ -31,8 +31,14 @@ import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
 import {
   loreApiTarget,
   postUtopiaCommits,
+  postUtopiaReleases,
+  postUtopiaTracker,
 } from "../work/utopia-backfill-tick/lore-api-backfill.js";
-import { commitsAnswerLine } from "../work/utopia-backfill-tick/commits-answer.js";
+import {
+  commitsAnswerLine,
+  releasesAnswerLine,
+  trackerAnswerLine,
+} from "../work/utopia-backfill-tick/commits-answer.js";
 import { NO_LORE_API } from "../work/utopia-backfill-tick/run.js";
 import {
   floorRepoOf,
@@ -104,6 +110,20 @@ const repoEventDeps: RepoEventDeps = {
 
     return target
       ? commitsAnswerLine(await postUtopiaCommits(target, repo, branch))
+      : NO_LORE_API;
+  },
+  mirrorTracker: async (repo) => {
+    const target = loreApiTarget();
+
+    return target
+      ? trackerAnswerLine(await postUtopiaTracker(target, repo))
+      : NO_LORE_API;
+  },
+  mirrorReleases: async (repo) => {
+    const target = loreApiTarget();
+
+    return target
+      ? releasesAnswerLine(await postUtopiaReleases(target, repo))
       : NO_LORE_API;
   },
   relocateChunks: (repo) =>

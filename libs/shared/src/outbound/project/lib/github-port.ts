@@ -1,4 +1,9 @@
 import type { IssueComment } from "../pulls/pull-requests-port.js";
+import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type {
+  ReleaseEntry,
+  TagEntry,
+} from "../../../domain/utopia/release-statements.js";
 /** GitHub port: structural subset of agent's CodePlatform. */
 
 export type IssueState = "open" | "closed";
@@ -65,6 +70,13 @@ export interface BranchHistoryOptions {
   limit: number;
 }
 
+export interface TrackerActivityOptions {
+  /** RFC 3339; only what was updated at or after it. Absent, everything. */
+  since?: string;
+  /** At most this many, the oldest updates first. */
+  limit: number;
+}
+
 /** One commit as GitHub tells it: the first line of its message is the subject, the rest the body. */
 export interface CommitDetail {
   sha: string;
@@ -98,6 +110,15 @@ export interface GitHubPort {
     branch: string,
     opts: BranchHistoryOptions,
   ): Promise<CommitDetail[]>;
+  /** The repo's issues and pull requests updated since `since`, oldest update first, at most `limit`: a cursor-driven walk resumes where the last one stopped. */
+  listTrackerActivity(
+    repo: string,
+    opts: TrackerActivityOptions,
+  ): Promise<TrackedEntry[]>;
+  /** The repo's published releases, drafts left out. */
+  listReleases(repo: string): Promise<ReleaseEntry[]>;
+  /** Every tag of the repo with the commit it points to. */
+  listTags(repo: string): Promise<TagEntry[]>;
   getIssueLabels(repo: string, number: number): Promise<string[]>;
   /** Numbers of the still-open issues linked as blocking this one. */
   listOpenBlockers(repo: string, number: number): Promise<number[]>;

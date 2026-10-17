@@ -29,6 +29,9 @@ const state: {
   treeData?: Record<string, unknown>;
   refCall?: Record<string, unknown>;
   issuesData?: Array<Record<string, unknown>>;
+  issuesListCall?: Record<string, unknown>;
+  releasesData?: Array<Record<string, unknown>>;
+  tagsData?: Array<Record<string, unknown>>;
   pullsPages?: Array<Array<Record<string, unknown>>>;
   pullsListCall?: Record<string, unknown>;
   pagesServed: number;
@@ -191,10 +194,16 @@ vi.mock("octokit", () => ({
           return { data: { statuses: state.statuses ?? [] } };
         },
         listCommits: async () => ({ data: state.branchCommits ?? [] }),
+        listReleases: async () => state.releasesData ?? [],
+        listTags: async () => state.tagsData ?? [],
       },
       issues: {
         addLabels: async () => ({}),
-        listForRepo: async () => state.issuesData ?? [],
+        listForRepo: async (params: Record<string, unknown>) => {
+          state.issuesListCall = params;
+
+          return state.issuesData ?? [];
+        },
         get: async () => ({ data: state.issueData }),
         update: async (params: Record<string, unknown>) => {
           state.issueUpdateCall = params;
@@ -1164,6 +1173,119 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
         author: "Szabo Bogdan",
         authoredAt: "c3-at",
       },
+    ]);
+  });
+
+  it("listTrackerActivity asks for every issue and pull request updated since the cursor, oldest first, and answers the first two of three as tracked entries, stopping before the next page", async () => {
+    const row = (number: number, extra: Record<string, unknown> = {}) => ({
+      number,
+      title: `Title ${number}`,
+      body: null,
+      user: { login: "gedaiu" },
+      labels: ["utopia", { name: "lore" }],
+      created_at: `${number}-opened`,
+      closed_at: null,
+      updated_at: `${number}-updated`,
+      ...extra,
+    });
+
+    state.pullsPages = [
+      [
+        row(5),
+        row(6, {
+          body: "Closes #5",
+          closed_at: "6-closed",
+          pull_request: { merged_at: "6-merged" },
+        }),
+      ],
+      [row(7)],
+    ];
+    state.pagesServed = 0;
+    const activity = await gh().listTrackerActivity("re-cinq/lore", {
+      since: "2026-10-16T00:00:00Z",
+      limit: 2,
+    });
+
+    expect({
+      activity,
+      call: state.issuesListCall,
+      pages: state.pagesServed,
+    }).toEqual({
+      activity: [
+        {
+          kind: "issue",
+          number: 5,
+          title: "Title 5",
+          body: "",
+          author: "gedaiu",
+          labels: ["utopia", "lore"],
+          openedAt: "5-opened",
+          closedAt: null,
+          mergedAt: null,
+          updatedAt: "5-updated",
+        },
+        {
+          kind: "pull",
+          number: 6,
+          title: "Title 6",
+          body: "Closes #5",
+          author: "gedaiu",
+          labels: ["utopia", "lore"],
+          openedAt: "6-opened",
+          closedAt: "6-closed",
+          mergedAt: "6-merged",
+          updatedAt: "6-updated",
+        },
+      ],
+      call: {
+        owner: "re-cinq",
+        repo: "lore",
+        state: "all",
+        sort: "updated",
+        direction: "asc",
+        since: "2026-10-16T00:00:00Z",
+        per_page: 100,
+      },
+      pages: 1,
+    });
+  });
+
+  it("listReleases answers the published releases with their tag, name, notes, author and publish time, leaving out a draft", async () => {
+    state.releasesData = [
+      {
+        tag_name: "v1.2.0",
+        name: "Lore 1.2",
+        body: "Notes",
+        draft: false,
+        author: { login: "gedaiu" },
+        published_at: "2026-10-17T09:00:00Z",
+      },
+      {
+        tag_name: "v1.3.0",
+        name: null,
+        body: null,
+        draft: true,
+        author: { login: "gedaiu" },
+        published_at: null,
+      },
+    ];
+
+    expect(await gh().listReleases("re-cinq/lore")).toEqual([
+      {
+        tag: "v1.2.0",
+        name: "Lore 1.2",
+        body: "Notes",
+        author: "gedaiu",
+        publishedAt: "2026-10-17T09:00:00Z",
+      },
+    ]);
+  });
+
+  it("listTags answers each tag's name and the commit it points to", async () => {
+    state.tagsData = [{ name: "v1.2.0", commit: { sha: "abc123" } }];
+
+    expect(await gh().listTags("re-cinq/lore")).toEqual([
+      { name: "v1.2.0", sha: "abc123" },
     ]);
   });
 

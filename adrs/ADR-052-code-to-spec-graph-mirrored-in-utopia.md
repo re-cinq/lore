@@ -139,3 +139,16 @@ Caveats, each waiting on upstream:
 ### Revision 2026-10-17: a commit item carries no file list, and history starts 200 commits back
 
 Utopia resolves every entity a pushed item names against the whole knowledge base, so a commit touching forty files cost forty resolutions, and on 2026-10-17 its queue grew faster than its database, sized up to four CPUs, could drain it. A commit item now carries only the commit's words, author, time, parents and links to its pull request, issues and task; `changes` stays declared in the ontology and no item pushes it. A walk takes the newest 200 commits above the cursor from GitHub's commit listing, with no read per commit: a repo's history in Utopia starts 200 commits before its first walk, and later commits arrive through the push handler as they land.
+
+## Amendment 2026-10-17: pull requests, issues, releases and tags under ontology version 5
+
+A commit tells the mirror a pull request's number and the issues its body names, and nothing else; a pull request still open, or an issue no merged commit names, was not in the base at all. Now GitHub's own record of every issue and pull request is mirrored too (specs/utopia-graph-mirror FR14):
+
+- **The stub is shared, the rest is added.** A pull request and an issue keep the names the commit mirror gave them, and both builders state the stub and the body links through one module, so a commit's `merges` and the tracker item meet on one PullRequest. The tracker item adds the title, the state, the opening login, the labels, the open, close and merge times, and the description as text.
+- **One listing, one cursor.** GitHub's issues listing carries pull requests too, with their merge time, so one walk over it, oldest update first from `settings.utopia.tracker_since`, covers both. It is the commit walk's shape: 2,000 entries a walk, the cursor moved past each one that landed whole, the first failure ending the walk. The two walks of a repo share one queue.
+- **Webhooks, with the weekly backfill behind them.** An issue or pull request opened, edited, closed, reopened, labelled or unlabelled emits `github.tracker.changed` from the same delivery under its own dedupe key, and the stations post the walk. The weekly backfill runs the walk after the commits and catches any event that was lost.
+- **Releases and tags, without a cursor.** A tag `points_to` the commit the commit mirror names and a published release `publishes` its tag, so a release reaches the pull requests behind it. A repo has few, so every push sends them all: an unchanged item answers unchanged and a refused one is sent again next time. A published or edited release and a created tag emit `github.release.changed`, and a repo's hook now carries `release` and `create` (FR15).
+
+Reviews, review comments and conversation comments are not mirrored, and a deleted issue, release or tag keeps its last item.
+
+**Bumping to version 5 and the pending re.8 reset.** Once version 5 deploys, every base below 5 re-imports the ontology on its next mirrored push. If Utopia re.8 is already running, that re-import types every relation, and the manual `4 → 3` reset planned for re.8 is no longer needed. If version 5 deploys before re.8, the bases store 5 with every relation typed `state`, and the reset becomes `5 → 4`.

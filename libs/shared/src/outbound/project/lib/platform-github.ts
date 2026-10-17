@@ -2,11 +2,17 @@
 import type { Octokit } from "octokit";
 import type {
   BranchHistoryOptions,
+  TrackerActivityOptions,
   CommitDetail,
   FileChange,
 } from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { buildOctokit } from "./platform-github-auth.js";
+import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type {
+  ReleaseEntry,
+  TagEntry,
+} from "../../../domain/utopia/release-statements.js";
 import type {
   GitHubPort,
   IssueRef,
@@ -39,6 +45,8 @@ import * as issues from "./platform-github-issues.js";
 import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
 import { listBranchHistory } from "./platform-github-history.js";
+import { listTrackerActivity } from "./platform-github-tracker.js";
+import { listReleases, listTags } from "./platform-github-releases.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
 import * as branchRule from "./platform-github-branch-rule.js";
@@ -208,6 +216,21 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     opts: BranchHistoryOptions,
   ): Promise<CommitDetail[]> {
     return listBranchHistory(await this.octo(), repo, branch, opts);
+  }
+
+  async listTrackerActivity(
+    repo: string,
+    opts: TrackerActivityOptions,
+  ): Promise<TrackedEntry[]> {
+    return listTrackerActivity(await this.octo(), repo, opts);
+  }
+
+  async listReleases(repo: string): Promise<ReleaseEntry[]> {
+    return listReleases(await this.octo(), repo);
+  }
+
+  async listTags(repo: string): Promise<TagEntry[]> {
+    return listTags(await this.octo(), repo);
   }
 
   async branchExists(repo: string, branch: string): Promise<boolean> {

@@ -50,7 +50,7 @@ export async function utopiaSourceFor(
     : null;
 }
 
-/** Merged at both levels, not replaced: the settings block carries everything else the repo was configured with, and the utopia block carries the commit mirror's cursor, which a setup or an ontology upgrade must not wipe. */
+/** Merged at both levels, not replaced: the settings block carries everything else the repo was configured with, and the utopia block carries the walks' cursors, which a setup or an ontology upgrade must not wipe. */
 export async function saveUtopiaMirrorSettings(
   pool: Pool,
   repo: string,
@@ -65,13 +65,31 @@ export async function saveUtopiaMirrorSettings(
 }
 
 /** The commit mirror's cursor alone, set inside the utopia block so the knowledge base, source and ontology version beside it stay as they are. */
-export async function saveUtopiaCommitsHead(
+export function saveUtopiaCommitsHead(
   pool: Pool,
   repo: string,
   sha: string,
 ): Promise<void> {
+  return saveUtopiaCursor(pool, repo, "commits_head", sha);
+}
+
+/** The tracker mirror's cursor alone, set as the commit mirror's is. */
+export function saveUtopiaTrackerSince(
+  pool: Pool,
+  repo: string,
+  since: string,
+): Promise<void> {
+  return saveUtopiaCursor(pool, repo, "tracker_since", since);
+}
+
+async function saveUtopiaCursor(
+  pool: Pool,
+  repo: string,
+  key: "commits_head" | "tracker_since",
+  value: string,
+): Promise<void> {
   await pool.query(
-    `UPDATE lore.repos SET settings = jsonb_set(COALESCE(settings, '{}'), '{utopia,commits_head}', to_jsonb($1::text)) WHERE full_name = $2`,
-    [sha, repo],
+    `UPDATE lore.repos SET settings = jsonb_set(COALESCE(settings, '{}'), ARRAY['utopia', $3::text], to_jsonb($1::text)) WHERE full_name = $2`,
+    [value, repo, key],
   );
 }

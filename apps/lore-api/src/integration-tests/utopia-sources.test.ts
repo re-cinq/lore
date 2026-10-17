@@ -4,6 +4,7 @@ import {
   saveUtopiaCommitsHead,
   saveUtopiaMirrorSettings,
   saveUtopiaSource,
+  saveUtopiaTrackerSince,
   utopiaSourceFor,
 } from "../outbound/utopia-sources.js";
 
@@ -32,7 +33,7 @@ describe("lore.utopia_sources", () => {
     await pool?.end();
   });
 
-  it("keeps the commit cursor c1 and the auto_review setting when the mirror settings are saved again, and the cursor write keeps the knowledge base beside it", async () => {
+  it("keeps the commit cursor c1, the tracker cursor and the auto_review setting when the mirror settings are saved again, and each cursor write keeps the knowledge base and the other cursor beside it", async () => {
     await pool.query(
       `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged, settings)
        VALUES ('it-utopia', 'cursor', 'it-utopia/cursor', true, '{"auto_review": true}')`,
@@ -43,6 +44,11 @@ describe("lore.utopia_sources", () => {
       ontology_version: 3,
     });
     await saveUtopiaCommitsHead(pool, "it-utopia/cursor", "c1");
+    await saveUtopiaTrackerSince(
+      pool,
+      "it-utopia/cursor",
+      "2026-10-16T02:00:00Z",
+    );
     await saveUtopiaMirrorSettings(pool, "it-utopia/cursor", {
       kb_id: "kb-1",
       source_id: "src-1",
@@ -59,6 +65,7 @@ describe("lore.utopia_sources", () => {
         source_id: "src-1",
         ontology_version: 4,
         commits_head: "c1",
+        tracker_since: "2026-10-16T02:00:00Z",
       },
     });
   });

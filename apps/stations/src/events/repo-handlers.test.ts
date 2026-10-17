@@ -43,6 +43,8 @@ function triageScene(over: Partial<TriageRepoEventDeps> = {}) {
     dropOverlay: () => Promise.resolve(),
     relocateChunks: () => Promise.resolve("moved 0 of 0"),
     mirrorCommits: () => Promise.resolve("0 commits"),
+    mirrorTracker: () => Promise.resolve("0 entries"),
+    mirrorReleases: () => Promise.resolve("0 tags"),
     startIssueTriage: (repo, issueNumber, issueUrl) => {
       callOrder.push("startIssueTriage");
       started.push({ repo, issueNumber, issueUrl });
@@ -108,6 +110,16 @@ function scene() {
 
       return Promise.resolve("2 commits");
     },
+    mirrorTracker: (repo) => {
+      steps.push(`mirror tracker ${repo}`);
+
+      return Promise.resolve("1 entry");
+    },
+    mirrorReleases: (repo) => {
+      steps.push(`mirror releases ${repo}`);
+
+      return Promise.resolve("1 tag");
+    },
     startIssueTriage: () => Promise.resolve("run-1"),
     findParkedTriageVisit: () => Promise.resolve(null),
     reportTriageGate: () => Promise.resolve(),
@@ -120,7 +132,7 @@ function scene() {
 }
 
 describe("repoEventHandlers", () => {
-  it("answers exactly the label, rename, pull-request-closed, push and team-changed events", () => {
+  it("answers exactly the label, rename, pull-request-closed, push, tracker-changed, release-changed and team-changed events", () => {
     expect([...scene().handlers.keys()].sort()).toEqual(
       [...REPO_EVENTS].sort(),
     );
@@ -133,6 +145,24 @@ describe("repoEventHandlers", () => {
     await fire("github.push", { repo: "acme/widgets" });
 
     expect(steps).toEqual(["mirror commits acme/widgets main"]);
+  });
+
+  it("has lore-api mirror acme/widgets' issues and pull requests when one changed, and posts nothing for an event that names no repo", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.tracker.changed", { repo: "acme/widgets" });
+    await fire("github.tracker.changed", {});
+
+    expect(steps).toEqual(["mirror tracker acme/widgets"]);
+  });
+
+  it("has lore-api mirror acme/widgets' tags and releases when one was published, and posts nothing for an event that names no repo", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.release.changed", { repo: "acme/widgets" });
+    await fire("github.release.changed", {});
+
+    expect(steps).toEqual(["mirror releases acme/widgets"]);
   });
 
   it("queues issue 7 of acme/widgets in the loop's backlog when it is labelled lore", async () => {

@@ -47,6 +47,38 @@ const NO_HISTORY = {
   mirror: async () => LANDED,
 };
 
+const NO_ACTIVITY = {
+  repo: "re-cinq/lore",
+  tracker: { trackerActivity: async () => [] },
+  cursor: { read: async () => "2026-10-16T00:00:00Z", write: async () => {} },
+  mirror: async () => LANDED,
+};
+
+const NO_RELEASES = {
+  repo: "re-cinq/lore",
+  published: { tags: async () => [], releases: async () => [] },
+  mirror: async () => ({ ...LANDED, items: 0, created: 0, updated: 0 }),
+};
+
+const NOTHING_RELEASED = {
+  tags: 0,
+  releases: 0,
+  created: 0,
+  updated: 0,
+  unchanged: 0,
+  failed: [],
+};
+
+const NO_TRACKED = {
+  from: "2026-10-16T00:00:00Z",
+  to: null,
+  entries: 0,
+  created: 0,
+  updated: 0,
+  unchanged: 0,
+  failed: [],
+};
+
 const NO_COMMITS = {
   branch: "main",
   from: "head",
@@ -67,7 +99,7 @@ const LANDED: MirrorOutcome = {
 };
 
 describe("backfillRepo", () => {
-  it("mirrors the two specs and the ADR of main's head abc123 at abc123, skips src/index.ts, and walks main's commits above the cursor after them", async () => {
+  it("mirrors the two specs and the ADR of main's head abc123 at abc123, skips src/index.ts, and walks main's commits above the cursor and the issues and pull requests updated since its cursor and the tags and releases after them", async () => {
     const mirrored: MirroredDoc[] = [];
     const summary = await backfillRepo({
       files: filesAt([
@@ -82,6 +114,8 @@ describe("backfillRepo", () => {
         return LANDED;
       },
       history: NO_HISTORY,
+      tracker: NO_ACTIVITY,
+      releases: NO_RELEASES,
     });
 
     expect({ summary, mirrored }).toEqual({
@@ -93,6 +127,8 @@ describe("backfillRepo", () => {
         unchanged: 0,
         failed: [],
         commits: NO_COMMITS,
+        tracker: NO_TRACKED,
+        releases: NOTHING_RELEASED,
       },
       mirrored: [
         {
@@ -136,6 +172,8 @@ describe("backfillRepo", () => {
       ]),
       mirror: async ({ path }) => (outcomes[path] ?? (() => LANDED))(),
       history: NO_HISTORY,
+      tracker: NO_ACTIVITY,
+      releases: NO_RELEASES,
     });
 
     expect(summary).toEqual({
@@ -149,6 +187,8 @@ describe("backfillRepo", () => {
         "adrs/ADR-001-auth.md: 1 of 3 items failed: stmt:adrs/ADR-001-auth.md#0001: Utopia answered 503",
       ],
       commits: NO_COMMITS,
+      tracker: NO_TRACKED,
+      releases: NOTHING_RELEASED,
     });
   });
 
@@ -174,6 +214,8 @@ describe("backfillRepo", () => {
           throw new Error("Utopia answered 503");
         },
       },
+      tracker: NO_ACTIVITY,
+      releases: NO_RELEASES,
     });
 
     expect({
@@ -182,6 +224,69 @@ describe("backfillRepo", () => {
     }).toEqual({
       failed: ["c1: Utopia answered 503"],
       commits: ["c1: Utopia answered 503"],
+    });
+  });
+
+  it("names the issue or pull request the tracker walk stopped at under failed beside the documents", async () => {
+    const summary = await backfillRepo({
+      files: filesAt(["specs/a/spec.md"]),
+      mirror: async () => LANDED,
+      history: NO_HISTORY,
+      tracker: {
+        ...NO_ACTIVITY,
+        tracker: {
+          trackerActivity: async () => [
+            {
+              kind: "pull",
+              number: 6,
+              title: "Six",
+              body: "",
+              author: "gedaiu",
+              labels: [],
+              openedAt: "t",
+              closedAt: null,
+              mergedAt: null,
+              updatedAt: "u",
+            },
+          ],
+        },
+        mirror: async () => {
+          throw new Error("Utopia answered 503");
+        },
+      },
+      releases: NO_RELEASES,
+    });
+
+    expect({
+      failed: summary.failed,
+      tracker: summary.tracker?.failed,
+    }).toEqual({
+      failed: ["pull:6: Utopia answered 503"],
+      tracker: ["pull:6: Utopia answered 503"],
+    });
+  });
+
+  it("names the tag Utopia refused under failed beside the documents", async () => {
+    const summary = await backfillRepo({
+      files: filesAt(["specs/a/spec.md"]),
+      mirror: async () => LANDED,
+      history: NO_HISTORY,
+      tracker: NO_ACTIVITY,
+      releases: {
+        ...NO_RELEASES,
+        mirror: async () => ({
+          ...LANDED,
+          failed: ["tag:v1.1.0: Utopia answered 503"],
+        }),
+      },
+    });
+
+    expect({
+      failed: summary.failed,
+      releases: summary.releases?.failed,
+    }).toEqual({
+      failed: ["tag:v1.1.0: Utopia answered 503"],
+      releases: ["tag:v1.1.0: Utopia answered 503"],
     });
   });
 });
