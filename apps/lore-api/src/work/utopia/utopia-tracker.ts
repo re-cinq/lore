@@ -18,8 +18,8 @@ export interface TrackerDeps {
   mirror(entry: TrackedEntry): Promise<MirrorOutcome>;
 }
 
-/** One walk pushes this many entries at most; a longer backlog takes more walks, each resuming from the cursor. */
-export const MAX_TRACKED_PER_RUN = 2000;
+/** One walk pushes this many entries at most: each is a job Utopia's database must work through, and a 2,000-entry first walk timed out against a database already at its CPU limit (2026-10-17). A longer backlog takes more walks, each resuming from the cursor, one per changed issue or pull request and one per weekly backfill. */
+export const MAX_TRACKED_PER_RUN = 200;
 
 export function mirrorTracker(
   deps: TrackerDeps,

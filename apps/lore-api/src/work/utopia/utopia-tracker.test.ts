@@ -3,11 +3,7 @@ import type { TrackerActivityOptions } from "@re-cinq/lore-shared/project/lib/gi
 import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import { mirrorBranchCommits } from "./utopia-commits.js";
-import {
-  MAX_TRACKED_PER_RUN,
-  mirrorTracker,
-  type TrackerDeps,
-} from "./utopia-tracker.js";
+import { mirrorTracker, type TrackerDeps } from "./utopia-tracker.js";
 
 const entry = (
   kind: TrackedEntry["kind"],
@@ -70,7 +66,7 @@ function walk(setup: {
 }
 
 describe("mirrorTracker", () => {
-  it("asks for what was updated since the stored cursor with the run's limit, mirrors pull 6 then issue 5, moves the cursor to each one's update time, and answers from the cursor to the last", async () => {
+  it("asks for the 200 entries updated since the stored cursor, mirrors pull 6 then issue 5, moves the cursor to each one's update time, and answers from the cursor to the last", async () => {
     const { deps, asked, mirrored, cursors } = walk({
       cursor: "2026-10-16T00:00:00Z",
       activity: [
@@ -95,7 +91,7 @@ describe("mirrorTracker", () => {
         unchanged: 0,
         failed: [],
       },
-      asked: [{ since: "2026-10-16T00:00:00Z", limit: MAX_TRACKED_PER_RUN }],
+      asked: [{ since: "2026-10-16T00:00:00Z", limit: 200 }],
       mirrored: ["pull:6", "issue:5"],
       cursors: ["2026-10-16T01:00:00Z", "2026-10-16T02:00:00Z"],
     });
@@ -106,7 +102,7 @@ describe("mirrorTracker", () => {
 
     await mirrorTracker(deps);
 
-    expect(asked).toEqual([{ limit: MAX_TRACKED_PER_RUN }]);
+    expect(asked).toEqual([{ limit: 200 }]);
   });
 
   it("stops at pull 6, whose push Utopia refused, leaving the cursor at issue 5's update time and naming pull:6 under failed", async () => {
