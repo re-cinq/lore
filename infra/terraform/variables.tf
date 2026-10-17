@@ -216,9 +216,9 @@ variable "utopia_image_repository" {
 }
 
 variable "utopia_image_tag" {
-  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.8 = upstream dev (including deeplethe/utopia#1244, #1245, #1261, #1270) + #1234, #1237, #1250 and our open #1263, #1264, #1265, #1266 (a personal token reads the graph), #1268 (a push keeps its external_id), #1272 (role-word qualifiers in reads), #1273 (search scores and paging), #1274 (a token creates api sources), #1280 (read a document back by its external_id) and #1291 (the importer reads utopia:temporal, so an imported relation can be an event)."
+  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.9 = upstream dev (including deeplethe/utopia#1244, #1245, #1261, #1270) + #1234, #1237, #1250 and our open #1263, #1264, #1265, #1266 (a personal token reads the graph), #1268 (a push keeps its external_id), #1272 (role-word qualifiers in reads), #1273 (search scores and paging), #1274 (a token creates api sources), #1280 (read a document back by its external_id), #1291 (the importer reads utopia:temporal, so an imported relation can be an event) and perf/pushed-skip-name-vectors (a pushed name is resolved by its spelling, with no name-vector recall: deeplethe/utopia#1293, #1296)."
   type        = string
-  default     = "0.1.0-re.8"
+  default     = "0.1.0-re.9"
 }
 
 variable "utopia_data_size" {
@@ -230,7 +230,7 @@ variable "utopia_data_size" {
 variable "utopia_image_digest" {
   description = "The sha256 digest of the Utopia image to run (sha256:...). Set, it wins over utopia_image_tag: a digest names the bytes, a tag can be re-pushed. Read the running pod's imageID to pin it."
   type        = string
-  default     = "sha256:f8866e8c03a9e59b8597f91f7d8a3e7ef4a555c379a87717f6b615c358c07032"
+  default     = "sha256:ac5fc71b530f02a47aa63efb14a7264df55140627742595ed7cb06a5b1868463"
 
   validation {
     condition     = var.utopia_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.utopia_image_digest))
