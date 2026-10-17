@@ -56,7 +56,10 @@ block degrades to its frontmatter `description` with a note saying the block is
 missing.
 
 `scripts/check-skill-help.sh` enforces presence and shape in CI, so a new skill
-cannot ship invisible to the index.
+cannot ship invisible to the index. The web UI editor for org-managed skills
+(`lore.skill_definitions`, route `apps/lore-api/src/transport/routes/skill-definitions/`)
+also validates or prompts for the Help block on create and update, so a
+DB-managed skill satisfies the `skill-help` CI check before it is stored.
 
 ## Reading installed, reporting against the repo
 
