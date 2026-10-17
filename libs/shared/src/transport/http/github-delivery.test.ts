@@ -25,7 +25,7 @@ describe("githubSignature", () => {
 });
 
 describe("eventsFromGitHubDelivery", () => {
-  it("maps signed delivery d-1 of a closed pull request to github.pull_request.closed deduped on github:d-1", () => {
+  it("maps signed delivery d-1 of a closed pull request to github.pull_request.closed deduped on github:d-1 and github.tracker.changed deduped on github:d-1:utopia", () => {
     const body = JSON.stringify({
       action: "closed",
       pull_request: { number: 7, merged: true },
@@ -44,6 +44,11 @@ describe("eventsFromGitHubDelivery", () => {
         eventName: "github.pull_request.closed",
         source: "github",
         dedupeKey: "github:d-1",
+      },
+      {
+        eventName: "github.tracker.changed",
+        source: "github",
+        dedupeKey: "github:d-1:utopia",
       },
     ]);
   });

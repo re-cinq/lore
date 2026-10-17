@@ -46,6 +46,15 @@ export function taskName(repo: string, taskId: string): string {
   return `${repo}/tasks/${taskId}`;
 }
 
+/** A release and a tag are named as their GitHub page's path too, so a release and a branch-like tag with one name stay apart. */
+export function releaseName(repo: string, tag: string): string {
+  return `${repo}/releases/tag/${tag}`;
+}
+
+export function tagName(repo: string, tag: string): string {
+  return `${repo}/tree/${tag}`;
+}
+
 export function githubPage(name: string): string {
   return `https://github.com/${name}`;
 }

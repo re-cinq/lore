@@ -1,4 +1,4 @@
-// Mirrors every spec and ADR on a repo's default branch into its Utopia knowledge base, for documents ingested before the mirror existed: the files CI ingests, read at the branch's head commit and pushed through the mirror an ingest uses. The branch's commits above the stored cursor follow them.
+// Mirrors every spec and ADR on a repo's default branch into its Utopia knowledge base, for documents ingested before the mirror existed: the files CI ingests, read at the branch's head commit and pushed through the mirror an ingest uses. The branch's commits above the stored cursor follow them, then the issues and pull requests updated since theirs, then the tags and releases.
 
 import { errorMessage, mapWithLimit } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -8,11 +8,16 @@ import {
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import { mirrorCommit } from "@re-cinq/lore-shared/utopia/mirror-commits.js";
+import { mirrorTrackedEntry } from "@re-cinq/lore-shared/utopia/mirror-tracker.js";
+import { mirrorTagsAndReleases } from "@re-cinq/lore-shared/utopia/mirror-releases.js";
 import { UtopiaMirrorSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
 import type { Pool } from "pg";
 import type { UtopiaBackfillSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { saveUtopiaCommitsHead } from "../../outbound/utopia-sources.js";
+import {
+  saveUtopiaCommitsHead,
+  saveUtopiaTrackerSince,
+} from "../../outbound/utopia-sources.js";
 import {
   docsToMirror,
   INGEST_MANIFEST_PATH,
@@ -22,6 +27,8 @@ import {
   mirrorBranchCommits,
   type CommitHistoryDeps,
 } from "./utopia-commits.js";
+import { mirrorTracker, type TrackerDeps } from "./utopia-tracker.js";
+import { mirrorReleases, type ReleaseDeps } from "./utopia-releases.js";
 import {
   mirrorFailure,
   repoMirrorDeps,
@@ -40,6 +47,10 @@ export interface BackfillDeps {
   mirror(doc: MirroredDoc): Promise<MirrorOutcome>;
   /** The default branch's commits above the stored cursor, pushed after the documents (FR12). */
   history: CommitHistoryDeps;
+  /** The issues and pull requests updated since the stored cursor, pushed after the commits (FR14). */
+  tracker: TrackerDeps;
+  /** The repo's tags and published releases, pushed after the tracker walk (FR15). */
+  releases: ReleaseDeps;
 }
 
 type DocResult = Pick<MirrorOutcome, "created" | "updated" | "unchanged"> & {
@@ -55,11 +66,16 @@ export async function backfillRepo(
   const branch = await deps.files.defaultBranch();
   const documents = await backfillDocuments(deps, branch);
   const commits = await mirrorBranchCommits(deps.history, branch);
+  const tracker = await mirrorTracker(deps.tracker);
+  const releases = await mirrorReleases(deps.releases);
+  const walked = [commits, tracker, releases].flatMap((walk) => walk.failed);
 
   return {
     ...documents,
-    failed: [...documents.failed, ...commits.failed],
+    failed: [...documents.failed, ...walked],
     commits,
+    tracker,
+    releases,
   };
 }
 
@@ -126,38 +142,72 @@ export async function backfillDepsFor(
     return null;
   }
   const { repo: files, settings } = await projectFor(repo);
+  const walks: WalkSource = { pool, repo, mirror, files, settings };
 
   return {
     files,
     mirror: (doc) => mirrorDocument(mirror, { repo, ...doc }),
-    history: commitHistoryDepsFor(pool, repo, mirror, { files, settings }),
+    history: commitHistoryDepsFor(walks),
+    tracker: trackerDepsFor(walks),
+    releases: releaseDepsFor(walks),
   };
 }
 
-function commitHistoryDepsFor(
-  pool: Pool,
-  repo: string,
-  mirror: MirrorDeps,
-  project: {
-    files: CommitHistoryDeps["history"];
-    settings: { rawSettings(): Promise<Record<string, unknown> | null> };
-  },
-): CommitHistoryDeps {
+/** What the walks read and write through: the repo's GitHub reads, its settings, where the cursors are saved, and its source. */
+interface WalkSource {
+  pool: Pool;
+  repo: string;
+  mirror: MirrorDeps;
+  files: CommitHistoryDeps["history"] &
+    TrackerDeps["tracker"] &
+    ReleaseDeps["published"];
+  settings: { rawSettings(): Promise<Record<string, unknown> | null> };
+}
+
+function commitHistoryDepsFor(source: WalkSource): CommitHistoryDeps {
+  const { pool, repo, mirror } = source;
+
   return {
     repo,
-    history: project.files,
+    history: source.files,
     cursor: {
-      read: async () => commitsHeadOf(await project.settings.rawSettings()),
+      read: () => storedCursor(source, "commits_head"),
       write: (sha) => saveUtopiaCommitsHead(pool, repo, sha),
     },
     mirror: (commit) => mirrorCommit(mirror, repo, commit),
   };
 }
 
-function commitsHeadOf(
-  settings: Record<string, unknown> | null,
-): string | null {
+function trackerDepsFor(source: WalkSource): TrackerDeps {
+  const { pool, repo, mirror } = source;
+
+  return {
+    repo,
+    tracker: source.files,
+    cursor: {
+      read: () => storedCursor(source, "tracker_since"),
+      write: (since) => saveUtopiaTrackerSince(pool, repo, since),
+    },
+    mirror: (entry) => mirrorTrackedEntry(mirror, repo, entry),
+  };
+}
+
+function releaseDepsFor(source: WalkSource): ReleaseDeps {
+  const { repo, mirror } = source;
+
+  return {
+    repo,
+    published: source.files,
+    mirror: (published) => mirrorTagsAndReleases(mirror, repo, published),
+  };
+}
+
+async function storedCursor(
+  source: WalkSource,
+  key: "commits_head" | "tracker_since",
+): Promise<string | null> {
+  const settings = await source.settings.rawSettings();
   const parsed = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
 
-  return parsed.success ? (parsed.data.commits_head ?? null) : null;
+  return parsed.success ? (parsed.data[key] ?? null) : null;
 }

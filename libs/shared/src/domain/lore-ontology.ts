@@ -1,9 +1,9 @@
-// The Lore traceability ontology Utopia is given: the chain Repository → Document → Section → Statement → Test / Code, and the Commit → PullRequest → Issue / Task history that changed it, kept as turtle beside this module and copied beside dist by the build.
+// The Lore traceability ontology Utopia is given: the chain Repository → Document → Section → Statement → Test / Code, the Commit → PullRequest → Issue / Task history that changed it, and the Release → Tag → Commit it was released as, kept as turtle beside this module and copied beside dist by the build.
 
 import { readFile } from "node:fs/promises";
 
 /** Bumped when lore-ontology.ttl changes shape; a repo whose settings hold an older number is re-set up. */
-export const LORE_ONTOLOGY_VERSION = 4;
+export const LORE_ONTOLOGY_VERSION = 5;
 
 export interface LoreKindWord {
   /** The class label, which is the kind word a pushed entity carries. */
@@ -28,6 +28,8 @@ export const LORE_KIND_WORDS: ReadonlyArray<LoreKindWord> = [
   { word: "PullRequest", classKey: "pull_request" },
   { word: "Issue", classKey: "issue" },
   { word: "Task", classKey: "task" },
+  { word: "Release", classKey: "release" },
+  { word: "Tag", classKey: "tag" },
 ];
 
 export function loreOntologyTurtle(): Promise<string> {

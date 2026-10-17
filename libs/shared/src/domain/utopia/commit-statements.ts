@@ -1,19 +1,9 @@
 // One commit of the default branch as a Utopia statement item: Repository contains Commit, the commit's words, author and time, the parents it follows, and the pull request it merges with the issues and the Lore task that pull request names. The files it changed are not named: each would be an entity Utopia resolves against the whole base. Which files a commit changed is read from the repository.
 
-import {
-  linkedIssues,
-  loreTaskIdOf,
-  mergedPullRequestNumber,
-  type LinkedIssue,
-} from "../pr-body.js";
+import { mergedPullRequestNumber } from "../pr-body.js";
 import { cutText, joinFragments, type Fragment } from "./fragments.js";
-import {
-  commitName,
-  githubPage,
-  issueName,
-  pullRequestName,
-  taskName,
-} from "./names.js";
+import { commitName, githubPage, pullRequestName } from "./names.js";
+import { bodyLinks, trackedStub } from "./pull-request-links.js";
 import {
   attribute,
   relation,
@@ -92,69 +82,11 @@ function pullRequestFragment(repo: string, commit: MirroredCommit): Fragment {
     return { e: [], s: [] };
   }
   const name = pullRequestName(repo, number);
-  const issues = linkedIssues(commit.body).map((issue) =>
-    issueFragment(repo, name, issue),
-  );
-  const task = taskFragment(repo, name, loreTaskIdOf(commit.body));
-
-  return joinFragments(pullRequestHead(repo, commit.sha, name, number), [
-    ...issues,
-    task,
-  ]);
-}
-
-function pullRequestHead(
-  repo: string,
-  sha: string,
-  name: string,
-  number: number,
-): Fragment {
-  return {
-    e: [[name, "PullRequest", true]],
-    s: [
-      relation(commitName(repo, sha), "merges", name),
-      relation(repo, "contains", name),
-      attribute(name, "number", String(number)),
-      attribute(name, "permalink", githubPage(name)),
-    ],
+  const stub = trackedStub(repo, "pull", number);
+  const head: Fragment = {
+    e: stub.e,
+    s: [relation(commitName(repo, commit.sha), "merges", name), ...stub.s],
   };
-}
 
-/** `Closes #N` is a claim to resolve the issue and `Refs #N` only relates to it (the footer of a partial pull request), so each is its own relation. */
-function issueFragment(
-  repo: string,
-  pullRequest: string,
-  issue: LinkedIssue,
-): Fragment {
-  const name = issueName(repo, issue.number);
-
-  return {
-    e: [[name, "Issue", true]],
-    s: [
-      relation(pullRequest, issue.resolves ? "closes" : "refers_to", name),
-      relation(repo, "contains", name),
-      attribute(name, "number", String(issue.number)),
-      attribute(name, "permalink", githubPage(name)),
-    ],
-  };
-}
-
-function taskFragment(
-  repo: string,
-  pullRequest: string,
-  taskId: string | null,
-): Fragment {
-  if (taskId === null) {
-    return { e: [], s: [] };
-  }
-  const name = taskName(repo, taskId);
-
-  return {
-    e: [[name, "Task", true]],
-    s: [
-      relation(pullRequest, "delivers", name),
-      relation(repo, "contains", name),
-      attribute(name, "task_id", taskId),
-    ],
-  };
+  return joinFragments(head, bodyLinks(repo, name, commit.body));
 }

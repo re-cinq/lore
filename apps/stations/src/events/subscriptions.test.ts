@@ -80,6 +80,18 @@ describe("the review events, which only a deployment with a floor asks for", () 
     );
   });
 
+  it("claims github.tracker.changed whether or not a floor is configured, so an edited issue or pull request reaches the Utopia tracker mirror", () => {
+    expect(stationSubscriptions({}).map((s) => s.eventName)).toContain(
+      "github.tracker.changed",
+    );
+  });
+
+  it("claims github.release.changed whether or not a floor is configured, so a published release reaches the Utopia release mirror", () => {
+    expect(stationSubscriptions({}).map((s) => s.eventName)).toContain(
+      "github.release.changed",
+    );
+  });
+
   it("claims the label and rename events whether or not a floor is configured", () => {
     const names = stationSubscriptions({}).map((s) => s.eventName);
 

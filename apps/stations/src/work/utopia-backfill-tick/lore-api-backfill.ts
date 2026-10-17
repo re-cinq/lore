@@ -48,6 +48,22 @@ export function postUtopiaCommits(
   return postLoreApi(target, `/api/repos/${repo}/utopia/commits`, { branch });
 }
 
+/** The tracker walk of one repo: the issues and pull requests updated since the cursor lore-api holds. */
+export function postUtopiaTracker(
+  target: LoreApiTarget,
+  repo: string,
+): Promise<BackfillAnswer> {
+  return postLoreApi(target, `/api/repos/${repo}/utopia/tracker`);
+}
+
+/** The push of one repo's tags and published releases. */
+export function postUtopiaReleases(
+  target: LoreApiTarget,
+  repo: string,
+): Promise<BackfillAnswer> {
+  return postLoreApi(target, `/api/repos/${repo}/utopia/releases`);
+}
+
 function postLoreApi(
   target: LoreApiTarget,
   path: string,

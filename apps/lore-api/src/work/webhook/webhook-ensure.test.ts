@@ -34,7 +34,7 @@ describe("ensureLoreWebhook", () => {
     expect(ensureRepoWebhook).not.toHaveBeenCalled();
   });
 
-  it("ensures the hook with the secret and the required events, push among them", async () => {
+  it("ensures the hook with the secret and the required events, push, release and create among them", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
     process.env.LORE_WEBHOOK_SECRET = "s3cr3t";
     vi.mocked(ensureRepoWebhook).mockResolvedValue({
@@ -57,6 +57,8 @@ describe("ensureLoreWebhook", () => {
         "issues",
         "repository",
         "push",
+        "release",
+        "create",
       ]),
     );
   });

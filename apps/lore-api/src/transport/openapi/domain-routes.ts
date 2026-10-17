@@ -40,6 +40,10 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/assembly-runs/{id}/upgrade",
   // The repo is the path param; what to mirror is read from its default branch.
   "POST /api/repos/{owner}/{repo}/utopia/backfill",
+  // The repo is the path param; where to start is the cursor its settings hold.
+  "POST /api/repos/{owner}/{repo}/utopia/tracker",
+  // The repo is the path param; every tag and published release is read from GitHub.
+  "POST /api/repos/{owner}/{repo}/utopia/releases",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

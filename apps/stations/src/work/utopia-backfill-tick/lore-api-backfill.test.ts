@@ -10,6 +10,8 @@ import {
   loreApiTarget,
   postBackfill,
   postUtopiaCommits,
+  postUtopiaReleases,
+  postUtopiaTracker,
 } from "./lore-api-backfill.js";
 
 const servers: Server[] = [];
@@ -97,6 +99,44 @@ describe("postBackfill", () => {
       url: "/api/repos/re-cinq/lore/utopia/commits",
       authorization: "Bearer tok-1",
       body: '{"branch":"main"}',
+    });
+  });
+
+  it("posts re-cinq/lore's tracker walk with the station token and no body, and answers the 200 whole", async () => {
+    const { baseUrl, seen } = await loreApi((res) =>
+      res.writeHead(200).end('{"entries":0}'),
+    );
+
+    expect(
+      await postUtopiaTracker(
+        { baseUrl, token: "tok-1", timeoutMs: 5_000 },
+        "re-cinq/lore",
+      ),
+    ).toEqual({ status: 200, body: '{"entries":0}' });
+    expect(seen).toEqual({
+      method: "POST",
+      url: "/api/repos/re-cinq/lore/utopia/tracker",
+      authorization: "Bearer tok-1",
+      body: "",
+    });
+  });
+
+  it("posts re-cinq/lore's release push with the station token and no body, and answers the 200 whole", async () => {
+    const { baseUrl, seen } = await loreApi((res) =>
+      res.writeHead(200).end('{"tags":0}'),
+    );
+
+    expect(
+      await postUtopiaReleases(
+        { baseUrl, token: "tok-1", timeoutMs: 5_000 },
+        "re-cinq/lore",
+      ),
+    ).toEqual({ status: 200, body: '{"tags":0}' });
+    expect(seen).toEqual({
+      method: "POST",
+      url: "/api/repos/re-cinq/lore/utopia/releases",
+      authorization: "Bearer tok-1",
+      body: "",
     });
   });
 

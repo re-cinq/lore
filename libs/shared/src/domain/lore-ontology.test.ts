@@ -6,7 +6,7 @@ import {
 } from "./lore-ontology.js";
 
 describe("lore ontology", () => {
-  it("binds the fourteen class labels of the chain and its history to their snake_case class keys", () => {
+  it("binds the sixteen class labels of the chain and its history to their snake_case class keys", () => {
     const snakeCase = (word: string) =>
       word.replace(/(?<=[a-z])([A-Z])/g, "_$1").toLowerCase();
 
@@ -26,23 +26,25 @@ describe("lore ontology", () => {
         "PullRequest",
         "Issue",
         "Task",
+        "Release",
+        "Tag",
       ].map((word) => ({ word, classKey: snakeCase(word) })),
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 4", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 5", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 4,
+      version: 5,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });
 
-  it("declares text on Section, Statement and Commit and title on Document and Commit, both strings, so a pushed statement's words and a document's title are attributes the base knows", async () => {
+  it("declares text on Section, Statement, Commit, PullRequest, Issue and Release and title on Document, Commit, PullRequest, Issue and Release, both strings, so a pushed statement's words, a pull request's body and a document's title are attributes the base knows", async () => {
     const turtle = await loreOntologyTurtle();
     const declaration = (property: string) =>
       new RegExp(
@@ -53,8 +55,9 @@ describe("lore ontology", () => {
       text: declaration("text")?.trim(),
       title: declaration("title")?.trim(),
     }).toEqual({
-      text: "lore:Section, lore:Statement, lore:Commit",
-      title: "lore:Document, lore:Test, lore:Section, lore:Commit",
+      text: "lore:Section, lore:Statement, lore:Commit, lore:PullRequest, lore:Issue, lore:Release",
+      title:
+        "lore:Document, lore:Test, lore:Section, lore:Commit, lore:PullRequest, lore:Issue, lore:Release",
     });
   });
 
@@ -79,7 +82,7 @@ describe("lore ontology", () => {
       commit: ["lore:Document, lore:SourceFile, lore:Test", "xsd:string"],
       contains: [
         "lore:Repository, lore:Document, lore:Section, lore:SourceFile",
-        "lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test, lore:Commit, lore:PullRequest, lore:Issue, lore:Task",
+        "lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag",
       ],
     });
   });
@@ -122,7 +125,7 @@ describe("lore ontology", () => {
       .length;
 
     expect({ declared, temporalOf: Object.fromEntries(temporalOf) }).toEqual({
-      declared: 15,
+      declared: 17,
       temporalOf: {
         contains: "eternal",
         validated_by: "eternal",
@@ -139,7 +142,52 @@ describe("lore ontology", () => {
         closes: "event",
         refers_to: "event",
         delivers: "event",
+        points_to: "eternal",
+        publishes: "eternal",
       },
+    });
+  });
+
+  it("declares points_to from Tag to Commit, publishes from Release to Tag, and the tracker attributes state, labels, opened_at, closed_at, merged_at, published_at and tag, so a pull request, an issue and a release are terms the base knows", async () => {
+    const turtle = await loreOntologyTurtle();
+    const declaration = (property: string) =>
+      new RegExp(
+        String.raw`lore:${property} a owl:\w+ ;[\s\S]*?rdfs:domain ([^;]*);\s*rdfs:range ([^.]*) \.`,
+      )
+        .exec(turtle)
+        ?.slice(1)
+        .map((part) => part.trim());
+
+    expect({
+      pointsTo: declaration("points_to"),
+      publishes: declaration("publishes"),
+      author: declaration("author"),
+      state: declaration("state"),
+      labels: declaration("labels"),
+      openedAt: declaration("opened_at"),
+      closedAt: declaration("closed_at"),
+      mergedAt: declaration("merged_at"),
+      publishedAt: declaration("published_at"),
+      tag: declaration("tag"),
+      permalink: declaration("permalink"),
+    }).toEqual({
+      pointsTo: ["lore:Tag", "lore:Commit"],
+      publishes: ["lore:Release", "lore:Tag"],
+      author: [
+        "lore:Commit, lore:PullRequest, lore:Issue, lore:Release",
+        "xsd:string",
+      ],
+      state: ["lore:PullRequest, lore:Issue", "xsd:string"],
+      labels: ["lore:PullRequest, lore:Issue", "xsd:string"],
+      openedAt: ["lore:PullRequest, lore:Issue", "xsd:dateTime"],
+      closedAt: ["lore:PullRequest, lore:Issue", "xsd:dateTime"],
+      mergedAt: ["lore:PullRequest", "xsd:dateTime"],
+      publishedAt: ["lore:Release", "xsd:dateTime"],
+      tag: ["lore:Release, lore:Tag", "xsd:string"],
+      permalink: [
+        "lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Release, lore:Tag",
+        "xsd:anyURI",
+      ],
     });
   });
 });

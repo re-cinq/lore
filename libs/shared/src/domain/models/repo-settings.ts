@@ -36,6 +36,8 @@ export const UtopiaMirrorSettingsSchema = z.object({
   ontology_version: z.number().optional(),
   /** The newest default-branch commit the commit mirror pushed; the next walk starts above it. */
   commits_head: z.string().optional(),
+  /** The update time of the newest issue or pull request the tracker mirror pushed; the next walk asks from it. */
+  tracker_since: z.string().optional(),
 });
 
 export type UtopiaMirrorSettings = z.infer<typeof UtopiaMirrorSettingsSchema>;

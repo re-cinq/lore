@@ -3,7 +3,13 @@ import type {
   CheckRunInput,
   CommitDetail,
   GitHubPort,
+  TrackerActivityOptions,
 } from "../lib/github-port.js";
+import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type {
+  ReleaseEntry,
+  TagEntry,
+} from "../../../domain/utopia/release-statements.js";
 
 /** GitHub file access via API (no clone required); use Workspace for bulk edits. */
 export class RepoFiles {
@@ -33,6 +39,18 @@ export class RepoFiles {
     opts: BranchHistoryOptions,
   ): Promise<CommitDetail[]> {
     return this.github.listBranchHistory(this.repo, branch, opts);
+  }
+
+  trackerActivity(opts: TrackerActivityOptions): Promise<TrackedEntry[]> {
+    return this.github.listTrackerActivity(this.repo, opts);
+  }
+
+  releases(): Promise<ReleaseEntry[]> {
+    return this.github.listReleases(this.repo);
+  }
+
+  tags(): Promise<TagEntry[]> {
+    return this.github.listTags(this.repo);
   }
 
   defaultBranch(): Promise<string> {
