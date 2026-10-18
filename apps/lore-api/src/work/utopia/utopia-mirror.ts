@@ -18,7 +18,7 @@ import {
 import {
   mirrorDocument,
   tombstoneDocument,
-  type MirrorDeps,
+  type DocMirrorDeps,
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import {
@@ -158,23 +158,24 @@ function reportRuns(
   };
 }
 
-function mirrorDepsFor(repo: string): Promise<MirrorDeps | null> {
+function mirrorDepsFor(repo: string): Promise<DocMirrorDeps | null> {
   return utopiaConfigured()
     ? repoMirrorDeps(getPool(), repo)
     : Promise.resolve(null);
 }
 
-/** Pushes to the repo's source, or null when it has none to mirror to (see {@link sourceToMirror}). */
+/** Pushes to the repo's source and reads its test files from GitHub, or null when it has none to mirror to (see {@link sourceToMirror}). */
 export async function repoMirrorDeps(
   pool: Pool,
   repo: string,
-): Promise<MirrorDeps | null> {
-  const { settings } = await projectFor(repo);
+): Promise<DocMirrorDeps | null> {
+  const { settings, repo: files } = await projectFor(repo);
   const source = await sourceToMirror(pool, repo, await settings.rawSettings());
 
   return (
     source && {
       push: (pushed) => utopiaClient().pushStatements(source, pushed),
+      readTest: (path, commit) => files.read(path, commit),
     }
   );
 }

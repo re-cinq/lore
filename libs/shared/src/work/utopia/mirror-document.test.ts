@@ -92,6 +92,40 @@ describe("mirrorDocument", () => {
   });
 });
 
+describe("mirrorDocument test titles", () => {
+  it("reads src/a.test.ts and src/gone.test.ts at the commit and names the a.test.ts:3 link by its it title, linking nothing for the file that is gone", async () => {
+    const { pushed, deps } = recorder(() => "created");
+    const reads: string[] = [];
+    const readTest = async (path: string, commit: string) => {
+      reads.push(`${path}@${commit}`);
+
+      return path === "src/a.test.ts"
+        ? 'describe("mirror", () => {\n  it("pushes the doc item", () => {});\n});'
+        : null;
+    };
+
+    await mirrorDocument(
+      { ...deps, readTest },
+      {
+        ...input,
+        content:
+          "## Chain\n\n- FR1 — Pushed. ([validated by `a.test.ts:3`](src/a.test.ts#L2), [`gone.test.ts:1`](src/gone.test.ts#L1))\n",
+      },
+    );
+
+    expect({ reads, statement: pushed[1] }).toMatchObject({
+      reads: [`src/a.test.ts@${COMMIT}`, `src/gone.test.ts@${COMMIT}`],
+      statement: {
+        e: [
+          ["re-cinq/lore:specs/mirror/spec.md#chain", "Section", true],
+          ["re-cinq/lore:specs/mirror/spec.md#s0000", "Statement", true],
+          ["re-cinq/lore:src/a.test.ts::pushes the doc item", "Test", true],
+        ],
+      },
+    });
+  });
+});
+
 describe("tombstoneDocument", () => {
   it("tombstones the doc item and the statement items of the ordinals it is given", async () => {
     const { pushed, deps } = recorder(() => "marked_missing");

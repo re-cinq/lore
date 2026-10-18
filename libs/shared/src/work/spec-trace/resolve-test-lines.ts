@@ -1,21 +1,16 @@
 /** Per-it line resolver (ADR-023); scans test source for it/test declarations and stamps [startLine, endLine] on matching descriptors. */
 
 import type { TestDescriptor } from "../../domain/test-report.js";
-
-/** `it("…")` / `test('…')` / `it.skip(`…`)` at the start of a line; group 2 is the test string. */
-const DECLARATION =
-  /^\s*(?:it|test)(?:\.(?:only|skip|todo|concurrent|sequential|fails))?\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/;
-
-interface Declaration {
-  name: string;
-  line: number;
-}
+import {
+  testDeclarations,
+  type TestDeclaration,
+} from "../../domain/spec-trace/test-declarations.js";
 
 export function resolveTestLines(
   content: string,
   descriptors: TestDescriptor[],
 ): TestDescriptor[] {
-  const declarations = findDeclarations(content);
+  const declarations = testDeclarations(content);
   const lastLine = content.split("\n").length;
 
   return descriptors.map((descriptor) =>
@@ -23,25 +18,10 @@ export function resolveTestLines(
   );
 }
 
-function findDeclarations(content: string): Declaration[] {
-  const declarations: Declaration[] = [];
-  const lines = content.split("\n");
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const match = DECLARATION.exec(lines[index]);
-
-    if (match) {
-      declarations.push({ name: match[2], line: index + 1 });
-    }
-  }
-
-  return declarations;
-}
-
 /** One descriptor stamped with the [startLine, endLine] of its matching declaration; unmatched descriptors pass through untouched. */
 function stampLines(
   descriptor: TestDescriptor,
-  declarations: Declaration[],
+  declarations: TestDeclaration[],
   lastLine: number,
 ): TestDescriptor {
   const leaf = leafName(descriptor.name);
