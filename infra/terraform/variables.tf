@@ -216,9 +216,9 @@ variable "utopia_image_repository" {
 }
 
 variable "utopia_image_tag" {
-  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.13 = upstream dev (including deeplethe/utopia#1244, #1245, #1261, #1270) + #1234, #1237, #1250 and our open #1263, #1264, #1265, #1266 (a personal token reads the graph), #1268 (a push keeps its external_id), #1272 (role-word qualifiers in reads), #1273 (search scores and paging), #1274 (a token creates api sources), #1280 (read a document back by its external_id), #1291 (the importer reads utopia:temporal, so an imported relation can be an event) and perf/pushed-skip-name-vectors (a pushed name is resolved by its spelling, with no name-vector recall: deeplethe/utopia#1293, #1296), perf/bind-declared-skip-settled (signatures the ontology already bound, or cannot bind, are not recounted per push) perf/name-vectors-job (name vectors are filled by one job per base, not a scan per document) and re-cinq/utopia#2 (a pushed document is never due for errata review, RC-001). From re.12 on, releases are built by re-cinq/utopia's release workflow; re.13 adds a typed recompute that plans its statements for the base it is given (re-cinq/utopia#3, deeplethe/utopia#1298), the utopia:temporal review fixes (#4) and an index on fact_evidence(document_id) (#5, fork migration 9000)."
+  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.14 = upstream dev (including deeplethe/utopia#1244, #1245, #1261, #1270) + #1234, #1237, #1250 and our open #1263, #1264, #1265, #1266 (a personal token reads the graph), #1268 (a push keeps its external_id), #1272 (role-word qualifiers in reads), #1273 (search scores and paging), #1274 (a token creates api sources), #1280 (read a document back by its external_id), #1291 (the importer reads utopia:temporal, so an imported relation can be an event) and perf/pushed-skip-name-vectors (a pushed name is resolved by its spelling, with no name-vector recall: deeplethe/utopia#1293, #1296), perf/bind-declared-skip-settled (signatures the ontology already bound, or cannot bind, are not recounted per push) perf/name-vectors-job (name vectors are filled by one job per base, not a scan per document) and re-cinq/utopia#2 (a pushed document is never due for errata review, RC-001). From re.12 on, releases are built by re-cinq/utopia's release workflow; re.13 adds a typed recompute that plans its statements for the base it is given (re-cinq/utopia#3, deeplethe/utopia#1298), the utopia:temporal review fixes (#4) and an index on fact_evidence(document_id) (#5, fork migration 9000); re.14 resolves a pushed name by its spelling alone, with no containment recall (re-cinq/utopia#6, RC-002)."
   type        = string
-  default     = "0.1.0-re.13"
+  default     = "0.1.0-re.14"
 }
 
 variable "utopia_data_size" {
@@ -230,7 +230,7 @@ variable "utopia_data_size" {
 variable "utopia_image_digest" {
   description = "The sha256 digest of the Utopia image to run (sha256:...). Set, it wins over utopia_image_tag: a digest names the bytes, a tag can be re-pushed. Read the running pod's imageID to pin it."
   type        = string
-  default     = "sha256:4ac26d9fa7d9ee365a563e3ed536ecb106b92edc0763da64a6add734a7a74892"
+  default     = "sha256:1065ef5efb328bec5e5af1027472e57e0461560feceafa6144511642885a9fcf"
 
   validation {
     condition     = var.utopia_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.utopia_image_digest))
