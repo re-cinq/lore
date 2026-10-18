@@ -152,3 +152,11 @@ A commit tells the mirror a pull request's number and the issues its body names,
 Reviews, review comments and conversation comments are not mirrored, and a deleted issue, release or tag keeps its last item.
 
 **Bumping to version 5 and the pending re.8 reset.** Once version 5 deploys, every base below 5 re-imports the ontology on its next mirrored push. If Utopia re.8 is already running, that re-import types every relation, and the manual `4 → 3` reset planned for re.8 is no longer needed. If version 5 deploys before re.8, the bases store 5 with every relation typed `state`, and the reset becomes `5 → 4`.
+
+## Amendment 2026-10-18: Lore's classes are disjoint
+
+Utopia's duplicates queue filled with pairs of Lore entities of different classes whose names contain each other: a spec `owner/repo:specs/x/spec.md` and its statement `owner/repo:specs/x/spec.md#s0003`, a source file and a definition inside it. Utopia's containment and type-drift resolution skip a pair whose classes are declared `owl:disjointWith`, inheriting the declaration down `rdfs:subClassOf`, and its importer reads only the pairwise triple, not `owl:AllDisjointClasses`. Version 6 of the ontology completes the pairwise declarations so that every two of the fourteen leaf classes are disjoint (specs/utopia-graph-mirror FR1.5): Section, Statement and Test were not yet declared against Commit, PullRequest, Issue and Task, nor against the tracker classes Release and Tag that version 5 added. A class is never declared disjoint with its own superclass, which Utopia reports as an unsatisfiable class.
+
+Since Utopia re.9 a pushed name is resolved by its spelling, so two Lore items naming the same path already meet on one entity and two different names no longer collide on a near match. What the declarations still close are the containment and type-drift pairs Utopia proposes for entities named in prose, a statement's words or a pull request's description, and they keep a typed read from finding a Statement where it asked for a Spec. They do not stop the proposals Utopia makes from name vectors, which read no declaration (deeplethe/utopia#1293).
+
+Once version 6 deploys, every base below 6 re-imports the ontology on its next mirrored push, as the version-5 bump did.

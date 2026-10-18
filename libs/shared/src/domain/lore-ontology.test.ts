@@ -32,14 +32,14 @@ describe("lore ontology", () => {
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 5", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 6", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 5,
+      version: 6,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });
@@ -189,5 +189,67 @@ describe("lore ontology", () => {
         "xsd:anyURI",
       ],
     });
+  });
+
+  it("declares every pair of Lore's leaf classes disjoint, so Utopia never proposes a Spec and its Statement as one entity", async () => {
+    const turtle = await loreOntologyTurtle();
+    const blocks = [
+      ...turtle.matchAll(/lore:(\w+) a owl:Class ;([\s\S]*?) \.\n/g),
+    ];
+    const objectsOf = (body: string, predicate: string) =>
+      [...body.matchAll(new RegExp(String.raw`${predicate} ([^;]*)`, "g"))]
+        .flatMap(([, objects]) => objects.split(","))
+        .map((object) => object.trim().replace("lore:", ""));
+    const parentOf = new Map(
+      blocks.flatMap(([, name, body]) =>
+        objectsOf(body, "rdfs:subClassOf").map((parent) => [name, parent]),
+      ),
+    );
+    const declared = new Set(
+      blocks.flatMap(([, name, body]) =>
+        objectsOf(body, "owl:disjointWith").flatMap((other) => [
+          `${name}|${other}`,
+          `${other}|${name}`,
+        ]),
+      ),
+    );
+    const selfAndAncestors = (name: string): string[] => {
+      const parent = parentOf.get(name);
+
+      return parent ? [name, ...selfAndAncestors(parent)] : [name];
+    };
+    const pairsOf = (classes: string[]) =>
+      classes.flatMap((a, index) =>
+        classes.slice(index + 1).map((b) => `${a}|${b}`),
+      );
+    const leaves = blocks
+      .map(([, name]) => name)
+      .filter((name) => ![...parentOf.values()].includes(name));
+    const disjoint = pairsOf(leaves).filter((pair) => {
+      const [a, b] = pair.split("|");
+
+      return selfAndAncestors(a).some((left) =>
+        selfAndAncestors(b).some((right) => declared.has(`${left}|${right}`)),
+      );
+    });
+
+    expect(disjoint).toEqual(
+      pairsOf([
+        "Repository",
+        "Spec",
+        "Adr",
+        "Section",
+        "Statement",
+        "Test",
+        "SourceFile",
+        "CodeDefinition",
+        "Commit",
+        "PullRequest",
+        "Issue",
+        "Task",
+        "Release",
+        "Tag",
+      ]),
+    );
   });
 });
