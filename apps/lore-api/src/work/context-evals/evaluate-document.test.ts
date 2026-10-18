@@ -13,9 +13,9 @@ const QUESTION = "Can the MCP server query Postgres directly?";
 const ASSEMBLED: AssembledForEval = {
   text: "<context>the adapter holds no database pool</context>",
   sources: [
-    { path: ADR, tokens: 400 },
-    { path: "docs/mcp-tools-reference.md", tokens: 200 },
-    { path: "eslint.config.mjs", tokens: 400 },
+    { path: ADR, section: "adrs", tokens: 400 },
+    { path: "docs/mcp-tools-reference.md", section: "repo", tokens: 200 },
+    { path: "eslint.config.mjs", section: "code", tokens: 400 },
   ],
 };
 
@@ -71,6 +71,21 @@ describe("evaluateDocument", () => {
       useful_share: 0.6,
       reason: "Agrees with the decision.",
       model: "gemini-2.5-flash",
+      sources: [
+        { path: ADR, section: "adrs", tokens: 400, used: true },
+        {
+          path: "docs/mcp-tools-reference.md",
+          section: "repo",
+          tokens: 200,
+          used: true,
+        },
+        {
+          path: "eslint.config.mjs",
+          section: "code",
+          tokens: 400,
+          used: false,
+        },
+      ],
     });
   });
 
@@ -86,7 +101,7 @@ describe("evaluateDocument", () => {
     const { deps } = scenario({
       assembled: {
         text: "<context>lint rules</context>",
-        sources: [{ path: "eslint.config.mjs", tokens: 400 }],
+        sources: [{ path: "eslint.config.mjs", section: "code", tokens: 400 }],
       },
       verdict: {
         used_sources: [],
@@ -261,8 +276,8 @@ describe("evaluateDocument", () => {
 const UTOPIA_ASSEMBLED: AssembledForEval = {
   text: "<context>no pool in the adapter</context>",
   sources: [
-    { path: ADR, tokens: 500 },
-    { path: "specs/mcp-server/spec.md", tokens: 500 },
+    { path: ADR, section: "adrs", tokens: 500 },
+    { path: "specs/mcp-server/spec.md", section: "repo", tokens: 500 },
   ],
 };
 
@@ -300,6 +315,21 @@ describe("evaluateDocument with backend both", () => {
         reason: "Agrees with the decision.",
         model: "gemini-2.5-flash",
         latency_ms: 120,
+        sources: [
+          { path: ADR, section: "adrs", tokens: 400, used: true },
+          {
+            path: "docs/mcp-tools-reference.md",
+            section: "repo",
+            tokens: 200,
+            used: true,
+          },
+          {
+            path: "eslint.config.mjs",
+            section: "code",
+            tokens: 400,
+            used: false,
+          },
+        ],
       },
       utopia: {
         found: true,
@@ -308,6 +338,15 @@ describe("evaluateDocument with backend both", () => {
         reason: "Agrees with the decision.",
         model: "gemini-2.5-flash",
         latency_ms: 340,
+        sources: [
+          { path: ADR, section: "adrs", tokens: 500, used: true },
+          {
+            path: "specs/mcp-server/spec.md",
+            section: "repo",
+            tokens: 500,
+            used: false,
+          },
+        ],
       },
       top_k_overlap: 0.25,
       only_answered_by: null,

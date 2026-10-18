@@ -41,8 +41,8 @@ describe("POST /api/context-evals", () => {
       assemble: async () => ({
         text: "<context/>",
         sources: [
-          { path: ADR, tokens: 300 },
-          { path: "eslint.config.mjs", tokens: 100 },
+          { path: ADR, section: "adrs", tokens: 300 },
+          { path: "eslint.config.mjs", section: "code", tokens: 100 },
         ],
       }),
     });
@@ -64,6 +64,15 @@ describe("POST /api/context-evals", () => {
       useful_share: 0.75,
       reason: "Agrees with the decision.",
       model: "gemini-2.5-flash",
+      sources: [
+        { path: ADR, section: "adrs", tokens: 300, used: true },
+        {
+          path: "eslint.config.mjs",
+          section: "code",
+          tokens: 100,
+          used: false,
+        },
+      ],
     });
   });
 
@@ -163,7 +172,10 @@ describe("POST /api/context-evals", () => {
         now += 50;
 
         return backend === "lore"
-          ? { text: "<context/>", sources: [{ path: ADR, tokens: 300 }] }
+          ? {
+              text: "<context/>",
+              sources: [{ path: ADR, section: "adrs", tokens: 300 }],
+            }
           : { text: "", sources: [] };
       },
     });
@@ -183,6 +195,7 @@ describe("POST /api/context-evals", () => {
         reason: "Agrees with the decision.",
         model: "gemini-2.5-flash",
         latency_ms: 50,
+        sources: [{ path: ADR, section: "adrs", tokens: 300, used: true }],
       },
       utopia: {
         found: false,
@@ -191,6 +204,7 @@ describe("POST /api/context-evals", () => {
         reason: "Lore returned no context for the question",
         model: "",
         latency_ms: 50,
+        sources: [],
       },
       top_k_overlap: 0,
       only_answered_by: "lore",

@@ -199,6 +199,7 @@ test("counts a document lore-api answers 500 for as neither found nor answered, 
       useful_share: 0,
       reason: "lore-api answered 500: boom",
       model: "",
+      sources: [],
     },
   ]);
 });

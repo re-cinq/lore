@@ -10539,6 +10539,28 @@
               },
               "model": {
                 "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "tokens": {
+                      "type": "number"
+                    },
+                    "used": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["path", "section", "tokens", "used"],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
@@ -10548,7 +10570,8 @@
               "answered",
               "useful_share",
               "reason",
-              "model"
+              "model",
+              "sources"
             ],
             "additionalProperties": false
           },
@@ -10579,6 +10602,28 @@
                   "model": {
                     "type": "string"
                   },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "section": {
+                          "type": "string"
+                        },
+                        "tokens": {
+                          "type": "number"
+                        },
+                        "used": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["path", "section", "tokens", "used"],
+                      "additionalProperties": false
+                    }
+                  },
                   "latency_ms": {
                     "type": "number"
                   }
@@ -10589,6 +10634,7 @@
                   "useful_share",
                   "reason",
                   "model",
+                  "sources",
                   "latency_ms"
                 ],
                 "additionalProperties": false
@@ -10611,6 +10657,28 @@
                   "model": {
                     "type": "string"
                   },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "section": {
+                          "type": "string"
+                        },
+                        "tokens": {
+                          "type": "number"
+                        },
+                        "used": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["path", "section", "tokens", "used"],
+                      "additionalProperties": false
+                    }
+                  },
                   "latency_ms": {
                     "type": "number"
                   }
@@ -10621,6 +10689,7 @@
                   "useful_share",
                   "reason",
                   "model",
+                  "sources",
                   "latency_ms"
                 ],
                 "additionalProperties": false

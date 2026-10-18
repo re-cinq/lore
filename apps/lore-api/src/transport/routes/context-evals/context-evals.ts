@@ -28,12 +28,21 @@ const ContextEvalBody = z.object({
   backend: KnowledgeBackendSchema.optional(),
 });
 
+const GradedSourceSchema = z.object({
+  path: z.string(),
+  section: z.string(),
+  tokens: z.number(),
+  used: z.boolean(),
+});
+
 const Grade = {
   found: z.boolean(),
   answered: z.boolean(),
   useful_share: z.number(),
   reason: z.string(),
   model: z.string(),
+  // Each returned source, its section, its tokens and whether the answer used it: where unused tokens come from.
+  sources: z.array(GradedSourceSchema),
 };
 
 const BackendVerdictSchema = z.object({ ...Grade, latency_ms: z.number() });

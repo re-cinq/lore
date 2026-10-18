@@ -1,6 +1,6 @@
 // One repository's nightly context eval (specs/context-evals): pick tonight's documents, have lore-api evaluate each, write the summary, and fail when too few could be answered from what Lore returned.
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { ApiRefusal, loreApi } from "./lore-api.mjs";
@@ -100,6 +100,7 @@ function unanswered(path, reason) {
     useful_share: 0,
     reason,
     model: "",
+    sources: [],
   };
 }
 
@@ -256,6 +257,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         type: "string",
         default: process.env.LORE_EVAL_BACKEND || "lore",
       },
+      // Every verdict as JSON, each returned source with its section, tokens and whether the answer used it.
+      results: { type: "string" },
     },
   });
   const outcome = await runEval({
@@ -269,6 +272,13 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   });
 
   console.log(outcome.markdown);
+
+  if (values.results) {
+    writeFileSync(
+      values.results,
+      `${JSON.stringify(outcome.results, null, 2)}\n`,
+    );
+  }
 
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${outcome.markdown}\n`);

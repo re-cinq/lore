@@ -7,17 +7,30 @@ import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/conte
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
 import {
+  noUtopiaReader,
   resolveBackend,
   type KnowledgeBackend,
 } from "@re-cinq/lore-shared/knowledge-backend.js";
 import type { AssembledForEval, AssembledSource } from "./evaluate-document.js";
 
-/** Every document the assembly kept, with the tokens it took; an item with no path keeps its tokens under an empty one. */
+/** Every document the assembly kept, with its section and the tokens it took; an item with no path keeps its tokens under an empty one. A section's "no Utopia reader" line is no document. */
 export function sourcesOf(trace: AssemblyTrace | undefined): AssembledSource[] {
   return (trace?.sections ?? [])
     .filter((section) => section.included)
-    .flatMap((section) => section.items)
-    .map((kept) => ({ path: kept.source_path ?? "", tokens: kept.tokens }));
+    .flatMap(sectionSources);
+}
+
+function sectionSources({
+  source,
+  items: kept,
+}: AssemblyTrace["sections"][number]): AssembledSource[] {
+  return kept
+    .filter((document) => document.text !== noUtopiaReader(source))
+    .map((document) => ({
+      path: document.source_path ?? "",
+      section: source,
+      tokens: document.tokens,
+    }));
 }
 
 export async function assembleForEval(
