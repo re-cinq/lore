@@ -34,17 +34,17 @@ lore:Adr a owl:Class ;
 lore:Section a owl:Class ;
   rdfs:label "Section" ;
   rdfs:comment "A heading-level section of a document. It contains the statements written under that heading." ;
-  owl:disjointWith lore:Statement, lore:Test, lore:Code .
+  owl:disjointWith lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
 
 lore:Statement a owl:Class ;
   rdfs:label "Statement" ;
   rdfs:comment "One sentence or list item of a section that states a behaviour; the unit a test validates and code implements." ;
-  owl:disjointWith lore:Test, lore:Code .
+  owl:disjointWith lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
 
 lore:Test a owl:Class ;
   rdfs:label "Test" ;
   rdfs:comment "One test case (an it/test call) with its title, its file and the lines it spans." ;
-  owl:disjointWith lore:Code .
+  owl:disjointWith lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
 
 lore:Code a owl:Class ;
   rdfs:label "Code" ;

@@ -164,7 +164,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       saved: savedSources(pool),
     }).toEqual({
       status: 200,
-      body: { kb_id: "kb-new", source_id: "src-new", ontology_version: 5 },
+      body: { kb_id: "kb-new", source_id: "src-new", ontology_version: 6 },
       calls: [
         "GET /api/v1/workspaces/ws-1/kbs",
         "POST /api/v1/workspaces/ws-1/kbs",
@@ -178,7 +178,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
           utopia: {
             kb_id: "kb-new",
             source_id: "src-new",
-            ontology_version: 5,
+            ontology_version: 6,
           },
         },
       ],
@@ -210,7 +210,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       sourcesCreated: seen.filter((call) => call.endsWith("/sources")).length,
       saved: savedSources(pool),
     }).toEqual({
-      body: { kb_id: "kb-1", source_id: "src-old", ontology_version: 5 },
+      body: { kb_id: "kb-1", source_id: "src-old", ontology_version: 6 },
       sourcesCreated: 0,
       saved: [["re-cinq/lore", "kb-1", "src-old", "utp_old"]],
     });
@@ -221,7 +221,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
     const res = await setup(pool, "ws-2");
 
     expect({ body: res.result, saved: savedSources(pool) }).toEqual({
-      body: { kb_id: "kb-1", source_id: "src-fresh", ontology_version: 5 },
+      body: { kb_id: "kb-1", source_id: "src-fresh", ontology_version: 6 },
       saved: [["re-cinq/lore", "kb-1", "src-fresh", "utp_fresh"]],
     });
   });
