@@ -14,10 +14,17 @@ import {
   type UtopiaEnv,
 } from "./utopia-client.js";
 
+/** The documents a search recalls from: one source's, whose external id starts with one of the prefixes. Utopia filters before it ranks, so other items in the base take no places. */
+export interface SearchScope {
+  sourceId: string;
+  externalIdPrefixes: string[];
+}
+
 export interface SearchWindow {
   /** At most 50; Utopia refuses a window whose `offset + topK` passes 100. */
   topK: number;
   offset: number;
+  scope?: SearchScope;
 }
 
 export interface UtopiaReads {
@@ -51,7 +58,7 @@ function readsOver(request: Requester, token: string): UtopiaReads {
       parseSearchPage(
         await request<unknown>(`/kbs/${kbId}/search`, {
           token,
-          json: { q, top_k: window.topK, offset: window.offset },
+          json: searchBody(q, window),
         }),
       ),
     documentByExternalId: (kbId, sourceId, externalId) =>
@@ -59,6 +66,18 @@ function readsOver(request: Requester, token: string): UtopiaReads {
         `/kbs/${kbId}/sources/${sourceId}/documents/by-external-id?external_id=${encodeURIComponent(externalId)}`,
         { token, method: "GET" },
       ).then(parseStoredDocument, nullWhenNotFound),
+  };
+}
+
+function searchBody(q: string, { topK, offset, scope }: SearchWindow) {
+  return {
+    q,
+    top_k: topK,
+    offset,
+    ...(scope && {
+      source_id: scope.sourceId,
+      external_id_prefixes: scope.externalIdPrefixes,
+    }),
   };
 }
 
