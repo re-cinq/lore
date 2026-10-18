@@ -28,7 +28,7 @@ export interface ContextMeta {
 }
 
 // A document is its best few chunks, not its single best: the chunk that matched a question is often the one beside the chunk that answers it (an ADR's Context beside its Decision).
-const CHUNKS_PER_DOCUMENT = 3;
+export const CHUNKS_PER_DOCUMENT = 3;
 
 /** One item per document: the chunks sharing a source_path are merged, best first, into one item at the rank of the best; then items sharing a content_hash collapse to one — a file and its copied twin at another path are one document. Every survivor keeps its rank: the list arrives score-ordered and leaves that way. */
 export function dedupeItems(sources: SourceItem[]): SourceItem[] {

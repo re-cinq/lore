@@ -36,7 +36,14 @@ function pushedChunks(
 const specChunks = pushedChunks(
   SPEC,
   "spec",
-  "# Utopia graph mirror\n\n## Reads\n\nA 404 reads as no document.\n\nA search page carries its hits in rank order.\n\nThe second page starts at offset 50.\n",
+  "# Utopia graph mirror\n\n## Reads\n\nA 404 reads as no document.\n\nA search page carries its hits in rank order.\n\nThe second page starts at offset 50.\n\nA hit past offset 100 is refused.\n",
+);
+
+const EVALS_SPEC = "specs/context-evals/spec.md";
+const evalsChunks = pushedChunks(
+  EVALS_SPEC,
+  "spec",
+  "# Context evals\n\nA question is written from each document.\n",
 );
 
 function hit(
@@ -79,8 +86,38 @@ describe("utopiaDocuments", () => {
         tokens: 28,
         source_path: SPEC,
         content_type: "spec",
-        score: 0.032,
+        score: 1,
       },
+    ]);
+  });
+
+  it("keeps the three best-scoring of a spec's four statements, in the order they stand in it", () => {
+    const hits = [
+      hit(`stmt:${SPEC}#0003`, specChunks, 0.032),
+      hit(`stmt:${SPEC}#0001`, specChunks, 0.031),
+      hit(`stmt:${SPEC}#0000`, specChunks, 0.03),
+      hit(`stmt:${SPEC}#0002`, specChunks, 0.016),
+    ];
+
+    expect(utopiaDocuments(hits, REPO_FILTER)[0]?.text).toEqual(
+      "A 404 reads as no document.\nA search page carries its hits in rank order.\nA hit past offset 100 is refused.",
+    );
+  });
+
+  it("scores the spec whose best hit is 0.032 at 1 and the one whose best is 0.016 at 0.5", () => {
+    const hits = [
+      hit(`stmt:${SPEC}#0000`, specChunks, 0.032),
+      hit(`stmt:${EVALS_SPEC}#0000`, evalsChunks, 0.016),
+    ];
+
+    expect(
+      utopiaDocuments(hits, REPO_FILTER).map(({ source_path, score }) => ({
+        source_path,
+        score,
+      })),
+    ).toEqual([
+      { source_path: SPEC, score: 1 },
+      { source_path: EVALS_SPEC, score: 0.5 },
     ]);
   });
 
@@ -96,7 +133,7 @@ describe("utopiaDocuments", () => {
         tokens: 5,
         source_path: SPEC,
         content_type: "spec",
-        score: 0.03,
+        score: 1,
       },
     ]);
   });
