@@ -17,6 +17,10 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
+import {
+  scheduleEpisodeMirror,
+  type InsertedEpisode,
+} from "./write-effects.js";
 
 const SessionSummaryBody = z.object({
   session_log: z.union([
@@ -120,18 +124,20 @@ interface SessionEpisode {
 /** Stores the episode and, when it is genuinely new, starts its extraction — a content hash already held is a duplicate, not a second episode. */
 async function storeAndExtract(pool: Pool, episode: SessionEpisode) {
   const { agent, content, repo } = episode;
-  const episodeId = await insertSessionEpisode(pool, {
+  const inserted = await insertSessionEpisode(pool, {
     agent,
     content,
     contentHash: createHash("sha256").update(content).digest("hex"),
     repo,
   });
 
-  if (episodeId === undefined) {
+  if (inserted === undefined) {
     return { status: "duplicate" };
   }
+  const episodeId = inserted.id;
 
   scheduleSessionExtraction(pool, { episodeId, content, agent, repo });
+  scheduleEpisodeMirror(pool, inserted, { content, ref: repo });
 
   return { status: "ok", episode_id: episodeId };
 }
@@ -149,11 +155,11 @@ async function insertSessionEpisode(
     `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
      VALUES ($1, $2, $3, 'session', $4)
      ON CONFLICT (agent_id, content_hash) DO NOTHING
-     RETURNING id`,
+     RETURNING id, to_json(created_at) #>> '{}' AS created_at`,
     [fields.agent, fields.content, fields.contentHash, fields.repo],
   );
 
-  return rows[0]?.id as string | undefined;
+  return rows[0] as InsertedEpisode | undefined;
 }
 
 interface SessionExtractionFields {

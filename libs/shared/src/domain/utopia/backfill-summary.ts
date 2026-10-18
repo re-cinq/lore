@@ -19,19 +19,22 @@ export const UtopiaCommitsSummarySchema = z.object({
 
 export type UtopiaCommitsSummary = z.infer<typeof UtopiaCommitsSummarySchema>;
 
-/** What one walk of a repo's issues and pull requests answers (specs/utopia-graph-mirror FR14): the update time it started from, the newest one pushed, and Utopia's counts. */
-export const UtopiaTrackerSummarySchema = z.object({
-  /** The update time the walk asked from, null for a first walk. */
+/** What one cursor walk answers: the cursor it started from, the cursor after the last entry that landed, and Utopia's counts. */
+const CursorWalkSummarySchema = z.object({
+  /** The cursor the walk started from, null for a first walk. */
   from: z.string().nullable(),
-  /** The update time of the newest entry pushed, now the cursor; null when none landed. */
+  /** The cursor after the last entry pushed; null when none landed. */
   to: z.string().nullable(),
   entries: z.number(),
   created: z.number(),
   updated: z.number(),
   unchanged: z.number(),
-  /** `<pull|issue>:<number>: <message>` for the entry the walk stopped at; the next walk retries it. */
+  /** `<entry>: <message>` for the entry the walk stopped at; the next walk retries it. */
   failed: z.array(z.string()),
 });
+
+/** One walk of a repo's issues and pull requests (specs/utopia-graph-mirror FR14): its cursor is an update time, and an entry is named `<pull|issue>:<number>`. */
+export const UtopiaTrackerSummarySchema = CursorWalkSummarySchema;
 
 export type UtopiaTrackerSummary = z.infer<typeof UtopiaTrackerSummarySchema>;
 
@@ -48,6 +51,14 @@ export const UtopiaReleasesSummarySchema = z.object({
 
 export type UtopiaReleasesSummary = z.infer<typeof UtopiaReleasesSummarySchema>;
 
+/** One walk of a base's memories and episodes (specs/utopia-graph-mirror FR16): each cursor is the row's mirror sequence number, and an entry is named by its external id. */
+export const UtopiaMemorySummarySchema = z.object({
+  memories: CursorWalkSummarySchema,
+  episodes: CursorWalkSummarySchema,
+});
+
+export type UtopiaMemorySummary = z.infer<typeof UtopiaMemorySummarySchema>;
+
 /** What one repo's Utopia backfill answers (specs/utopia-graph-mirror FR7.4): lore-api's route sends it, the nightly sweep reads it. */
 export const UtopiaBackfillSummarySchema = z.object({
   commit: z.string(),
@@ -63,6 +74,8 @@ export const UtopiaBackfillSummarySchema = z.object({
   tracker: UtopiaTrackerSummarySchema.optional(),
   /** The repo's tags and published releases, pushed after the tracker walk; absent from a lore-api older than the release mirror. */
   releases: UtopiaReleasesSummarySchema.optional(),
+  /** The repo's memories and episodes above their cursors, pushed after the releases; absent from a lore-api older than the memory mirror. */
+  memory: UtopiaMemorySummarySchema.optional(),
 });
 
 export type UtopiaBackfillSummary = z.infer<typeof UtopiaBackfillSummarySchema>;

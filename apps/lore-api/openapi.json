@@ -7277,6 +7277,74 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/utopia/memory": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_memory",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/memory",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Each walk's cursor before and after, Utopia's created/updated/unchanged document counts, and the memory or episode the walk stopped at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaMemorySummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/utopia/releases": {
       "post": {
         "operationId": "post_api_repos_owner_repo_utopia_releases",
@@ -8848,6 +8916,53 @@
           }
         },
         "x-required-scope": "read"
+      }
+    },
+    "/api/utopia/memory": {
+      "post": {
+        "operationId": "post_api_utopia_memory",
+        "summary": "POST /api/utopia/memory",
+        "tags": ["Memory"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Each walk's cursor before and after, Utopia's created/updated/unchanged document counts, and the memory or episode the walk stopped at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaOrgMemorySummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin"
       }
     },
     "/api/webhook/github": {
@@ -17643,6 +17758,91 @@
               "failed"
             ],
             "additionalProperties": false
+          },
+          "memory": {
+            "type": "object",
+            "properties": {
+              "memories": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": ["string", "null"]
+                  },
+                  "to": {
+                    "type": ["string", "null"]
+                  },
+                  "entries": {
+                    "type": "number"
+                  },
+                  "created": {
+                    "type": "number"
+                  },
+                  "updated": {
+                    "type": "number"
+                  },
+                  "unchanged": {
+                    "type": "number"
+                  },
+                  "failed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "entries",
+                  "created",
+                  "updated",
+                  "unchanged",
+                  "failed"
+                ],
+                "additionalProperties": false
+              },
+              "episodes": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": ["string", "null"]
+                  },
+                  "to": {
+                    "type": ["string", "null"]
+                  },
+                  "entries": {
+                    "type": "number"
+                  },
+                  "created": {
+                    "type": "number"
+                  },
+                  "updated": {
+                    "type": "number"
+                  },
+                  "unchanged": {
+                    "type": "number"
+                  },
+                  "failed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "entries",
+                  "created",
+                  "updated",
+                  "unchanged",
+                  "failed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["memories", "episodes"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -17699,6 +17899,176 @@
           "unchanged",
           "failed"
         ],
+        "additionalProperties": false
+      },
+      "UtopiaMemorySummary": {
+        "type": "object",
+        "properties": {
+          "memories": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          },
+          "episodes": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["memories", "episodes"],
+        "additionalProperties": false
+      },
+      "UtopiaOrgMemorySummary": {
+        "type": "object",
+        "properties": {
+          "memories": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          },
+          "episodes": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["memories", "episodes"],
         "additionalProperties": false
       },
       "UtopiaReleasesSummary": {

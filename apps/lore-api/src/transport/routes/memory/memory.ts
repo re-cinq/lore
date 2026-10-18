@@ -28,8 +28,10 @@ import {
   KnowledgeBackendSchema,
   searchBackend,
 } from "@re-cinq/lore-shared/knowledge-backend.js";
-import { resolveAgentId } from "@re-cinq/lore-shared";
-import { extractFactsForMemory } from "../../../work/memory/fact-extraction.js";
+import {
+  scheduleFactExtraction,
+  scheduleMemoryMirror,
+} from "./write-effects.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { MAX_PAGE_LIMIT } from "../common-schemas.js";
@@ -225,7 +227,7 @@ async function memoryActionResult(
   }
 
   if (body.action === "delete") {
-    return deleteAction(body);
+    return deleteAction(pool, body);
   }
 
   return listAction(body);
@@ -261,22 +263,9 @@ async function writeAction(
     : writeMemoryFile(body.key, body.value, body.agent_id, body.ttl);
 
   scheduleFactExtraction(pool, body);
+  scheduleMemoryMirror(pool, body);
 
   return written;
-}
-
-// Fire-and-forget: the caller is waiting on the write, not on the facts.
-function scheduleFactExtraction(pool: Pool | null, body: MemoryWriteBody) {
-  if (!(body.extract_facts && isMemoryDbAvailable())) {
-    return;
-  }
-
-  void extractFactsForMemory(pool!, {
-    key: body.key,
-    value: body.value,
-    agentId: resolveAgentId(body.agent_id),
-    repo: body.repo,
-  });
 }
 
 async function readAction(
@@ -335,11 +324,16 @@ async function searchLoreMemories(
 }
 
 async function deleteAction(
+  pool: Pool | null,
   body: Extract<MemoryBody, { action: "delete" }>,
 ): Promise<object> {
-  return isMemoryDbAvailable()
+  const deleted = isMemoryDbAvailable()
     ? await deleteMemory(body.key, body.agent_id)
     : deleteMemoryFile(body.key, body.agent_id);
+
+  scheduleMemoryMirror(pool, body);
+
+  return deleted;
 }
 
 async function listAction(

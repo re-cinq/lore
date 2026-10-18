@@ -187,13 +187,24 @@ export async function sourceToMirror(
   settings: Record<string, unknown> | null,
   env: UtopiaEnv = process.env,
 ): Promise<UtopiaSource | null> {
-  const stored = await utopiaSourceFor(pool, repo);
-  const source = mirrorSource(settings, stored, env);
+  const base = await repoBaseFor(pool, repo, settings, env);
 
-  if (source) {
+  return base && { id: base.id, key: base.key };
+}
+
+/** {@link sourceToMirror}'s source with the knowledge base it belongs to, for the mirrors that push through sources of their own in the same base. */
+export async function repoBaseFor(
+  pool: Pool,
+  repo: string,
+  settings: Record<string, unknown> | null,
+  env: UtopiaEnv = process.env,
+): Promise<StoredUtopiaSource | null> {
+  const stored = await utopiaSourceFor(pool, repo);
+
+  if (mirrorSource(settings, stored, env)) {
     await upgradeOntologyQuietly(pool, repo, settings?.utopia, env);
 
-    return source;
+    return stored;
   }
 
   return utopiaAutoSetupConfigured(env)

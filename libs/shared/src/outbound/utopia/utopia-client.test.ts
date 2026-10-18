@@ -36,6 +36,7 @@ const ROUTES: Record<string, (body: string) => [number, unknown]> = {
     JSON.parse(body).deleted
       ? [200, { action: "marked_missing" }]
       : [200, { action: "created" }],
+  "POST /api/v1/sources/src-mem/ingest": () => [200, { action: "updated" }],
   "POST /api/v1/sources/src-422/statements": () => [
     422,
     { error: "x".repeat(400) },
@@ -143,6 +144,34 @@ describe("utopiaAutoSetupConfigured", () => {
       utopiaAutoSetupConfigured({ ...all, UTOPIA_TOKEN: undefined }),
       utopiaAutoSetupConfigured({ ...all, UTOPIA_WORKSPACE_ID: "" }),
     ]).toEqual([true, false, false, false]);
+  });
+});
+
+describe("pushDocument", () => {
+  it("posts memory:claude-bogdan/gotchas to the api source src-mem under its key and returns updated", async () => {
+    const document = {
+      external_id: "memory:claude-bogdan/gotchas",
+      filename: "gotchas",
+      content: "gotchas\n\nOpen node-local-dns.",
+      doc_time: "2026-10-19T08:30:00+00:00",
+    };
+    const outcome = await client().pushDocument(
+      { id: "src-mem", key: "utp_mem" },
+      document,
+    );
+
+    expect({ outcome, seen }).toEqual({
+      outcome: { action: "updated" },
+      seen: [
+        {
+          method: "POST",
+          url: "/api/v1/sources/src-mem/ingest",
+          authorization: "Bearer utp_mem",
+          contentType: "application/json",
+          body: JSON.stringify(document),
+        },
+      ],
+    });
   });
 });
 
@@ -326,6 +355,17 @@ describe("withCredential", () => {
     expect({ source, body: JSON.parse(seen[0].body) }).toEqual({
       source: { id: "src-9", key: "utp_secret" },
       body: { kind: "statements", name: "lore", config: {} },
+    });
+  });
+
+  it("creates an api source named memories and returns its id with the ingest token as the key", async () => {
+    const source = await client()
+      .withCredential("jwt-1")
+      .createApiSource("kb-1", "memories");
+
+    expect({ source, body: JSON.parse(seen[0].body) }).toEqual({
+      source: { id: "src-9", key: "utp_secret" },
+      body: { kind: "api", name: "memories", config: {} },
     });
   });
 });

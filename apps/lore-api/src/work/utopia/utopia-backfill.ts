@@ -1,4 +1,4 @@
-// Mirrors every spec and ADR on a repo's default branch into its Utopia knowledge base, for documents ingested before the mirror existed: the files CI ingests, read at the branch's head commit and pushed through the mirror an ingest uses. The branch's commits above the stored cursor follow them, then the issues and pull requests updated since theirs, then the tags and releases.
+// Mirrors every spec and ADR on a repo's default branch into its Utopia knowledge base, for documents ingested before the mirror existed: the files CI ingests, read at the branch's head commit and pushed through the mirror an ingest uses. The branch's commits above the stored cursor follow them, then the issues and pull requests updated since theirs, then the tags and releases, then the repo's memories and episodes.
 
 import { errorMessage, mapWithLimit } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -30,6 +30,11 @@ import {
 import { mirrorTracker, type TrackerDeps } from "./utopia-tracker.js";
 import { mirrorReleases, type ReleaseDeps } from "./utopia-releases.js";
 import {
+  memoryWalkDepsFor,
+  mirrorMemoryBacklog,
+  type MemoryWalkDeps,
+} from "./utopia-memory.js";
+import {
   mirrorFailure,
   repoMirrorDeps,
   type MirroredDoc,
@@ -51,6 +56,8 @@ export interface BackfillDeps {
   tracker: TrackerDeps;
   /** The repo's tags and published releases, pushed after the tracker walk (FR15). */
   releases: ReleaseDeps;
+  /** The repo's memories and episodes above their cursors, pushed after the releases (FR16). */
+  memory: MemoryWalkDeps;
 }
 
 type DocResult = Pick<MirrorOutcome, "created" | "updated" | "unchanged"> & {
@@ -68,14 +75,16 @@ export async function backfillRepo(
   const commits = await mirrorBranchCommits(deps.history, branch);
   const tracker = await mirrorTracker(deps.tracker);
   const releases = await mirrorReleases(deps.releases);
-  const walked = [commits, tracker, releases].flatMap((walk) => walk.failed);
+  const memory = await mirrorMemoryBacklog(deps.memory);
+  const walks = [commits, tracker, releases, ...Object.values(memory)];
 
   return {
     ...documents,
-    failed: [...documents.failed, ...walked],
+    failed: [...documents.failed, ...walks.flatMap((walk) => walk.failed)],
     commits,
     tracker,
     releases,
+    memory,
   };
 }
 
@@ -150,6 +159,7 @@ export async function backfillDepsFor(
     history: commitHistoryDepsFor(walks),
     tracker: trackerDepsFor(walks),
     releases: releaseDepsFor(walks),
+    memory: memoryWalkDepsFor(pool, { name: repo, repo: true }),
   };
 }
 

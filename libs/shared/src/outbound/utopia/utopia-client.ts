@@ -2,9 +2,14 @@
 
 import { enforceTrue } from "../../lib/enforce.js";
 import { wireBody, type PushItem } from "../../domain/utopia/statements.js";
+import type { IngestDocument } from "../../domain/utopia/memory-documents.js";
 
+/** `GITHUB_ORG` names the base memories and episodes with no onboarded repo are mirrored into, `<org>/memory`. */
 export type UtopiaEnv = Partial<
-  Record<"UTOPIA_API_URL" | "UTOPIA_TOKEN" | "UTOPIA_WORKSPACE_ID", string>
+  Record<
+    "UTOPIA_API_URL" | "UTOPIA_TOKEN" | "UTOPIA_WORKSPACE_ID" | "GITHUB_ORG",
+    string
+  >
 >;
 
 export interface UtopiaSource {
@@ -17,6 +22,11 @@ export type PushAction = "created" | "updated" | "unchanged" | "marked_missing";
 
 export interface PushOutcome {
   action: PushAction;
+}
+
+/** An `api` source also answers `moved` (the content came back under a new identity) and `duplicate` (another document holds the same content). */
+export interface DocumentPushOutcome {
+  action: PushAction | "moved" | "duplicate";
 }
 
 export interface KnowledgeBase {
@@ -37,10 +47,15 @@ export interface UtopiaSession {
   ): Promise<{ importId: string }>;
   bindKindWord(kbId: string, word: string, classKey: string): Promise<void>;
   createStatementsSource(kbId: string, name: string): Promise<UtopiaSource>;
+  createApiSource(kbId: string, name: string): Promise<UtopiaSource>;
 }
 
 export interface UtopiaClient {
   pushStatements(source: UtopiaSource, pushed: PushItem): Promise<PushOutcome>;
+  pushDocument(
+    source: UtopiaSource,
+    document: IngestDocument,
+  ): Promise<DocumentPushOutcome>;
   /** Acts as a person: `bearer` is their session JWT or a personal access token with `write` scope (`utp_pat_…`); Utopia answers both the same. */
   withCredential(bearer: string): UtopiaSession;
 }
@@ -97,12 +112,26 @@ export function utopiaClientFrom(
   const request = utopiaRequester(env.UTOPIA_API_URL!, options);
 
   return {
+    ...sourcePushes(request),
+    withCredential: (bearer) => sessionOf(request, bearer),
+  };
+}
+
+/** Pushes under a source's own key: statements to a statements source, a whole document to an api source. */
+function sourcePushes(
+  request: Requester,
+): Pick<UtopiaClient, "pushStatements" | "pushDocument"> {
+  return {
     pushStatements: (source, pushed) =>
       request<PushOutcome>(`/sources/${source.id}/statements`, {
         token: source.key,
         json: wireBody(pushed),
       }),
-    withCredential: (bearer) => sessionOf(request, bearer),
+    pushDocument: (source, document) =>
+      request<DocumentPushOutcome>(`/sources/${source.id}/ingest`, {
+        token: source.key,
+        json: document,
+      }),
   };
 }
 
@@ -241,7 +270,9 @@ function sessionOf(request: Requester, bearer: string): UtopiaSession {
     bindKindWord: (kbId, word, classKey) =>
       bindKindWord(call, kbId, word, classKey),
     createStatementsSource: (kbId, name) =>
-      createStatementsSource(call, kbId, name),
+      createSource(call, kbId, { kind: "statements", name }),
+    createApiSource: (kbId, name) =>
+      createSource(call, kbId, { kind: "api", name }),
   };
 }
 
@@ -288,17 +319,17 @@ async function importOntology(
   return { importId: imported.import_id };
 }
 
-async function createStatementsSource(
+async function createSource(
   { request, bearer }: SessionCall,
   kbId: string,
-  name: string,
+  { kind, name }: { kind: "statements" | "api"; name: string },
 ): Promise<UtopiaSource> {
   const created = await request<{
     ingest_token: string;
     source: { id: string };
   }>(`/kbs/${kbId}/sources`, {
     token: bearer,
-    json: { kind: "statements", name, config: {} },
+    json: { kind, name, config: {} },
   });
 
   return { id: created.source.id, key: created.ingest_token };
