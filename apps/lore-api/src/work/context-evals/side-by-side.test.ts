@@ -16,17 +16,14 @@ const ANSWERED: BackendVerdict = {
   reason: "Agrees with the decision.",
   model: "gemini-2.5-flash",
   latency_ms: 10,
+  sources: [{ path: ADR, section: "adrs", tokens: 1, used: true }],
 };
 const UNANSWERED: BackendVerdict = { ...ANSWERED, answered: false };
 
 describe("sideBySide", () => {
   it("names utopia as the only store that answered when Lore's assembly did not", () => {
     expect(
-      sideBySide(
-        { path: ADR, question: QUESTION },
-        { verdict: UNANSWERED, sources: [{ path: ADR, tokens: 1 }] },
-        { verdict: ANSWERED, sources: [{ path: ADR, tokens: 1 }] },
-      ),
+      sideBySide({ path: ADR, question: QUESTION }, UNANSWERED, ANSWERED),
     ).toEqual({
       path: ADR,
       question: QUESTION,
@@ -42,14 +39,8 @@ describe("sourceOverlap", () => {
   it("returns 0.33 when two assemblies share 1 of 3 distinct paths", () => {
     expect(
       sourceOverlap(
-        [
-          { path: "a.md", tokens: 1 },
-          { path: "b.md", tokens: 1 },
-        ],
-        [
-          { path: "b.md", tokens: 5 },
-          { path: "c.md", tokens: 5 },
-        ],
+        [{ path: "a.md" }, { path: "b.md" }],
+        [{ path: "b.md" }, { path: "c.md" }],
       ),
     ).toEqual(0.33);
   });

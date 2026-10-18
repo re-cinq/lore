@@ -10,12 +10,17 @@ import {
 
 const JOB_NAME = "context-evals";
 const MAX_DOCUMENT_CHARS = 12_000;
-const NO_CONTEXT = "Lore returned no context for the question";
 
-/** One document Lore put in an assembled context, and how many tokens it took. */
+/** One document Lore put in an assembled context: the section it came under, and how many tokens it took. */
 export interface AssembledSource {
   path: string;
+  section: string;
   tokens: number;
+}
+
+/** A returned source as graded: whether the answer relied on it. */
+export interface GradedSource extends AssembledSource {
+  used: boolean;
 }
 
 export interface AssembledForEval {
@@ -48,6 +53,7 @@ export interface DocumentEval {
   useful_share: number;
   reason: string;
   model: string;
+  sources: GradedSource[];
 }
 
 interface Answer {
@@ -137,12 +143,9 @@ async function evaluateSideBySide(
   const utopia = await timedAssembly(deps, target.repo, question, "utopia");
   const [loreSide, utopiaSide] = await Promise.all(
     [lore, utopia].map(async ({ assembled, latency_ms }) => ({
-      sources: assembled.sources,
-      verdict: {
-        found: isFound(assembled, target.path),
-        ...(await gradeAssembled(deps, { document, question, assembled })),
-        latency_ms,
-      },
+      found: isFound(assembled, target.path),
+      ...(await gradeAssembled(deps, { document, question, assembled })),
+      latency_ms,
     })),
   );
 
@@ -209,12 +212,15 @@ async function writeQuestion(
   return text.trim();
 }
 
-interface Graded {
-  answered: boolean;
-  useful_share: number;
-  reason: string;
-  model: string;
-}
+type Graded = Omit<DocumentEval, "path" | "question" | "found">;
+
+const UNGRADED: Graded = {
+  answered: false,
+  useful_share: 0,
+  reason: "Lore returned no context for the question",
+  model: "",
+  sources: [],
+};
 
 interface Attempt {
   document: string;
@@ -229,7 +235,7 @@ async function gradeAssembled(
   const { sources } = attempt.assembled;
 
   if (sources.length === 0) {
-    return { answered: false, useful_share: 0, reason: NO_CONTEXT, model: "" };
+    return UNGRADED;
   }
   const { parsed: answer, model } = await answerFromContext(deps.llm, attempt);
   const judged = await judgeAnswer(deps, attempt, answer.answer);
@@ -240,7 +246,18 @@ async function gradeAssembled(
     useful_share: usefulShare(sources, answer.used_sources),
     reason: judged.judgement.reason,
     model,
+    sources: graded(sources, answer.used_sources),
   };
+}
+
+function graded(
+  sources: AssembledSource[],
+  usedPaths: string[],
+): GradedSource[] {
+  return sources.map((source) => ({
+    ...source,
+    used: usedPaths.includes(source.path),
+  }));
 }
 
 async function answerFromContext(

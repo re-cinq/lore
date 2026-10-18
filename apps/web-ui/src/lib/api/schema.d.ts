@@ -2770,6 +2770,12 @@ export interface components {
           useful_share: number;
           reason: string;
           model: string;
+          sources: {
+            path: string;
+            section: string;
+            tokens: number;
+            used: boolean;
+          }[];
         }
       | {
           path: string;
@@ -2780,6 +2786,12 @@ export interface components {
             useful_share: number;
             reason: string;
             model: string;
+            sources: {
+              path: string;
+              section: string;
+              tokens: number;
+              used: boolean;
+            }[];
             latency_ms: number;
           };
           utopia: {
@@ -2788,6 +2800,12 @@ export interface components {
             useful_share: number;
             reason: string;
             model: string;
+            sources: {
+              path: string;
+              section: string;
+              tokens: number;
+              used: boolean;
+            }[];
             latency_ms: number;
           };
           top_k_overlap: number;
