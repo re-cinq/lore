@@ -12,9 +12,12 @@ import {
   type StatementsChunk,
 } from "../../../domain/utopia/read-shapes.js";
 import type { UtopiaReads } from "../../utopia/utopia-reads.js";
-import type { SourceItem } from "./context-assembly-format.js";
+import {
+  CHUNKS_PER_DOCUMENT,
+  type SourceItem,
+} from "./context-assembly-format.js";
 import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
-import { mkItem } from "./context-assembly-items.js";
+import { mkItem, normalizeScores } from "./context-assembly-items.js";
 import type { SectionReader } from "./context-assembly-types.js";
 
 /** Where a repository's mirror lives: its knowledge base and the source its statements were pushed to (`settings.utopia`). */
@@ -110,10 +113,10 @@ interface DocumentHits {
   path: string;
   contentType: string;
   score: number;
-  parts: { ordinal: number; texts: string[] }[];
+  parts: { ordinal: number; score: number; texts: string[] }[];
 }
 
-/** The documents the hits name, one item each in the rank of its best hit: the statements source's doc and statement chunks only, the document's title first and then its statement texts in the order they stand in it. */
+/** The documents the hits name, one item each in the rank of its best hit, scored so the best is 1 as Lore's are: the statements source's doc and statement chunks only, a document's best few in the order they stand in it, its title first. */
 export function utopiaDocuments(
   hits: SearchHit[],
   filter: DocumentFilter,
@@ -124,7 +127,9 @@ export function utopiaDocuments(
     addHit(byPath, hit, filter);
   }
 
-  return [...byPath.values()].slice(0, filter.limit).map(toItem);
+  return normalizeScores(
+    [...byPath.values()].slice(0, filter.limit).map(toItem),
+  );
 }
 
 function addHit(
@@ -145,13 +150,14 @@ function addHit(
   };
 
   byPath.set(kept.path, found);
-  found.parts.push({ ordinal: kept.ordinal, texts: kept.texts });
+  found.parts.push(kept);
 }
 
 interface KeptHit {
   path: string;
   contentType: string;
   ordinal: number;
+  score: number;
   texts: string[];
 }
 
@@ -165,6 +171,7 @@ function keptHit(hit: SearchHit, filter: DocumentFilter): KeptHit | null {
         path: pushed.path,
         contentType,
         ordinal: pushed.ordinal ?? -1,
+        score: hit.score,
         texts: partTexts(pushed.kind, parseStatementsChunk(hit.text)),
       }
     : null;
@@ -215,6 +222,8 @@ function documentTitles(chunk: StatementsChunk): string[] {
 
 function toItem(document: DocumentHits): SourceItem {
   const texts = [...document.parts]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, CHUNKS_PER_DOCUMENT)
     .sort((a, b) => a.ordinal - b.ordinal)
     .flatMap((part) => part.texts);
 
