@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { docStatementItems } from "./doc-statements.js";
+import { docStatementItems, untitledTestPaths } from "./doc-statements.js";
 import {
   attribute,
   fitsOneItem,
@@ -287,6 +287,70 @@ describe("docStatementItems", () => {
       [],
       [],
     ]);
+  });
+});
+
+const FRESHNESS =
+  "libs/shared/src/outbound/project/knowledge/context-freshness.test.ts";
+const FRESHNESS_SOURCE = [
+  'describe("embeddingWarning", () => {',
+  '  it("names a 403 after 3 failures", () => {',
+  "    expect(1).toBe(1);",
+  "  });",
+  "",
+  '  it("adds nothing after 2 failures, below the degraded threshold", () => {',
+  "    expect(2).toBe(2);",
+  "  });",
+  "});",
+].join("\n");
+const LEGACY_SPEC = [
+  "## Freshness",
+  "",
+  `- FR1 — Warns. ([validated by \`context-freshness.test.ts:21\`](${FRESHNESS}#L6), [\`names a 403 after 3 failures\`](${FRESHNESS}#L2), [validated by](src/other.test.ts#L4), [\`gone.test.ts:9\`](src/gone.test.ts#L9))`,
+  "",
+].join("\n");
+const buildLegacy = (testSources: ReadonlyMap<string, string>) =>
+  docStatementItems({
+    repo: "re-cinq/lore",
+    path: "specs/mirror/spec.md",
+    content: LEGACY_SPEC,
+    commit: COMMIT,
+    kind: "spec",
+    testSources,
+  });
+
+describe("docStatementItems test titles", () => {
+  it("names the test behind a context-freshness.test.ts:21 label by the title declared at its #L6 anchor, and a backticked title without its backticks", () => {
+    const [, fr1] = buildLegacy(new Map([[FRESHNESS, FRESHNESS_SOURCE]]));
+
+    expect(fr1.e).toEqual([
+      [`${DOC}#freshness`, "Section", true],
+      [`${DOC}#s0000`, "Statement", true],
+      [
+        `re-cinq/lore:${FRESHNESS}::adds nothing after 2 failures, below the degraded threshold`,
+        "Test",
+        true,
+      ],
+      [`re-cinq/lore:${FRESHNESS}::names a 403 after 3 failures`, "Test", true],
+    ]);
+  });
+
+  it("links no test for an empty label or a gone.test.ts:9 label whose source was not read", () => {
+    const [, fr1] = buildLegacy(new Map());
+
+    expect(fr1.e).toEqual([
+      [`${DOC}#freshness`, "Section", true],
+      [`${DOC}#s0000`, "Statement", true],
+      [`re-cinq/lore:${FRESHNESS}::names a 403 after 3 failures`, "Test", true],
+    ]);
+  });
+});
+
+describe("untitledTestPaths", () => {
+  it("returns the context-freshness, other and gone test paths, whose labels name no title, once each", () => {
+    expect(
+      untitledTestPaths({ path: "specs/mirror/spec.md", content: LEGACY_SPEC }),
+    ).toEqual([FRESHNESS, "src/other.test.ts", "src/gone.test.ts"]);
   });
 });
 

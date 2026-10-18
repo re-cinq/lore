@@ -9,6 +9,7 @@ import {
 } from "../spec-link-parser.js";
 import type { Statement as DocStatement } from "../spec-segment.js";
 import { stripCoverageLinks } from "../spec-link-strip.js";
+import { testTitleAt } from "../spec-trace/test-declarations.js";
 import {
   cutText,
   joinFragments,
@@ -32,6 +33,8 @@ export interface DocStatementsInput {
   /** ISO 8601 commit time, when the caller knows it. */
   commitTime?: string;
   kind: "spec" | "adr";
+  /** Linked test files' source at the commit, by repo path: a link whose label is no title is named by the test declared at its anchor. */
+  testSources?: ReadonlyMap<string, string>;
 }
 
 interface DocNames {
@@ -42,6 +45,7 @@ interface DocNames {
   /** The document's own class, so every place that names it names one entity. */
   kindWord: string;
   blob: string;
+  testSources: ReadonlyMap<string, string>;
 }
 
 interface SectionRef {
@@ -81,6 +85,7 @@ function namesOf(input: DocStatementsInput): DocNames {
     doc: fileName(input.repo, input.path),
     kindWord: DOC_KIND_WORD[input.kind],
     blob: blobUrl(input.repo, input.commit),
+    testSources: input.testSources ?? new Map(),
   };
 }
 
@@ -216,7 +221,7 @@ function statementParts(
 ): Fragment[] {
   return [
     textFragment(statement, docStatement.text),
-    ...testLinks.map((link) => testFragment(names, statement, link)),
+    ...testLinks.flatMap((link) => testFragment(names, statement, link)),
     ...parseCodeLinksInStatement(docStatement.text).map((link) =>
       codeFragment(names, statement, link),
     ),
@@ -235,26 +240,75 @@ function pushedText(text: string): string {
   return cutText(stripCoverageLinks(text));
 }
 
+/** The test the link names, or nothing when neither its label nor the source at its anchor gives the test's title. */
 function testFragment(
   names: DocNames,
   statement: string,
   link: SpecLinkRef,
-): Fragment {
+): Fragment[] {
   const path = resolveLinkPath(link.path, names.path);
-  const title = link.label.replace(/^validated by\s+/i, "");
-  const test = testName(names.repo, path, title);
-  const anchor = link.line === null ? "" : `#L${link.line}`;
+  const title = labelTitle(link.label) ?? sourceTitle(names, path, link.line);
+
+  return title === null
+    ? []
+    : [titledTestFragment(names, statement, { path, title, line: link.line })];
+}
+
+function titledTestFragment(
+  names: DocNames,
+  statement: string,
+  linked: { path: string; title: string; line: number | null },
+): Fragment {
+  const test = testName(names.repo, linked.path, linked.title);
+  const anchor = linked.line === null ? "" : `#L${linked.line}`;
 
   return {
     e: [[test, "Test", true]],
     s: [
       relation(statement, "validated_by", test),
-      attribute(test, "title", title),
-      attribute(test, "path", path),
-      ...lineStartOf(test, link.line),
-      attribute(test, "permalink", `${names.blob}/${path}${anchor}`),
+      attribute(test, "title", linked.title),
+      attribute(test, "path", linked.path),
+      ...lineStartOf(test, linked.line),
+      attribute(test, "permalink", `${names.blob}/${linked.path}${anchor}`),
     ],
   };
+}
+
+/** A `file.test.ts:21` label names where a test once stood, not what it is called. */
+const FILE_LINE_LABEL = /^[^\s:]+:\d+$/;
+
+/** The label after "validated by", its backticks dropped; null when that leaves nothing or a `file:line`. */
+function labelTitle(label: string): string | null {
+  const title = label
+    .replace(/^validated by\b\s*/i, "")
+    .replace(/^`(.*)`$/, "$1")
+    .trim();
+
+  return title === "" || FILE_LINE_LABEL.test(title) ? null : title;
+}
+
+function sourceTitle(
+  names: DocNames,
+  path: string,
+  line: number | null,
+): string | null {
+  const source = names.testSources.get(path);
+
+  return source === undefined || line === null
+    ? null
+    : testTitleAt(source, line);
+}
+
+/** The test files whose links' labels give no title, once each in link order: the files {@link DocStatementsInput.testSources} needs. */
+export function untitledTestPaths(
+  input: Pick<DocStatementsInput, "path" | "content">,
+): string[] {
+  const paths = linksForStatements(input.content)
+    .flatMap(({ testLinks }) => testLinks)
+    .filter((link) => labelTitle(link.label) === null)
+    .map((link) => resolveLinkPath(link.path, input.path));
+
+  return [...new Set(paths)];
 }
 
 function lineStartOf(test: string, line: number | null): Statement[] {
