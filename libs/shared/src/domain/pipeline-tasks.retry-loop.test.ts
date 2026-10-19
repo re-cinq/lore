@@ -8,6 +8,7 @@ function poolWithTask(task: Record<string, unknown>) {
       rows: sql.includes("FROM pipeline.tasks") ? [task] : [],
     }),
   );
+
   return { pool: { query } as unknown as PgPool, query };
 }
 

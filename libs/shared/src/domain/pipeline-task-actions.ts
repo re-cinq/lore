@@ -18,12 +18,15 @@ export async function retryTask(
   taskId: string,
 ): Promise<RetriedTask> {
   const task = await getTask(pool, taskId);
+
   enforceTrue(task, Error, "Task not found");
   assertCanRetry(task);
   const result = await createRetryTask(pool, task, taskId);
+
   await updateTaskStatus(pool, taskId, "retried", {
     retried_as: result.task_id,
   });
+
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
 }
 
