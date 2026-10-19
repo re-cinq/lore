@@ -1,4 +1,4 @@
-// One spec or ADR as Utopia statement items: a doc item (Repository contains Document contains Sections, with the document's title and each heading's text) and one item per statement (its text, Section contains Statement, validated_by Tests, implemented_by SourceFiles, decided_by Adrs), each under Utopia's push limits.
+// One spec, ADR or other markdown document as Utopia statement items: a doc item (Repository contains Document contains Sections, with the document's title and each heading's text) and one item per statement (its text, Section contains Statement, validated_by Tests, implemented_by SourceFiles, decided_by Adrs), each under Utopia's push limits.
 
 import {
   linksForStatements,
@@ -32,7 +32,7 @@ export interface DocStatementsInput {
   commit: string;
   /** ISO 8601 commit time, when the caller knows it. */
   commitTime?: string;
-  kind: "spec" | "adr";
+  kind: MirroredDocKind;
   /** Linked test files' source at the commit, by repo path: a link whose label is no title is named by the test declared at its anchor. */
   testSources?: ReadonlyMap<string, string>;
 }
@@ -55,7 +55,9 @@ interface SectionRef {
   depth: number;
 }
 
-const DOC_KIND_WORD = { spec: "Spec", adr: "Adr" } as const;
+const DOC_KIND_WORD = { spec: "Spec", adr: "Adr", doc: "Doc" } as const;
+
+export type MirroredDocKind = keyof typeof DOC_KIND_WORD;
 
 export function docStatementItems(input: DocStatementsInput): StatementItem[] {
   const names = namesOf(input);

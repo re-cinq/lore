@@ -12,7 +12,7 @@ import { createServer, type Server } from "node:http";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 const SETTINGS = {
-  utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 6 },
+  utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 7 },
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({

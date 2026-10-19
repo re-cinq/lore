@@ -7,7 +7,7 @@ import {
   mirrorEpisode,
   mirrorMemory,
 } from "../../../work/utopia/utopia-memory-push.js";
-import { mirrorQuietly } from "../ingest/mirror-quietly.js";
+import { mirrorQuietly } from "../../../work/utopia/mirror-quietly.js";
 import { extractFactsForMemory } from "../../../work/memory/fact-extraction.js";
 
 interface MemoryWriteBody {

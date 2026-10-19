@@ -185,7 +185,10 @@ describe("ingestFiles", () => {
     );
 
     const { pool } = fakePool();
-    const result = await ingestFiles(pool, ["src/a.ts"], "o/r", "abc1234");
+    const result = await ingestFiles(pool, ["src/a.ts"], {
+      repo: "o/r",
+      commit: "abc1234",
+    });
 
     expect(result.results).toEqual([
       {
@@ -213,7 +216,10 @@ describe("ingestFiles", () => {
 
     const { pool } = fakePool();
 
-    await ingestFiles(pool, ["specs/x/spec.md"], "o/r", "abc1234");
+    await ingestFiles(pool, ["specs/x/spec.md"], {
+      repo: "o/r",
+      commit: "abc1234",
+    });
 
     expect(vi.mocked(getQueryEmbedding).mock.calls.map((c) => c[0])).toEqual([
       "## FR\n\n- FR1 Every phase ends with a commit.",
@@ -233,7 +239,10 @@ describe("ingestFiles", () => {
     );
 
     const { pool } = fakePool();
-    const result = await ingestFiles(pool, ["src/a.ts"], "o/r", "deadbeef");
+    const result = await ingestFiles(pool, ["src/a.ts"], {
+      repo: "o/r",
+      commit: "deadbeef",
+    });
 
     expect(result.results).toEqual([
       {
@@ -262,7 +271,10 @@ describe("ingestFiles", () => {
     );
 
     const { pool, query } = fakePool();
-    const result = await ingestFiles(pool, ["src/gone.ts"], "o/r", "HEAD");
+    const result = await ingestFiles(pool, ["src/gone.ts"], {
+      repo: "o/r",
+      commit: "HEAD",
+    });
 
     expect(result.results).toEqual([
       { file: "src/gone.ts", status: "deleted" },
@@ -282,7 +294,10 @@ describe("ingestFiles", () => {
     );
 
     const { pool } = fakePool();
-    const result = await ingestFiles(pool, ["src/adir"], "o/r", "abc1234");
+    const result = await ingestFiles(pool, ["src/adir"], {
+      repo: "o/r",
+      commit: "abc1234",
+    });
 
     expect(result.results).toEqual([
       {
@@ -298,8 +313,7 @@ describe("ingestFiles", () => {
     const result = await ingestFiles(
       pool,
       [{ path: "logo.png", content: "binarydata" }],
-      "o/r",
-      "abc1234",
+      { repo: "o/r", commit: "abc1234" },
     );
 
     expect(result.results).toEqual([
@@ -320,7 +334,10 @@ describe("ingestFiles", () => {
     );
 
     const { pool } = fakePool();
-    const result = await ingestFiles(pool, ["src/broken.ts"], "o/r", "abc1234");
+    const result = await ingestFiles(pool, ["src/broken.ts"], {
+      repo: "o/r",
+      commit: "abc1234",
+    });
 
     expect(result.results).toEqual([
       { file: "src/broken.ts", status: "error", error: "boom" },
@@ -347,13 +364,56 @@ describe("ingestFiles", () => {
     const result = await ingestFiles(
       pool,
       ["src/a.ts", "src/gone.ts", "src/broken.ts"],
-      "o/r",
-      "HEAD",
+      { repo: "o/r", commit: "HEAD" },
     );
 
     expect(result.ingested).toBe(1);
     expect(result.deleted).toBe(1);
     expect(result.errors).toBe(1);
+  });
+
+  it("tells the landed files README.md with its content once its chunks are stored and docs/gone.md once its chunks are deleted, and src/broken.ts not at all", async () => {
+    const octokit = queuedOctokit([
+      () => {
+        throw missingErr();
+      },
+      () => {
+        throw serverErr();
+      },
+    ]);
+
+    vi.mocked(getOctokit).mockResolvedValue(
+      octokit as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    );
+
+    const told: string[] = [];
+    const { pool } = fakePool();
+
+    await ingestFiles(
+      pool,
+      [
+        { path: "README.md", content: "# Lore" },
+        "docs/gone.md",
+        "src/broken.ts",
+      ],
+      {
+        repo: "o/r",
+        commit: "HEAD",
+        landed: {
+          ingested: async (path, content) => {
+            told.push(`ingested ${path}: ${content}`);
+          },
+          deleted: async (path) => {
+            told.push(`deleted ${path}`);
+          },
+        },
+      },
+    );
+
+    expect(told).toEqual([
+      "ingested README.md: # Lore",
+      "deleted docs/gone.md",
+    ]);
   });
 });
 

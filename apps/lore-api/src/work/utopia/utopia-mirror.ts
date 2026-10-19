@@ -1,4 +1,4 @@
-// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec, ADR, source file and default-branch test run it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
+// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec, ADR, other markdown document, source file and default-branch test run it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -30,6 +30,7 @@ import {
   tombstoneCodeFiles,
   type CodeDeltaInput,
 } from "@re-cinq/lore-shared/utopia/mirror-code.js";
+import type { MirroredDocKind } from "@re-cinq/lore-shared/utopia/doc-statements.js";
 import type { TestReportInput } from "@re-cinq/lore-shared/utopia/test-report-statements.js";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import type { Pool } from "pg";
@@ -43,7 +44,7 @@ import { autoSetUpRepo, autoUpgradeOntology } from "./utopia-auto-setup.js";
 export interface MirroredDoc {
   path: string;
   content: string;
-  kind: "spec" | "adr";
+  kind: MirroredDocKind;
   commit: string;
 }
 

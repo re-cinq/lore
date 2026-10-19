@@ -14,18 +14,44 @@ const TREE = [
 ];
 
 describe("docsToMirror", () => {
-  it("selects specs/ and .specify/ markdown as spec and adrs/ markdown as adr without a manifest, skipping notes.txt, docs/ and README.md", () => {
+  it("selects specs/ and .specify/ markdown as spec, adrs/ markdown as adr and docs/managing-secrets.md and README.md as doc without a manifest, skipping notes.txt", () => {
     expect(docsToMirror(TREE, null)).toEqual([
       { path: "specs/a/spec.md", kind: "spec" },
       { path: ".specify/memory/constitution.md", kind: "spec" },
       { path: "adrs/ADR-001-auth.md", kind: "adr" },
+      { path: "docs/managing-secrets.md", kind: "doc" },
+      { path: "README.md", kind: "doc" },
     ]);
   });
 
-  it("selects only docs/managing-secrets.md as spec when .lore/ingest.yml declares a specs glob under docs, keeping the built-in adrs/ prefix", () => {
+  it("selects only docs/managing-secrets.md as spec when .lore/ingest.yml declares a specs glob under docs, keeping the built-in adrs/ prefix and mirroring specs/a/spec.md, the constitution and README.md, which it no longer traces, as doc", () => {
     expect(docsToMirror(TREE, "specs:\n  - docs/**\n")).toEqual([
       { path: "docs/managing-secrets.md", kind: "spec" },
       { path: "adrs/ADR-001-auth.md", kind: "adr" },
+      { path: "specs/a/spec.md", kind: "doc" },
+      { path: ".specify/memory/constitution.md", kind: "doc" },
+      { path: "README.md", kind: "doc" },
+    ]);
+  });
+
+  it("mirrors CLAUDE.md, teams/platform/CLAUDE.md, the runbook and docs/specs/mirror.md as doc, leaving yaml, CODEOWNERS, code, graveyard and fixtures out", () => {
+    const tree = [
+      "CLAUDE.md",
+      "teams/platform/CLAUDE.md",
+      "runbooks/restore.md",
+      "docs/specs/mirror.md",
+      "charts/values.yaml",
+      "CODEOWNERS",
+      "src/index.ts",
+      "graveyard/old.md",
+      "tests/fixtures/sample.md",
+    ];
+
+    expect(docsToMirror(tree, null)).toEqual([
+      { path: "CLAUDE.md", kind: "doc" },
+      { path: "teams/platform/CLAUDE.md", kind: "doc" },
+      { path: "runbooks/restore.md", kind: "doc" },
+      { path: "docs/specs/mirror.md", kind: "doc" },
     ]);
   });
 });

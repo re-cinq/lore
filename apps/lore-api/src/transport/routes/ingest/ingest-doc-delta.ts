@@ -1,6 +1,6 @@
 import { selectPruneCandidates } from "@re-cinq/lore-shared";
 import type { IngestDeltaDeps } from "./ingest-delta-deps.js";
-import { mirrorQuietly } from "./mirror-quietly.js";
+import { mirrorQuietly } from "../../../work/utopia/mirror-quietly.js";
 
 /** The part of a delta body a file kind (specs, adrs, code) reads. */
 export interface DocDelta {

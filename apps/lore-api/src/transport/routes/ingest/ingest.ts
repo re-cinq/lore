@@ -8,7 +8,9 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
+import { utopiaConfigured } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import { ingestFiles } from "../../../work/spec-trace/ingest.js";
+import { ingestedDocMirror } from "../../../work/utopia/ingested-doc-mirror.js";
 import { reconcileOrphanChunks } from "../../../work/chunks/reconcile-orphans.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -54,8 +56,8 @@ async function serveIngest(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const { files, repo, commit } = request.payload as IngestBody;
-    const result = await ingestFiles(pool, files, repo, commit || "HEAD");
+    const { repo, commit } = request.payload as IngestBody;
+    const result = await ingestPosted(pool, request.payload as IngestBody);
 
     if (anyFileLanded(result.results)) {
       // The store converges on the merge that changed the tree, so a rename's old path cannot outlive it. Merge-time ingest is the only ingestion path since #1880, which is why nothing was reconciling.
@@ -70,6 +72,17 @@ async function serveIngest(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+/** Docs among the posted files are mirrored to Utopia once stored, on a deployment that has one. */
+function ingestPosted(pool: Pool, { files, repo, commit }: IngestBody) {
+  const sha = commit || "HEAD";
+
+  return ingestFiles(pool, files, {
+    repo,
+    commit: sha,
+    landed: utopiaConfigured() ? ingestedDocMirror(repo, sha) : undefined,
+  });
 }
 
 /** True when at least one posted file actually changed the store — the gate on the re-link trigger. */

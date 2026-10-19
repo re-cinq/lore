@@ -68,7 +68,7 @@ No store should switch yet. The plan's rule is two weeks of Utopia matching Lore
 
 1. **Set up Utopia bases for the five repositories without one**, then backfill, so every row compares two stores rather than one.
 2. **Measure where the unused tokens come from.** Record each source's size in the eval's output, then test a per-document score floor or a cap on statements per document in the Utopia reader.
-3. **Push whole files to Utopia** (text dual-write), so its `repo`, `adrs` and `code` readers can return file text, including the code blocks, tables and examples a statement does not carry.
+3. **Mirror every document whole, keep code as links.** Code stays named and linked by its GitHub permalinks, its text never copied. Documents go in whole: specs and ADRs already did, and since 2026-10-19 every other markdown document follows them (`CLAUDE.md`, `AGENTS.md`, READMEs, `docs/**`, `runbooks/**`, `teams/**`; specs/utopia-graph-mirror FR17), so the `repo` reader can answer from them too.
 4. **Run this again** after each of those, from a developer machine.
 
 ## How it was run

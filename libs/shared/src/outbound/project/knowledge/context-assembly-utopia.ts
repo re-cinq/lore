@@ -1,4 +1,4 @@
-// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the statements the spec/ADR mirror pushed, one item per document, every other section still saying it has no Utopia reader.
+// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the statements the document mirror pushed (specs, ADRs and every other markdown document), one item per document, every other section still saying it has no Utopia reader.
 
 import { classifyFile } from "../../../domain/content-classify.js";
 import { noUtopiaReader } from "../../../domain/knowledge-backend.js";
@@ -204,9 +204,15 @@ function partTexts(
   return kind === "doc" ? documentTitles(chunk) : statementTexts(chunk);
 }
 
+const DOCUMENT_KIND_WORDS: ReadonlySet<string> = new Set([
+  "Spec",
+  "Adr",
+  "Doc",
+]);
+
 function documentTitles(chunk: StatementsChunk): string[] {
-  const documentEntities = chunk.e.filter(
-    ([, kindWord]) => kindWord === "Spec" || kindWord === "Adr",
+  const documentEntities = chunk.e.filter(([, kindWord]) =>
+    DOCUMENT_KIND_WORDS.has(kindWord),
   );
   const documents = new Set(documentEntities.map(([name]) => name));
 
