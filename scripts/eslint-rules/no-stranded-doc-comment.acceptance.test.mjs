@@ -12,6 +12,7 @@ const repoRoot = join(__dirname, "../..");
 test("reports a stranded doc comment using lore/no-stranded-doc-comment", () => {
   const dir = mkdtempSync(join(tmpdir(), "stranded-"));
   const filePath = join(dir, "fixture.ts");
+
   writeFileSync(
     filePath,
     `
@@ -25,6 +26,7 @@ export function layoutAssemblyLine() {}
 
   let output = "";
   let status = 0;
+
   try {
     output = execFileSync(
       "npx",
@@ -44,6 +46,7 @@ export function layoutAssemblyLine() {}
   assert.notEqual(status, 0, "ESLint should fail");
 
   let reports;
+
   try {
     reports = JSON.parse(output);
   } catch (e) {
