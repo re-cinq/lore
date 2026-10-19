@@ -1,4 +1,4 @@
-// The repositories tonight's context evals cover: every onboarded repository whose onboarding pull request merged, or the one a manual run names. Prints them as a JSON array for the workflow's matrix.
+// The repositories a context-eval run covers: every onboarded repository whose onboarding pull request merged, or the one a manual run names. Prints them as a JSON array, so a run can go through them one by one.
 
 import { pathToFileURL } from "node:url";
 import { loreApi } from "./lore-api.mjs";

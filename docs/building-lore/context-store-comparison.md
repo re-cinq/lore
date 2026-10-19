@@ -60,7 +60,7 @@ By 2026-10-19 every onboarded repository had a Utopia base at ontology version 5
 - **The two stores rarely pick the same sources.** Overlap stays between 0% and 12%. Even on bowman-ui, where both find most documents, they keep different neighbours, which suggests the ranking differs a lot (Utopia ranks statements by its hybrid search; Lore ranks chunks by its own).
 - **HALEngine is a real gap, not a missing base.** It has a Utopia base, but Utopia found none of its 20 documents while Lore found and answered all 20. Why is not known yet; the first thing to check is whether its documents reached the mirror whole (the base is on ontology version 2).
 - **Five repositories have no Utopia base at all**, so their Utopia columns are zeros by construction; the weekly backfill only mirrors repositories that already have a base.
-- **The run also flagged Lore itself.** Otto falls below the nightly bar on Lore's own numbers (14 of 18 answered against a bar of 85%), and demo-factory-todo's single document goes unanswered. Both are Lore findings, independent of Utopia.
+- **The run also flagged Lore itself.** Otto falls below the evals' bar on Lore's own numbers (14 of 18 answered against a bar of 85%), and demo-factory-todo's single document goes unanswered. Both are Lore findings, independent of Utopia.
 
 ## What this suggests
 
@@ -69,7 +69,7 @@ No store should switch yet. The plan's rule is two weeks of Utopia matching Lore
 1. **Set up Utopia bases for the five repositories without one**, then backfill, so every row compares two stores rather than one.
 2. **Measure where the unused tokens come from.** Record each source's size in the eval's output, then test a per-document score floor or a cap on statements per document in the Utopia reader.
 3. **Push whole files to Utopia** (text dual-write), so its `repo`, `adrs` and `code` readers can return file text, including the code blocks, tables and examples a statement does not carry.
-4. **Run this again** after each of those, and nightly once both arms read text.
+4. **Run this again** after each of those, from a developer machine.
 
 ## How it was run
 
