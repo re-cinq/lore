@@ -6,6 +6,7 @@ const NOW = new Date("2026-09-02T12:00:00Z");
 
 async function serverWith() {
   const server = Hapi.server();
+
   server.auth.scheme("stub", () => ({
     authenticate: (_request, h: any) => h.authenticated({ credentials: {} }),
   }));
@@ -18,6 +19,7 @@ async function serverWith() {
       floor: null,
     }),
   );
+
   return server;
 }
 
@@ -38,6 +40,7 @@ function poolWith() {
           ],
         };
       }
+
       if (sql.includes("billing_mode")) {
         return {
           rows: [
@@ -46,6 +49,7 @@ function poolWith() {
           ],
         };
       }
+
       return { rows: [] };
     },
   } as never;

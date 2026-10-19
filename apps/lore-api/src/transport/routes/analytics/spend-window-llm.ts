@@ -39,6 +39,7 @@ export async function readLlmSpend(
     floor,
     win,
   );
+
   return {
     ...b.totals,
     ...llmCuts(b),
@@ -57,6 +58,7 @@ async function resolveBillingMode(
     return { by_billing_mode: b.byBillingMode, floor_unavailable: false };
   }
   const floorModes = await floorBillingModes(floor, win);
+
   return {
     by_billing_mode: billingModeSplit(b.totals, floorModes ?? []),
     floor_unavailable: floorModes === null,
