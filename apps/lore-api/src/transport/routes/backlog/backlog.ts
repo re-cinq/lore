@@ -43,6 +43,7 @@ import {
 } from "./backlog-ticket.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
+import { readIssues, type BacklogIssues } from "./backlog-issues.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
@@ -110,18 +111,12 @@ async function serveReadBacklog(
     .code(200);
 }
 
-type OpenIssues = Parameters<typeof taskTicket>[1];
 type NodeRows = Parameters<typeof taskTicket>[3];
 
-interface BacklogState {
+interface BacklogState extends BacklogIssues {
   enabled: boolean;
   onboarding: Onboarding;
   taskRows: LoopTaskRow[];
-  openIssues: OpenIssues;
-  /** Open blockers of each queued ticket that carries a blocked-by link. */
-  openBlockers: Map<number, number[]>;
-  /** Head branches of the repo's open pull requests; read only when a settled task could still hold a queued ticket. */
-  openPrBranches: Set<string>;
   currentRunId: string | null;
   runByTask: Map<string, Parameters<typeof taskTicket>[2] & object>;
   nodeRows: NodeRows;
@@ -165,47 +160,6 @@ function resolveEnabled(settings: Record<string, unknown> | null): boolean {
   )?.implementation_loop;
 
   return loop?.enabled === true;
-}
-
-/** The repo's open issues, and the open blockers of the queued ones. Only a ticket whose listing reports a blocked-by link costs a second GitHub read, the driver's own rule (FR2). */
-async function readIssues(
-  repo: string,
-  taskRows: LoopTaskRow[],
-): Promise<
-  Pick<BacklogState, "openIssues" | "openBlockers" | "openPrBranches">
-> {
-  const project = await projectFor(repo);
-  const { issues } = project;
-  const openIssues = await issues.list({ state: "open" });
-  const queued = orderBacklog(openIssues);
-  const linked = queued.filter((i) => i.blockedByCount);
-  const blockers = await Promise.all(
-    linked.map((i) => issues.openBlockers(i.number)),
-  );
-
-  return {
-    openIssues,
-    openBlockers: new Map(linked.map((i, at) => [i.number, blockers[at]])),
-    openPrBranches: await readOpenPrBranches(project, queued, taskRows),
-  };
-}
-
-/** Pull requests matter only to a queued ticket whose task settled, so a backlog with none of those costs no GitHub read. */
-async function readOpenPrBranches(
-  { pulls }: Awaited<ReturnType<typeof projectFor>>,
-  queued: OpenIssues,
-  taskRows: LoopTaskRow[],
-): Promise<Set<string>> {
-  const queuedNumbers = new Set(queued.map((i) => i.number));
-  const settledOnQueued = taskRows.some(
-    (t) =>
-      isSettledTask(t.status) &&
-      t.issue_number !== null &&
-      queuedNumbers.has(t.issue_number),
-  );
-  const openPrs = settledOnQueued ? await pulls.list() : [];
-
-  return new Set(openPrs.map((pr) => pr.branch));
 }
 
 /** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. Postgres only ever held this for Lore's own retired engine (ADR-049), so an open run today is answered by the floor. */

@@ -280,7 +280,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     repo: string,
     issueNumber: number,
   ): Promise<{ id: string; status: string } | null> {
-    const [task] = this.tasks
+    const task = this.tasks
       .filter(
         (t) =>
           t.issue_number === issueNumber &&
@@ -289,7 +289,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
           t.status !== "cancelled" &&
           t.status !== "retried",
       )
-      .sort((a, b) => ms(b.created_at) - ms(a.created_at));
+      .sort((a, b) => ms(b.created_at) - ms(a.created_at))
+      .at(0);
 
     return task ? { id: task.id, status: task.status ?? "pending" } : null;
   }
