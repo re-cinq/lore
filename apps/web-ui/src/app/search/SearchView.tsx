@@ -62,6 +62,7 @@ function SearchForm({
         defaultValue={q || ""}
         placeholder="Search memories, facts, and ingested docs..."
       />
+      {/* eslint-disable-next-line no-restricted-syntax -- native GET search form, no mutation, no client JS state to show */}
       <button type="submit">Search</button>
     </form>
   );

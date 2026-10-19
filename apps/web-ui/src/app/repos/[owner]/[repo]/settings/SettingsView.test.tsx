@@ -61,11 +61,40 @@ describe("SettingsView (general only)", () => {
     );
   });
 
-  it("no longer renders dark-factory, agent, or approval-PR controls", () => {
+  it("renders the daily digest section after the cross-repo field", () => {
+    const { container } = renderView({ digest: { enabled: true } });
+    const names = Array.from(container.querySelectorAll("select, input")).map(
+      (field) => field.getAttribute("name"),
+    );
+
+    expect(names.indexOf("digest_enabled")).toBeGreaterThan(
+      names.indexOf("cross_repo_repos"),
+    );
+  });
+
+  it("renders no agent or approval-PR controls", () => {
     const { container } = renderView();
 
-    expect(container.querySelector('select[name="df_enabled"]')).toBeNull();
     expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
     expect(container.querySelector('select[name="model_select"]')).toBeNull();
+  });
+
+  it("renders the auto_merge.approver select prefilled from settings", () => {
+    const { container } = renderView({
+      auto_merge: { approver: "lore-reviewer" },
+    });
+
+    expect(
+      container.querySelector('select[name="auto_merge_approver"]'),
+    ).toHaveValue("lore-reviewer");
+  });
+
+  it("links to GitHub's install page for lore-reviewer on that repo", () => {
+    const { container } = renderView();
+    const link = container.querySelector(
+      'a[href*="/apps/lore-reviewer/installations/new"]',
+    );
+
+    expect(link).not.toBeNull();
   });
 });

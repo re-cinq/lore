@@ -1,12 +1,15 @@
 import type { PgPool } from "@re-cinq/lore-shared";
 // PostgreSQL-backed memory CRUD: write/read/delete/list against memory.memories, memory.memory_versions, and memory.audit_log, using the same pool-injection pattern as db.ts.
 
-import { memoryListScope, resolveAgentId } from "@re-cinq/lore-shared";
+import {
+  memoryListScope,
+  resolveAgentId,
+  runInTransaction,
+} from "@re-cinq/lore-shared";
 import {
   getMemoryPool,
   firstRow,
   toEmbeddingParam,
-  runInTransaction,
   auditLog,
   type WriteResult,
   type MemoryWriteInput,
@@ -18,7 +21,6 @@ export {
   setMemoryPool,
   isMemoryDbAvailable,
   toEmbeddingParam,
-  runInTransaction,
   auditLog,
   type WriteResult,
   type MemoryWriteInput,

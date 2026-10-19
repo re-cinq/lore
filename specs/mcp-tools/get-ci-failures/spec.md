@@ -1,0 +1,47 @@
+# Feature Specification: lore_get_ci_failures MCP Tool
+
+| Field   | Value                          |
+|---------|--------------------------------|
+| Feature | lore_get_ci_failures MCP Tool  |
+| Status  | In Progress                    |
+| Created | 2026-09-12                     |
+| Owner   | Platform Engineering           |
+| Tool    | `lore_get_ci_failures`         |
+| Module  | ci (`ci-tools.ts`)             |
+| Scope   | shared (served in agent mode)  |
+
+`lore_get_ci_failures` tells a caller what CI said about a branch — the sha it judged, the verdict, and every failed check with the annotations that name a file and line, the steps that failed, and the failing step's log tail — so an agent repairing a red build reads the verdict instead of reproducing the build.
+
+## Problem Statement
+
+Run 997026f5 (2026-09-09) reached `repair-build` with a red `format` job whose whole cause was one lint error on one line of one spec. The pod was handed no verdict, reproduced the build from scratch — `npm ci`, then a workspace build — and died at its 1Gi limit before learning anything CI had already printed. The Floor now hands the verdict to the node ([FR15](../../implementation-loop/spec.md)); this tool is the pod's own way to ask, for when the block is missing, truncated, or stale after its own push.
+
+## Interface
+
+Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/transport/tools/ci-tools.ts#L80)), in `registerSharedTools`, so the agent-mode gateway serves it.
+
+### Input schema (Zod)
+
+| Param | Type | Required | Default | Constraint / notes |
+|-------|------|----------|---------|--------------------|
+| `repo` | string | no | git remote of the cwd | `owner/repo`. |
+| `branch` | string | no | checked-out branch of the cwd | The branch to report on. |
+| `pr_number` | number | no | — | Alternative to `branch`: the pull request whose head branch to report on. Wins when both are given. |
+
+## Behavior
+
+- On a laptop, with no arguments it asks for the checked-out branch of the detected repo; it never needs a pull request number. A pod has no checkout to detect from, so it passes `repo` and `branch` (the output of `git branch --show-current`). ([validated by asks for the checked-out branch of the detected repo when called with no arguments on a laptop](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L39))
+- Given `pr_number` it asks by number and does not consult git. ([validated by asks by pull request number when given one, without touching git](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L55))
+- When neither a branch nor a pull request can be found, or the repo cannot be detected, it says which parameter to pass instead of calling the API. ([validated by says what to pass when neither a branch nor a pull request can be found](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L70), [validated by says what to pass when the repo cannot be detected](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L85))
+- *(added 2026-10-01, #2103)* In the agent gateway, which has no checkout, it never runs git: a call without `repo` is told to pass it as owner/name, and one without `branch` or `pr_number` is told to pass one, before any API call. ([validated by in the agent gateway asks for the repo and branch rather than running git, which it does not have](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L97))
+- It proxies `GET /api/repos/{owner}/{repo}/ci-failures` ([route spec](../../api-routes/ci-failures/spec.md)) and returns the report as pretty JSON; a refusal surfaces the server's own reason. ([validated by surfaces the server's own refusal rather than a generic unreachable line](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L121))
+- The checked-out branch is read from git on every call and is null on a detached HEAD, which names no branch CI could have judged. ([validated by returns the checked-out branch](../../../libs/server-core/src/work/repo/repo-detect.test.ts#L63), [validated by returns null on a detached HEAD, which names no branch CI could have judged](../../../libs/server-core/src/work/repo/repo-detect.test.ts#L68), [validated by re-runs git on every call, since a checkout can switch branches between two calls](../../../libs/server-core/src/work/repo/repo-detect.test.ts#L80))
+
+## Output
+
+One MCP text block: the `CiFailureReport` JSON (`branch`, `judged_sha`, `conclusion`, `failures[]` of `{name, app, job_id, annotations[], steps[], tail[], npm_script, unreadable[]}` — `unreadable` names the reads GitHub refused as `what (status)`, so an empty part beside an entry there could not be read rather than said nothing; `npm_script` names the package and script a failed step ran, so a reproduction runs in that package), a "specify branch / repo" line, or the API's refusal. **Never throws.**
+
+## Out of Scope
+
+- Reading a job's full log — `lore_get_ci_job_log`.
+- Review state — `lore_get_pr_status`.

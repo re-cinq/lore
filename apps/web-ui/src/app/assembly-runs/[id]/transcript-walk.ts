@@ -9,16 +9,27 @@ import {
   turnsUrl,
 } from "./turn-transcript-presenter";
 
-/** One full walk of the turns endpoint, honoring the page/turn caps; throws on transport failure. */
-export async function walkAllTurns(runId: string, isDisposed: () => boolean) {
+/** The whole run's turns, from the first. */
+export function walkAllTurns(runId: string, isDisposed: () => boolean) {
+  return walkTurns(runId, { after: "0", isDisposed });
+}
+
+/** Where a walk starts ("0" for the whole run) and when it must stop because the panel is gone. */
+export interface TurnWalk {
+  after: string;
+  isDisposed: () => boolean;
+}
+
+/** One walk of the turns endpoint from `after` to the end, honoring the page/turn caps; throws on transport failure. */
+export async function walkTurns(runId: string, walk: TurnWalk) {
   const collected: AgentRunTurn[] = [];
-  let cursor = "0";
+  let cursor = walk.after;
   let pages = 0;
 
   for (;;) {
     const page = await fetchTurnsPage(runId, cursor);
 
-    if (isDisposed()) {
+    if (walk.isDisposed()) {
       return { turns: collected, hitCap: false };
     }
     pages += 1;

@@ -20,13 +20,27 @@ const state: {
     conclusion: string | null;
     output: { title: string | null; summary: string | null };
   }>;
+  statuses?: Array<{ context: string; state: string }>;
+  statusesForbidden?: boolean;
   token: string;
   labelError?: { status?: number };
   reviewCall?: Record<string, unknown>;
   prData?: Record<string, unknown>;
   treeData?: Record<string, unknown>;
+  refCall?: Record<string, unknown>;
   issuesData?: Array<Record<string, unknown>>;
+  issuesListCall?: Record<string, unknown>;
+  releasesData?: Array<Record<string, unknown>>;
+  tagsData?: Array<Record<string, unknown>>;
+  pullsPages?: Array<Array<Record<string, unknown>>>;
+  pullsListCall?: Record<string, unknown>;
+  pagesServed: number;
   issueData?: Record<string, unknown>;
+  blockersData?: Array<{ number: number; state: string }>;
+  blockersCall?: Record<string, unknown>;
+  requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
+  requestAnswers?: Record<string, unknown>;
+  issueUpdateCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -36,7 +50,28 @@ const state: {
   job?: { steps: Array<{ name: string; conclusion: string | null }> };
   jobLog?: string;
   jobError?: { status: number };
-} = { files: [], checkRuns: [], token: "", graphqlCalls: [], authCalls: [] };
+  branchCommits?: Array<{
+    sha: string;
+    commit: {
+      message: string;
+      committer: { date: string } | null;
+      author?: { email: string } | null;
+    };
+  }>;
+  annotations?: Array<{
+    path: string;
+    start_line: number;
+    annotation_level: string;
+    message: string;
+  }>;
+} = {
+  files: [],
+  checkRuns: [],
+  token: "",
+  graphqlCalls: [],
+  authCalls: [],
+  pagesServed: 0,
+};
 
 vi.mock("octokit", () => ({
   Octokit: class {
@@ -45,6 +80,16 @@ vi.mock("octokit", () => ({
       state.authCalls.push(options);
 
       return { token: state.token };
+    };
+    request = async (route: string, params: Record<string, unknown>) => {
+      (state.requestCalls ??= []).push({ route, params });
+      const answer = state.requestAnswers?.[route];
+
+      if (answer instanceof Error) {
+        throw answer;
+      }
+
+      return { data: answer ?? {} };
     };
     graphql = async (query: string, vars: Record<string, unknown>) => {
       state.graphqlCalls.push({ query, vars });
@@ -63,12 +108,30 @@ vi.mock("octokit", () => ({
 
       return { repository: { pullRequest: { reviewThreads: page } } };
     };
-    paginate = async (
-      fn: (p: unknown) => Promise<unknown[]>,
-      params: unknown,
-    ) => fn(params);
+    paginate = Object.assign(
+      async (fn: (p: unknown) => Promise<unknown[]>, params: unknown) =>
+        fn(params),
+      {
+        iterator: async function* (
+          fn: (p: unknown) => Promise<unknown>,
+          params: unknown,
+        ) {
+          await fn(params);
+
+          for (const page of state.pullsPages ?? []) {
+            state.pagesServed += 1;
+            yield { data: page };
+          }
+        },
+      },
+    );
     rest = {
       pulls: {
+        list: async (params: Record<string, unknown>) => {
+          state.pullsListCall = params;
+
+          return [];
+        },
         listFiles: async () => state.files,
         get: async () => ({ data: state.prData }),
         createReview: async (params: Record<string, unknown>) => {
@@ -92,7 +155,10 @@ vi.mock("octokit", () => ({
           state.updateCall = params;
         },
       },
-      checks: { listForRef: async () => state.checkRuns },
+      checks: {
+        listForRef: async () => state.checkRuns,
+        listAnnotations: async () => state.annotations ?? [],
+      },
       actions: {
         getJobForWorkflowRun: async () => {
           if (state.jobError) {
@@ -101,13 +167,54 @@ vi.mock("octokit", () => ({
 
           return { data: state.job };
         },
-        downloadJobLogsForWorkflowRun: async () => ({ data: state.jobLog }),
+        downloadJobLogsForWorkflowRun: async () => {
+          if (state.jobError) {
+            throw state.jobError;
+          }
+
+          return { data: state.jobLog };
+        },
       },
-      git: { getTree: async () => ({ data: state.treeData }) },
+      git: {
+        getTree: async () => ({ data: state.treeData }),
+        getRef: async (params: Record<string, unknown>) => {
+          state.refCall = params;
+
+          return { data: { object: { sha: "abc123" } } };
+        },
+      },
+      repos: {
+        getCombinedStatusForRef: async () => {
+          if (state.statusesForbidden) {
+            throw Object.assign(new Error("Resource not accessible"), {
+              status: 403,
+            });
+          }
+
+          return { data: { statuses: state.statuses ?? [] } };
+        },
+        listCommits: async () => ({ data: state.branchCommits ?? [] }),
+        listReleases: async () => state.releasesData ?? [],
+        listTags: async () => state.tagsData ?? [],
+      },
       issues: {
         addLabels: async () => ({}),
-        listForRepo: async () => state.issuesData ?? [],
+        listForRepo: async (params: Record<string, unknown>) => {
+          state.issuesListCall = params;
+
+          return state.issuesData ?? [];
+        },
         get: async () => ({ data: state.issueData }),
+        update: async (params: Record<string, unknown>) => {
+          state.issueUpdateCall = params;
+
+          return { data: {} };
+        },
+        listDependenciesBlockedBy: async (params: Record<string, unknown>) => {
+          state.blockersCall = params;
+
+          return state.blockersData ?? [];
+        },
         createLabel: async () => {
           if (state.labelError) {
             throw state.labelError;
@@ -138,14 +245,133 @@ describe("PlatformGitHub paginated reads + helpers", () => {
   beforeEach(() => {
     state.files = [];
     state.checkRuns = [];
+    state.statuses = undefined;
     state.token = "";
     state.labelError = undefined;
     state.reviewCall = undefined;
     state.prData = undefined;
     state.treeData = undefined;
     state.issuesData = undefined;
+    state.pullsPages = undefined;
+    state.pagesServed = 0;
   });
   afterEach(() => vi.clearAllMocks());
+
+  const closedPull = (
+    number: number,
+    updatedAt: string,
+    mergedAt: string | null,
+  ) => ({
+    number,
+    title: `PR ${number}`,
+    head: { ref: `b${number}` },
+    state: "closed",
+    html_url: `https://gh/pr/${number}`,
+    updated_at: updatedAt,
+    merged_at: mergedAt,
+    body: `Closes #${number}`,
+    user: { login: "alice" },
+  });
+
+  it("listMergedSince keeps only pulls merged at or after the cutoff, newest first", async () => {
+    state.pullsPages = [
+      [
+        closedPull(3, "2026-09-25T09:00:00Z", "2026-09-25T08:00:00Z"),
+        closedPull(2, "2026-09-25T07:00:00Z", null),
+        closedPull(1, "2026-09-23T07:00:00Z", "2026-09-23T07:00:00Z"),
+      ],
+    ];
+    const merged = await gh().listMergedSince(
+      "re-cinq/lore",
+      "2026-09-24T07:00:00Z",
+    );
+
+    expect(merged).toEqual([
+      expect.objectContaining({
+        number: 3,
+        state: "merged",
+        mergedAt: "2026-09-25T08:00:00Z",
+        body: "Closes #3",
+        author: "alice",
+      }),
+    ]);
+    expect(state.pullsListCall).toMatchObject({
+      state: "closed",
+      sort: "updated",
+      direction: "desc",
+    });
+  });
+
+  it("listMergedSince stops paging once a closed pull is older than the cutoff", async () => {
+    state.pullsPages = [
+      [
+        closedPull(3, "2026-09-25T09:00:00Z", "2026-09-25T08:00:00Z"),
+        closedPull(1, "2026-09-23T07:00:00Z", "2026-09-23T07:00:00Z"),
+      ],
+      [closedPull(0, "2026-09-01T07:00:00Z", "2026-09-01T07:00:00Z")],
+    ];
+    await gh().listMergedSince("re-cinq/lore", "2026-09-24T07:00:00Z");
+
+    expect(state.pagesServed).toBe(1);
+  });
+
+  it("listMergedSince keeps paging while every pull is inside the window", async () => {
+    state.pullsPages = [
+      [closedPull(3, "2026-09-25T09:00:00Z", "2026-09-25T08:00:00Z")],
+      [closedPull(2, "2026-09-25T08:00:00Z", "2026-09-25T07:30:00Z")],
+    ];
+    const merged = await gh().listMergedSince(
+      "re-cinq/lore",
+      "2026-09-24T07:00:00Z",
+    );
+
+    expect(merged.map((pr) => pr.number)).toEqual([3, 2]);
+  });
+
+  it("listIssues maps assignee logins onto assignees and close time onto closedAt", async () => {
+    state.issuesData = [
+      {
+        number: 21,
+        title: "Owned",
+        state: "closed",
+        labels: [],
+        html_url: "https://gh/i/21",
+        created_at: "2026-09-01T09:00:00Z",
+        closed_at: "2026-09-25T06:00:00Z",
+        assignees: [{ login: "alice" }, { login: "bob" }],
+      },
+    ];
+    const [issue] = await gh().listIssues("re-cinq/lore", { state: "closed" });
+
+    expect(issue).toMatchObject({
+      number: 21,
+      assignees: ["alice", "bob"],
+      closedAt: "2026-09-25T06:00:00Z",
+    });
+  });
+
+  it("listIssues keeps only issues closed at or after since when listing closed ones", async () => {
+    const closed = (number: number, closedAt: string) => ({
+      number,
+      title: `Issue ${number}`,
+      state: "closed",
+      labels: [],
+      html_url: `https://gh/i/${number}`,
+      created_at: "2026-09-01T09:00:00Z",
+      closed_at: closedAt,
+    });
+
+    state.issuesData = [
+      closed(30, "2026-09-25T06:00:00Z"),
+      closed(31, "2026-09-20T06:00:00Z"),
+    ];
+    const issues = await gh().listIssues("re-cinq/lore", {
+      state: "closed",
+      since: "2026-09-24T07:00:00Z",
+    });
+
+    expect(issues.map((i) => i.number)).toEqual([30]);
+  });
 
   it("listIssues maps created_at to createdAt and drops pull requests", async () => {
     state.issuesData = [
@@ -209,6 +435,78 @@ describe("PlatformGitHub paginated reads + helpers", () => {
       body: "248 links across 23 specs don't resolve.",
     });
     expect(issues[1]).not.toHaveProperty("body");
+  });
+
+  it("listIssues carries a blocked-by link count of 3 and omits a count of 0", async () => {
+    const dependent = (number: number, totalBlockedBy: number) => ({
+      number,
+      title: `Ticket ${number}`,
+      state: "open",
+      labels: [],
+      html_url: `https://gh/i/${number}`,
+      created_at: "2026-08-02T09:00:00Z",
+      issue_dependencies_summary: {
+        blocked_by: totalBlockedBy,
+        total_blocked_by: totalBlockedBy,
+      },
+    });
+
+    state.issuesData = [dependent(16, 3), dependent(17, 0)];
+    const issues = await gh().listIssues("re-cinq/lore");
+
+    expect(issues[0]).toMatchObject({ number: 16, blockedByCount: 3 });
+    expect(issues[1]).not.toHaveProperty("blockedByCount");
+  });
+
+  it("listOpenBlockers asks for #16's blockers and returns only the open #39 and #155", async () => {
+    state.blockersData = [
+      { number: 39, state: "open" },
+      { number: 23, state: "closed" },
+      { number: 155, state: "open" },
+    ];
+
+    await expect(gh().listOpenBlockers("re-cinq/lore", 16)).resolves.toEqual([
+      39, 155,
+    ]);
+    expect(state.blockersCall).toMatchObject({
+      owner: "re-cinq",
+      repo: "lore",
+      issue_number: 16,
+    });
+  });
+
+  it("addSubIssue links #2261 under #2260 by #2261's numeric id, not its number", async () => {
+    state.issueData = { id: 987654, number: 2261 };
+    state.requestCalls = [];
+
+    await gh().addSubIssue("re-cinq/lore", 2260, 2261);
+
+    expect(state.requestCalls).toEqual([
+      {
+        route: "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
+        params: {
+          owner: "re-cinq",
+          repo: "lore",
+          issue_number: 2260,
+          sub_issue_id: 987654,
+        },
+      },
+    ]);
+  });
+
+  it("updateIssue rewrites #2260's title and body and nothing else", async () => {
+    await gh().updateIssue("re-cinq/lore", 2260, {
+      title: "User story: Issue triage",
+      body: "- [ ] #2261 T001",
+    });
+
+    expect(state.issueUpdateCall).toEqual({
+      owner: "re-cinq",
+      repo: "lore",
+      issue_number: 2260,
+      title: "User story: Issue triage",
+      body: "- [ ] #2261 T001",
+    });
   });
 
   it("listFiles returns every changed filename (paginated past one page)", async () => {
@@ -381,6 +679,17 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("getInstallationToken for re-cinq/lore with contents:read asks GitHub for a token narrowed to contents:read", async () => {
+    await gh().getInstallationToken("re-cinq/lore", { contents: "read" });
+
+    expect(state.authCalls.at(-1)).toEqual({
+      type: "installation",
+      refresh: true,
+      repositoryNames: ["lore"],
+      permissions: { contents: "read" },
+    });
+  });
+
   it("createLabels swallows a 422 (already exists) and continues", async () => {
     state.labelError = { status: 422 };
     await expect(
@@ -434,6 +743,40 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("get exposes node id PR_kw_7 and base branch main", async () => {
+    state.prData = {
+      number: 7,
+      title: "t",
+      head: { ref: "feat/x", sha: "deadbeef" },
+      base: { ref: "main" },
+      node_id: "PR_kw_7",
+      state: "open",
+      html_url: "https://gh/pr/7",
+      user: { login: "bob" },
+    };
+
+    expect(await gh().get("re-cinq/lore", 7)).toMatchObject({
+      nodeId: "PR_kw_7",
+      baseBranch: "main",
+    });
+  });
+
+  it("get reads an armed auto-merge as autoMerge true", async () => {
+    state.prData = {
+      number: 7,
+      title: "t",
+      head: { ref: "feat/x", sha: "deadbeef" },
+      state: "open",
+      html_url: "https://gh/pr/7",
+      user: { login: "bob" },
+      auto_merge: { merge_method: "squash" },
+    };
+
+    expect(await gh().get("re-cinq/lore", 7)).toMatchObject({
+      autoMerge: true,
+    });
+  });
+
   it("listTree throws instead of returning a truncated tree", async () => {
     state.treeData = {
       truncated: true,
@@ -457,6 +800,15 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     };
 
     expect(await gh().listTree("re-cinq/lore", "main")).toEqual(["specs/a.md"]);
+  });
+
+  it("reads heads/main of re-cinq/lore and answers its head sha abc123", async () => {
+    const sha = await gh().branchHeadSha("re-cinq/lore", "main");
+
+    expect({ sha, call: state.refCall }).toEqual({
+      sha: "abc123",
+      call: { owner: "re-cinq", repo: "lore", ref: "heads/main" },
+    });
   });
 });
 
@@ -556,6 +908,17 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
     });
   });
 
+  it("close sets the pull request's state to closed", async () => {
+    await gh().close("re-cinq/lore", 7);
+
+    expect(state.updateCall).toEqual({
+      owner: "re-cinq",
+      repo: "lore",
+      pull_number: 7,
+      state: "closed",
+    });
+  });
+
   it("markReady sends the mutation carrying the pull request node id", async () => {
     state.prNode = { id: "PR_42", isDraft: true };
 
@@ -623,6 +986,7 @@ describe("PlatformGitHub failedJob", () => {
     state.job = undefined;
     state.jobLog = undefined;
     state.jobError = undefined;
+    state.annotations = undefined;
   });
 
   it("failedJob returns the failed step names and what the failing step printed", async () => {
@@ -640,11 +1004,41 @@ describe("PlatformGitHub failedJob", () => {
       "2026-09-10T15:19:33.3498151Z ##[error]Process completed with exit code 1.",
     ].join("\n");
     expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toEqual({
+      annotations: [],
       steps: ["Lint (--max-warnings 0)"],
       tail: [
         "/home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
         '6:1  error  Status "shipped" does not match',
       ],
+      unreadable: [],
+    });
+  });
+
+  it("failedJob renders the check run's failure-level annotations as path:line message, dropping warnings", async () => {
+    state.job = { steps: [{ name: "Lint", conclusion: "failure" }] };
+    state.jobLog = "";
+    state.annotations = [
+      {
+        path: "specs/web-ui-theming/spec.md",
+        start_line: 60,
+        annotation_level: "warning",
+        message: "Testable statement has no test link",
+      },
+      {
+        path: "specs/testing-standards/spec.md",
+        start_line: 7,
+        annotation_level: "failure",
+        message:
+          'Status "draft" does not match this spec\'s test-link coverage',
+      },
+    ];
+    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toEqual({
+      annotations: [
+        'specs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage',
+      ],
+      steps: ["Lint"],
+      tail: [],
+      unreadable: [],
     });
   });
 });
@@ -656,11 +1050,476 @@ describe("PlatformGitHub failedJob when GitHub refuses", () => {
     state.job = undefined;
     state.jobLog = undefined;
     state.jobError = undefined;
+    state.annotations = undefined;
   });
 
-  it("failedJob returns null when GitHub refuses the job read, so the verdict still goes out with the check names", async () => {
+  it("failedJob keeps the annotations and names the job and log reads GitHub refused with 403", async () => {
     state.jobError = { status: 403 };
+    state.annotations = [
+      {
+        path: "apps/api/src/configuration/config.ts",
+        start_line: 23,
+        annotation_level: "failure",
+        message: "Function 'getConfig' has too many lines (33)",
+      },
+    ];
 
-    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toBe(null);
+    expect(await gh().failedJob("acme/widgets", 102930584180)).toEqual({
+      annotations: [
+        "apps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)",
+      ],
+      steps: [],
+      tail: [],
+      unreadable: ["job (403)", "log (403)"],
+    });
+  });
+});
+
+describe("PlatformGitHub branch reads for the CI tools", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  it("commitEmailOf returns the author email of the login's newest commit", async () => {
+    state.branchCommits = [
+      {
+        sha: "a1",
+        commit: {
+          message: "feat",
+          committer: null,
+          author: { email: "bogdan@re-cinq.com" },
+        },
+      },
+    ];
+
+    expect(await gh().commitEmailOf("re-cinq/lore", "gedaiu")).toBe(
+      "bogdan@re-cinq.com",
+    );
+  });
+
+  it("commitEmailOf returns null for a login with no commits in the repo", async () => {
+    state.branchCommits = [];
+
+    expect(await gh().commitEmailOf("re-cinq/lore", "vvondruska")).toBe(null);
+  });
+
+  it("commitEmailOf returns null for a GitHub noreply address", async () => {
+    state.branchCommits = [
+      {
+        sha: "a1",
+        commit: {
+          message: "feat",
+          committer: null,
+          author: { email: "123+gedaiu@users.noreply.github.com" },
+        },
+      },
+    ];
+
+    expect(await gh().commitEmailOf("re-cinq/lore", "gedaiu")).toBe(null);
+  });
+
+  it("listBranchCommits returns the branch's commits oldest-first, the order listCommits uses, so ciJudgedSha reads both alike", async () => {
+    state.branchCommits = [
+      {
+        sha: "newest",
+        commit: {
+          message: "style: prettier [skip ci]",
+          committer: { date: "2026-09-09T13:00:00Z" },
+        },
+      },
+      {
+        sha: "older",
+        commit: { message: "feat: round 4", committer: null },
+      },
+    ];
+    expect(await gh().listBranchCommits("re-cinq/lore", "topic", 30)).toEqual([
+      { sha: "older", message: "feat: round 4", date: "" },
+      {
+        sha: "newest",
+        message: "style: prettier [skip ci]",
+        date: "2026-09-09T13:00:00Z",
+      },
+    ]);
+  });
+
+  it("listBranchHistory reads main newest-first from the commit listing alone, stops at the cursor, keeps the newest two of the three commits above it, and answers them oldest-first", async () => {
+    const listed = (sha: string, message: string) => ({
+      sha,
+      parents: [{ sha: `${sha}-parent` }],
+      commit: { message, author: { name: "Szabo Bogdan", date: `${sha}-at` } },
+    });
+
+    state.pullsPages = [
+      [listed("c3", "Three (#3)\n\nCloses #9\n"), listed("c2", "Two")],
+      [listed("c1", "One"), listed("cursor", "Old"), listed("c0", "Older")],
+    ];
+    const history = await gh().listBranchHistory("re-cinq/lore", "main", {
+      until: "cursor",
+      limit: 2,
+    });
+
+    expect(history).toEqual([
+      {
+        sha: "c2",
+        parents: ["c2-parent"],
+        subject: "Two",
+        body: "",
+        author: "Szabo Bogdan",
+        authoredAt: "c2-at",
+      },
+      {
+        sha: "c3",
+        parents: ["c3-parent"],
+        subject: "Three (#3)",
+        body: "Closes #9",
+        author: "Szabo Bogdan",
+        authoredAt: "c3-at",
+      },
+    ]);
+  });
+
+  it("listTrackerActivity asks for every issue and pull request updated since the cursor, oldest first, and answers the first two of three as tracked entries, stopping before the next page", async () => {
+    const row = (number: number, extra: Record<string, unknown> = {}) => ({
+      number,
+      title: `Title ${number}`,
+      body: null,
+      user: { login: "gedaiu" },
+      labels: ["utopia", { name: "lore" }],
+      created_at: `${number}-opened`,
+      closed_at: null,
+      updated_at: `${number}-updated`,
+      ...extra,
+    });
+
+    state.pullsPages = [
+      [
+        row(5),
+        row(6, {
+          body: "Closes #5",
+          closed_at: "6-closed",
+          pull_request: { merged_at: "6-merged" },
+        }),
+      ],
+      [row(7)],
+    ];
+    state.pagesServed = 0;
+    const activity = await gh().listTrackerActivity("re-cinq/lore", {
+      since: "2026-10-16T00:00:00Z",
+      limit: 2,
+    });
+
+    expect({
+      activity,
+      call: state.issuesListCall,
+      pages: state.pagesServed,
+    }).toEqual({
+      activity: [
+        {
+          kind: "issue",
+          number: 5,
+          title: "Title 5",
+          body: "",
+          author: "gedaiu",
+          labels: ["utopia", "lore"],
+          openedAt: "5-opened",
+          closedAt: null,
+          mergedAt: null,
+          updatedAt: "5-updated",
+        },
+        {
+          kind: "pull",
+          number: 6,
+          title: "Title 6",
+          body: "Closes #5",
+          author: "gedaiu",
+          labels: ["utopia", "lore"],
+          openedAt: "6-opened",
+          closedAt: "6-closed",
+          mergedAt: "6-merged",
+          updatedAt: "6-updated",
+        },
+      ],
+      call: {
+        owner: "re-cinq",
+        repo: "lore",
+        state: "all",
+        sort: "updated",
+        direction: "asc",
+        since: "2026-10-16T00:00:00Z",
+        per_page: 100,
+      },
+      pages: 1,
+    });
+  });
+
+  it("listReleases answers the published releases with their tag, name, notes, author and publish time, leaving out a draft", async () => {
+    state.releasesData = [
+      {
+        tag_name: "v1.2.0",
+        name: "Lore 1.2",
+        body: "Notes",
+        draft: false,
+        author: { login: "gedaiu" },
+        published_at: "2026-10-17T09:00:00Z",
+      },
+      {
+        tag_name: "v1.3.0",
+        name: null,
+        body: null,
+        draft: true,
+        author: { login: "gedaiu" },
+        published_at: null,
+      },
+    ];
+
+    expect(await gh().listReleases("re-cinq/lore")).toEqual([
+      {
+        tag: "v1.2.0",
+        name: "Lore 1.2",
+        body: "Notes",
+        author: "gedaiu",
+        publishedAt: "2026-10-17T09:00:00Z",
+      },
+    ]);
+  });
+
+  it("listTags answers each tag's name and the commit it points to", async () => {
+    state.tagsData = [{ name: "v1.2.0", commit: { sha: "abc123" } }];
+
+    expect(await gh().listTags("re-cinq/lore")).toEqual([
+      { name: "v1.2.0", sha: "abc123" },
+    ]);
+  });
+
+  it("jobLog returns the job's raw log", async () => {
+    state.jobLog =
+      "2026-09-09T13:06:58.1703793Z ##[error]    7:1  error  Status";
+    state.jobError = undefined;
+    expect(await gh().jobLog("re-cinq/lore", 102476456760)).toBe(
+      "2026-09-09T13:06:58.1703793Z ##[error]    7:1  error  Status",
+    );
+  });
+
+  it("jobLog returns null when GitHub has no such job (404)", async () => {
+    state.jobError = { status: 404 };
+    expect(await gh().jobLog("re-cinq/lore", 102476456760)).toBe(null);
+  });
+
+  it("jobLog rejects with GitHub's 403 when the log read is refused", async () => {
+    state.jobError = { status: 403 };
+    await expect(
+      gh().jobLog("re-cinq/lore", 102476456760),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("PlatformGitHub auto-merge", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.graphqlCalls = [];
+  });
+
+  it("enablePullRequestAutoMerge sends PR_123 with merge method SQUASH when no method is given", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123");
+
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("enablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_123", mergeMethod: "SQUASH" },
+      },
+    ]);
+  });
+
+  it("enablePullRequestAutoMerge sends merge method REBASE for rebase", async () => {
+    await gh().enablePullRequestAutoMerge("PR_123", "rebase");
+
+    expect(state.graphqlCalls[0]?.vars).toEqual({
+      pullRequestId: "PR_123",
+      mergeMethod: "REBASE",
+    });
+  });
+
+  it("disablePullRequestAutoMerge sends PR_456 to the disable mutation", async () => {
+    await gh().disablePullRequestAutoMerge("PR_456");
+
+    expect(state.graphqlCalls).toMatchObject([
+      {
+        query: expect.stringContaining("disablePullRequestAutoMerge"),
+        vars: { pullRequestId: "PR_456" },
+      },
+    ]);
+  });
+});
+
+describe("PlatformGitHub branch rule and mergeability reads", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+  const RULES = "GET /repos/{owner}/{repo}/rules/branches/{branch}";
+  const CLASSIC = "GET /repos/{owner}/{repo}/branches/{branch}/protection";
+  const missing = () => Object.assign(new Error("Not Found"), { status: 404 });
+
+  beforeEach(() => {
+    state.requestAnswers = undefined;
+    state.prData = undefined;
+  });
+
+  it("getBranchRule reads 1 approval, Code Owners review and checks build and lint from a ruleset", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "pull_request",
+          parameters: {
+            required_approving_review_count: 1,
+            require_code_owner_review: true,
+          },
+        },
+        {
+          type: "required_status_checks",
+          parameters: {
+            required_status_checks: [{ context: "build" }, { context: "lint" }],
+          },
+        },
+      ],
+      [CLASSIC]: missing(),
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 1,
+      codeOwnersReview: true,
+      requiredChecks: ["build", "lint"],
+    });
+  });
+
+  it("getBranchRule merges classic protection's 2 approvals and test check with a ruleset's build check", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "required_status_checks",
+          parameters: { required_status_checks: [{ context: "build" }] },
+        },
+      ],
+      [CLASSIC]: {
+        required_pull_request_reviews: {
+          required_approving_review_count: 2,
+          require_code_owner_reviews: false,
+        },
+        required_status_checks: {
+          contexts: ["test"],
+          checks: [{ context: "test" }, { context: "build" }],
+        },
+      },
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 2,
+      codeOwnersReview: false,
+      requiredChecks: ["build", "test"],
+    });
+  });
+
+  it("getBranchRule answers 0 approvals and no checks for an unprotected branch", async () => {
+    state.requestAnswers = { [RULES]: [], [CLASSIC]: missing() };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 0,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    });
+  });
+
+  it("getBranchRule reads 1 approval from the ruleset when classic protection answers 403", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "pull_request",
+          parameters: { required_approving_review_count: 1 },
+        },
+      ],
+      [CLASSIC]: Object.assign(
+        new Error("Resource not accessible by integration"),
+        { status: 403 },
+      ),
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 1,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    });
+  });
+
+  it("getMergeability reads mergeable true with state blocked", async () => {
+    state.prData = { mergeable: true, mergeable_state: "blocked" };
+
+    expect(await gh().getMergeability("re-cinq/lore", 42)).toEqual({
+      mergeable: true,
+      state: "blocked",
+    });
+  });
+
+  it("getMergeability reads mergeable null with state unknown while GitHub computes it", async () => {
+    state.prData = { mergeable: null, mergeable_state: "unknown" };
+
+    expect(await gh().getMergeability("re-cinq/lore", 42)).toEqual({
+      mergeable: null,
+      state: "unknown",
+    });
+  });
+});
+
+describe("PlatformGitHub commit statuses", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.checkRuns = [];
+    state.statuses = undefined;
+    state.statusesForbidden = false;
+  });
+
+  it("ciConclusion reads a ref that reports only commit statuses, all success, as success", async () => {
+    state.statuses = [{ context: "ci/azure", state: "success" }];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("success");
+  });
+
+  it("ciConclusion reports failure for a failing or erroring commit status", async () => {
+    state.statuses = [
+      { context: "ci/a", state: "success" },
+      { context: "ci/b", state: "error" },
+    ];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("failure");
+  });
+
+  it("ciConclusion reports pending for a pending commit status", async () => {
+    state.statuses = [{ context: "ci/azure", state: "pending" }];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("pending");
+  });
+
+  it("ciConclusion reports none for a ref with neither check runs nor statuses", async () => {
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("none");
+  });
+
+  it("listChecks reports a pending commit status as in progress with no conclusion", async () => {
+    state.statuses = [{ context: "ci/azure", state: "pending" }];
+    expect(await gh().listChecks("re-cinq/lore", "abc")).toContainEqual(
+      expect.objectContaining({
+        name: "ci/azure",
+        status: "in_progress",
+        conclusion: null,
+      }),
+    );
+  });
+
+  it("ciConclusion reads check runs alone when the installation may not read commit statuses (403)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    state.statusesForbidden = true;
+    state.checkRuns = [
+      {
+        name: "build",
+        status: "completed",
+        conclusion: "success",
+        output: { title: null, summary: null },
+      },
+    ];
+    expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("success");
+    warn.mockRestore();
   });
 });

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate a Spec Kit constitution from Lore MCP context.
 
-Calls the MCP server's get_context and get_adrs tools, then renders
-the results as .specify/constitution.md.
+Calls the MCP server's lore_assemble_context and lore_search_context
+tools, then renders
+the results as .specify/memory/constitution.md.
 
 Usage: lore-gen-constitution --team payments
 """
@@ -79,11 +80,17 @@ def main():
     args = parser.parse_args()
 
     # Get context and ADRs
-    context = call_mcp_tool("get_context", {"team": args.team})
-    adrs = call_mcp_tool("get_adrs", {"domain": args.team})
+    context = call_mcp_tool(
+        "lore_assemble_context",
+        {"query": f"{args.team} team conventions"},
+    )
+    adrs = call_mcp_tool(
+        "lore_search_context",
+        {"query": f"{args.team} architecture decision records", "team": args.team},
+    )
 
     # Check for existing constitution
-    output_path = Path(".specify/constitution.md")
+    output_path = Path(".specify/memory/constitution.md")
     if output_path.exists():
         answer = input(
             f"{output_path} already exists. Overwrite? [y/N] "

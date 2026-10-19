@@ -22,7 +22,7 @@ only currently-valid facts by default while still allowing historical lookups.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L162)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L177)).
 
 - **name**: `lore_search_memory`
 - **description** (verbatim):
@@ -70,14 +70,14 @@ Semantic (vector + keyword) search across org-wide memories and extracted facts;
       breaks ties rather than deciding them: a stale fact that outscores an
       observed one outright still wins. A result with no tier at all is treated
       as `observed`, since a memory carries none and must not be penalised for
-      it. ([validated by `sorts a stale fact below an observed one it narrowly outscored`](libs/shared/src/domain/memory-ranking.test.ts#L75), [`leaves a stale fact on top when it outscores an observed one outright`](libs/shared/src/domain/memory-ranking.test.ts#L81), [`treats a missing confidence as observed rather than penalising it`](libs/shared/src/domain/memory-ranking.test.ts#L87))
+      it. ([validated by `sorts a stale fact below an observed one it narrowly outscored`](libs/shared/src/domain/memory-ranking.test.ts#L101), [`leaves a stale fact on top when it outscores an observed one outright`](libs/shared/src/domain/memory-ranking.test.ts#L107), [`treats a missing confidence as observed rather than penalising it`](libs/shared/src/domain/memory-ranking.test.ts#L113))
    8. `diversify(weighted, limit)` — caps per `agent_id::source` (max 3 each),
-      then slices to `limit`. ([validated by `memory-ranking.test.ts:130`](libs/shared/src/domain/memory-ranking.test.ts#L130))
+      then slices to `limit`. ([validated by `memory-ranking.test.ts:130`](libs/shared/src/domain/memory-ranking.test.ts#L156))
    9. `normalizeMemoryScores(kept)` — rescales so the top result is 1 and the
       rest are proportional fractions. Raw RRF sums sit near `1/61` and differ
       in the third decimal, so an unrelated hit read as all but tied with the
       best one and a caller could not tell a strong match from a weak one. The
-      ordering is unchanged; only the spread becomes legible. ([validated by `rescales 0.0328 and 0.0265 to 1 and the fraction between them`](libs/shared/src/domain/memory-ranking.test.ts#L97), [`returns an empty list unchanged rather than dividing by zero`](libs/shared/src/domain/memory-ranking.test.ts#L110))
+      ordering is unchanged; only the spread becomes legible. ([validated by `rescales 0.0328 and 0.0265 to 1 and the fraction between them`](libs/shared/src/domain/memory-ranking.test.ts#L123), [`returns an empty list unchanged rather than dividing by zero`](libs/shared/src/domain/memory-ranking.test.ts#L136))
    10. **Graph augment** (when `graph_augment` and results non-empty):
       `refreshEntityCache` (5-min TTL of `memory.entities` names) →
       `detectEntities` (≥3 chars, max 5) → `graphAugment` (1-hop over
@@ -108,7 +108,7 @@ A single MCP text content block. Pretty-printed JSON array of
 
 - `isMemoryDbAvailable()`, `getPool()`.
 - Engine `searchMemories` ([memory-search.ts](../../../libs/shared/src/outbound/project/knowledge/memory-search.ts)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `searchMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L16)); `searchMemoryFile` (offline).
 - Tables: `memory.memories`, `memory.facts`, `memory.shared_pools`, `memory.entities`, `memory.edges` (reads); `memory.facts` / `memory.memories` (retrieval-strengthening updates); `memory.audit_log` (insert, `operation='search'`).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
@@ -122,12 +122,21 @@ A single MCP text content block. Pretty-printed JSON array of
 3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:13`](libs/shared/src/domain/memory-ranking.test.ts#L13))
 
 4. Diversification slices the total output to the requested limit across all
-   sources. ([validated by `memory-ranking.test.ts:149`](libs/shared/src/domain/memory-ranking.test.ts#L149))
+   sources. ([validated by `memory-ranking.test.ts:149`](libs/shared/src/domain/memory-ranking.test.ts#L175))
 
 5. Cross-repo candidates are ranked by a case-insensitive transfer score that
    starts at 0.5, adds 0.15 per portable keyword and subtracts 0.15 per local
    keyword, clamped to `[0, 1]` — so portable-rich text scores above the 0.5
    passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/work/context/transfer-score.test.ts#L35), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/work/context/transfer-score.test.ts#L57), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/work/context/transfer-score.test.ts#L65))
+
+6. *(added 2026-10-16, ADR-052 amendment "reads choose a backend")* An optional
+   `backend` param (`lore`, `utopia`, `both`) is sent with the `search` action of
+   `POST /api/memory`; with no API configured, `utopia` and `both` are refused
+   rather than answered from the local file store. ([validated by forwards backend both to POST /api/memory and prints the API's answer](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L417), [validated by refuses backend utopia instead of searching the local file store when no API is configured](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L441))
+
+7. The `search` action answers `utopia` with `{ results: [], notes: ["search_memory: no Utopia reader yet"] }` without searching Lore, `both` with Lore's hits and that note, and an unknown backend with 400; a Lore search answers the bare hit list as before. ([validated by answers no hits and a no-reader note for backend utopia, without searching Lore](apps/lore-api/src/transport/routes/memory/memory.test.ts#L474), [validated by answers Lore's hits plus the no-reader note for backend both](apps/lore-api/src/transport/routes/memory/memory.test.ts#L487), [validated by returns 400 for a search backend of dgraph](apps/lore-api/src/transport/routes/memory/memory.test.ts#L498))
+
+8. Both search routes share one rule: Lore's hits unless only Utopia was asked for, plus a note for the source while Utopia has no reader for it. ([validated by returns Lore's hits and no notes for backend lore](libs/shared/src/domain/knowledge-backend.test.ts#L21), [validated by returns no hits and a no-reader note for backend utopia, never reading Lore](libs/shared/src/domain/knowledge-backend.test.ts#L28), [validated by returns Lore's hits plus the no-reader note for backend both](libs/shared/src/domain/knowledge-backend.test.ts#L39))
 
 ## Out of Scope
 

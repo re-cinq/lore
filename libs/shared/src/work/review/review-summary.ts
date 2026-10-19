@@ -3,8 +3,8 @@
 import type { ReviewOutput } from "./review-findings.js";
 import { REVIEW_RERUN_HINT } from "./review-definitions.js";
 
-/** The how-to line shown on the review body and the "review started" PR comment. */
-export const REVIEW_HELP = `Reply to any review comment to discuss or approve a fix (e.g. "ok, fix it"). ${REVIEW_RERUN_HINT}`;
+/** The how-to line shown on the review body and the "review started" PR comment. It names only what acts: a reply on a thread starts nothing, a review that requests changes does. */
+export const REVIEW_HELP = `Submit a review that requests changes to have Lore push a fix for it. ${REVIEW_RERUN_HINT}`;
 
 export function buildReviewSummary(
   output: ReviewOutput,

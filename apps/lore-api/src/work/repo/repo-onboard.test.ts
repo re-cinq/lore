@@ -14,8 +14,7 @@ vi.mock("../../outbound/github-client.js", () => ({
 
 import { ensureLoreWebhook } from "../webhook/webhook-ensure.js";
 import { createPipelineTask } from "@re-cinq/lore-shared";
-import { getOctokit } from "../../outbound/github-client.js";
-import { onboardRepo, fetchRepoContext } from "./repo-onboard.js";
+import { onboardRepo } from "./repo-onboard.js";
 
 type Row = Record<string, unknown>;
 
@@ -62,6 +61,8 @@ beforeEach(() => {
   });
 });
 
+const ON_FLOOR = { floorStart: () => Promise.resolve() };
+
 describe("onboardRepo", () => {
   it("ensures the Floor webhook for the onboarded repo and returns its outcome", async () => {
     vi.mocked(ensureLoreWebhook).mockResolvedValue({
@@ -70,7 +71,7 @@ describe("onboardRepo", () => {
       created: true,
     });
     const { pool } = poolWith({ repoId: "repo-1" });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(ensureLoreWebhook).toHaveBeenCalledWith("o/r");
     expect(result).toMatchObject({
@@ -86,7 +87,7 @@ describe("onboardRepo", () => {
       reason: "app_no_webhook_permission",
     });
     const { pool } = poolWith({ repoId: "repo-2" });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({
       repo_id: "repo-2",
@@ -103,7 +104,7 @@ describe("onboardRepo", () => {
     });
     const { pool, query } = poolWith();
 
-    await onboardRepo(pool, "o/r");
+    await onboardRepo(pool, "o/r", ON_FLOOR);
 
     const issued = sqlIssued(query);
 
@@ -124,14 +125,14 @@ describe("onboardRepo", () => {
     });
     const { pool, query, client } = poolWith();
 
-    await onboardRepo(pool, "o/r");
+    await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(pool.connect).toHaveBeenCalledTimes(1);
     expect(vi.mocked(createPipelineTask).mock.calls[0][0]).toBe(client);
     expect(sqlIssued(query).at(-1)).toBe("COMMIT");
   });
 
-  it("sends a described task instead of the bare repo name", async () => {
+  it("sends the onboarding ticket body instead of the bare repo name", async () => {
     vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 1,
@@ -139,12 +140,12 @@ describe("onboardRepo", () => {
     });
     const { pool } = poolWith();
 
-    await onboardRepo(pool, "o/r");
+    await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
       taskType: "onboard",
       targetRepo: "o/r",
-      description: expect.stringContaining("CLAUDE.md"),
+      description: expect.stringContaining("Onboard o/r into Lore"),
     });
   });
 
@@ -153,7 +154,7 @@ describe("onboardRepo", () => {
 
     vi.mocked(createPipelineTask).mockRejectedValue(new Error("insert failed"));
 
-    await expect(onboardRepo(pool, "o/r")).rejects.toThrow(
+    await expect(onboardRepo(pool, "o/r", ON_FLOOR)).rejects.toThrow(
       new Error("insert failed"),
     );
 
@@ -166,7 +167,7 @@ describe("onboardRepo", () => {
     const { pool } = poolWith({
       repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
     });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({ blocked: "already-onboarded" });
     expect(createPipelineTask).not.toHaveBeenCalled();
@@ -175,7 +176,7 @@ describe("onboardRepo", () => {
 
   it("blocks a repo with an onboard task in flight and names that task", async () => {
     const { pool } = poolWith({ taskRows: [{ id: "task-running" }] });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({
       blocked: "in-flight",
@@ -193,7 +194,7 @@ describe("onboardRepo", () => {
         },
       ],
     });
-    const result = await onboardRepo(pool, "o/r");
+    const result = await onboardRepo(pool, "o/r", ON_FLOOR);
 
     expect(result).toMatchObject({
       blocked: "pr-open",
@@ -210,7 +211,10 @@ describe("onboardRepo", () => {
         },
       ],
     });
-    const result = await onboardRepo(pool, "o/r", { reonboard: true });
+    const result = await onboardRepo(pool, "o/r", {
+      reonboard: true,
+      ...ON_FLOOR,
+    });
 
     expect(result).toMatchObject({ blocked: "pr-open" });
     expect(createPipelineTask).not.toHaveBeenCalled();
@@ -225,9 +229,49 @@ describe("onboardRepo", () => {
     const { pool } = poolWith({
       repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
     });
-    const result = await onboardRepo(pool, "o/r", { reonboard: true });
+    const result = await onboardRepo(pool, "o/r", {
+      reonboard: true,
+      ...ON_FLOOR,
+    });
 
     expect(result).toMatchObject({ task_id: "task-1" });
+  });
+
+  it("sends the update ticket, not the onboarding one, when o/r's onboarding PR has already merged", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 1,
+      created: false,
+    });
+    const { pool } = poolWith({
+      repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
+    });
+
+    await onboardRepo(pool, "o/r", { reonboard: true, ...ON_FLOOR });
+
+    expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
+      taskType: "onboard",
+      description: expect.stringContaining(
+        "Update o/r's Lore setup to the current requirements",
+      ),
+    });
+  });
+
+  it("sends the onboarding ticket when reonboard is requested for o/r but its onboarding PR never merged", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 1,
+      created: false,
+    });
+    const { pool } = poolWith({
+      repoRows: [{ onboarding_pr_merged: false, onboarding_pr_url: null }],
+    });
+
+    await onboardRepo(pool, "o/r", { reonboard: true, ...ON_FLOOR });
+
+    expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
+      description: expect.stringContaining("Onboard o/r into Lore"),
+    });
   });
 
   it("still blocks reonboard while an onboard task is in flight", async () => {
@@ -235,173 +279,76 @@ describe("onboardRepo", () => {
       repoRows: [{ onboarding_pr_merged: true, onboarding_pr_url: null }],
       taskRows: [{ id: "task-running" }],
     });
-    const result = await onboardRepo(pool, "o/r", { reonboard: true });
+    const result = await onboardRepo(pool, "o/r", {
+      reonboard: true,
+      ...ON_FLOOR,
+    });
 
     expect(result).toMatchObject({ blocked: "in-flight" });
     expect(createPipelineTask).not.toHaveBeenCalled();
   });
-});
 
-type ContentRoute =
-  | { kind: "file"; content: string }
-  | {
-      kind: "dir";
-      entries: Array<{ name: string; path: string; type: string }>;
-    }
-  | { kind: "error"; status?: number };
+  it("creates task-1 already running and hands o/r, the task and its ticket to the floor", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: false,
+      reason: "app_no_webhook_permission",
+    });
+    const { pool, query } = poolWith();
+    const handed: unknown[] = [];
 
-function octokitFake(routes: Record<string, ContentRoute>) {
-  const getContent = vi.fn(async ({ path }: { path: string }) => {
-    const route = routes[path] ?? { kind: "error" as const, status: 404 };
+    await onboardRepo(pool, "o/r", {
+      floorStart: (onboarding) => {
+        handed.push(onboarding);
 
-    if (route.kind === "error") {
-      const err = new Error("not found") as Error & { status?: number };
-
-      err.status = route.status;
-      throw err;
-    }
-
-    if (route.kind === "dir") {
-      return { data: route.entries };
-    }
-
-    return {
-      data: {
-        type: "file",
-        content: Buffer.from(route.content).toString("base64"),
+        return Promise.resolve();
       },
-    };
-  });
-
-  return { rest: { repos: { getContent } } };
-}
-
-describe("fetchRepoContext", () => {
-  beforeEach(() => {
-    vi.mocked(getOctokit).mockReset();
-  });
-
-  it("throws for a full_name without an owner/repo slash", async () => {
-    await expect(fetchRepoContext("no-slash")).rejects.toThrow(
-      'Invalid repo full_name: "no-slash". Expected "owner/repo" format.',
-    );
-  });
-
-  it("lists the top-level tree and decodes present key files, skipping 404s", async () => {
-    vi.mocked(getOctokit).mockResolvedValue(
-      octokitFake({
-        "": {
-          kind: "dir",
-          entries: [
-            { name: "README.md", path: "README.md", type: "file" },
-            { name: "src", path: "src", type: "dir" },
-          ],
-        },
-        "README.md": { kind: "file", content: "# Hi" },
-        "AGENTS.md": { kind: "error", status: 500 },
-      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    });
+    const issued = sqlIssued(query);
+    const claimed = issued.findIndex((sql) =>
+      sql.includes("UPDATE pipeline.tasks"),
     );
 
-    const result = await fetchRepoContext("o/r");
-
-    expect(result.tree).toEqual(["README.md", "src"]);
-    expect(result.files).toEqual({ "README.md": "# Hi" });
-    expect(result.samples).toEqual({});
-  });
-
-  it("returns an empty tree when the top-level listing fails", async () => {
-    vi.mocked(getOctokit).mockResolvedValue(
-      octokitFake({
-        "": { kind: "error", status: 500 },
-      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
-    );
-
-    const result = await fetchRepoContext("o/r");
-
-    expect(result.tree).toEqual([]);
-  });
-
-  it("collects up to 3 samples across dirs, filters to file entries, and stops mid-directory once full", async () => {
-    const longFile = Array.from({ length: 250 }, (_, i) => `line${i}`).join(
-      "\n",
-    );
-    const octokit = octokitFake({
-      src: {
-        kind: "dir",
-        entries: [
-          { name: "a.ts", path: "src/a.ts", type: "file" },
-          { name: "sub", path: "src/sub", type: "dir" },
-          { name: "b.ts", path: "src/b.ts", type: "file" },
-        ],
+    expect(claimed).toBeGreaterThan(-1);
+    expect(claimed).toBeLessThan(issued.indexOf("COMMIT"));
+    expect(handed).toEqual([
+      {
+        repo: "o/r",
+        taskId: "task-1",
+        ticket: vi.mocked(createPipelineTask).mock.calls[0][1].description,
       },
-      "src/a.ts": { kind: "file", content: longFile },
-      "src/b.ts": { kind: "file", content: "short content" },
-      lib: {
-        kind: "dir",
-        entries: [
-          { name: "c.ts", path: "lib/c.ts", type: "file" },
-          { name: "d.ts", path: "lib/d.ts", type: "file" },
-        ],
+    ]);
+  });
+
+  it("commits the o/r lore.repos row before the floor starts the run, so the run's git credential is not refused", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: false,
+      reason: "app_no_webhook_permission",
+    });
+    const { pool, query } = poolWith();
+    let issuedAtStart: string[] = [];
+
+    await onboardRepo(pool, "o/r", {
+      floorStart: () => {
+        issuedAtStart = sqlIssued(query);
+
+        return Promise.resolve();
       },
-      "lib/c.ts": { kind: "file", content: "c body" },
-      "lib/d.ts": { kind: "file", content: "d body" },
     });
 
-    vi.mocked(getOctokit).mockResolvedValue(
-      octokit as unknown as Awaited<ReturnType<typeof getOctokit>>,
-    );
+    expect(issuedAtStart.at(-1)).toBe("COMMIT");
+    expect(
+      issuedAtStart.some((sql) => sql.includes("INSERT INTO lore.repos")),
+    ).toBe(true);
+  });
 
-    const result = await fetchRepoContext("o/r");
+  it("refuses with 503 and writes nothing when the deployment has no floor", async () => {
+    const { pool, query } = poolWith();
 
-    expect(result.samples).toEqual({
-      "src/a.ts": longFile.split("\n").slice(0, 200).join("\n"),
-      "src/b.ts": "short content",
-      "lib/c.ts": "c body",
+    await expect(onboardRepo(pool, "o/r")).rejects.toMatchObject({
+      output: { statusCode: 503 },
+      message:
+        "onboarding needs the external floor, and this deployment has none",
     });
-    const requestedPaths = octokit.rest.repos.getContent.mock.calls.map(
-      (call) => call[0].path,
-    );
-
-    expect(requestedPaths).not.toContain("src/sub");
-    expect(requestedPaths).not.toContain("lib/d.ts");
-    expect(requestedPaths).not.toContain("cmd");
-  });
-
-  it("skips a sample dir on 404 and on any other listing error, continuing to the next dir", async () => {
-    vi.mocked(getOctokit).mockResolvedValue(
-      octokitFake({
-        src: { kind: "error", status: 404 },
-        lib: { kind: "error", status: 500 },
-        cmd: {
-          kind: "dir",
-          entries: [{ name: "e.ts", path: "cmd/e.ts", type: "file" }],
-        },
-        "cmd/e.ts": { kind: "file", content: "e body" },
-      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
-    );
-
-    const result = await fetchRepoContext("o/r");
-
-    expect(result.samples).toEqual({ "cmd/e.ts": "e body" });
-  });
-
-  it("skips a sample entry whose content fetch fails, keeping the other entries", async () => {
-    vi.mocked(getOctokit).mockResolvedValue(
-      octokitFake({
-        src: {
-          kind: "dir",
-          entries: [
-            { name: "bad.ts", path: "src/bad.ts", type: "file" },
-            { name: "good.ts", path: "src/good.ts", type: "file" },
-          ],
-        },
-        "src/bad.ts": { kind: "error", status: 500 },
-        "src/good.ts": { kind: "file", content: "good body" },
-      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
-    );
-
-    const result = await fetchRepoContext("o/r");
-
-    expect(result.samples).toEqual({ "src/good.ts": "good body" });
+    expect(sqlIssued(query)).toEqual([]);
   });
 });

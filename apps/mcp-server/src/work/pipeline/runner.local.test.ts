@@ -88,14 +88,15 @@ describe("readConfig", () => {
     expect(Array.isArray(defaults.task_types)).toBe(true);
   });
 
-  it("falls back to hardcoded defaults (concurrency 2, sonnet-4-6) when disabled", () => {
+  it("falls back to hardcoded defaults (concurrency 2, runbook and gap-fill tasks, sonnet-4-6) when disabled", () => {
     const defaults = readConfig();
 
     if (!defaults.enabled) {
-      expect(defaults.max_concurrent).toBe(2);
-      expect(defaults.task_types).toContain("implementation");
-      expect(defaults.task_types).toContain("general");
-      expect(defaults.model).toBe("claude-sonnet-4-6");
+      expect(defaults).toMatchObject({
+        max_concurrent: 2,
+        task_types: ["runbook", "gap-fill"],
+        model: "claude-sonnet-4-6",
+      });
     }
   });
 });

@@ -1,0 +1,5 @@
+{
+  "name": "@re-cinq/vitest-workspace-source",
+  "private": true,
+  "type": "module"
+}

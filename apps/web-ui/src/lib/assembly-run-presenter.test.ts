@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatRelativeTime,
   formatDuration,
+  runHeaderVisual,
   runStatusVisual,
 } from "./assembly-run-presenter";
 
@@ -37,6 +38,33 @@ describe("formatDuration", () => {
 });
 
 describe("runStatusVisual", () => {
+  it("reads a running run that only a person holds as Waiting for you", () => {
+    expect(
+      runHeaderVisual({ status: "running", outcome: null }, "Waiting for you"),
+    ).toEqual({
+      label: "Waiting for you",
+      tone: "info",
+    });
+  });
+
+  it("reads a running run nobody is waited on as Running", () => {
+    expect(runHeaderVisual({ status: "running", outcome: null }, null)).toEqual(
+      {
+        label: "Running",
+        tone: "running",
+      },
+    );
+  });
+
+  it("reads a finished run by its outcome even when a waiting label is passed", () => {
+    expect(
+      runHeaderVisual(
+        { status: "finished", outcome: "completed" },
+        "Waiting for you",
+      ).label,
+    ).toBe("Completed");
+  });
+
   it("maps finished + completed to a success tone", () => {
     expect(runStatusVisual("finished", "completed")).toEqual({
       label: "Completed",

@@ -10,7 +10,7 @@ import {
   reconnectDelayMs,
   resolveChipState,
   resolveStreamMode,
-  streamUrl,
+  endedLabel,
 } from "./run-stream-presenter";
 
 describe("historyUrl", () => {
@@ -28,20 +28,6 @@ describe("historyUrl", () => {
 
   it("encodes a run id containing a slash", () => {
     expect(historyUrl("a/b", "0")).toContain("a%2Fb");
-  });
-});
-
-describe("streamUrl", () => {
-  it("returns the stream path with after for cursor 42", () => {
-    expect(streamUrl("run-1", "42")).toBe(
-      "/api/assembly-runs/run-1/events/stream?after=42",
-    );
-  });
-
-  it("omits the after param from the stream path for cursor 0", () => {
-    expect(streamUrl("run-1", "0")).toBe(
-      "/api/assembly-runs/run-1/events/stream",
-    );
   });
 });
 
@@ -118,31 +104,31 @@ describe("connectionLabel", () => {
 });
 
 describe("resolveStreamMode", () => {
-  it("returns live for a running run when EventSource is available", () => {
+  it("returns live for a running run when a live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
       }),
     ).toBe("live");
   });
 
-  it("returns history-only when EventSource is unavailable", () => {
+  it("returns history-only when no live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: false,
+        socketAvailable: false,
         streamUnavailable: false,
       }),
     ).toBe("history-only");
   });
 
-  it("returns history-only for a finished run even when EventSource is available", () => {
+  it("returns history-only for a finished run even when a live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "finished",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
       }),
     ).toBe("history-only");
@@ -152,7 +138,7 @@ describe("resolveStreamMode", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: true,
       }),
     ).toBe("history-only");
@@ -183,6 +169,7 @@ describe("resolveChipState", () => {
         mode: "history-only",
         connection: "offline",
         fallbackPollActive: true,
+        runStatus: "running",
       }),
     ).toBe("polling");
   });
@@ -193,6 +180,7 @@ describe("resolveChipState", () => {
         mode: "history-only",
         connection: "connecting",
         fallbackPollActive: false,
+        runStatus: "running",
       }),
     ).toBe("offline");
   });
@@ -203,11 +191,51 @@ describe("resolveChipState", () => {
         mode: "live",
         connection: "reconnecting",
         fallbackPollActive: false,
+        runStatus: "running",
       }),
     ).toBe("reconnecting");
   });
 
+  it("returns ended for a finished run whatever the connection and the poll", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "offline",
+        fallbackPollActive: true,
+        runStatus: "finished",
+      }),
+    ).toBe("ended");
+  });
+
+  it("returns ended for a failed run", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "connecting",
+        fallbackPollActive: false,
+        runStatus: "failed",
+      }),
+    ).toBe("ended");
+  });
+
   it("labels the polling chip state Polling", () => {
     expect(connectionLabel("polling")).toBe("Polling");
+  });
+});
+
+describe("endedLabel", () => {
+  it("labels a cancelled end Cancelled", () => {
+    expect(endedLabel("cancelled")).toBe("Cancelled");
+  });
+
+  it("labels a failed end Failed", () => {
+    expect(endedLabel("failed")).toBe("Failed");
+  });
+
+  it("labels a completed end, and one with no outcome, Finished", () => {
+    expect([endedLabel("completed"), endedLabel(null)]).toEqual([
+      "Finished",
+      "Finished",
+    ]);
   });
 });

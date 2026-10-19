@@ -15,20 +15,20 @@ import { AssemblyRunQueryStore } from "./assembly-runs-memory-queries.js";
 import {
   inheritFromSource,
   newRunLifecycle,
+  reopenRow,
   resumeRefs,
 } from "./assembly-runs-memory-rows.js";
 import type {
   AssemblyRunQuery,
+  AssemblyRunRecord,
   AssemblyRunsPort,
   AssemblyRunStartInput,
-  StationRunFailure,
-  StationRunStartInput,
-  ClaimedStationRun,
-  AssemblyRunRecord,
   AssemblyRunSummary,
-  StationRunRecord,
-  OpenRunSummary,
   ClosedRunRef,
+  OpenRunSummary,
+  StationRunFailure,
+  StationRunRecord,
+  StationRunStartInput,
 } from "./assembly-runs-port.js";
 
 export type { SeedAssemblyLineNode } from "./assembly-runs-memory-station-runs.js";
@@ -49,12 +49,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
 
   constructor(private currentClock: () => Date = () => new Date()) {
     this.stationRuns = new StationRunStore(() => this.clock());
-    this.queries = new AssemblyRunQueryStore(
-      this.rows,
-      () => this.clock(),
-      (runId, clusterAgentId) =>
-        this.stationRuns.hasOpenClaimByAgent(runId, clusterAgentId),
-    );
+    this.queries = new AssemblyRunQueryStore(this.rows, () => this.clock());
   }
 
   /** The clock in force, so a test can put back the one it replaced. */
@@ -213,28 +208,14 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return true;
   }
 
+  async reopen(id: string): Promise<boolean> {
+    return reopenRow(this.mustFind(id));
+  }
+
   ensureStationRun(
     input: StationRunStartInput,
   ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
     return this.stationRuns.ensureStationRun(input);
-  }
-
-  enqueueStationRunDispatch(
-    nodeRowId: string,
-    dispatchSpec: unknown,
-  ): Promise<void> {
-    return this.stationRuns.enqueueStationRunDispatch(nodeRowId, dispatchSpec);
-  }
-
-  claimNextStationRun(claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  }): Promise<ClaimedStationRun | null> {
-    return this.stationRuns.claimNextStationRun(claimant);
-  }
-
-  requeueStationRun(nodeRowId: string): Promise<boolean> {
-    return this.stationRuns.requeueStationRun(nodeRowId);
   }
 
   finishStationRunOnce(
@@ -249,10 +230,6 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       commitSha,
       failure,
     );
-  }
-
-  countOpenClaimsByAgent(): Promise<Record<string, number>> {
-    return this.stationRuns.countOpenClaimsByAgent();
   }
 
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {

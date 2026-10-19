@@ -30,3 +30,20 @@ export function detectCurrentRepo(): string | null {
 export function resetRepoCache(): void {
   cachedRepo = null;
 }
+
+/** What git prints for a detached HEAD: no branch, so nothing CI could have judged under a name. */
+const DETACHED = "HEAD";
+
+/** The checked-out branch, or null when detached or outside a checkout. Never cached: a session switches branches, and a CI question is about the one it is on NOW. */
+export function detectCurrentBranch(): string | null {
+  try {
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
+
+    return branch === DETACHED || branch === "" ? null : branch;
+  } catch {
+    return null;
+  }
+}

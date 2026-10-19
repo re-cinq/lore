@@ -39,7 +39,7 @@ describe("Project wiring", () => {
     ]);
   });
 
-  it("resolves settings through the wired pg settings port", async () => {
+  it("reads settings through the wired pg settings port", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const project = await createProject(
       "re-cinq/lore",
@@ -48,7 +48,7 @@ describe("Project wiring", () => {
       {},
     );
 
-    await project.settings.resolve();
+    await project.settings.rawSettings();
 
     expect(capture.at(-1)?.text).toContain("SELECT settings FROM lore.repos");
   });

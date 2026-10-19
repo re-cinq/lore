@@ -56,7 +56,7 @@ async function registerStoredPorts(
   ports.set("memory", new bridge.MemoryStoreBridge(memory));
   ports.set("tasks", new tasks.PgTaskStore(pgPool));
   ports.set("chunks", new chunks.PgChunks(pgPool));
-  ports.set("trace", new trace.DgraphTrace(dgraphClient));
+  ports.set("trace", providers.trace ?? new trace.DgraphTrace(dgraphClient));
   registerPipelinePorts(ports, providers.pipeline, {
     assemblyRuns: new runs.PgAssemblyRuns(pgPool),
   });
@@ -96,25 +96,20 @@ interface OutsidePortDeps {
   providers: ReturnType<typeof resolveProjectOptions>["providers"];
 }
 
-/** The ports that reach OUTSIDE this process: GitHub, Slack, git, the test runner, the agent runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
+/** The ports that reach OUTSIDE this process: GitHub, git, the test runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
 async function registerOutsidePorts(
   ports: Map<string, unknown>,
   { pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
   const github = await gitHubPort(env);
-  const [settings, notify, knowledge, git, tests, agents] =
-    await outsideModules();
+  const [settings, knowledge, git, tests] = await outsideModules();
 
   ports.set("github", github);
   ports.set("pulls", github);
   ports.set("settings", new settings.PgSettings(pgPool, github));
-  ports.set("notify", new notify.NotifySlack(pgPool, env));
   ports.set("knowledge", new knowledge.PgKnowledge(pgPool));
   ports.set("git", new git.GitCli(env));
   ports.set("tests", new tests.ExecTestRunner());
-  const runnerDeps = { station: providers.station, llm: providers.llm };
-
-  ports.set("agentRunner", new agents.AgentRunner(env, runnerDeps));
 
   await registerLedgerPorts(ports, { pgPool, env, providers });
 }
@@ -130,20 +125,18 @@ async function gitHubPort(env: NodeJS.ProcessEnv) {
 function outsideModules() {
   return Promise.all([
     import("../settings/settings-pg.js"),
-    import("../notify/notify-slack.js"),
     import("../knowledge/knowledge-pg.js"),
     import("../workspace/git-cli.js"),
     import("../test-runner/test-runner-exec.js"),
-    import("../agents/agent-runner.js"),
   ]);
 }
 
-/** What the platform records about itself: who ran, what it cost, what it audited, which features it is tracking. */
+/** What the platform records about itself: who ran, what it cost, what it audited. */
 async function registerLedgerPorts(
   ports: Map<string, unknown>,
   { pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
-  const [audit, usage, features] = await ledgerModules();
+  const [audit, usage] = await ledgerModules();
 
   ports.set("agentDefs", await agentDefsForEnv(env, pgPool));
   ports.set(
@@ -155,7 +148,6 @@ async function registerLedgerPorts(
     ),
   );
   ports.set("usage", new usage.PgUsage(pgPool));
-  ports.set("features", new features.PgFeatures(pgPool));
 }
 
 /** The self-record adapters, imported lazily for the same reason the stored ones are. */
@@ -163,20 +155,18 @@ function ledgerModules() {
   return Promise.all([
     import("../audit/audit-pg.js"),
     import("../usage/usage-pg.js"),
-    import("../features/features-pg.js"),
   ]);
 }
 
-// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> AgentDefsYaml.
+// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> the shipped files, read-only.
 async function agentDefsForEnv(
   env: NodeJS.ProcessEnv,
   pgPool: PgPool,
 ): Promise<unknown> {
   if (env.LORE_DB_HOST) {
     const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
-    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
 
-    return new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env));
+    return new PgAgentDefs(pgPool);
   }
 
   if (env.LORE_API_URL) {
@@ -184,9 +174,9 @@ async function agentDefsForEnv(
 
     return new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN);
   }
-  const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
+  const { AgentDefsFiles } = await import("../agents/agent-defs-files.js");
 
-  return new AgentDefsYaml(undefined, env);
+  return new AgentDefsFiles();
 }
 
 /** The org-wide pipeline bundle's adapter, when the caller already built one — else a fresh per-repo instance. */

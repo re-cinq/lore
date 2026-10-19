@@ -22,7 +22,7 @@ search while keeping its history intact.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L112)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L127)).
 
 - **name**: `lore_delete_memory`
 - **description** (verbatim):
@@ -69,16 +69,16 @@ path), the proxied body, the `unreachableError` message, or
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `deleteMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts#L199)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `deleteMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L16)); `deleteMemoryFile` (offline).
 - Tables: `memory.memories` (update `is_deleted`), `memory.audit_log` (insert). `memory.memory_versions` untouched.
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
 1. Deleting a key sets `is_deleted = TRUE` scoped to the agent and key and
-   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](libs/server-core/src/work/memory/memory.test.ts#L172))
+   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](libs/server-core/src/work/memory/memory.test.ts#L242))
 
-2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](libs/server-core/src/work/memory/memory.test.ts#L188))
+2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](libs/server-core/src/work/memory/memory.test.ts#L258))
 
 3. The proxy / file-fallback framing has no unit seam. *(untested: the
    proxy/file branches need `LORE_API_URL` or offline mode; the soft-delete core

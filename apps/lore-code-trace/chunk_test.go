@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -49,5 +50,40 @@ func TestChunkReportKeepsSingleChunkUnderMax(t *testing.T) {
 	}
 	if got := chunkReport(report, 100000); len(got) != 1 {
 		t.Fatalf("expected 1 chunk, got %d", len(got))
+	}
+}
+
+func TestChunkReportKeepsBothDescriptorsOfAGoInOneChunkUnderABudgetThatFitsOneFile(t *testing.T) {
+	report := TestReport{
+		Commit: "c", Branch: "b",
+		Tests: []TestDescriptor{
+			{ID: "a1", Name: "a1", File: "a.go"},
+			{ID: "b1", Name: "b1", File: "b.go"},
+			{ID: "a2", Name: "a2", File: "a.go"},
+		},
+		Results: []TaggedRunResult{
+			{ID: "a1", Passed: true},
+			{ID: "b1", Passed: true},
+			{ID: "a2", Passed: false},
+		},
+	}
+	oneFile := jsonLen(TestReport{
+		Commit: "c", Branch: "b",
+		Tests:   []TestDescriptor{report.Tests[0], report.Tests[2]},
+		Results: []TaggedRunResult{report.Results[0], report.Results[2]},
+	})
+
+	chunks := chunkReport(report, oneFile)
+	var idsByChunk [][]string
+	for _, c := range chunks {
+		var ids []string
+		for _, d := range c.Tests {
+			ids = append(ids, d.ID)
+		}
+		idsByChunk = append(idsByChunk, ids)
+	}
+	want := [][]string{{"a1", "a2"}, {"b1"}}
+	if !reflect.DeepEqual(idsByChunk, want) {
+		t.Errorf("descriptors by chunk = %v, want %v", idsByChunk, want)
 	}
 }

@@ -1,14 +1,16 @@
-import {
-  fetchGraphContext,
-  type GraphContextBlock,
-  type GraphContextStatement,
+import type {
+  GraphContextBlock,
+  GraphContextStatement,
 } from "../../spec-trace/graph-context.js";
-import type { DgraphClientPort } from "../../memory-store.js";
+import type { TracePort } from "../trace/trace-port.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import type { FetchResult } from "./context-assembly-types.js";
 import { mkItem, extractKeyTerms } from "./context-assembly-items.js";
 
 /** The coupling context source: projects the spec-traceability graph into ranked context items. */
+
+/** The one trace read the coupling source needs, so any trace port (or a literal answering it) can serve it. */
+export type GraphContextSource = Pick<TracePort, "graphContext">;
 
 // Coupled-statement signal → relevance score, so violations/drift sort to the top.
 const COUPLING_SIGNAL_SCORE: Record<string, number> = {
@@ -72,18 +74,18 @@ function couplingItem(s: GraphContextStatement, relevance: number): SourceItem {
   });
 }
 
-/** Coupling context source: reads the repo's coupled spec statements from the spec-traceability graph. Fail-soft — `disabled` when no graph client is wired (LORE_DGRAPH_HTTP unset). */
+/** Coupling context source: reads the repo's coupled spec statements through the trace port. Fail-soft — `disabled` when no graph is wired (LORE_DGRAPH_HTTP unset). */
 export async function fetchCouplingSource(
-  dgraph: DgraphClientPort | null,
+  graph: GraphContextSource | null,
   repo?: string,
   query: string = "",
 ): Promise<FetchResult> {
-  if (!dgraph || !repo) {
+  if (!graph || !repo) {
     return { sources: [], status: "disabled" };
   }
 
   try {
-    const block = await fetchGraphContext(dgraph, repo);
+    const block = await graph.graphContext(repo);
     const sources = formatCouplingItems(block, query);
 
     return { sources, status: sources.length > 0 ? "ok" : "empty" };

@@ -5,12 +5,16 @@ import SidebarNav from "./SidebarNav";
 import SessionWrapper from "./SessionWrapper";
 import UserMenu from "./UserMenu";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
+import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
+import { liveSocketUrl } from "@/lib/live-socket-url";
+import { grafanaUrl, headlampUrl, utopiaUrl } from "@/lib/headlamp-url";
 import { inter, ibmPlexMono, gohu } from "@/lib/theme/fonts";
 import { THEME_SCRIPT } from "@/lib/theme/theme-script";
 import "./theme.css";
 import "highlight.js/styles/github.css";
 import "./globals.css";
 import "./chicago.css";
+import "@re-cinq/planning-editor/style.css";
 
 export const metadata: Metadata = {
   title: "Lore",
@@ -38,7 +42,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
           <SessionWrapper>
-            <AppShell sidebar={<Sidebar />}>{children}</AppShell>
+            <LiveSocketProvider url={liveSocketUrl(process.env)}>
+              <AppShell sidebar={<Sidebar />}>{children}</AppShell>
+            </LiveSocketProvider>
           </SessionWrapper>
         </ThemeProvider>
       </body>
@@ -53,7 +59,11 @@ function Sidebar() {
       <Link href="/" className="sidebar-brand">
         <img src="/logo.svg" alt="Lore" width={80} height={80} />
       </Link>
-      <SidebarNav />
+      <SidebarNav
+        headlampUrl={headlampUrl(process.env)}
+        grafanaUrl={grafanaUrl(process.env)}
+        utopiaUrl={utopiaUrl(process.env)}
+      />
       <UserMenu />
       <div className="meta sidebar-version" title="Deployed build (git SHA)">
         {process.env.LORE_UI_VERSION ?? "dev"}

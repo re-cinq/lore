@@ -17,8 +17,40 @@ describe("classifyError", () => {
     ).toMatchObject({ category: "anthropic-credit" });
   });
 
+  it("returns anthropic-credit for Gemini's exceeded your current quota message", () => {
+    expect(
+      classifyError(
+        "429 You exceeded your current quota, please check your plan and billing details.",
+      ),
+    ).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
+  it("returns anthropic-credit for Gemini's insufficient_quota message", () => {
+    expect(classifyError("429 insufficient_quota")).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
+  it("returns anthropic-credit for Gemini's depleted prepayment credits message", () => {
+    expect(
+      classifyError(
+        "429 Your prepayment credits are depleted. Please go to AI Studio to manage your project and billing.",
+      ),
+    ).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
   it("returns anthropic-rate-limit for a 429 rate limit message", () => {
     expect(classifyError("429 rate limit exceeded")).toMatchObject({
+      category: "anthropic-rate-limit",
+    });
+  });
+
+  it("returns anthropic-rate-limit for a plain 429 too many requests message", () => {
+    expect(classifyError("429 Too Many Requests")).toMatchObject({
       category: "anthropic-rate-limit",
     });
   });
@@ -26,6 +58,14 @@ describe("classifyError", () => {
   it("returns github-permission for resource-not-accessible without a workflow path", () => {
     expect(
       classifyError("Resource not accessible by integration"),
+    ).toMatchObject({ category: "github-permission" });
+  });
+
+  it("returns github-permission for an installation token refused for a repository the App cannot reach", () => {
+    expect(
+      classifyError(
+        "There is at least one repository that does not exist or is not accessible to the parent installation.",
+      ),
     ).toMatchObject({ category: "github-permission" });
   });
 
@@ -72,6 +112,26 @@ describe("classifyError", () => {
     expect(classifyError("Pod was Evicted: ephemeral storage")).toMatchObject({
       category: "infra",
     });
+  });
+
+  it("returns repo-checkout for git refusing the run's clone of the repository", () => {
+    expect(
+      classifyError(
+        "init container \"init\" exited 128: remote: Repository not found. fatal: repository 'https://github.com/re-cinq/Otto.git/' not found",
+      ),
+    ).toMatchObject({ category: "repo-checkout" });
+  });
+
+  it("does not count repo-checkout as permanent, since a clone refused once can succeed on the next attempt", () => {
+    expect(isPermanentFailure("repo-checkout")).toBe(false);
+  });
+
+  it("returns infra for a pod the cluster preempted", () => {
+    expect(
+      classifyError(
+        "pod stopped by Kubernetes (Preempting): Preempted in order to admit critical pod",
+      ),
+    ).toMatchObject({ category: "infra" });
   });
 
   it("returns unknown for an unrecognized message", () => {

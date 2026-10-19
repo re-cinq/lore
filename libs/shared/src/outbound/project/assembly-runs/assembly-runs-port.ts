@@ -20,10 +20,10 @@ export interface AssemblyRunQuery {
   taskId?: string;
   /** Matches `args->>'pr_number'`. */
   prNumber?: number;
-  /** Runs with an OPEN station-run claimed by this cluster-agent (running-claims drill-down). */
-  clusterAgentId?: string;
   /** Every run for one subject regardless of blueprint ("what worked on this feature"). */
   subjectKey?: string;
+  /** Every attempt on one branch — the implementation loop mints a task per pick, so the branch is what one ticket's runs share (FR11). */
+  branch?: string;
   createdAfter?: Date;
   /** Defaults to 50. */
   limit?: number;
@@ -60,23 +60,8 @@ export interface StationRunStartInput {
   agentCrName?: string | null;
   /** Dispatch input, recorded once by the first writer; a re-dispatched duplicate keeps the existing value. */
   input?: StationRunInput;
-  /** Pull dispatch (FR3): "queued" parks for cluster-agent claim; default "running" is push-path/backfill meaning. */
-  status?: "queued" | "running";
-  /** Capability tags a claimant must carry (`required_tags <@ tags`). */
-  requiredTags?: string[];
-  /** Complete dispatch contract (LoreTaskSpec) stored whole, unlike the bounded `input` record. */
-  dispatchSpec?: unknown;
-}
-
-/** What a successful claim hands the cluster-agent: visit identity + its dispatch contract. */
-export interface ClaimedStationRun {
-  nodeRowId: string;
-  stationRunId: string;
-  assemblyRunId: string;
-  nodeId: string;
-  iteration: number;
-  agentCrName: string | null;
-  dispatchSpec: unknown;
+  /** Who ran this visit by hand; the walk restarts at it (fork-rerun-from-node FR8). */
+  requestedBy?: string;
 }
 
 /** Why a visit failed; optional (only "failed" outcomes have one) — avoids a 5th positional arg on every 2-arg caller. */
@@ -85,8 +70,14 @@ export interface StationRunFailure {
   failureDetail?: string;
 }
 
-/** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts). */
-export type StationRunRecord = StationRun;
+/** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts) extended with `needs` — the floor brief's bag as the pod saw it at start (name → ref), absent on a table-backed record, whose dispatch snapshot is `input`. */
+export type StationRunRecord = StationRun & {
+  needs?: Record<string, string> | null;
+  /** What the visit reported it produced (name → value or blob hash); null until it reports, absent on a table-backed record. */
+  produced?: Record<string, string> | null;
+  /** A human station's page, resolved from its route template; null when the station names none or a placeholder had nothing to fill it. */
+  routeUrl?: string | null;
+};
 
 /** The overlap guard's row: everything it compares, nothing it does not. */
 export interface OpenRunSummary {
@@ -119,6 +110,8 @@ export interface AssemblyRunsPort {
   stampBlueprint(id: string, hash: string, graph?: RunGraph): Promise<void>;
   /** outcome "error" -> failed row, else finished; first writer wins (true), so racers can gate once-only side effects on it. */
   finish(id: string, outcome: string, reason?: string): Promise<boolean>;
+  /** Flips an ended run back to running, clearing its verdict, so a person can run one of its stations again (fork-rerun-from-node FR8); false when it was not ended. */
+  reopen(id: string): Promise<boolean>;
   getById(id: string): Promise<AssemblyRunRecord | null>;
   /** Additive merge into the line's args (unmentioned keys untouched, mentioned keys replaced); unknown line id is a no-op, not an error. */
   mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
@@ -147,20 +140,6 @@ export interface AssemblyRunsPort {
   ): Promise<StationRunRecord | null>;
   /** The visit a `station_run_id` names, or null — the git-credential broker's check that the run a credential names is still open. */
   findStationRunById(stationRunId: string): Promise<StationRunRecord | null>;
-  // The claim (FR3): atomically takes the oldest queued visit whose required_tags the claimant satisfies, one statement; null when nothing matches.
-  /** Arms a queued visit with its dispatch contract; written after ensureStationRun since claim only takes armed rows. */
-  enqueueStationRunDispatch(
-    nodeRowId: string,
-    dispatchSpec: unknown,
-  ): Promise<void>;
-  claimNextStationRun(claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  }): Promise<ClaimedStationRun | null>;
-  /** Resets a claimed-but-lost visit to queued on the same row; false if it already reached an outcome. */
-  requeueStationRun(nodeRowId: string): Promise<boolean>;
-  /** Open claims per cluster-agent id (registered-clusters page's "currently executing" column, FR7). */
-  countOpenClaimsByAgent(): Promise<Record<string, number>>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
   listOpen(): Promise<AssemblyRunRecord[]>;
   /** Overlap-guard read: open runs on one repo+branch as graph-less summaries; cost must not grow with other branches (unlike listOpen). */

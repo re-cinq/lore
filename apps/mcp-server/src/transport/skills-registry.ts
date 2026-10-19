@@ -18,15 +18,32 @@ export async function handleSkillsRequest(
     return false;
   }
 
+  await serveSkillsPath(res, skillsRoot, path);
+
+  return true;
+}
+
+// The flat settings.json, a per-vendor hook bundle, or a skill tarball, most specific first.
+async function serveSkillsPath(
+  res: ServerResponse,
+  skillsRoot: string,
+  path: string,
+): Promise<void> {
   if (path === "settings.json") {
     await serveSettings(res, skillsRoot);
 
-    return true;
+    return;
+  }
+
+  const hooks = /^hooks\/([^/]+)\.tar\.gz$/.exec(path);
+
+  if (hooks) {
+    await serveTarball(res, resolve(skillsRoot, "hooks"), hooks[1], "home");
+
+    return;
   }
 
   await serveNamedTarball(res, skillsRoot, path);
-
-  return true;
 }
 
 // The `/skills/<name>` suffix, GET-only; null when this request doesn't own a skills path at all.
@@ -54,7 +71,7 @@ async function serveNamedTarball(
 
     return;
   }
-  await serveSkillTarball(res, skillsRoot, name);
+  await serveTarball(res, resolve(skillsRoot, "skills"), name, "named");
 }
 
 // A safe skill dir name out of `<name>.tar.gz`; null on anything else (no suffix, or an unsafe/traversing name).
@@ -72,8 +89,11 @@ async function serveSettings(
   res: ServerResponse,
   skillsRoot: string,
 ): Promise<void> {
+  // The flat settings.json an init that predates hook bundles fetches: the Claude bundle's own file, so both generations read the same hooks.
   try {
-    const body = await readFile(join(skillsRoot, "settings.json"));
+    const body = await readFile(
+      join(skillsRoot, "hooks", "claude", ".claude", "settings.json"),
+    );
 
     res.writeHead(200, { "Content-Type": "application/json" }).end(body);
   } catch {
@@ -81,20 +101,20 @@ async function serveSettings(
   }
 }
 
-async function serveSkillTarball(
+// A skill tarball keeps its dir as the top-level member (`<name>/SKILL.md`, extracted into the skills dir); a hook bundle is laid out relative to $HOME (`./.claude/settings.json`), so it tars the dir's contents.
+async function serveTarball(
   res: ServerResponse,
-  skillsRoot: string,
+  parentDir: string,
   name: string,
+  layout: "named" | "home",
 ): Promise<void> {
-  const skillsDir = resolve(skillsRoot, "skills");
-
-  if (!(await isServableSkillDir(skillsDir, name))) {
+  if (!SKILL_NAME.test(name) || !(await isServableDir(parentDir, name))) {
     res.writeHead(404).end();
 
     return;
   }
   res.writeHead(200, { "Content-Type": "application/gzip" });
-  const tar = spawn("tar", ["-czf", "-", "-C", skillsDir, name]);
+  const tar = spawn("tar", tarArgs(parentDir, name, layout));
 
   tar.stdout.pipe(res);
   tar.on("error", () => {
@@ -102,14 +122,24 @@ async function serveSkillTarball(
   });
 }
 
-// Belt-and-suspenders against traversal: the resolved dir must stay under skills/, whatever the name matched upstream.
-async function isServableSkillDir(
-  skillsDir: string,
+function tarArgs(
+  parentDir: string,
+  name: string,
+  layout: "named" | "home",
+): string[] {
+  return layout === "named"
+    ? ["-czf", "-", "-C", parentDir, name]
+    : ["-czf", "-", "-C", resolve(parentDir, name), "."];
+}
+
+// Belt-and-suspenders against traversal: the resolved dir must stay under its parent, whatever the name matched upstream.
+async function isServableDir(
+  parentDir: string,
   name: string,
 ): Promise<boolean> {
-  const dir = resolve(skillsDir, name);
+  const dir = resolve(parentDir, name);
 
-  if (dir !== skillsDir && !dir.startsWith(skillsDir + sep)) {
+  if (dir !== parentDir && !dir.startsWith(parentDir + sep)) {
     return false;
   }
 

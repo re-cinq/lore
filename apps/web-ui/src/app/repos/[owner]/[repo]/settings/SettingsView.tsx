@@ -1,6 +1,7 @@
 "use client";
 import HelpPopover from "@/components/HelpPopover";
 import SettingsFormShell, { type SaveAction } from "./SettingsFormShell";
+import DigestFields from "./DigestFields";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
@@ -19,11 +20,10 @@ export interface SettingsViewProps {
 
 /** Says what this tab covers, so a reader knows before scrolling which settings live here and which live on a sibling tab. */
 const SETTINGS_LEDE =
-  "Per-repo general configuration: routing, trust, and cross-repo context.";
+  "Per-repo general configuration: routing, trust, cross-repo context, and the daily Slack digest.";
 
 export default function SettingsView(props: SettingsViewProps) {
   const { fullName, team, settings, allRepos, saveAction } = props;
-  const selectedRepos = settings.cross_repo_repos ?? [];
 
   return (
     <SettingsFormShell
@@ -33,10 +33,31 @@ export default function SettingsView(props: SettingsViewProps) {
       help={<SettingsHelp />}
       lede={SETTINGS_LEDE}
     >
-      <GeneralFields team={team} settings={settings} />
-      <CrossRepoField allRepos={allRepos} selectedRepos={selectedRepos} />
+      <SettingsSections team={team} settings={settings} allRepos={allRepos} />
       <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
     </SettingsFormShell>
+  );
+}
+
+type SettingsSectionsProps = Pick<
+  SettingsViewProps,
+  "team" | "settings" | "allRepos"
+>;
+
+/** The form's three sections, top to bottom. */
+function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
+  return (
+    <>
+      <GeneralFields team={team} settings={settings} />
+      <CrossRepoField
+        allRepos={allRepos}
+        selectedRepos={settings.cross_repo_repos ?? []}
+      />
+      <DigestFields
+        digest={settings.digest ?? undefined}
+        slackChannelSet={Boolean(settings.slack_channel_id)}
+      />
+    </>
   );
 }
 
@@ -44,8 +65,8 @@ function SettingsHelp() {
   return (
     <HelpPopover label="How settings are applied">
       <p>
-        Per-repo configuration, merged over the global{" "}
-        <code>task-types.yaml</code> defaults — repo values win.
+        Per-repo configuration, applied over the org-wide defaults — repo values
+        win.
       </p>
       <SettingsHelpPoints />
     </HelpPopover>
@@ -80,12 +101,12 @@ const GENERAL_FIELDS = [
   {
     label: "Allowed Task Types (comma-separated)",
     name: "task_types",
-    placeholder: "general, runbook, implementation",
+    placeholder: "runbook, gap-fill, review",
   },
   {
     label: "Default Dispatch Task Type",
     name: "dispatch_default_type",
-    placeholder: "general",
+    placeholder: "the implementation loop's backlog (default)",
   },
   {
     label: "Slack Channel ID",
@@ -102,7 +123,8 @@ const GENERAL_FIELDS = [
 /** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
 function GeneralFields({ team, settings }: GeneralFieldsProps) {
   const values = generalValues({ team, settings });
-  const { trustLevel, autoReview } = selectFieldDefaults(settings);
+  const { trustLevel, autoReview, autoMergeApprover } =
+    selectFieldDefaults(settings);
 
   return (
     <>
@@ -112,7 +134,11 @@ function GeneralFields({ team, settings }: GeneralFieldsProps) {
         <TextField key={field.name} {...field} value={values[field.name]} />
       ))}
 
-      <RunPolicyFields trustLevel={trustLevel} autoReview={autoReview} />
+      <RunPolicyFields
+        trustLevel={trustLevel}
+        autoReview={autoReview}
+        autoMergeApprover={autoMergeApprover}
+      />
     </>
   );
 }
@@ -144,6 +170,7 @@ function selectFieldDefaults(settings: RepoSettingsShape) {
   return {
     trustLevel: settings.trust?.level ?? "implementation",
     autoReview: settings.auto_review ? "yes" : "no",
+    autoMergeApprover: settings.auto_merge?.approver ?? "none",
   };
 }
 
@@ -167,10 +194,30 @@ function TextField({ label, name, value, placeholder }: TextFieldProps) {
 interface RunPolicyFieldsProps {
   trustLevel: string;
   autoReview: string;
+  autoMergeApprover: string;
 }
 
 /** Not more text boxes: trust level decides which task types this repo accepts at all, and auto-review decides whether a PR is reviewed without anyone asking. */
-function RunPolicyFields({ trustLevel, autoReview }: RunPolicyFieldsProps) {
+function RunPolicyFields({
+  trustLevel,
+  autoReview,
+  autoMergeApprover,
+}: RunPolicyFieldsProps) {
+  return (
+    <>
+      <TrustLevelField trustLevel={trustLevel} />
+      <AutoReviewField autoReview={autoReview} />
+      <input
+        type="hidden"
+        name="auto_merge_approver_saved"
+        value={autoMergeApprover}
+      />
+      <AutoMergeApproverField autoMergeApprover={autoMergeApprover} />
+    </>
+  );
+}
+
+function TrustLevelField({ trustLevel }: { trustLevel: string }) {
   return (
     <>
       <label>Trust Level</label>
@@ -180,12 +227,38 @@ function RunPolicyFields({ trustLevel, autoReview }: RunPolicyFieldsProps) {
         <option value="implementation">Implementation (default)</option>
         <option value="full">Full (all task types)</option>
       </select>
+    </>
+  );
+}
 
+function AutoReviewField({ autoReview }: { autoReview: string }) {
+  return (
+    <>
       <label>Auto-review PRs</label>
       <select name="auto_review" defaultValue={autoReview}>
         <option value="no">No</option>
         <option value="yes">Yes</option>
       </select>
+    </>
+  );
+}
+
+const INSTALL_URL = "https://github.com/apps/lore-reviewer/installations/new";
+
+function AutoMergeApproverField(props: { autoMergeApprover: string }) {
+  return (
+    <>
+      <label>Auto-merge Approver</label>
+      <select name="auto_merge_approver" defaultValue={props.autoMergeApprover}>
+        <option value="none">none</option>
+        <option value="lore-reviewer">lore-reviewer</option>
+      </select>
+      <span className={`meta ${styles.hint}`}>
+        Requires the second App to be installed on the repository.{" "}
+        <a href={INSTALL_URL} target="_blank" rel="noopener noreferrer">
+          Install lore-reviewer
+        </a>
+      </span>
     </>
   );
 }

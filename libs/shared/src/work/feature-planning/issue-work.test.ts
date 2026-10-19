@@ -36,24 +36,63 @@ const decomposition = (
 });
 
 describe("decideIssueWork", () => {
-  it("files one issue per story, always carrying lore-managed", () => {
+  it("files ONE story issue for the whole plan, titled after it and carrying every slice's labels", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          slice,
+          { ...slice, title: "Replay a run", labels: ["tech-debt"] },
+        ],
+      }),
+      REPO_LABELS,
+      { planTitle: "Live run view" },
+    );
+
+    expect(work.outcome === "proceed" && work.story).toEqual({
+      title: "User story: Live run view",
+      labels: ["area:web-ui", "tech-debt", "lore-managed", "user-story"],
+    });
+  });
+
+  it("titles the story after its first slice when the line carries no plan title", () => {
     const work = decideIssueWork(decomposition(), REPO_LABELS);
 
-    expect(work).toMatchObject({ outcome: "proceed" });
-    expect(work.outcome === "proceed" && work.issues).toMatchObject([
+    expect(work.outcome === "proceed" && work.story.title).toBe(
+      "User story: Watch a run live",
+    );
+  });
+
+  it("files every task as its own issue, titled by its id and title and labelled priority:medium so the backlog loop queues it", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          {
+            ...slice,
+            tasks: [{ ...slice.tasks[0], title: "Stream node events" }],
+          },
+        ],
+      }),
+      REPO_LABELS,
+    );
+
+    expect(work.outcome === "proceed" && work.tasks).toMatchObject([
       {
-        title: "User story: Watch a run live",
-        labels: ["area:web-ui", "lore-managed", "user-story"],
+        title: "T001: Stream node events",
+        description: "stream node events over SSE",
+        labels: ["area:floor", "lore-managed", "priority:medium"],
+        storyIndex: 0,
       },
     ]);
   });
 
-  it("carries every task through as a spec-task", () => {
+  it("titles a task with no title of its own by its description", () => {
     const work = decideIssueWork(decomposition(), REPO_LABELS);
 
-    expect(work.outcome === "proceed" && work.tasks).toMatchObject([
-      { description: "stream node events over SSE", storyIndex: 0 },
-    ]);
+    expect(work.outcome === "proceed" && work.tasks[0].title).toBe(
+      "T001: stream node events over SSE",
+    );
   });
 
   it("requests changes naming a label the repo does not have, since GitHub silently creates unknown labels instead of failing loudly", () => {
@@ -133,9 +172,54 @@ describe("decideIssueWork", () => {
       [],
     );
 
-    expect(work.outcome === "proceed" && work.issues[0].labels).toEqual([
+    expect(
+      work.outcome === "proceed" && {
+        story: work.story.labels,
+        task: work.tasks[0].labels,
+      },
+    ).toEqual({
+      story: ["lore-managed", "user-story"],
+      task: ["lore-managed", "priority:medium"],
+    });
+  });
+  it("keeps the one priority label a decomposition chose itself, since two of them hold the ticket out of the backlog", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          {
+            ...slice,
+            tasks: [{ ...slice.tasks[0], labels: ["priority:high"] }],
+          },
+        ],
+      }),
+      [...REPO_LABELS, "priority:high"],
+    );
+
+    expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
+      "priority:high",
       "lore-managed",
-      "user-story",
+    ]);
+  });
+
+  it("files triage child issues with triage: needs-priority and no priority label, so a person queues them", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          {
+            ...slice,
+            tasks: [{ ...slice.tasks[0], labels: ["priority:high"] }],
+          },
+        ],
+      }),
+      [...REPO_LABELS, "priority:high"],
+      { queue: false },
+    );
+
+    expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
+      "lore-managed",
+      "triage: needs-priority",
     ]);
   });
 });

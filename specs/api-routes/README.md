@@ -42,7 +42,7 @@ that's plumbing, not duplication.
 ## Webhooks (HMAC-authenticated)
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
-| `POST /api/events` (event-router, GitHub branch; legacy `POST /api/webhook/github` rewritten to it by the Floor ingress) | [spec](webhook-github/spec.md) | HMAC `sha256=` | PR/review/comment/issue events → `github.*` rows on `pipeline.events`. |
+| `POST /api/webhook/github` (lore-api; the public `/api/events` URL is rewritten onto it by the ingress) | [spec](webhook-github/spec.md) | HMAC `sha256=` | PR/review/comment/issue events → `github.*` rows on `pipeline.events`. |
 | `POST /api/webhook/slack` | [spec](webhook-slack/spec.md) | HMAC `v0=` | `/lore` slash command → create/retry tasks. |
 | `POST /api/webhook/incident` | [spec](webhook-incident/spec.md) | path-exempt, repo-gated | PagerDuty/Opsgenie → `settings.incidents`. |
 
@@ -55,9 +55,14 @@ that's plumbing, not duplication.
 | `GET /api/repos/:o/:r/trace/*` | [spec](repo-trace/spec.md) | read | Read a repo's trace docs/graph/ring. |
 | `GET /api/trace/specs` | [spec](global-trace-specs/spec.md) | read | Cross-repo spec document list. |
 
+## GitHub reads
+| Route | Spec | Auth | Purpose |
+|-------|------|------|---------|
+| `GET /api/repos/:o/:r/ci-failures` | [spec](ci-failures/spec.md) | read | What CI said about a branch: judged sha, verdict, each failed check explained from its job. |
+| `GET /api/repos/:o/:r/ci-jobs/:job_id/log` | [spec](ci-job-log/spec.md) | read | The tail of one Actions job's log, timestamps stripped, grep-filtered. |
+
 ## Admin & health
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
 | `GET /healthz` | [spec](healthz/spec.md) | none | Liveness probe. |
 | `/api/tokens` | [spec](tokens/spec.md) | admin | API token create / list / revoke. |
-| `/api/repos/:o/:r/settings/dark-factory` | [spec](dark-factory-settings/spec.md) | admin + two-key | Dark-factory settings (privileged-field approval ceremony). |

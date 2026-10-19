@@ -1,6 +1,6 @@
 # Product Manager Guide
 
-**For product managers turning ideas into shipped code.** You describe what you want in plain language; Lore translates it into a proper engineering spec that follows the repo's conventions, and an engineer takes it from there. You never need to know speckit, MADR, or any technical format.
+**For product managers turning ideas into shipped code.** You write what you want in plain language as a plan, together with Lore's planning agent and your team; approving it turns it into an engineering spec that follows the repo's conventions, and then into tickets. You never need to know speckit, MADR, or any technical format.
 
 This guide walks the whole journey — from your one-paragraph idea to a merged pull request — so you can see exactly where your part begins and ends.
 
@@ -8,7 +8,7 @@ This guide walks the whole journey — from your one-paragraph idea to a merged 
 
 ## From intent to a spec
 
-A PM describes a feature in everyday language. Lore fetches the repo's context and generates the engineering artifacts — spec, data model, and task breakdown — matching the patterns already in that codebase.
+A PM writes down a feature as a plan: a shared document in the repo's Lore UI that people and Lore's planning agent write together. Approving the plan turns it into engineering specs that match the patterns already in that codebase, and then into tickets an engineer or Lore's implementation loop picks up.
 
 <p align="center"><img src="../../badges/flow3-pm.svg" width="600" alt="PM describes feature → Agent generates spec" /></p>
 
@@ -17,59 +17,55 @@ A PM describes a feature in everyday language. Lore fetches the repo's context a
 Here is how a feature goes from a product manager's idea to production code, step by step.
 
 ```
-PM idea → agent spec PR → engineer review → engineer implements → PR → merge
+plan → draft with the agent → validate → approve → spec PR → merge → task issues → implementation → PR → merge
 ```
 
-### Step 1 — You describe the feature (Lore UI)
+### Step 1 — You start a plan (Lore UI)
 
-Open `LORE_UI_DOMAIN` → pick your repo → **New Task** → **Feature Request**.
+Open `LORE_UI_DOMAIN` → pick your repo → **Plans** → **+ Plan**.
 
-Describe what you want in plain language. No technical jargon needed:
+Fill in a title, pick a template, and write what you already know in plain language. No technical jargon needed:
 
 > *"I want users to be able to export their approved timesheets as PDF, grouped by project, with the company logo. Should work for a single month or a custom date range."*
 
-Click **Create Task**. That's it for you.
+You can also link a user story: an issue URL or its number. Click **Create plan**.
 
-### Step 2 — The agent generates the spec (automatic)
+### Step 2 — You and the agent write the plan together (Lore UI)
 
-Within about 10 minutes, the Floor:
+Creating the plan starts its planning line on Lore's floor. The planning agent reads the repo's context and drafts each section into the live plan while you watch. Anyone with access to the repo can open the same plan and write in it beside you.
 
-- Fetches the repo's context (CLAUDE.md, ADRs, existing specs, org memories)
-- Generates `specs/export-timesheets-pdf/spec.md` — a proper engineering spec with problem statement, user scenarios, functional requirements, and success criteria
-- Generates `specs/export-timesheets-pdf/data-model.md` — the database changes needed
-- Generates `specs/export-timesheets-pdf/tasks.md` — an implementation checklist with file paths that match the actual project structure
-- Opens a PR on the repo labeled `spec` + `needs-review`
-- Creates a GitHub Issue linking everything together
+Where the agent cannot decide something alone, it adds a question to the plan. Answer it in the plan. When a section is not right yet, use that section's **Refine** to send it back to the agent, which edits it in place.
 
-The agent matches the repo's existing conventions automatically.
+### Step 3 — Validate, then approve
 
-### Step 3 — An engineer reviews the spec (GitHub)
+When the plan reads right, click **Validate the plan**. A validator agent reads the plan against the repository and puts its findings on the sections they concern: statements that disagree, claims the code contradicts, and gaps such as a dependency with no issue or a KPI with no source. Address them (Refine helps here), then validate again.
 
-The engineer sees the GitHub Issue notification, opens the spec PR, and reviews the requirements — are the user scenarios right? any missing edge cases? They refine anything the agent got wrong and merge the PR. The spec files (`spec.md`, `data-model.md`, `tasks.md`) now live on `main`.
+**Approve plan** is refused while a finding is still unresolved, and the page says how many remain. Once approved, the plan is read-only. If you need to change it later, **Reopen plan** puts it back into drafting, and the next approval updates the spec PR (or opens a new one if the specs already merged).
 
-### Step 4 — The engineer implements with Claude Code
+### Step 4 — The line writes the specs (automatic)
+
+Approval moves the same planning line on. It works out which specs in the repo the plan changes, writes them under `specs/`, and opens a spec PR. If the spec writer hits a decision only people can make, the plan page shows its question with the steps to answer it: reopen, write the answer into the plan, approve again.
+
+### Step 5 — An engineer reviews the spec PR (GitHub)
+
+The engineer opens the spec PR and reviews the requirements: are the user scenarios right, are edge cases missing? They refine anything the agent got wrong and merge it. The specs now live on `main`.
+
+### Step 6 — The specs become task issues (automatic)
+
+After the spec PR merges, the line breaks the merged spec into stories and tasks and files each task as a GitHub Issue with a `priority:*` label. Each issue links the spec lines and plan passages it implements.
+
+### Step 7 — The tickets get implemented
+
+Those issues are backlog tickets. Where the repo has the implementation loop switched on, Lore works them one at a time in priority order: it opens a draft PR, works the change in test-first rounds, and marks the PR ready for review. An engineer can also take a ticket and implement it with Claude Code:
 
 ```bash
 cd ~/projects/re-cinq/re-plan
 claude
 ```
 
-Then:
+Then `/lore-feature`, which reads the spec, creates a feature branch, and works through the tasks with the engineer, committing as it goes.
 
-```
-/lore-feature
-```
-
-Claude will:
-
-1. List available specs in `specs/` — the engineer picks `export-timesheets-pdf`
-2. Read the spec, data model, and task breakdown
-3. Create a feature branch: `feat/export-timesheets-pdf`
-4. Work through tasks in order — implementing each, marking `- [x] T001` in `tasks.md`, and committing (`feat(time): add PDF export service`)
-5. Pause to confirm before moving to the next task
-6. Repeat until all tasks are done or the engineer stops
-
-### Step 5 — The engineer opens the PR
+### Step 8 — The engineer opens the PR
 
 ```
 /lore-pr
@@ -77,11 +73,11 @@ Claude will:
 
 Claude reads the spec, diffs against `main`, finds related ADRs, drafts a complete PR description (Why, What Changed, Alternatives, Testing), shows it for review, and — after confirmation — pushes the branch and opens the PR via `gh pr create`.
 
-### Step 6 — Review and merge
+### Step 9 — Review and merge
 
-The PR goes through normal code review. If the repo has `auto_review: true`, Lore reviews the PR against the spec and conventions first — no human needed for the first pass. If changes are requested, a fix task is created automatically (up to 2 iterations before escalating to a human).
+The PR goes through normal code review. If the repo has `auto_review` on, Lore's code-review line reviews every PR first, and re-checks it after each push. When a trusted reviewer requests changes, Lore answers on the PR. Merging stays with people.
 
-The entire flow from "I want X" to merged code happens with proper specs, tracked tasks, and structured PRs at every step.
+The entire flow from "I want X" to merged code happens with a shared plan, reviewed specs, tracked tickets, and structured PRs at every step.
 
 ---
 

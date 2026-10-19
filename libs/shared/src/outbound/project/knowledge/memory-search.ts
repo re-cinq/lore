@@ -29,6 +29,8 @@ export interface MemorySearchResult {
   source: "memory" | "fact" | "episode" | "graph";
   id?: string;
   confidence?: string;
+  /** Cosine similarity to the query, or the most it can be for a hit only the keyword leg found; absent when nothing measured it. */
+  similarity?: number;
 }
 
 // ── Main entry point ────────────────────────────────────────────────
@@ -43,6 +45,8 @@ export interface MemorySearchOptions {
   actorId?: string;
   /** Keep only these kinds of hit. The legs that cannot produce a requested kind are not run, and the fact legs filter in SQL under their LIMIT, so asking for 5 episodes yields the 5 best episodes rather than whatever episodes survived a mixed top-20. */
   sources?: MemorySearchResult["source"][];
+  /** Read without leaving a trace: no retrieval strengthening and no audit row. For measuring retrieval, where no agent is using what comes back, so nothing should rank higher for having been found. */
+  passive?: boolean;
 }
 
 /** The (agent, pool, invalidated-visibility) scope shared by every memory/fact search call. */
@@ -61,6 +65,7 @@ interface ResolvedSearchOptions {
   includeInvalidated: boolean;
   graphAugmentEnabled: boolean;
   sources?: MemorySearchResult["source"][];
+  passive: boolean;
 }
 
 export async function searchMemories(
@@ -74,19 +79,18 @@ export async function searchMemories(
   const { agent, actor } = searchIdentities(resolved);
   const scope = await resolveScope(pool, agent, resolved);
 
-  if (!scope) {
-    // Pool does not exist — return empty
-    await auditLog(pool, { agentId: actor, query, resultCount: 0 });
+  // No scope means the named pool does not exist: there is nothing to search.
+  const results = scope
+    ? await scopedResults(pool, query, scope, resolved)
+    : [];
 
-    return [];
-  }
-  const results = await scopedResults(pool, query, scope, resolved);
-
-  return finishSearch(pool, results, {
-    agentId: actor,
-    query,
-    latencyMs: Date.now() - searchStartTime,
-  });
+  return resolved.passive
+    ? results
+    : finishSearch(pool, results, {
+        agentId: actor,
+        query,
+        latencyMs: Date.now() - searchStartTime,
+      });
 }
 
 function resolveSearchOptions(
@@ -100,6 +104,7 @@ function resolveSearchOptions(
     includeInvalidated: options.includeInvalidated ?? false,
     graphAugmentEnabled: options.graphAugment ?? false,
     sources: options.sources,
+    passive: options.passive ?? false,
   };
 }
 
@@ -181,18 +186,52 @@ async function rankedHits(
       vectorSearchBoth(pool, query, scope),
       keywordSearchBoth(pool, query, scope),
     ]);
-  const merged = rrfMerge([
-    vectorMemories,
-    vectorFacts,
-    keywordMemories,
-    keywordFacts,
-  ]);
+  const merged = boundedBy(
+    [vectorMemories, vectorFacts],
+    rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]),
+  );
 
   // Confidence breaks ties before the cap, so a stale fact cannot occupy a slot it only narrowly earned; normalising last makes the surviving spread readable.
   return normalizeMemoryScores(diversify(weightByConfidence(merged), limit));
 }
 
-/** Attempts a query embedding from Vertex AI; unavailable embedding yields no vector hits (keyword search still runs). */
+// How many neighbours each vector leg returns (its LIMIT): a full leg is what makes its last similarity a bound.
+const VECTOR_LEG_SIZE = 20;
+
+/** A hit only the keyword leg found was not among its kind's nearest neighbours, so when that vector leg came back full, the hit is at most as similar as the leg's last row. That bound stands in for a similarity nobody measured, which lets the context cut-off drop a memory that matched a common word and nothing else. A leg that came back short measured every embedded row, so a keyword-only hit there has no embedding and stays unmeasured. */
+function boundedBy(
+  [vectorMemories, vectorFacts]: RankedRow[][],
+  merged: MemorySearchResult[],
+): MemorySearchResult[] {
+  const factBound = boundOf(vectorFacts);
+  // The fact leg ranks facts and episodes together, so its bound holds for both whichever of them it returned.
+  const bounds: Partial<Record<MemorySearchResult["source"], number>> = {
+    memory: boundOf(vectorMemories),
+    fact: factBound,
+    episode: factBound,
+  };
+
+  return merged.map((hit) => {
+    const bound = bounds[hit.source];
+
+    return hit.similarity === undefined && bound !== undefined
+      ? { ...hit, similarity: bound }
+      : hit;
+  });
+}
+
+/** The lowest similarity of a leg that came back full; nothing for a short leg, or for one that measured no row. */
+function boundOf(leg: RankedRow[]): number | undefined {
+  const similarities = leg.flatMap((row) =>
+    row.similarity === undefined ? [] : [row.similarity],
+  );
+
+  return leg.length >= VECTOR_LEG_SIZE && similarities.length > 0
+    ? Math.min(...similarities)
+    : undefined;
+}
+
+/** Attempts a query embedding; an unavailable embedding yields no vector hits (keyword search still runs). */
 async function vectorSearchBoth(
   pool: PgPool,
   query: string,

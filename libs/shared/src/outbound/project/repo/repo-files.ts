@@ -1,4 +1,15 @@
-import type { CheckRunInput, GitHubPort } from "../lib/github-port.js";
+import type {
+  BranchHistoryOptions,
+  CheckRunInput,
+  CommitDetail,
+  GitHubPort,
+  TrackerActivityOptions,
+} from "../lib/github-port.js";
+import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type {
+  ReleaseEntry,
+  TagEntry,
+} from "../../../domain/utopia/release-statements.js";
 
 /** GitHub file access via API (no clone required); use Workspace for bulk edits. */
 export class RepoFiles {
@@ -23,19 +34,48 @@ export class RepoFiles {
     return this.github.listTree(this.repo, ref);
   }
 
-  listCommitsSince(
-    since: string,
-  ): Promise<Array<{ sha: string; files: string[] }>> {
-    return this.github.listCommitsSince(this.repo, since);
+  branchHistory(
+    branch: string,
+    opts: BranchHistoryOptions,
+  ): Promise<CommitDetail[]> {
+    return this.github.listBranchHistory(this.repo, branch, opts);
+  }
+
+  trackerActivity(opts: TrackerActivityOptions): Promise<TrackedEntry[]> {
+    return this.github.listTrackerActivity(this.repo, opts);
+  }
+
+  releases(): Promise<ReleaseEntry[]> {
+    return this.github.listReleases(this.repo);
+  }
+
+  tags(): Promise<TagEntry[]> {
+    return this.github.listTags(this.repo);
   }
 
   defaultBranch(): Promise<string> {
     return this.github.getDefaultBranch(this.repo);
   }
 
+  headSha(branch: string): Promise<string> {
+    return this.github.branchHeadSha(this.repo, branch);
+  }
+
+  /** The login's newest commit email here; null when unknown, including on an adapter that cannot say. */
+  async commitEmailOf(login: string): Promise<string | null> {
+    return (await this.github.commitEmailOf?.(this.repo, login)) ?? null;
+  }
+
   /** True/false when adapter answers; undefined means "don't modify branch". */
   branchExists(branch: string): Promise<boolean> | undefined {
     return this.github.branchExists?.(this.repo, branch);
+  }
+
+  branchMerged(branch: string): Promise<boolean | undefined> {
+    return (
+      this.github.branchMerged?.(this.repo, branch) ??
+      Promise.resolve(undefined)
+    );
   }
 
   createBranch(branch: string, base?: string): Promise<void> {

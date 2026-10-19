@@ -159,19 +159,21 @@ describe("decideTestInterfaceCheck", () => {
     });
   });
 
-  it("reports configured when the .lore/test-commands.yml file is declared", () => {
+  it("reports configured when the .lore/test-commands.yml file is declared and the workflow file is present", () => {
     expect(
       decideTestInterfaceCheck({
         manifestFileDeclared: true,
+        workflowFileDeclared: true,
         settingsTestCommands: null,
       }),
     ).toEqual({ status: "configured" });
   });
 
-  it("reports configured when settings declare test_commands without a file", () => {
+  it("reports configured when settings declare test_commands and the workflow file is present", () => {
     expect(
       decideTestInterfaceCheck({
         manifestFileDeclared: false,
+        workflowFileDeclared: true,
         settingsTestCommands: {
           list: "x",
           run: "y {selector}",
@@ -196,5 +198,20 @@ describe("substituteSelector", () => {
         "a.test.ts::keeps {selector}",
       ),
     ).toBe("vitest run a.test.ts::keeps {selector} --coverage");
+  });
+});
+
+describe("decideTestInterfaceCheck — workflow file independence", () => {
+  it("scaffolds only the workflow file when the manifest is declared but lore-tests.yml is absent", () => {
+    expect(
+      decideTestInterfaceCheck({
+        manifestFileDeclared: true,
+        workflowFileDeclared: false,
+        settingsTestCommands: null,
+      }),
+    ).toEqual({
+      status: "scaffold",
+      files: [".github/workflows/lore-tests.yml"],
+    });
   });
 });

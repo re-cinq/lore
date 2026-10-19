@@ -50,8 +50,8 @@ export async function listComments(
   return comments.map(toReviewComment);
 }
 
-/** The `user` parameter is optional here because GitHub returns null for comments from deleted accounts, which octokit's types do not admit. */
-function toReviewComment(c: {
+/** `user` is optional here because GitHub returns null for comments from deleted accounts, which octokit's types do not admit. */
+interface GitHubReviewComment {
   id: number;
   path: string;
   line?: number | null;
@@ -60,16 +60,24 @@ function toReviewComment(c: {
   user?: { login?: string } | null;
   created_at: string;
   pull_request_review_id?: number | null;
-}): ReviewComment {
+  in_reply_to_id?: number | null;
+}
+
+export function toReviewComment(c: GitHubReviewComment): ReviewComment {
   return {
     id: c.id,
     path: c.path,
-    line: c.line ?? c.original_line ?? null,
+    line: lineOf(c),
     body: c.body,
     user: c.user?.login ?? "unknown",
     created_at: c.created_at,
     review_id: c.pull_request_review_id ?? null,
+    in_reply_to_id: c.in_reply_to_id ?? null,
   };
+}
+
+function lineOf(c: GitHubReviewComment): number | null {
+  return c.line ?? c.original_line ?? null;
 }
 
 /** The reviewThreads GraphQL response — only the fields the mapper reads. */
@@ -216,18 +224,20 @@ function isHumanComment(c: { body?: string }): boolean {
 }
 
 function toIssueComment(c: {
+  id: number;
   body?: string;
   user?: { login?: string } | null;
   created_at: string;
 }): IssueComment {
   return {
+    id: c.id,
     body: c.body ?? "",
     user: c.user?.login ?? "unknown",
     created_at: c.created_at,
   };
 }
 
-/** All check runs for a ref, paginated once — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
+/** All check runs for a ref, paginated once, plus its commit statuses read as runs — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
 export async function checkRuns(
   ok: Octokit,
   repo: string,
@@ -242,7 +252,53 @@ export async function checkRuns(
     per_page: 100,
   });
 
-  return runs.map(checkRunOf);
+  return [
+    ...runs.map(checkRunOf),
+    ...(await commitStatusRuns(ok, owner, name, ref)),
+  ];
+}
+
+/** The commit statuses of a ref as the check runs they stand for: CI that reports through statuses (an OAuth or PAT service connection) publishes no check runs at all, so without this such a ref reads as having no CI. */
+async function commitStatusRuns(
+  ok: Octokit,
+  owner: string,
+  repo: string,
+  ref: string,
+): Promise<CheckRun[]> {
+  const { repos } = ok.rest;
+  const combined = await repos
+    .getCombinedStatusForRef({ owner, repo, ref, per_page: 100 })
+    .catch(withoutStatusPermission);
+
+  return (combined?.data.statuses ?? []).map(statusAsRun);
+}
+
+/** An installation without the commit-statuses permission answers 403; its check runs still decide, rather than every CI read failing. */
+function withoutStatusPermission(err: unknown): undefined {
+  if ((err as { status?: number }).status !== 403) {
+    throw err;
+  }
+
+  console.warn(
+    "[github] commit statuses unreadable (403): the GitHub App lacks the statuses permission",
+  );
+
+  return undefined;
+}
+
+const STATUS_CONCLUSION: Record<string, string | null> = {
+  success: "success",
+  pending: null,
+};
+
+function statusAsRun(s: { context: string; state: string }): CheckRun {
+  return {
+    name: s.context,
+    status: s.state === "pending" ? "in_progress" : "completed",
+    conclusion:
+      s.state in STATUS_CONCLUSION ? STATUS_CONCLUSION[s.state] : "failure",
+    output: { title: null, summary: null },
+  };
 }
 
 /** The fields of a listed check run that Lore reads. */

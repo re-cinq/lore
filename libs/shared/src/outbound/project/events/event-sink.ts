@@ -1,4 +1,4 @@
-/** Bus end of proxy: Sink wrapping EventReporter (HTTP or local pool); converts event messages to inserts. */
+/** Bus end of proxy: Sink wrapping EventReporter (the local pool); converts event messages to inserts. */
 
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { EventReporter } from "./event-reporter-port.js";

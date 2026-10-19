@@ -21,6 +21,19 @@ import {
   type CoveringTest,
   type CoverageTarget,
 } from "../../spec-trace/tests-covering.js";
+import {
+  failuresTouching,
+  type FailureHit,
+} from "../../spec-trace/failure-reads.js";
+import {
+  callersOf,
+  type CallDirection,
+  type CodeCaller,
+} from "../../spec-trace/code-callers.js";
+import {
+  fetchGraphContext,
+  type GraphContextBlock,
+} from "../../spec-trace/graph-context.js";
 import type { TracePort } from "./trace-port.js";
 
 /** TracePort over the live spec-trace Dgraph — the same client the ingest path projects into. */
@@ -65,5 +78,24 @@ export class DgraphTrace implements TracePort {
     branch?: string,
   ): Promise<CoveringTest[]> {
     return testsCovering(this.dgraph, { repo, branch }, target);
+  }
+
+  failuresTouching(repo: string, path: string): Promise<FailureHit[]> {
+    return failuresTouching(this.dgraph, repo, path);
+  }
+
+  callers(
+    repo: string,
+    symbol: string,
+    direction: CallDirection,
+  ): Promise<CodeCaller[]> {
+    return callersOf(this.dgraph, repo, symbol, direction);
+  }
+
+  graphContext(
+    repo: string,
+    opts?: { limit?: number },
+  ): Promise<GraphContextBlock> {
+    return fetchGraphContext(this.dgraph, repo, opts);
   }
 }

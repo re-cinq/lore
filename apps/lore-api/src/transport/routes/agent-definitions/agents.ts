@@ -16,7 +16,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import type { Request } from "@hapi/hapi";
 import { OkTrue } from "../../http/ok-schema.js";
 
-// Per-repo agent definitions API; `image` is two-key gated like dark_factory.execution.image (ADR-025).
+// Per-repo agent definitions API; `image` is two-key gated (ADR-025).
 
 const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
 
@@ -171,7 +171,7 @@ async function deleteAgentDefinition(
   const name = request.params.name as string;
   const project = await projectFor(repo);
 
-  await project.agentDefs.delete(name);
+  await project.agentDefsWriter.delete(name);
 
   await audit(pool, repo, "agent_deleted", { name });
 

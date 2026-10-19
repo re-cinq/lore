@@ -12,6 +12,7 @@ vi.mock("../../../work/repo/repo-onboard.js", () => ({
 }));
 
 import { onboardRepo } from "../../../work/repo/repo-onboard.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 
 const originalEnv = { ...process.env };
 const post = (body: unknown, pool: unknown) =>
@@ -76,6 +77,18 @@ describe("POST /api/onboard", () => {
 
     expect(onboardRepo).toHaveBeenCalledWith(expect.anything(), "o/r", {
       reonboard: true,
+    });
+  });
+
+  it("returns 503 with the reason when onboarding is refused for lack of a floor", async () => {
+    vi.mocked(onboardRepo).mockRejectedValue(
+      apiError(503)("onboarding needs the external floor"),
+    );
+    const res = await post({ repo: "o/r" }, makePool());
+
+    expect({ status: res.statusCode, body: res.result }).toMatchObject({
+      status: 503,
+      body: { error: "onboarding needs the external floor" },
     });
   });
 

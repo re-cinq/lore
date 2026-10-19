@@ -2,13 +2,10 @@ import { describe, it, expect } from "vitest";
 import { resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
-import { parse } from "yaml";
+import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
 import { handleSkillsRequest } from "./skills-registry.js";
 
 const skillsRoot = resolve(import.meta.dirname, "../../agent-skills");
-
-const TASK_TYPES_PATH = "../../../../scripts/task-types.yaml";
 
 function mockRes() {
   const res = new PassThrough();
@@ -112,14 +109,9 @@ describe("handleSkillsRequest", () => {
   });
 
   it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
-    const recipes = parse(
-      await readFile(resolve(import.meta.dirname, TASK_TYPES_PATH), "utf8"),
-    ) as { task_types?: Record<string, { skills?: string[] }> };
-
+    const recipes = loadAgentDefaults();
     const declared = [
-      ...new Set(
-        Object.values(recipes.task_types ?? {}).flatMap((r) => r?.skills ?? []),
-      ),
+      ...new Set(recipes.flatMap((r) => r.config?.skills ?? [])),
     ].sort();
 
     const served = await Promise.all(

@@ -13,7 +13,7 @@ GKE.
 - Install script and developer onboarding
 - Lore Agent prompts and scheduling
 - Infrastructure (CNPG, Helm charts, CronJobs)
-- PromptFoo eval suites
+- Context evals (the nightly GitHub Actions job that asks lore-api, #2443)
 - Platform skills (/lore-feature, /lore-pr, /lore-init)
 
 ## Conventions

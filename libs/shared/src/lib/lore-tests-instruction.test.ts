@@ -33,9 +33,18 @@ describe("LORE_TESTS_INSTRUCTION", () => {
     expect(LORE_TESTS_INSTRUCTION).toContain("working-directory");
   });
 
-  it("names the ingest token, the binary host var, and the ci-tests post host var", () => {
-    expect(LORE_TESTS_INSTRUCTION).toContain("LORE_INGEST_TOKEN");
-    expect(LORE_TESTS_INSTRUCTION).toContain("LORE_INGEST_URL");
-    expect(LORE_TESTS_INSTRUCTION).toContain("LORE_WEBHOOK_URL");
+  it("passes LORE_API_URL bound the way lore-ingest.yml binds its URL, and the ingest token, never the unset LORE_WEBHOOK_URL (#1203)", () => {
+    expect(
+      [
+        "LORE_API_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}",
+        "LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}",
+        "Do not pass `LORE_WEBHOOK_URL`",
+      ].filter((fragment) => !LORE_TESTS_INSTRUCTION.includes(fragment)),
+    ).toEqual([]);
+    expect(LORE_TESTS_INSTRUCTION).not.toContain("vars.LORE_WEBHOOK_URL");
+  });
+
+  it("checks out full history so the orchestrator can diff against the last ingested commit", () => {
+    expect(LORE_TESTS_INSTRUCTION).toContain("fetch-depth: 0");
   });
 });

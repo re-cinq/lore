@@ -1,0 +1,72 @@
+.value {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.blobRef {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--fs-xs);
+}
+
+.text,
+.multiline {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.jsonList {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.jsonObject {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.jsonField {
+  display: contents;
+}
+
+.jsonField dt {
+  color: var(--text-muted);
+}
+
+.jsonField dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.folded[data-folded="true"] {
+  max-height: calc(15 * 1.5em);
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 80%, transparent);
+}
+
+.foldToggle {
+  margin-top: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+/* A ref as the floor wrote it: a hash, a branch, a URL or a plain value. */
+.ref {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}

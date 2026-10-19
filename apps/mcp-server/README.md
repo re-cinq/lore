@@ -37,7 +37,7 @@ recipe's `resources.mcp_servers` entry (ADR-030/031/032). It proxies to
 | `LORE_MCP_HTTP=1` | Serve over HTTP instead of stdio. |
 | `LORE_MCP_PORT` | Listen port (default `8080`). |
 | `LORE_MCP_AUTH_TOKEN` | Require `Authorization: Bearer <token>` on every request. Unset ⇒ auth off (local dev only). |
-| `LORE_MCP_SERVER_MODE=agent` | Omit the laptop-only tools **and** `lore_create_pipeline_task` — context / memory / search / graph only. |
+| `LORE_MCP_SERVER_MODE=agent` | Omit the laptop-only tools — context / memory / search / graph only. |
 | `LORE_API_URL` | The `lore-api` base the gateway proxies to. |
 
 **Endpoints:** `POST /mcp` (send `initialize` first; subsequent tool calls carry
@@ -69,8 +69,8 @@ full per-tool reference —
 parameters, returns, and disambiguation — see
 [`docs/mcp-tools-reference.md`](../../docs/mcp-tools-reference.md).
 
-Task **CRUD** lives here; task **processing** is the Floor's job
-(`@re-cinq/lore-floor`). All `/api/*` routes enforce bearer-token auth before
+Task **CRUD** lives here; task **processing** runs on the external floor
+(re-cinq/floor, ADR-049). All `/api/*` routes enforce bearer-token auth before
 dispatch; errors are returned as text in MCP responses, never thrown.
 
 ## Layout
@@ -113,7 +113,7 @@ agent pods — built by `.github/workflows/build-mcp-server.yml`
 (`ghcr.io/re-cinq/lore-mcp`) and deployed by the `lore-mcp-helm` subchart of the
 `lore-platform` umbrella into the `lore-api` namespace, with a public `:443`
 Ingress owned by Terraform (`infra/terraform/lore-mcp.tf`, host from
-`lore_mcp_url`). Agent recipes point at it via `resources.mcp_servers` seeded by
-the ai-agents catalog; the entry is omitted until `lore_mcp_url` is set, so the
+`lore_mcp_url`). Agent recipes point at it via `resources.mcp_servers` in the agent
+definitions of the floor pipeline files; the entry is omitted until `lore_mcp_url` is set, so the
 gateway is inert until deployed. The remote REST backend both transports proxy
 to is `@re-cinq/lore-api`; see [`infra/`](../../infra) and the root README.

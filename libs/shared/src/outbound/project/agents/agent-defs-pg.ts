@@ -1,24 +1,21 @@
 import type { PgPool } from "../../memory-store.js";
-import { catalogCrdName } from "./agent-crd.js";
 import {
   resolveAgentConfig,
   type AgentDefinition,
   type AgentDefinitionInput,
-  type AgentDefsPort,
+  type AgentDefsWritePort,
   type PodResourcesWrite,
 } from "./agent-defs-port.js";
 import {
-  CATALOG_ENTRY_SQL,
   CREATE_DEF_SQL,
   DELETE_DEF_SQL,
   LIST_DEFS_SQL,
-  QUALIFIED_STATION_SQL,
   RESOLVE_DEF_SQL,
   UPDATE_DEF_SQL,
   UPDATE_ORG_DEF_SQL,
 } from "./agent-defs-sql.js";
 
-// AgentDefsPort over lore.agent_definitions via resolveAgentConfig three-layer merge (project → org → yaml); pods use AgentDefsHttp.
+// AgentDefsWritePort over lore.agent_definitions via resolveAgentConfig's project → org merge; pods use AgentDefsHttp.
 
 interface AgentRow {
   name: string;
@@ -106,78 +103,24 @@ function groupByName(rows: AgentRow[]): Map<string, AgentRow[]> {
   return byName;
 }
 
-/** Every name either layer knows about, resolved through the three-layer merge and sorted. */
-function mergeDefinitions(
-  byName: Map<string, AgentRow[]>,
-  baseDefs: AgentDefinition[],
-): AgentDefinition[] {
-  const names = new Set<string>([
-    ...baseDefs.map((d) => d.name),
-    ...byName.keys(),
-  ]);
-
-  return [...names]
-    .map((name) =>
-      resolveGroupedDefinition(
-        byName.get(name) ?? [],
-        baseDefs.find((d) => d.name === name) ?? null,
-      ),
-    )
+/** Every name with a row, resolved through the project → org merge and sorted. */
+function mergeDefinitions(byName: Map<string, AgentRow[]>): AgentDefinition[] {
+  return [...byName.values()]
+    .map((group) => resolveGroupedDefinition(group))
     .filter((d): d is AgentDefinition => d !== null)
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function resolveGroupedDefinition(
-  group: AgentRow[],
-  baseDef: AgentDefinition | null,
-): AgentDefinition | null {
+function resolveGroupedDefinition(group: AgentRow[]): AgentDefinition | null {
   const { project, org } = split(group);
 
   return resolveAgentConfig(
     project ? toDef(project) : null,
     org ? toDef(org) : null,
-    baseDef,
   );
 }
 
-// Effective definition for catalog entry by (name, projectId); missing override or org entry falls through to yaml layer.
-export async function resolveCatalogEntry(
-  pool: PgPool,
-  base: AgentDefsPort,
-  name: string,
-  projectId: string | null,
-): Promise<AgentDefinition | null> {
-  const { rows } = await pool.query<AgentRow>(CATALOG_ENTRY_SQL, [
-    name,
-    projectId,
-  ]);
-
-  if (projectId !== null && !split(rows as AgentRow[]).project) {
-    return null;
-  }
-
-  return resolveGroupedDefinition(
-    rows as AgentRow[],
-    await base.resolve("", name),
-  );
-}
-
-// Dispatch stationRef for repo: project-qualified CRD name if override exists, bare name otherwise.
-export async function qualifiedStationRef(
-  pool: PgPool,
-  baseName: string,
-  repo: string,
-): Promise<string> {
-  const { rows } = await pool.query<{ project_id: string }>(
-    QUALIFIED_STATION_SQL,
-    [baseName, repo],
-  );
-  const projectId = (rows[0] as { project_id: string } | undefined)?.project_id;
-
-  return catalogCrdName(baseName, projectId ?? null);
-}
-
-// Upsert ORG-DEFAULT row (project_id IS NULL) — writes catalog event for cluster-agents to see.
+// Upsert ORG-DEFAULT row (project_id IS NULL).
 export async function updateOrgDefinition(
   pool: PgPool,
   patch: AgentDefinitionInput,
@@ -192,33 +135,23 @@ export async function updateOrgDefinition(
   return toDef(rows[0] as unknown as AgentRow);
 }
 
-export class PgAgentDefs implements AgentDefsPort {
-  constructor(
-    private readonly pool: PgPool,
-    /** task-types.yaml fallback — the bottom precedence layer (prompt etc.). */
-    private readonly base: AgentDefsPort,
-  ) {}
+export class PgAgentDefs implements AgentDefsWritePort {
+  constructor(private readonly pool: PgPool) {}
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
     const { rows } = await this.pool.query<AgentRow>(RESOLVE_DEF_SQL, [
       name,
       repo,
     ]);
-    const { project, org } = split(rows as AgentRow[]);
-    const yamlDefault = await this.base.resolve(repo, name);
 
-    return resolveAgentConfig(
-      project ? toDef(project) : null,
-      org ? toDef(org) : null,
-      yamlDefault,
-    );
+    return resolveGroupedDefinition(rows as AgentRow[]);
   }
 
   async list(repo: string): Promise<AgentDefinition[]> {
     const { rows } = await this.pool.query<AgentRow>(LIST_DEFS_SQL, [repo]);
     const byName = groupByName(rows as AgentRow[]);
 
-    return mergeDefinitions(byName, await this.base.list(repo));
+    return mergeDefinitions(byName);
   }
 
   async create(

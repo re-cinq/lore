@@ -39,7 +39,7 @@ export class ChunkStore {
     return this.chunks.specChunksForBackfill(this.repo);
   }
 
-  codeChunksForBackfill(): Promise<CodeChunkFull[]> {
-    return this.chunks.codeChunksForBackfill(this.repo);
+  testChunksForBackfill(): Promise<CodeChunkFull[]> {
+    return this.chunks.testChunksForBackfill(this.repo);
   }
 }

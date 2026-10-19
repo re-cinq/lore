@@ -7,8 +7,8 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_pr_status`                |
-| Module  | pipeline (`pipeline-tools.ts`) |
-| Scope   | shared                         |
+| Module  | ci (`ci-tools.ts`)             |
+| Scope   | shared (served in agent mode)  |
 
 `lore_get_pr_status` fetches a task's live PR state from GitHub and folds PR state, check-run conclusions, and review verdicts into one derived `computed_status`, returning the underlying checks and reviews without the caller scripting the GitHub REST API.
 
@@ -22,7 +22,7 @@ without scripting the GitHub REST API.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L182)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/ci-tools.ts#L155)), beside the CI reads since 2026-09-12 so an agent pod can ask whether its pull request is green ([validated by is served beside the CI reads, so an agent pod can ask whether its pull request is green](apps/mcp-server/src/transport/tools/ci-tools.test.ts#L198)).
 
 - **name**: `lore_get_pr_status`
 - **description** (verbatim):
@@ -86,7 +86,8 @@ the matching `computed_status` by the fixed precedence above.
 Missing GitHub credentials return a configuration message instead of throwing.
 *(untested: the null path is gated on `getGitHubToken()` reading process env / GitHub App state — no deterministic seam without live config.)*
 
-The `/api/pr-status` HTTP route (the same `fetchPrStatus` behind the tool) validates its query: a valid `repo` + integer `pr_number` returns the derived status, an unconfigured GitHub (`fetchPrStatus` → null) returns 424, a `repo` that is not `owner/name` or a missing or non-integer `pr_number` returns 400, and a thrown fetch returns 500. ([validated by GET /api/pr-status returns the PR status for a valid repo and pr_number](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L29), [`pr-status.test.ts:37`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L37), [`pr-status.test.ts:44`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L44), [`pr-status.test.ts:50`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L50), [`pr-status.test.ts:56`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L56), [`pr-status.test.ts:62`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L62))
+The `/api/pr-status` HTTP route (the same `fetchPrStatus` behind the tool) validates its query: a valid `repo` + integer `pr_number` returns the derived status, an unconfigured GitHub (`fetchPrStatus` → null) returns 424, a `repo` that is not `owner/name` or a missing or non-integer `pr_number` returns 400, and a thrown fetch returns 500. ([validated by GET /api/pr-status returns the PR status for a valid repo and pr_number](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L39), [`pr-status.test.ts:37`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L47), [`pr-status.test.ts:44`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L54), [`pr-status.test.ts:50`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L60), [`pr-status.test.ts:56`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L66), [`pr-status.test.ts:62`](apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L72))
+- A repo that was never onboarded to Lore is a 404 before GitHub is read, since the App installation can see repos Lore does not serve. ([validated by returns 404 without reading GitHub for a repo that is not onboarded](../../../apps/lore-api/src/transport/routes/repos/pr-status.test.ts#L79))
 
 ## Out of Scope
 

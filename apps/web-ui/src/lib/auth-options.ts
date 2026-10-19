@@ -1,5 +1,19 @@
 import type { NextAuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
+import {
+  freshSessionToken,
+  sessionTokenOf,
+  type GitHubClient,
+  type SessionToken,
+} from "./github-session-token";
+
+// The same OAuth app sign-in used: a GitHub App's refresh grant is made for it.
+function githubClient(): GitHubClient {
+  return {
+    clientId: process.env.GITHUB_OAUTH_CLIENT_ID || "",
+    clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET || "",
+  };
+}
 
 function loginOf(profile: unknown): string {
   return (profile as { login?: string } | null | undefined)?.login ?? "unknown";
@@ -65,15 +79,29 @@ export const authOptions: NextAuthOptions = {
 
       return isMember;
     },
-    async jwt({ token, account }) {
-      if (account?.access_token) {
-        token.accessToken = account.access_token;
+    async jwt({ token, account, profile }) {
+      // The login is who a person is in a plan; the display name can change or be empty.
+      if (profile) {
+        token.login = loginOf(profile);
       }
+      const github = account
+        ? sessionTokenOf(account)
+        : await freshSessionToken(token as SessionToken, githubClient());
 
-      return token;
+      // Every field is written, so a refused refresh leaves no stale token behind.
+      return {
+        ...token,
+        accessToken: github.accessToken,
+        refreshToken: github.refreshToken,
+        accessTokenExpires: github.accessTokenExpires,
+        error: github.error,
+      };
     },
     async session({ session, token }) {
-      (session as { accessToken?: unknown }).accessToken = token.accessToken;
+      Object.assign(session, {
+        accessToken: token.accessToken,
+        login: token.login,
+      });
 
       return session;
     },

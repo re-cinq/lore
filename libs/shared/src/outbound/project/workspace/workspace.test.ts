@@ -48,12 +48,23 @@ describe("Workspace", () => {
     const opened: string[] = [];
     const ws = new Workspace("re-cinq/lore", "/tmp/ws", fakeGit(log), {
       list: async () => [],
+      listMergedSince: async () => [],
       get: async () => null,
       comment: async () => {},
+      updateIssueComment: async () => {},
       review: async () => {},
       createReview: async () => {},
       replyToReviewComment: async () => {},
       addLabel: async () => {},
+      enablePullRequestAutoMerge: async () => {},
+      // eslint-disable-next-line re-lint/no-negative-names
+      disablePullRequestAutoMerge: async () => {},
+      getBranchRule: async () => ({
+        requiredApprovals: 0,
+        codeOwnersReview: false,
+        requiredChecks: [],
+      }),
+      getMergeability: async () => ({ mergeable: null, state: "unknown" }),
       merge: async () => {},
       open: async (repo, branch, { title }) => {
         opened.push(`${repo}#${branch}`);
@@ -89,10 +100,13 @@ describe("Workspace", () => {
       listFileChanges: async () => [],
       listChecks: async () => [],
       failedJob: async () => null,
+      listBranchCommits: async () => [],
+      jobLog: async () => null,
       listReviewThreads: async () => [],
       resolveReviewThread: async () => {},
       update: async () => {},
       markReady: async () => {},
+      close: async () => {},
     });
 
     const pr = await ws.openPr("feat", "Add feature", "body");

@@ -19,6 +19,9 @@ interface OctokitIssue {
   labels: OctokitLabel[];
   html_url: string;
   body?: string | null;
+  assignees?: Array<{ login: string }> | null;
+  closed_at?: string | null;
+  issue_dependencies_summary?: { total_blocked_by: number } | null;
 }
 
 export async function listIssues(
@@ -33,20 +36,37 @@ export async function listIssues(
     repo: name,
     state: filter?.state ?? "open",
     labels: filter?.labels?.join(","),
+    since: filter?.since,
     per_page: 100,
   });
 
   return rows
     .filter((i) => !i.pull_request)
+    .filter((i) => closedWithin(i, filter))
     .map((i) => toListedIssueRef(repo, i));
 }
 
-/** The listing projection: the shared IssueRef fields plus the creation time only the list read carries. */
+/** GitHub's `since` is an updated-at cutoff; for a closed listing the digest wants issues CLOSED in the window, so a reopened-and-relabelled old closure is dropped here. */
+function closedWithin(issue: OctokitIssue, filter?: IssueFilter): boolean {
+  if (filter?.state !== "closed" || !filter.since) {
+    return true;
+  }
+
+  return (issue.closed_at ?? "") >= filter.since;
+}
+
+/** The listing projection: the shared IssueRef fields plus the creation time and blocked-by link count only the list read carries. */
 function toListedIssueRef(
   repo: string,
   issue: OctokitIssue & { created_at: string },
 ): IssueRef {
-  return { ...toIssueRef(repo, issue), createdAt: issue.created_at };
+  const blockedByCount = issue.issue_dependencies_summary?.total_blocked_by;
+
+  return {
+    ...toIssueRef(repo, issue),
+    createdAt: issue.created_at,
+    ...(blockedByCount ? { blockedByCount } : {}),
+  };
 }
 
 /** The IssueRef fields every issue read projects; GitHub answers an empty body as null, which projects as no body at all. */
@@ -59,7 +79,16 @@ function toIssueRef(repo: string, issue: OctokitIssue): IssueRef {
     labels: labelNames(issue.labels),
     url: issue.html_url,
     ...(issue.body ? { body: issue.body } : {}),
+    ...assigneesOf(issue),
+    ...(issue.closed_at ? { closedAt: issue.closed_at } : {}),
   };
+}
+
+/** Present only when somebody is assigned, so the legacy exact-shape reads stay unchanged. */
+function assigneesOf(issue: OctokitIssue): { assignees?: string[] } {
+  const logins = (issue.assignees ?? []).map((a) => a.login);
+
+  return logins.length > 0 ? { assignees: logins } : {};
 }
 
 /** Label names out of octokit's string-or-object label array, blanks dropped. */
@@ -104,6 +133,24 @@ export async function getIssueLabels(
   });
 
   return labelNames(issue.labels);
+}
+
+/** Filters by state here rather than trusting the summary's count, whose closed-blocker semantics GitHub does not document. */
+export async function listOpenBlockers(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<number[]> {
+  const [owner, name] = split(repo);
+  const { issues } = ok.rest;
+  const blockers = await ok.paginate(issues.listDependenciesBlockedBy, {
+    owner,
+    repo: name,
+    issue_number: number,
+    per_page: 100,
+  });
+
+  return blockers.filter((b) => b.state === "open").map((b) => b.number);
 }
 
 interface IssueDraft {
@@ -211,6 +258,23 @@ export async function commentOnIssue(
     owner,
     repo: name,
     issue_number: number,
+    body,
+  });
+}
+
+export async function updateIssueComment(
+  ok: Octokit,
+  repo: string,
+  id: number,
+  body: string,
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { issues } = ok.rest;
+
+  await issues.updateComment({
+    owner,
+    repo: name,
+    comment_id: id,
     body,
   });
 }

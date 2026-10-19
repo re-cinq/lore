@@ -10,13 +10,14 @@ import {
 vi.mock("@re-cinq/lore-server-core/features/memory/facts.js", () => ({
   extractFactsFromEpisode: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("../../../work/utopia/utopia-memory-push.js", () => ({
+  mirrorEpisode: vi.fn(),
+}));
 vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({
   extractAndUpdateGraph: vi.fn(),
 }));
 vi.mock("@re-cinq/lore-shared", () => ({
   redactSecrets: (s: string) => s,
-  parseTasks: vi.fn(),
-  inferPhaseDependencies: vi.fn(),
   parseTrailers: vi.fn(),
   parseSpecTitle: vi.fn(),
   extractSummary: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock("@re-cinq/lore-shared", () => ({
 
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
+import { mirrorEpisode } from "../../../work/utopia/utopia-memory-push.js";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -70,6 +72,36 @@ describe("POST /api/episode", () => {
 
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
+  });
+
+  it("mirrors episode e7 of re-cinq/lore with its stored content and insert time to Utopia once it is inserted", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ id: "e7", created_at: "2026-10-19T09:00:00+00:00" }],
+    });
+    await post({ content: "an observation", ref: "re-cinq/lore" }, pool);
+
+    expect(vi.mocked(mirrorEpisode).mock.calls).toEqual([
+      [
+        pool,
+        {
+          id: "e7",
+          content: "an observation",
+          createdAt: "2026-10-19T09:00:00+00:00",
+          ref: "re-cinq/lore",
+        },
+      ],
+    ]);
+  });
+
+  it("mirrors nothing to Utopia when the episode is a duplicate", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    await post({ content: "hello" }, pool);
+
+    expect(mirrorEpisode).not.toHaveBeenCalled();
   });
 
   it("returns duplicate when the insert conflicts", async () => {

@@ -90,6 +90,7 @@ A redaction pipeline that strips:
   - Private keys (-----BEGIN.*PRIVATE KEY-----) ([validated by `redacts RSA private keys`](libs/shared/src/lib/redact-secret-patterns.test.ts#L74), [validated by `redacts generic private keys (EC, DSA)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L87))
   - Connection strings (postgres://, mysql://, mongodb://) ([validated by `redacts PostgreSQL connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L99), [validated by `redacts MySQL connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L107), [validated by `redacts MongoDB connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L115), [validated by `redacts Redis connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L123), [validated by `redacts AMQP connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L131))
   - Base64-encoded blobs > 100 chars ([validated by `redacts long base64 blobs`](libs/shared/src/lib/redact-secret-patterns.test.ts#L147))
+  - GitHub installation tokens in their HTTP Basic form, `Authorization: Basic base64("x-access-token:ghs_…")` as a git push prints it, which is shorter than the generic blob floor ([validated by `redacts the Basic header a git push prints for x-access-token:ghs_abcdefghijklmnopqrstuvwxyz1234`](libs/shared/src/lib/redact.test.ts#L245), [validated by `redacts %s`](libs/shared/src/lib/redact.test.ts#L214))
 - Custom patterns from repo settings (`lore.repos.settings.redact_patterns`)
 
 Redaction replaces matches with `[REDACTED:type]` (e.g., `[REDACTED:api-key]`).
@@ -254,7 +255,7 @@ Remove: no more log entries in `task_events` (`to_status = 'log'`).
 ## Acceptance Criteria
 
 1. Logs persist in GCS after pod cleanup and are readable back by key, returning null for a
-   never-written key ([validated by `log-storage.test.ts:42`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L42), [`log-storage.test.ts:18`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L18), [`log-storage.test.ts:51`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L51))
+   never-written key
 
 2. Secrets redacted before storage (API keys, JWTs, private keys, connection strings) ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:48`](libs/shared/src/lib/redact.test.ts#L48), [validated by `redacts Bearer tokens`](libs/shared/src/lib/redact-secret-patterns.test.ts#L139), [validated by `handles text with multiple secrets`](libs/shared/src/lib/redact-secret-patterns.test.ts#L181), [validated by `redacts secrets embedded in JSON`](libs/shared/src/lib/redact-secret-patterns.test.ts#L196))
 

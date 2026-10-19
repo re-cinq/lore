@@ -1,9 +1,8 @@
 # Agent instructions
 
-## Commit hygiene (dark-factory branches)
+## Commit hygiene (Lore-managed branches)
 
-When working on a Lore-managed branch in this repo (or any onboarded repo that
-has `dark_factory.enabled = true`), every commit you author must carry the
+When working on a Lore-managed branch in this repo or any onboarded repo, every commit you author must carry the
 structured trailer block at the end of the commit message body:
 
 ```
@@ -74,24 +73,22 @@ pushing for review:
 - Suggest `/lore-pr` before they open a browser.
 - Do not let them write the PR description from scratch if a spec exists.
 
-## Delegating work to the cluster
+## Handing work to an agent
 
-Use `lore_create_pipeline_task` when:
+There is no tool that creates a task from a description. Work reaches an agent
+through one of these:
 
-- A task will take more than ~20 minutes (long tests, ingestion, gap analysis)
-- The task is well-defined and does not need interactive decisions
-- You want to keep the local session focused on something else
+- **Code**: a ticket in the repository's backlog. Put a `priority:*` label on
+  the issue (a `lore` or `lore:implementation` label gives it one) and the
+  implementation loop picks it up.
+- **A feature**: a plan (`/repos/<owner>/<repo>/plans`). Once it is approved its
+  tasks are filed as issues carrying a priority label, so the same loop picks
+  them up one at a time.
+- **A review**: opening the pull request starts one where `auto_review` is on;
+  `@lore review` asks for one by hand.
 
-Do not delegate:
-
-- Exploratory work that needs back-and-forth
-- Tasks where the spec is not yet clear
-- Anything that needs the developer's active judgment mid-task
-
-Always pass context when delegating:
-
-- spec_file: true if there is a spec
-- seed_query with the topic being worked on
+For work on your own machine, `lore_run_task_locally` runs it in a worktree and
+tracks it locally only.
 
 ## Task tracking
 

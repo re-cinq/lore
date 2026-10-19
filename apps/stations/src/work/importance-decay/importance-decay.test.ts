@@ -141,3 +141,25 @@ describe("importanceDecay — stale-transition failure is non-fatal", () => {
     );
   });
 });
+
+describe("importanceDecay — fact purge failure is non-fatal (#2366)", () => {
+  class FailingFactPurge extends InMemoryMemoryLifecycle {
+    override async countInvalidatedFactsByAgentOverCap(): Promise<
+      { agent_id: string; cnt: number }[]
+    > {
+      throw new Error("fact purge boom");
+    }
+  }
+
+  it("still evicts memories and transitions stale facts when the purge throws", async () => {
+    const store = new FailingFactPurge({
+      memories: agedMemories("agent-1", MAX_MEMORIES_PER_AGENT + 2),
+    });
+
+    const summary = await importanceDecay(store);
+
+    expect(summary).toBe(
+      "Evicted 2 memories, 0 old facts, 0 stale transitions",
+    );
+  });
+});

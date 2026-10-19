@@ -4,6 +4,10 @@ import {
   ingestSpecTrace,
   projectAdrFile,
   projectSpecFile,
+  projectCodeFile,
+  listCodeFilePaths,
+  deleteCodeFile,
+  listGraphDocPaths,
   deleteSpecSubtree,
   deleteAdrSubtree,
   pruneTestFiles,
@@ -11,27 +15,63 @@ import {
   type DgraphClientPort,
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
+import {
+  mirrorCodeFor,
+  mirrorDocFor,
+  mirrorReportFor,
+  unmirrorCodeFor,
+  unmirrorDocFor,
+  unmirrorTestFilesFor,
+  type MirroredCode,
+  type MirroredDoc,
+  type MirroredReport,
+} from "../../../work/utopia/utopia-mirror.js";
+
+export type {
+  MirroredCode,
+  MirroredDoc,
+  MirroredReport,
+} from "../../../work/utopia/utopia-mirror.js";
+
+/** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
+export interface DocProjection {
+  force: boolean;
+}
+
+type ProjectDoc = (
+  repo: string,
+  path: string,
+  content: string,
+  projection: DocProjection,
+) => Promise<{ projected: boolean }>;
 
 /** The graph writes one incremental delta needs, as a seam the route's tests can replace. */
 export interface IngestDeltaDeps {
   /** Availability gate + the client the default projectors close over. */
   dgraph(): DgraphClientPort | null;
-  projectSpec(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
-  projectAdr(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
+  projectSpec: ProjectDoc;
+  projectAdr: ProjectDoc;
+  projectCode: ProjectDoc;
+  /** Every spec path the graph holds for the repo, which a full ingest prunes against. */
+  listSpecs(repo: string): Promise<string[]>;
+  listAdrs(repo: string): Promise<string[]>;
+  listCode(repo: string): Promise<string[]>;
   deleteSpec(repo: string, path: string): Promise<void>;
   deleteAdr(repo: string, path: string): Promise<void>;
+  deleteCode(repo: string, path: string): Promise<void>;
   ingestReport(repo: string, payload: unknown): Promise<SpecTraceOutcome>;
   pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
   /** The repo's default branch: a test report for any other branch is work in flight and goes to that branch's overlay. */
   defaultBranch(repo: string): Promise<string>;
+  /** The Utopia mirror of one projected spec or ADR (specs/utopia-graph-mirror); a no-op on a repo not set up there. */
+  mirrorDoc(repo: string, doc: MirroredDoc): Promise<void>;
+  unmirrorDoc(repo: string, path: string): Promise<void>;
+  /** The Utopia mirror of one default-branch test report: one item per test file. */
+  mirrorReport(repo: string, mirrored: MirroredReport): Promise<void>;
+  unmirrorTests(repo: string, paths: string[]): Promise<void>;
+  /** The Utopia mirror of one code delta: one item per source file, its definitions and the links between them. */
+  mirrorCode(repo: string, mirrored: MirroredCode): Promise<void>;
+  unmirrorCode(repo: string, paths: string[]): Promise<void>;
 }
 
 /** The client every projector needs; a delta that reached here without one is a wiring bug, not a request error. */
@@ -45,6 +85,55 @@ function requireClient(
   return client!;
 }
 
+type DocDeps = Pick<
+  IngestDeltaDeps,
+  | "projectSpec"
+  | "projectAdr"
+  | "projectCode"
+  | "listSpecs"
+  | "listAdrs"
+  | "listCode"
+  | "deleteSpec"
+  | "deleteAdr"
+  | "deleteCode"
+>;
+
+/** The doc-kind writes: project one file, list what the graph holds, delete one subtree. */
+function docDeps(must: () => DgraphClientPort): DocDeps {
+  return {
+    projectSpec: (repo, path, content, projection) =>
+      projectSpecFile({ repo, filePath: path, content }, must(), projection),
+    projectAdr: (repo, path, content, projection) =>
+      projectAdrFile({ repo, filePath: path, content }, must(), projection),
+    projectCode: (repo, path, content, projection) =>
+      projectCodeFile({ repo, filePath: path, content }, must(), projection),
+    listSpecs: (repo) => listGraphDocPaths(must(), "Spec", repo),
+    listAdrs: (repo) => listGraphDocPaths(must(), "ADR", repo),
+    deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
+    deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
+    listCode: (repo) => listCodeFilePaths(must(), repo),
+    deleteCode: (repo, path) => deleteCodeFile(must(), repo, path),
+  };
+}
+
+/** The Utopia writes that follow each graph write. */
+const UTOPIA_MIRROR: Pick<
+  IngestDeltaDeps,
+  | "mirrorDoc"
+  | "unmirrorDoc"
+  | "mirrorReport"
+  | "unmirrorTests"
+  | "mirrorCode"
+  | "unmirrorCode"
+> = {
+  mirrorDoc: mirrorDocFor,
+  unmirrorDoc: unmirrorDocFor,
+  mirrorReport: mirrorReportFor,
+  unmirrorTests: unmirrorTestFilesFor,
+  mirrorCode: mirrorCodeFor,
+  unmirrorCode: unmirrorCodeFor,
+};
+
 /** The production deps, with the dgraph client created once and shared by every projector. */
 export const defaultDeps = (): IngestDeltaDeps => {
   let client: DgraphClientPort | null | undefined;
@@ -54,16 +143,12 @@ export const defaultDeps = (): IngestDeltaDeps => {
 
   return {
     dgraph,
-    projectSpec: (repo, path, content) =>
-      projectSpecFile({ repo, filePath: path, content }, must()),
-    projectAdr: (repo, path, content) =>
-      projectAdrFile({ repo, filePath: path, content }, must()),
-    deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
-    deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
+    ...docDeps(must),
     ingestReport: (repo, payload) =>
       ingestSpecTrace(must(), repo, "test-report", payload),
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),
     defaultBranch: async (repo) =>
       (await projectFor(repo)).repo.defaultBranch(),
+    ...UTOPIA_MIRROR,
   };
 };

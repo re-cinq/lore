@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   ciConclusionOf,
+  ciFailureReport,
   ciJudgedSha,
+  explainFailedChecks,
   externalCheckRuns,
   failureTail,
+  logLines,
+  loreReviewVerdict,
+  npmScriptOf,
   summarizeFailedChecks,
 } from "./check-runs.js";
 import type { CheckRun, PullCommit } from "./pull-requests-port.js";
@@ -235,6 +240,7 @@ describe("summarizeFailedChecks on an Actions job", () => {
           conclusion: "failure",
           output: { title: null, summary: null },
           jobFailure: {
+            annotations: [],
             steps: ["Lint (--max-warnings 0)"],
             tail: [
               "specs/bowman-ui-theming-tokens/spec.md",
@@ -246,5 +252,322 @@ describe("summarizeFailedChecks on an Actions job", () => {
     ).toBe(
       '### build-test (failure)\n\nFailed step: Lint (--max-warnings 0)\n\nspecs/bowman-ui-theming-tokens/spec.md\n6:1  error  Status "shipped" does not match',
     );
+  });
+});
+
+describe("summarizeFailedChecks on an Actions job with annotations", () => {
+  it("renders the failure annotations first, naming the file and line before the failed step and its output", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "format",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+          jobFailure: {
+            annotations: [
+              'specs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage',
+            ],
+            steps: ["Prettier + eslint --fix"],
+            tail: ["✖ 10540 problems (1 error, 10539 warnings)"],
+          },
+        }),
+      ]).summary,
+    ).toBe(
+      '### format (failure)\n\nspecs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage\n\nFailed step: Prettier + eslint --fix\n\n✖ 10540 problems (1 error, 10539 warnings)',
+    );
+  });
+});
+
+describe("explainFailedChecks", () => {
+  const silentFailure = check({
+    id: 1,
+    app: "github-actions",
+    name: "format",
+    conclusion: "failure",
+    output: { title: null, summary: null },
+  });
+  const failure = { annotations: [], steps: ["Lint"], tail: ["boom"] };
+
+  it("reads the job only for a failed Actions run that reported nothing itself", async () => {
+    const read: number[] = [];
+    const checks = [
+      silentFailure,
+      check({ id: 2, app: "github-actions", name: "test" }),
+      check({
+        id: 3,
+        app: "github-actions",
+        name: "spoken",
+        conclusion: "failure",
+        output: { title: "t", summary: "said it" },
+      }),
+      check({ id: 4, app: "codecov", name: "coverage", conclusion: "failure" }),
+    ];
+    const explained = await explainFailedChecks(checks, async (jobId) => {
+      read.push(jobId);
+
+      return failure;
+    });
+
+    expect({ read, explained }).toEqual({
+      read: [1],
+      explained: [
+        { ...silentFailure, jobFailure: failure },
+        ...checks.slice(1),
+      ],
+    });
+  });
+
+  it("reads no job at all while the build is green, since each read costs requests", async () => {
+    const read: number[] = [];
+
+    await explainFailedChecks(
+      [check({ id: 1, app: "github-actions" })],
+      async (jobId) => {
+        read.push(jobId);
+
+        return failure;
+      },
+    );
+    expect(read).toEqual([]);
+  });
+
+  it("keeps the run bare when GitHub will not show its job", async () => {
+    expect(
+      await explainFailedChecks([silentFailure], async () => null),
+    ).toEqual([silentFailure]);
+  });
+});
+
+describe("ciFailureReport", () => {
+  it("names each failed check with its job id and account, and the conclusion of the judged sha", () => {
+    expect(
+      ciFailureReport("topic", "deadbeef", [
+        check({ id: 9, app: "github-actions", name: "test" }),
+        check({
+          id: 1,
+          app: "github-actions",
+          name: "format",
+          conclusion: "failure",
+          jobFailure: {
+            annotations: ['specs/x/spec.md:7 Status "draft" does not match'],
+            steps: ["Prettier + eslint --fix"],
+            tail: ["✖ 1 problem"],
+          },
+        }),
+        check({ name: "lore/code-review", conclusion: "failure" }),
+      ]),
+    ).toEqual({
+      branch: "topic",
+      judged_sha: "deadbeef",
+      conclusion: "failure",
+      failures: [
+        {
+          name: "format",
+          app: "github-actions",
+          job_id: 1,
+          annotations: ['specs/x/spec.md:7 Status "draft" does not match'],
+          steps: ["Prettier + eslint --fix"],
+          tail: ["✖ 1 problem"],
+          npm_script: null,
+          unreadable: [],
+        },
+        {
+          name: "lore/code-review",
+          app: null,
+          job_id: null,
+          annotations: [],
+          steps: [],
+          tail: [],
+          npm_script: null,
+          unreadable: [],
+        },
+      ],
+    });
+  });
+
+  it("reports none with no failures when the branch has no judgeable commit", () => {
+    expect(ciFailureReport("topic", null, [])).toEqual({
+      branch: "topic",
+      judged_sha: null,
+      conclusion: "none",
+      failures: [],
+    });
+  });
+});
+
+describe("logLines", () => {
+  const log = [
+    "2026-09-09T13:06:58.1Z ##[group]Run npm run format",
+    "2026-09-09T13:06:58.2Z ##[endgroup]",
+    "2026-09-09T13:06:58.3Z specs/x/spec.md",
+    "2026-09-09T13:06:58.4Z ##[error]  7:1  error  Status draft",
+    "2026-09-09T13:06:58.5Z   9:1  warning  something",
+    "2026-09-09T13:06:58.6Z ##[error]Process completed with exit code 1.",
+  ].join("\n");
+
+  it("returns the last N lines without timestamps", () => {
+    expect(logLines(log, { tail: 2 })).toEqual({
+      lines: [
+        "  9:1  warning  something",
+        "##[error]Process completed with exit code 1.",
+      ],
+      total: 6,
+      truncated: true,
+    });
+  });
+
+  it("filters to the lines matching grep before taking the tail, case-insensitively", () => {
+    expect(logLines(log, { tail: 200, grep: "ERROR" })).toEqual({
+      lines: [
+        "##[error]  7:1  error  Status draft",
+        "##[error]Process completed with exit code 1.",
+      ],
+      total: 2,
+      truncated: false,
+    });
+  });
+});
+
+describe("npmScriptOf", () => {
+  const vitestTail = [
+    "> @re-cinq/lore-floor@0.1.0 test:coverage",
+    "> vitest run --coverage",
+    "\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv5.0.0 \u001b[39m\u001b[90m/home/runner/work/lore/lore/apps/floor\u001b[39m",
+    "stdout | src/work/assembly-run/advance-line.test.ts > advanceLine job_runs bookkeeping > parks an agent node",
+    "ERROR: Coverage for branches (99.2%) does not meet global threshold (100%)",
+  ];
+
+  it("recovers the package and script npm printed for the failed step (run 754cb4fa: test:coverage of @re-cinq/lore-floor)", () => {
+    expect(npmScriptOf(vitestTail)).toEqual({
+      package: "@re-cinq/lore-floor",
+      script: "test:coverage",
+    });
+  });
+
+  it("takes the last banner, since a chained or nested npm run fails in the script that ran last", () => {
+    expect(
+      npmScriptOf([
+        "> lore@0.1.0 check",
+        "> npm run lint -w @re-cinq/lore-api",
+        "\u001b[36m> @re-cinq/lore-api@0.1.0 lint\u001b[39m",
+        "> eslint src",
+      ]),
+    ).toEqual({ package: "@re-cinq/lore-api", script: "lint" });
+  });
+
+  it("returns null when no npm banner is printed, including for a test title that contains an arrow and an at-sign", () => {
+    expect({
+      none: npmScriptOf(["go: build failed", "exit status 1"]),
+      lookalike: npmScriptOf(["> notifies ops@example.com on failure"]),
+    }).toEqual({ none: null, lookalike: null });
+  });
+});
+
+describe("summarizeFailedChecks on an npm-run step", () => {
+  it("says which package and script CI ran, after the failed step, so a reproduction runs in that package and not at the repo root", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "agent",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+          jobFailure: {
+            annotations: [],
+            steps: ["Run tests"],
+            tail: [
+              "> @re-cinq/lore-floor@0.1.0 test:coverage",
+              "> vitest run --coverage",
+            ],
+          },
+        }),
+      ]).summary,
+    ).toBe(
+      "### agent (failure)\n\nFailed step: Run tests\n\nRan as: npm script `test:coverage` of package `@re-cinq/lore-floor`\n\n> @re-cinq/lore-floor@0.1.0 test:coverage\n> vitest run --coverage",
+    );
+  });
+});
+
+describe("a failed Actions job GitHub refused to show in full", () => {
+  const refused = check({
+    id: 105414171440,
+    app: "github-actions",
+    name: "verify",
+    conclusion: "failure",
+    output: { title: null, summary: null },
+    jobFailure: {
+      annotations: [
+        "apps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)",
+      ],
+      steps: [],
+      tail: [],
+      unreadable: ["job (403)", "log (403)"],
+    },
+  });
+
+  it("summarizeFailedChecks names the refused reads after the annotations and omits the failed-step line it could not read", () => {
+    expect(summarizeFailedChecks([refused]).summary).toBe(
+      "### verify (failure)\n\napps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)\n\nGitHub refused: job (403), log (403)",
+    );
+  });
+
+  it("ciFailureReport carries job (403) and log (403) as the failure's unreadable reads", () => {
+    expect(
+      ciFailureReport("topic", "1852d4a6c", [refused]).failures[0],
+    ).toMatchObject({
+      job_id: 105414171440,
+      unreadable: ["job (403)", "log (403)"],
+    });
+  });
+});
+
+describe("loreReviewVerdict", () => {
+  it("reads approved from the lore/code-review check that succeeded", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "build" }),
+        check({ name: "lore/code-review", conclusion: "success" }),
+      ]),
+    ).toEqual("approved");
+  });
+
+  it("reads changes_requested from the neutral the check publishes for suggested changes", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "neutral" }),
+      ]),
+    ).toEqual("changes_requested");
+  });
+
+  it("returns none when only other checks ran, and none for a review line that failed", () => {
+    expect([
+      loreReviewVerdict([check({ name: "build" })]),
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "failure" }),
+      ]),
+      loreReviewVerdict([]),
+    ]).toEqual(["none", "none", "none"]);
+  });
+
+  it("takes the newest run when a push re-published the check, so an earlier approval cannot outlive it", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "success", id: 1 }),
+        check({ name: "lore/code-review", conclusion: "neutral", id: 2 }),
+      ]),
+    ).toEqual("changes_requested");
+  });
+
+  it("ignores a review check that has not finished, rather than reading its empty conclusion as a verdict", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "success", id: 1 }),
+        check({
+          name: "lore/code-review",
+          status: "in_progress",
+          conclusion: null,
+          id: 2,
+        }),
+      ]),
+    ).toEqual("approved");
   });
 });

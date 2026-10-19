@@ -14,28 +14,49 @@ interface RecordedWrites {
     fields: { title?: string; body?: string };
   }>;
   readied?: Array<{ repo: string; number: number }>;
+  closed?: Array<{ repo: string; number: number }>;
 }
 
 function fakePulls(
   pulls: PullRef[],
   merged: Array<{ number: number; method?: MergeMethod }>,
-  { resolutions = [], updates = [], readied = [] }: RecordedWrites = {},
+  {
+    resolutions = [],
+    updates = [],
+    readied = [],
+    closed = [],
+  }: RecordedWrites = {},
 ): PullRequestsPort {
   return {
     list: async (repo) => pulls.filter((p) => p.repo === repo),
+    listMergedSince: async (repo, since) =>
+      pulls.filter((p) => p.repo === repo && (p.mergedAt ?? "") >= since),
     get: async (repo, number) =>
       pulls.find((p) => p.repo === repo && p.number === number) ?? null,
     comment: async () => {},
+    updateIssueComment: async () => {},
     update: async (repo, number, fields) => {
       updates.push({ repo, number, fields });
     },
     markReady: async (repo, number) => {
       readied.push({ repo, number });
     },
+    close: async (repo, number) => {
+      closed.push({ repo, number });
+    },
     createReview: async () => {},
     replyToReviewComment: async () => {},
     review: async () => {},
     addLabel: async () => {},
+    enablePullRequestAutoMerge: async () => {},
+    // eslint-disable-next-line re-lint/no-negative-names
+    disablePullRequestAutoMerge: async () => {},
+    getBranchRule: async () => ({
+      requiredApprovals: 0,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    }),
+    getMergeability: async () => ({ mergeable: null, state: "unknown" }),
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
     },
@@ -88,6 +109,8 @@ function fakePulls(
     listFileChanges: async () => [],
     listChecks: async () => [],
     failedJob: async () => null,
+    listBranchCommits: async () => [],
+    jobLog: async () => null,
   };
 }
 
@@ -197,6 +220,82 @@ describe("PullRequests review threads", () => {
     ]);
     expect(readied).toEqual([{ repo: "re-cinq/lore", number: 7 }]);
   });
+
+  it("arms auto-merge on node id PR_kw_7 with squash and reads main's branch rule bound to the repo", async () => {
+    const armed: Array<{ prId: string; method?: MergeMethod }> = [];
+    const ruleReads: Array<{ repo: string; branch: string }> = [];
+    const port: PullRequestsPort = {
+      ...fakePulls([], []),
+      enablePullRequestAutoMerge: async (prId, method) => {
+        armed.push({ prId, method });
+      },
+      getBranchRule: async (repo, branch) => {
+        ruleReads.push({ repo, branch });
+
+        return {
+          requiredApprovals: 1,
+          codeOwnersReview: false,
+          requiredChecks: [],
+        };
+      },
+    };
+    const facade = new PullRequests("re-cinq/lore", port);
+
+    await facade.enableAutoMerge("PR_kw_7", "squash");
+
+    expect({
+      armed,
+      rule: await facade.getBranchRule("main"),
+      ruleReads,
+    }).toEqual({
+      armed: [{ prId: "PR_kw_7", method: "squash" }],
+      rule: {
+        requiredApprovals: 1,
+        codeOwnersReview: false,
+        requiredChecks: [],
+      },
+      ruleReads: [{ repo: "re-cinq/lore", branch: "main" }],
+    });
+  });
+
+  it("disarms auto-merge on node id PR_kw_7", async () => {
+    const disarmed: string[] = [];
+    const port = fakePulls([], []);
+
+    port.disablePullRequestAutoMerge = async (prId) => {
+      disarmed.push(prId);
+    };
+    const facade = new PullRequests("re-cinq/lore", port);
+
+    await facade.cancelAutoMerge("PR_kw_7");
+
+    expect(disarmed).toEqual(["PR_kw_7"]);
+  });
+
+  it("delegates close with the repo it was bound to", async () => {
+    const closed: Array<{ repo: string; number: number }> = [];
+    const pr = new PullRequests("re-cinq/lore", fakePulls([], [], { closed }));
+
+    await pr.close(7);
+
+    expect(closed).toEqual([{ repo: "re-cinq/lore", number: 7 }]);
+  });
+});
+
+describe("PullRequests merge state", () => {
+  it("reads PR 7's mergeability on re-cinq/lore as behind", async () => {
+    const port: PullRequestsPort = {
+      ...fakePulls([], []),
+      getMergeability: async (repo, number) => ({
+        mergeable: true,
+        state: `${repo}#${number} behind`,
+      }),
+    };
+
+    expect(
+      await new PullRequests("re-cinq/lore", port).getMergeability(7),
+    ).toEqual({ mergeable: true, state: "re-cinq/lore#7 behind" });
+  });
 });
 
 describe("PullRequests failedJob", () => {
@@ -207,13 +306,51 @@ describe("PullRequests failedJob", () => {
       failedJob: async (repo, jobId) => {
         asked.push({ repo, jobId });
 
-        return { steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] };
+        return {
+          annotations: [],
+          steps: ["Lint (--max-warnings 0)"],
+          tail: ["6:1  error"],
+        };
       },
     };
 
     expect(
       await new PullRequests("re-cinq/bowman-ui", port).failedJob(102930584180),
-    ).toEqual({ steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] });
+    ).toEqual({
+      annotations: [],
+      steps: ["Lint (--max-warnings 0)"],
+      tail: ["6:1  error"],
+    });
     expect(asked).toEqual([{ repo: "re-cinq/bowman-ui", jobId: 102930584180 }]);
+  });
+});
+
+describe("PullRequests branch reads", () => {
+  it("reads a branch's commits and a job's log through the repo it was bound to", async () => {
+    const asked: string[] = [];
+    const port: PullRequestsPort = {
+      ...fakePulls([], []),
+      listBranchCommits: async (repo, branch, limit) => {
+        asked.push(`${repo} ${branch} ${limit}`);
+
+        return [{ sha: "abc", message: "feat", date: "t" }];
+      },
+      jobLog: async (repo, jobId) => {
+        asked.push(`${repo} ${jobId}`);
+
+        return "log";
+      },
+    };
+    const pulls = new PullRequests("re-cinq/lore", port);
+
+    expect({
+      commits: await pulls.listBranchCommits("topic", 30),
+      log: await pulls.jobLog(7),
+      asked,
+    }).toEqual({
+      commits: [{ sha: "abc", message: "feat", date: "t" }],
+      log: "log",
+      asked: ["re-cinq/lore topic 30", "re-cinq/lore 7"],
+    });
   });
 });

@@ -1,6 +1,9 @@
 import type { Pool } from "pg";
+import type { z } from "zod";
+import type { SpendWindowSchema } from "./spend-window-schema.js";
 import { vendorSplit } from "../../../work/analytics/vendor-split.js";
 import { optionalTableRows, type SpendWindow } from "./spend-window-db.js";
+import type { FloorCosts } from "./spend-window-compute.js";
 import {
   TOTALS_SQL,
   BY_BLUEPRINT_SQL,
@@ -11,15 +14,37 @@ import {
   BY_TASK_TYPE_SQL,
 } from "./spend-window-llm-sql.js";
 
-/** What Lore metered itself, from pipeline.llm_calls: one total and seven cuts of it. */
-export async function readLlmSpend(pool: Pool, win: SpendWindow) {
+/** The window's metered totals, prompt-cache reads and writes beside the uncached input — the response's own fields, as TOTALS_SQL names them. */
+type LlmTotals = Pick<
+  z.infer<typeof SpendWindowSchema>["llm"],
+  | "calls"
+  | "total_usd"
+  | "input_tokens"
+  | "output_tokens"
+  | "cache_read_tokens"
+  | "cache_write_tokens"
+>;
+
+/** What Lore metered itself, from pipeline.llm_calls: one total and seven cuts of it, and the billing-mode split that adds the floor's agent visits. */
+export async function readLlmSpend(
+  pool: Pool,
+  win: SpendWindow,
+  floor: FloorCosts | null,
+) {
   const b = await llmBreakdowns(pool, win);
+  const floorModes = await floorBillingModes(floor, win);
 
   return {
-    total_usd: b.totals.usd,
-    calls: b.totals.calls,
-    input_tokens: b.totals.input_tokens,
-    output_tokens: b.totals.output_tokens,
+    ...b.totals,
+    ...llmCuts(b),
+    by_cluster: await readByCluster(pool, win.fromTs, win.toTs),
+    by_billing_mode: billingModeSplit(b.totals, floorModes ?? []),
+    floor_unavailable: floorModes === null,
+  };
+}
+
+function llmCuts(b: Awaited<ReturnType<typeof llmBreakdowns>>) {
+  return {
     by_blueprint: b.byBlueprint,
     by_repo: b.byRepo,
     by_model: b.byModel,
@@ -30,8 +55,68 @@ export async function readLlmSpend(pool: Pool, win: SpendWindow) {
     by_kind: b.byKind,
     daily: b.daily,
     by_task_type: b.byTaskType,
-    by_cluster: await readByCluster(pool, win.fromTs, win.toTs),
   };
+}
+
+/** The floor's agent visits by the credential each ran on; nothing on a deployment that was given no floor, and null when the floor cannot answer (down, or a version without the billing_mode group), so the page still renders Lore's own share. */
+async function floorBillingModes(
+  floor: FloorCosts | null,
+  win: SpendWindow,
+): Promise<FloorBillingRow[] | null> {
+  if (!floor) {
+    return [];
+  }
+
+  try {
+    return await floor.costs.summary(
+      { since: win.fromTs, until: win.toTs },
+      "billing_mode",
+    );
+  } catch (err) {
+    console.warn(
+      `[spend-window] floor billing_mode costs unavailable: ${(err as Error).message}`,
+    );
+
+    return null;
+  }
+}
+
+export type BillingMode = "api_key" | "subscription" | "unknown";
+
+interface BillingModeRow {
+  mode: BillingMode;
+  calls: number;
+  cost_usd: number;
+}
+
+interface FloorBillingRow {
+  key: string | null;
+  costUsd: number;
+  visits: number;
+}
+
+const BILLING_MODES: BillingMode[] = ["api_key", "subscription", "unknown"];
+
+/** Lore's own model calls run in-process on the org's API key; agent runs happen on the floor, whose visits say which credential they ran on. A mode with nothing in it is left out. */
+export function billingModeSplit(
+  loreOwn: Pick<LlmTotals, "calls" | "total_usd">,
+  floorRows: FloorBillingRow[],
+): BillingModeRow[] {
+  const rows = BILLING_MODES.map((mode) => {
+    const floorRow = floorRows.find((row) => (row.key ?? "unknown") === mode);
+    const own =
+      mode === "api_key"
+        ? { calls: Number(loreOwn.calls), cost_usd: Number(loreOwn.total_usd) }
+        : { calls: 0, cost_usd: 0 };
+
+    return {
+      mode,
+      calls: own.calls + (floorRow?.visits ?? 0),
+      cost_usd: own.cost_usd + (floorRow?.costUsd ?? 0),
+    };
+  });
+
+  return rows.filter((row) => row.calls > 0 || row.cost_usd > 0);
 }
 
 /** The seven breakdowns, run together — they are independent reads over the same window, and doing them in sequence made the spend page's slowest query seven times over. `by_kind` is the only view that separates code-review lines (which carry no task) from tasks and from the memory jobs. */
@@ -41,12 +126,7 @@ async function llmBreakdowns(pool: Pool, win: SpendWindow) {
     await breakdownQueries(pool, [fromTs, toTs]);
 
   return {
-    totals: totals.rows[0] as {
-      calls: number;
-      usd: number;
-      input_tokens: number;
-      output_tokens: number;
-    },
+    totals: totals.rows[0] as LlmTotals,
     byBlueprint: byBlueprint.rows,
     byRepo: byRepo.rows,
     byModel: byModel.rows,

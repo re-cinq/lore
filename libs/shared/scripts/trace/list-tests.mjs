@@ -19,7 +19,7 @@ const ROOT = process.cwd(); // manifest cwd == repo root
 // LORE_TRACE_PKGS=libs/shared LORE_TRACE_SCOPE=src/spec-trace for the old behavior.
 const PKGS = (
   process.env.LORE_TRACE_PKGS ||
-  "libs/shared,libs/runner,libs/server-core,apps/floor,apps/lore-api,apps/mcp-server,apps/web-ui"
+  "libs/shared,libs/runner,libs/server-core,apps/lore-api,apps/mcp-server,apps/web-ui"
 )
   .split(",")
   .map((s) => s.trim())
