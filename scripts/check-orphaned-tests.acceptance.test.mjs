@@ -21,6 +21,7 @@ test("check-orphaned-tests.mjs passes because all test files are matched by a co
     }
 
     const output = (err.stdout || "") + (err.stderr || "");
+
     assert.fail(
       `The check failed, meaning there are still orphaned tests or it crashed:\n${output}`,
     );
@@ -32,9 +33,11 @@ test("the check is wired up in github workflows", () => {
   const files = readdirSync(workflowsDir);
 
   let wiredUp = false;
+
   for (const file of files) {
     if (file.endsWith(".yml") || file.endsWith(".yaml")) {
       const content = readFileSync(join(workflowsDir, file), "utf8");
+
       if (content.includes("scripts/check-orphaned-tests.mjs")) {
         wiredUp = true;
         break;
