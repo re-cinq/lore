@@ -22,22 +22,14 @@ export function scopeNote(scope: {
   return "This is a project agent for this repo, overriding the organisation default.";
 }
 
-function resolvePrompt(
-  agent: AgentWithInheritedFields | null,
-  { isNew, promptInherited }: { isNew: boolean; promptInherited: boolean },
-): string {
-  if (isNew || promptInherited || agent == null || agent.project_id == null)
-    return "";
-  return agent.prompt ?? "";
-}
-
 export function agentFormValues(
   agent: AgentWithInheritedFields | null,
   { isNew }: { isNew: boolean },
 ) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
-  const promptInherited = !isNew && !!agent?.inherited_fields?.includes("prompt");
+  const promptInherited =
+    !isNew && !!agent?.inherited_fields?.includes("prompt");
   return {
     name,
     executionMode,
@@ -50,6 +42,15 @@ export function agentFormValues(
     inherited: resolveInherited(agent, { isNew }),
     podResources: resolvePodResources(agent),
   };
+}
+
+function resolvePrompt(
+  agent: AgentWithInheritedFields | null,
+  { isNew, promptInherited }: { isNew: boolean; promptInherited: boolean },
+): string {
+  const noProjectOverride = agent == null || agent.project_id == null;
+  if (isNew || promptInherited || noProjectOverride) return "";
+  return agent.prompt ?? "";
 }
 
 /** A custom model fills the free-text field and selects the custom option; a known one leaves the field empty and selects itself. */
