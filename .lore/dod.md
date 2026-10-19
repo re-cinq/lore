@@ -17,7 +17,7 @@ The red bar is CI's to show. The tests are run by the `web-ui` and `lore-api` jo
 - [ ] Change `AgentDefinitionRead` or `listAgents` API to expose inherited fields on the project definition.
 - [x] Make `AgentForm` use inherited field metadata to render the "inherited" notice.
 - [x] Update `agentFormValues` to emit `""` (which `parseAgentForm` maps to `null`) for inherited fields to prevent rewriting them.
-- [ ] Update `seedAgentDefaults` to nullify project row fields that are identical to their org row counterparts on startup.
+- [x] Update `seedAgentDefaults` to nullify project row fields that are identical to their org row counterparts on startup.
 
 ## Out of scope
 
