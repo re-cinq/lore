@@ -3,6 +3,10 @@ import { type PodResources } from "@/lib/agents-form";
 
 const KNOWN_IDS = KNOWN_MODELS.map((m) => m.id);
 
+export type AgentWithInheritedFields = AgentDefinition & {
+  inherited_fields?: string[];
+};
+
 export function scopeNote(scope: {
   orgScope: boolean;
   inherited: boolean;
@@ -20,19 +24,25 @@ export function scopeNote(scope: {
 
 /** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */
 export function agentFormValues(
-  agent: AgentDefinition | null,
+  agent: AgentWithInheritedFields | null,
   { isNew }: { isNew: boolean },
 ) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
+  const promptInherited =
+    !isNew && !!agent?.inherited_fields?.includes("prompt");
 
   return {
     name,
     executionMode,
     reviewRequired,
     timeoutMinutes,
-    prompt: isNew || agent?.project_id == null ? "" : (agent.prompt ?? ""),
+    prompt:
+      isNew || agent?.project_id == null || promptInherited
+        ? ""
+        : (agent.prompt ?? ""),
     promptPlaceholder: resolvePromptPlaceholder(agent),
+    promptInherited,
     ...resolveModelFields(agent),
     inherited: resolveInherited(agent, { isNew }),
     podResources: resolvePodResources(agent),
