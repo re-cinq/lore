@@ -12,11 +12,9 @@ describe("seedAgentDefaults – nullify duplicate project fields", () => {
       },
     };
 
-    // Can be called with no defaults; returns an empty seed result
     const result = await seedAgentDefaults(mockPool as PgPool);
 
     expect(result).toMatchObject({ inserted: [], updated: [], diverged: [] });
-    // The nullification UPDATE must have run
     expect(sqls.some((s) => s.includes("project_id IS NOT NULL"))).toBe(true);
   });
 });

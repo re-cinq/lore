@@ -33,8 +33,7 @@ type OrgRow = ShippedFields & {
 
 type Tx = Pick<PgPool, "query">;
 
-// One transaction under an advisory lock: replicas booting together seed once, and a failed boot leaves the previous rows.
-// Also nullifies project row fields that are identical to the org row, so stale full-copy overrides stop shadowing the default.
+// Advisory lock ensures a single seeding among concurrent boots; also nullifies project fields matching the org row.
 export async function seedAgentDefaults(
   pool: PgPool,
   defaults: ResolvedAgentDefinition[] = [],

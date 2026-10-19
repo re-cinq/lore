@@ -22,25 +22,28 @@ export function scopeNote(scope: {
   return "This is a project agent for this repo, overriding the organisation default.";
 }
 
-/** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */
+function resolvePrompt(
+  agent: AgentWithInheritedFields | null,
+  { isNew, promptInherited }: { isNew: boolean; promptInherited: boolean },
+): string {
+  if (isNew || promptInherited || agent == null || agent.project_id == null)
+    return "";
+  return agent.prompt ?? "";
+}
+
 export function agentFormValues(
   agent: AgentWithInheritedFields | null,
   { isNew }: { isNew: boolean },
 ) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
-  const promptInherited =
-    !isNew && !!agent?.inherited_fields?.includes("prompt");
-
+  const promptInherited = !isNew && !!agent?.inherited_fields?.includes("prompt");
   return {
     name,
     executionMode,
     reviewRequired,
     timeoutMinutes,
-    prompt:
-      isNew || agent?.project_id == null || promptInherited
-        ? ""
-        : (agent.prompt ?? ""),
+    prompt: resolvePrompt(agent, { isNew, promptInherited }),
     promptPlaceholder: resolvePromptPlaceholder(agent),
     promptInherited,
     ...resolveModelFields(agent),

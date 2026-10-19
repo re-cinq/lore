@@ -93,8 +93,7 @@ export const SEED_UPDATE_SQL = `UPDATE lore.agent_definitions
 export const SEED_REMEMBER_SQL = `UPDATE lore.agent_definitions SET shipped_default = $2::jsonb
         WHERE name = $1 AND project_id IS NULL`;
 
-// Nullifies nullable fields on project rows that are identical to the org row, so a full-copy
-// override saved before inherited-field tracking was introduced does not shadow the org row forever.
+// Nullifies project row fields identical to their org row so stale full-copy overrides stop shadowing the default.
 export const NULLIFY_DUPLICATE_PROJECT_FIELDS_SQL = `UPDATE lore.agent_definitions AS p
      SET model           = CASE WHEN p.model           = o.model           THEN NULL ELSE p.model           END,
          timeout_minutes = CASE WHEN p.timeout_minutes = o.timeout_minutes THEN NULL ELSE p.timeout_minutes END,
