@@ -10,6 +10,7 @@ function scene(over: Partial<LabelDispatchDeps> = {}) {
     rawSettings: () =>
       Promise.resolve({ implementation_loop: { enabled: true } }),
     activeTaskByIssue: () => Promise.resolve(null),
+    openPrForBranch: () => Promise.resolve(null),
     addLabel: (issueNumber, label) => {
       steps.push(`label #${issueNumber} ${label}`);
 
@@ -88,7 +89,7 @@ describe("dispatchLabeledIssue", () => {
 
   it("says issue 7 is already being worked on by task t-1 and queues nothing", async () => {
     const { deps, steps } = scene({
-      activeTaskByIssue: () => Promise.resolve({ id: "t-1" }),
+      activeTaskByIssue: () => Promise.resolve({ id: "t-1", status: "running" }),
     });
 
     await dispatchLabeledIssue(deps, {
@@ -98,5 +99,23 @@ describe("dispatchLabeledIssue", () => {
     });
 
     expect(steps).toEqual(["comment #7: Already being worked on: task `t-1`"]);
+  });
+
+  it("queues issue 263 when its only task is completed with no open pull request", async () => {
+    const { deps, steps } = scene({
+      activeTaskByIssue: () =>
+        Promise.resolve({ id: "fbc55a13", status: "completed" }),
+    });
+
+    await dispatchLabeledIssue(deps, {
+      repo: "acme/widgets",
+      label: "lore",
+      issue: { number: 263, labels: ["lore"] },
+    });
+
+    expect(steps).toEqual([
+      "label #263 priority:medium",
+      "comment #263: Queued for Lore's implementation loop at `priority:medium`",
+    ]);
   });
 });

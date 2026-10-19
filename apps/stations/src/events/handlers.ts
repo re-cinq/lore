@@ -48,6 +48,7 @@ import {
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { relocateOnTeamChange } from "./team-changed.js";
+import { openPrOnBranch } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
@@ -91,12 +92,14 @@ async function findParkedVisitId(
 
 const repoEventDeps: RepoEventDeps = {
   labelDispatch: async (repo) => {
-    const { issues } = await projectFor(repo);
+    const project = await projectFor(repo);
+    const { issues } = project;
 
     return {
       rawSettings: (name) => settings().rawSettings(name),
       activeTaskByIssue: (name, issueNumber) =>
         pipeline().taskQueue.activeTaskByIssue(name, issueNumber),
+      openPrForBranch: (_name, branch) => openPrOnBranch(project, branch),
       addLabel: (issueNumber, label) => issues.addLabel(issueNumber, label),
       comment: (issueNumber, body) => issues.comment(issueNumber, body),
     };

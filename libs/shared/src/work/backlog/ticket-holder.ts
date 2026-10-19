@@ -1,5 +1,6 @@
 // Whether earlier work still holds a backlog ticket. A parked run settles its task as `completed` with no pull request, and counting every completed task as "its pull request awaits review" kept re-cinq/Otto's re-queued tickets out of the loop for weeks.
 import { implementationLoopBranch } from "../../outbound/project/assembly-runs/subject-keys.js";
+import type { Project } from "../../outbound/project/index.js";
 
 /** Task statuses that mean the work ended; such a task holds its ticket only through a pull request still open on the loop branch. */
 export const SETTLED_TASK_STATUSES: readonly string[] = ["completed", "merged"];
@@ -32,4 +33,15 @@ export async function taskHoldingTicket(
   );
 
   return openPr ? task : null;
+}
+
+/** The open pull request whose head is the branch, or null. */
+export async function openPrOnBranch(
+  project: Pick<Project, "pulls">,
+  branch: string,
+): Promise<{ number: number; url: string } | null> {
+  const open = await project.pulls.list();
+  const forBranch = open.find((pr) => pr.branch === branch);
+
+  return forBranch ? { number: forBranch.number, url: forBranch.url } : null;
 }

@@ -1,16 +1,12 @@
 // What labelling an Issue for Lore does: it joins the repository's backlog. The label used to create a typed task; every type it could name is gone, and code is implemented by the loop from the backlog (#2328, #2329).
 import { DISPATCH_LABELS } from "../../domain/task-types/dispatch-labels.js";
 import { queueTicket, type QueueTicketDeps } from "./queue-ticket.js";
+import { taskHoldingTicket, type TicketHolderDeps } from "./ticket-holder.js";
 
 const DEFAULT_DISPATCH_LABEL = "lore";
 
-export interface LabelDispatchDeps extends QueueTicketDeps {
-  /** The task still holding the issue, when one is. */
-  activeTaskByIssue(
-    repo: string,
-    issueNumber: number,
-  ): Promise<{ id: string } | null>;
-}
+export interface LabelDispatchDeps
+  extends QueueTicketDeps, TicketHolderDeps {}
 
 export interface LabeledIssue {
   repo: string;
@@ -26,7 +22,7 @@ export async function dispatchLabeledIssue(
   if (!asksForLore(label, await deps.rawSettings(repo))) {
     return;
   }
-  const working = await deps.activeTaskByIssue(repo, issue.number);
+  const working = await taskHoldingTicket(deps, repo, issue.number);
 
   if (working) {
     await deps.comment(
