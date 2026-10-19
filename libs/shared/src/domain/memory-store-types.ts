@@ -1,4 +1,4 @@
-/** The MemoryStore seam's ports and shapes, split out so postgres-memory-store.ts and memory-store.ts (which wires backends together) can both depend on them without importing each other. */
+/* The MemoryStore seam's ports and shapes, split out so postgres-memory-store.ts and memory-store.ts (which wires backends together) can both depend on them without importing each other. */
 
 /** The pg pool port the Postgres backend depends on; owned by the seam module so the contract lives with the interface, not the implementation. */
 export type PgPool = {
