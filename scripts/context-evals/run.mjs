@@ -1,4 +1,4 @@
-// One repository's nightly context eval (specs/context-evals): pick tonight's documents, have lore-api evaluate each, write the summary, and fail when too few could be answered from what Lore returned.
+// One repository's context eval (specs/context-evals), run from a developer machine: pick the day's documents, have lore-api evaluate each, write the summary, and fail when too few could be answered from what Lore returned.
 
 import { appendFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
