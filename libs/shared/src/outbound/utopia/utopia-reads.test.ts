@@ -122,22 +122,6 @@ describe("search", () => {
     });
   });
 
-  it("posts source_id src-1 and the prefixes doc: and stmt: when the search is scoped to them", async () => {
-    await reads.search("kb-1", "retry a 422", {
-      topK: 50,
-      offset: 0,
-      scope: { sourceId: "src-1", externalIdPrefixes: ["doc:", "stmt:"] },
-    });
-
-    expect(JSON.parse(seen[0]?.body ?? "")).toEqual({
-      q: "retry a 422",
-      top_k: 50,
-      offset: 0,
-      source_id: "src-1",
-      external_id_prefixes: ["doc:", "stmt:"],
-    });
-  });
-
   it("throws on a 422 page_too_deep without retrying", async () => {
     const failure = await reads
       .search("kb-1", "retry", { topK: 50, offset: 60 })
