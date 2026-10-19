@@ -13,11 +13,11 @@
 
 ## Facets
 
-- [ ] Create `scripts/check-orphaned-tests.mjs` that finds all `*.test.*` and `*.spec.*` files
-- [ ] Make the script parse configured globs from `pr-checks.yml`, `migrations.yml`, and `vitest.workspace.ts`
-- [ ] Make the script fail if any found test file does not match a configured runner
-- [ ] Update configurations (like `vitest.workspace.ts`) to cover the 3 currently orphaned tests so the check goes green
-- [ ] Add the new script to `.github/workflows/pr-checks.yml`
+- [x] Create `scripts/check-orphaned-tests.mjs` that finds all `*.test.*` and `*.spec.*` files
+- [x] Make the script parse configured globs from `pr-checks.yml`, `migrations.yml`, and `vitest.workspace.ts`
+- [x] Make the script fail if any found test file does not match a configured runner
+- [x] Update configurations (like `vitest.workspace.ts`) to cover the 3 currently orphaned tests so the check goes green
+- [x] Add the new script to `.github/workflows/pr-checks.yml`
 
 ## Out of scope
 

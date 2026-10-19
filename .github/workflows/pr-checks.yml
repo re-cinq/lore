@@ -168,6 +168,22 @@ jobs:
           - name: scripts
             build: npm run build -w @re-cinq/lore-shared
             test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
+          # VS Code extension — in the workspace but previously missing a CI entry.
+          # Resolves @re-cinq/lore-shared from the built package, so shared must
+          # be built first. @types/vscode is a dev dep for type checking only;
+          # none of the test files import from 'vscode' directly.
+          - name: lore-vscode
+            build: npm run build -w @re-cinq/lore-shared
+            test: npm test -w lore-vscode
+          # The workspace-source utility that every vitest config imports. Its own
+          # test file lives in tools/vitest/ which has no workspace entry; run it
+          # directly with the root-hoisted vitest.
+          - name: vitest-workspace-source
+            test: npx vitest run tools/vitest/workspace-source.test.ts
+          # Guard: fails if any *.test.* or *.spec.* file has no CI runner.
+          # Pure node script — no build needed.
+          - name: orphaned-tests
+            test: node scripts/check-orphaned-tests.mjs
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui
