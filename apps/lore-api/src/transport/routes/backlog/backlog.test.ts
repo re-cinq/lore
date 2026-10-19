@@ -359,6 +359,11 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           openIssue(5, ["priority:high"], "2026-08-01T00:00:00Z"),
         ],
       },
+      pulls: {
+        list: async () => [
+          { number: 50, branch: "lore/implementation-loop/issue-5" },
+        ],
+      },
     } as never);
 
     const res = await get(pool);
@@ -668,7 +673,10 @@ describe("GET with tickets the loop is not working", () => {
       .mockResolvedValueOnce(enabledRepo)
       .mockResolvedValueOnce({ rows: tasks })
       .mockResolvedValue({ rows: [] });
-    vi.mocked(projectFor).mockResolvedValue({ issues } as never);
+    vi.mocked(projectFor).mockResolvedValue({
+      issues,
+      pulls: { list: async () => [] },
+    } as never);
 
     const res = await buildServer(() => pool as never).inject({
       method: "GET",
@@ -733,6 +741,16 @@ describe("GET with tickets the loop is not working", () => {
       },
       { issue_number: 6, hold: null },
     ]);
+  });
+
+  it("lists #15 in the queue when its task completed with no open pull request", async () => {
+    const loop = await read([taskRow(15, "completed", "parked")], {
+      list: async () => [
+        openIssue(15, ["priority:high"], "2026-08-01T00:00:00Z"),
+      ],
+    });
+
+    expect(loop.next).toMatchObject([{ issue_number: 15, state: "queued" }]);
   });
 
   it("holds the re-queued #5 on why its last attempt failed, read from the task", async () => {
