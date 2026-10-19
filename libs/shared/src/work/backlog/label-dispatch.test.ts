@@ -89,7 +89,8 @@ describe("dispatchLabeledIssue", () => {
 
   it("says issue 7 is already being worked on by task t-1 and queues nothing", async () => {
     const { deps, steps } = scene({
-      activeTaskByIssue: () => Promise.resolve({ id: "t-1", status: "running" }),
+      activeTaskByIssue: () =>
+        Promise.resolve({ id: "t-1", status: "running" }),
     });
 
     await dispatchLabeledIssue(deps, {

@@ -5,8 +5,7 @@ import { taskHoldingTicket, type TicketHolderDeps } from "./ticket-holder.js";
 
 const DEFAULT_DISPATCH_LABEL = "lore";
 
-export interface LabelDispatchDeps
-  extends QueueTicketDeps, TicketHolderDeps {}
+export interface LabelDispatchDeps extends QueueTicketDeps, TicketHolderDeps {}
 
 export interface LabeledIssue {
   repo: string;

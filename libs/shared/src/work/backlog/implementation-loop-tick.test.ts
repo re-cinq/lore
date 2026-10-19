@@ -121,7 +121,9 @@ describe("createImplementationLoopTickHandler", () => {
   });
 
   it("skips the pick while its task is still active (mint-to-run gap)", async () => {
-    const d = deps({ activeTaskByIssue: async () => ({ id: "task-0", status: "queued" }) });
+    const d = deps({
+      activeTaskByIssue: async () => ({ id: "task-0", status: "queued" }),
+    });
 
     await createImplementationLoopTickHandler(d.deps)({});
 
