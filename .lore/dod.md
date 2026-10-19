@@ -3,6 +3,7 @@
 > re-cinq/lore's override rows for `code-review`, `code-review-recheck` and `code-review-refine` (created from the repo agents page when the model was set to Pro) carry a full copy of the prompt as it was that day, plus the config block. `resolveAgentConfig` (`libs/shared/src/outbound/project/agents/agent-defs-port.ts`) merges per field, project over org, so the copied prompt wins for ever
 
 **Strategy: `direct`** — The seam exists in `AgentForm` to prevent writing identical overrides, and in `seedAgentDefaults` to nullify them on boot.
+The red bar is CI's to show. The tests are run by the `web-ui` and `lore-api` jobs in the `PR Checks` workflow.
 
 ## Done when these pass
 
