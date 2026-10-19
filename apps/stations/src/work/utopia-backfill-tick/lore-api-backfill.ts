@@ -64,6 +64,11 @@ export function postUtopiaReleases(
   return postLoreApi(target, `/api/repos/${repo}/utopia/releases`);
 }
 
+/** The memory walk of the org base, `<org>/memory`, which holds the memories and episodes no onboarded repo owns. */
+export function postOrgMemory(target: LoreApiTarget): Promise<BackfillAnswer> {
+  return postLoreApi(target, "/api/utopia/memory");
+}
+
 function postLoreApi(
   target: LoreApiTarget,
   path: string,
