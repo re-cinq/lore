@@ -33,9 +33,6 @@ export interface UtopiaArm extends UtopiaMirror {
 
 const PAGE_SIZE = 50;
 
-// Every section reads spec and ADR items: code, tests, commits and tracker items share the source and would take the window's places.
-const STATEMENT_ITEM_PREFIXES = ["doc:", "stmt:"];
-
 /** What each section Utopia answers keeps: Lore's content types (`classifyFile`) and Lore's item limit. */
 const SECTIONS: Partial<
   Record<string, { types: ReadonlySet<string>; limit: number }>
@@ -87,10 +84,6 @@ function searchPages(
     (pages[index] ??= arm.reads.search(arm.kbId, query, {
       topK: PAGE_SIZE,
       offset: index * PAGE_SIZE,
-      scope: {
-        sourceId: arm.statementsSourceId,
-        externalIdPrefixes: STATEMENT_ITEM_PREFIXES,
-      },
     }));
 }
 

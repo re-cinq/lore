@@ -171,13 +171,8 @@ const SPEC_THEN_ADR = [
   hit(`stmt:${ADR}#0000`, adrChunks, 0.01),
 ];
 
-const STATEMENT_ITEMS = {
-  sourceId: STATEMENTS,
-  externalIdPrefixes: ["doc:", "stmt:"],
-};
-
 describe("utopiaSectionReader", () => {
-  it("searches only the doc: and stmt: items of the statements source, fetching a second page at offset 50 only when hasMore and adrs is under its limit", async () => {
+  it("fetches a second page at offset 50 only when hasMore and adrs is under its limit", async () => {
     const windows: SearchWindow[] = [];
     const read = utopiaSectionReader(
       {
@@ -208,8 +203,8 @@ describe("utopiaSectionReader", () => {
     }).toEqual({
       windowsForRepo: 2,
       windows: [
-        { topK: 50, offset: 0, scope: STATEMENT_ITEMS },
-        { topK: 50, offset: 50, scope: STATEMENT_ITEMS },
+        { topK: 50, offset: 0 },
+        { topK: 50, offset: 50 },
       ],
       repo: [SPEC],
       adrs: [ADR],
