@@ -1,0 +1,54 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi } from "vitest";
+import { render, fireEvent } from "@testing-library/react";
+import AgentForm from "./AgentForm";
+import type { AgentDefinition } from "@/lib/agents-mirror";
+
+const agent: AgentDefinition & { inherited_fields?: string[] } = {
+  name: "code-review",
+  model: "claude-sonnet-4-6",
+  timeout_minutes: 30,
+  prompt: "org prompt",
+  image: null,
+  execution_mode: "claude-code",
+  review_required: true,
+  config: null,
+  project_id: "project-1",
+  inherited_fields: ["prompt"],
+};
+
+describe("AgentForm (Acceptance)", () => {
+  it("renders 'inherited from org' for an inherited prompt and sends it as null", async () => {
+    let submittedPrompt: string | undefined = "not-submitted";
+    const action = vi.fn(async (_prev: any, formData: FormData) => {
+      submittedPrompt = (formData.get("prompt") as string) || undefined;
+      return {};
+    });
+
+    const { container, getByText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={agent}
+        action={action}
+        isNew={false}
+      />,
+    );
+
+    // Should indicate the field is inherited (this is missing, test fails)
+    expect(
+      getByText(/inherited from org/i, { selector: ".prompt-note" }),
+    ).toBeInTheDocument();
+
+    // The textarea should be empty because it is inherited, showing placeholder
+    const textarea = container.querySelector(
+      'textarea[name="prompt"]',
+    ) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("");
+    expect(textarea.placeholder).toBe("org prompt");
+
+    fireEvent.submit(container.querySelector("form")!);
+
+    expect(action).toHaveBeenCalled();
+    expect(submittedPrompt).toBe("");
+  });
+});
