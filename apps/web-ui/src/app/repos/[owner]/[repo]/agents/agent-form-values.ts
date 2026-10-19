@@ -28,8 +28,7 @@ export function agentFormValues(
 ) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
-  const promptInherited =
-    !isNew && !!agent?.inherited_fields?.includes("prompt");
+  const promptInherited = isPromptInherited(agent, isNew);
   return {
     name,
     executionMode,
@@ -42,6 +41,13 @@ export function agentFormValues(
     inherited: resolveInherited(agent, { isNew }),
     podResources: resolvePodResources(agent),
   };
+}
+
+function isPromptInherited(
+  agent: AgentWithInheritedFields | null,
+  isNew: boolean,
+): boolean {
+  return !isNew && !!agent?.inherited_fields?.includes("prompt");
 }
 
 function resolvePrompt(
