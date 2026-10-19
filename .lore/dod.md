@@ -2,7 +2,7 @@
 
 > The ceremony resolves approvers from CODEOWNERS entries that name people, so the file must list at least one `@user` handle beside the team handles or the ceremony refuses with team_membership_unresolved; this repo’s file, team handles only, needs that line before the ceremony can run here.
 
-**Strategy: `mechanical`** — The `auto_merge.approver` code logic and its two-key gate were already implemented on this branch with acceptance tests added. The only remaining part of the ticket is the mechanical addition of an `@user` handle to CODEOWNERS to satisfy the two-key ceremony.
+**Strategy: `mechanical`** — The `auto_merge.approver` code logic and its two-key gate were already implemented on this branch with acceptance tests added. The only remaining part of the ticket is the mechanical addition of an `@user` handle to CODEOWNERS to satisfy the two-key ceremony. The red bar is CI's to show; the `lore-tests` CI job runs the tests.
 
 ## Done when these pass
 
@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Add `@lore-admin` user to `/CLAUDE.md` in `CODEOWNERS`
+- [x] Add `@lore-admin` user to `/CLAUDE.md` in `CODEOWNERS`
 
 ## Out of scope
 
