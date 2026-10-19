@@ -7,6 +7,24 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
+vi.mock("../../../outbound/project-boot.js", () => ({
+  projectFor: vi.fn(async () => ({
+    repo: { defaultBranch: async () => "main" },
+    pulls: {
+      getBranchRule: async () => ({
+        requiredApprovals: 1,
+        codeOwnersReview: true,
+        requiredChecks: ["build"],
+      }),
+    },
+  })),
+}));
+
+vi.mock("../../../outbound/github-client.js", () => ({
+  getOctokit: vi.fn(),
+  isAppConfigured: vi.fn().mockReturnValue(true),
+}));
+
 const originalEnv = { ...process.env };
 
 describe("PUT /api/repos/{owner}/{repo}/settings", () => {
@@ -219,5 +237,54 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     });
 
     expect((await put({}, pool)).statusCode).toBe(400);
+  });
+
+  it("returns 403 two_key_required for an auto_merge.approver change to lore-reviewer without the approval header", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+
+    const res = await put(
+      { settings: { auto_merge: { approver: "lore-reviewer" } } },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(res.result).toEqual({
+      error: "two_key_required",
+      field_paths: ["auto_merge.approver"],
+      detail: "Turning auto_merge.approver on is two-key",
+    });
+  });
+
+  it("returns 400 for an auto_merge.approver of admin", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+
+    const res = await put(
+      { settings: { auto_merge: { approver: "admin" } } },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 400 for a context_backend of dgraph", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+    const res = await put({ settings: { context_backend: "dgraph" } }, pool);
+
+    expect({ status: res.statusCode, result: res.result }).toMatchObject({
+      status: 400,
+      result: { error: "context_backend must be lore, utopia or both" },
+    });
   });
 });

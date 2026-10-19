@@ -98,7 +98,7 @@ export {
   type RefContext,
   type Segment,
 } from "./domain/references.js";
-// Re-exported via index-spec-content.js: "./spec-summary.js" "./spec-blocks.js" "./spec-segment.js" "./spec-sentence-split.js" "./spec-status.js" "./spec-status-coverage.js" "./spec-status-flip.js" "./test-paths.js" "./test-command-manifest.js" "./test-report.js" "./ingest-workflow.js" "./trace-impact-workflow.js" "./spec-link-parser.js" "./spec-judge.js" "./spec-judge-llm.js"
+// Re-exported via index-spec-content.js: "./spec-summary.js" "./spec-blocks.js" "./spec-segment.js" "./spec-sentence-split.js" "./spec-status.js" "./spec-status-coverage.js" "./test-paths.js" "./test-command-manifest.js" "./test-report.js" "./ingest-workflow.js" "./trace-impact-workflow.js" "./spec-link-parser.js" "./spec-judge.js" "./spec-judge-llm.js"
 export * from "./work/index-spec-content.js";
 
 export {
@@ -188,7 +188,7 @@ export {
   type ClassifiedFailure,
 } from "./lib/error-classify.js";
 export { isBusinessHours } from "./lib/business-hours.js";
-export { prFooter } from "./domain/pr-body.js";
+export { loreTaskIdOf, prFooter } from "./domain/pr-body.js";
 export { clampPrTitle } from "./domain/pr-title.js";
 export {
   ciConclusionOf,

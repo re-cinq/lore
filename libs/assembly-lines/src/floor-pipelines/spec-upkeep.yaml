@@ -121,6 +121,7 @@ line:
       iteration_max: 1
 stations:
   spec-upkeep-detect-drift:
+    description: Reads the traceability graph for spec statements that no longer match the code, without any AI, and lists them for the agent.
     kind: service
     outcomes:
       - success
@@ -136,6 +137,7 @@ stations:
       - name: drift_count
         kind: value
   spec-upkeep-detect-unlinked:
+    description: Finds testable spec statements that no test is linked to yet. When neither this nor the drift check finds anything, the run ends with no pull request.
     kind: service
     outcomes:
       - success
@@ -154,6 +156,7 @@ stations:
       - name: unlinked_count
         kind: value
   spec-upkeep-update-specs:
+    description: An AI agent edits only the spec files, first fixing statements that drifted from the code, then adding test links to unlinked statements, as two commits.
     kind: agent
     agent_definition: spec-upkeep-update-specs
     conversation: new
@@ -177,6 +180,7 @@ stations:
         kind: file
         path: pr-body.md
   spec-upkeep-open-pr:
+    description: Opens the spec upkeep pull request with the agent's description. If the agent committed nothing, the run ends here.
     kind: service
     outcomes:
       - success
@@ -195,6 +199,7 @@ stations:
       - name: pr_url
         kind: value
   spec-upkeep-await-ci:
+    description: Waits on the spec upkeep pull request until CI has a verdict. Lore reads the build itself, nobody clicks anything, and a red build goes to the fix step.
     kind: human
     outcomes:
       - success
@@ -213,6 +218,7 @@ stations:
       - name: round_brief
         kind: file
   spec-upkeep-fix-ci:
+    description: An AI agent corrects the spec files this branch changed so the red build goes green, working only from what CI reported.
     kind: agent
     agent_definition: spec-upkeep-fix-ci
     conversation: new
@@ -235,6 +241,7 @@ stations:
       - name: ci_blocked
         kind: value
   spec-upkeep-request-review:
+    description: Asks Lore's code-review line to review the spec upkeep pull request once its build is green. The line never merges it.
     kind: service
     outcomes:
       - success

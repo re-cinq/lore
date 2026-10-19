@@ -319,6 +319,28 @@ describe("onboardRepo", () => {
     ]);
   });
 
+  it("commits the o/r lore.repos row before the floor starts the run, so the run's git credential is not refused", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: false,
+      reason: "app_no_webhook_permission",
+    });
+    const { pool, query } = poolWith();
+    let issuedAtStart: string[] = [];
+
+    await onboardRepo(pool, "o/r", {
+      floorStart: () => {
+        issuedAtStart = sqlIssued(query);
+
+        return Promise.resolve();
+      },
+    });
+
+    expect(issuedAtStart.at(-1)).toBe("COMMIT");
+    expect(
+      issuedAtStart.some((sql) => sql.includes("INSERT INTO lore.repos")),
+    ).toBe(true);
+  });
+
   it("refuses with 503 and writes nothing when the deployment has no floor", async () => {
     const { pool, query } = poolWith();
 

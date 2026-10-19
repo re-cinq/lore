@@ -51,7 +51,7 @@ async function restart(
     await floor.runs.cancel(run.id, UPGRADED);
   }
   const started = await floor.lines.start(run.lineId, {
-    repo: run.repo,
+    repo: run.repo ?? undefined,
     startItems: run.startItems,
     lineHash,
   });

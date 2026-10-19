@@ -242,6 +242,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/bag": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/bag */
+    get: operations["get_api_assembly-runs_id_bag"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/blob-previews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/blob-previews */
+    get: operations["get_api_assembly-runs_id_blob-previews"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/blobs/{hash}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/blobs/{hash} */
+    get: operations["get_api_assembly-runs_id_blobs_hash"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/dod": {
     parameters: {
       query?: never;
@@ -390,6 +441,40 @@ export interface paths {
     put?: never;
     /** POST /api/assembly-runs/{id}/upgrade */
     post: operations["post_api_assembly-runs_id_upgrade"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/visits/{visitId}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/visits/{visitId}/events */
+    get: operations["get_api_assembly-runs_id_visits_visitId_events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/visits/{visitId}/model-calls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/visits/{visitId}/model-calls */
+    get: operations["get_api_assembly-runs_id_visits_visitId_model-calls"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1065,6 +1150,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/auto-merge/kpis": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/auto-merge/kpis */
+    get: operations["get_api_repos_owner_repo_auto-merge_kpis"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/blocked-pulls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/blocked-pulls */
+    get: operations["get_api_repos_owner_repo_blocked-pulls"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/branches": {
     parameters: {
       query?: never;
@@ -1510,6 +1629,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/pulls/{number}/blocked-reason": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/pulls/{number}/blocked-reason */
+    get: operations["get_api_repos_owner_repo_pulls_number_blocked-reason"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/pulls/{number}/files": {
     parameters: {
       query?: never;
@@ -1640,6 +1776,125 @@ export interface paths {
     get: operations["get_api_repos_owner_repo_trace_kind"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/triage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/triage */
+    get: operations["get_api_repos_owner_repo_triage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/utopia/backfill": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/backfill */
+    post: operations["post_api_repos_owner_repo_utopia_backfill"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/utopia/commits": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/commits */
+    post: operations["post_api_repos_owner_repo_utopia_commits"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/utopia/memory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/memory */
+    post: operations["post_api_repos_owner_repo_utopia_memory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/utopia/releases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/releases */
+    post: operations["post_api_repos_owner_repo_utopia_releases"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/utopia/setup": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/setup */
+    post: operations["post_api_repos_owner_repo_utopia_setup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/utopia/tracker": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/utopia/tracker */
+    post: operations["post_api_repos_owner_repo_utopia_tracker"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2020,6 +2275,23 @@ export interface paths {
     get: operations["get_api_usage"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/utopia/memory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/utopia/memory */
+    post: operations["post_api_utopia_memory"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2426,6 +2698,37 @@ export interface components {
         created_at: string;
       }[];
     };
+    BlobPreviews: {
+      previews: {
+        [key: string]: {
+          hash: string;
+          contentType: string;
+          size: number;
+          text: string | null;
+          truncated: boolean;
+        };
+      };
+    };
+    BlockedPulls: {
+      pulls: {
+        repo: string;
+        prNumber: number;
+        reason: string | null;
+        label: string | null;
+        detail: string | null;
+        since: string | null;
+        updatedAt: string | null;
+      }[];
+    };
+    BlockedReason: {
+      repo: string;
+      prNumber: number;
+      reason: string | null;
+      label: string | null;
+      detail: string | null;
+      since: string | null;
+      updatedAt: string | null;
+    };
     BranchCreated: {
       /** @constant */
       ok: true;
@@ -2492,15 +2795,56 @@ export interface components {
       /** @constant */
       ok: true;
     };
-    DocumentEval: {
-      path: string;
-      question: string;
-      found: boolean;
-      answered: boolean;
-      useful_share: number;
-      reason: string;
-      model: string;
-    };
+    DocumentEval:
+      | {
+          path: string;
+          question: string;
+          found: boolean;
+          answered: boolean;
+          useful_share: number;
+          reason: string;
+          model: string;
+          sources: {
+            path: string;
+            section: string;
+            tokens: number;
+            used: boolean;
+          }[];
+        }
+      | {
+          path: string;
+          question: string;
+          lore: {
+            found: boolean;
+            answered: boolean;
+            useful_share: number;
+            reason: string;
+            model: string;
+            sources: {
+              path: string;
+              section: string;
+              tokens: number;
+              used: boolean;
+            }[];
+            latency_ms: number;
+          };
+          utopia: {
+            found: boolean;
+            answered: boolean;
+            useful_share: number;
+            reason: string;
+            model: string;
+            sources: {
+              path: string;
+              section: string;
+              tokens: number;
+              used: boolean;
+            }[];
+            latency_ms: number;
+          };
+          top_k_overlap: number;
+          only_answered_by: ("lore" | "utopia") | null;
+        };
     DodProgress: {
       present: boolean;
       ticketClaim?: string;
@@ -2978,6 +3322,7 @@ export interface components {
                   node_id: string;
                   iteration: number;
                   outcome: string | null;
+                  failure_detail: string | null;
                   agent_cr_name: string | null;
                   station_run_id: string | null;
                   input: {
@@ -2989,6 +3334,15 @@ export interface components {
                     repo: string;
                     ref: string;
                   } | null;
+                  needs: {
+                    [key: string]: string;
+                  } | null;
+                  produced: {
+                    [key: string]: string;
+                  } | null;
+                  route_url: string | null;
+                  worker: string | null;
+                  requested_by: string | null;
                   commit_sha: string | null;
                   started_at: string;
                   finished_at: string | null;
@@ -3119,7 +3473,8 @@ export interface components {
             | "bad_message"
             | "channel_in_use"
             | "too_many_channels"
-            | "unknown_channel";
+            | "unknown_channel"
+            | "rate_limited";
         };
     MemoryAuditPage: {
       entries: {
@@ -3169,6 +3524,19 @@ export interface components {
           id?: string;
           confidence?: string;
         }[]
+      | {
+          results: {
+            key: string;
+            value: string;
+            score: number;
+            agent_id: string;
+            /** @enum {string} */
+            source: "memory" | "fact" | "episode" | "graph";
+            id?: string;
+            confidence?: string;
+          }[];
+          notes: string[];
+        }
       | {
           key: string;
           deleted: boolean;
@@ -3485,6 +3853,12 @@ export interface components {
             } & {
               [key: string]: unknown;
             };
+            auto_merge?: {
+              /** @enum {string} */
+              approver?: "none" | "lore-reviewer";
+            } & {
+              [key: string]: unknown;
+            };
             cross_repo?: boolean;
             cross_repo_repos?: string[];
             slack_channel_id?: string;
@@ -3502,6 +3876,15 @@ export interface components {
             dispatch_default_type?: string;
             test_commands?: unknown;
             incidents?: unknown[];
+            utopia?: {
+              kb_id: string;
+              source_id: string;
+              ontology_version?: number;
+              commits_head?: string;
+              tracker_since?: string;
+            };
+            /** @enum {string} */
+            context_backend?: "lore" | "utopia" | "both";
           } & {
             [key: string]: unknown;
           })
@@ -3589,6 +3972,12 @@ export interface components {
               } & {
                 [key: string]: unknown;
               };
+              auto_merge?: {
+                /** @enum {string} */
+                approver?: "none" | "lore-reviewer";
+              } & {
+                [key: string]: unknown;
+              };
               cross_repo?: boolean;
               cross_repo_repos?: string[];
               slack_channel_id?: string;
@@ -3606,6 +3995,15 @@ export interface components {
               dispatch_default_type?: string;
               test_commands?: unknown;
               incidents?: unknown[];
+              utopia?: {
+                kb_id: string;
+                source_id: string;
+                ontology_version?: number;
+                commits_head?: string;
+                tracker_since?: string;
+              };
+              /** @enum {string} */
+              context_backend?: "lore" | "utopia" | "both";
             } & {
               [key: string]: unknown;
             })
@@ -3680,6 +4078,24 @@ export interface components {
     };
     ReviewStarted: {
       started: string | null;
+    };
+    RunBag: {
+      bag: {
+        [key: string]: {
+          /** @enum {string} */
+          kind: "value" | "file" | "git";
+          ref: string;
+          by: string;
+          sha?: string;
+        };
+      };
+    };
+    RunBlob: {
+      hash: string;
+      contentType: string;
+      size: number;
+      text: string | null;
+      truncated: boolean;
     };
     RunEvents: {
       events: {
@@ -3769,6 +4185,7 @@ export interface components {
             node_id: string;
             iteration: number;
             outcome: string | null;
+            failure_detail: string | null;
             agent_cr_name: string | null;
             station_run_id: string | null;
             input: {
@@ -3780,6 +4197,15 @@ export interface components {
               repo: string;
               ref: string;
             } | null;
+            needs: {
+              [key: string]: string;
+            } | null;
+            produced: {
+              [key: string]: string;
+            } | null;
+            route_url: string | null;
+            worker: string | null;
+            requested_by: string | null;
             commit_sha: string | null;
             started_at: string;
             finished_at: string | null;
@@ -3847,6 +4273,7 @@ export interface components {
         score: number;
         source_path: string | null;
       }[];
+      notes?: string[];
     };
     SessionSummaryResult:
       | {
@@ -3966,6 +4393,13 @@ export interface components {
           calls: number;
           cost_usd: number;
         }[];
+        by_billing_mode: {
+          /** @enum {string} */
+          mode: "api_key" | "subscription" | "unknown";
+          calls: number;
+          cost_usd: number;
+        }[];
+        floor_unavailable: boolean;
       };
       billed: {
         available: boolean;
@@ -4082,6 +4516,7 @@ export interface components {
         node_id: string;
         iteration: number;
         outcome: string | null;
+        failure_detail: string | null;
         agent_cr_name: string | null;
         station_run_id: string | null;
         input: {
@@ -4093,6 +4528,15 @@ export interface components {
           repo: string;
           ref: string;
         } | null;
+        needs: {
+          [key: string]: string;
+        } | null;
+        produced: {
+          [key: string]: string;
+        } | null;
+        route_url: string | null;
+        worker: string | null;
+        requested_by: string | null;
         commit_sha: string | null;
         started_at: string;
         finished_at: string | null;
@@ -4260,9 +4704,172 @@ export interface components {
     TraceRead: {
       [key: string]: unknown;
     };
+    TriageIssues: {
+      title: string;
+      triage_label: string;
+      active_run_link?: string;
+    }[];
     TurnsRelayed: {
       forwarded: number;
       skipped: number;
+    };
+    UtopiaBackfillSummary: {
+      commit: string;
+      documents: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      failed: string[];
+      commits?: {
+        branch: string;
+        from: string | null;
+        to: string | null;
+        commits: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+        skipped?: string;
+      };
+      tracker?: {
+        from: string | null;
+        to: string | null;
+        entries: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+      };
+      releases?: {
+        tags: number;
+        releases: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+      };
+      memory?: {
+        memories: {
+          from: string | null;
+          to: string | null;
+          entries: number;
+          created: number;
+          updated: number;
+          unchanged: number;
+          failed: string[];
+          pass_complete: boolean;
+        };
+        episodes: {
+          from: string | null;
+          to: string | null;
+          entries: number;
+          created: number;
+          updated: number;
+          unchanged: number;
+          failed: string[];
+        };
+      };
+    };
+    UtopiaCommitsSummary: {
+      branch: string;
+      from: string | null;
+      to: string | null;
+      commits: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      failed: string[];
+      skipped?: string;
+    };
+    UtopiaMemorySummary: {
+      memories: {
+        from: string | null;
+        to: string | null;
+        entries: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+        pass_complete: boolean;
+      };
+      episodes: {
+        from: string | null;
+        to: string | null;
+        entries: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+      };
+    };
+    UtopiaOrgMemorySummary: {
+      memories: {
+        from: string | null;
+        to: string | null;
+        entries: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+        pass_complete: boolean;
+      };
+      episodes: {
+        from: string | null;
+        to: string | null;
+        entries: number;
+        created: number;
+        updated: number;
+        unchanged: number;
+        failed: string[];
+      };
+    };
+    UtopiaReleasesSummary: {
+      tags: number;
+      releases: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      failed: string[];
+    };
+    UtopiaSetupResult: {
+      kb_id: string;
+      source_id: string;
+      ontology_version: number;
+    };
+    UtopiaTrackerSummary: {
+      from: string | null;
+      to: string | null;
+      entries: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      failed: string[];
+    };
+    VisitEvents: {
+      events: {
+        id: string;
+        name: string;
+        /** @enum {string} */
+        direction: "handled" | "raised";
+        inferred: boolean;
+        created_at: string;
+        acked_at: string | null;
+        claimed_by: string | null;
+        attempts: number;
+        last_error: string | null;
+        dead_at: string | null;
+        payload: unknown;
+      }[];
+    };
+    VisitModelCalls: {
+      calls: {
+        seq: number;
+        occurredAt: string;
+        model: string | null;
+        costUsd: number | null;
+        tokensIn: number | null;
+        tokensOut: number | null;
+      }[];
     };
   };
   responses: {
@@ -4722,6 +5329,90 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_bag": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunBag"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_blob-previews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The first 4 KiB of each blob the run references, by hash; a hash it does not reference is left out. 400 for a malformed hash or more than 50, 404 for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BlobPreviews"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_blobs_hash": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        hash: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A blob the external floor keeps, readable only through a run that references it: text up to 1 MiB for a textual content type, metadata alone otherwise; 400 for a malformed hash, 404 for a run or blob it does not reference */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunBlob"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_assembly-runs_id_dod": {
     parameters: {
       query?: never;
@@ -5013,6 +5704,62 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_visits_visitId_events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        visitId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The floor events one visit handled and raised, each with its direction, whether the link was inferred, and its queue state; 404 for a visit of no run the floor has */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VisitEvents"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_visits_visitId_model-calls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        visitId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The model calls one visit of a floor run made, from its llm_call records: model, tokens in and out, cost; 404 for a visit of no run the floor has */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VisitModelCalls"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_audit-log": {
     parameters: {
       query?: never;
@@ -5146,6 +5893,8 @@ export interface operations {
           repo: string;
           path: string;
           question?: string;
+          /** @enum {string} */
+          backend?: "lore" | "utopia" | "both";
         };
       };
     };
@@ -5417,6 +6166,7 @@ export interface operations {
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
     };
@@ -5720,6 +6470,11 @@ export interface operations {
               include_invalidated?: boolean;
               /** @default false */
               graph_augment?: boolean;
+              /**
+               * @default lore
+               * @enum {string}
+               */
+              backend?: "lore" | "utopia" | "both";
             }
           | {
               /** @constant */
@@ -5731,6 +6486,7 @@ export interface operations {
               /** @constant */
               action: "list";
               agent_id?: string;
+              repo?: string;
               limit?: number;
               /** @default 0 */
               offset?: number;
@@ -5954,8 +6710,10 @@ export interface operations {
           "application/json": components["schemas"]["PrStatus"];
         };
       };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -6245,6 +7003,58 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentDefinitionDeleted"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_auto-merge_kpis": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_blocked-pulls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read the blocked PRs for a specific repo */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BlockedPulls"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -7218,6 +8028,34 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_repos_owner_repo_pulls_number_blocked-reason": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        number: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read the blocked reason for a specific PR */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BlockedReason"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   get_api_repos_owner_repo_pulls_number_files: {
     parameters: {
       query?: never;
@@ -7471,6 +8309,233 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_triage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issues with triage labels and their active floor runs */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TriageIssues"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_backfill: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The commit the specs and ADRs were read at, how many were mirrored, Utopia's created/updated/unchanged item counts, and each document that did not land whole */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaBackfillSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_commits: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          branch?: string;
+        } | null;
+      };
+    };
+    responses: {
+      /** @description The cursor the walk started above, the newest commit pushed, Utopia's created/updated/unchanged item counts, and the commit the walk stopped at; skipped names a branch that is not the default one */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaCommitsSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_memory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Each walk's cursor before and after, Utopia's created/updated/unchanged document counts, and the memory or episode the walk stopped at */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaMemorySummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_releases: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description How many tags and published releases were read, Utopia's created/updated/unchanged item counts, and every item it refused */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaReleasesSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_setup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          session_token: string;
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The repo's Utopia knowledge base and push source, now in its settings; the source key itself is never answered */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaSetupResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_utopia_tracker: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The update time the walk asked from, the newest one pushed, Utopia's created/updated/unchanged item counts, and the issue or pull request the walk stopped at */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaTrackerSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -8187,6 +9252,33 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_utopia_memory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Each walk's cursor before and after, Utopia's created/updated/unchanged document counts, and the memory or episode the walk stopped at */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UtopiaOrgMemorySummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

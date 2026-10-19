@@ -40,14 +40,140 @@ export async function extractImportedCallSites(
   }
 
   parser.setLanguage(lang);
-  const root = parser.parse(source).rootNode;
+  const tree = parser.parse(source);
+  const root = tree.rootNode;
   const called = collectCalledIdentifiers(root);
 
-  const imports = root.namedChildren.filter(
-    (child) => child.type === "import_statement",
+  const sites = importStatements(root).flatMap((stmt) =>
+    calledImportsOf(stmt, called),
   );
 
-  return imports.flatMap((stmt) => calledImportsOf(stmt, called));
+  // The tree lives in the wasm heap, outside the garbage collector: a repo-wide pass that never frees it grows lore-api's memory one file at a time.
+  tree.delete();
+
+  return sites;
+}
+
+/** One top-level definition of a source file: its name, 1-based line range, text, and the bare identifiers it calls, in first-call order. */
+export interface CodeSymbol {
+  name: string;
+  startLine: number;
+  endLine: number;
+  text: string;
+  calls: string[];
+}
+
+/** One named import binding: the name the file uses, the name the module exports, and the module path. */
+export interface ImportBinding {
+  local: string;
+  imported: string;
+  fromPath: string;
+}
+
+/** The top-level functions, function-valued constants and classes of `source`, with what each calls, plus the file's named imports; an unsupported extension yields neither. */
+export async function extractCodeSymbols(
+  ext: string,
+  source: string,
+): Promise<{ symbols: CodeSymbol[]; imports: ImportBinding[] }> {
+  const parser = await ensureParser();
+  const lang = await loadGrammar(ext);
+
+  if (!lang) {
+    return { symbols: [], imports: [] };
+  }
+
+  parser.setLanguage(lang);
+  const tree = parser.parse(source);
+  const root = tree.rootNode;
+  const definitions = root.namedChildren.flatMap(definitionsOf);
+  const parsed = {
+    symbols: definitions.map(toCodeSymbol),
+    imports: importStatements(root).flatMap(importBindingsOf),
+  };
+
+  tree.delete();
+
+  return parsed;
+}
+
+function importStatements(root: Parser.SyntaxNode): Parser.SyntaxNode[] {
+  return root.namedChildren.filter(
+    (child) => child.type === "import_statement",
+  );
+}
+
+interface Definition {
+  name: string;
+  node: Parser.SyntaxNode;
+}
+
+const FUNCTION_VALUES = new Set([
+  "arrow_function",
+  "function_expression",
+  "function",
+]);
+
+type DefinitionReader = (node: Parser.SyntaxNode) => Definition[];
+
+/** A named declaration (`function f`, `class C`) defines its own name. */
+const namedDeclaration: DefinitionReader = (node) => {
+  const name = node.childForFieldName("name")?.text;
+
+  return name ? [{ name, node }] : [];
+};
+
+/** `const f = () => ...` defines `f`; a constant holding anything but a function defines nothing. */
+const functionConstants: DefinitionReader = (node) => {
+  const declarators = node.namedChildren.filter((declarator) =>
+    FUNCTION_VALUES.has(declarator.childForFieldName("value")?.type ?? ""),
+  );
+
+  return declarators.flatMap((declarator) => {
+    const name = declarator.childForFieldName("name")?.text;
+
+    return name ? [{ name, node }] : [];
+  });
+};
+
+/** `export` is unwrapped to the declaration it carries, keeping the export's span. */
+const exported: DefinitionReader = (node) => {
+  const declaration = node.childForFieldName("declaration");
+  const inner = declaration ? definitionsOf(declaration) : [];
+
+  return inner.map((definition) => ({ ...definition, node }));
+};
+
+const DEFINITION_READERS: Partial<Record<string, DefinitionReader>> = {
+  export_statement: exported,
+  function_declaration: namedDeclaration,
+  class_declaration: namedDeclaration,
+  lexical_declaration: functionConstants,
+  variable_declaration: functionConstants,
+};
+
+/** The named definitions one top-level statement introduces. */
+function definitionsOf(node: Parser.SyntaxNode): Definition[] {
+  return DEFINITION_READERS[node.type]?.(node) ?? [];
+}
+
+function toCodeSymbol({ name, node }: Definition): CodeSymbol {
+  return {
+    name,
+    startLine: node.startPosition.row + 1,
+    endLine: node.endPosition.row + 1,
+    text: node.text,
+    calls: [...collectCalledIdentifiers(node)],
+  };
+}
+
+function importBindingsOf(stmt: Parser.SyntaxNode): ImportBinding[] {
+  const fromPath = importSource(stmt);
+
+  return importSpecifiers(stmt).map((spec) => {
+    const imported = spec.childForFieldName("name")?.text ?? "";
+
+    return { local: localName(spec), imported, fromPath };
+  });
 }
 
 async function ensureParser(): Promise<Parser> {
@@ -164,17 +290,17 @@ function importSource(stmt: Parser.SyntaxNode): string {
 
 /** All named-import specifier local names in a single import statement node. */
 function namedImportSpecifiers(stmt: Parser.SyntaxNode): string[] {
+  return importSpecifiers(stmt).map(localName).filter(Boolean);
+}
+
+/** The `import_specifier` nodes of one import statement's `{ ... }` clause. */
+function importSpecifiers(stmt: Parser.SyntaxNode): Parser.SyntaxNode[] {
   const clause = stmt.namedChildren.find((c) => c.type === "import_clause");
   const named = clause?.namedChildren.find((c) => c.type === "named_imports");
 
-  if (!named) {
-    return [];
-  }
-  const specifiers = named.namedChildren.filter(
+  return (named?.namedChildren ?? []).filter(
     (c) => c.type === "import_specifier",
   );
-
-  return specifiers.map(localName).filter(Boolean);
 }
 
 /** `import { a as b }` binds `b`, so the alias wins over the imported name. */

@@ -34,7 +34,10 @@ const fakeAgents = {
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({
-  projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })),
+  projectFor: vi.fn(async () => ({
+    agentDefs: fakeAgents,
+    agentDefsWriter: fakeAgents,
+  })),
 }));
 
 import {
@@ -322,6 +325,34 @@ describe("routes — agents", () => {
           podResources: { limits: { memory: "4Gi" } },
           inheritedConfig: { skills: ["lore-context"] },
         },
+      );
+    });
+
+    it("a partial PUT for pod_resources merges per sub-key, not replaces the whole block", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: {
+          pod_resources: {
+            limits: { memory: "4Gi", "ephemeral-storage": "4Gi" },
+            requests: { memory: "2Gi" },
+          },
+        },
+      });
+      fakeAgents.update.mockResolvedValue(def);
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        pod_resources: { requests: { "ephemeral-storage": "4Gi" } },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        expect.objectContaining({
+          podResources: {
+            limits: { memory: "4Gi", "ephemeral-storage": "4Gi" },
+            requests: { memory: "2Gi", "ephemeral-storage": "4Gi" },
+          },
+        }),
       );
     });
 

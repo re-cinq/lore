@@ -16,4 +16,15 @@ describe("SaveResultBanner", () => {
     render(<SaveResultBanner state={{ saved: true }} />);
     expect(screen.getByText("Settings saved.")).toBeInTheDocument();
   });
+
+  it("shows what the save path said is missing when it refused", () => {
+    render(
+      <SaveResultBanner
+        state={{ saved: false, error: "Missing rule: requires 1 approval" }}
+      />,
+    );
+    expect(
+      screen.getByText(/Missing rule: requires 1 approval/),
+    ).toBeInTheDocument();
+  });
 });

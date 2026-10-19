@@ -31,6 +31,7 @@ const DRAFT = {
 const APPROVED = { ...DRAFT, status: "approved" };
 const MARKDOWN = "# Faster checkout\n\nCheckout is slow.\n";
 const BRIEF = 'Draft the plan "Widget" in plan.md.';
+const BRIEFED = `repo: "re-cinq/lore"\n${BRIEF}`;
 const SUCCESS: Report = { outcome: "success" };
 const SPEC_PR_URL = "https://github.com/re-cinq/lore/pull/12";
 
@@ -166,13 +167,18 @@ function reportedProduced(
   return last?.payload?.report?.produced ?? {};
 }
 
-function reported(visitId: string, report: Report): FloorRequest {
+function reported(visitId: string, report: Report, by?: string): FloorRequest {
   return {
     method: "POST",
     path: "/events",
     body: {
       name: "station_run.reported",
-      payload: { visitId, worker: "lore", report },
+      payload: {
+        visitId,
+        worker: "lore",
+        report,
+        ...(by ? { reportedBy: by } : {}),
+      },
       dedupeKey: `station_run.reported:${visitId}`,
     },
   };
@@ -198,7 +204,7 @@ function started(entry?: string): FloorRequest {
         plan_id: { kind: "value", ref: "p1", by: "lore" },
         plan_title: { kind: "value", ref: "Faster checkout", by: "lore" },
         plan_md: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
-        description: { kind: "value", ref: BRIEF, by: "lore" },
+        description: { kind: "value", ref: BRIEFED, by: "lore" },
       },
       ...(entry ? { entry } : {}),
     },
@@ -219,7 +225,7 @@ describe("startFloorDrafting", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "changes_requested",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEFED },
       }),
     );
   });
@@ -494,21 +500,29 @@ const CITABLE = {
 };
 
 describe("approveFloorPlan", () => {
-  it("reports success on the author visit with the approved plan.md when the run waits on author", async () => {
+  it("reports success on the author visit with the approved plan.md, in gedaiu's name, when the run waits on author", async () => {
     const { deps, requests } = scene({ visits: ON_AUTHOR });
 
-    const decision = await approveFloorPlan(deps, {
-      plan: APPROVED,
-      planMarkdown: MARKDOWN,
-      brief: BRIEF,
-    });
+    const decision = await approveFloorPlan(
+      deps,
+      {
+        plan: APPROVED,
+        planMarkdown: MARKDOWN,
+        brief: BRIEF,
+      },
+      "gedaiu",
+    );
 
     expect(decision).toEqual({ kind: "hand-over" });
     expect(posts(requests).at(-1)).toEqual(
-      reported("visit-author", {
-        outcome: "success",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
-      }),
+      reported(
+        "visit-author",
+        {
+          outcome: "success",
+          produced: { plan_md: PLAN_BLOB_HASH, description: BRIEFED },
+        },
+        "gedaiu",
+      ),
     );
   });
 
@@ -532,7 +546,7 @@ describe("approveFloorPlan", () => {
       produced: {
         plan_md: PLAN_BLOB_HASH,
         plan_blocks: PLAN_BLOB_HASH,
-        description: BRIEF,
+        description: BRIEFED,
       },
     });
   });
@@ -638,13 +652,27 @@ describe("approveFloorPlan", () => {
     });
 
     expect({ brief: startedDescription(requests), specPrsRead }).toEqual({
-      brief: BRIEF,
+      brief: BRIEFED,
       specPrsRead: [],
     });
   });
 });
 
 describe("the round's brief the floor's planning agent is given", () => {
+  it('leads the brief with repo: "re-cinq/lore", the repo the agent passes to Lore\'s tools', async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests).split("\n")[0]).toBe(
+      'repo: "re-cinq/lore"',
+    );
+  });
+
   it("names the section the Refine asks about in the brief the agent is given", async () => {
     const { deps, asks } = scene({ visits: ON_AUTHOR });
     const verbs = floorPlanVerbs(deps, async () => ({
@@ -815,13 +843,13 @@ describe("startFloorSpecWork", () => {
 });
 
 describe("reopenFloorPlan", () => {
-  it("reports changes_requested on the merged visit when the run waits on its spec PR", async () => {
+  it("reports changes_requested on the merged visit, in gedaiu's name, when the run waits on its spec PR", async () => {
     const { deps, requests } = scene({ visits: ON_MERGED });
 
-    await reopenFloorPlan(deps, APPROVED);
+    await reopenFloorPlan(deps, APPROVED, "gedaiu");
 
     expect(posts(requests)).toEqual([
-      reported("visit-merged", { outcome: "changes_requested" }),
+      reported("visit-merged", { outcome: "changes_requested" }, "gedaiu"),
     ]);
   });
 
@@ -903,7 +931,7 @@ describe("validateFloorPlan", () => {
 });
 
 describe("reworkFloorSpec", () => {
-  it("posts node.write.start naming run-open and gedaiu when spec PR 12 has an unresolved review", async () => {
+  it("posts node.rework.start naming run-open and gedaiu when spec PR 12 has an unresolved review", async () => {
     const { deps, requests } = scene({ visits: ON_MERGED });
 
     const runId = await reworkFloorSpec(deps, {
@@ -917,7 +945,7 @@ describe("reworkFloorSpec", () => {
         method: "POST",
         path: "/events",
         body: {
-          name: "node.write.start",
+          name: "node.rework.start",
           payload: { runId: "run-open", requestedBy: "gedaiu" },
         },
       },

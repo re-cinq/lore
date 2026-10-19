@@ -41,7 +41,7 @@ beforeAll(async () => {
   const { registerContextTools } = await import("./context-tools.js");
 
   registerPipelineTools(fakeServer as never);
-  registerContextTools(fakeServer as never);
+  registerContextTools(fakeServer as never, "full");
 });
 
 describe("lore_list_pending_tasks file-fallback repo filter", () => {

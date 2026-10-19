@@ -24,7 +24,9 @@ PR history, and task state.
   the Bash `PreToolUse` guard and is also served as the flat `/skills/settings.json`;
   `hooks/gemini/.gemini/settings.json` wires the same script as a `BeforeTool` hook on
   `run_shell_command`, wrapped to report a refusal as the `{"decision":"block"}` document
-  gemini-cli reads instead of an exit code)
+  gemini-cli reads instead of an exit code; no floor agent declares `disallowed_tools`, so the guard is
+  the only refusal, and a Gemini pod under `bypass` gets a policy allowing every tool from ai-agent-subsystem
+  v0.11.9 itself)
   (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`); the
   ai-agent-subsystem init fetches these into a run's `$HOME` via the recipe's
   `resources.skills` + `skills_source` (ADR-030 skills seam).
@@ -45,8 +47,11 @@ the adapter in use is Vertex AI text-embedding-005 (768 dimensions).
 
 **Agents** run in pods of the external floor (ADR-049); Lore holds no Kubernetes client.
 
-**Observability**: OpenTelemetry traces + metrics → Cloud Monitoring.
-Gap signal goes to Graphiti episodes in Phase 3.
+**Observability** (ADR-050): OpenTelemetry traces → Cloud Trace (lore-api only);
+metrics → Prometheus text on every service's `metrics` port (:9464, `libs/shared/src/outbound/otel/`),
+scraped by the kube-prometheus-stack terraform installs behind `enable_monitoring` and
+shown in Grafana. Instruments are resolved lazily against the current meter provider:
+one created at import, before the SDK registers, is a no-op for good.
 
 **Task tracking**: Pipeline tasks via Lore MCP + GitHub Issues.
 
@@ -95,10 +100,10 @@ status pill — a stale header misreports the org's backlog.
 - **Spec upkeep on the external floor** (`specs/external-floor` FR14, 2026-10-01) — `libs/assembly-lines/src/floor-pipelines/spec-upkeep.yaml`: `detect-drift → detect-unlinked → update-specs → open-pr → await-ci ⇄ fix-ci → request-review`, one run per onboarded repo started by the stations tick `cron.spec_upkeep.tick` (Mondays 10:00 UTC, `apps/stations/src/work/spec-upkeep-tick/`). The detectors (`libs/shared/src/work/spec-upkeep/findings.ts`) read the traceability graph and call no model; the agent fixes drift and adds test links as two commits. The old `spec_drift` and `spec_coverage_backfill` ticks are gone (2026-10-02, FR16.6), with `gap_detection` and `spec_coverage_validate`: nothing starts a detection line on Lore's own Floor
 - **Implementation loop on the external floor** (`specs/external-floor` FR12/FR13, 2026-10-01) — `libs/assembly-lines/src/floor-pipelines/implementation-loop.yaml` (`dod → open-pr → tdd-round ⇄ await-ci → ready-for-review → mark-ready → await-pr ⇄ fix-ci`); the driver is shared code in `libs/shared/src/work/backlog/` (`implementation-loop-tick.ts` picks, `floor-loop.ts` starts, `loop-run-closed.ts` + `loop-infra-deferral.ts` settle and defer). With a floor configured the stations service runs the tick (`apps/stations/src/work/loop-tick/`) and settles tickets in the `run-settled` station (`apps/stations/src/code-review/run-settled/loop-closed.ts`); The old Floor's own wiring of it went with `apps/floor`. A loop run is keyed on `backlog:tickets` (one ticket per repo), not on its task. **A plan's tasks run on the same loop, as tickets** (`specs/external-floor` FR15.0, 2026-10-07): the spec-task executor that dispatched them itself — a second tick with no per-repo opt-in — is deleted, and the `issues` station files each task issue with a priority label instead, so the backlog loop queues it one at a time and only where the loop is switched on (`specs/7-feature-planning` FR-11.13)
 - **No node stations and no station pod image** (deleted 2026-10-02): the `lore-station` image, its CLI and the node stations only the old walk dispatched (`detect`, `ingest`, `validate`, `retrospective`, `feature-review`, `pr-review`, `ci-check`) are gone, with the `approval-check` sweep. `apps/stations/src/work/` is one folder per sweep; Lore's floor stations live beside it (`code-review/`, `planning/`, `merge/`, `onboard/`, `implementation-loop/`, `spec-upkeep/`, `digest/`). The issue-filing and merge-step logic sits with the floor stations that use it (`planning/file-issues/`, `merge/merge-step/`)
-- `apps/stations/src/work/merge-check/spec-status-flip.ts` — the **spec-status-upkeep FR1** hook (`specs/spec-status-upkeep/`), **DORMANT since 2026-10-07**: it fires when a merged `spec-task` leaves no unmerged siblings in its `task_group_id` (via `taskQueue().countUnmergedInGroup`), and nothing writes a spec-task or a group any more, so the gate never passes and no flip PR is opened. Kept until a lint rule replaces it (#2589). The pure `decideSpecStatusFlip()` gate reads the spec path the task carries in `context_bundle.spec_path` (stamped by the `issues` station from the planning line's `spec_path` arg, which the Floor derives from `spec-plan.json`) and `openSpecStatusFlipPr` (`@re-cinq/lore-shared`) opens a deterministic one-line `lore-managed`+`spec-status-upkeep` PR flipping the spec's `| Status |` row to `Implemented` (mirrors the spec-coverage-backfill PR plumbing; `rewriteSpecStatusRow` is the idempotent pure rewriter). No LLM. Human-review PRs (no auto-merge wiring). FR2 (weekly `status-staleness` detect line) is a pending follow-up
 - **Plans** (ADR-047, `specs/7-feature-planning/`) — a feature is planned as a plan people and the planning agent write together, hosted by lore-api through the [planning-station](https://github.com/re-cinq/planning-station) packages (git deps on its `*-dist-v*` tags; the repo is public). `apps/lore-api/src/app/register-planning.ts` mounts `@re-cinq/planning-sync` (`/api/plans/*` + the `/api/plans/collab` WebSocket) with `pgPlanStore` (`outbound/plans/plan-store-pg.ts`, `lore.plans`/`plan_state`/`plan_versions`) and DB-backed collab tokens (`work/plans/collab-tokens.ts`); its `onApproved` hook resumes the planning line. Lore's own routes (`transport/routes/plans/plans.ts`): list, collab-token, `drafting`, `refine`. The `feature-planning` assembly line keys on `args.plan_id` (`planSubject`), and it runs on the external floor, where its agent edits the plan through `lore_plan_edit`. web-ui: `app/repos/[owner]/[repo]/plans/` mounts `@re-cinq/planning-editor` on a `plan` channel of the tab's one live socket (`LORE_WS_URL`, ADR-048), built with `transportFor` + Hocuspocus's `WebSocketPolyfill` seam (`src/lib/live-socket/channel-websocket.ts`). lore-api runs ONE replica while plans are live in it. `lore.features` is gone (migration 0088)
 - **No escalation line** (deleted 2026-10-01, #2330): the two-node `file-issue → notify` line, its `escalation-step` station and the `escalation_step` node type are gone, having never run in production. The implementation loop comments on its own tickets (`libs/shared/src/work/backlog/loop-run-closed.ts`)
 - `libs/shared/src/domain/models/` — **the single source of truth for every persisted shape**. One file per entity: a Zod schema, the type inferred from it, and a `ColumnMap` binding each camelCase field to the snake_case column that stores it. Adapters build their SELECT lists with `selectList()` and map rows with `fromRow()`; API contracts derive their stored fields with `wireSchema()`, so one declaration reaches from the column to the generated web-ui type. `models.test.ts` discovers the folder rather than taking a registry, and FAILS on a table model whose schema will not resolve
+- **Utopia mirror** (ADR-052, `specs/utopia-graph-mirror/`) — every spec and ADR the delta route ingests is also pushed into the repo's Utopia knowledge base as Document → Section → Statement → Test / SourceFile / Adr, each statement with its `text` (links stripped, ≤4,000 chars) and each section and document with its heading, so Utopia's search and chat read the prose (code is linked, never copied): `libs/shared/src/domain/utopia/doc-statements.ts` builds the items (pure), `libs/shared/src/outbound/utopia/utopia-client.ts` pushes them (`UTOPIA_API_URL`, chart `utopia.enabled`), `apps/lore-api/src/work/utopia/` pushes when the repo's `settings.utopia` names a source whose key `lore.utopia_sources` holds (migration 0109, `apps/lore-api/src/outbound/utopia-sources.ts`; the key is never in settings, which read routes serve, and only the `lore` role reads it); a failed mirror is logged and counted (`lore_utopia_mirror_failures_total`), never an ingest failure. The default branch's commits (`utopia-commits.ts`, cursor `commits_head`, posted on `github.push`) and every issue and pull request (`utopia-tracker.ts`, cursor `tracker_since`, posted on `github.tracker.changed`, `POST /api/repos/:o/:r/utopia/tracker`) are walked into the same base, and every tag and published release is pushed there on `github.release.changed` (`utopia-releases.ts`, `POST /api/repos/:o/:r/utopia/releases`) `POST /api/repos/:o/:r/utopia/setup` (admin, a person's Utopia session token + workspace id) creates the KB, imports `libs/shared/src/domain/lore-ontology.ttl`, binds the kind words, saves the key to `lore.utopia_sources` and the ids to settings; with `UTOPIA_TOKEN` (a Utopia write PAT, `utp_pat_…`, of the Lore person, GSM `lore-utopia-lore-api-token`) and `UTOPIA_WORKSPACE_ID` set (terraform `enable_utopia_auto_setup` + `utopia_lore_workspace_id`, needs deeplethe/utopia#1244), a repo's first spec/ADR ingest runs the same setup itself (`work/utopia/utopia-auto-setup.ts`, one setup per repo per process; a failed setup is a failed mirror), and re-imports the ontology into a base whose `settings.utopia.ontology_version` is below `LORE_ONTOLOGY_VERSION` before pushing (a failed upgrade is counted, the push still goes). `POST /api/repos/:o/:r/utopia/backfill` (admin) mirrors every spec and ADR at the default branch's head; the stations sweep `utopia-backfill-tick` (`cron.utopia_backfill.tick`, Sundays 02:30 UTC, delivery held 12 h) posts it for every onboarded repo one at a time over `node:http` with a 30-minute wait (fetch gives up after 5 minutes without headers), skips a 409 repo and stops on a 503
 - `libs/shared/src/lib/path-match.ts` — `allPathsMatch()` minimatch wrapper; returns true only when **every** changed path matches at least one allowlist glob
 - `libs/shared/src/domain/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
 - `libs/shared/src/domain/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `formatValidatesTrailer()` / `parseValidatesTrailers()` exported via `@re-cinq/lore-shared`. (There is no `lastStageOnBranch()`: the branch-trailer resume it belonged to was retired with the in-process walk, and nothing replays `pipeline.station_runs` any more: a run's position is the floor's to answer.) Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
@@ -143,7 +148,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/outbound/llm/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
 - `apps/stations/src/work/consolidation/consolidation.ts` — the nightly fact consolidation (pattern extraction), a stations sweep posted to by a courier; importance decay is its sibling sweep `importance-decay`
 - `libs/server-core/src/outbound/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
-- `scripts/context-evals/` + `.github/workflows/context-evals.yml` — the nightly context evals (`specs/context-evals`): for every onboarded repository the runner samples 20 ingested ADRs and specs and posts each to lore-api's `POST /api/context-evals`, which writes a question from the document, assembles the context an agent would get, and reports found, answered and useful share. The job fails a repository under 85% found-and-answered. No question file, no stored baseline, no model key in CI: the model is `Llm.for("eval")` in lore-api (Vertex by chart value)
+- `scripts/context-evals/` — the context evals (`specs/context-evals`), run from a developer machine, never on a schedule: for every onboarded repository the runner samples 20 ingested ADRs and specs and posts each to lore-api's `POST /api/context-evals`, which writes a question from the document, assembles the context an agent would get, and reports found, answered and useful share. A run fails a repository under 85% found-and-answered. No question file, no stored baseline, no model key on the machine: the model is `Llm.for("eval")` in lore-api (Vertex by chart value)
 
 ## Test Interface (project-test-interface)
 
@@ -334,9 +339,10 @@ free.
 To run the full stack on your machine instead, `npm start` from the
 repo root runs `scripts/dev-local.sh`: it brings up a docker Postgres
 (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds
-`shared`→`mcp-server`→`agent`, then runs all four components under
-`concurrently` with live reload. Ports: web-ui `:3000`, mcp-server
-`:3001`, agent `:8080`, Postgres `:5432`. `npm run db:up` / `db:down`
+`shared`→`assembly-lines`→`stations`→`server-core`→`lore-api`→`mcp-server`,
+then runs lore-api, stations, the skills gateway and web-ui under
+`concurrently` with live reload. Ports: web-ui `:3000`, lore-api `:3001`,
+skills gateway `:3002`, stations `:3004`, Postgres `:5432`. `npm run db:up` / `db:down`
 manage the Postgres container on their own; `npm run db:schema` applies
 the schema DDL. `scripts/infra/setup-local-schema.sh` bootstraps the
 `lore`/`lore_ui` roles, the pgvector extension, and all schemas by
@@ -369,6 +375,7 @@ Five service workloads on GKE (one umbrella chart, `lore-platform`, spanning a n
 - lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
 - stations (service stations, `POST /api/stations/{name}`): `lore-stations` namespace
 - Web UI: `lore-ui` namespace
+- Utopia (deeplethe/utopia, behind `enable_utopia`): `utopia` namespace, its own CNPG database, data disk and oauth2-proxy Google gate (`infra/terraform/utopia.tf`); an application beside Lore, not part of it
 - Agents run in pods of the external floor (its own controller and cluster agent, namespace `floor`): Lore's `ai-agents` controller and its cluster agent were removed on 2026-10-02
 
 All secrets managed by External Secrets Operator (ESO) pulling from
@@ -502,11 +509,17 @@ memory (session-tracker.ts). On exit, dumps to
 `/api/session-summary` for automatic episode + fact extraction.
 No agent cooperation needed.
 
-**Post-task auto-curation**: After every task completion (PR created,
-no-changes, failure), an episode is automatically written via
-`episode-writer.ts`. For high-signal events (PRs, failures), Haiku
-extracts a "lesson learned" and stores it as a memory entry
-(`auto-curation/{ref}`).
+**Post-run episodes**: when a floor run settles, the `run-settled` station
+posts one episode to `POST /api/session-summary` (agent `floor/<line>`): the
+run's line, repository, outcome, reason and pull request, then what each agent
+visit produced (a blob read as its output's result text) or its error, each
+value cut at 1,000 characters and the episode at 4,000
+(`apps/stations/src/code-review/run-settled/run-episode.ts`, `specs/external-floor`
+FR5.10). The route stores it and extracts its facts and graph entities. A
+cancelled run and a run no agent worked on write nothing. The old Floor's
+per-run episode went with `apps/floor` on 2026-10-02 and nothing replaced it
+until 2026-10-16. `merge-check` still writes a curated episode for a PR closed
+without merge (`episode-writer.ts`).
 
 **Importance-based memory decay**: Daily job scores memories 0-10
 using half-life decay model (`strength = 0.5^(age / half_life_days)`).

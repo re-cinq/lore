@@ -40,6 +40,7 @@ function deps(overrides: Partial<LoopTickDeps> = {}) {
       columns.push(cols);
     },
     branchExists: async () => false,
+    branchMerged: async () => undefined,
     openPrForBranch: async () => null,
     openBlockers: async () => [],
   };
@@ -78,11 +79,6 @@ describe("createImplementationLoopTickHandler", () => {
           github_issue_number: 7,
           github_issue_url: "https://gh/acme/widgets/issues/7",
           branch: "lore/implementation-loop/issue-7",
-          line_args: {
-            pr_draft: true,
-            issue_number: 7,
-            issue_title: "Ticket 7",
-          },
         },
       },
     ]);
@@ -125,7 +121,9 @@ describe("createImplementationLoopTickHandler", () => {
   });
 
   it("skips the pick while its task is still active (mint-to-run gap)", async () => {
-    const d = deps({ activeTaskByIssue: async () => ({ id: "task-0" }) });
+    const d = deps({
+      activeTaskByIssue: async () => ({ id: "task-0", status: "queued" }),
+    });
 
     await createImplementationLoopTickHandler(d.deps)({});
 
@@ -184,50 +182,15 @@ describe("the ticket's branch", () => {
     });
   });
 
-  it("asks for a draft pull request, so twelve round-pushes get no review each", async () => {
+  it("hands no pull request to started when no branch exists yet", async () => {
     const d = deps();
 
     await createImplementationLoopTickHandler(d.deps)({});
 
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { pr_draft: true },
-    });
+    expect(d.started[0].openPr).toBeNull();
   });
 
-  it("seeds the issue number so the PR closes the ticket on merge", async () => {
-    const d = deps();
-
-    await createImplementationLoopTickHandler(d.deps)({});
-
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { issue_number: 7 },
-    });
-  });
-
-  it("seeds the ticket title so the draft PR is not titled after its branch", async () => {
-    const d = deps();
-
-    await createImplementationLoopTickHandler(d.deps)({});
-
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { issue_title: "Ticket 7" },
-    });
-  });
-
-  it("seeds no resume args when no branch exists yet", async () => {
-    const d = deps();
-
-    await createImplementationLoopTickHandler(d.deps)({});
-
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: { pr_draft: true },
-    });
-    expect(d.minted[0].contextBundle).not.toMatchObject({
-      line_args: { resumed_from_branch: true },
-    });
-  });
-
-  it("seeds line_args from the open pull request when the branch is being resumed", async () => {
+  it("hands pull request 77 to started when the branch is being resumed", async () => {
     const d = deps({
       branchExists: async () => true,
       openPrForBranch: async () => ({
@@ -238,12 +201,9 @@ describe("the ticket's branch", () => {
 
     await createImplementationLoopTickHandler(d.deps)({});
 
-    expect(d.minted[0].contextBundle).toMatchObject({
-      line_args: {
-        resumed_from_branch: true,
-        pr_number: 77,
-        pr_url: "https://gh/acme/widgets/pull/77",
-      },
+    expect(d.started[0].openPr).toEqual({
+      number: 77,
+      url: "https://gh/acme/widgets/pull/77",
     });
   });
 
@@ -272,6 +232,20 @@ describe("the ticket's branch", () => {
 
     expect(asked).toEqual(["lore/implementation-loop/issue-7"]);
   });
+
+  it("starts fresh when the branch is merged into base — the resumed run would push nothing new", async () => {
+    const d = deps({
+      branchExists: async () => true,
+      branchMerged: async () => true,
+      openPrForBranch: async () => null,
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0].contextBundle).not.toMatchObject({
+      line_args: { resumed_from_branch: true },
+    });
+  });
 });
 
 describe("a guarded head does not freeze the queue", () => {
@@ -280,11 +254,15 @@ describe("a guarded head does not freeze the queue", () => {
     issue(9, ["priority:medium"]),
   ];
 
-  it("skips a head whose task is completed-awaiting-merge and picks the next eligible ticket", async () => {
+  it("skips #5 while its completed task's pull request 77 is still open and picks #9", async () => {
     const d = deps({
       listIssues: twoTickets,
       activeTaskByIssue: async (_repo, n) =>
-        n === 5 ? { id: "done-task" } : null,
+        n === 5 ? { id: "done-task", status: "completed" } : null,
+      openPrForBranch: async (_repo, branch) =>
+        branch === "lore/implementation-loop/issue-5"
+          ? { number: 77, url: "https://gh/acme/widgets/pull/77" }
+          : null,
     });
 
     await createImplementationLoopTickHandler(d.deps)({});
@@ -294,11 +272,25 @@ describe("a guarded head does not freeze the queue", () => {
     ]);
   });
 
+  it("picks #302 when its only task is completed and its branch has no open pull request", async () => {
+    const d = deps({
+      listIssues: async () => [issue(302, ["priority:high"])],
+      activeTaskByIssue: async () => ({ id: "6e5db2fc", status: "completed" }),
+      openPrForBranch: async () => null,
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted).toMatchObject([
+      { contextBundle: { github_issue_number: 302 } },
+    ]);
+  });
+
   it("says why when every eligible ticket is guarded, instead of exiting silently", async () => {
     const lines = await loggedLines(async () => {
       const d = deps({
         listIssues: twoTickets,
-        activeTaskByIssue: async () => ({ id: "t" }),
+        activeTaskByIssue: async () => ({ id: "t", status: "running" }),
       });
 
       await createImplementationLoopTickHandler(d.deps)({});
@@ -420,6 +412,7 @@ describe("a ticket whose blockers are still open", () => {
         branch: "lore/implementation-loop/issue-7",
         issue: issue(7, ["priority:high"]),
         description: "Ticket 7",
+        openPr: null,
       },
     ]);
   });

@@ -1,3 +1,9 @@
+import type { IssueComment } from "../pulls/pull-requests-port.js";
+import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type {
+  ReleaseEntry,
+  TagEntry,
+} from "../../../domain/utopia/release-statements.js";
 /** GitHub port: structural subset of agent's CodePlatform. */
 
 export type IssueState = "open" | "closed";
@@ -57,6 +63,30 @@ export interface FileChange {
   message: string;
 }
 
+export interface BranchHistoryOptions {
+  /** The sha the walk stops at, exclusive; absent, the walk takes the newest `limit` commits. */
+  until?: string;
+  /** At most this many commits, the newest ones. */
+  limit: number;
+}
+
+export interface TrackerActivityOptions {
+  /** RFC 3339; only what was updated at or after it. Absent, everything. */
+  since?: string;
+  /** At most this many, the oldest updates first. */
+  limit: number;
+}
+
+/** One commit as GitHub tells it: the first line of its message is the subject, the rest the body. */
+export interface CommitDetail {
+  sha: string;
+  parents: string[];
+  subject: string;
+  body: string;
+  author: string;
+  authoredAt: string;
+}
+
 export interface GitHubPort {
   readonly name: string;
   isConfigured(): boolean;
@@ -71,12 +101,24 @@ export interface GitHubPort {
   listDirectory(repo: string, path: string): Promise<string[]>;
   listTree(repo: string, ref?: string): Promise<string[]>;
   getDefaultBranch(repo: string): Promise<string>;
+  branchHeadSha(repo: string, branch: string): Promise<string>;
   /** The author email of the login's newest commit in the repo, or null when it has none or hides its email behind GitHub's noreply address (the daily digest's Slack match). */
   commitEmailOf?(repo: string, login: string): Promise<string | null>;
-  listCommitsSince(
+  /** The newest `limit` commits of the branch above `until` (the whole branch without it), oldest-first. */
+  listBranchHistory(
     repo: string,
-    since: string,
-  ): Promise<Array<{ sha: string; files: string[] }>>;
+    branch: string,
+    opts: BranchHistoryOptions,
+  ): Promise<CommitDetail[]>;
+  /** The repo's issues and pull requests updated since `since`, oldest update first, at most `limit`: a cursor-driven walk resumes where the last one stopped. */
+  listTrackerActivity(
+    repo: string,
+    opts: TrackerActivityOptions,
+  ): Promise<TrackedEntry[]>;
+  /** The repo's published releases, drafts left out. */
+  listReleases(repo: string): Promise<ReleaseEntry[]>;
+  /** Every tag of the repo with the commit it points to. */
+  listTags(repo: string): Promise<TagEntry[]>;
   getIssueLabels(repo: string, number: number): Promise<string[]>;
   /** Numbers of the still-open issues linked as blocking this one. */
   listOpenBlockers(repo: string, number: number): Promise<number[]>;
@@ -102,12 +144,16 @@ export interface GitHubPort {
   ): Promise<void>;
   updateIssue(repo: string, number: number, edit: IssueEdit): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
+  listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
+  updateIssueComment(repo: string, id: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;
   removeIssueLabel(repo: string, number: number, label: string): Promise<void>;
   // API writes (no clone) — branch + single-file commit
   /** True when branch exists (octokit only; caller must not guess). */
   branchExists?(repo: string, branch: string): Promise<boolean>;
+  /** True when the branch head is already an ancestor of the base branch — every commit is on main, a resumed run can push nothing new. `undefined` when the adapter cannot say. */
+  branchMerged?(repo: string, branch: string): Promise<boolean | undefined>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */

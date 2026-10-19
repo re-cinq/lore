@@ -46,7 +46,7 @@ Runs `scripts/dev-local.sh`, which is unattended and re-runnable:
 
 1. Brings up Postgres (pgvector) and Dgraph from `infra/compose.yaml`, waiting on their healthchecks. Data persists in the git-ignored `.lore-pgdata/` and `.lore-dgraphdata/` bind mounts.
 2. Applies the schemas — `scripts/infra/setup-local-schema.sh` for Postgres, then the two Dgraph schema scripts.
-3. Installs `apps/web-ui` dependencies on first run, builds `libs/shared` → `libs/assembly-lines` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server` → `apps/floor`, then runs everything under `concurrently` with live reload.
+3. Installs `apps/web-ui` dependencies on first run, builds `libs/shared` → `libs/assembly-lines` → `apps/stations` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server`, then runs everything under `concurrently` with live reload.
 
 Ports:
 
@@ -55,11 +55,11 @@ Ports:
 | web-ui | `:3000` |
 | Lore API | `:3001` |
 | skills registry (mcp-server in HTTP-gateway mode) | `:3002` |
-| Floor | `:8080` |
+| stations | `:3004` |
 | Postgres | `:5432` |
 | Dgraph — HTTP / gRPC | `:8081` / `:9080` |
 
-Dgraph's HTTP port is published as `:8081` so it never collides with the Floor's `:8080`. The stdio MCP server (`apps/mcp-server`) is built here but launched on demand by Claude Code, not run as a daemon; the `:3002` entry is that same adapter in gateway mode, serving the skills bundle a run pod fetches at startup.
+The stdio MCP server (`apps/mcp-server`) is built here but launched on demand by Claude Code, not run as a daemon; the `:3002` entry is that same adapter in gateway mode, serving the skills bundle a run pod fetches at startup.
 
 Agent runs need a floor: the local stack starts none, so point `FLOOR_API_URL` and `FLOOR_SERVICE_TOKEN` at a running [floor](https://github.com/re-cinq/floor) to execute lines. The minikube path that ran agents through Lore's own cluster agent was removed on 2026-10-02.
 
@@ -116,9 +116,9 @@ Optionally set `GITHUB_ALLOWED_ORG` in the same file to restrict login to one or
 ```
 lore/
 ├── apps/                       # deployable services
-│   ├── floor/                  # Floor — coordinator runtime (drain loop, AssemblyRun walk, dispatch, SSE)
+│   ├── agent-image/            # The lore-agent image agent pods run (build-agent-image.yml)
 │   ├── lore-api/               # Remote REST backend (/api/*) on GKE — DB / GitHub / GCS / tree-sitter
-│   ├── stations/               # Service stations + the lore-station pod image (one non-agent node per pod)
+│   ├── stations/               # Service stations, the cron ticks + event drain, Lore's floor stations
 │   ├── mcp-server/             # Local stdio MCP adapter (+ the in-cluster lore-mcp HTTP gateway)
 │   ├── lore-code-trace/        # Go binary — runs a repo's test suite in CI and posts the trace
 │   ├── web-ui/                 # Next.js dashboard (repo-centric UI, GitHub OAuth)
@@ -126,7 +126,7 @@ lore/
 ├── libs/                       # shared libraries (consumed by apps)
 │   ├── shared/                 # @re-cinq/lore-shared — chunker, redact, Project facade, types
 │   ├── server-core/            # @re-cinq/lore-server-core — light business logic shared by both deployables
-│   └── assembly-lines/         # @re-cinq/lore-assembly-lines — assembly-line loader, graph, node outcomes
+│   └── assembly-lines/         # @re-cinq/lore-assembly-lines — floor pipeline files + shared station parsers
 ├── infra/                      # deploy & runtime
 │   ├── terraform/modules/      # Terraform + the `lore-platform` umbrella Helm chart (5 subcharts:
 │   │                           #   lore-api / lore-mcp / stations / ui / lore-db)
@@ -137,12 +137,12 @@ lore/
 ├── runbooks/                   # Incident & operational runbooks
 ├── teams/                      # Per-team CLAUDE.md overrides
 ├── docs/                       # Guides (using-lore, building-lore)
-└── .github/workflows/          # CI: build + push containers for Floor, Lore API, MCP, station, UI
+└── .github/workflows/          # CI: build + push containers for Lore API, MCP, stations, UI, agent image
 ```
 
-npm workspaces cover `libs/*` and the TypeScript apps (`floor`, `lore-api`, `stations`, `mcp-server`, `vscode-extension`) — the root `package.json` names each one explicitly rather than globbing `apps/*`. `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module. (There is no `apps/lore-station` directory — the `lore-station` pod image builds from `apps/stations`'s `Dockerfile.pod`.)
+npm workspaces cover `libs/*` and the TypeScript apps (`lore-api`, `stations`, `mcp-server`, `vscode-extension`) — the root `package.json` names each one explicitly rather than globbing `apps/*`. `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module.
 
-Each app and library carries its own README with its responsibilities, boundaries, and deploy facts: `floor`, [`lore-api`](../../apps/lore-api/README.md), [`stations`](../../apps/stations/README.md), [`mcp-server`](../../apps/mcp-server/README.md), [`lore-code-trace`](../../apps/lore-code-trace/README.md), [`web-ui`](../../apps/web-ui/README.md), [`vscode-extension`](../../apps/vscode-extension/README.md), [`libs/shared`](../../libs/shared/README.md), [`libs/assembly-lines`](../../libs/assembly-lines/README.md), [`libs/server-core`](../../libs/server-core/README.md).
+Each app and library carries its own README with its responsibilities, boundaries, and deploy facts: [`lore-api`](../../apps/lore-api/README.md), [`stations`](../../apps/stations/README.md), [`mcp-server`](../../apps/mcp-server/README.md), [`lore-code-trace`](../../apps/lore-code-trace/README.md), [`web-ui`](../../apps/web-ui/README.md), [`vscode-extension`](../../apps/vscode-extension/README.md), [`libs/shared`](../../libs/shared/README.md), [`libs/assembly-lines`](../../libs/assembly-lines/README.md), [`libs/server-core`](../../libs/server-core/README.md).
 
 ## Tech stack
 

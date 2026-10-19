@@ -10,10 +10,12 @@ import {
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { PRIORITY_LABELS } from "@re-cinq/lore-shared";
 import { ticketHold } from "@re-cinq/lore-shared/backlog/ticket-hold.js";
+import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import {
   miniPipeline,
   type PipelineNode,
 } from "../../../work/assembly-line-station/mini-pipeline.js";
+import type { FloorRunReads } from "../../../work/floor/floor-backed-runs.js";
 import type { Ticket } from "./backlog-schema.js";
 
 // The implementation-loop task fields the backlog view reads, picked from the pipeline.tasks wire contract.
@@ -98,9 +100,10 @@ export interface WaitingContext {
   openBlockers: ReadonlyMap<number, number[]>;
   taskRows: readonly LoopTaskRow[];
   runByTask: ReadonlyMap<string, LoopRunRow>;
+  nodeRows: readonly NodeRow[];
 }
 
-/** A ticket read from its issue: `queued` when the picker will take it, `parked` when it will not. The pull request and run of its newest attempt ride along, since that is where its reader goes next. */
+/** A ticket read from its issue: `queued` when the picker will take it, `parked` when it will not. The pull request, run and Stages of its newest attempt ride along, since that is where its reader goes next. */
 export function waitingTicket(
   issue: IssueRef,
   state: "queued" | "parked",
@@ -118,7 +121,7 @@ export function waitingTicket(
       openBlockers: context.openBlockers.get(issue.number) ?? [],
       lastAttempt: last && attemptOf(last, run),
     }),
-    pipeline: null,
+    pipeline: pipelineOf(run, context.nodeRows),
   };
 }
 
@@ -221,4 +224,86 @@ export async function fetchRunContext(
   ]);
 
   return { taskRuns, nodeRows };
+}
+
+/** A task's run and node visits read straight from the floor, for a task Postgres has no row for: every implementation-loop run has lived there since ADR-049, and `pipeline.assembly_runs` only holds the ones Lore's own retired engine walked. Callers try Postgres first (above) and call this only on a miss, so a floor-out-of-reach error costs one task its pipeline, not the whole page. */
+export async function floorRunContext(
+  floor: FloorRunReads,
+  repo: string,
+  taskId: string,
+): Promise<{ run: LoopRunRow; nodeRows: NodeRow[] } | null> {
+  const summary = (
+    await floor.listSummaries({ repo, taskId, blueprintName: LOOP_LINE })
+  ).at(0);
+
+  if (!summary) {
+    return null;
+  }
+  const run = await floorLoopRun(floor, summary, taskId);
+
+  return run.graph?.nodes
+    ? { run, nodeRows: await floorNodeRows(floor, run.id) }
+    : { run, nodeRows: [] };
+}
+
+async function floorLoopRun(
+  floor: FloorRunReads,
+  summary: { id: string; status: string; reason: string | null },
+  taskId: string,
+): Promise<LoopRunRow> {
+  const record = await floor.getById(summary.id);
+
+  return {
+    id: summary.id,
+    task_id: taskId,
+    status: summary.status,
+    reason: summary.reason,
+    graph: record?.graph ?? null,
+  };
+}
+
+async function floorNodeRows(
+  floor: FloorRunReads,
+  runId: string,
+): Promise<NodeRow[]> {
+  const visits = await floor.listStationRuns(runId);
+
+  return visits.map((visit) => ({
+    assembly_run_id: runId,
+    node_id: visit.nodeId,
+    iteration: visit.iteration,
+    outcome: visit.outcome,
+  }));
+}
+
+/** Every task Postgres had no run for, tried on the floor; a hit is folded into `runByTask` in place and its node rows handed back for the caller to merge in. */
+export async function fillFromFloor(
+  floor: FloorRunReads,
+  repo: string,
+  missing: readonly LoopTaskRow[],
+  runByTask: Map<string, LoopRunRow>,
+): Promise<NodeRow[]> {
+  const found = await Promise.all(
+    missing.map((t) => floorRunContext(floor, repo, t.id)),
+  );
+
+  return mergeFloorFinds(found, missing, runByTask);
+}
+
+function mergeFloorFinds(
+  found: ReadonlyArray<{ run: LoopRunRow; nodeRows: NodeRow[] } | null>,
+  missing: readonly LoopTaskRow[],
+  runByTask: Map<string, LoopRunRow>,
+): NodeRow[] {
+  const extraNodeRows: NodeRow[] = [];
+
+  found.forEach((result, at) => {
+    if (!result) {
+      return;
+    }
+    runByTask.set(missing[at].id, result.run);
+    extraNodeRows.push(...result.nodeRows);
+  });
+
+  return extraNodeRows;
 }

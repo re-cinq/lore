@@ -13,6 +13,7 @@ import { InMemoryAgentRunEvents } from "../agent-run-events/agent-run-events-mem
 import { InMemoryDigestPosts } from "../digest-posts/digest-posts-memory.js";
 import { InMemoryPodLogs } from "../pod-logs/pod-logs-memory.js";
 import { InMemoryAgentRunTurns } from "../agent-run-turns/agent-run-turns-memory.js";
+import { InMemoryPrBlockedReasons } from "../pr-blocked-reasons/pr-blocked-reasons-memory.js";
 import type { PipelineRepositories } from "./pipeline-repositories.js";
 
 /** An all-doubles bundle; `overrides` swaps one field without losing the others. */
@@ -32,6 +33,7 @@ export function createInMemoryPipelineRepositories(
     podLogs: new InMemoryPodLogs(),
     agentRunTurns: new InMemoryAgentRunTurns(),
     digestPosts: new InMemoryDigestPosts(),
+    prBlockedReasons: new InMemoryPrBlockedReasons(),
     ...overrides,
   };
 }

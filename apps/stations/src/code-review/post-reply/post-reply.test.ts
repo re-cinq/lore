@@ -58,7 +58,8 @@ function fakePoster(existing: Existing = {}) {
     },
     listComments: async () => existing.reviewComments ?? REVIEW_99,
     listIssueComments: async () =>
-      (existing.issueBodies ?? []).map((body) => ({
+      (existing.issueBodies ?? []).map((body, index) => ({
+        id: index + 1,
         user: "alice",
         created_at: "2026-09-30T10:00:00Z",
         body,

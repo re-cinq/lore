@@ -10,11 +10,14 @@ import { reposRoute } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
+import { utopiaRoutes } from "./routes/repos/utopia-routes.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
 import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
+import { autoMergeKpisRoute } from "./routes/repos/auto-merge-kpis.js";
+import { triageRoute } from "./routes/triage/triage.js";
 import { contextRoute } from "./routes/context/context.js";
 import { contextEvalRoute } from "./routes/context-evals/context-evals.js";
 import { contextEvalDocumentsRoute } from "./routes/context-evals/context-eval-documents.js";
@@ -51,6 +54,7 @@ import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
 import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
+import { blockedReasonsRoutes } from "./routes/blocked-reasons.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
 import { githubWebhookRoute } from "./routes/webhooks/webhook-github.js";
 import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
@@ -97,6 +101,18 @@ import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
 import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
 import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
+import { floorRunBlob, runBlobRoute } from "./routes/floor/run-blob.js";
+import {
+  blobPreviewsRoute,
+  floorBlobPreviews,
+} from "./routes/floor/blob-previews.js";
+import { floorRunBag, runBagRoute } from "./routes/floor/run-bag.js";
+import {
+  floorVisitEvents,
+  floorVisitModelCalls,
+  visitEventsRoute,
+  visitModelCallsRoute,
+} from "./routes/floor/visit-reads.js";
 import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
@@ -125,7 +141,7 @@ export function routeList(
 /** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review and the stations the run page starts. */
 function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    floorGitCredentialRoute(),
+    floorGitCredentialRoute(getPool),
     reviewStartRoute(),
     runNodeRoute(),
     upgradeStateRoute(),
@@ -148,7 +164,7 @@ function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** A repo and what Lore knows about it: its record, its settings, and the context and graph read off it. */
+/** A repo and what Lore knows about it: its record, its settings, and its external state. */
 function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     repoStatusRoute(getPool),
@@ -156,17 +172,28 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     repoRecordRoute(),
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
+    ...utopiaRoutes(getPool),
     prStatusRoute(),
     pullFilesRoute(),
     ciFailuresRoute(),
     ciJobLogRoute(),
     issueRoute(),
+    autoMergeKpisRoute(getPool),
+    triageRoute(),
+    onboardRoute(getPool),
+    ...blockedReasonsRoutes(getPool),
+    ...contextAndGraphRoutes(getPool),
+  ];
+}
+
+/** The context, evaluation, and graph read off a repo. */
+function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     contextRoute(getPool),
     contextEvalRoute(getPool),
     contextEvalDocumentsRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
-    onboardRoute(getPool),
   ];
 }
 
@@ -287,7 +314,7 @@ function traceRoutes(): ServerRoute[] {
   ];
 }
 
-/** A run's turns, events and node logs, answered from Postgres for a run it has and from the external floor otherwise. */
+/** A run's turns, events, node logs, the blobs it references and its bag, answered from Postgres for a run it has and from the external floor otherwise. */
 function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
   const stored = storedRunHistoryOf(getPool);
 
@@ -295,5 +322,10 @@ function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
     runTurnsRoute(turnPageReader(stored)),
     runEventsRoute(eventPageReader(stored)),
     nodeLogsRoute(nodeLogsReader(stored)),
+    runBlobRoute(floorRunBlob),
+    blobPreviewsRoute(floorBlobPreviews),
+    runBagRoute(floorRunBag),
+    visitModelCallsRoute(floorVisitModelCalls),
+    visitEventsRoute(floorVisitEvents),
   ];
 }

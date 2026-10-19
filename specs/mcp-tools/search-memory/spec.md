@@ -22,7 +22,7 @@ only currently-valid facts by default while still allowing historical lookups.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L162)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L177)).
 
 - **name**: `lore_search_memory`
 - **description** (verbatim):
@@ -108,7 +108,7 @@ A single MCP text content block. Pretty-printed JSON array of
 
 - `isMemoryDbAvailable()`, `getPool()`.
 - Engine `searchMemories` ([memory-search.ts](../../../libs/shared/src/outbound/project/knowledge/memory-search.ts)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `searchMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L16)); `searchMemoryFile` (offline).
 - Tables: `memory.memories`, `memory.facts`, `memory.shared_pools`, `memory.entities`, `memory.edges` (reads); `memory.facts` / `memory.memories` (retrieval-strengthening updates); `memory.audit_log` (insert, `operation='search'`).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
@@ -128,6 +128,15 @@ A single MCP text content block. Pretty-printed JSON array of
    starts at 0.5, adds 0.15 per portable keyword and subtracts 0.15 per local
    keyword, clamped to `[0, 1]` — so portable-rich text scores above the 0.5
    passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/work/context/transfer-score.test.ts#L35), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/work/context/transfer-score.test.ts#L57), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/work/context/transfer-score.test.ts#L65))
+
+6. *(added 2026-10-16, ADR-052 amendment "reads choose a backend")* An optional
+   `backend` param (`lore`, `utopia`, `both`) is sent with the `search` action of
+   `POST /api/memory`; with no API configured, `utopia` and `both` are refused
+   rather than answered from the local file store. ([validated by forwards backend both to POST /api/memory and prints the API's answer](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L417), [validated by refuses backend utopia instead of searching the local file store when no API is configured](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L441))
+
+7. The `search` action answers `utopia` with `{ results: [], notes: ["search_memory: no Utopia reader yet"] }` without searching Lore, `both` with Lore's hits and that note, and an unknown backend with 400; a Lore search answers the bare hit list as before. ([validated by answers no hits and a no-reader note for backend utopia, without searching Lore](apps/lore-api/src/transport/routes/memory/memory.test.ts#L474), [validated by answers Lore's hits plus the no-reader note for backend both](apps/lore-api/src/transport/routes/memory/memory.test.ts#L487), [validated by returns 400 for a search backend of dgraph](apps/lore-api/src/transport/routes/memory/memory.test.ts#L498))
+
+8. Both search routes share one rule: Lore's hits unless only Utopia was asked for, plus a note for the source while Utopia has no reader for it. ([validated by returns Lore's hits and no notes for backend lore](libs/shared/src/domain/knowledge-backend.test.ts#L21), [validated by returns no hits and a no-reader note for backend utopia, never reading Lore](libs/shared/src/domain/knowledge-backend.test.ts#L28), [validated by returns Lore's hits plus the no-reader note for backend both](libs/shared/src/domain/knowledge-backend.test.ts#L39))
 
 ## Out of Scope
 

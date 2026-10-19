@@ -1,4 +1,3 @@
-import type { PipelineTask } from "../../../domain/types.js";
 import { enforceTrue } from "../../../lib/enforce.js";
 import {
   PIPELINE_TASK_COLUMNS,
@@ -108,9 +107,6 @@ export type ReviewableTask = TaskColumn<
 
 /** Org-wide task-queue mechanics over pipeline.tasks (claim, crash-recovery/staleness sweeps, spec-task DAG dispatch); single-sourced from inline Floor-job SQL. Repo-scoped task record ops stay on project.tasks. */
 export interface TaskQueueRepository {
-  /** Next runnable pending task (immediate-priority first, then oldest; 30s grace before a normal task is eligible, so a local runner can claim first); null if none. */
-  claimNextPending(): Promise<PipelineTask | null>;
-
   /** running/queued tasks idle past `maxAgeMinutes` (default 30) — recovery candidates. */
   findRecoverable(maxAgeMinutes?: number): Promise<RecoverableTask[]>;
 
@@ -159,11 +155,11 @@ export interface TaskQueueRepository {
     prNumber: number,
   ): Promise<{ id: string } | null>;
 
-  /** The active task id for a repo + issue (status NOT IN failed/cancelled/retried; a completed task guards, since its pull request still awaits review), or null. */
+  /** The newest task for a repo + issue that is not failed, cancelled or retried, with its status, or null. A settled one holds the ticket only while its pull request is open (`taskHoldingTicket`). */
   activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null>;
+  ): Promise<{ id: string; status: string } | null>;
 
   /** Flip merged: feature-request tasks on a branch still in pr-created/review → merged. */
   markFeatureRequestMergedOnBranch(repo: string, branch: string): Promise<void>;

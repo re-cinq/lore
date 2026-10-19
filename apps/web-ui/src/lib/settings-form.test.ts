@@ -89,4 +89,28 @@ describe("parseSettingsForm", () => {
     expect("slack_channel_id" in result).toBe(false);
     expect("dispatch_label" in result).toBe(false);
   });
+
+  it("treats auto_merge_approver none as a change when there is no prior saved value", () => {
+    expect(
+      parseSettingsForm(form({ auto_merge_approver: "none" })).auto_merge,
+    ).toEqual({ approver: "none" });
+  });
+
+  it("omits auto_merge when auto_merge_approver is not a known approver", () => {
+    expect(
+      "auto_merge" in parseSettingsForm(form({ auto_merge_approver: "bob" })),
+    ).toBe(false);
+  });
+
+  it("omits auto_merge when auto_merge_approver lore-reviewer equals the saved approver", () => {
+    expect(
+      "auto_merge" in
+        parseSettingsForm(
+          form({
+            auto_merge_approver: "lore-reviewer",
+            auto_merge_approver_saved: "lore-reviewer",
+          }),
+        ),
+    ).toBe(false);
+  });
 });

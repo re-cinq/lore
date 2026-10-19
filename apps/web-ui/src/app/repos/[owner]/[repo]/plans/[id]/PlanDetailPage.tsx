@@ -1,22 +1,17 @@
 import { notFound } from "next/navigation";
 import { planMetaSchema, type PlanMeta } from "@re-cinq/planning-document";
 import { readPlan } from "@/lib/api/plans";
-import { fetchPrStatus, type PrStatus } from "@/lib/api/pr-status";
-import {
-  fetchAssemblyRunNodes,
-  fetchPlanRun,
-  type AssemblyRun,
-} from "@/lib/assembly-runs";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
+import { planRunFor } from "./plan-run-facts";
 import PlanDetailStory from "./PlanDetailStory";
-import type { PlanRun } from "./PlanRunCard";
 import {
   approvePlanAction,
   deletePlanAction,
   draftAgainAction,
   openPlanSocketAction,
   refinePlanAction,
+  refreshPlanRunFactsAction,
   reopenPlanAction,
   retrySpecWorkAction,
   reworkSpecsAction,
@@ -54,6 +49,7 @@ function boundActions(fullName: string, id: string) {
     reworkSpecs: reworkSpecsAction.bind(null, fullName, id),
     validate: validatePlanAction.bind(null, fullName, id),
     deletePlan: deletePlanAction.bind(null, fullName, id),
+    refreshRunFacts: refreshPlanRunFactsAction.bind(null, fullName, id),
   };
 }
 
@@ -81,51 +77,4 @@ async function repoPlanMeta(
   }
 
   return planMetaSchema.parse(plan);
-}
-
-// The plan's planning run with its visits, or null before one has started.
-async function planRunFor(
-  repo: string,
-  planId: string,
-): Promise<PlanRun | null> {
-  const run = await fetchPlanRun(repo, planId);
-
-  if (!run) {
-    return null;
-  }
-  const [nodes, pr] = await Promise.all([
-    fetchAssemblyRunNodes(run.id),
-    run.prNumber ? fetchPrStatus(repo, run.prNumber) : null,
-  ]);
-
-  return { ...planRunOf(run), nodes, ...specPrFactsOf(pr) };
-}
-
-type SpecPrFacts = Pick<PlanRun, "prTitle" | "prUnresolvedThreads">;
-
-const UNASKED: SpecPrFacts = { prTitle: null, prUnresolvedThreads: null };
-
-// What GitHub said about the spec PR, or nothing when nobody could ask.
-function specPrFactsOf(pr: PrStatus | null): SpecPrFacts {
-  return pr
-    ? { prTitle: pr.title, prUnresolvedThreads: pr.unresolved_threads }
-    : UNASKED;
-}
-
-function planRunOf(
-  run: AssemblyRun,
-): Omit<PlanRun, "nodes" | "prTitle" | "prUnresolvedThreads"> {
-  const { id, status, outcome, reason, issueUrl, issueNumber } = run;
-
-  return {
-    id,
-    status,
-    outcome,
-    reason,
-    issueUrl,
-    issueNumber,
-    prUrl: run.prUrl,
-    prNumber: run.prNumber,
-    specPlanSummary: run.specPlanSummary ?? null,
-  };
 }

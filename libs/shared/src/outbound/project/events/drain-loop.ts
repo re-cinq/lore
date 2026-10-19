@@ -1,5 +1,6 @@
 /** The drain loop (layer 2): claim a batch, dispatch each event to its registered handler, transition the row. At-least-once. */
 
+import { recordBusDelivery } from "../../otel/metrics.js";
 import { decideRetry, retryBudgetOf } from "./retry.js";
 import type { EventDeliveryRow as EventRow } from "./event-deliveries-port.js";
 
@@ -155,6 +156,7 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
     // event_id, NOT id: `id` addresses the DELIVERY; a handler citing an event needs the event itself.
     await handler(ev.params ?? {}, { eventId: ev.event_id });
     await deps.markDone(ev.id);
+    recordBusDelivery(ev.event_name, "done");
   } catch (err) {
     await retryOrDeadLetter(deps, ev, err);
   }
@@ -173,6 +175,7 @@ async function retryOrDeadLetter(
 
   if (decision.kind === "retry") {
     await deps.markFailed(ev.id, message, decision.backoffSeconds);
+    recordBusDelivery(ev.event_name, "failed");
 
     return;
   }
@@ -189,4 +192,5 @@ async function deadLetter(
     `[events] dead-lettered ${ev.event_name} (delivery ${ev.id}, event ${ev.event_id}) after ${ev.attempts} attempt(s): ${reason}`,
   );
   await deps.markDead(ev.id, reason);
+  recordBusDelivery(ev.event_name, "dead");
 }

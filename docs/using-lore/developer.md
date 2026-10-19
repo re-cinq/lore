@@ -54,18 +54,18 @@ Say "run locally" and Claude Code spawns a background process in an isolated git
 
 ## Dispatch from a GitHub Issue
 
-Add a `lore` label to any Issue on an onboarded repo — or open one with the Lore issue template — and Lore creates a pipeline task from it, implements the change, and opens a PR linked back to the Issue. No UI, no CLI, no context switch.
+Add a `lore` label to any Issue on an onboarded repo, or open one with a Lore issue template, and the Issue joins the repo's backlog. The implementation loop works it, opens a PR, and links it back to the Issue. No UI, no CLI, no context switch. There is no task to create: the label is the whole opt-in.
 
 <p align="center"><img src="../../badges/flow4-issue.svg" width="600" alt="GitHub Issue dispatch" /></p>
 
-The label determines the task type:
+Two labels send an Issue to the backlog:
 
-- `lore` → the implementation loop's backlog (the issue gets `priority:medium` when it has no priority label), unless the repo sets another default type
-- `lore:implementation` → the implementation loop's backlog as well
-- `lore:review` → review task
-- `lore:runbook` → runbook task
+- `lore` (or the repo's own `dispatch_label` setting, when it sets one)
+- `lore:implementation`, which onboarding seeds on every repo
 
-Separate from the routing labels above, the implementation loop (`specs/implementation-loop/spec.md`) reads a priority taxonomy. These labels are a queue ordering, not a dispatch: applying one opts the issue into the repo's backlog loop when `implementation_loop.enabled` is on, and no second `lore` label is needed.
+Lore gives the Issue `priority:medium` when it carries no priority label yet, and comments to say it is queued. When the loop is switched off for the repo, the comment says so, and nothing picks the ticket up until the loop is switched on in the repo's settings.
+
+The implementation loop (`specs/implementation-loop/spec.md`) orders its backlog by a priority taxonomy. Applying a priority label also opts the issue into the backlog when `implementation_loop.enabled` is on, so no second `lore` label is needed.
 
 - `priority:high` → worked first
 - `priority:medium` → worked after every `priority:high`
@@ -74,37 +74,30 @@ Separate from the routing labels above, the implementation loop (`specs/implemen
 
 An issue carrying more than one `priority:*` label is skipped rather than resolved to the highest, so the ambiguity surfaces to a human.
 
-If an active task already exists for the Issue, Lore comments with the existing task ID instead of starting a duplicate. Issue templates ("Lore: Implementation", "Lore: Review", "Lore: General Task") are added during onboarding.
+A `lore:triage` or `triage: needs-triage` label starts issue triage instead.
+
+If a task is already working the Issue, Lore comments with that task's ID instead of queueing it again. Onboarding adds three issue templates ("Lore: Implementation", "Lore: Review", "Lore: General Task"); each one carries the `lore` label, so filing any of them queues the Issue for the loop.
 
 This requires a webhook on the repo — `POST https://LORE_EVENTS_DOMAIN/api/events` (the public URL the ingress rewrites onto lore-api's `POST /api/webhook/github`; `lore_onboard_repo` installs it) signed with the HMAC secret from `LORE_WEBHOOK_SECRET` — subscribed to:
 
 - **Issues** — label dispatch (above)
-- **Pull request** — spec-PR merge detection and review-reactor wake-up on sync/open/reopen
-- **Pull request review** — wakes the review reactor on `CHANGES_REQUESTED`
-- **Issue comment** — catches reviewer comments typed from mobile (GitHub routes these as Issue comments on the PR)
+- **Pull request** — starts the code review when a PR opens and the re-check after each push, when the repo has `auto_review` on
+- **Pull request review** — a request for changes from a trusted reviewer starts Lore's reply on the PR
+- **Issue comment** — comments on Issues and PRs (GitHub routes PR conversation comments as Issue comments)
 
-## Dispatch from Slack
+## Retry from Slack
 
-Type `/lore` in any Slack channel mapped to a repo:
+Slack's `/lore` command, in a channel mapped to a repo, does one thing: retry a failed task.
 
 ```
-/lore implementation add rate limiting to the API
-/lore general analyze our test coverage gaps
-/lore runbook database failover procedure
 /lore retry <task_id>
 ```
 
-Lore creates the task, runs the agent, and posts back to the same channel when a PR is created, when a task completes with a GitHub Issue, or when a task fails (with an error summary). You never leave Slack.
+It answers with the new task's ID. It creates no task from a description: implementation goes through the backlog (above), and features through a plan in the web UI.
 
 ## Track what Lore is doing
 
-Every pipeline task opens a GitHub Issue on the target repo labeled `lore-managed`, so Lore's work shows up in your normal GitHub notifications:
-
-- A task starts on your repo → Issue opened
-- The agent creates a PR → comment with the PR link, Issue closed
-- A task fails → Issue stays open with the `lore-failed` label
-
-Filter any repo with `label:lore-managed` to see all Lore activity at a glance.
+The issues Lore files when a plan is approved carry the `lore-managed` label (story issues also carry `user-story`), so Lore's work shows up in your normal GitHub notifications. Filter any repo with `label:lore-managed` to see them at a glance. The runs themselves are live on the web UI's **Assembly Runs** page and on each repo's **Assembly Runs** tab; a repo's **Backlog** tab shows the tickets the loop has queued.
 
 ## MCP tools available to Claude Code
 

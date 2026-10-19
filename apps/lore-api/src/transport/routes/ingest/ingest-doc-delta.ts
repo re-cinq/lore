@@ -1,9 +1,11 @@
 import { selectPruneCandidates } from "@re-cinq/lore-shared";
 import type { IngestDeltaDeps } from "./ingest-delta-deps.js";
+import { mirrorQuietly } from "./mirror-quietly.js";
 
-/** The part of a delta body a doc kind (specs, adrs) reads. */
+/** The part of a delta body a file kind (specs, adrs, code) reads. */
 export interface DocDelta {
   kind: string;
+  commit: string;
   files?: Array<{ path: string; content: string }>;
   deleted?: string[];
   present?: string[];
@@ -24,25 +26,98 @@ export async function applyDocDelta(
   ];
 
   await removeDocs(remove, repo, gone);
+  await mirrorDelta(deps, repo, delta, gone);
 
   return { projected, deleted: gone.length };
 }
 
-function docFunctions(
+const MIRRORED_KINDS: Partial<Record<string, "spec" | "adr">> = {
+  specs: "spec",
+  adrs: "adr",
+};
+
+/** After the graph has the delta, Utopia gets the same documents and source files (see {@link mirrorQuietly}). */
+async function mirrorDelta(
   deps: IngestDeltaDeps,
-  kind: string,
-): {
+  repo: string,
+  delta: DocDelta,
+  gone: string[],
+): Promise<void> {
+  if (delta.kind === "code") {
+    return mirrorCodeDelta(deps, repo, delta, gone);
+  }
+  const kind = MIRRORED_KINDS[delta.kind];
+
+  if (kind) {
+    await mirrorDocs(deps, repo, { ...delta, kind }, gone);
+  }
+}
+
+async function mirrorDocs(
+  deps: IngestDeltaDeps,
+  repo: string,
+  delta: DocDelta & { kind: "spec" | "adr" },
+  gone: string[],
+): Promise<void> {
+  for (const file of delta.files ?? []) {
+    await mirrorQuietly(repo, file.path, () =>
+      deps.mirrorDoc(repo, { ...file, kind: delta.kind, commit: delta.commit }),
+    );
+  }
+
+  for (const path of gone) {
+    await mirrorQuietly(repo, path, () => deps.unmirrorDoc(repo, path));
+  }
+}
+
+/** A code delta's files go as one push, so its items travel four at a time across files; its gone files are tombstoned. */
+async function mirrorCodeDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  delta: DocDelta,
+  gone: string[],
+): Promise<void> {
+  const files = delta.files ?? [];
+
+  if (files.length > 0) {
+    await mirrorQuietly(repo, `code at ${delta.commit}`, () =>
+      deps.mirrorCode(repo, { files, commit: delta.commit }),
+    );
+  }
+
+  if (gone.length > 0) {
+    await mirrorQuietly(repo, gone.join(", "), () =>
+      deps.unmirrorCode(repo, gone),
+    );
+  }
+}
+
+interface DocFunctions {
   project: IngestDeltaDeps["projectSpec"];
   remove: IngestDeltaDeps["deleteSpec"];
   list: IngestDeltaDeps["listSpecs"];
-} {
-  return kind === "specs"
-    ? {
-        project: deps.projectSpec,
-        remove: deps.deleteSpec,
-        list: deps.listSpecs,
-      }
-    : { project: deps.projectAdr, remove: deps.deleteAdr, list: deps.listAdrs };
+}
+
+function docFunctions(deps: IngestDeltaDeps, kind: string): DocFunctions {
+  const byKind: Record<string, DocFunctions> = {
+    specs: {
+      project: deps.projectSpec,
+      remove: deps.deleteSpec,
+      list: deps.listSpecs,
+    },
+    adrs: {
+      project: deps.projectAdr,
+      remove: deps.deleteAdr,
+      list: deps.listAdrs,
+    },
+    code: {
+      project: deps.projectCode,
+      remove: deps.deleteCode,
+      list: deps.listCode,
+    },
+  };
+
+  return byKind[kind];
 }
 
 /** SEQUENTIAL on purpose: every projection upserts the shared Repo node, so concurrent ones abort each other's Dgraph transactions. */

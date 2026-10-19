@@ -112,8 +112,11 @@ export class InMemorySettings implements SettingsPort {
     this.secrets.push({ repo, name, value });
   }
 
+  // Case-insensitive, mirroring PgSettings.record: the lookup web-ui's repo layout uses to find the canonical casing of a wrong-case URL.
   async record(repo: string): Promise<RepoRecord | null> {
-    const row = this.row(repo);
+    const row = this.repos.find(
+      (r) => r.full_name.toLowerCase() === repo.toLowerCase(),
+    );
 
     if (!row) {
       return null;

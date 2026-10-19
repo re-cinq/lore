@@ -1,11 +1,11 @@
-// In-sync mirror of shared/src/ingest-workflow.ts; byte-content-identical mirror pattern.
+// In-sync mirror of libs/shared/src/work/ingest-workflow.ts; byte-content-identical mirror pattern.
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 6;
+export const LORE_INGEST_WORKFLOW_VERSION = 7;
 
-// v4 (#1545): fail loudly on misconfig/4xx, warn on 5xx/network; v5: `--no-renames`, so a moved file's old path is posted as a delete and its chunks do not outlive it. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo.
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 6
+// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo. v7: treats lore-code-trace exit 75 as a transient projection failure.
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 7
 name: Lore Context Ingest
 
 on:
@@ -170,7 +170,16 @@ jobs:
             echo "::error::the lore-code-trace Lore serves has no docs subcommand - specs and ADRs were NOT projected"
             exit 1
           fi
-          ./lore-code-trace docs --post
+          if ./lore-code-trace docs --post; then
+            exit 0
+          else
+            TRACE_EXIT=$?
+          fi
+          if [ "\${TRACE_EXIT}" = "75" ]; then
+            echo "::warning::lore-code-trace graph projection will retry on next doc push"
+            exit 0
+          fi
+          exit "\${TRACE_EXIT}"
 `;
 
 export type IngestWorkflowStatus = "missing" | "stale" | "aligned";
@@ -182,7 +191,7 @@ export function parseIngestWorkflowVersion(content: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
-/** Classify installed workflow status: missing/stale/aligned. */
+/** Classifies a repo's installed workflow against the canonical version; null content means absent, and a missing/older marker is `stale` (legacy installs predate the marker and carry the broken body). */
 export function ingestWorkflowStatus(
   content: string | null,
 ): IngestWorkflowStatus {

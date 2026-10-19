@@ -13,7 +13,11 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     listDirectory: async () => [],
     listTree: async () => [],
     getDefaultBranch: async () => "main",
-    listCommitsSince: async () => [],
+    branchHeadSha: async () => "abc123",
+    listBranchHistory: async () => [],
+    listTrackerActivity: async () => [],
+    listReleases: async () => [],
+    listTags: async () => [],
     getIssueLabels: async (_repo, number) =>
       issues.find((i) => i.number === number)?.labels ?? [],
     listOpenBlockers: async () => [],
@@ -53,6 +57,8 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     },
     createBranch: async () => {},
     commitFile: async () => {},
+    listIssueComments: async () => [],
+    updateIssueComment: async () => {},
     upsertCheckRun: async () => {},
   };
 }

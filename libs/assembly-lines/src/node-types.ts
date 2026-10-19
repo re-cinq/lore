@@ -2,7 +2,16 @@
 
 import type { FailureCategory } from "@re-cinq/lore-shared/error-classify.js";
 
-export type StageOutcome = "success" | "changes_requested" | "failed";
+export type StageOutcome =
+  | "success"
+  | "changes_requested"
+  | "failed"
+  | "unable-to-reproduce"
+  | "needs-reproduction"
+  | "skipped"
+  | "obsolete"
+  | "large-issue"
+  | "not-actionable";
 
 // LLM usage a station reports for cost accounting — exactly the fields the /api/agent-events cost sink reads; a structural subset of shared LlmUsage. Cache tokens deliberately absent (provider folds them into costUsd, LlmCallRow doesn't track separately).
 export interface NodeLlmUsage {

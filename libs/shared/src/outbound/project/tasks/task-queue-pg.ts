@@ -1,7 +1,4 @@
-import { selectList } from "../../../lib/row.js";
-import { PIPELINE_TASK_COLUMNS } from "../../../domain/models/pipeline-task.js";
 import type { PgPool } from "../../memory-store.js";
-import type { PipelineTask } from "../../../domain/types.js";
 import { enforceSettableTaskColumns } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
@@ -73,25 +70,6 @@ const insertedId = (rows: { id?: unknown }[]): string | null =>
 /** Postgres TaskQueueRepository; org-wide claim/sweep SQL from Floor jobs. */
 export class PgTaskQueue implements TaskQueueRepository {
   constructor(private readonly pool: PgPool) {}
-
-  /** Spec-tasks are the spec-task executor's alone: it dispatches them in dependency order under a per-group cap, and this worker has no recipe for them — it claimed the ones the executor was holding back, filed an Issue for each and failed them all (plan 3b3a67af, 2026-09-29). */
-  async claimNextPending(): Promise<PipelineTask | null> {
-    const { rows } = await this.pool.query<PipelineTask>(
-      `SELECT ${selectList(PIPELINE_TASK_COLUMNS)} FROM pipeline.tasks
-        WHERE status = 'pending'
-          AND task_type <> 'spec-task'
-          AND (
-            (priority = 'immediate')
-            OR (created_at < now() - interval '30 seconds')
-          )
-        ORDER BY
-          CASE WHEN priority = 'immediate' THEN 0 ELSE 1 END,
-          created_at ASC
-        LIMIT 1`,
-    );
-
-    return (rows.at(0) as PipelineTask | undefined) ?? null;
-  }
 
   async findRecoverable(maxAgeMinutes = 30): Promise<RecoverableTask[]> {
     const { rows } = await this.pool.query<RecoverableTask>(
@@ -272,13 +250,13 @@ export class PgTaskQueue implements TaskQueueRepository {
   async activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ id: string; status: string } | null> {
     const { rows } = await this.pool.query(
-      `SELECT id FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled', 'retried')`,
+      `SELECT id, status FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled', 'retried') ORDER BY created_at DESC LIMIT 1`,
       [issueNumber, repo],
     );
 
-    return (rows.at(0) as { id: string } | undefined) ?? null;
+    return (rows.at(0) as { id: string; status: string } | undefined) ?? null;
   }
 
   async markFeatureRequestMergedOnBranch(

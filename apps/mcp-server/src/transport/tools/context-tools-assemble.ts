@@ -6,14 +6,16 @@ import { z } from "zod";
 import {
   textResult,
   deniedError,
-  unreachableError,
+  failedProxyError,
   withReadCache,
   trackLatency,
   proxyGetApi,
   type ProxyResult,
 } from "./deps.js";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
+import { repoParam, withRepo, type ServerMode } from "./repo-scope.js";
 import { updateBanner } from "../../work/update/mcp-update.js";
+import { backendParam } from "./backend-param.js";
+import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -21,9 +23,10 @@ interface AssembleContextExtraArgs {
   max_tokens?: number;
   cross_repo?: boolean;
   agent_id?: string;
+  backend?: KnowledgeBackend;
 }
 
-const ASSEMBLE_CONTEXT_INPUT = {
+export const ASSEMBLE_CONTEXT_INPUT = {
   query: z
     .string()
     .describe(
@@ -42,10 +45,6 @@ const ASSEMBLE_CONTEXT_INPUT = {
     .describe(
       "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",
     ),
-  repo: z
-    .string()
-    .optional()
-    .describe("'owner/repo'. Auto-detected from the git remote when omitted."),
   agent_id: z
     .string()
     .optional()
@@ -56,18 +55,22 @@ const ASSEMBLE_CONTEXT_INPUT = {
     .describe(
       "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
     ),
+  backend: backendParam,
 };
 
-export function registerAssembleContextTool(server: McpServer) {
+export function registerAssembleContextTool(
+  server: McpServer,
+  mode: ServerMode,
+) {
   server.tool(
     "lore_assemble_context",
     `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
 Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
-    ASSEMBLE_CONTEXT_INPUT,
+    { ...ASSEMBLE_CONTEXT_INPUT, repo: repoParam(mode) },
     async (args) =>
       trackLatency("lore_assemble_context", async () => {
         try {
-          return await assembleContext(args);
+          return await assembleForMode(args, mode);
         } catch (err) {
           return textResult(`Error assembling context: ${errorMessage(err)}`);
         }
@@ -75,32 +78,37 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
   );
 }
 
+async function assembleForMode(
+  args: Omit<Parameters<typeof assembleContext>[0], "repo"> & {
+    repo?: string;
+  },
+  mode: ServerMode,
+) {
+  return withRepo(args, mode, assembleContext);
+}
+
 /** The mandatory first call, served entirely by the API — the adapter holds no pool, so with no LORE_API_URL there is nothing to degrade to and it says so instead of returning an empty bundle. */
 async function assembleContext(args: {
   query: string;
   template: string;
   max_tokens?: number;
-  repo?: string;
+  repo: string;
   agent_id?: string;
   cross_repo?: boolean;
+  backend?: KnowledgeBackend;
 }) {
-  const { query, template, max_tokens, repo, agent_id, cross_repo } = args;
+  const { query, template, repo } = args;
 
   if (!process.env.LORE_API_URL || !process.env.LORE_INGEST_TOKEN) {
     return textResult(
       "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
     );
   }
-  const resolvedRepo = resolveRepoLabel(repo);
-  const extras = buildAssembleExtras({ max_tokens, cross_repo, agent_id });
+  const extras = buildAssembleExtras(args);
 
   return interpretProxiedContext(
-    await cachedAssemble({ query, template, repo: resolvedRepo }, extras),
+    await cachedAssemble({ query, template, repo }, extras),
   );
-}
-
-function resolveRepoLabel(repo: string | undefined): string {
-  return repo || detectCurrentRepo() || "";
 }
 
 function buildAssembleExtras(
@@ -118,6 +126,10 @@ function buildAssembleExtras(
 
   if (args.agent_id) {
     extras.agent_id = args.agent_id;
+  }
+
+  if (args.backend) {
+    extras.backend = args.backend;
   }
 
   return extras;
@@ -163,7 +175,7 @@ async function interpretProxiedContext(
   }
 
   if (proxied.reason === "unreachable") {
-    return unreachableError("lore_assemble_context", proxied.detail);
+    return failedProxyError("lore_assemble_context", proxied);
   }
 
   if (proxied.reason === "denied") {

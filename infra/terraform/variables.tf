@@ -142,3 +142,115 @@ variable "headlamp_hostname" {
   type        = string
   default     = ""
 }
+
+# Gates the metrics stack (monitoring.tf): kube-prometheus-stack scraping every
+# service, the floor and the agent controller, and Grafana behind the same Google
+# sign-in proxy as Headlamp, with the Lore dashboards (ADR-050). A dashboard, not a
+# dependency: leaving this false changes nothing about how the platform runs.
+variable "enable_monitoring" {
+  type    = bool
+  default = false
+
+  # The same dependency Headlamp has: oauth2-proxy builds its redirect URL from
+  # the hostname and will not start without one.
+  validation {
+    condition     = !var.enable_monitoring || var.grafana_hostname != ""
+    error_message = "enable_monitoring = true requires a non-empty grafana_hostname: oauth2-proxy derives its OAuth redirect URL from it and will not start without one."
+  }
+}
+
+variable "grafana_hostname" {
+  description = "Hostname for the Grafana ingress (e.g. grafana.example.com). Also an OAuth redirect host on the Headlamp Google client, so it must be added to that client's authorized redirect URIs. Required when enable_monitoring is true."
+  type        = string
+  default     = ""
+}
+
+variable "ingress_controller_namespace" {
+  description = "The namespace of the nginx ingress controller: the only namespace the Grafana NetworkPolicy lets in, because Grafana trusts the identity header the ingress sets after oauth2-proxy."
+  type        = string
+  default     = "ingress-nginx"
+}
+
+# Gates Utopia (utopia.tf): deeplethe/utopia with its own CNPG database and data
+# disk, behind an oauth2-proxy Google sign-in of its own. An application beside
+# Lore, not a dependency of it: leaving this false changes nothing about Lore.
+variable "enable_utopia" {
+  type    = bool
+  default = false
+
+  # The same dependency Headlamp has: oauth2-proxy builds its redirect URL from
+  # the hostname and will not start without one.
+  validation {
+    condition     = !var.enable_utopia || var.utopia_hostname != ""
+    error_message = "enable_utopia = true requires a non-empty utopia_hostname: oauth2-proxy derives its OAuth redirect URL from it and will not start without one."
+  }
+}
+
+variable "utopia_hostname" {
+  description = "Hostname for the Utopia ingress (e.g. utopia.example.com). Also the OAuth redirect host on the utopia Google client (https://<host>/oauth2/callback). Required when enable_utopia is true."
+  type        = string
+  default     = ""
+}
+
+variable "enable_utopia_auto_setup" {
+  description = "Let lore-api create a repo's Utopia knowledge base on the repo's first spec/ADR ingest, with the write token in GSM lore-utopia-lore-api-token (docs/managing-secrets.md). Needs a Utopia that takes a write token on its setup routes (deeplethe/utopia#1244); keep it off until that is deployed."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_utopia_auto_setup || (var.enable_utopia && var.utopia_lore_workspace_id != "")
+    error_message = "enable_utopia_auto_setup = true requires enable_utopia and a non-empty utopia_lore_workspace_id: the bases are created in that Utopia workspace."
+  }
+}
+
+variable "utopia_lore_workspace_id" {
+  description = "The Utopia workspace lore-api creates repos' knowledge bases in, when enable_utopia_auto_setup is true. The token's owner must be its admin."
+  type        = string
+  default     = ""
+}
+
+variable "utopia_image_repository" {
+  description = "The image Utopia runs, without its tag. Our build from gedaiu/utopia re-dev (upstream dev plus our open PRs) until an upstream release carries them; then ghcr.io/deeplethe/utopia again."
+  type        = string
+  default     = "ghcr.io/re-cinq/utopia"
+}
+
+variable "utopia_image_tag" {
+  description = "The Utopia tag to run. Builds migrate the database on start, so a bump is a deliberate PR, never `latest`. 0.1.0-re.16 = upstream dev (including deeplethe/utopia#1244, #1245, #1261, #1270) + #1234, #1237, #1250 and our open #1263, #1264, #1265, #1266 (a personal token reads the graph), #1268 (a push keeps its external_id), #1272 (role-word qualifiers in reads), #1273 (search scores and paging), #1274 (a token creates api sources), #1280 (read a document back by its external_id), #1291 (the importer reads utopia:temporal, so an imported relation can be an event) and perf/pushed-skip-name-vectors (a pushed name is resolved by its spelling, with no name-vector recall: deeplethe/utopia#1293, #1296), perf/bind-declared-skip-settled (signatures the ontology already bound, or cannot bind, are not recounted per push) perf/name-vectors-job (name vectors are filled by one job per base, not a scan per document) and re-cinq/utopia#2 (a pushed document is never due for errata review, RC-001). From re.12 on, releases are built by re-cinq/utopia's release workflow; re.13 adds a typed recompute that plans its statements for the base it is given (re-cinq/utopia#3, deeplethe/utopia#1298), the utopia:temporal review fixes (#4) and an index on fact_evidence(document_id) (#5, fork migration 9000); re.14 resolves a pushed name by its spelling alone, with no containment recall (re-cinq/utopia#6, RC-002); re.15 lets a search name a source and external_id prefixes, which both channels filter on before recall (re-cinq/utopia#7); re.16 finds a base's name facts through a predicate index (#10) and makes containment recall read indexes, with JIT off (#12, fork migration 9002 adds pg_trgm)."
+  type        = string
+  default     = "0.1.0-re.16"
+}
+
+variable "utopia_data_size" {
+  description = "Size of the Utopia data disk: uploaded files and the full-text index."
+  type        = string
+  default     = "20Gi"
+}
+
+variable "utopia_image_digest" {
+  description = "The sha256 digest of the Utopia image to run (sha256:...). Set, it wins over utopia_image_tag: a digest names the bytes, a tag can be re-pushed. Read the running pod's imageID to pin it."
+  type        = string
+  default     = "sha256:04294e27650ddb17b1884bce6b8d9f2384afd2075e3b0e58094c8519fcfbd1a6"
+
+  validation {
+    condition     = var.utopia_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.utopia_image_digest))
+    error_message = "utopia_image_digest must be empty or look like sha256:<64 hex digits>."
+  }
+}
+
+# This cluster's Service range (gcloud container clusters describe ... servicesIpv4Cidr).
+# An egress policy that opens the public internet must close this range too, or a
+# ClusterIP becomes a way around it (utopia.tf).
+variable "cluster_services_cidr" {
+  description = "The GKE cluster's servicesIpv4Cidr, excluded from every 'public internet' egress rule."
+  type        = string
+  default     = "34.118.224.0/22"
+}
+
+# The CNPG operator runs in a shared namespace (lore-db.tf); the database ingress
+# policies let it through to the instances it manages.
+variable "cnpg_operator_namespace" {
+  description = "Namespace of the CloudNativePG operator Deployment."
+  type        = string
+  default     = "n8n"
+}

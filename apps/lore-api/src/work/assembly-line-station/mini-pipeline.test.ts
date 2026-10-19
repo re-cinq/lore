@@ -23,4 +23,39 @@ describe("miniPipeline", () => {
       { node_id: "done", state: "pending" },
     ]);
   });
+
+  describe("a node several pods ran at once", () => {
+    const nodes = [{ id: "write", type: "agent" }];
+    const pods = (...outcomes: (string | null)[]) =>
+      outcomes.map((outcome) => ({ nodeId: "write", iteration: 1, outcome }));
+
+    it("is running while any of its pods is still open", () => {
+      expect(miniPipeline(nodes, pods("success", null, "success"))).toEqual([
+        { node_id: "write", state: "running" },
+      ]);
+    });
+
+    it("is failed once all have reported and one failed", () => {
+      expect(miniPipeline(nodes, pods("success", "failed", "success"))).toEqual(
+        [{ node_id: "write", state: "failed" }],
+      );
+    });
+
+    it("is success when every pod succeeded", () => {
+      expect(miniPipeline(nodes, pods("success", "success"))).toEqual([
+        { node_id: "write", state: "success" },
+      ]);
+    });
+
+    it("reads only the latest iteration, so a redo does not inherit the first round's failure", () => {
+      const visits = [
+        ...pods("failed", "success"),
+        { nodeId: "write", iteration: 2, outcome: "success" },
+      ];
+
+      expect(miniPipeline(nodes, visits)).toEqual([
+        { node_id: "write", state: "success" },
+      ]);
+    });
+  });
 });

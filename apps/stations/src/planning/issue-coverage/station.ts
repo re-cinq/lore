@@ -15,6 +15,7 @@ import {
 import {
   issueCoverage,
   issueCoverageBrief,
+  storyCoverageOf,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import {
   parseDecomposition,
@@ -26,10 +27,12 @@ import {
   type GroundedFile,
 } from "@re-cinq/lore-shared/feature-planning/grounding.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
+import { eventLine } from "@re-cinq/lore-assembly-lines";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import {
-  decomposedSpec,
-  type DecomposedSpec,
+  decomposedSpecs,
+  type DecomposedSpecs,
 } from "../file-issues/decomposed-spec.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
 import { addedAcross, findingsIn, groundedText } from "../grounded-text.js";
@@ -47,14 +50,24 @@ export function issueCoverageHandle(deps: CoverageDeps): Handle {
       }
       await tools.produce("issue_coverage", coverage.brief);
 
-      return await verdict(deps, brief.visitId, coverage.gaps);
+      const report = await verdict(deps, brief.visitId, coverage.gaps);
+
+      return report.outcome === "success"
+        ? filedInFull(deps, brief, coverage.missing)
+        : report;
     } catch (err) {
+      console.log(
+        eventLine(`issue-coverage failed: ${(err as Error).message}`),
+      );
+
       return { outcome: "failed", error: (err as Error).message };
     }
   };
 }
 
 interface CountedDecomposition {
+  /** The coverage entries the story issue owes, one per statement no task names. */
+  missing: string[];
   /** Statements no task names, plus names the tasks give that are not on main. */
   gaps: number;
   brief: string;
@@ -67,7 +80,7 @@ async function coverageOfDecomposition(
 ): Promise<CountedDecomposition | undefined> {
   const { repo, branch } = parseGitRef(brief.needs.target);
   const decomposition = await decompositionOf(tools);
-  const spec = await specOf(deps, brief, decomposition);
+  const spec = await specOf(deps, brief, tools, decomposition);
 
   if (!spec) {
     return undefined;
@@ -80,19 +93,25 @@ async function coverageOfDecomposition(
   return countedIn(spec, decomposition, grounded);
 }
 
-/** The spec at the commit the decomposition read, or at the branch when it names none. */
-function specOf(
+/** Every spec the plan's spec PR wrote, at the commit the decomposition read, or at the branch when it names none. */
+async function specOf(
   deps: CoverageDeps,
   brief: Brief,
+  tools: Tools,
   decomposition: DecompositionResult,
-): Promise<DecomposedSpec | undefined> {
+): Promise<DecomposedSpecs | undefined> {
   const { repo, branch } = parseGitRef(brief.needs.target);
+  // A run started before the line gave this station the spec plan counts spec_path's spec alone.
+  const specPlan = brief.needs.spec_plan
+    ? (await tools.read("spec_plan")).toString("utf8")
+    : undefined;
 
-  return decomposedSpec((path, ref) => deps.readSpec(repo, path, ref), {
+  return decomposedSpecs((path, ref) => deps.readSpec(repo, path, ref), {
     repo,
     branch,
-    specPath: brief.needs.spec_path,
+    specFiles: specFilesOfRun(brief.needs.spec_path, specPlan),
     commit: decomposition.spec_commit,
+    planId: brief.needs.plan_id,
   });
 }
 
@@ -132,18 +151,21 @@ async function decompositionOf(tools: Tools): Promise<DecompositionResult> {
 }
 
 function countedIn(
-  spec: DecomposedSpec,
+  spec: DecomposedSpecs,
   decomposition: DecompositionResult,
   grounded: readonly GroundedFile[],
 ): CountedDecomposition {
   const counted = issueCoverage(
-    spec.parts,
+    spec.specs,
     decomposition.stories.flatMap((story) => story.tasks),
   );
 
+  const coverage = issueCoverageBrief(counted, spec.linkOf);
+
   return {
+    missing: storyCoverageOf(coverage, [], ""),
     gaps: counted.missing.length + findingsIn(grounded),
-    brief: issueCoverageBrief(counted, spec.linkOf) + groundingBrief(grounded),
+    brief: coverage + groundingBrief(grounded),
   };
 }
 
@@ -162,6 +184,27 @@ async function verdict(
   );
 
   return spent < COVERAGE_ROUNDS ? { outcome: "changes_requested" } : SUCCESS;
+}
+
+// A run settling on a story whose comments were lost or never written would leave people a half list.
+async function filedInFull(
+  deps: CoverageDeps,
+  brief: Brief,
+  missing: readonly string[],
+): Promise<Report> {
+  const planId = brief.needs.plan_id;
+  const filed = planId
+    ? await deps.filedCoverage(parseGitRef(brief.needs.target).repo, planId)
+    : null;
+
+  if (!filed || filed.join("\n") === missing.join("\n")) {
+    return SUCCESS;
+  }
+
+  return {
+    outcome: "failed",
+    error: `the story issue lists ${filed.length} of the ${missing.length} statements no task names; rerun issues to rewrite it`,
+  };
 }
 
 export function startIssueCoverageStation(): RunningStation {

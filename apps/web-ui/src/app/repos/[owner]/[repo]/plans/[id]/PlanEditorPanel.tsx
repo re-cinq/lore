@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import {
   PlanEditor,
@@ -17,6 +17,7 @@ import type { PlanActions } from "./plan-actions";
 import PlanBlockAnchor from "./PlanBlockAnchor";
 import PlanOutlineActions from "./PlanOutlineActions";
 import { useRefineAsk } from "./useRefineAsk";
+import { reloadingWhenStale } from "@/lib/live-socket/stale-deployment";
 
 interface PlanEditorPanelProps extends PlanActions {
   meta: PlanMeta;
@@ -78,22 +79,50 @@ function usePlanConnection(
 ): Connection | null {
   const client = useLiveSocket();
   const [connection, setConnection] = useState<Connection | null>(null);
+  const latest = useLatest({ meta, openSocket });
 
-  useEffect(() => {
-    let closed = false;
-    const opening = connectPlan(meta, openSocket, client);
-
-    void opening.then((opened) => !closed && setConnection(opened));
-
-    return () => {
-      closed = true;
-      void opening.then(
-        (opened) => "transport" in opened && opened.transport.destroy(),
-      );
-    };
-  }, [meta, openSocket, client]);
+  useEffect(
+    () => openPlan(latest, client, setConnection),
+    [meta.id, client, latest],
+  );
 
   return connection;
+}
+
+type LatestPlan = {
+  current: { meta: PlanMeta; openSocket: PlanActions["openSocket"] };
+};
+
+function openPlan(
+  latest: LatestPlan,
+  client: LiveSocketClient | null,
+  setConnection: (connection: Connection) => void,
+) {
+  let closed = false;
+  const opening = connectPlan(
+    latest.current.meta,
+    () => latest.current.openSocket(),
+    client,
+  );
+
+  void opening.then((opened) => !closed && setConnection(opened));
+
+  return () => {
+    closed = true;
+    void opening.then(
+      (opened) => "transport" in opened && opened.transport.destroy(),
+    );
+  };
+}
+
+function useLatest<T>(value: T) {
+  const latest = useRef(value);
+
+  useEffect(() => {
+    latest.current = value;
+  });
+
+  return latest;
 }
 
 const NO_SOCKET = "The live socket is not configured (LORE_WS_URL).";
@@ -107,13 +136,14 @@ async function connectPlan(
   if (client === null) {
     return { error: NO_SOCKET };
   }
-  const socket = await openSocket();
+  const openSocketOrReload = reloadingWhenStale(openSocket);
+  const socket = await openSocketOrReload();
 
   if ("error" in socket) {
     return socket;
   }
   const token = async () => {
-    const again = await openSocket();
+    const again = await openSocketOrReload();
 
     return "token" in again ? again.token : "";
   };

@@ -12,15 +12,41 @@ import {
   ensurePull,
   type PullOpener,
 } from "@re-cinq/lore-shared/project/pulls/ensure-pull.js";
-import type { PullDraft } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type {
+  PullDraft,
+  PullRef,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { pipeline } from "../../outbound/queues.js";
+import {
+  draftBody,
+  missingSections,
+  PR_TEMPLATE_PATH,
+  requiredSections,
+} from "../pr-sections.js";
+
+/** The opener, plus the body rewrite a reused draft may need. */
+export type LoopPullOpener = PullOpener & {
+  update(number: number, fields: { body: string }): Promise<void>;
+};
 
 export interface OpenLoopPrDeps {
-  pulls(repo: string): Promise<PullOpener>;
+  pulls(repo: string): Promise<LoopPullOpener>;
+  /** The repository's pull request template on the branch, or null when it has none. */
+  template(repo: string, branch: string): Promise<string | null>;
+  /** Writes the pull request onto the run's task, where the run page reads it: a value a station produces stays inside the floor. */
+  recordPr(taskId: string, pr: PullRef): Promise<void>;
 }
 
 const productionDeps: OpenLoopPrDeps = {
   pulls: async (repo) => (await projectFor(repo)).pulls,
+  template: async (repo, branch) =>
+    (await projectFor(repo)).repo.read(PR_TEMPLATE_PATH, branch),
+  recordPr: (taskId, pr) =>
+    pipeline().taskQueue.setColumns(taskId, {
+      pr_url: pr.url,
+      pr_number: pr.number,
+    }),
 };
 
 /** GitHub's refusal to open a pull request from a branch that holds nothing its base lacks. */
@@ -39,7 +65,13 @@ export function openLoopPrHandle(deps: OpenLoopPrDeps): Handle {
 
     try {
       const pulls = await deps.pulls(repo);
-      const pr = await ensurePull(pulls, branch, draftOf(branch, ticket));
+      const template = await deps.template(repo, branch);
+      const draft = draftOf(branch, ticket, template);
+      const pr = await ensurePull(pulls, branch, draft, (open) =>
+        completeDraft(pulls, open, draft, template),
+      );
+
+      await deps.recordPr(ticket.task_id, pr);
 
       return { outcome: "success", produced: { pr_url: pr.url } };
     } catch (err) {
@@ -48,7 +80,11 @@ export function openLoopPrHandle(deps: OpenLoopPrDeps): Handle {
   };
 }
 
-function draftOf(branch: string, ticket: LoopPrNeeds): PullDraft {
+function draftOf(
+  branch: string,
+  ticket: LoopPrNeeds,
+  template: string | null,
+): PullDraft {
   const issueNumber = Number(ticket.issue_number) || null;
 
   return {
@@ -56,10 +92,25 @@ function draftOf(branch: string, ticket: LoopPrNeeds): PullDraft {
       ? clampPrTitle(ticket.issue_title)
       : `lore: ${branch}`,
     body:
-      `Opened by the Lore implementation loop from \`${branch}\`.` +
+      draftBody(template, branch) +
       prFooter({ issueNumber, taskId: ticket.task_id }),
     draft: true,
   };
+}
+
+/** A draft opened before the sections were required still carries a one-line body; it gets the draft body, so the repository's check passes on the next push. A pull request already out of draft, or one that has every section, is left alone. */
+async function completeDraft(
+  pulls: LoopPullOpener,
+  open: PullRef,
+  draft: PullDraft,
+  template: string | null,
+): Promise<void> {
+  const lacking = missingSections(open.body ?? "", requiredSections(template));
+
+  if (!open.draft || lacking.length === 0) {
+    return;
+  }
+  await pulls.update(open.number, { body: draft.body });
 }
 
 function refusalOf(err: unknown, branch: string): string {

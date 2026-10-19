@@ -70,7 +70,7 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor. ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L123), [delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [forwards transcript rows written after catch-up on an agent_event notification, from the feed's cursor](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
+semantics keyed on a row-id cursor. ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L128), [delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [forwards transcript rows written after catch-up on an agent_event notification, from the feed's cursor](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
 
 The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([delivers a published notification only to subscribers whose filter matches](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L73))
 
@@ -94,7 +94,7 @@ The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
 `apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L28), [`run-stream-types.test.ts:67`](apps/web-ui/src/lib/run-stream-types.test.ts#L68))
 
 The definition DAG is laid out and rendered by hand in SVG, with no new
-dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L147))
+dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L243))
 
 ## Consequences
 
@@ -294,7 +294,7 @@ frame contract is a generated type, and the drift guard is deleted.
 
 - The endpoint is `GET /api/assembly-runs/{id}/stream` on lore-api, under the
   `read` scope; the Floor's `/api/agent-events/stream/{id}` and its in-process
-  bus are gone, and the browser's proxy talks to one backend. _(Since 2026-09-23 the endpoint is the `run` channel of `/api/ws`, ADR-048.)_ ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L123))
+  bus are gone, and the browser's proxy talks to one backend. _(Since 2026-09-23 the endpoint is the `run` channel of `/api/ws`, ADR-048.)_ ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L128))
 - One connection carries every family the page reads, as a discriminated
   `RunStreamFrame` union published in OpenAPI: `agent_event`, `node_status`,
   `run_status`, `task_event`, `ci_check`, plus `catchup_complete`. ([delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130))

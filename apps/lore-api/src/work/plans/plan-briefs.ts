@@ -53,7 +53,7 @@ export function refineBrief(
   request: RefineRequest,
   findings: readonly OpenFinding[] = [],
 ): string {
-  const ask = `Refine the section "${request.title}" (<!-- slot:${request.slot} -->) of the live plan "${plan.title}", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections with \`add-section\`, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong, or where a finding listed below is on it. Your edits land in the live plan as you make them, and nobody accepts them first: never write a claim that another section or a settled answer contradicts, and ask with \`add-question\` where you disagree with one. Leave every other section exactly as it is.`;
+  const ask = `Refine the section "${request.title}" (<!-- slot:${request.slot} -->) of the live plan "${plan.title}", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections with \`add-section\`, placed after this one, rather than writing them into this section. Where a settled comment or answered question asks for this section to go, remove it with \`remove-section\` instead of emptying it. Change another existing section ONLY where one of those settled answers makes what it says wrong, or where a finding listed below is on it. Your edits land in the live plan as you make them, and nobody accepts them first: never write a claim that another section or a settled answer contradicts, and ask with \`add-question\` where you disagree with one. Leave every other section exactly as it is.`;
   const settled = settledLines(request.inputs);
 
   return withFindings(
@@ -142,4 +142,9 @@ export function revisedBrief(plan: PlanView, prNumber: number): string {
 /** The spec PR is still open: the fresh pass amends the specs on its branch rather than opening a second PR. */
 export function openPrBrief(plan: PlanView, prNumber: number): string {
   return `${approvedBrief(plan)} Spec PR #${prNumber} is open on this branch with the specs an earlier pass wrote; amend them to say what the plan says now, and leave what still holds alone.`;
+}
+
+/** The planning prompts tell the agent to pass the repo named on the description's first line to Lore's tools; the gateway has no checkout to read it from. */
+export function briefFor(repo: string, brief: string): string {
+  return `repo: "${repo}"\n${brief}`;
 }

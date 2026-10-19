@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
+import RunBagFacts from "./RunBagFacts";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import { codeReviewDefinition } from "@/lib/definition-fixtures";
@@ -625,7 +626,7 @@ describe("node inspector", () => {
     ).toHaveTextContent("Sonnet 4.6 · 3m 12s");
   });
 
-  it("shows the selected node's pod logs inside the inspector, one panel per attempt", async () => {
+  it("shows the newest attempt's pod logs alone once Pod logs is chosen", async () => {
     stubHistory([]);
     useFakeSocket();
 
@@ -636,15 +637,131 @@ describe("node inspector", () => {
     ]);
     await settle();
     await selectNode("implement");
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "pods" },
+    });
 
-    expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
     expect(screen.getByText("Pod logs · attempt 2")).toBeInTheDocument();
-    expect(screen.queryByText("Pod logs · attempt 3")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pod logs · attempt 1")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Transcript", { selector: "strong" }),
+    ).not.toBeInTheDocument();
+  });
 
-    await selectNode("validate");
+  it("shows attempt 1's pod logs when the attempt select picks it", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ outcome: "implement-failed", agentCrName: "run1-implement" }),
+      walkRow({ iteration: 2, agentCrName: "run1-implement-2" }),
+    ]);
+    await settle();
+    await selectNode("implement");
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "pods" },
+    });
+    fireEvent.change(screen.getByLabelText("Attempt"), {
+      target: { value: "1" },
+    });
 
     expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
-    expect(screen.queryByText("Pod logs · attempt 2")).not.toBeInTheDocument();
+  });
+
+  it("draws the header above the graph, the run details under it and the task notice after the attempt, outside the aside", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    const { container } = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={definition}
+        nodes={[walkRow({})]}
+        repo="re-cinq/lore"
+        reason={null}
+        header={<p>header slot</p>}
+        runDetails={<p>details slot</p>}
+        taskContext={<p>task slot</p>}
+      />,
+    );
+
+    await settle();
+    await selectNode("implement");
+
+    const order = [
+      screen.getByText("header slot"),
+      container.querySelector('[data-node="implement"]'),
+      screen.getByText("details slot"),
+      screen.getByLabelText("Show"),
+      screen.getByText("task slot"),
+    ];
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
+
+    expect({
+      inReadingOrder: order.every(
+        (node, i) =>
+          i === 0 ||
+          Boolean(
+            order[i - 1]!.compareDocumentPosition(node as Node) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          ),
+      ),
+      inAside: order.map((node) => aside.contains(node as Node)),
+    }).toEqual({
+      inReadingOrder: true,
+      inAside: [false, false, false, false, false],
+    });
+  });
+
+  it("keeps Pod logs chosen across a trip to another node and back", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ agentCrName: "run1-implement" }),
+      walkRow({ nodeId: "validate", agentCrName: "run1-validate" }),
+    ]);
+    await settle();
+    await selectNode("implement");
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "pods" },
+    });
+    await selectNode("validate");
+    await selectNode("implement");
+
+    expect(screen.getByLabelText("Show")).toHaveValue("pods");
+  });
+
+  it("moves the attempt select to attempt 1 when its row in the detail card is clicked", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ outcome: "implement-failed" }),
+      walkRow({ iteration: 2 }),
+    ]);
+    await settle();
+    await selectNode("implement");
+    fireEvent.click(screen.getByRole("button", { name: /^attempt 1/ }));
+
+    expect(screen.getByLabelText("Attempt")).toHaveValue("1");
+  });
+
+  it("shows the attempt's needs card with the bag it was handed", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderWithNodes([
+      walkRow({ needs: { target: "github.com/re-cinq/lore@main" } }),
+    ]);
+    await settle();
+    await selectNode("implement");
+
+    expect(screen.getByText("Needs")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "github.com/re-cinq/lore@main" }),
+    ).toHaveAttribute("href", "https://github.com/re-cinq/lore/tree/main");
   });
 
   it("renders the attempts history inside the inspector for a node that looped", async () => {
@@ -922,7 +1039,7 @@ describe("agent edit link", () => {
       "/repos/re-cinq/lore/agents/implement/edit",
     );
     expect(link.closest("summary")).toBe(
-      container.querySelector("section summary"),
+      container.querySelector('[aria-label="implement inspector"] summary'),
     );
   });
 
@@ -974,6 +1091,57 @@ describe("file diff drawer", () => {
     });
 
     expect(screen.getByText("Diff · src/a.ts")).toBeInTheDocument();
+  });
+
+  async function renderWithTouchedFile() {
+    stubHistory([
+      eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        filePaths: ["src/a.ts"],
+      }),
+    ]);
+    FakeWebSocket.reset();
+
+    const view = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="finished"
+        definition={definition}
+        nodes={[]}
+        repo="re-cinq/lore"
+        reason={null}
+        prNumber={42}
+      />,
+    );
+
+    await settle();
+
+    return view;
+  }
+
+  it("draws the Files touched card inside the selected-node aside", async () => {
+    await renderWithTouchedFile();
+
+    expect(
+      screen.getByRole("complementary", { name: "Selected node" }),
+    ).toContainElement(screen.getByText("Files touched"));
+  });
+
+  it("mounts the clicked file's diff outside the aside, in the center column", async () => {
+    const { container } = await renderWithTouchedFile();
+
+    await act(async () => {
+      fireEvent.click(
+        container.querySelector("[data-path='src/a.ts']") as HTMLElement,
+      );
+    });
+
+    expect(
+      screen.getByRole("complementary", { name: "Selected node" }),
+    ).not.toContainElement(screen.getByText("Diff · src/a.ts"));
   });
 });
 
@@ -1036,5 +1204,175 @@ describe("a run that ended", () => {
     expect(
       screen.queryByRole("button", { name: "Show possible outcomes" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("the attempt column by station kind", () => {
+  const kindDefinition: AssemblyLineDefinition = {
+    name: "planning",
+    description: "draft, ground, approve",
+    version: 1,
+    entry: "draft",
+    exit: "done",
+    nodes: [
+      { id: "draft", type: "agent" },
+      { id: "ground", type: "validate" },
+      { id: "approve", type: "pr_review" },
+      { id: "done", type: "retrospective" },
+    ],
+    edges: [
+      { from: "draft", to: "ground", on: "success" },
+      { from: "ground", to: "approve", on: "success" },
+      { from: "approve", to: "done", on: "success" },
+    ],
+  };
+
+  function visitRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
+    return {
+      nodeId: "draft",
+      iteration: 1,
+      outcome: "success",
+      agentCrName: null,
+      commitSha: null,
+      durationSeconds: 30,
+      ...over,
+    };
+  }
+
+  async function renderAndSelect(nodes: AssemblyRunNode[], nodeId: string) {
+    stubHistory([]);
+    FakeWebSocket.reset();
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={kindDefinition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+        engine="floor"
+      />,
+    );
+    await settle();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${nodeId} —`) }),
+      );
+    });
+  }
+
+  it("shows ground, a service node, its error in an Outcome card and no Show select", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          nodeId: "ground",
+          outcome: "failed",
+          failureDetail: "the plan names a file main does not have",
+          agentCrName: "floor-visit-2",
+        }),
+      ],
+      "ground",
+    );
+
+    expect({
+      show: screen.queryByLabelText("Show"),
+      error: screen.getByText("the plan names a file main does not have")
+        .textContent,
+    }).toEqual({
+      show: null,
+      error: "the plan names a file main does not have",
+    });
+  });
+
+  it("shows approve, waiting on a person, as Waiting for the spec PR with Open the pull request", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          nodeId: "approve",
+          outcome: null,
+          routeUrl: "https://github.com/re-cinq/lore/pull/412",
+        }),
+      ],
+      "approve",
+    );
+
+    expect({
+      waiting: screen.getAllByText("Waiting for the spec PR").length > 0,
+      open: screen
+        .getByRole("link", { name: "Open the pull request" })
+        .getAttribute("href"),
+    }).toEqual({
+      waiting: true,
+      open: "https://github.com/re-cinq/lore/pull/412",
+    });
+  });
+
+  it("shows a Produced card for a draft attempt that produced plan", async () => {
+    await renderAndSelect(
+      [
+        visitRow({
+          produced: { plan: "plan text" },
+          agentCrName: "floor-visit-1",
+        }),
+      ],
+      "draft",
+    );
+
+    expect({
+      show: screen.getByLabelText("Show") !== null,
+      produced: screen.getByText("Produced") !== null,
+    }).toEqual({ show: true, produced: true });
+  });
+
+  it("offers no Run this station on approve, which a person answers", async () => {
+    await renderAndSelect(
+      [visitRow({ nodeId: "approve", outcome: null })],
+      "approve",
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Run this station" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("the bag names who put an item there", () => {
+  const implementAttempt = (iteration: number): AssemblyRunNode => ({
+    nodeId: "implement",
+    iteration,
+    outcome: "success",
+    agentCrName: null,
+    commitSha: null,
+    durationSeconds: 30,
+    stationRunId: `visit-${iteration}`,
+  });
+
+  it("shows implement's attempt 1 in the center once implement · attempt 1 is clicked in the bag", async () => {
+    stubHistory([]);
+    useFakeSocket();
+    const nodes = [implementAttempt(1), implementAttempt(2)];
+    const bag = {
+      plan: { kind: "value", ref: "plan-7", by: "visit-1" },
+    } as const;
+
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={definition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+        runDetails={<RunBagFacts runId="run-1" bag={bag} nodes={nodes} />}
+      />,
+    );
+    await settle();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "implement · attempt 1" }),
+      );
+    });
+
+    expect(screen.getByLabelText("Attempt")).toHaveValue("1");
   });
 });

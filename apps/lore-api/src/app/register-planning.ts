@@ -19,6 +19,12 @@ import {
   type PlanVerbSeams,
 } from "../transport/routes/plans/plan-verbs-for.js";
 import { DB_UNAVAILABLE } from "../transport/routes/common-schemas.js";
+import {
+  floorClient,
+  floorConfigured,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
+import { planAgentPresenceOn } from "../work/plans/plan-agent-presence-floor.js";
+import type { PresenceWriter } from "../work/plans/plan-agent-presence.js";
 import type { TokenScope } from "../transport/http/auth.js";
 
 export const PLANS_PREFIX = "/api/plans";
@@ -37,7 +43,6 @@ export function registerPlanning(
 ): RegisteredPlanning {
   const pool = livePool(getPool);
   const seams: PlanVerbSeams = { floorDeps, pool };
-
   const sync = registerPlanningSync(server, {
     store: pgPlanStore(pool),
     authenticator: collabAuthenticator(pool),
@@ -46,13 +51,35 @@ export function registerPlanning(
 
   // onApproved reaches the library before the sync it reads the plan through exists, so the seams are filled once it does.
   seams.livePlan = livePlanOf(sync);
+  routePlans(server, sync, seams, { pool, getPool });
+  followPlanAgents(server, sync.writer);
+
+  return { collab: sync.collab, plans: seams };
+}
+
+// Lore's own plan routes beside the library's, every one of them behind lore's bearer tokens.
+function routePlans(
+  server: Server,
+  sync: PlanningSync,
+  seams: PlanVerbSeams,
+  { pool, getPool }: { pool: () => Pool; getPool: () => Pool | null },
+): void {
   server.route([
-    ...planFileRoutes(filePorts(seams.livePlan, sync, pool)),
+    ...planFileRoutes(filePorts(livePlanOf(sync), sync, pool)),
     ...planLifecycleRoutes({ service: sync.service, getPool, ...seams }),
   ]);
   server.ext("onPreHandler", planRouteGuard(server));
+}
 
-  return { collab: sync.collab, plans: seams };
+// The agent is shown on its plan from the floor's own runs, so a deployment with no floor shows it nowhere.
+function followPlanAgents(server: Server, writer: PresenceWriter): void {
+  if (!floorConfigured()) {
+    return;
+  }
+  const presence = planAgentPresenceOn(floorClient(), writer);
+
+  server.ext("onPostStart", () => presence.start());
+  server.ext("onPreStop", () => presence.stop());
 }
 
 // The pool, answering 503 while the database is away.

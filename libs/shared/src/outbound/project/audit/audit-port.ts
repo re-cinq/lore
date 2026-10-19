@@ -19,4 +19,10 @@ export interface AuditPort {
     eventType: string,
     limit: number,
   ): Promise<StoredAuditLogEntry[]>;
+  /** Whether the repo holds a row of the type whose payload carries every given field: what makes a redelivered event write its row once. */
+  hasEntry(
+    eventType: string,
+    repo: string,
+    fields: Record<string, unknown>,
+  ): Promise<boolean>;
 }

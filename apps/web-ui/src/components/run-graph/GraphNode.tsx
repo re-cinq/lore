@@ -12,7 +12,10 @@ import NodeMetaLine from "./NodeMetaLine";
 import NodeOutcomeList from "./NodeOutcomeList";
 import NodePlainLabel from "./NodePlainLabel";
 import NodeRunBadge from "./NodeRunBadge";
-import { NODE_WIDTH, nodeTextRows, titleCase } from "./run-graph-geometry";
+import TypeGlyph, { FAMILY_CLASS } from "./TypeGlyph";
+import { typeFamilyOf, type NodeTypeFamily } from "@/lib/node-type-family";
+import { NODE_WIDTH, nodeTextRows } from "./run-graph-geometry";
+import { nodeTitle } from "@/lib/node-tooltip";
 import { classes } from "./run-graph-tone-classes";
 import styles from "./run-graph.module.css";
 
@@ -28,6 +31,8 @@ export interface GraphNodeProps {
   /** Run mode facts under the verdict (model · duration · visits); empty draws nothing. */
   meta?: string;
   onSelect?: (nodeId: string) => void;
+  /** The id of the tooltip shown for this node, while one is. */
+  describedBy?: string;
 }
 
 export default function GraphNode(props: GraphNodeProps) {
@@ -38,11 +43,15 @@ export default function GraphNode(props: GraphNodeProps) {
   const interaction = nodeInteraction(node.id, onSelect);
   const { baselines, metaLine } = nodeLines(props, badge, leftEdge);
   const body = { node, badge, baselines, outcomes, isTerminal, top, leftEdge };
+  const family = typeFamilyOf(model?.nodeType ?? model?.type);
+  // The type mark sits in the box's top-left corner; the box itself wears the family colour through the class on the group (run-viz FR4.1h).
+  const mark = { cx: leftEdge + GLYPH_INSET, cy: top + GLYPH_INSET };
 
   return (
-    <g {...groupProps({ body, interaction, selected: props.selected })}>
+    <g {...groupProps({ ...props, body, interaction, family })}>
       <NodeBox leftEdge={leftEdge} top={top} height={height} />
-      <NodeBody {...body} title={titleCase(node.id)} />
+      <TypeGlyph family={family} {...mark} />
+      <NodeBody {...body} title={nodeTitle(node.id)} />
       <NodeMetaLine {...metaLine} />
     </g>
   );
@@ -151,24 +160,30 @@ interface NodeBodyProps {
 }
 
 /** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
-function groupProps({
-  body,
-  interaction,
-  selected,
-}: {
+interface GroupInput {
   body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">;
   interaction: ReturnType<typeof nodeInteraction>;
-  selected: boolean | undefined;
-}) {
+  selected?: boolean;
+  family: NodeTypeFamily;
+  describedBy?: string;
+}
+
+function groupProps(input: GroupInput) {
+  const { body, interaction, selected, family, describedBy } = input;
   const { node, badge } = body;
   const isSelected = selected === true;
 
   return {
-    className: nodeClassName({ badge, selected: isSelected }),
+    className: classes(
+      nodeClassName({ badge, selected: isSelected }),
+      FAMILY_CLASS[family],
+    ),
     "data-node": node.id,
     "data-tone": badge?.tone ?? "idle",
+    "data-family": family,
     "data-selected": isSelected || undefined,
     "aria-label": nodeAriaLabel(body),
+    "aria-describedby": describedBy,
     ...interactionAttrs({ interaction, selected: isSelected }),
   };
 }
@@ -243,6 +258,9 @@ function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
     />
   );
 }
+
+// The type mark's centre from the box's top-left: inside the corner, clear of the status glyph below it and of the text to its right.
+const GLYPH_INSET = 11;
 
 /** What the box says, in precedence order: a run badge when this visit has an outcome, else the outcomes the definition declares, else the plain name. A node cannot show both — the badge IS the run's answer, and listing the possibilities beside it would read as though they were still open. */
 function NodeBody(props: NodeBodyProps) {

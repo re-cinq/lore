@@ -934,3 +934,257 @@ resource "kubectl_manifest" "es_floor_agent_secrets" {
 
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
+
+# Grafana's sign-in proxy: its own Google OAuth web client and cookie key
+# (secrets.tf, behind enable_monitoring), mirrored into the monitoring namespace
+# under the key names the oauth2-proxy chart reads (monitoring.tf, ADR-050).
+resource "kubectl_manifest" "es_grafana_oauth" {
+  count = var.enable_monitoring ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "grafana-oauth"
+      namespace = local.monitoring_namespace
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "grafana-oauth"
+      }
+      data = [
+        {
+          secretKey = "client-id"
+          remoteRef = {
+            key = "lore-grafana-oauth-client-id"
+          }
+        },
+        {
+          secretKey = "client-secret"
+          remoteRef = {
+            key = "lore-grafana-oauth-client-secret"
+          }
+        },
+        {
+          secretKey = "cookie-secret"
+          remoteRef = {
+            key = "lore-grafana-cookie-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.monitoring]
+}
+
+# ===== utopia namespace =====================================================
+
+# Utopia's sign-in proxy: its own Google OAuth web client and cookie key
+# (secrets.tf, behind enable_utopia), under the key names the oauth2-proxy chart
+# reads (utopia.tf).
+resource "kubectl_manifest" "es_utopia_oauth" {
+  count = var.enable_utopia ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "utopia-oauth"
+      namespace = local.utopia_namespace
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "utopia-oauth"
+      }
+      data = [
+        {
+          secretKey = "client-id"
+          remoteRef = {
+            key = "lore-utopia-oauth-client-id"
+          }
+        },
+        {
+          secretKey = "client-secret"
+          remoteRef = {
+            key = "lore-utopia-oauth-client-secret"
+          }
+        },
+        {
+          secretKey = "cookie-secret"
+          remoteRef = {
+            key = "lore-utopia-cookie-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.utopia]
+}
+
+# The key Utopia seals stored model credentials with (UTOPIA_SECRET_KEY). The
+# database password is not mirrored: terraform reads it into the CNPG
+# credentials Secret, as lore-db does, and the app reads that one.
+resource "kubectl_manifest" "es_utopia_app" {
+  count = var.enable_utopia ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "utopia-app"
+      namespace = local.utopia_namespace
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "utopia-app"
+      }
+      data = [
+        {
+          secretKey = "secret-key"
+          remoteRef = {
+            key = "lore-utopia-secret-key"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.utopia]
+}
+
+# The password of utopia_app, the restricted role the app runs as (utopia.tf,
+# managed.roles). Mirrored as the basic-auth Secret CNPG reads to set the role's
+# password and the app reads for UTOPIA_APP_DB_PASSWORD, so the value is in neither
+# the Cluster manifest nor terraform state.
+resource "kubectl_manifest" "es_utopia_app_db" {
+  count = var.enable_utopia ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "utopia-app-db-credentials"
+      namespace = local.utopia_namespace
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "utopia-app-db-credentials"
+        template = {
+          type = "kubernetes.io/basic-auth"
+          data = {
+            username = "utopia_app"
+            password = "{{ .password }}"
+          }
+        }
+      }
+      data = [
+        {
+          secretKey = "password"
+          remoteRef = {
+            key = "lore-utopia-app-db-password"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.utopia]
+}
+
+# The GHCR pull secret, for a Utopia image of our own: a build pushed to
+# ghcr.io/re-cinq is internal to the org, which the kubelet is not.
+resource "kubectl_manifest" "es_utopia_ghcr" {
+  count = var.enable_utopia ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "ghcr-pull-secret"
+      namespace = local.utopia_namespace
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "ghcr-pull-secret"
+        template = {
+          type = "kubernetes.io/dockerconfigjson"
+          data = {
+            ".dockerconfigjson" = "{{ .dockerconfigjson }}"
+          }
+        }
+      }
+      data = [
+        {
+          secretKey = "dockerconfigjson"
+          remoteRef = {
+            key = "lore-ghcr-pull-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.utopia]
+}
+
+# The Utopia write token lore-api sets a repo's knowledge base up with on its
+# first spec/ADR ingest (UTOPIA_TOKEN); see var.enable_utopia_auto_setup.
+resource "kubectl_manifest" "es_utopia_token_lore_api" {
+  count = var.enable_utopia_auto_setup ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "utopia-token"
+      namespace = "lore-api"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "utopia-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-utopia-lore-api-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}

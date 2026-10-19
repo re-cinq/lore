@@ -11,7 +11,7 @@ const SPEC = [
   "",
   "## Requirements",
   "",
-  "- FR1 — The run page streams node events.",
+  "- FR1 — The run page streams node events. ([from plan](https://lore.example/plans/p1#b-1))",
   "- FR2 — The graph renders each node event.",
   "",
 ].join("\n");
@@ -31,6 +31,22 @@ function decomposition(...specLines: number[][]): string {
     ],
   });
 }
+
+const REVIEW_PATH = "specs/review/spec.md";
+const REVIEW_SPEC = [
+  "# Reviews",
+  "",
+  "Reviewers follow runs.",
+  "",
+  "## Requirements",
+  "",
+  "- FR9 — Reviewers see each node event. ([from plan](https://lore.example/plans/p1#b-2))",
+  "",
+].join("\n");
+const SPEC_PLAN = JSON.stringify({
+  creates: [{ path: SPEC_PATH }],
+  updates: [{ path: REVIEW_PATH }],
+});
 
 const HANDLER_PATH = "libs/shared/src/work/backlog/label-dispatch.ts";
 const HANDLER =
@@ -59,12 +75,18 @@ const handback = (): RunVisit => ({
   report: { outcome: "changes_requested" },
 });
 
-function scene(decomposed: string, visits: RunVisit[] = []) {
+function scene(
+  decomposed: string,
+  visits: RunVisit[] = [],
+  filed: string[] | null = null,
+) {
   const produced: Record<string, string> = {};
   const reads: string[] = [];
   const tools: Tools = {
     read: async (need) =>
-      Buffer.from(need === "decomposition" ? decomposed : ""),
+      Buffer.from(
+        { decomposition: decomposed, spec_plan: SPEC_PLAN }[need] ?? "",
+      ),
     produce: async (name, bytes) => {
       produced[name] = bytes.toString();
     },
@@ -75,9 +97,16 @@ function scene(decomposed: string, visits: RunVisit[] = []) {
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
 
-      return { [SPEC_PATH]: SPEC, [HANDLER_PATH]: HANDLER }[path] ?? null;
+      return (
+        {
+          [SPEC_PATH]: SPEC,
+          [REVIEW_PATH]: REVIEW_SPEC,
+          [HANDLER_PATH]: HANDLER,
+        }[path] ?? null
+      );
     },
     listTree: async () => [SPEC_PATH, HANDLER_PATH],
+    filedCoverage: async () => filed,
     visitsOf: async () => [
       ...visits,
       { nodeId: "issue-coverage", report: null },
@@ -107,6 +136,44 @@ describe("issueCoverageHandle", () => {
     });
   });
 
+  it("sends decompose back naming FR9 on line 7 of specs/review/spec.md, the second spec plan p1's spec PR wrote", async () => {
+    const { handle, tools, produced, reads } = scene(decomposition([7]));
+
+    const report = await handle(
+      brief({ ...NEEDS, plan_id: "p1", spec_plan: "blob://spec-plan" }),
+      tools,
+    );
+
+    expect({
+      report,
+      reads: reads.filter((read) => read.includes("/spec.md")),
+      namesFr9: produced.issue_coverage?.includes(
+        "1 of 2 testable spec statements have a task. Not covered yet:\n\n- specs/review/spec.md line 7: FR9 — Reviewers see each node event. — https://github.com/re-cinq/lore/blob/abc123/specs/review/spec.md#L7",
+      ),
+    }).toEqual({
+      report: { outcome: "changes_requested" },
+      reads: [
+        `re-cinq/lore:${SPEC_PATH}@abc123`,
+        `re-cinq/lore:${REVIEW_PATH}@abc123`,
+      ],
+      namesFr9: true,
+    });
+  });
+
+  it("reports success with 1 of 1 covered for plan p1, whose only statement is FR1", async () => {
+    const { handle, tools, produced } = scene(decomposition([7]));
+
+    const report = await handle(brief({ ...NEEDS, plan_id: "p1" }), tools);
+
+    expect({ report, produced }).toEqual({
+      report: { outcome: "success" },
+      produced: {
+        issue_coverage:
+          "## Spec coverage\n\n1 of 1 testable spec statements have a task.\n",
+      },
+    });
+  });
+
   it("sends decompose back with FR2 on line 8 when no coverage round was spent yet", async () => {
     const { handle, tools, produced } = scene(decomposition([7]));
 
@@ -133,6 +200,36 @@ describe("issueCoverageHandle", () => {
       report,
       namesFr2: produced.issue_coverage?.includes("- line 8: FR2"),
     }).toEqual({ report: { outcome: "success" }, namesFr2: true });
+  });
+
+  it("fails naming story coverage 0 of 1 filed when the spent run would settle but the story's comments lost FR1", async () => {
+    const { handle, tools } = scene(
+      decomposition([]),
+      [handback(), handback(), handback()],
+      [],
+    );
+
+    const report = await handle(brief({ ...NEEDS, plan_id: "p1" }), tools);
+
+    expect(report).toEqual({
+      outcome: "failed",
+      error:
+        "the story issue lists 0 of the 1 statements no task names; rerun issues to rewrite it",
+    });
+  });
+
+  it("reports success when the spent run's story lists FR1 on line 7, the one statement of plan p1 no task names", async () => {
+    const { handle, tools } = scene(
+      decomposition([]),
+      [handback(), handback(), handback()],
+      [
+        "- line 7: FR1 — The run page streams node events. — https://github.com/re-cinq/lore/blob/abc123/specs/live/spec.md#L7",
+      ],
+    );
+
+    const report = await handle(brief({ ...NEEDS, plan_id: "p1" }), tools);
+
+    expect(report).toEqual({ outcome: "success" });
   });
 
   it("sends decompose back naming T006's alreadyWorkingOnIssue, absent from the file it names, with activeTaskByIssue as the hint", async () => {

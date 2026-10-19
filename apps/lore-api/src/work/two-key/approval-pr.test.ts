@@ -11,29 +11,53 @@ const b64 = (text: string) => Buffer.from(text, "utf-8").toString("base64");
 
 function fakeOctokit(init: {
   prState?: string;
+  prLabels?: string[];
   pullsGetError?: unknown;
   events?: unknown[];
   listEventsError?: unknown;
+  reviews?: unknown[][];
   codeownersContent?: string | null;
 }) {
   return {
     rest: {
-      pulls: { get: mockPullsGet(init.prState, init.pullsGetError) },
+      pulls: {
+        get: mockPullsGet(init.prState, init.pullsGetError, init.prLabels),
+        listReviews: mockListReviews(init.reviews),
+      },
       issues: { listEvents: mockListEvents(init.events, init.listEventsError) },
       repos: { getContent: mockGetContent(init.codeownersContent) },
     },
   } as unknown as Octokit;
 }
 
-function mockPullsGet(prState: string | undefined, error: unknown) {
+function mockPullsGet(
+  prState: string | undefined,
+  error: unknown,
+  labels: string[] = ["dark-factory-approval"],
+) {
   if (error) {
     return vi.fn().mockRejectedValue(error);
   }
 
   return vi.fn().mockResolvedValue({
-    data: { state: prState ?? "open", html_url: "https://gh/o/r/5" },
+    data: {
+      state: prState ?? "open",
+      html_url: "https://gh/o/r/5",
+      labels: labels.map((name) => ({ name })),
+    },
   });
 }
+
+function mockListReviews(pages: unknown[][] = []) {
+  const fn = vi.fn();
+
+  fn.mockResolvedValue({ data: [] });
+  pages.forEach((rows) => fn.mockResolvedValueOnce({ data: rows }));
+
+  return fn;
+}
+
+const review = (login: string, state: string) => ({ user: { login }, state });
 
 function mockListEvents(events: unknown[] | undefined, error: unknown) {
   if (error) {
@@ -58,6 +82,15 @@ const labeledEvent = (login: string) => ({
   actor: { login },
   label: { name: "dark-factory-approval" },
 });
+
+const unlabeledEvent = (login: string) => ({
+  event: "unlabeled",
+  actor: { login },
+  label: { name: "dark-factory-approval" },
+});
+
+const run = (octokit: Octokit) =>
+  verifyApproval({ octokit, prRef: "o/r#5", targetRepo: "o/r" });
 
 describe("parsePrRef", () => {
   it("parses owner/repo#N", () => {
@@ -230,6 +263,228 @@ describe("verifyApproval", () => {
     await expect(
       verifyApproval({ octokit, prRef: "o/r#5", targetRepo: "o/r" }),
     ).rejects.toMatchObject({ code: "team_membership_unresolved" });
+  });
+});
+
+describe("verifyApproval revocation and CLAUDE.md ownership", () => {
+  it("refuses an approval whose label was removed after it was applied", async () => {
+    const octokit = fakeOctokit({
+      prLabels: [],
+      events: [labeledEvent("alice"), unlabeledEvent("alice")],
+      codeownersContent: "* @alice\n",
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "label_missing",
+    });
+  });
+
+  it("refuses when the events log still shows a labeling but the PR no longer carries the label", async () => {
+    const octokit = fakeOctokit({
+      prLabels: ["bug"],
+      events: [labeledEvent("alice")],
+      codeownersContent: "* @alice\n",
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "label_missing",
+    });
+  });
+
+  it("attributes the approval to the owner who relabeled after a non-owner's label was removed", async () => {
+    const octokit = fakeOctokit({
+      events: [
+        labeledEvent("mallory"),
+        unlabeledEvent("mallory"),
+        labeledEvent("alice"),
+      ],
+      codeownersContent: "* @alice\n",
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+
+  it("refuses a labeler who owns another path but not CLAUDE.md", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("writer")],
+      codeownersContent: "* @alice\ndocs/** @writer\n",
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("accepts the CLAUDE.md owner with the label present", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("alice")],
+      codeownersContent: "* @bob\n/CLAUDE.md @alice\n",
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+
+  it("lets the last matching rule win over an earlier broader one", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("bob")],
+      codeownersContent: "* @bob\nCLAUDE.md @alice\n",
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("lets a later broad rule override an earlier CLAUDE.md rule", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("alice")],
+      codeownersContent: "CLAUDE.md @alice\n* @bob\n",
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("treats a later rule with no owners as unowning CLAUDE.md", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("alice")],
+      codeownersContent: "* @alice\nCLAUDE.md\n",
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("does not match CLAUDE.md against a rule for another file or a directory", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("alice")],
+      codeownersContent:
+        "* @alice\n*.ts @bob\n/docs/ @bob\n/src/CLAUDE.md @bob\n",
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+
+  it("refuses with team_membership_unresolved when only a team owns CLAUDE.md", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("alice")],
+      codeownersContent: "* @alice\nCLAUDE.md @org/leads\n",
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "team_membership_unresolved",
+    });
+  });
+
+  it("matches handles case-insensitively", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("Alice")],
+      codeownersContent: "CLAUDE.md @alice\n",
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "Alice" });
+  });
+
+  it("reads past the first page of events", async () => {
+    const filler = Array.from({ length: 100 }, () => ({ event: "commented" }));
+    const octokit = fakeOctokit({ codeownersContent: "* @alice\n" });
+
+    vi.mocked(octokit.rest.issues.listEvents)
+      .mockResolvedValueOnce({ data: filler } as never)
+      .mockResolvedValueOnce({ data: [labeledEvent("alice")] } as never);
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+});
+
+describe("verifyApproval review approval", () => {
+  const ownerRules = "* @alice\n";
+
+  it("accepts an owner's APPROVED review when a non-owner applied the label", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+
+  it("refuses an owner approval later withdrawn by CHANGES_REQUESTED", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [
+        [review("alice", "APPROVED"), review("alice", "CHANGES_REQUESTED")],
+      ],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("refuses an owner approval that was DISMISSED", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED"), review("alice", "DISMISSED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("refuses an owner approval when the label has been removed", async () => {
+    const octokit = fakeOctokit({
+      prLabels: [],
+      events: [labeledEvent("mallory"), unlabeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "label_missing",
+    });
+  });
+
+  it("refuses an APPROVED review from a non-owner", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("mallory", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("keeps an owner approval standing through a later plain comment", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED"), review("alice", "COMMENTED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+
+  it("reads reviews across pages", async () => {
+    const filler = Array.from({ length: 100 }, () =>
+      review("bob", "COMMENTED"),
+    );
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [filler, [review("alice", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+    expect(octokit.rest.pulls.listReviews).toHaveBeenCalledTimes(2);
   });
 });
 

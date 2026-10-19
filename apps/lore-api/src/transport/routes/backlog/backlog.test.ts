@@ -359,6 +359,11 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           openIssue(5, ["priority:high"], "2026-08-01T00:00:00Z"),
         ],
       },
+      pulls: {
+        list: async () => [
+          { number: 50, branch: "lore/implementation-loop/issue-5" },
+        ],
+      },
     } as never);
 
     const res = await get(pool);
@@ -668,7 +673,10 @@ describe("GET with tickets the loop is not working", () => {
       .mockResolvedValueOnce(enabledRepo)
       .mockResolvedValueOnce({ rows: tasks })
       .mockResolvedValue({ rows: [] });
-    vi.mocked(projectFor).mockResolvedValue({ issues } as never);
+    vi.mocked(projectFor).mockResolvedValue({
+      issues,
+      pulls: { list: async () => [] },
+    } as never);
 
     const res = await buildServer(() => pool as never).inject({
       method: "GET",
@@ -735,6 +743,16 @@ describe("GET with tickets the loop is not working", () => {
     ]);
   });
 
+  it("lists #15 in the queue when its task completed with no open pull request", async () => {
+    const loop = await read([taskRow(15, "completed", "parked")], {
+      list: async () => [
+        openIssue(15, ["priority:high"], "2026-08-01T00:00:00Z"),
+      ],
+    });
+
+    expect(loop.next).toMatchObject([{ issue_number: 15, state: "queued" }]);
+  });
+
   it("holds the re-queued #5 on why its last attempt failed, read from the task", async () => {
     const loop = await read(
       [taskRow(5, "failed", "the run ended failed: 403 Forbidden")],
@@ -754,5 +772,154 @@ describe("GET with tickets the loop is not working", () => {
       next: [{ issue_number: 5, state: "queued", hold }],
       recent: [{ issue_number: 5, state: "failed", hold }],
     });
+  });
+});
+
+describe("floorRunContext", () => {
+  function fakeFloor(overrides: {
+    summaries?: Array<{ id: string; status: string; reason: string | null }>;
+    graph?: { nodes: Array<{ id: string; type: string }> } | null;
+    visits?: Array<{
+      nodeId: string;
+      iteration: number;
+      outcome: string | null;
+    }>;
+  }) {
+    return {
+      listSummaries: async () => overrides.summaries ?? [],
+      getById: async () => ({ graph: overrides.graph ?? null }),
+      listStationRuns: async () => overrides.visits ?? [],
+    };
+  }
+
+  it("is null when the floor has no run for the task", async () => {
+    const { floorRunContext } = await import("./backlog-ticket.js");
+
+    expect(
+      await floorRunContext(fakeFloor({}) as never, "re-cinq/lore", "task-1"),
+    ).toBeNull();
+  });
+
+  it("carries the run's status and reason even with no graph yet", async () => {
+    const { floorRunContext } = await import("./backlog-ticket.js");
+    const floor = fakeFloor({
+      summaries: [{ id: "run-9", status: "running", reason: null }],
+      graph: null,
+    });
+
+    expect(
+      await floorRunContext(floor as never, "re-cinq/lore", "task-1"),
+    ).toEqual({
+      run: {
+        id: "run-9",
+        task_id: "task-1",
+        status: "running",
+        reason: null,
+        graph: null,
+      },
+      nodeRows: [],
+    });
+  });
+
+  it("maps the floor's visits into the pipeline's node rows", async () => {
+    const { floorRunContext } = await import("./backlog-ticket.js");
+    const floor = fakeFloor({
+      summaries: [{ id: "run-9", status: "failed", reason: "iteration_max" }],
+      graph: { nodes: [{ id: "implement", type: "agent" }] },
+      visits: [{ nodeId: "implement", iteration: 1, outcome: "failed" }],
+    });
+
+    expect(
+      await floorRunContext(floor as never, "re-cinq/lore", "task-1"),
+    ).toEqual({
+      run: {
+        id: "run-9",
+        task_id: "task-1",
+        status: "failed",
+        reason: "iteration_max",
+        graph: { nodes: [{ id: "implement", type: "agent" }] },
+      },
+      nodeRows: [
+        {
+          assembly_run_id: "run-9",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "failed",
+        },
+      ],
+    });
+  });
+});
+
+describe("GET with a parked ticket whose last attempt has a run", () => {
+  it("shows the parked ticket's Stages from its last attempt, same as a working one", async () => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-2",
+            created_at: "2026-08-26T06:00:00.000Z",
+            status: "completed",
+            description: "Ticket 2",
+            issue_number: 2,
+            issue_url: "https://gh/i/2",
+            pr_url: "https://gh/pr/20",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "run-2",
+            task_id: "task-2",
+            status: "completed",
+            reason: null,
+            graph: { nodes: [{ id: "implement", type: "agent" }] },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            assembly_run_id: "run-2",
+            node_id: "implement",
+            iteration: 1,
+            outcome: "success",
+          },
+        ],
+      });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(
+            2,
+            ["priority:high", "lore:blocked"],
+            "2026-08-01T00:00:00Z",
+          ),
+        ],
+      },
+    } as never);
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+
+    expect(JSON.parse(res.payload).parked).toMatchObject([
+      {
+        issue_number: 2,
+        state: "parked",
+        run_id: "run-2",
+        pipeline: [{ node_id: "implement", state: "success" }],
+      },
+    ]);
   });
 });

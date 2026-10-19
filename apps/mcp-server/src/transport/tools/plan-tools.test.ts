@@ -85,7 +85,10 @@ describe("lore_plan_edit remote proxy", () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => applied });
 
     const result = await planEdit({ plan_id: planId, op, expect: expectHash });
-    const [calledUrl, opts] = fetchMock.mock.calls[0];
+    const editCall = fetchMock.mock.calls.find(([url]) =>
+      (url as string).endsWith("/agent-edits"),
+    );
+    const [calledUrl, opts] = editCall as [string, RequestInit];
 
     expect({
       calledUrl,
@@ -98,6 +101,18 @@ describe("lore_plan_edit remote proxy", () => {
       body: { actor: "planning-agent", ops: [op], expect: expectHash },
       answer: applied,
     });
+  });
+
+  it("posts only the edit, leaving the agent's presence to lore-api", async () => {
+    const planId = "b4b2026f-1111-2222-3333-444455556666";
+    const op = { op: "append-to-section", slot: "intent", paragraphs: ["x"] };
+
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    await planEdit({ plan_id: planId, op });
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      `https://lore-api.example.com/api/plans/${planId}/agent-edits`,
+    ]);
   });
 
   it("tells the agent to reread and retry when the block changed under it", async () => {

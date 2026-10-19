@@ -2,6 +2,7 @@
 import type { Project } from "../../outbound/project/index.js";
 import type { LoopTickDeps } from "./implementation-loop-tick.js";
 import type { LoopRunClosedDeps } from "./loop-run-closed.js";
+import { openPrOnBranch } from "./ticket-holder.js";
 
 type ProjectOf = (
   repo: string,
@@ -39,33 +40,29 @@ export function tickPortsOf({
   };
 }
 
-/** What the tick reads from GitHub. `branchExists` is passed straight through: `decideBranchResume` reads an undefined answer as "unknown" and starts fresh, which is the safe direction — resuming a branch that is not there produces an empty PR. */
-function repoPortsOf(
-  projectOf: ProjectOf,
-): Pick<
+type RepoPorts = Pick<
   LoopTickDeps,
-  "listIssues" | "branchExists" | "openBlockers" | "openPrForBranch"
-> {
+  | "listIssues"
+  | "branchExists"
+  | "branchMerged"
+  | "openBlockers"
+  | "openPrForBranch"
+>;
+
+/** What the tick reads from GitHub. `branchExists` is passed straight through: `decideBranchResume` reads an undefined answer as "unknown" and starts fresh, which is the safe direction — resuming a branch that is not there produces an empty PR. */
+function repoPortsOf(projectOf: ProjectOf): RepoPorts {
   return {
     listIssues: async (repo) =>
       (await projectOf(repo)).issues.list({ state: "open" }),
     branchExists: async (repo, branch) =>
       (await projectOf(repo)).repo.branchExists(branch),
+    branchMerged: async (repo, branch) =>
+      (await projectOf(repo)).repo.branchMerged(branch),
     openBlockers: async (repo, issueNumber) =>
       (await projectOf(repo)).issues.openBlockers(issueNumber),
     openPrForBranch: async (repo, branch) =>
-      openPrOn(await projectOf(repo), branch),
+      openPrOnBranch(await projectOf(repo), branch),
   };
-}
-
-async function openPrOn(
-  project: Pick<Project, "pulls">,
-  branch: string,
-): Promise<{ number: number; url: string } | null> {
-  const open = await project.pulls.list();
-  const forBranch = open.find((pr) => pr.branch === branch);
-
-  return forBranch ? { number: forBranch.number, url: forBranch.url } : null;
 }
 
 /** What settling a ticket writes to GitHub. */

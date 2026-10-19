@@ -4,7 +4,7 @@ review_required: false
 execution_mode: claude-code
 # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
 test_policy: none
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 skills:
   - tdd-loop
 ---
@@ -25,10 +25,15 @@ test, build and install commands here. Read `.lore/dod.md`'s "Done when
 these pass" list for what the
 ticket meant by done, and read the diff for what actually landed.
 
-WRITE `{pr_body_path}`. Prose, not a template. What the ticket
-asked for, what changed and why that shape, which acceptance tests define
-done, and anything a reviewer would otherwise have to ask. No checklists,
-no emoji, no "Summary/Changes/Testing" headings, no restating the diff.
+WRITE `{pr_body_path}`. Prose under the repository's own headings: the
+`## ` headings of `.github/PULL_REQUEST_TEMPLATE.md` when the repository
+has one, otherwise `## Why`, `## What Changed` and `## Testing`. A
+PR-description check may refuse a body without them, and Lore adds any
+section you leave out over a line saying it was not covered, which a
+reviewer reads as a gap. Under them: what the ticket asked for, what
+changed and why that shape, which acceptance tests define done, and
+anything a reviewer would otherwise have to ask. No checklists, no emoji,
+no other headings, no restating the diff.
 Link the specs and ADRs the change touches by path. If you deviated from
 `.lore/dod.md`'s strategy, say so and say why — that is the single most
 useful sentence in the description. Do not write closing-keyword lines

@@ -120,6 +120,7 @@ line:
       iteration_max: 1
 stations:
   onboard-enrol:
+    description: Enrols the repository in Lore and commits Lore's standard workflows and templates on the onboarding branch, noting anything that needs a person's attention.
     kind: service
     outcomes:
       - success
@@ -136,6 +137,7 @@ stations:
       - name: attention
         kind: value
   onboard-author:
+    description: An AI agent reads the repository and writes its own onboarding files from the onboarding ticket, such as AGENTS.md, ADRs, a spec and the PR template.
     kind: agent
     agent_definition: onboard-author
     conversation: new
@@ -155,6 +157,7 @@ stations:
         path: ticket.md
     produces: []
   onboard-open-pr:
+    description: Opens the one onboarding pull request from the branch. When nothing changed because the repository's Lore setup is already current, the run ends here.
     kind: service
     outcomes:
       - success
@@ -174,6 +177,7 @@ stations:
       - name: pr_url
         kind: value
   onboard-await-ci:
+    description: Waits on the onboarding pull request until CI has a verdict. Lore reads the build itself, nobody clicks anything, and a red build goes to the fix step.
     kind: human
     outcomes:
       - success
@@ -190,6 +194,7 @@ stations:
       - name: ci_failure_summary
         kind: value
   onboard-fix-ci:
+    description: An AI agent fixes what the red build reported on the onboarding pull request, working from CI's failed checks and logs. CI then judges it again.
     kind: agent
     agent_definition: onboard-fix-ci
     conversation: new
@@ -215,6 +220,7 @@ stations:
         kind: value
     produces: []
   onboard-request-review:
+    description: Asks Lore's code-review line to review the onboarding pull request once its build is green.
     kind: service
     outcomes:
       - success

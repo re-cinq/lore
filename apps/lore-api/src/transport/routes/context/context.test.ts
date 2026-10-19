@@ -57,7 +57,9 @@ describe("GET /api/context", () => {
         agentId: undefined,
         crossRepo: false,
         debug: true,
-        dgraph: null,
+        graph: null,
+        backend: "lore",
+        utopiaReads: null,
       },
     ]);
     expect(res.result).toEqual({
@@ -209,5 +211,35 @@ describe("GET /api/context", () => {
     const res = await get(makePool(), "/api/context?query=hi&template=bogus");
 
     expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 400 for a backend of dgraph", async () => {
+    const res = await get(makePool(), "/api/context?query=hi&backend=dgraph");
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("assembles from utopia when the request names backend=utopia over a repo set to both", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [] });
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ settings: { context_backend: "both" } }],
+    });
+    await get(pool, "/api/context?query=hi&repo=o/r&backend=utopia");
+
+    expect(vi.mocked(assembleContext).mock.calls[0][2]?.backend).toBe("utopia");
+  });
+
+  it("assembles from both when the request names no backend and the repo's context_backend is both", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [] });
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ settings: { context_backend: "both" } }],
+    });
+    await get(pool, "/api/context?query=hi&repo=o/r");
+
+    expect(vi.mocked(assembleContext).mock.calls[0][2]?.backend).toBe("both");
   });
 });

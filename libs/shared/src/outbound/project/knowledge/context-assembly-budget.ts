@@ -17,6 +17,37 @@ import {
 
 /** Allocating the token budget across sections by priority, and packing each section's deduped items into its share. */
 
+// Per-template default token budgets; research keeps the old 16K ceiling since it's memory/episode-heavy.
+const TEMPLATE_DEFAULT_BUDGETS: Record<string, number | undefined> = {
+  default: 8000,
+  implementation: 8000,
+  review: 8000,
+  research: 16000,
+};
+
+/** Never below 2000 tokens: a budget small enough to fit nothing still costs a request, and an agent that receives an empty block cannot tell it from a repo with no context at all. */
+export function assemblyBudget(
+  templateName: string,
+  maxTokens?: number,
+): number {
+  return Math.max(resolveEffectiveMax(templateName, maxTokens), 2000);
+}
+
+/** Each store's share when two are assembled side by side: half of what one assembly would get. */
+export function halfBudget(
+  templateName = "default",
+  maxTokens?: number,
+): number {
+  return Math.floor(resolveEffectiveMax(templateName, maxTokens) / 2);
+}
+
+function resolveEffectiveMax(
+  templateName: string,
+  maxTokens: number | undefined,
+): number {
+  return maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
+}
+
 // How far below the best chunk of the whole assembly a chunk may sit and still be kept (cosine similarity). Measured on 113 questions over production data: the document a question was written from sits within this of the best in nine cases out of ten, and the best chunk of an unrelated section sits further away in most.
 export const RELEVANCE_MARGIN = 0.08;
 
@@ -297,6 +328,13 @@ function buildTraceSection(outcome: SectionFitOutcome): TraceSection {
     truncated: fit.truncated,
     included: fit.included,
     omitReason: fit.omitReason,
+    ...vectorLegTrace(res),
     items: fit.included ? fit.keptItems : deduped,
   };
+}
+
+function vectorLegTrace(res: FetchResult): Pick<TraceSection, "vectorLegRows"> {
+  return res.vectorLegRows === undefined
+    ? {}
+    : { vectorLegRows: res.vectorLegRows };
 }

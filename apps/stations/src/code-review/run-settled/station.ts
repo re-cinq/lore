@@ -22,9 +22,15 @@ import {
 } from "../post-review/post-review.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { taskStore } from "../../outbound/queues.js";
+import { postSessionSummary } from "../../outbound/session-summary.js";
 import { settlingLoopTickets } from "./loop-closed.js";
 import { loopClosedDeps } from "./loop-closed-deps.js";
 import { settlingTasks, type SettleTaskDeps } from "./settle-task.js";
+import {
+  agentReportsOf,
+  recordingRunEpisode,
+  type RunEpisodeDeps,
+} from "./run-episode.js";
 import {
   brokenReviewCheck,
   budgetSkipCheck,
@@ -191,13 +197,34 @@ const taskDeps: SettleTaskDeps = {
   },
 };
 
+const episodeDeps: RunEpisodeDeps = {
+  run: productionDeps.run,
+  agentReports: async (runId) => {
+    const floor = floorClient();
+
+    return agentReportsOf(
+      await floor.stationRuns.list({ run: runId }),
+      async (hash) => {
+        const stored = await floor.blobs.get(hash);
+
+        return stored && Buffer.from(stored.bytes).toString("utf8");
+      },
+    );
+  },
+  post: postSessionSummary,
+  warn: (message) => console.warn(message),
+};
+
 export function startRunSettledStation(): RunningStation {
   return defineStation(
     "run-settled",
-    // The task first: the loop's re-armed tick must find it settled.
+    // The task first: the loop's re-armed tick must find it settled. The episode last: memory waits on nothing a person sees.
     settlingTasks(
       taskDeps,
-      settlingLoopTickets(loopClosedDeps, runSettledHandle(productionDeps)),
+      settlingLoopTickets(
+        loopClosedDeps,
+        recordingRunEpisode(episodeDeps, runSettledHandle(productionDeps)),
+      ),
     ),
   );
 }

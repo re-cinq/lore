@@ -82,11 +82,49 @@ describe("planGroundFindings", () => {
     ).toHaveLength(2);
   });
 
-  it("names the stale path in the finding and what to do in its why", () => {
+  it("names the stale path in the finding and asks for the name to go in its why, never for a marker", () => {
     expect(found()[1]).toMatchObject({
       text: expect.stringContaining("libs/assembly-lines/src/transition.ts"),
-      why: expect.stringContaining("main"),
+      why: expect.stringContaining(
+        "is not on main, so a spec written from this section would describe code that does not exist. Rewrite the statement in plain words without the name: a plan says what changes for its people, and the spec names the files.",
+      ),
     });
+    expect(found()[1].why).not.toContain("this feature adds it");
+  });
+
+  it("leaves a settled question, its answer and a comment alone, and still reports the same path in the section's own prose", () => {
+    const discussed = [
+      "# Sign in",
+      "",
+      "## In and out of scope <!-- slot:scope -->",
+      "",
+      "> **Question** (q-workspace-name): Which workspace name: `apps/dummy-idp` or `apps/oidc-provider`?",
+      "> **Answer**: apps/dummy-idp",
+      "> **Comment** by bogdan (resolved): keep `apps/dummy-idp` out of the picker",
+      "> **Finding** (f-ground-1, warning): This section names `apps/oidc-provider`.",
+      "",
+      "- The stand-in provider is a workspace of its own, `apps/dummy-idp`.",
+      "",
+    ].join("\n");
+    const onEveryLine = (line: number) => [
+      { name: "apps/dummy-idp", kind: "path" as const, line },
+      { name: "apps/oidc-provider", kind: "path" as const, line },
+    ];
+
+    expect(
+      planGroundFindings(discussed, {
+        path: "plan.md",
+        findings: [
+          ...[5, 6, 7, 8].flatMap(onEveryLine),
+          { name: "apps/dummy-idp", kind: "path" as const, line: 10 },
+        ],
+      }).map(({ slot, text }) => ({ slot, text })),
+    ).toEqual([
+      {
+        slot: "scope",
+        text: "This section names `apps/dummy-idp`, which is not on the default branch.",
+      },
+    ]);
   });
 
   it("reports nothing when the plan carries no slot markers to attach a finding to", () => {

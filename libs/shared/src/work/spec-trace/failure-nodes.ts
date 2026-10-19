@@ -8,6 +8,11 @@ import {
 import { parseFailureSites, namesCode } from "./failure-sites.js";
 import type { FailureSite } from "./failure-sites.js";
 
+export {
+  failuresTouching,
+  type FailureHit,
+} from "../../outbound/spec-trace/failure-reads.js";
+
 /** One failed station-run attempt, as the Floor settles it. */
 export interface FailureRecord {
   assemblyRunId: string;
@@ -19,19 +24,6 @@ export interface FailureRecord {
   commit: string | null;
   /** When the attempt failed. A Date in-process, an ISO STRING once it has crossed the ingest event's JSON — which is how it always arrives in production. */
   occurredAt?: Date | string;
-}
-
-/** A past failure on a file, as `fix-ci` reads it back. */
-export interface FailureHit {
-  stationRunId: string;
-  nodeId: string;
-  iteration: number;
-  failureClass: string;
-  failureDetail: string;
-  commit: string;
-  occurredAt: string;
-  /** The sha of the attempt that went green where this one failed; absent while the failure still stands. */
-  resolvedByCommit?: string;
 }
 
 /** What one projection did. Zeroes with `projected: false` mean the failure named no code, not that the write failed. */
@@ -93,26 +85,6 @@ export async function resolveFailures(
   return uids.length;
 }
 
-/** Every failure recorded against `path`, newest first, each carrying the sha that ended it when one did. */
-export async function failuresTouching(
-  dgraph: DgraphClientPort,
-  repo: string,
-  path: string,
-): Promise<FailureHit[]> {
-  const rows = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(TOUCHING_QUERY, {
-      $xid: `${repo}|${path}`,
-    });
-    const files = (res.data.f ?? []) as {
-      failures?: GraphFailure[];
-    }[];
-
-    return files.flatMap((file) => file.failures ?? []);
-  });
-
-  return rows.map(toHit);
-}
-
 /** Reaps failures older than `cutoff` — past that, the retrospective episode carries the lesson in prose and the node is noise. */
 export async function pruneFailures(
   dgraph: DgraphClientPort,
@@ -137,34 +109,6 @@ export async function pruneFailures(
   return uids.length;
 }
 
-interface GraphFailure {
-  "Failure.station_run_id"?: string;
-  "Failure.node_id"?: string;
-  "Failure.iteration"?: number;
-  "Failure.failure_class"?: string;
-  "Failure.failure_detail"?: string;
-  "Failure.commit"?: string;
-  "Failure.occurred_at"?: string;
-  "Failure.resolved_by_commit"?: string;
-}
-
-const FAILURE_FIELDS = `Failure.station_run_id
-      Failure.node_id
-      Failure.iteration
-      Failure.failure_class
-      Failure.failure_detail
-      Failure.commit
-      Failure.occurred_at
-      Failure.resolved_by_commit`;
-
-const TOUCHING_QUERY = `query q($xid: string) {
-  f(func: eq(File.xid, $xid)) {
-    failures: ~Failure.files (orderdesc: Failure.occurred_at) {
-      ${FAILURE_FIELDS}
-    }
-  }
-}`;
-
 const UNRESOLVED_QUERY = `query q($repo: string, $run: string, $node: string) {
   f(func: eq(Failure.repo, $repo))
     @filter(eq(Failure.assembly_run_id, $run)
@@ -184,28 +128,6 @@ const CHUNKS_QUERY = `query q($repo: string, $fp: string) {
     CodeChunk.end_line
   }
 }`;
-
-const HIT_FIELDS = [
-  ["stationRunId", "Failure.station_run_id"],
-  ["nodeId", "Failure.node_id"],
-  ["failureClass", "Failure.failure_class"],
-  ["failureDetail", "Failure.failure_detail"],
-  ["commit", "Failure.commit"],
-  ["occurredAt", "Failure.occurred_at"],
-] as const;
-
-function toHit(row: GraphFailure): FailureHit {
-  const resolved = row["Failure.resolved_by_commit"];
-  const strings = Object.fromEntries(
-    HIT_FIELDS.map(([field, predicate]) => [field, row[predicate] ?? ""]),
-  ) as Omit<FailureHit, "iteration" | "resolvedByCommit">;
-
-  return {
-    ...strings,
-    iteration: row["Failure.iteration"] ?? 0,
-    ...(resolved ? { resolvedByCommit: resolved } : {}),
-  };
-}
 
 /** The files this failure implicates, or none when its class names infrastructure rather than code. */
 function codeSites(record: FailureRecord): FailureSite[] {

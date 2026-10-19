@@ -3,7 +3,7 @@
 timeout_minutes: 45
 review_required: false
 execution_mode: claude-code
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 ---
 The pull request for this ticket has a RED build. Your job is to make it
 green, on the branch you are already on, and nothing else.
@@ -27,6 +27,9 @@ the workspace, or run the suite to confirm a finding CI already made
 about a specific line; a lint or status error on a markdown file needs
 an editor, not `npm ci`. Run a command only when the FIX needs one: a
 test you must see fail, a typecheck of a package whose code you changed.
+When that command's toolchain is not in this pod (`java`, `mvn`,
+`gradle`, `go`, `cargo` or `dotnet` is not found), do not look for it and
+do not install it: fix from the verdict, push, and let CI judge the push.
 
 When it names the failed STEP and what that step printed but no
 annotation, that is the diagnosis: find that step in
@@ -61,10 +64,11 @@ with `lore_get_ci_failures` and then `lore_get_ci_job_log` with
 CI's build step already did, and it does not fit this pod.
 
 IF THE SECTION IS MISSING OR TOO THIN, ASK CI YOURSELF: call
-`lore_get_ci_failures` with no arguments — it reports on the branch you
-are on: the judged sha, the conclusion, and each failed check with its
-annotations, failed steps and log tail. When a failure needs more of its
-log, call `lore_get_ci_job_log` with that failure's `job_id`, a `grep`
+`lore_get_ci_failures` with `repo` (owner/name) and `branch` (the output
+of `git branch --show-current`) — it reports on that branch: the judged
+sha, the conclusion, and each failed check with its annotations, failed
+steps and log tail. When a failure needs more of its log, call
+`lore_get_ci_job_log` with `repo` and that failure's `job_id`, a `grep`
 for the report's error marker (`error`, `FAIL`, `✖`) and a small `tail`.
 Never reinstall or rebuild the workspace to learn what CI already
 printed.

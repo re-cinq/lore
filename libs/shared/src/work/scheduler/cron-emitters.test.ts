@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cronTickEventNames } from "./cron-emitters.js";
+import { CRON_EMITTERS, cronTickEventNames } from "./cron-emitters.js";
 
 describe("cronTickEventNames", () => {
   it("names no tick for gap_detection, spec_drift, spec_coverage_backfill or spec_coverage_validate, whose lines only the old Floor walked", () => {
@@ -34,5 +34,11 @@ describe("cronTickEventNames", () => {
   });
   it("names no tick for spec_task_executor, the second dispatcher the backlog implementation loop replaced", () => {
     expect(cronTickEventNames()).not.toContain("cron.spec_task_executor.tick");
+  });
+
+  it("schedules utopia_backfill weekly on Sunday at 02:30 UTC", () => {
+    expect(
+      CRON_EMITTERS.find((emitter) => emitter.name === "utopia_backfill"),
+    ).toMatchObject({ schedule: "30 2 * * 0" });
   });
 });

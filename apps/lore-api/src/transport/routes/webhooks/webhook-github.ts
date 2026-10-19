@@ -11,6 +11,7 @@ import {
   githubSignature,
 } from "@re-cinq/lore-shared/http/github-delivery.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
+import { recordWebhookEvent } from "@re-cinq/lore-shared/otel/metrics.js";
 import { GITHUB_WEBHOOK_PATH } from "../../http/rate-limit.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { eventReporterFor } from "../event-reporter.js";
@@ -49,6 +50,7 @@ function captureDelivery(getPool: () => Pool | null): Lifecycle.Method {
 
     for (const event of events) {
       await reporter.insert(event);
+      recordWebhookEvent(event.eventName);
     }
     const body = {
       captured: events.length,

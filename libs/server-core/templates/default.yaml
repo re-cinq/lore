@@ -41,3 +41,8 @@ sections:
     priority: 1
     max_tokens: 1000
 
+
+  - header: "Linked Repos"
+    source: cross_repo
+    priority: 3
+    max_tokens: 1500

@@ -20,13 +20,16 @@ import {
   issueCoverage,
   issueCoverageBrief,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
-import { decomposedSpec, type DecomposedSpec } from "./decomposed-spec.js";
+import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
+import { decomposedSpecs, type DecomposedSpecs } from "./decomposed-spec.js";
 
 export interface IssuesStationDeps {
   /** Injectable project for tests; defaults to the pod's HTTP facade. */
   project?: ReturnType<typeof createStationProject>;
   /** The web UI's base address, for the story issue's plan link; defaults to `LORE_UI_URL`. */
   uiUrl?: string;
+  /** False files the task issues unqueued, for a person to prioritize; the issue-triage line's filing. */
+  queue?: boolean;
 }
 
 // The decomposition rides in on `params.feature_decomposition` — the artifact decompose produced, merged into the line's args by the Floor; a run reaching here without it is a wiring failure, not a bad decomposition, so it fails rather than asking the agent to fix something it did nothing wrong about.
@@ -41,7 +44,7 @@ export async function runIssuesStation(
   }
   const project = deps.project ?? createStationProject(input.repo);
   const decomposition = parseDecomposition(parseModelJson(raw));
-  const work = await planWork(project, decomposition, input);
+  const work = await planWork(project, decomposition, { input, deps });
 
   if (work.outcome === "changes_requested") {
     return rework(work.objection);
@@ -55,28 +58,33 @@ export async function runIssuesStation(
   return filed(await filePlanIssues(project, work, context), work.tasks.length);
 }
 
+interface WorkSources {
+  input: StationInput;
+  deps: IssuesStationDeps;
+}
+
 async function planWork(
   project: StationProject,
   decomposition: DecompositionResult,
-  input: StationInput,
+  { input, deps }: WorkSources,
 ) {
-  return decideIssueWork(
-    decomposition,
-    await project.issues.listLabels(),
-    input.params.plan_title,
-  );
+  return decideIssueWork(decomposition, await project.issues.listLabels(), {
+    planTitle: input.params.plan_title,
+    queue: deps.queue,
+  });
 }
 
 function specOfRun(
   project: StationProject,
   input: StationInput,
   decomposition: DecompositionResult,
-): Promise<DecomposedSpec | undefined> {
-  return decomposedSpec((path, ref) => project.repo.read(path, ref), {
+): Promise<DecomposedSpecs | undefined> {
+  return decomposedSpecs((path, ref) => project.repo.read(path, ref), {
     repo: input.repo,
     branch: input.branch,
-    specPath: input.params.spec_path,
+    specFiles: specFilesOfRun(input.params.spec_path, input.params.spec_plan),
     commit: decomposition.spec_commit,
+    planId: input.params.plan_id,
   });
 }
 
@@ -103,16 +111,16 @@ function rework(objection: string): NodeResult {
 
 interface FilingSources {
   uiUrl: string | undefined;
-  spec: DecomposedSpec | undefined;
+  spec: DecomposedSpecs | undefined;
 }
 
-// The plan id is what a rerun recognises its issues by.
+// The plan id, or the triaged issue's filing key, is what a rerun recognises its issues by.
 function filingContext(
   input: StationInput,
   decomposition: DecompositionResult,
   { uiUrl, spec }: FilingSources,
 ): FilingContext {
-  const planId = input.params.plan_id;
+  const planId = input.params.filing_key || input.params.plan_id;
 
   return {
     input,
@@ -127,7 +135,7 @@ function filingContext(
 
 function storyCoverage(
   decomposition: DecompositionResult,
-  spec: DecomposedSpec | undefined,
+  spec: DecomposedSpecs | undefined,
 ): { coverage?: string } {
   if (!spec) {
     return {};
@@ -135,7 +143,7 @@ function storyCoverage(
   const tasks = decomposition.stories.flatMap((story) => story.tasks);
 
   return {
-    coverage: issueCoverageBrief(issueCoverage(spec.parts, tasks), spec.linkOf),
+    coverage: issueCoverageBrief(issueCoverage(spec.specs, tasks), spec.linkOf),
   };
 }
 

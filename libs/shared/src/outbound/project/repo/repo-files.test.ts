@@ -21,7 +21,11 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
       path === "src" ? ["src/index.ts"] : [],
     listTree: async () => ["CLAUDE.md", "src/index.ts"],
     getDefaultBranch: async () => "main",
-    listCommitsSince: async () => [],
+    branchHeadSha: async (repo, branch) => `${repo}@${branch}`,
+    listBranchHistory: async () => [],
+    listTrackerActivity: async () => [],
+    listReleases: async () => [],
+    listTags: async () => [],
     getIssueLabels: async () => [],
     listOpenBlockers: async () => [],
     addSubIssue: async () => {},
@@ -45,6 +49,8 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
     commitFile: async (_repo, branch, { path }) => {
       writes.push(`commit:${branch}:${path}`);
     },
+    listIssueComments: async () => [],
+    updateIssueComment: async () => {},
     upsertCheckRun: async () => {},
   };
 }
@@ -54,6 +60,12 @@ describe("RepoFiles", () => {
     const repo = new RepoFiles("re-cinq/lore", fakeGitHub());
 
     expect(await repo.read("CLAUDE.md", "main")).toBe("# Lore@main");
+  });
+
+  it("answers the head sha of re-cinq/lore's main branch", async () => {
+    const repo = new RepoFiles("re-cinq/lore", fakeGitHub());
+
+    expect(await repo.headSha("main")).toBe("re-cinq/lore@main");
   });
 
   it("returns null for a file the repo does not have", async () => {

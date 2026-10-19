@@ -11,8 +11,10 @@ import {
   TaskEventSchema,
   type TaskEvent,
 } from "@re-cinq/lore-shared/models/task-event.js";
-import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { StationRun } from "@re-cinq/lore-shared/models/station-run.js";
+import type {
+  AssemblyRunRecord,
+  StationRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   StationRunRowSchema,
   toStationRunRow,
@@ -54,7 +56,7 @@ export const agentEventFrame = (event: AgentRunEvent): RunStreamFrame => ({
   event,
 });
 
-export const nodeStatusFrame = (node: StationRun): RunStreamFrame => ({
+export const nodeStatusFrame = (node: StationRunRecord): RunStreamFrame => ({
   type: "node_status",
   node: toStationRunRow(node),
 });

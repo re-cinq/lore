@@ -61,6 +61,30 @@ locals {
       "lore-headlamp-oauth-client-secret",
       "lore-headlamp-cookie-secret",
     ] : [],
+    # Grafana's own Google sign-in (monitoring.tf): its own OAuth web client, so a
+    # redirect URI or a rotation on one dashboard never touches the other, and its
+    # own cookie key under the same 16/24/32-byte rule.
+    var.enable_monitoring ? [
+      "lore-grafana-oauth-client-id",
+      "lore-grafana-oauth-client-secret",
+      "lore-grafana-cookie-secret",
+    ] : [],
+    # Utopia (utopia.tf): its database owner's password, the 32-byte key it seals
+    # stored model credentials with (seeded, so a lost data disk does not take the
+    # key with it), and its own Google OAuth web client plus cookie key under the
+    # same 16/24/32-byte rule.
+    var.enable_utopia ? [
+      "lore-utopia-db-password",
+      "lore-utopia-app-db-password",
+      "lore-utopia-secret-key",
+      "lore-utopia-oauth-client-id",
+      "lore-utopia-oauth-client-secret",
+      "lore-utopia-cookie-secret",
+    ] : [],
+    # The Utopia write token (utp_pat_…) of the Lore person, workspace admin of
+    # var.utopia_lore_workspace_id: lore-api sets a repo's knowledge base up with
+    # it on the repo's first spec/ADR ingest (ADR-052 amendment 2026-10-15).
+    var.enable_utopia_auto_setup ? ["lore-utopia-lore-api-token"] : [],
   )
 }
 

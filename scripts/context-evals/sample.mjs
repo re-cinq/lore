@@ -1,4 +1,4 @@
-// Which documents a repository's context eval looks at tonight: a window of `size` that moves on by `size` every day over a fixed shuffle of the documents, so every document is evaluated once every ceil(n / size) nights and a repeated run of one night picks the same ones.
+// Which documents a repository's context eval looks at on a given day: a window of `size` that moves on by `size` every day over a fixed shuffle of the documents, so every document is evaluated once every ceil(n / size) nights and a repeated run of one night picks the same ones.
 
 const DAY_MS = 86_400_000;
 

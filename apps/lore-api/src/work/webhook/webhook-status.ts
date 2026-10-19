@@ -7,6 +7,11 @@ export const REQUIRED_EVENTS = [
   "issue_comment",
   "issues",
   "repository",
+  /** A branch push: a protected branch's base moving under its pull requests, and the Utopia commit mirror's walk of the default branch. */
+  "push",
+  /** A release published or edited, and a tag created: the Utopia release mirror pushes the repo's tags and releases again. */
+  "release",
+  "create",
 ] as const;
 
 export interface RepoHook {
