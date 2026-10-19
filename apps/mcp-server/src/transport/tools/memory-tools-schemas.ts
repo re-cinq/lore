@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ServerMode } from "./repo-scope.js";
+import { backendParam } from "./backend-param.js";
 
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 
@@ -90,6 +91,7 @@ export const SEARCH_MEMORY_INPUT = {
     .describe(
       "When true, enrich results with 1-hop knowledge-graph neighbors.",
     ),
+  backend: backendParam,
 };
 
 export const WRITE_EPISODE_INPUT = {

@@ -19,6 +19,8 @@ import {
 } from "./memory-tools-schemas.js";
 import { registerGraphEpisodeTools } from "./graph-episode-tools.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
+import { backendNeedsApi, readsUtopia } from "./backend-param.js";
+import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 import {
   invalidRepoRefusal,
   NO_REPO_GIVEN,
@@ -60,6 +62,7 @@ interface SearchMemoryArgs {
   limit: number;
   include_invalidated?: boolean;
   graph_augment?: boolean;
+  backend?: KnowledgeBackend;
 }
 
 export function registerMemoryTools(server: McpServer, mode: ServerMode) {
@@ -316,14 +319,16 @@ function registerSearchMemoryTool(server: McpServer) {
 }
 
 async function searchMemory(args: SearchMemoryArgs): Promise<ToolText> {
-  const { query, agent_id, limit } = args;
+  const { query, agent_id, limit, backend } = args;
 
   return cachedMemoryRead(
     { tool: "lore_search_memory", op: "search", args: searchProxyArgs(args) },
     () =>
-      textResult(
-        JSON.stringify(searchMemoryFile(query, agent_id, limit), null, 2),
-      ),
+      readsUtopia(backend)
+        ? textResult(backendNeedsApi(backend))
+        : textResult(
+            JSON.stringify(searchMemoryFile(query, agent_id, limit), null, 2),
+          ),
   );
 }
 
@@ -338,5 +343,6 @@ function searchProxyArgs(args: SearchMemoryArgs) {
     limit: args.limit,
     include_invalidated: args.include_invalidated,
     graph_augment: args.graph_augment,
+    backend: args.backend,
   };
 }

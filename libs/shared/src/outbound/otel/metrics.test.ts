@@ -14,6 +14,7 @@ import {
   recordLlmCall,
   recordStationRun,
   recordToolCall,
+  recordUtopiaMirrorFailure,
   recordWebhookEvent,
   traceHttp,
 } from "./metrics.js";
@@ -101,6 +102,17 @@ describe("lore metrics", () => {
 
     expect(point).toMatchObject({
       attributes: { line: "code-review", joined: "true" },
+      value: 1,
+    });
+  });
+
+  it("counts a failed Utopia mirror of re-cinq/lore", async () => {
+    recordUtopiaMirrorFailure("re-cinq/lore");
+
+    const [failure] = points("lore.utopia.mirror_failures", await collected());
+
+    expect(failure).toMatchObject({
+      attributes: { repo: "re-cinq/lore" },
       value: 1,
     });
   });

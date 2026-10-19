@@ -182,6 +182,13 @@ describe("the delivering recipes", () => {
     });
   });
 
+  it("has pr-ready write under the repository's PR-template headings, Why, What Changed and Testing without one", () => {
+    const ready = promptOf("loop-pr-ready");
+
+    expect(ready).toContain("`.github/PULL_REQUEST_TEMPLATE.md`");
+    expect(ready).toContain("`## Why`, `## What Changed` and `## Testing`");
+  });
+
   it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
     const ready = promptOf("loop-pr-ready");
 
@@ -207,6 +214,37 @@ describe("the delivering recipes", () => {
 
     expect(round).toContain("tests_covering");
     expect(round).toContain("REGRESSION");
+  });
+
+  it("has tdd-round run only the test it wrote and read the acceptance tests from CI", () => {
+    const round = promptOnOneLine("loop-tdd-round");
+
+    expect({
+      runsOwnTestOnly: round.includes("RUN ONLY THE TEST YOU WRITE THIS ROUND"),
+      acceptanceFromCi: round.includes(
+        "Never run the acceptance tests `.lore/dod.md` lists",
+      ),
+      oldRunAcceptance: round.includes("RUN the acceptance tests it names"),
+    }).toEqual({
+      runsOwnTestOnly: true,
+      acceptanceFromCi: true,
+      oldRunAcceptance: false,
+    });
+  });
+
+  it("has dod write acceptance tests to files of their own, so a round's guard can refuse them by name", () => {
+    expect(promptOnOneLine("loop-dod")).toContain(
+      "in a NEW test file of their own",
+    );
+  });
+
+  it("has dod name every acceptance test file with the .acceptance.test suffix, never as an example", () => {
+    const dod = promptOnOneLine("loop-dod");
+
+    expect({
+      required: dod.includes("Its name MUST end in `.acceptance.test.<ext>`"),
+      optional: dod.includes("or the repository's equivalent suffix"),
+    }).toEqual({ required: true, optional: false });
   });
 
   it("has fix-ci ask what failed on a path before it reads any file", () => {

@@ -57,12 +57,39 @@ describe("the review events, which only a deployment with a floor asks for", () 
     expect(names).toContain("github.pull_request.opened");
   });
 
-  it("claims only the closed pull request, for its overlay drop, when no floor is configured", () => {
+  it("claims only the pull-request events the blocked-reason station reads, the close among them for its overlay drop, and no comment event when no floor is configured", () => {
     const names = stationSubscriptions({}).map((s) => s.eventName);
 
     expect(
-      names.filter((name) => name.startsWith("github.pull_request")),
-    ).toEqual(["github.pull_request.closed"]);
+      names
+        .filter((name) => /^github\.(pull_request|issue_comment\.)/.test(name))
+        .sort(),
+    ).toEqual([
+      "github.pull_request.closed",
+      "github.pull_request.opened",
+      "github.pull_request.ready_for_review",
+      "github.pull_request.reopened",
+      "github.pull_request.synchronize",
+      "github.pull_request_review.submitted",
+    ]);
+  });
+
+  it("claims github.push whether or not a floor is configured, so a merge to main reaches the Utopia commit mirror", () => {
+    expect(stationSubscriptions({}).map((s) => s.eventName)).toContain(
+      "github.push",
+    );
+  });
+
+  it("claims github.tracker.changed whether or not a floor is configured, so an edited issue or pull request reaches the Utopia tracker mirror", () => {
+    expect(stationSubscriptions({}).map((s) => s.eventName)).toContain(
+      "github.tracker.changed",
+    );
+  });
+
+  it("claims github.release.changed whether or not a floor is configured, so a published release reaches the Utopia release mirror", () => {
+    expect(stationSubscriptions({}).map((s) => s.eventName)).toContain(
+      "github.release.changed",
+    );
   });
 
   it("claims the label and rename events whether or not a floor is configured", () => {
@@ -85,5 +112,16 @@ describe("the sweeps that run on a tick", () => {
         (tick) => !names.includes(tick),
       ),
     ).toEqual([]);
+  });
+
+  it("claims cron.utopia_backfill.tick with a 43200-second visibility budget, so the reaper leaves a night of one-repo-at-a-time backfills running", () => {
+    expect(
+      stationSubscriptions({}).find(
+        (s) => s.eventName === "cron.utopia_backfill.tick",
+      ),
+    ).toEqual({
+      eventName: "cron.utopia_backfill.tick",
+      visibilityTimeoutSeconds: 43_200,
+    });
   });
 });

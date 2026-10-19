@@ -19,6 +19,8 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { openFloorLoopRun } from "@re-cinq/lore-shared/backlog/floor-loop.js";
+import { isSettledTask } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
+import { implementationLoopBranch } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -41,6 +43,7 @@ import {
 } from "./backlog-ticket.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
+import { readIssues, type BacklogIssues } from "./backlog-issues.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
@@ -108,16 +111,12 @@ async function serveReadBacklog(
     .code(200);
 }
 
-type OpenIssues = Parameters<typeof taskTicket>[1];
 type NodeRows = Parameters<typeof taskTicket>[3];
 
-interface BacklogState {
+interface BacklogState extends BacklogIssues {
   enabled: boolean;
   onboarding: Onboarding;
   taskRows: LoopTaskRow[];
-  openIssues: OpenIssues;
-  /** Open blockers of each queued ticket that carries a blocked-by link. */
-  openBlockers: Map<number, number[]>;
   currentRunId: string | null;
   runByTask: Map<string, Parameters<typeof taskTicket>[2] & object>;
   nodeRows: NodeRows;
@@ -135,7 +134,7 @@ async function loadBacklogState(
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
     taskRows,
-    ...(await readIssues(repo)),
+    ...(await readIssues(repo, taskRows)),
     currentRunId: await readCurrentRunId(pool, repo),
     ...(await readRunIndex(pool, repo, taskRows)),
   };
@@ -161,23 +160,6 @@ function resolveEnabled(settings: Record<string, unknown> | null): boolean {
   )?.implementation_loop;
 
   return loop?.enabled === true;
-}
-
-/** The repo's open issues, and the open blockers of the queued ones. Only a ticket whose listing reports a blocked-by link costs a second GitHub read, the driver's own rule (FR2). */
-async function readIssues(
-  repo: string,
-): Promise<Pick<BacklogState, "openIssues" | "openBlockers">> {
-  const { issues } = await projectFor(repo);
-  const openIssues = await issues.list({ state: "open" });
-  const linked = orderBacklog(openIssues).filter((i) => i.blockedByCount);
-  const blockers = await Promise.all(
-    linked.map((i) => issues.openBlockers(i.number)),
-  );
-
-  return {
-    openIssues,
-    openBlockers: new Map(linked.map((i, at) => [i.number, blockers[at]])),
-  };
 }
 
 /** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. Postgres only ever held this for Lore's own retired engine (ADR-049), so an open run today is answered by the floor. */
@@ -258,12 +240,18 @@ function currentTicket(
     : null;
 }
 
-/** What is queued behind the current work. Issues whose task is neither failed nor cancelled are EXCLUDED — this mirrors the driver's own eligibility guard, and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
+/** What is queued behind the current work. An issue a task still holds is EXCLUDED — in flight, or settled with its pull request still open, the driver's own rule (`taskHoldingTicket`) — and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
 function nextTickets(state: BacklogState): Ticket[] {
-  const { taskRows, openIssues } = state;
+  const { taskRows, openIssues, openPrBranches } = state;
   const guardedIssues = new Set(
     taskRows
       .filter((t) => !["failed", "cancelled"].includes(t.status))
+      .filter(
+        (t) =>
+          !isSettledTask(t.status) ||
+          (t.issue_number !== null &&
+            openPrBranches.has(implementationLoopBranch(t.issue_number))),
+      )
       .map((t) => t.issue_number),
   );
 

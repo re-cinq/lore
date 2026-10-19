@@ -54,6 +54,7 @@ Terraform removes the second source of truth, which removes the failure.
    | Slack credentials | `lore-api`, `lore-stations` |
    | OAuth / NextAuth | `lore-ui` |
    | GitHub App | `lore-api`, `lore-ui`, `lore-stations` |
+   | Utopia write token | `lore-api` |
    | GHCR pull secret | none — read at image-pull time |
 
 
@@ -232,7 +233,7 @@ name the ServiceAccount rather than the person.
 Utopia (`infra/terraform/utopia.tf`, `enable_utopia`) is the deeplethe/utopia
 knowledge-graph app behind its own oauth2-proxy at `utopia_hostname`. Its OIDC
 cannot create accounts, so Google is the gate and Utopia keeps its own accounts
-inside it: the first person to register becomes the administrator. Five
+inside it: the first person to register becomes the administrator. Six
 containers behind `enable_utopia`.
 
 The Google client is the Grafana recipe with the name `utopia` and the redirect
@@ -244,8 +245,10 @@ printf '%s' "<client id>"     | gcloud secrets versions add lore-utopia-oauth-cl
 printf '%s' "<client secret>" | gcloud secrets versions add lore-utopia-oauth-client-secret --data-file=-
 openssl rand -base64 32 | head -c 32 \
   | gcloud secrets versions add lore-utopia-cookie-secret --data-file=-
-# hex, so it needs no URL-encoding inside UTOPIA_DATABASE_URL
+# hex, so they need no URL-encoding inside the database URLs: the owner's password,
+# then the password of utopia_app, the restricted role the app runs as
 openssl rand -hex 24 | tr -d '\n' | gcloud secrets versions add lore-utopia-db-password --data-file=-
+openssl rand -hex 24 | tr -d '\n' | gcloud secrets versions add lore-utopia-app-db-password --data-file=-
 # exactly 32 bytes as 64 hex digits: the key Utopia seals stored model credentials with
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add lore-utopia-secret-key --data-file=-
 ```
@@ -255,11 +258,101 @@ openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add lore-utopia-secr
 model key and source credential stored since. Seeded, the disk holds only files
 and the search index. Never rotate it: the rows it sealed become unreadable.
 
+**The runtime role on a database that predates it.** The app connects as
+`utopia_app` and migrates as the owner. On a fresh install the role is created at
+bootstrap and upstream's migration 0010 grants it the tables. On a database that was
+already migrated when the role arrived, the grants never ran, and the app would fail
+on its first query. So create the role and grant it **before** the apply that brings
+the block in; the operator then only sets its password (CNPG `managed.roles`) and the
+app restarts straight onto a working role:
+
+```bash
+kubectl -n utopia exec -it utopia-db-1 -- psql -U postgres -d utopia <<'SQL'
+CREATE ROLE utopia_app LOGIN;
+GRANT CONNECT ON DATABASE utopia TO utopia_app;
+GRANT USAGE ON SCHEMA public TO utopia_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO utopia_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO utopia_app;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO utopia_app;
+REVOKE UPDATE, DELETE, TRUNCATE ON audit_events FROM utopia_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE utopia IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO utopia_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE utopia IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO utopia_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE utopia IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO utopia_app;
+SQL
+```
+
+Rotating `lore-utopia-app-db-password` is ESO's `force-sync` annotation on
+`utopia-app-db-credentials`, which the operator then writes into the role, and a
+restart of `deploy/utopia`.
+
 The database password is read by Terraform into the CNPG credentials Secret, as
 `lore-db-password` is, so a rotation needs `terraform apply`, then a restart of
 `deploy/utopia` in the `utopia` namespace; the OAuth trio needs the same
 `force-sync` annotation and `rollout restart deploy/utopia-oauth2-proxy` as Grafana's.
 First install order is Headlamp's too: containers first, seed, then the rest.
+
+### The Utopia source key (`lore.utopia_sources`)
+
+The key lore-api pushes a repo's spec/ADR chain with (ADR-052) is not a Secret
+Manager secret. It lives in `lore.utopia_sources` (migration 0109), one row per
+repo, which only the `lore` role can read and no route ever answers; the repo's
+settings hold only the knowledge base and source ids, since the repo read routes
+serve settings whole. It is a per-source key: it can push to that one source of
+that one knowledge base and read nothing. Utopia hands it out once, when the
+source is created.
+
+To rotate it: in Utopia, `rotate-token` on the source (or delete the source), so
+the old key stops working, then re-run `POST /api/repos/<o>/<r>/utopia/setup`
+with a session token and the workspace id. Setup keeps a source whose key the
+table still holds, so clear the row first, as `lore`:
+
+```sql
+DELETE FROM lore.utopia_sources WHERE lower(repo) = lower('<o>/<r>');
+```
+
+Setup then creates a fresh `lore` source, overwrites the row with its key and
+points the settings at it.
+
+### The Utopia write token (`lore-utopia-lore-api-token`)
+
+With it, lore-api sets a repo's knowledge base up on the repo's first spec or ADR
+ingest instead of waiting for someone to run the setup route (ADR-052 amendment
+2026-10-15). It is a Utopia **personal access token with `write` scope**
+(`utp_pat_…`) of a Utopia person kept for Lore, the "Lore" service person, who is
+**workspace admin** of the workspace Lore's knowledge bases live in. Utopia
+accepts it on the setup routes only from deeplethe/utopia#1244 on; until that
+release is deployed, leave `enable_utopia_auto_setup` off. The token acts as that
+person and can never do more than they can, and every base it creates is in
+Utopia's audit log under their name.
+
+Behind `enable_utopia_auto_setup`, which also sets `UTOPIA_WORKSPACE_ID` from
+`utopia_lore_workspace_id`. ESO mirrors it into the `utopia-token` Secret in
+`lore-api` (key `token`), read as `UTOPIA_TOKEN`. The reference is `optional`,
+so unlike the other secrets this one can be seeded after the apply that turns
+the flag on: until it is, lore-api starts without `UTOPIA_TOKEN` and sets no repo
+up by itself, and the restart below picks it up.
+
+To mint it: sign in to Utopia as the Lore person, open **Account → Agents &
+tokens → Personal access tokens**, and issue a token with scope `write`, no
+knowledge-base limit (a limited token can create no base) and the longest expiry
+you will rotate within (90 days by default). The value is shown once:
+
+```bash
+printf '%s' "utp_pat_…" \
+  | gcloud secrets versions add lore-utopia-lore-api-token --data-file=-
+kubectl -n lore-api annotate externalsecret utopia-token force-sync="$(date +%s)" --overwrite
+kubectl -n lore-api rollout restart deploy/lore-api
+```
+
+The workspace id is in the Utopia URL of the workspace (`/workspaces/<id>`); put
+it in `terraform.tfvars` as `utopia_lore_workspace_id`.
+
+To rotate: issue a new token the same way, add it as a new version, force-sync,
+restart lore-api, then revoke the old token in the same Utopia page. A token that
+expired or was revoked makes every setup fail with a 401; that is a failed
+mirror, logged and counted on `lore_utopia_mirror_failures_total`, never a failed
+ingest. Repos already set up keep pushing: they push with their own source key,
+not with this token.
 
 ## Change a non-secret value
 

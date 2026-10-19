@@ -110,13 +110,14 @@ export type {
 } from "./test-runner/test-runner-port.js";
 export { TestSuite } from "./test-runner/test-suite.js";
 
-export { AgentDefs } from "./agents/agent-defs.js";
+export { AgentDefs, AgentDefsWriter } from "./agents/agent-defs.js";
 export type {
   AgentDefinition,
   AgentDefinitionInput,
-  AgentDefsPort,
+  AgentDefsReadPort,
+  AgentDefsWritePort,
 } from "./agents/agent-defs-port.js";
-export { resolveAgentConfig, KNOWN_MODELS } from "./agents/agent-defs-port.js";
+export { resolveAgentConfig } from "./agents/agent-defs-port.js";
 export type { ProjectProviders } from "./lib/providers.js";
 
 export type { GitPort, CloneOpts } from "./workspace/git-port.js";

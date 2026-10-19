@@ -153,7 +153,7 @@ Assembly-line execution runs on the **external floor** ([re-cinq/floor](https://
 
 ## Success Metrics
 
-- **Context recall**: ≥ 85% of sampled ADRs and specs found-and-answered in nightly context evals (the `context-evals.yml` CI job fails a repo under this threshold)
+- **Context recall**: ≥ 85% of sampled ADRs and specs found-and-answered in the context evals run from a developer machine (`scripts/context-evals/run.mjs` fails a repo under this threshold)
 - **Spec traceability**: every testable statement linked to a test file and covered by CI
 - **Task throughput**: implementation-loop PRs opened, reviewed, and merged without manual intervention
 - **Memory health**: fact confidence distribution, half-life decay rates, consolidation coverage

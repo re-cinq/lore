@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
+import type { Pool } from "pg";
 import { createDgraphClient, projectCodeFile } from "@re-cinq/lore-shared";
 import { dgraphReachable } from "@re-cinq/lore-shared/lib/dgraph-test-gate.js";
 import { buildServer } from "../../../app/build-server.js";
@@ -9,6 +10,7 @@ import {
   AUTH,
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { setPool } from "@re-cinq/lore-server-core/platform/db.js";
 
 const originalEnv = { ...process.env };
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
@@ -25,9 +27,11 @@ describe("GET /api/repos/:owner/:repo/trace/callers", () => {
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
     delete process.env.LORE_DGRAPH_HTTP;
+    setPool(makePool() as unknown as Pool);
   });
   afterEach(() => {
     process.env = { ...originalEnv };
+    setPool(null as unknown as Pool);
   });
 
   it("answers an empty callers list for nextTransition when no graph is configured", async () => {
@@ -47,8 +51,12 @@ const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("GET trace/callers (live Dgraph)", () => {
   useRateLimitSafeClock();
+  beforeEach(() => {
+    setPool(makePool() as unknown as Pool);
+  });
   afterEach(() => {
     process.env = { ...originalEnv };
+    setPool(null as unknown as Pool);
   });
 
   it("answers advance in src/runner.ts as the caller of nextTransition", async () => {

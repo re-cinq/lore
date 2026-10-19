@@ -8,6 +8,7 @@ import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 import { decideBranchResume, type OpenPr } from "./resume-branch.js";
 import { orderBacklog } from "./select-next-issue.js";
+import { taskHoldingTicket } from "./ticket-holder.js";
 import {
   implementationTicketDescription,
   ticketTextTooLong,
@@ -26,7 +27,7 @@ export interface LoopTickDeps {
   activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null>;
+  ): Promise<{ id: string; status: string } | null>;
   listIssues(repo: string): Promise<IssueRef[]>;
   createTask(input: {
     description: string;
@@ -142,7 +143,7 @@ async function pickBacklogTicket(
       continue;
     }
 
-    if (await deps.activeTaskByIssue(repo, candidate.number)) {
+    if (await taskHoldingTicket(deps, repo, candidate.number)) {
       guarded.push(candidate.number);
       continue;
     }

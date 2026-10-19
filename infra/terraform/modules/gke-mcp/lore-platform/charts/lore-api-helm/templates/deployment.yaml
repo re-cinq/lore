@@ -144,6 +144,23 @@ spec:
                   name: {{ .Values.floor.gitCredentialTokenSecret.name }}
                   key: {{ .Values.floor.gitCredentialTokenSecret.key }}
             {{- end }}
+            {{- if .Values.utopia.enabled }}
+            - name: UTOPIA_API_URL
+              value: {{ .Values.utopia.apiUrl | quote }}
+            {{- if .Values.utopia.tokenSecret }}
+            - name: UTOPIA_WORKSPACE_ID
+              value: {{ .Values.utopia.workspaceId | quote }}
+            # Optional: the apply that creates this ExternalSecret also renders this
+            # env, and the token is seeded after it. Until it is, lore-api starts
+            # without UTOPIA_TOKEN and simply does not set repos up by itself.
+            - name: UTOPIA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.utopia.tokenSecret }}
+                  key: token
+                  optional: true
+            {{- end }}
+            {{- end }}
           livenessProbe:
             tcpSocket:
               port: http

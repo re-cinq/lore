@@ -54,6 +54,14 @@
       "types": "./dist/work/backlog/*.d.ts",
       "default": "./dist/work/backlog/*.js"
     },
+    "./blocked-reason.js": {
+      "types": "./dist/domain/blocked-reason.d.ts",
+      "default": "./dist/domain/blocked-reason.js"
+    },
+    "./codeowners.js": {
+      "types": "./dist/domain/codeowners.d.ts",
+      "default": "./dist/domain/codeowners.js"
+    },
     "./dod-verdict.js": {
       "types": "./dist/domain/dod-verdict.d.ts",
       "default": "./dist/domain/dod-verdict.js"
@@ -194,6 +202,10 @@
       "types": "./dist/domain/repo-context.d.ts",
       "default": "./dist/domain/repo-context.js"
     },
+    "./knowledge-backend.js": {
+      "types": "./dist/domain/knowledge-backend.d.ts",
+      "default": "./dist/domain/knowledge-backend.js"
+    },
     "./floor/*.js": {
       "types": "./dist/outbound/floor/*.d.ts",
       "default": "./dist/outbound/floor/*.js"
@@ -201,15 +213,88 @@
     "./otel/*.js": {
       "types": "./dist/outbound/otel/*.d.ts",
       "default": "./dist/outbound/otel/*.js"
+    },
+    "./lore-ontology.js": {
+      "types": "./dist/domain/lore-ontology.d.ts",
+      "default": "./dist/domain/lore-ontology.js"
+    },
+    "./utopia/statements.js": {
+      "types": "./dist/domain/utopia/statements.d.ts",
+      "default": "./dist/domain/utopia/statements.js"
+    },
+    "./utopia/memory-documents.js": {
+      "types": "./dist/domain/utopia/memory-documents.d.ts",
+      "default": "./dist/domain/utopia/memory-documents.js"
+    },
+    "./utopia/backfill-summary.js": {
+      "types": "./dist/domain/utopia/backfill-summary.d.ts",
+      "default": "./dist/domain/utopia/backfill-summary.js"
+    },
+    "./utopia/doc-statements.js": {
+      "types": "./dist/domain/utopia/doc-statements.d.ts",
+      "default": "./dist/domain/utopia/doc-statements.js"
+    },
+    "./utopia/test-report-statements.js": {
+      "types": "./dist/domain/utopia/test-report-statements.d.ts",
+      "default": "./dist/domain/utopia/test-report-statements.js"
+    },
+    "./utopia/utopia-client.js": {
+      "types": "./dist/outbound/utopia/utopia-client.d.ts",
+      "default": "./dist/outbound/utopia/utopia-client.js"
+    },
+    "./utopia/utopia-reads.js": {
+      "types": "./dist/outbound/utopia/utopia-reads.d.ts",
+      "default": "./dist/outbound/utopia/utopia-reads.js"
+    },
+    "./utopia/read-shapes.js": {
+      "types": "./dist/domain/utopia/read-shapes.d.ts",
+      "default": "./dist/domain/utopia/read-shapes.js"
+    },
+    "./utopia/mirror-document.js": {
+      "types": "./dist/work/utopia/mirror-document.d.ts",
+      "default": "./dist/work/utopia/mirror-document.js"
+    },
+    "./utopia/mirror-test-report.js": {
+      "types": "./dist/work/utopia/mirror-test-report.d.ts",
+      "default": "./dist/work/utopia/mirror-test-report.js"
+    },
+    "./utopia/mirror-code.js": {
+      "types": "./dist/work/utopia/mirror-code.d.ts",
+      "default": "./dist/work/utopia/mirror-code.js"
+    },
+    "./utopia/commit-statements.js": {
+      "types": "./dist/domain/utopia/commit-statements.d.ts",
+      "default": "./dist/domain/utopia/commit-statements.js"
+    },
+    "./utopia/mirror-commits.js": {
+      "types": "./dist/work/utopia/mirror-commits.d.ts",
+      "default": "./dist/work/utopia/mirror-commits.js"
+    },
+    "./utopia/tracker-statements.js": {
+      "types": "./dist/domain/utopia/tracker-statements.d.ts",
+      "default": "./dist/domain/utopia/tracker-statements.js"
+    },
+    "./utopia/mirror-tracker.js": {
+      "types": "./dist/work/utopia/mirror-tracker.d.ts",
+      "default": "./dist/work/utopia/mirror-tracker.js"
+    },
+    "./utopia/release-statements.js": {
+      "types": "./dist/domain/utopia/release-statements.d.ts",
+      "default": "./dist/domain/utopia/release-statements.js"
+    },
+    "./utopia/mirror-releases.js": {
+      "types": "./dist/work/utopia/mirror-releases.d.ts",
+      "default": "./dist/work/utopia/mirror-releases.js"
     }
   },
   "scripts": {
-    "build": "tsc && npm run copy:agent-defaults",
+    "build": "tsc && npm run copy:agent-defaults && npm run copy:ontology",
     "copy:agent-defaults": "rm -rf dist/agent-defaults && mkdir -p dist/agent-defaults && cp -f src/agent-defaults/*.md dist/agent-defaults/",
     "dev": "tsc --watch",
     "test": "LORE_SKIP_DGRAPH_TESTS=1 vitest run",
     "test:dgraph": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "copy:ontology": "cp -f src/domain/lore-ontology.ttl dist/domain/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

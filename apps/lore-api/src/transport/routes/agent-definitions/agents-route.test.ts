@@ -34,7 +34,10 @@ const fakeAgents = {
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({
-  projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })),
+  projectFor: vi.fn(async () => ({
+    agentDefs: fakeAgents,
+    agentDefsWriter: fakeAgents,
+  })),
 }));
 
 import {

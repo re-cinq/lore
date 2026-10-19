@@ -26,7 +26,7 @@ graph stays the single source of truth and the UI never couples to storage.
 - **Method + path**: `GET /api/repos/:owner/:repo/trace/<kind>`
   (prefix `^/api/repos/[^/]+/[^/]+/trace/`).
   Implemented by the [route registration](../../../apps/lore-api/src/app/build-server.ts#L135)
-  dispatching to the [`handleTraceRoute` handler](../../../apps/lore-api/src/transport/routes/trace/trace.ts#L39).
+  dispatching to the [`handleTraceRoute` handler](../../../apps/lore-api/src/transport/routes/trace/trace.ts#L34).
   The handler re-validates with `TRACE_RE`
   (`^/api/repos/([^/]+)/([^/]+)/trace/(specs|spec-summaries|adrs|adr-summaries|document|source|graph|ring)(?:\?(.*))?$`).
 - **Auth scope**: `read` (the default — no `SCOPE_OVERRIDES` entry covers
@@ -60,20 +60,24 @@ graph stays the single source of truth and the UI never couples to storage.
    `filePath = new URLSearchParams(queryString ?? "").get("path") ?? ""`.
 4. `trace = (await projectFor("<owner>/<repo>")).trace` — the per-repo
    `Project` composition root. `projectFor` injects a real Dgraph client when
-   `LORE_DGRAPH_HTTP` is set, else a no-op stub that throws on `newTxn()`.
+   `LORE_DGRAPH_HTTP` is set, else a `NoGraphTrace` port whose failure, caller
+   and graph-context reads answer empty and whose document reads throw naming
+   the service. ([validated by returns no failures, no callers and an empty graph context when no graph is configured](libs/shared/src/outbound/project/trace/trace-none.test.ts#L7), [throws naming lore-api for a document read when no graph is configured](libs/shared/src/outbound/project/trace/trace-none.test.ts#L24))
 5. Dispatch by kind:
    1. `specs` → `{ specs: await trace.specs() }`.
    2. `spec-summaries` → `{ summaries: await trace.specSummaries() }`.
    3. `adrs` → `{ adrs: await trace.adrs() }`.
    4. `adr-summaries` → `{ summaries: await trace.adrSummaries() }`.
    5. `graph` → `await trace.graph()`.
-   6. **path-required gate** — if `!filePath`, write
+   6. `callers` → `{ callers: await trace.callers(symbol, direction) }`, `400` without `?symbol=`.
+   7. **path-required gate** — if `!filePath`, write
       `400 { error: "path query param required" }` and return. This runs after
-      the no-path kinds, so `document`/`source`/`ring` reach it.
-   7. `document` → `await trace.document(filePath)`.
-   8. `ring` → `await trace.ring(filePath)`.
-   9. default (`source`) → `{ source: await trace.source(filePath) }`.
-6. Any thrown error (including the no-op Dgraph stub throwing when
+      the no-path kinds, so `document`/`source`/`ring`/`failures-touching` reach it.
+   8. `document` → `await trace.document(filePath)`.
+   9. `ring` → `await trace.ring(filePath)`.
+   10. `failures-touching` → `{ failures: await trace.failuresTouching(filePath) }`.
+   11. default (`source`) → `{ source: await trace.source(filePath) }`.
+6. Any thrown error (including `NoGraphTrace` refusing when
    `LORE_DGRAPH_HTTP` is unset) is caught → write
    `500 { error: <message> }`.
 

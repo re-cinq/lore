@@ -10,11 +10,13 @@ import { reposRoute } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
+import { utopiaRoutes } from "./routes/repos/utopia-routes.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
 import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
+import { autoMergeKpisRoute } from "./routes/repos/auto-merge-kpis.js";
 import { triageRoute } from "./routes/triage/triage.js";
 import { contextRoute } from "./routes/context/context.js";
 import { contextEvalRoute } from "./routes/context-evals/context-evals.js";
@@ -52,6 +54,7 @@ import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
 import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
+import { blockedReasonsRoutes } from "./routes/blocked-reasons.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
 import { githubWebhookRoute } from "./routes/webhooks/webhook-github.js";
 import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
@@ -169,13 +172,16 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     repoRecordRoute(),
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
+    ...utopiaRoutes(getPool),
     prStatusRoute(),
     pullFilesRoute(),
     ciFailuresRoute(),
     ciJobLogRoute(),
     issueRoute(),
+    autoMergeKpisRoute(getPool),
     triageRoute(),
     onboardRoute(getPool),
+    ...blockedReasonsRoutes(getPool),
     ...contextAndGraphRoutes(getPool),
   ];
 }

@@ -253,20 +253,23 @@ describe("activeTaskByIssue", () => {
     expect(await q.activeTaskByIssue("a/b", 85)).toBeNull();
   });
 
-  it("InMemory returns the completed task t1 for issue 85, since a completed task's pull request still awaits review", async () => {
+  it("InMemory returns status completed for issue 85's settled task t1", async () => {
     const q = new InMemoryTaskQueue([
       { id: "t1", status: "completed", target_repo: "a/b", issue_number: 85 },
     ]);
 
-    expect(await q.activeTaskByIssue("a/b", 85)).toEqual({ id: "t1" });
+    expect(await q.activeTaskByIssue("a/b", 85)).toEqual({
+      id: "t1",
+      status: "completed",
+    });
   });
 
-  it("PgTaskQueue SQL treats only failed, cancelled and retried tasks as no longer guarding the issue", async () => {
+  it("PgTaskQueue SQL reads the newest task's id and status, leaving out failed, cancelled and retried ones", async () => {
     const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgTaskQueue(pool).activeTaskByIssue("a/b", 85);
-    expect(calls[0].text).toContain(
-      "status NOT IN ('failed', 'cancelled', 'retried')",
+    expect(calls[0].text).toMatch(
+      /^SELECT id, status FROM pipeline\.tasks .*status NOT IN \('failed', 'cancelled', 'retried'\) ORDER BY created_at DESC LIMIT 1$/,
     );
   });
 });

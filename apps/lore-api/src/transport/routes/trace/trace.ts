@@ -8,12 +8,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import {
-  parseRanges,
-  createDgraphClient,
-  failuresTouching,
-  callersOf,
-} from "@re-cinq/lore-shared";
+import { parseRanges } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -52,7 +47,7 @@ type Trace = ProjectResult["trace"];
 
 // Kinds answerable without a ?path=; each handler shapes its own response body.
 const NO_PATH_KINDS: Partial<
-  Record<string, (trace: Trace, project: ProjectResult) => Promise<object>>
+  Record<string, (trace: Trace, query: TraceQuery) => Promise<object>>
 > = {
   specs: async (trace) => ({ specs: await trace.specs() }),
   "spec-summaries": async (trace) => ({
@@ -61,6 +56,7 @@ const NO_PATH_KINDS: Partial<
   adrs: async (trace) => ({ adrs: await trace.adrs() }),
   "adr-summaries": async (trace) => ({ summaries: await trace.adrSummaries() }),
   graph: async (trace) => trace.graph(),
+  callers: callersResult,
 };
 
 // `ranges` narrows the covered file to spans; `branch` reads that branch's overlay instead of main.
@@ -84,14 +80,9 @@ const PATH_KINDS: Record<
   ring: (trace, filePath) => trace.ring(filePath),
   source: async (trace, filePath) => ({ source: await trace.source(filePath) }),
   "tests-covering": testsCoveringResult,
-};
-
-// Kinds that read the graph directly, not through the Project facade.
-const GRAPH_KINDS: Partial<
-  Record<string, (repo: string, query: TraceQuery) => Promise<object>>
-> = {
-  "failures-touching": failuresResult,
-  callers: callersResult,
+  "failures-touching": async (trace, filePath) => ({
+    failures: await trace.failuresTouching(filePath),
+  }),
 };
 
 export function traceRoute(): ServerRoute {
@@ -143,18 +134,11 @@ async function traceResult(
   query: TraceQuery,
 ): Promise<object> {
   const repo = `${request.params.owner}/${request.params.repo}`;
-
-  const graphHandler = GRAPH_KINDS[kind];
-
-  if (graphHandler) {
-    return graphHandler(repo, query);
-  }
-  const project = await projectFor(repo);
-  const trace = project.trace;
+  const trace = (await projectFor(repo)).trace;
   const noPathHandler = NO_PATH_KINDS[kind];
 
   if (noPathHandler) {
-    return noPathHandler(trace, project);
+    return noPathHandler(trace, query);
   }
   const filePath = query.path ?? "";
 
@@ -163,33 +147,11 @@ async function traceResult(
   return PATH_KINDS[kind](trace, filePath, query);
 }
 
-/** Callers (or, with `direction=callees`, callees) of a named symbol, over the CodeChunk.references edge the code projection writes. One hop: `depth` is not walked yet. Degrades to empty when no Dgraph client is configured. */
-async function callersResult(repo: string, query: TraceQuery): Promise<object> {
+/** Callers (or, with `direction=callees`, callees) of a named symbol, over the CodeChunk.references edge the code projection writes. One hop: `depth` is not walked yet. A deployment with no graph answers with an empty list. */
+async function callersResult(trace: Trace, query: TraceQuery): Promise<object> {
   const symbol = query.symbol ?? "";
 
   enforceTrue(symbol, apiError(400), "symbol query param required");
-  const dgraph = createDgraphClient(process.env);
 
-  const direction = query.direction ?? "callers";
-
-  return {
-    callers: dgraph ? await callersOf(dgraph, repo, symbol, direction) : [],
-  };
-}
-
-/** Failures recorded against a source file. This kind reads the graph directly rather than through the Project facade: `failuresTouching` is a work-layer module, which `outbound` may not import. A deployment with no graph answers with an empty list rather than an error. */
-async function failuresResult(
-  repo: string,
-  query: TraceQuery,
-): Promise<object> {
-  const filePath = query.path ?? "";
-
-  enforceTrue(filePath, apiError(400), "path query param required");
-  const dgraph = createDgraphClient(process.env);
-
-  if (!dgraph) {
-    return { failures: [] };
-  }
-
-  return { failures: await failuresTouching(dgraph, repo, filePath) };
+  return { callers: await trace.callers(symbol, query.direction) };
 }

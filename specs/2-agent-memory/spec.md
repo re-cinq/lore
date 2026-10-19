@@ -107,7 +107,7 @@ available to agents — the authoritative interface.
   preserved in history but excluded from search). ([validated by `memory.test.ts:242`](libs/server-core/src/work/memory/memory.test.ts#L242))
 
 - **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
-  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/work/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L219))
+  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/work/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L223))
 
 ### Semantic Search
 
@@ -148,7 +148,7 @@ available to agents — the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82), [`facts.test.ts:5`](libs/server-core/src/work/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/work/memory/graph.test.ts#L5))
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116), [`facts.test.ts:5`](libs/server-core/src/work/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/work/memory/graph.test.ts#L5))
 
 ### Knowledge Graph
 
@@ -260,7 +260,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 Raw text blobs ingested via `lore_write_episode` are the source of truth for
 passive knowledge capture; fact and graph extraction runs asynchronously
-after write. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82))
+after write. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116))
 
 Episode inserts are idempotent — deduplicated on `(agent_id, content_hash)`,
 returning the new id or null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts:271`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L280), [`memory-lifecycle.test.ts:289`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L298), [`memory-lifecycle.test.ts:518`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L527))
@@ -295,7 +295,7 @@ with timestamp and agent ID. ([validated by `memory.test.ts:258`](libs/server-co
 ## Fact Extraction
 
 Triggered by `extract_facts=true` on `lore_write_memory`, or automatically
-on all `lore_write_episode` calls. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82))
+on all `lore_write_episode` calls. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116))
 
 Extraction is asynchronous and non-blocking: if the LLM is unreachable the
 memory write succeeds immediately and the memory stays searchable as raw text,
@@ -370,7 +370,7 @@ consolidated memory is inserted once, deduped on its key. ([validated by `memory
 The MCP server tracks all tool calls in a 500-entry ring buffer
 (`session-tracker.ts`), dumping to `~/.lore/last-session.json` on session exit;
 a stop hook POSTs to `/api/session-summary` for automatic episode + fact
-extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/outbound/session-dump.test.ts#L25), [`session-dump.test.ts:50`](libs/server-core/src/outbound/session-dump.test.ts#L47), [`session-summary.test.ts:71`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L71))
+extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/outbound/session-dump.test.ts#L25), [`session-dump.test.ts:50`](libs/server-core/src/outbound/session-dump.test.ts#L47), [`session-summary.test.ts:71`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L75))
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
@@ -396,7 +396,7 @@ Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
 `lore_query_graph` (`GET /api/graph`, so the live knowledge graph is readable
 without a direct DB); `lore_agent_stats` has neither a file fallback nor a
-proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L82), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L41), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L63))
+proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L41), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L63))
 
 ## Transfer Scoring (Cross-Repo Context)
 
@@ -450,7 +450,7 @@ Decision: the following capabilities were added beyond the original spec:
   returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:51`](libs/shared/src/outbound/project/memory/memory.test.ts#L51), [`memory-store-bridge.test.ts:49`](libs/shared/src/outbound/project/memory/memory-store-bridge.test.ts#L49))
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
-  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13), [`memory.test.ts:367`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L367), [`session-summary.test.ts:153`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L153))
+  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13), [`memory.test.ts:367`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L412), [`session-summary.test.ts:153`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L186))
 - Audit trail is immutable. ([validated by `memory.test.ts:258`](libs/server-core/src/work/memory/memory.test.ts#L258))
 
 ## Operational Targets (Background)

@@ -14,6 +14,8 @@ import {
 } from "./deps.js";
 import { repoParam, withRepo, type ServerMode } from "./repo-scope.js";
 import { updateBanner } from "../../work/update/mcp-update.js";
+import { backendParam } from "./backend-param.js";
+import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -21,9 +23,10 @@ interface AssembleContextExtraArgs {
   max_tokens?: number;
   cross_repo?: boolean;
   agent_id?: string;
+  backend?: KnowledgeBackend;
 }
 
-const ASSEMBLE_CONTEXT_INPUT = {
+export const ASSEMBLE_CONTEXT_INPUT = {
   query: z
     .string()
     .describe(
@@ -52,6 +55,7 @@ const ASSEMBLE_CONTEXT_INPUT = {
     .describe(
       "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
     ),
+  backend: backendParam,
 };
 
 export function registerAssembleContextTool(
@@ -91,15 +95,16 @@ async function assembleContext(args: {
   repo: string;
   agent_id?: string;
   cross_repo?: boolean;
+  backend?: KnowledgeBackend;
 }) {
-  const { query, template, max_tokens, repo, agent_id, cross_repo } = args;
+  const { query, template, repo } = args;
 
   if (!process.env.LORE_API_URL || !process.env.LORE_INGEST_TOKEN) {
     return textResult(
       "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
     );
   }
-  const extras = buildAssembleExtras({ max_tokens, cross_repo, agent_id });
+  const extras = buildAssembleExtras(args);
 
   return interpretProxiedContext(
     await cachedAssemble({ query, template, repo }, extras),
@@ -121,6 +126,10 @@ function buildAssembleExtras(
 
   if (args.agent_id) {
     extras.agent_id = args.agent_id;
+  }
+
+  if (args.backend) {
+    extras.backend = args.backend;
   }
 
   return extras;

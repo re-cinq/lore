@@ -57,10 +57,11 @@ One-line purpose: assemble ONE token-budgeted, template-ordered context block fr
 | `repo` | no | auto-detect | Target repo as `owner/repo`; auto-detected from the git remote when omitted. |
 | `agent_id` | no | ambient | Overrides the agent id used to scope memories/facts. **Direct-DB path only; ignored when proxying.** |
 | `cross_repo` | no | `false` | Also pull context from linked repos. If `false` but the repo's `settings.cross_repo` is true, cross-repo is still enabled. **Direct-DB path only; ignored when proxying.** |
+| `backend` | no | repo's `settings.context_backend`, then `lore` | `lore` (default), `utopia`, or `both` — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. Under `utopia` each section reads `<source>: no Utopia reader yet`; under `both` Lore's block comes first and Utopia's second, each on half the budget (ADR-052 amendment 2026-10-16). |
 
 - **Returns:** on the direct-DB path, a single text block prefixed with an HTML comment carrying `template/sections/tokens` metadata; `No relevant context found for this query.` when every source is empty. On the proxy path, the API text as-is (no metadata comment), optionally prefixed with a `<!-- lore-cache: HIT/STALE -->` marker.
 - **Where it runs:** direct Postgres when `LORE_DB_HOST` is set; otherwise proxies `GET /api/context` to `LORE_API_URL`.
-- **Cache/mutation:** read-only. Proxy path uses a 600s read-through cache. Records a latency row via `trackLatency`. On the proxy path only `query`, `template`, and `repo` are forwarded; the rest are ignored.
+- **Cache/mutation:** read-only. Proxy path uses a 600s read-through cache. Records a latency row via `trackLatency`. On the proxy path `query`, `template`, `repo`, `max_tokens`, `cross_repo`, `agent_id` and `backend` are forwarded.
 
 #### `lore_search_context`
 
@@ -74,9 +75,10 @@ One-line purpose: search the ingested-document corpus (CLAUDE.md, ADRs, team doc
 | `query` | yes | — | Natural-language search query (e.g. `how are pipeline tasks authenticated`). |
 | `team` | no | `org_shared` | Scope. DB path: a Postgres team schema name; an empty/no-result team transparently retries `org_shared`. File-fallback path: a `teams/<name>` subdir under `CONTEXT_PATH`; an unknown subtree returns a "search path not found" error. Omit to search org-wide. |
 | `limit` | no | `8` | Maximum number of passages to return. |
+| `backend` | no | `lore` | `lore`, `utopia`, or `both`. Sent to `GET /api/search-context`; `utopia` returns no passages and the note `search_context: no Utopia reader yet`, `both` Lore's passages and that note. Without an API, `utopia`/`both` are refused rather than answered from local files. |
 
 - **Returns:** one text block; each hit is `**Score:** <rrf>` (DB path) or `**Source:** <relative-path>` (file path) followed by the passage, joined by `---`; or a no-results message.
-- **Where it runs:** against the shared-DB backend directly when a DB is reachable (hybrid vector + BM25 fused by Reciprocal Rank Fusion); with no DB it degrades to a deterministic case-insensitive substring scan of local `.md` files, so it works before any ingest has run. **Never proxies to `LORE_API_URL`.**
+- **Where it runs:** against the shared-DB backend directly when a DB is reachable (hybrid vector + BM25 fused by Reciprocal Rank Fusion); with no DB it degrades to a deterministic case-insensitive substring scan of local `.md` files, so it works before any ingest has run. With `LORE_API_URL` set it proxies to `GET /api/search-context`.
 - **Cache/mutation:** read-only, not cached.
 
 ### Memory
@@ -167,6 +169,7 @@ One-line purpose: semantic (vector + keyword) search across org-wide memories an
 | `limit` | no | `10` | Maximum number of fused results after rank fusion and diversification. |
 | `include_invalidated` | no | `false` | Also return facts superseded by newer facts (historical queries). **Not forwarded over the proxy.** |
 | `graph_augment` | no | `false` | Enrich results with 1-hop knowledge-graph neighbors of detected entities. **Not forwarded over the proxy.** |
+| `backend` | no | `lore` | `lore`, `utopia`, or `both`. For `utopia` the API answers `{results: [], notes: ["search_memory: no Utopia reader yet"]}`, for `both` Lore's hits with that note; without an API, `utopia`/`both` are refused rather than answered from the `~/.lore` file store. |
 
 - **Returns:** a relevance-ranked JSON array of `{key, value, score, agent_id, source, id?, confidence?}` where `source` is `memory|fact|episode|graph`. Only currently-valid facts unless `include_invalidated`.
 - **Where it runs:** local DB when `LORE_DB_HOST` is set; else a ~5min cached proxy to `/api/memory` (read scope; `pool` maps to `pool_name`); `~/.lore` file fallback when no API is configured.
@@ -388,7 +391,7 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 
 One-line purpose: show unclaimed `pending` backlog tasks you could pick up and run locally, grouped by repo.
 
-- **When to use:** the "what can I grab" view before the GKE agent takes them.
+- **When to use:** the "what can I grab" view of pending tasks.
 - **When not to use:** general status-filterable listing → `lore_list_pipeline_tasks`. After choosing one, run it with `lore_claim_and_run_locally`.
 
 | Parameter | Required | Default | Description |
@@ -396,7 +399,7 @@ One-line purpose: show unclaimed `pending` backlog tasks you could pick up and r
 | `repo` | no | all | Filter the API view to one repo as `owner/repo`. |
 
 - **Returns:** one short line per task, grouped by repo; `No pending tasks…` when empty.
-- **Where it runs:** prefers a live `GET /api/tasks?status=pending` over `LORE_API_URL`; when the API is unconfigured/unreachable it falls back to the locally-cached `~/.lore/pending-tasks.json` (the local fallback **ignores** the `repo` filter).
+- **Where it runs:** prefers a live `GET /api/tasks?status=pending` over `LORE_API_URL`; when the API is unconfigured/unreachable it falls back to the locally-cached `~/.lore/pending-tasks.json` (the `repo` filter applies on both paths).
 - **Cache/mutation:** read-only.
 
 #### `lore_skip_task`
@@ -424,7 +427,7 @@ One-line purpose: start a local 30s background poller that surfaces new `pending
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `repos` | no | current repo | List of repos to watch, each `owner/repo`. Defaults to the git-remote-detected repo. |
-| `task_types` | no | `['runbook','gap-fill']` | List of task types to surface. |
+| `task_types` | no | `['runbook','gap-fill']` | List of task types to surface. Both default types are retired, so no new task of either type is created; pass `task_types` naming a type that still has pending tasks, or the poller surfaces nothing new. (The schema's own description still says it defaults to implementation, general, runbook and gap-fill; the code uses only `runbook` and `gap-fill`.) |
 
 - **Returns:** a watching-confirmation message; `already active` (without spawning a second interval) when a notifier is already running.
 - **Where it runs:** local sandbox; starts a `setInterval` and writes the local cache file (the poll itself reads the API or DB).
@@ -525,7 +528,7 @@ One-line purpose: view or update the local task-runner config (`~/.lore/local-ru
 | `task_types` | no | keep | Allowlist of task-type names eligible to run locally; replaces the whole list. |
 | `model` | no | keep / `claude-sonnet-4-6` | Default Anthropic model id for locally-run tasks. |
 
-- **Returns:** the resulting config as pretty JSON. Called with no update args (or only `max_concurrent: 0`) it is read-only and returns the current config (built-in defaults — `enabled:false`, `max_concurrent:2`, the four standard task_types, model `claude-sonnet-4-6` — when the file is absent).
+- **Returns:** the resulting config as pretty JSON. Called with no update args (or only `max_concurrent: 0`) it is read-only and returns the current config (built-in defaults — `enabled:false`, `max_concurrent:2`, `task_types: ['runbook','gap-fill']` (both retired task types), model `claude-sonnet-4-6` — when the file is absent).
 - **Where it runs:** local machine; no DB, no network.
 - **Cache/mutation:** overwrites only the provided fields and persists.
 

@@ -7,10 +7,16 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { createDgraphClient } from "@re-cinq/lore-shared";
+import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
+import { utopiaReadsFrom } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
-import { repoWantsCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import {
+  KnowledgeBackendSchema,
+  resolveBackend,
+  type KnowledgeBackend,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -34,6 +40,8 @@ const ContextQuery = z.object({
     .default(8000),
   agent_id: z.string().optional(),
   cross_repo: boolFlag,
+  // Unset → the repo's settings.context_backend, then "lore"; an unknown store is a 400, never a silent Lore read.
+  backend: KnowledgeBackendSchema.optional(),
 });
 
 type ContextQuery = z.infer<typeof ContextQuery>;
@@ -56,6 +64,7 @@ interface AssembleOptions {
   agentId?: string;
   debug?: boolean;
   crossRepoRequested: boolean;
+  backend?: KnowledgeBackend;
 }
 
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
@@ -155,6 +164,7 @@ async function assembledResponse(pool: Pool, q: ContextQuery) {
     agentId: q.agent_id,
     debug: q.debug,
     crossRepoRequested: q.cross_repo,
+    backend: q.backend,
   });
 
   return {
@@ -171,15 +181,18 @@ async function assembleForQuery(
   opts: AssembleOptions,
 ): Promise<Awaited<ReturnType<typeof assembleContext>>> {
   const repo = opts.repo || undefined;
+  const settings = await repoContextSettings(pool, repo);
 
   return await assembleContext(pool, query, {
     templateName: opts.template,
     maxTokens: opts.maxTokens,
     repo,
     agentId: opts.agentId,
-    crossRepo:
-      opts.crossRepoRequested || (await repoWantsCrossRepo(pool, repo)),
+    crossRepo: opts.crossRepoRequested || settings.crossRepo,
     debug: opts.debug,
-    dgraph: createDgraphClient(process.env),
+    graph: traceFromEnv(process.env),
+    backend: resolveBackend(opts.backend, settings.contextBackend),
+    utopiaReads: utopiaReadsFrom(process.env),
+    utopiaMirror: settings.utopiaMirror,
   });
 }

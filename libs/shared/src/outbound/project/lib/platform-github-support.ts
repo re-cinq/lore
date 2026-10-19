@@ -13,6 +13,8 @@ interface OctokitPull {
   number: number;
   title: string;
   head: { ref: string; sha?: string };
+  base?: { ref: string };
+  node_id?: string;
   state: string;
   merged_at?: string | null;
   html_url: string;
@@ -21,6 +23,7 @@ interface OctokitPull {
   draft?: boolean;
   mergeable?: boolean | null;
   body?: string | null;
+  auto_merge?: unknown;
 }
 
 export function toPullRef(repo: string, pr: OctokitPull): PullRef {
@@ -37,16 +40,29 @@ export function toPullRef(repo: string, pr: OctokitPull): PullRef {
     headSha: pr.head.sha,
     // Only `pulls.get` returns this; a list read leaves it undefined, which is not the same as null (GitHub still computing).
     mergeable: pr.mergeable,
+    autoMerge: Boolean(pr.auto_merge),
+    ...optionalFieldsOf(pr),
+  };
+}
+
+function optionalFieldsOf(
+  pr: OctokitPull,
+): Partial<Pick<PullRef, OptionalPullField>> {
+  return {
+    ...whenPresent("nodeId", pr.node_id),
+    ...whenPresent("baseBranch", pr.base?.ref),
     ...whenPresent("mergedAt", pr.merged_at),
     ...whenPresent("body", pr.body),
   };
 }
 
+type OptionalPullField = "mergedAt" | "body" | "nodeId" | "baseBranch";
+
 /** GitHub answers an absent value as null; the ref carries the field only when there is one. */
 function whenPresent(
-  key: "mergedAt" | "body",
+  key: OptionalPullField,
   value: string | null | undefined,
-): Partial<Pick<PullRef, "mergedAt" | "body">> {
+): Partial<Pick<PullRef, OptionalPullField>> {
   return value ? { [key]: value } : {};
 }
 

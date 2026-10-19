@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { join, resolve } from "node:path";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 
@@ -9,7 +15,7 @@ const GUARD = resolve(
   "../../agent-skills/skills/lore-context/guard-tests.sh",
 );
 
-function guard(command: string, policy?: string) {
+function guard(command: string, policy?: string, env: NodeJS.ProcessEnv = {}) {
   const result = spawnSync("sh", [GUARD], {
     input: JSON.stringify({
       cwd: "/workspace/target",
@@ -19,10 +25,36 @@ function guard(command: string, policy?: string) {
     env: {
       PATH: process.env.PATH,
       ...(policy ? { LORE_TEST_POLICY: policy } : {}),
+      ...env,
     },
   });
 
   return { code: result.status, reason: result.stderr.toString().trim() };
+}
+
+const DOD = `# Definition of Done
+
+> The approver setting refuses a repo without a ruleset.
+
+**Strategy: \`direct\`** — the route handler is the seam.
+
+## Done when these pass
+
+- [ ] **refuses with 403 naming missing prerequisites** — calls \`getBranchRule\`
+  \`apps/lore-api/src/transport/routes/repos/repo-settings.acceptance.test.ts\`
+
+## Facets
+
+- [ ] check the ruleset in \`apps/lore-api/src/transport/routes/repos/repo-settings.test.ts\`
+`;
+
+function underDod(command: string) {
+  const dir = mkdtempSync(join(tmpdir(), "lore-dod-"));
+  const dod = join(dir, "dod.md");
+
+  writeFileSync(dod, DOD);
+
+  return guard(command, undefined, { LORE_ACCEPTANCE_DOD: dod });
 }
 
 const blocked = (command: string, policy?: string) =>
@@ -321,5 +353,49 @@ describe("guard-tests hook", () => {
       "[lore] blocked: this node does not install dependencies or build. The pod has a 1Gi disk budget and CI already builds the branch.",
       null,
     ]);
+  });
+
+  it("refuses a round's run of an acceptance test the definition of done lists, from the root or after a cd", () => {
+    const acceptance = [
+      "npx vitest run apps/lore-api/src/transport/routes/repos/repo-settings.acceptance.test.ts",
+      "cd apps/lore-api && npx vitest run src/transport/routes/repos/repo-settings.acceptance.test.ts",
+      "npx vitest run src/a.test.ts repo-settings.acceptance.test.ts",
+    ];
+
+    expect(acceptance.map((c) => underDod(c).code)).toEqual([2, 2, 2]);
+  });
+
+  it("says acceptance tests are CI's to run and where to read their verdict", () => {
+    expect(
+      underDod("npx vitest run src/repo-settings.acceptance.test.ts").reason,
+    ).toMatch(
+      /^\[lore\] blocked: acceptance tests are CI's.*lore_get_ci_failures/,
+    );
+  });
+
+  it("refuses a directory run under a definition of done, since it would sweep the acceptance tests in", () => {
+    expect([
+      underDod("cd apps/lore-api && npx vitest run").code,
+      underDod("npx vitest run src/transport").code,
+    ]).toEqual([2, 2]);
+  });
+
+  it("lets a round run the test it wrote, including a file the definition of done only mentions outside its acceptance list", () => {
+    expect([
+      underDod(
+        "cd apps/lore-api && timeout 300 npx vitest run src/transport/routes/repos/repo-settings.test.ts",
+      ).code,
+      underDod('npx vitest run src/x.test.ts -t "refuses"').code,
+      underDod("git log -- repo-settings.acceptance.test.ts").code,
+    ]).toEqual([0, 0, 0]);
+  });
+
+  it("leaves a directory run alone when no definition of done is declared or the file is not there yet", () => {
+    expect([
+      guard("cd apps/lore-api && npx vitest run").code,
+      guard("cd apps/lore-api && npx vitest run", undefined, {
+        LORE_ACCEPTANCE_DOD: "/nonexistent/dod.md",
+      }).code,
+    ]).toEqual([0, 0]);
   });
 });

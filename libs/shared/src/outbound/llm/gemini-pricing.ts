@@ -2,7 +2,7 @@
 
 import type { ModelPricing } from "./model-pricing.js";
 
-// $/token for prompts under the 200k-token tier boundary, read off https://ai.google.dev/gemini-api/docs/pricing on 2026-09-01 — reverify before relying on this table (3.7 Flash is a launch price through 2026-12-31, then doubles).
+// $/token for prompts under the 200k-token tier boundary, read off https://ai.google.dev/gemini-api/docs/pricing on 2026-09-01 — reverify before relying on this table (3.7 Flash is a launch price through 2026-12-31, then doubles; 4 Argon is a launch price through 2026-11-30, then doubles).
 export const GEMINI_MODEL_PRICING: Record<string, ModelPricing> = {
   "gemini-2.5-pro": {
     inputPerToken: 1.25 / 1_000_000,
@@ -19,6 +19,10 @@ export const GEMINI_MODEL_PRICING: Record<string, ModelPricing> = {
   "gemini-3.1-pro-preview": {
     inputPerToken: 2.0 / 1_000_000,
     outputPerToken: 12.0 / 1_000_000,
+  },
+  "gemini-4-argon": {
+    inputPerToken: 2.0 / 1_000_000,
+    outputPerToken: 10.0 / 1_000_000,
   },
   "gemini-3.7-flash": {
     inputPerToken: 0.75 / 1_000_000,

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
+import { noUtopiaReader } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { sourcesOf } from "./assembled-for-eval.js";
 
 type Section = AssemblyTrace["sections"][number];
@@ -36,8 +37,8 @@ describe("sourcesOf", () => {
         ]),
       ),
     ).toEqual([
-      { path: "adrs/ADR-032.md", tokens: 400 },
-      { path: "adrs/ADR-044.md", tokens: 100 },
+      { path: "adrs/ADR-032.md", section: "adrs", tokens: 400 },
+      { path: "adrs/ADR-044.md", section: "adrs", tokens: 100 },
     ]);
   });
 
@@ -57,7 +58,20 @@ describe("sourcesOf", () => {
   it("counts an item with no path under an empty path, so its tokens still weigh on the total", () => {
     expect(
       sourcesOf(trace([section({ items: [{ text: "graph", tokens: 30 }] })])),
-    ).toEqual([{ path: "", tokens: 30 }]);
+    ).toEqual([{ path: "", section: "adrs", tokens: 30 }]);
+  });
+
+  it("leaves out the line saying a section has no Utopia reader, so it is not graded as a source", () => {
+    expect(
+      sourcesOf(
+        trace([
+          section({
+            source: "code",
+            items: [{ text: noUtopiaReader("code"), tokens: 7 }],
+          }),
+        ]),
+      ),
+    ).toEqual([]);
   });
 
   it("returns no sources when the assembly carried no trace", () => {
