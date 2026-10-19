@@ -57,12 +57,6 @@ export const RepoSettingsSchema = z
     slack_channel_id: z.string().optional(),
     // The daily Slack digest (specs/daily-digest FR1); posts to slack_channel_id.
     digest: DigestSettingsSchema.nullable().optional(),
-    auto_merge: z
-      .object({
-        approver: z.enum(["none", "lore-reviewer"]).optional(),
-      })
-      .passthrough()
-      .optional(),
     dispatch_label: z.string().optional(),
     dispatch_default_type: z.string().optional(),
     test_commands: z.unknown().optional(),
