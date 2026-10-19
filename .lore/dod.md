@@ -12,8 +12,8 @@ No acceptance tests can be written. See Out of scope.
 
 - [ ] Determine policy for external GitHub URL links (`https://github.com/re-cinq/re-lint/...`): keep as cross-repo documentation references, or strip them to silence Lore.
 - [ ] Confirm that the local-file "file-missing" links (`event-reporter.test.ts`, `dist.test.ts`, `RemoveOverrideButton.test.tsx`, `actions.test.ts`, `RunWorkbenchLayout.test.tsx`) go quiet after the next Lore CI ingest run — no edit needed.
-- [ ] Fix `LogEntriesView.test.tsx#L231` → `#L233` (blank line vs. `it()` start); update label to `:233`. This is the only genuine href error in the surviving links.
-- [ ] Fix `zod-validate.test.ts` label `:63` → `:65` to match the already-correct href `#L65`.
+- [x] Fix `LogEntriesView.test.tsx#L231` → `#L233` (blank line vs. `it()` start); update label to `:233`. This is the only genuine href error in the surviving links.
+- [x] Fix `zod-validate.test.ts` label `:63` → `:65` to match the already-correct href `#L65`.
 
 ## Out of scope
 
