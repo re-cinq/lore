@@ -28,7 +28,7 @@ export function agentFormValues(
 ) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
-  const promptInherited = isPromptInherited(agent, isNew);
+  const promptInherited = !isNew && isPromptInherited(agent);
   return {
     name,
     executionMode,
@@ -43,11 +43,8 @@ export function agentFormValues(
   };
 }
 
-function isPromptInherited(
-  agent: AgentWithInheritedFields | null,
-  isNew: boolean,
-): boolean {
-  return !isNew && !!agent?.inherited_fields?.includes("prompt");
+function isPromptInherited(agent: AgentWithInheritedFields | null): boolean {
+  return !!agent?.inherited_fields?.includes("prompt");
 }
 
 function resolvePrompt(
