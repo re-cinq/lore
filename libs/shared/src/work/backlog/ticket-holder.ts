@@ -2,8 +2,12 @@
 import { implementationLoopBranch } from "../../outbound/project/assembly-runs/subject-keys.js";
 import type { Project } from "../../outbound/project/index.js";
 
-/** Task statuses that mean the work ended; such a task holds its ticket only through a pull request still open on the loop branch. */
-export const SETTLED_TASK_STATUSES: readonly string[] = ["completed", "merged"];
+const SETTLED_TASK_STATUSES: readonly string[] = ["completed", "merged"];
+
+/** Whether the task's work ended; such a task holds its ticket only through a pull request still open on the loop branch. */
+export function isSettledTask(status: string): boolean {
+  return SETTLED_TASK_STATUSES.includes(status);
+}
 
 export interface TicketHolderDeps {
   activeTaskByIssue(
@@ -24,7 +28,7 @@ export async function taskHoldingTicket(
 ): Promise<{ id: string } | null> {
   const task = await deps.activeTaskByIssue(repo, issueNumber);
 
-  if (!task || !SETTLED_TASK_STATUSES.includes(task.status)) {
+  if (!task || !isSettledTask(task.status)) {
     return task;
   }
   const openPr = await deps.openPrForBranch(

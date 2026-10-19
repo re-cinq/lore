@@ -36,6 +36,7 @@ function triageScene(over: Partial<TriageRepoEventDeps> = {}) {
 
           return Promise.resolve(null);
         },
+        openPrForBranch: () => Promise.resolve(null),
         addLabel: () => Promise.resolve(),
         comment: () => Promise.resolve(),
       }),
@@ -79,6 +80,7 @@ function scene() {
         rawSettings: () =>
           Promise.resolve({ implementation_loop: { enabled: true } }),
         activeTaskByIssue: () => Promise.resolve(null),
+        openPrForBranch: () => Promise.resolve(null),
         addLabel: (issueNumber, label) => {
           steps.push(`label #${issueNumber} ${label}`);
 
@@ -275,6 +277,7 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
 
             return Promise.resolve(null);
           },
+          openPrForBranch: () => Promise.resolve(null),
           addLabel: () => Promise.resolve(),
           comment: () => Promise.resolve(),
         }),
