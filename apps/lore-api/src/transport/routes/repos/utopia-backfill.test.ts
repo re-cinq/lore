@@ -160,7 +160,10 @@ describe("POST /api/repos/{owner}/{repo}/utopia/backfill", () => {
           unchanged: 0,
           failed: [],
         },
-        memory: { memories: NOTHING_WALKED, episodes: NOTHING_WALKED },
+        memory: {
+          memories: { ...NOTHING_WALKED, pass_complete: true },
+          episodes: NOTHING_WALKED,
+        },
       },
       pushes: Array(4).fill(
         "POST /api/v1/sources/src-1/statements Bearer utp_k",

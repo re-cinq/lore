@@ -35,7 +35,7 @@ export async function saveMemorySource(
 }
 
 export interface StoredMemorySource extends StoredUtopiaSource {
-  /** The mirror sequence number of the last row the walk pushed. */
+  /** Where the walk stopped: an episode walk's `<created_at>|<id>`, a memory pass's last id; null before the first row or between passes. */
   cursor: string | null;
 }
 
@@ -45,7 +45,7 @@ export async function memorySourceFor(
   kind: MemoryKind,
 ): Promise<StoredMemorySource | null> {
   const { rows } = await pool.query<StoredMemorySource>(
-    `SELECT source_id AS id, source_key AS key, kb_id AS "kbId", cursor::text AS cursor
+    `SELECT source_id AS id, source_key AS key, kb_id AS "kbId", cursor
        FROM lore.utopia_memory_sources WHERE lower(base) = lower($1) AND kind = $2`,
     [base, kind],
   );
@@ -57,11 +57,11 @@ export async function saveMemoryCursor(
   pool: Pool,
   base: string,
   kind: MemoryKind,
-  seq: string,
+  cursor: string | null,
 ): Promise<void> {
   await pool.query(
-    `UPDATE lore.utopia_memory_sources SET cursor = $3::bigint, updated_at = now()
+    `UPDATE lore.utopia_memory_sources SET cursor = $3, updated_at = now()
       WHERE lower(base) = lower($1) AND kind = $2`,
-    [base, kind, seq],
+    [base, kind, cursor],
   );
 }

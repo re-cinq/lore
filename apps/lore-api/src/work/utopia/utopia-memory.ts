@@ -1,4 +1,4 @@
-// Mirrors a base's memories and episodes into Utopia (specs/utopia-graph-mirror FR16): the rows whose mirror sequence number is above the cursor, lowest first, each pushed to the base's `memories` or `episodes` api source and the cursor moved past it. Every write, delete, expiry and eviction moves a row's sequence number, so the walk carries what the stations' sweeps changed as well as what lore-api wrote.
+// Mirrors a base's memories and episodes into Utopia (specs/utopia-graph-mirror FR16), each row pushed to the base's `memories` or `episodes` api source and the cursor moved past it. Episodes never change once inserted, so one walk in insert order holds them all. Memories change in place, and the stations' expiry and eviction cannot push, so memories are walked in repeating passes by id: a pass re-sends every memory, an unchanged one answers unchanged, and a changed or dead one lands as its new document or its tombstone.
 
 import type { Pool } from "pg";
 import type { IngestDocument } from "@re-cinq/lore-shared/utopia/memory-documents.js";
@@ -18,14 +18,14 @@ import {
   type MemoryKind,
 } from "../../outbound/utopia-memory-sources.js";
 import {
-  episodeRowsAbove,
-  memoryRowsAbove,
-  type SequencedDocument,
+  episodeRowsAfter,
+  memoryRowsAfter,
+  type CursoredDocument,
 } from "../../outbound/memory-rows.js";
 import { queuedPerRepo, walkInOrder } from "./cursor-walk.js";
 import { memorySourceOf, type MemorySource } from "./utopia-memory-base.js";
 
-export type { MemoryKind, SequencedDocument };
+export type { MemoryKind, CursoredDocument };
 
 export interface MemoryWalkDeps {
   /** The repo, or the org's memory base, whose rows the walk reads; one walk of a base runs at a time. */
@@ -34,10 +34,10 @@ export interface MemoryWalkDeps {
     kind: MemoryKind,
     after: string | null,
     limit: number,
-  ): Promise<SequencedDocument[]>;
+  ): Promise<CursoredDocument[]>;
   cursor: {
     read(kind: MemoryKind): Promise<string | null>;
-    write(kind: MemoryKind, seq: string): Promise<void>;
+    write(kind: MemoryKind, cursor: string | null): Promise<void>;
   };
   push(
     kind: MemoryKind,
@@ -52,29 +52,44 @@ export function mirrorMemoryBacklog(
   deps: MemoryWalkDeps,
 ): Promise<UtopiaMemorySummary> {
   return queuedPerRepo(deps.base, async () => ({
-    memories: await walkKind(deps, "memories"),
-    episodes: await walkKind(deps, "episodes"),
+    memories: await walkMemoryPass(deps),
+    episodes: (await walkKind(deps, "episodes")).summary,
   }));
+}
+
+/** A walk that read fewer rows than it may, with none failed, reached the end of the pass: the cursor goes back to null, so the next walk starts the next pass from the first memory. */
+async function walkMemoryPass(
+  deps: MemoryWalkDeps,
+): Promise<UtopiaMemorySummary["memories"]> {
+  const { summary, read } = await walkKind(deps, "memories");
+  const passComplete =
+    summary.failed.length === 0 && read < MAX_MEMORY_ROWS_PER_RUN;
+
+  if (passComplete) {
+    await deps.cursor.write("memories", null);
+  }
+
+  return { ...summary, pass_complete: passComplete };
 }
 
 async function walkKind(
   deps: MemoryWalkDeps,
   kind: MemoryKind,
-): Promise<UtopiaTrackerSummary> {
+): Promise<{ summary: UtopiaTrackerSummary; read: number }> {
   const from = await deps.cursor.read(kind);
   const rows = await deps.rows(kind, from, MAX_MEMORY_ROWS_PER_RUN);
   const { landed, ...tally } = await walkInOrder(rows, {
-    cursorOf: (row) => row.seq,
+    cursorOf: (row) => row.cursor,
     labelOf: (row) => row.document.external_id,
     mirror: async (row) =>
       outcomeOf((await deps.push(kind, row.document)).action),
-    writeCursor: (seq) => deps.cursor.write(kind, seq),
+    writeCursor: (cursor) => deps.cursor.write(kind, cursor),
   });
 
-  return { from, ...tally, entries: landed };
+  return { summary: { from, ...tally, entries: landed }, read: rows.length };
 }
 
-const READERS = { memories: memoryRowsAbove, episodes: episodeRowsAbove };
+const READERS = { memories: memoryRowsAfter, episodes: episodeRowsAfter };
 
 /** The base's rows, its cursors and its sources. Each kind's source is found once per walk, before its cursor is read: a source created anew starts its walk from the first row. A base whose source cannot be had reads from the start and fails its first push with the reason. */
 export function memoryWalkDepsFor(
@@ -90,7 +105,7 @@ export function memoryWalkDepsFor(
     cursor: {
       read: async (kind) =>
         (await sourceOf(kind).catch(() => null))?.cursor ?? null,
-      write: (kind, seq) => saveMemoryCursor(pool, base.name, kind, seq),
+      write: (kind, cursor) => saveMemoryCursor(pool, base.name, kind, cursor),
     },
     push: async (kind, document) =>
       utopiaClientFrom(env).pushDocument(await sourceOf(kind), document),

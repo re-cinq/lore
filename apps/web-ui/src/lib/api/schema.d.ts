@@ -4757,6 +4757,7 @@ export interface components {
           updated: number;
           unchanged: number;
           failed: string[];
+          pass_complete: boolean;
         };
         episodes: {
           from: string | null;
@@ -4789,6 +4790,7 @@ export interface components {
         updated: number;
         unchanged: number;
         failed: string[];
+        pass_complete: boolean;
       };
       episodes: {
         from: string | null;
@@ -4809,6 +4811,7 @@ export interface components {
         updated: number;
         unchanged: number;
         failed: string[];
+        pass_complete: boolean;
       };
       episodes: {
         from: string | null;

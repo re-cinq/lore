@@ -77,7 +77,7 @@ beforeEach(() => {
 });
 
 const MEMORY_ROW = {
-  seq: "9",
+  id: "m-9",
   agent_id: "claude-bogdan",
   key: "gotchas",
   value: "Open node-local-dns.",

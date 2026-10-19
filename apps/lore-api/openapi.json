@@ -17788,6 +17788,9 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "pass_complete": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -17797,7 +17800,8 @@
                   "created",
                   "updated",
                   "unchanged",
-                  "failed"
+                  "failed",
+                  "pass_complete"
                 ],
                 "additionalProperties": false
               },
@@ -17930,6 +17934,9 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "pass_complete": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -17939,7 +17946,8 @@
               "created",
               "updated",
               "unchanged",
-              "failed"
+              "failed",
+              "pass_complete"
             ],
             "additionalProperties": false
           },
@@ -18015,6 +18023,9 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "pass_complete": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -18024,7 +18035,8 @@
               "created",
               "updated",
               "unchanged",
-              "failed"
+              "failed",
+              "pass_complete"
             ],
             "additionalProperties": false
           },

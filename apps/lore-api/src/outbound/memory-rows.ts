@@ -1,4 +1,4 @@
-// The memory.* rows the Utopia memory mirror pushes (specs/utopia-graph-mirror FR16): one key's rows as Lore's write found them, and a base's rows above the walk's cursor, each with its mirror sequence number (migration 0110).
+// The memory.* rows the Utopia memory mirror pushes (specs/utopia-graph-mirror FR16): one key's rows as Lore's write found them, a base's episodes after the walk's cursor in insert order, and a base's memories after it in id order, each with the cursor it leaves.
 
 import type { Pool } from "pg";
 import {
@@ -23,7 +23,7 @@ export async function onboardedRepo(
 }
 
 interface MemoryRow {
-  seq: string;
+  id: string;
   agent_id: string;
   key: string;
   value: string;
@@ -37,7 +37,7 @@ export interface StoredMemory extends MirroredMemory {
 }
 
 /** Only a key's newest version is the memory; an older version row left behind is not pushed over it. */
-const MEMORY_SELECT = `SELECT m.mirror_seq::text AS seq, m.agent_id, m.key, m.value, m.repo,
+const MEMORY_SELECT = `SELECT m.id, m.agent_id, m.key, m.value, m.repo,
          to_json(m.created_at) #>> '{}' AS created_at,
          (NOT m.is_deleted AND (m.expires_at IS NULL OR m.expires_at > now())) AS live
     FROM memory.memories m
@@ -71,9 +71,9 @@ function storedMemory(row: MemoryRow): StoredMemory {
   };
 }
 
-/** What the walk pushes for one row: its sequence number, as text since a bigint outgrows a JS number's safe range, and its document. */
-export interface SequencedDocument {
-  seq: string;
+/** What the walk pushes for one row, and the cursor it leaves once that row has landed. */
+export interface CursoredDocument {
+  cursor: string;
   document: IngestDocument;
 }
 
@@ -82,60 +82,59 @@ export interface RowsPage {
   limit: number;
 }
 
-/** The base's memories above `after`, lowest sequence number first. */
-export async function memoryRowsAbove(
+/** The base's memories after the id `after`, in id order: a pass over every memory, live or dead, that the walk starts again once it reaches the end. */
+export async function memoryRowsAfter(
   pool: Pool,
   base: MemoryBase,
   page: RowsPage,
-): Promise<SequencedDocument[]> {
+): Promise<CursoredDocument[]> {
   const { rows } = await pool.query<MemoryRow>(
-    `${MEMORY_SELECT} AND m.mirror_seq > $1::bigint AND ${scopeOf(base, "m.repo")}
-     ORDER BY m.mirror_seq LIMIT $2`,
-    pageParams(base, page),
+    `${MEMORY_SELECT} AND ($1::uuid IS NULL OR m.id > $1::uuid) AND ${scopeOf(base, "m.repo", 3)}
+     ORDER BY m.id LIMIT $2`,
+    [page.after, page.limit, ...repoParam(base)],
   );
 
   return rows.map((row) => ({
-    seq: row.seq,
+    cursor: row.id,
     document: memoryDocument(storedMemory(row)),
   }));
 }
 
 interface EpisodeRow {
-  seq: string;
   id: string;
   content: string;
   created_at: string;
 }
 
-/** The base's episodes above `after`, lowest sequence number first; an episode's ref is the repo it came from. */
-export async function episodeRowsAbove(
+/** The base's episodes after the cursor `<created_at>|<id>`, oldest first; episodes are never changed once inserted, so one pass holds them all. An episode's ref is the repo it came from. */
+export async function episodeRowsAfter(
   pool: Pool,
   base: MemoryBase,
   page: RowsPage,
-): Promise<SequencedDocument[]> {
+): Promise<CursoredDocument[]> {
+  const [at, id] = page.after?.split("|") ?? [null, null];
   const { rows } = await pool.query<EpisodeRow>(
-    `SELECT e.mirror_seq::text AS seq, e.id, e.content, to_json(e.created_at) #>> '{}' AS created_at
+    `SELECT e.id, e.content, to_json(e.created_at) #>> '{}' AS created_at
        FROM memory.episodes e
-      WHERE e.mirror_seq > $1::bigint AND ${scopeOf(base, "e.ref")}
-      ORDER BY e.mirror_seq LIMIT $2`,
-    pageParams(base, page),
+      WHERE ($1::timestamptz IS NULL OR (e.created_at, e.id) > ($1::timestamptz, $2::uuid))
+        AND ${scopeOf(base, "e.ref", 4)}
+      ORDER BY e.created_at, e.id LIMIT $3`,
+    [at, id, page.limit, ...repoParam(base)],
   );
 
   return rows.map((row) => ({
-    seq: row.seq,
+    cursor: `${row.created_at}|${row.id}`,
     document: episodeDocument({ ...row, createdAt: row.created_at }),
   }));
 }
 
 /** A repo's rows by their repo; the org base's are those with none, or with a repo Lore does not hold. */
-function scopeOf(base: MemoryBase, column: string): string {
+function scopeOf(base: MemoryBase, column: string, repoAt: number): string {
   return base.repo
-    ? `lower(${column}) = lower($3)`
+    ? `lower(${column}) = lower($${repoAt})`
     : `(${column} IS NULL OR NOT EXISTS (SELECT 1 FROM lore.repos r WHERE lower(r.full_name) = lower(${column})))`;
 }
 
-function pageParams(base: MemoryBase, page: RowsPage): (string | number)[] {
-  const params = [page.after ?? "0", page.limit];
-
-  return base.repo ? [...params, base.name] : params;
+function repoParam(base: MemoryBase): string[] {
+  return base.repo ? [base.name] : [];
 }

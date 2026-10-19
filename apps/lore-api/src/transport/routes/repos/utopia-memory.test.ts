@@ -55,7 +55,7 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 const MEMORY_ROW = {
-  seq: "42",
+  id: "m-42",
   agent_id: "claude-bogdan",
   key: "gotchas",
   value: "Open node-local-dns.",
@@ -69,7 +69,7 @@ const STORED_SRC_MEM = {
   kbId: "kb-1",
   id: "src-mem",
   key: "utp_mem",
-  cursor: "41",
+  cursor: "m-41",
 };
 
 function poolHolding(held: { repoSource: boolean; memorySource: boolean }) {
@@ -120,7 +120,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/memory", () => {
     };
   });
 
-  it("pushes memory 42 above cursor 41 through the stored src-mem key, moves the cursor to 42 and answers both walks", async () => {
+  it("pushes memory m-42 after cursor m-41 through the stored src-mem key, moves the cursor to m-42, completes the pass and answers both walks", async () => {
     const { pool, cursorWrites } = poolHolding({
       repoSource: true,
       memorySource: true,
@@ -136,16 +136,17 @@ describe("POST /api/repos/{owner}/{repo}/utopia/memory", () => {
       status: 200,
       body: {
         memories: {
-          from: "41",
-          to: "42",
+          from: "m-41",
+          to: "m-42",
           entries: 1,
           created: 1,
           updated: 0,
           unchanged: 0,
           failed: [],
+          pass_complete: true,
         },
         episodes: {
-          from: "41",
+          from: "m-41",
           to: null,
           entries: 0,
           created: 0,
@@ -155,7 +156,10 @@ describe("POST /api/repos/{owner}/{repo}/utopia/memory", () => {
         },
       },
       pushes: ["POST /api/v1/sources/src-mem/ingest Bearer utp_mem"],
-      cursorWrites: [["re-cinq/lore", "memories", "42"]],
+      cursorWrites: [
+        ["re-cinq/lore", "memories", "m-42"],
+        ["re-cinq/lore", "memories", null],
+      ],
     });
   });
 

@@ -67,7 +67,7 @@ const NO_MEMORY = {
   push: async () => ({ action: "created" as const }),
 };
 
-const NOTHING_ABOVE_41 = {
+const NOTHING_AFTER_41 = {
   from: "41",
   to: null,
   entries: 0,
@@ -147,7 +147,10 @@ describe("backfillRepo", () => {
         commits: NO_COMMITS,
         tracker: NO_TRACKED,
         releases: NOTHING_RELEASED,
-        memory: { memories: NOTHING_ABOVE_41, episodes: NOTHING_ABOVE_41 },
+        memory: {
+          memories: { ...NOTHING_AFTER_41, pass_complete: true },
+          episodes: NOTHING_AFTER_41,
+        },
       },
       mirrored: [
         {
@@ -209,7 +212,10 @@ describe("backfillRepo", () => {
       commits: NO_COMMITS,
       tracker: NO_TRACKED,
       releases: NOTHING_RELEASED,
-      memory: { memories: NOTHING_ABOVE_41, episodes: NOTHING_ABOVE_41 },
+      memory: {
+        memories: { ...NOTHING_AFTER_41, pass_complete: true },
+        episodes: NOTHING_AFTER_41,
+      },
     });
   });
 
@@ -322,7 +328,7 @@ describe("backfillRepo", () => {
           kind === "episodes"
             ? [
                 {
-                  seq: "42",
+                  cursor: "2026-10-19T09:00:00+00:00|e7",
                   document: {
                     external_id: "episode:e7",
                     filename: "episode-e7",
