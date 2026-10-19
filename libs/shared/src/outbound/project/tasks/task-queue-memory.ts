@@ -279,17 +279,19 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   async activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null> {
-    const task = this.tasks.find(
-      (t) =>
-        t.issue_number === issueNumber &&
-        t.target_repo === repo &&
-        t.status !== "failed" &&
-        t.status !== "cancelled" &&
-        t.status !== "retried",
-    );
+  ): Promise<{ id: string; status: string } | null> {
+    const [task] = this.tasks
+      .filter(
+        (t) =>
+          t.issue_number === issueNumber &&
+          t.target_repo === repo &&
+          t.status !== "failed" &&
+          t.status !== "cancelled" &&
+          t.status !== "retried",
+      )
+      .sort((a, b) => ms(b.created_at) - ms(a.created_at));
 
-    return task ? { id: task.id } : null;
+    return task ? { id: task.id, status: task.status ?? "pending" } : null;
   }
 
   async markFeatureRequestMergedOnBranch(

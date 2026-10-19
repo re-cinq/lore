@@ -155,11 +155,11 @@ export interface TaskQueueRepository {
     prNumber: number,
   ): Promise<{ id: string } | null>;
 
-  /** The active task id for a repo + issue (status NOT IN failed/cancelled/retried; a completed task guards, since its pull request still awaits review), or null. */
+  /** The newest task for a repo + issue that is not failed, cancelled or retried, with its status, or null. A settled one holds the ticket only while its pull request is open (`taskHoldingTicket`). */
   activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null>;
+  ): Promise<{ id: string; status: string } | null>;
 
   /** Flip merged: feature-request tasks on a branch still in pr-created/review → merged. */
   markFeatureRequestMergedOnBranch(repo: string, branch: string): Promise<void>;
