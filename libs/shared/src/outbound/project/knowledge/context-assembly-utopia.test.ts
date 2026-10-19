@@ -16,7 +16,7 @@ const SPEC = "specs/utopia-graph-mirror/spec.md";
 
 function pushedChunks(
   path: string,
-  kind: "spec" | "adr",
+  kind: "spec" | "adr" | "doc",
   content: string,
 ): Map<string, string> {
   return new Map(
@@ -118,6 +118,28 @@ describe("utopiaDocuments", () => {
     ).toEqual([
       { source_path: SPEC, score: 1 },
       { source_path: EVALS_SPEC, score: 0.5 },
+    ]);
+  });
+
+  it("renders README.md's doc and statement chunks as one doc item, its title Lore before its statement", () => {
+    const readmeChunks = pushedChunks(
+      "README.md",
+      "doc",
+      "# Lore\n\n## Usage\n\n- Run install.sh once per machine.\n",
+    );
+    const hits = [
+      hit("stmt:README.md#0000", readmeChunks, 0.032),
+      hit("doc:README.md", readmeChunks, 0.03),
+    ];
+
+    expect(utopiaDocuments(hits, REPO_FILTER)).toEqual([
+      {
+        text: "Lore\nRun install.sh once per machine.",
+        tokens: 10,
+        source_path: "README.md",
+        content_type: "doc",
+        score: 1,
+      },
     ]);
   });
 

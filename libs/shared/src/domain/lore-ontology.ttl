@@ -17,18 +17,24 @@ lore:Repository a owl:Class ;
 
 lore:Document a owl:Class ;
   rdfs:label "Document" ;
-  rdfs:comment "A markdown document in the repository: a spec or an ADR, at a commit." ;
+  rdfs:comment "A markdown document in the repository: a spec, an ADR or any other document (a README, CLAUDE.md, a guide, a runbook), at a commit." ;
   owl:disjointWith lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
 
 lore:Spec a owl:Class ;
   rdfs:label "Spec" ;
   rdfs:comment "A feature specification (specs/<name>/spec.md)." ;
   rdfs:subClassOf lore:Document ;
-  owl:disjointWith lore:Adr .
+  owl:disjointWith lore:Adr, lore:Doc .
 
 lore:Adr a owl:Class ;
   rdfs:label "Adr" ;
   rdfs:comment "An architecture decision record (adrs/ADR-NNN-*.md)." ;
+  rdfs:subClassOf lore:Document ;
+  owl:disjointWith lore:Doc .
+
+lore:Doc a owl:Class ;
+  rdfs:label "Doc" ;
+  rdfs:comment "A markdown document that is neither a spec nor an ADR: a README, CLAUDE.md, AGENTS.md, a guide under docs/, a runbook or a team's notes." ;
   rdfs:subClassOf lore:Document .
 
 lore:Section a owl:Class ;

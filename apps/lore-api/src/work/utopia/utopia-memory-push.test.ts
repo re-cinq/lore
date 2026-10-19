@@ -16,7 +16,7 @@ vi.mock("../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     settings: {
       rawSettings: async () => ({
-        utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 6 },
+        utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 7 },
       }),
     },
   }),

@@ -6,7 +6,7 @@ import {
 } from "./lore-ontology.js";
 
 describe("lore ontology", () => {
-  it("binds the sixteen class labels of the chain and its history to their snake_case class keys", () => {
+  it("binds the seventeen class labels of the chain and its history to their snake_case class keys", () => {
     const snakeCase = (word: string) =>
       word.replace(/(?<=[a-z])([A-Z])/g, "_$1").toLowerCase();
 
@@ -16,6 +16,7 @@ describe("lore ontology", () => {
         "Document",
         "Spec",
         "Adr",
+        "Doc",
         "Section",
         "Statement",
         "Test",
@@ -32,14 +33,14 @@ describe("lore ontology", () => {
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 6", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 7", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 6,
+      version: 7,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });
@@ -238,6 +239,7 @@ describe("lore ontology", () => {
         "Repository",
         "Spec",
         "Adr",
+        "Doc",
         "Section",
         "Statement",
         "Test",
