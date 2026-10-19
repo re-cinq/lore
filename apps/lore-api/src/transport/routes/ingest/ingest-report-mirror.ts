@@ -1,5 +1,5 @@
 import type { IngestDeltaDeps } from "./ingest-delta-deps.js";
-import { mirrorQuietly } from "./mirror-quietly.js";
+import { mirrorQuietly } from "../../../work/utopia/mirror-quietly.js";
 
 /** The part of a default-branch test-report delta the Utopia mirror reads. */
 export interface ReportDelta {

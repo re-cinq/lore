@@ -35,12 +35,24 @@ interface IngestedFileTarget {
   contentType: string;
 }
 
+/** Told of each file whose chunks were stored or deleted, after the store has it: the seam the Utopia mirror hangs on. */
+export interface LandedFiles {
+  ingested(path: string, content: string): Promise<void>;
+  deleted(path: string): Promise<void>;
+}
+
+const NOTHING_TOLD: LandedFiles = {
+  ingested: async () => {},
+  deleted: async () => {},
+};
+
 interface IngestOneFileContext {
   pool: Pool;
   schema: string;
   repo: string;
   commit: string;
   githubCtx: GithubFetchContext | null;
+  landed: LandedFiles;
 }
 
 export interface IngestCounts {
@@ -54,11 +66,17 @@ export interface IngestFilesSummary extends IngestCounts {
   results: IngestResult[];
 }
 
+/** Where the posted files go: the repo, the commit they are read at, and who is told what landed. */
+export interface IngestTarget {
+  repo: string;
+  commit: string;
+  landed?: LandedFiles;
+}
+
 export async function ingestFiles(
   pool: Pool,
   files: IngestFile[],
-  repo: string,
-  commit: string,
+  { repo, commit, landed = NOTHING_TOLD }: IngestTarget,
 ): Promise<IngestFilesSummary> {
   const schema = await resolveSchema(pool, repo);
 
@@ -70,6 +88,7 @@ export async function ingestFiles(
     repo,
     commit,
     githubCtx: await resolveGithubFetchContext(files, repo),
+    landed,
   });
   const counts = tallyIngestResults(results);
 
@@ -148,9 +167,7 @@ async function ingestResolved(
   const { content } = resolved;
 
   if (resolved.missing404) {
-    await deleteChunks(ctx, filePath);
-
-    return { file: filePath, status: "deleted" };
+    return deleteGone(ctx, filePath);
   }
 
   if (!content) {
@@ -162,7 +179,28 @@ async function ingestResolved(
     return skippedResult(filePath, "unsupported file type");
   }
 
-  return replaceChunks(ctx, { filePath, content, contentType });
+  return replaceAndTell(ctx, { filePath, content, contentType });
+}
+
+async function replaceAndTell(
+  ctx: IngestOneFileContext,
+  file: { filePath: string; content: string; contentType: string },
+): Promise<IngestResult> {
+  const result = await replaceChunks(ctx, file);
+
+  await ctx.landed.ingested(file.filePath, file.content);
+
+  return result;
+}
+
+async function deleteGone(
+  ctx: IngestOneFileContext,
+  filePath: string,
+): Promise<IngestResult> {
+  await deleteChunks(ctx, filePath);
+  await ctx.landed.deleted(filePath);
+
+  return { file: filePath, status: "deleted" };
 }
 
 async function deleteChunks(

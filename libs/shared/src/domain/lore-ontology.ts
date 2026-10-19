@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 
 /** Bumped when lore-ontology.ttl changes shape; a repo whose settings hold an older number is re-set up. */
-export const LORE_ONTOLOGY_VERSION = 6;
+export const LORE_ONTOLOGY_VERSION = 7;
 
 export interface LoreKindWord {
   /** The class label, which is the kind word a pushed entity carries. */
@@ -18,6 +18,7 @@ export const LORE_KIND_WORDS: ReadonlyArray<LoreKindWord> = [
   { word: "Document", classKey: "document" },
   { word: "Spec", classKey: "spec" },
   { word: "Adr", classKey: "adr" },
+  { word: "Doc", classKey: "doc" },
   { word: "Section", classKey: "section" },
   { word: "Statement", classKey: "statement" },
   { word: "Test", classKey: "test" },

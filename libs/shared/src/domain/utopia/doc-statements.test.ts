@@ -199,6 +199,25 @@ describe("docStatementItems", () => {
     expect(doc.e[1]).toEqual(["re-cinq/lore:adrs/ADR-052.md", "Adr", true]);
   });
 
+  it("types a README's document as Doc and files its first sentence under its Usage section", () => {
+    const [doc, statement] = docStatementItems({
+      repo: "re-cinq/lore",
+      path: "README.md",
+      content: "# Lore\n\n## Usage\n\n- Run install.sh once per machine.\n",
+      commit: COMMIT,
+      kind: "doc",
+    });
+
+    expect({ document: doc.e[1], statement: statement?.s[0] }).toEqual({
+      document: ["re-cinq/lore:README.md", "Doc", true],
+      statement: relation(
+        "re-cinq/lore:README.md#usage",
+        "contains",
+        "re-cinq/lore:README.md#s0000",
+      ),
+    });
+  });
+
   it("files a statement written before any heading under the Adr document, never a second Document of the same name", () => {
     const [, statement] = docStatementItems({
       repo: "re-cinq/lore",
