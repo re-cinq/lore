@@ -11,10 +11,10 @@
 
 ## Facets
 
-- [ ] Create the new rule `no-stranded-doc-comment` locally.
-- [ ] Parse the AST to identify adjacent Block comments.
-- [ ] Skip the check if the first comment's owner is a type/interface declaration.
-- [ ] Register the local rule in `eslint.config.mjs` under the `lore` plugin prefix.
+- [x] Create the new rule `no-stranded-doc-comment` locally.
+- [x] Parse the AST to identify adjacent Block comments.
+- [x] Skip the check if the first comment's owner is a type/interface declaration.
+- [x] Register the local rule in `eslint.config.mjs` under the `lore` plugin prefix.
 
 ## Out of scope
 
