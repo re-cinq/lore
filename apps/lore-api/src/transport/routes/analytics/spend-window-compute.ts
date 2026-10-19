@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import type { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   DEFAULT_POD_PROFILE,
   podHourlyUsd,
@@ -6,9 +7,13 @@ import {
 } from "../../../work/analytics/compute-cost.js";
 import type { SpendWindow } from "./spend-window-db.js";
 
+/** The floor's cost rollup, the one read the spend page makes of it; null on a deployment that was given no floor. */
+export type FloorCosts = Pick<ReturnType<typeof floorClient>, "costs">;
+
 export interface SpendWindowDeps {
   env: NodeJS.ProcessEnv;
   now(): Date;
+  floor: FloorCosts | null;
 }
 
 const POD_HOURS_SQL = `SELECT ar.blueprint_name AS blueprint,

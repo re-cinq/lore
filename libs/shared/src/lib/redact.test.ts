@@ -242,6 +242,16 @@ describe("redactSecrets token shapes", () => {
     );
   });
 
+  it("redacts the Basic header a git push prints for x-access-token:ghs_abcdefghijklmnopqrstuvwxyz1234", () => {
+    const encoded = Buffer.from(
+      `x-access-token:${"ghs_"}abcdefghijklmnopqrstuvwxyz1234`,
+    ).toString("base64");
+
+    expect(redactSecrets(`Authorization: Basic ${encoded}`)).toBe(
+      "Authorization: Basic [REDACTED:github-token-base64]",
+    );
+  });
+
   it("redacts a lower-case basic header", () => {
     expect(
       redactSecrets("authorization: basic dXNlcjpwYXNzd29yZDEyMzQ1Njc4"),

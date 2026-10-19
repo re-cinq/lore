@@ -15,7 +15,7 @@ export {
   parseSpecAnchor,
   parseSpecAnchors,
   type SpecAnchor,
-} from "./spec-trace/spec-anchor.js";
+} from "../domain/spec-trace/spec-anchor.js";
 export {
   ingestSpecTrace,
   PAYLOAD_INGEST_KINDS,
@@ -42,6 +42,16 @@ export {
   type CoveringTest,
   type CoverageTarget,
 } from "../outbound/spec-trace/tests-covering.js";
+export {
+  callersOf,
+  type CodeCaller,
+  type CallDirection,
+} from "../outbound/spec-trace/code-callers.js";
+export {
+  projectCodeFile,
+  deleteCodeFile,
+  listCodeFilePaths,
+} from "./spec-trace/project-code-file.js";
 export {
   failuresTouching,
   type FailureHit,
@@ -142,3 +152,4 @@ export {
   type IngestGraphPorts,
   type IngestKindDef,
 } from "./spec-trace/ingest-graph-task.js";
+export { parseIngestPatterns } from "./spec-trace/ingest-patterns.js";

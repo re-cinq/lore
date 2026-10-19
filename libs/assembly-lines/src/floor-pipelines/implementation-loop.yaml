@@ -426,13 +426,10 @@ agent_definitions:
             headers_secret: lore-mcp-auth
   loop-tdd-round:
     settings:
-      model: gemini-3.1-pro-preview
+      # On Sonnet while gemini-cli's streams stall for 10 minutes a request (run 4aba1706); back to Gemini once they don't.
+      model: claude-sonnet-4-6
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 60
-      prices:
-        gemini-3.1-pro-preview:
-          input_per_million: 2
-          output_per_million: 12
       config:
         pod_resources:
           requests:
@@ -451,6 +448,9 @@ agent_definitions:
             transport: http
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
+        env:
+          # A round runs the test it writes; the definition of done's acceptance tests are CI's.
+          LORE_ACCEPTANCE_DOD: /workspace/target/.lore/dod.md
   loop-pr-ready:
     settings:
       model: gemini-3.1-pro-preview

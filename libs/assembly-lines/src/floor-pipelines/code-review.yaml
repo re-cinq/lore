@@ -84,9 +84,13 @@ stations:
 agent_definitions:
   code-review:
     settings:
-      model: claude-sonnet-4-6
+      model: gemini-4-argon
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 25
+      prices:
+        gemini-4-argon:
+          input_per_million: 2
+          output_per_million: 10
       config:
         # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
         pod_resources:

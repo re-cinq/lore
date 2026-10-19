@@ -39,7 +39,25 @@ export class PgAudit implements AuditPort {
       createdAt: new Date(row.created_at),
     }));
   }
+
+  async hasEntry(
+    eventType: string,
+    repo: string,
+    fields: Record<string, unknown>,
+  ): Promise<boolean> {
+    const { rows } = await this.pool.query(HAS_ENTRY_SQL, [
+      eventType,
+      repo,
+      JSON.stringify(fields),
+    ]);
+
+    return rows.length > 0;
+  }
 }
+
+const HAS_ENTRY_SQL = `SELECT 1 FROM pipeline.audit_log
+  WHERE event_type = $1 AND repo = $2 AND payload @> $3::jsonb
+  LIMIT 1`;
 
 /** The newest `pipeline.audit_log` rows of one event type, newest first. */
 async function selectRecentByType(

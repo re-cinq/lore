@@ -88,6 +88,9 @@ resource "helm_release" "lore_platform" {
         # to be honest about "now".
         LORE_GKE_CPU_HOUR_USD     = "0.0489"
         LORE_GKE_MEM_GIB_HOUR_USD = "0.0054"
+        # Names the Utopia base `<org>/memory` that memories and episodes with no
+        # onboarded repo are mirrored into (specs/utopia-graph-mirror FR16).
+        GITHUB_ORG = var.github_org
       }
       dbPasswordSecret  = { name = "lore-api-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
@@ -107,6 +110,14 @@ resource "helm_release" "lore_platform" {
       floor = {
         enabled   = var.enable_external_floor
         skillsUrl = "${local.lore_mcp_in_cluster}/skills"
+      }
+      # Utopia (utopia.tf), the knowledge graph the spec/ADR chain is mirrored into; see var.enable_utopia.
+      utopia = {
+        enabled = var.enable_utopia
+        apiUrl  = "http://utopia.${local.utopia_namespace}.svc.cluster.local"
+        # The write token a repo's first ingest sets its knowledge base up with; see var.enable_utopia_auto_setup.
+        tokenSecret = var.enable_utopia_auto_setup ? "utopia-token" : ""
+        workspaceId = var.utopia_lore_workspace_id
       }
     }
 
@@ -139,6 +150,8 @@ resource "helm_release" "lore_platform" {
         HEADLAMP_URL = var.enable_headlamp ? "https://${var.headlamp_hostname}" : ""
         # The metrics dashboards' address, under the same rule (monitoring.tf).
         GRAFANA_URL = var.enable_monitoring ? "https://${var.grafana_hostname}" : ""
+        # Utopia's address, under the same rule (utopia.tf).
+        UTOPIA_URL = var.enable_utopia ? "https://${var.utopia_hostname}" : ""
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }

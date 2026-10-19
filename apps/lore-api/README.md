@@ -10,7 +10,7 @@ the HTTP framework.
 
 ## HTTP framework
 
-Runs on **hapi** (`@hapi/hapi`), the same framework as `apps/floor` (ADR-033).
+Runs on **hapi** (`@hapi/hapi`), as ADR-033 decided.
 A single `buildServer(getPool)` factory constructs the server — shared by
 production boot and the tests (`inject`). Cross-cutting concerns are hapi
 plugins rather than per-handler plumbing:

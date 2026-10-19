@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DigestSettingsSchema } from "./digest-settings.js";
+import { KnowledgeBackendSchema } from "../knowledge-backend.js";
 
 /** The lore.repos.settings JSONB column; SNAKE_CASE keys; unknown keys pass through; every key is optional. */
 
@@ -21,6 +22,26 @@ export const TrustSettingsSchema = z
   })
   .passthrough();
 
+/** Who approves Lore's PRs on a protected branch (specs/protected-branch-merge); absent reads as none. */
+export const AutoMergeSettingsSchema = z
+  .object({
+    approver: z.enum(["none", "lore-reviewer"]).optional(),
+  })
+  .passthrough();
+
+/** The Utopia knowledge base and source the repo's spec/ADR chain is mirrored into (specs/utopia-graph-mirror). No key: settings are served whole at read scope, so the source's push key lives in lore.utopia_sources. */
+export const UtopiaMirrorSettingsSchema = z.object({
+  kb_id: z.string(),
+  source_id: z.string(),
+  ontology_version: z.number().optional(),
+  /** The newest default-branch commit the commit mirror pushed; the next walk starts above it. */
+  commits_head: z.string().optional(),
+  /** The update time of the newest issue or pull request the tracker mirror pushed; the next walk asks from it. */
+  tracker_since: z.string().optional(),
+});
+
+export type UtopiaMirrorSettings = z.infer<typeof UtopiaMirrorSettingsSchema>;
+
 export const RepoSettingsSchema = z
   .object({
     trust: TrustSettingsSchema.optional(),
@@ -30,6 +51,7 @@ export const RepoSettingsSchema = z
       .object({ enabled: z.boolean().optional() })
       .passthrough()
       .optional(),
+    auto_merge: AutoMergeSettingsSchema.optional(),
     cross_repo: z.boolean().optional(),
     cross_repo_repos: z.array(z.string()).optional(),
     slack_channel_id: z.string().optional(),
@@ -45,6 +67,9 @@ export const RepoSettingsSchema = z
     dispatch_default_type: z.string().optional(),
     test_commands: z.unknown().optional(),
     incidents: z.array(z.unknown()).optional(),
+    utopia: UtopiaMirrorSettingsSchema.optional(),
+    // Which store context reads answer from when the request names none (ADR-052 amendment 2026-10-16).
+    context_backend: KnowledgeBackendSchema.optional(),
   })
   .passthrough();
 

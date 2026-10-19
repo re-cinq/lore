@@ -88,6 +88,12 @@ layers:
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
+    # The blocked-reason service station: a sweep run from the bus on the
+    # GitHub events that can change why a Lore PR is not merging. Its manifest
+    # sits in `work/` with the other sweeps; the work lives here.
+    blocked-reason:
+      - outbound
+      - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the spec-upkeep line, one
     # folder each. `onboard` is reached for the request-review station, which
     # this line registers under its own name.
@@ -116,6 +122,7 @@ layers:
     work:
       - domain
       - outbound
+      - blocked-reason
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     domain: []

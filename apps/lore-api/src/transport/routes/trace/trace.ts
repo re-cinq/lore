@@ -8,11 +8,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import {
-  parseRanges,
-  createDgraphClient,
-  failuresTouching,
-} from "@re-cinq/lore-shared";
+import { parseRanges } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -22,6 +18,8 @@ const TraceQuery = z.object({
   path: z.string().max(1024).optional(),
   ranges: z.string().max(200).optional(),
   branch: z.string().max(255).optional(),
+  symbol: z.string().max(255).optional(),
+  direction: z.enum(["callers", "callees"]).optional(),
 });
 
 type TraceQuery = z.infer<typeof TraceQuery>;
@@ -38,6 +36,7 @@ const TRACE_KINDS = new Set([
   "ring",
   "tests-covering",
   "failures-touching",
+  "callers",
 ]);
 
 // Union of all /trace/{kind} responses; one route, many contract shapes.
@@ -48,7 +47,7 @@ type Trace = ProjectResult["trace"];
 
 // Kinds answerable without a ?path=; each handler shapes its own response body.
 const NO_PATH_KINDS: Partial<
-  Record<string, (trace: Trace, project: ProjectResult) => Promise<object>>
+  Record<string, (trace: Trace, query: TraceQuery) => Promise<object>>
 > = {
   specs: async (trace) => ({ specs: await trace.specs() }),
   "spec-summaries": async (trace) => ({
@@ -57,6 +56,7 @@ const NO_PATH_KINDS: Partial<
   adrs: async (trace) => ({ adrs: await trace.adrs() }),
   "adr-summaries": async (trace) => ({ summaries: await trace.adrSummaries() }),
   graph: async (trace) => trace.graph(),
+  callers: callersResult,
 };
 
 // `ranges` narrows the covered file to spans; `branch` reads that branch's overlay instead of main.
@@ -80,6 +80,9 @@ const PATH_KINDS: Record<
   ring: (trace, filePath) => trace.ring(filePath),
   source: async (trace, filePath) => ({ source: await trace.source(filePath) }),
   "tests-covering": testsCoveringResult,
+  "failures-touching": async (trace, filePath) => ({
+    failures: await trace.failuresTouching(filePath),
+  }),
 };
 
 export function traceRoute(): ServerRoute {
@@ -131,16 +134,11 @@ async function traceResult(
   query: TraceQuery,
 ): Promise<object> {
   const repo = `${request.params.owner}/${request.params.repo}`;
-
-  if (kind === "failures-touching") {
-    return failuresResult(repo, query);
-  }
-  const project = await projectFor(repo);
-  const trace = project.trace;
+  const trace = (await projectFor(repo)).trace;
   const noPathHandler = NO_PATH_KINDS[kind];
 
   if (noPathHandler) {
-    return noPathHandler(trace, project);
+    return noPathHandler(trace, query);
   }
   const filePath = query.path ?? "";
 
@@ -149,19 +147,11 @@ async function traceResult(
   return PATH_KINDS[kind](trace, filePath, query);
 }
 
-/** Failures recorded against a source file. This kind reads the graph directly rather than through the Project facade: `failuresTouching` is a work-layer module, which `outbound` may not import. A deployment with no graph answers with an empty list rather than an error. */
-async function failuresResult(
-  repo: string,
-  query: TraceQuery,
-): Promise<object> {
-  const filePath = query.path ?? "";
+/** Callers (or, with `direction=callees`, callees) of a named symbol, over the CodeChunk.references edge the code projection writes. One hop: `depth` is not walked yet. A deployment with no graph answers with an empty list. */
+async function callersResult(trace: Trace, query: TraceQuery): Promise<object> {
+  const symbol = query.symbol ?? "";
 
-  enforceTrue(filePath, apiError(400), "path query param required");
-  const dgraph = createDgraphClient(process.env);
+  enforceTrue(symbol, apiError(400), "symbol query param required");
 
-  if (!dgraph) {
-    return { failures: [] };
-  }
-
-  return { failures: await failuresTouching(dgraph, repo, filePath) };
+  return { callers: await trace.callers(symbol, query.direction) };
 }

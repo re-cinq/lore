@@ -124,6 +124,10 @@ export function recordWebhookEvent(eventName: string): void {
   instruments().webhookEvents.add(1, { event: eventName });
 }
 
+export function recordUtopiaMirrorFailure(repo: string): void {
+  instruments().utopiaMirrorFailures.add(1, { repo });
+}
+
 export interface LlmCallMetric {
   model: string;
   inputTokens: number;
@@ -256,6 +260,10 @@ function floorInstruments(meter: Meter) {
     webhookEvents: meter.createCounter("lore.webhook.events", {
       description:
         "GitHub deliveries captured onto the bus, by the event they became",
+    }),
+    utopiaMirrorFailures: meter.createCounter("lore.utopia.mirror_failures", {
+      description:
+        "Spec and ADR ingests whose mirror into Utopia failed, by repo; the ingest itself still landed",
     }),
   };
 }

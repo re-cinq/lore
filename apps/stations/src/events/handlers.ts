@@ -1,5 +1,6 @@
 // One handler per subscribed event name, resolved the same way the Floor's registry does, so both drainers agree on retry, dead-lettering, and the visibility budget.
 
+import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import { STATIONS } from "../work/registry.js";
 import {
@@ -28,6 +29,18 @@ import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-ht
 import { pipeline } from "../outbound/queues.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
 import {
+  loreApiTarget,
+  postUtopiaCommits,
+  postUtopiaReleases,
+  postUtopiaTracker,
+} from "../work/utopia-backfill-tick/lore-api-backfill.js";
+import {
+  commitsAnswerLine,
+  releasesAnswerLine,
+  trackerAnswerLine,
+} from "../work/utopia-backfill-tick/commits-answer.js";
+import { NO_LORE_API } from "../work/utopia-backfill-tick/run.js";
+import {
   floorRepoOf,
   gitItem,
   valueItem,
@@ -35,6 +48,7 @@ import {
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { relocateOnTeamChange } from "./team-changed.js";
+import { openPrOnBranch } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
@@ -50,6 +64,7 @@ const floorReviewDeps: FloorReviewDeps = {
       pulls,
       issues,
       uiUrl: process.env.LORE_UI_URL,
+      loreAppLogin: await loreAppLogin(),
     };
   },
 };
@@ -77,12 +92,14 @@ async function findParkedVisitId(
 
 const repoEventDeps: RepoEventDeps = {
   labelDispatch: async (repo) => {
-    const { issues } = await projectFor(repo);
+    const project = await projectFor(repo);
+    const { issues } = project;
 
     return {
       rawSettings: (name) => settings().rawSettings(name),
       activeTaskByIssue: (name, issueNumber) =>
         pipeline().taskQueue.activeTaskByIssue(name, issueNumber),
+      openPrForBranch: (_name, branch) => openPrOnBranch(project, branch),
       addLabel: (issueNumber, label) => issues.addLabel(issueNumber, label),
       comment: (issueNumber, body) => issues.comment(issueNumber, body),
     };
@@ -90,6 +107,28 @@ const repoEventDeps: RepoEventDeps = {
   renameRepo: (from, to) => settings().renameRepo(from, to),
   // This service holds no graph client: the drop goes through lore-api.
   dropOverlay: (repo, branch) => dropOverlayOverHttp({ repo, branch }),
+  // This service holds no GitHub reader for history and no Utopia key: the walk runs in lore-api.
+  mirrorCommits: async (repo, branch) => {
+    const target = loreApiTarget();
+
+    return target
+      ? commitsAnswerLine(await postUtopiaCommits(target, repo, branch))
+      : NO_LORE_API;
+  },
+  mirrorTracker: async (repo) => {
+    const target = loreApiTarget();
+
+    return target
+      ? trackerAnswerLine(await postUtopiaTracker(target, repo))
+      : NO_LORE_API;
+  },
+  mirrorReleases: async (repo) => {
+    const target = loreApiTarget();
+
+    return target
+      ? releasesAnswerLine(await postUtopiaReleases(target, repo))
+      : NO_LORE_API;
+  },
   relocateChunks: (repo) =>
     relocateOnTeamChange(
       {

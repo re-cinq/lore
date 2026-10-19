@@ -15,6 +15,7 @@ import {
   fetchCouplingSource,
 } from "./context-assembly.js";
 import type { GraphContextBlock } from "../../spec-trace/graph-context.js";
+import { DgraphTrace } from "../trace/trace-dgraph.js";
 
 describe("formatCouplingItems", () => {
   const block: GraphContextBlock = {
@@ -149,10 +150,54 @@ describe("fetchCouplingSource", () => {
       }),
     };
 
-    const res = await fetchCouplingSource(port as never, "re-cinq/lore");
+    const res = await fetchCouplingSource(
+      new DgraphTrace(port as never),
+      "re-cinq/lore",
+    );
 
     expect(res.status).toBe("ok");
     expect(res.sources[0].text).toContain("must do X");
+  });
+
+  it("ranks the violated statement the graph source answers first", async () => {
+    const block: GraphContextBlock = {
+      statements: [
+        {
+          xid: "a#1",
+          specPath: "specs/a/spec.md",
+          specTitle: "A",
+          statementText: "must do X",
+          signal: "violated",
+          adrs: [],
+          testSelectors: [],
+        },
+        {
+          xid: "a#2",
+          specPath: "specs/a/spec.md",
+          specTitle: "A",
+          statementText: "may do Y",
+          signal: "untested",
+          adrs: [],
+          testSelectors: [],
+        },
+      ],
+      adrRefs: [],
+      testSelectors: [],
+      truncated: false,
+    };
+
+    const res = await fetchCouplingSource(
+      { graphContext: async () => block },
+      "re-cinq/lore",
+    );
+
+    expect(res).toMatchObject({
+      status: "ok",
+      sources: [
+        { text: "[violated] specs/a/spec.md — must do X", score: 1 },
+        { text: "[untested] specs/a/spec.md — may do Y", score: 0.33 },
+      ],
+    });
   });
 });
 

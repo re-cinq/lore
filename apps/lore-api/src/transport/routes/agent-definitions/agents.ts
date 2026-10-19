@@ -171,7 +171,7 @@ async function deleteAgentDefinition(
   const name = request.params.name as string;
   const project = await projectFor(repo);
 
-  await project.agentDefs.delete(name);
+  await project.agentDefsWriter.delete(name);
 
   await audit(pool, repo, "agent_deleted", { name });
 

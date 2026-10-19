@@ -151,10 +151,9 @@ if [ ! -d "$ROOT/apps/web-ui/node_modules" ]; then
 fi
 
 # 4. Build once so 'node --watch dist/index.js' has something to run cold.
-#    Order matters: floor imports @re-cinq/lore-runner and mcp imports
-#    @re-cinq/lore-shared, so dependencies must be built first. The root
-#    `build` script encodes the canonical order (shared -> runner -> mcp -> floor).
-log "Building shared, runner, server-core, lore-api, mcp-server, agent..."
+#    Order matters: the apps import the workspace libs, so those build first.
+#    The root `build` script encodes the canonical order.
+log "Building shared, assembly-lines, stations, server-core, lore-api, mcp-server..."
 npm run build
 
 # 5. Run everything with live reload — one slot per process so -k kills all.

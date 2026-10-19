@@ -3,7 +3,7 @@ import {
   resolveAgentConfig,
   type AgentDefinition,
   type AgentDefinitionInput,
-  type AgentDefsPort,
+  type AgentDefsWritePort,
   type PodResourcesWrite,
 } from "./agent-defs-port.js";
 import {
@@ -15,7 +15,7 @@ import {
   UPDATE_ORG_DEF_SQL,
 } from "./agent-defs-sql.js";
 
-// AgentDefsPort over lore.agent_definitions via resolveAgentConfig's project → org merge; pods use AgentDefsHttp.
+// AgentDefsWritePort over lore.agent_definitions via resolveAgentConfig's project → org merge; pods use AgentDefsHttp.
 
 interface AgentRow {
   name: string;
@@ -135,7 +135,7 @@ export async function updateOrgDefinition(
   return toDef(rows[0] as unknown as AgentRow);
 }
 
-export class PgAgentDefs implements AgentDefsPort {
+export class PgAgentDefs implements AgentDefsWritePort {
   constructor(private readonly pool: PgPool) {}
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {

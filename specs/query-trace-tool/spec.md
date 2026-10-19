@@ -140,19 +140,19 @@ round can read.
 
 The read is served by
 `GET /api/repos/{owner}/{repo}/trace/failures-touching`, which names the
-source file in `path`. It reaches the graph directly rather than through the
-Project facade, because the failure reader lives in a tier the outbound ports
-may not import.
+source file in `path`. It reads through the Project's trace view, like every
+other `/trace` kind: the failure reader sits beside the other graph reads in the
+outbound tier, so a deployment's trace port answers it wherever the graph lives. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
-A request naming no source file is refused. ([validated by returns 400 when no path names the source file](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L54))
+A request naming no source file is refused. ([validated by returns 400 when no path names the source file](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L37))
 
-The route returns the recorded failures under a `failures` key. ([validated by returns the recorded failures under a failures key](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L61))
+The route returns the recorded failures under a `failures` key. ([validated by returns the validate failure recorded on src/widget.ts under a failures key](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L65))
 
-It asks the graph with the repo and the requested path. ([validated by queries the graph with the repo and the requested path](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L68))
+It asks the trace port with the repo and the requested path. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
 With no graph configured it returns an empty list rather than failing — the
 same degradation the impact route makes, because an absent graph is a missing
-convenience, not a broken build. ([validated by returns an empty list when no Dgraph client is configured](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L79))
+convenience, not a broken build. ([validated by returns an empty list when no Dgraph client is configured](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L44))
 
 The tool lists each failure with its node, its attempt, the commit it failed on
 and the sha that later fixed it. ([validated by lists each failure with its node, attempt, commit and the sha that fixed it](libs/server-core/src/work/spec-trace/query-trace.test.ts#L408))
@@ -169,6 +169,22 @@ The requested path reaches the proxied URL url-encoded. ([validated by proxies a
 
 An unreachable API is reported as prose rather than thrown, like every other
 shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
+
+## The `callers` shape
+
+The tool's fourth query (issue #1768, #1992): which definitions call a named symbol,
+or which ones it calls.
+
+The read is served by `GET /api/repos/{owner}/{repo}/trace/callers`, which names the
+target in `symbol` and walks the reverse `CodeChunk.references` edge, or the edge
+itself when `direction=callees`, read through the Project's trace view. It answers
+one hop; `depth` is not walked yet. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
+
+Each caller comes back with its file, its symbol name and the line it starts on. ([validated by answers advance in src/runner.ts as the caller of nextTransition](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L62))
+
+With no graph configured it answers an empty list rather than failing. ([validated by answers an empty callers list for nextTransition when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L37))
+
+A request that names no symbol is refused with 400. ([validated by answers 400 when the symbol is missing](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L43))
 
 ## Out of Scope
 

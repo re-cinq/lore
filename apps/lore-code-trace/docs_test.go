@@ -28,6 +28,25 @@ func TestSelectDocPathsUsesTheKindPrefixesAndMarkdownOnly(t *testing.T) {
 	}
 }
 
+func TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode(t *testing.T) {
+	tree := []string{
+		"src/runner.ts",
+		"apps/web/page.tsx",
+		"lib/util.js",
+		"src/runner.test.ts",
+		"src/types.d.ts",
+		"dist/runner.js",
+		"apps/web/node_modules/x/index.js",
+		"specs/a/spec.md",
+	}
+
+	got := selectDocPaths(tree, "code", nil)
+
+	if want := []string{"src/runner.ts", "apps/web/page.tsx", "lib/util.js"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("code = %v, want %v", got, want)
+	}
+}
+
 func TestSelectDocPathsLetsDeclaredPatternsReplaceThePrefixes(t *testing.T) {
 	tree := []string{"adrs/ADR-001.md", "docs/decisions/0001.md", "docs/guide.md"}
 

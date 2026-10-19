@@ -28,29 +28,44 @@ function brief(needs: Record<string, string> = {}) {
   };
 }
 
+const PLACEHOLDER = "_Written by the ready-for-review round._";
+const REQUIRED_SECTIONS = `## Why\n\n${PLACEHOLDER}\n\n## What Changed\n\n${PLACEHOLDER}\n\n## Testing\n\n${PLACEHOLDER}`;
+
 function scene(
   open: (pr: PullDraft) => Promise<PullRef> = () => Promise.resolve(pullRef()),
+  template: string | null = null,
+  alreadyOpen: PullRef[] = [],
 ) {
   const opened: PullDraft[] = [];
+  const updated: Array<{ number: number; body: string }> = [];
   const recorded: Array<[string, PullRef]> = [];
   const handle = openLoopPrHandle({
     recordPr: async (taskId, pr) => {
       recorded.push([taskId, pr]);
     },
+    template: (repo, branch) =>
+      repo === "re-cinq/app" && branch === BRANCH
+        ? Promise.resolve(template)
+        : Promise.reject(new Error(`Not Found: ${repo}@${branch}`)),
     pulls: (repo) =>
       repo !== "re-cinq/app"
         ? Promise.reject(new Error(`Not Found: ${repo}`))
         : Promise.resolve({
-            list: () => Promise.resolve([]),
+            list: () => Promise.resolve(alreadyOpen),
             open: (_branch, pr) => {
               opened.push(pr);
 
               return open(pr);
             },
+            update: (number, fields) => {
+              updated.push({ number, body: fields.body });
+
+              return Promise.resolve();
+            },
           }),
   });
 
-  return { handle, opened, recorded };
+  return { handle, opened, updated, recorded };
 }
 
 function pullRef(): PullRef {
@@ -77,7 +92,7 @@ describe("the loop-open-pr station", () => {
     expect(opened).toEqual([
       {
         title: "Add the export button",
-        body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\nCloses #77\nLore-Task: task-1`,
+        body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n${REQUIRED_SECTIONS}\n\nCloses #77\nLore-Task: task-1`,
         draft: true,
       },
     ]);
@@ -90,7 +105,7 @@ describe("the loop-open-pr station", () => {
 
     expect(opened[0]).toMatchObject({
       title: `lore: ${BRANCH}`,
-      body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\nLore-Task: task-1`,
+      body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n${REQUIRED_SECTIONS}\n\nLore-Task: task-1`,
     });
   });
 
@@ -143,5 +158,47 @@ describe("the loop-open-pr station", () => {
       outcome: "failed",
       error: "Bad credentials",
     });
+  });
+
+  it("opens the draft with the ## headings of the branch's pull request template, so a description check passes before the prose is written", async () => {
+    const { handle, opened } = scene(
+      undefined,
+      "## Why\n\ntext\n\n## Testing\n\ntext\n",
+    );
+
+    await handle(brief({ issue_number: "77" }), TOOLS);
+
+    expect(opened[0]?.body).toEqual(
+      `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n## Why\n\n${PLACEHOLDER}\n\n## Testing\n\n${PLACEHOLDER}\n\nCloses #77\nLore-Task: task-1`,
+    );
+  });
+
+  it("gives a reused draft whose body lacks the sections the draft body, so the description check passes on the next push", async () => {
+    const draft = { ...pullRef(), draft: true, body: "Opened by the loop." };
+    const { handle, opened, updated } = scene(undefined, null, [draft]);
+
+    await handle(brief({ issue_number: "77" }), TOOLS);
+
+    expect({ opened, updated }).toEqual({
+      opened: [],
+      updated: [
+        {
+          number: 42,
+          body: `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n${REQUIRED_SECTIONS}\n\nCloses #77\nLore-Task: task-1`,
+        },
+      ],
+    });
+  });
+
+  it("leaves a reused pull request alone when it is out of draft or already carries every section", async () => {
+    const ready = { ...pullRef(), draft: false, body: "Opened by the loop." };
+    const complete = { ...pullRef(), draft: true, body: REQUIRED_SECTIONS };
+    const outOfDraft = scene(undefined, null, [ready]);
+    const sectioned = scene(undefined, null, [complete]);
+
+    await outOfDraft.handle(brief(), TOOLS);
+    await sectioned.handle(brief(), TOOLS);
+
+    expect([outOfDraft.updated, sectioned.updated]).toEqual([[], []]);
   });
 });

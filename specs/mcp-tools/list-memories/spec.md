@@ -21,7 +21,7 @@ accumulates many memories. Expired and soft-deleted memories must not appear.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L148)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L151)).
 
 - **name**: `lore_list_memories`
 - **description** (verbatim):
@@ -107,7 +107,7 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 6. *(added 2026-10-01, #2347)* A call may name its `repo`; it wins over the
    detected one, and in the agent gateway, which has no checkout, it is the only
    way to scope the listing. The API's `list` action carries that repo through to
-   the repo-scoped query. ([validated by `scopes the listing to the repo the call names`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L317), [`scopes a listing to the repo the caller names`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L407))
+   the repo-scoped query. ([validated by `scopes the listing to the repo the call names`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L317), [`scopes a listing to the repo the caller names`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L452))
 
 7. *(added 2026-10-01, #2344)* In the agent gateway a call with no `repo` is
    answered with "No repo given" instead of an agent-scoped or org-wide listing,

@@ -65,6 +65,8 @@ const loreOnly: SpendWindow = {
       { task_type: "implementation", tasks: 30, cost_usd: 222.22 },
     ],
     by_cluster: [],
+    by_billing_mode: [],
+    floor_unavailable: false,
     by_vendor: [
       { vendor: "anthropic", calls: 82, cost_usd: 24.02 },
       { vendor: "gemini", calls: 3, cost_usd: 13.68 },
@@ -164,6 +166,7 @@ const empty: SpendWindow = {
     daily: [],
     by_task_type: [],
     by_cluster: [],
+    by_billing_mode: [],
   },
   compute: {
     ...loreOnly.compute,

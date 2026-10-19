@@ -20,6 +20,7 @@ import {
   type SpendWindowDeps,
 } from "./spend-window-compute.js";
 import { withPool } from "../with-pool.js";
+import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 
 export type { SpendWindowDeps } from "./spend-window-compute.js";
 
@@ -28,6 +29,7 @@ export type { SpendWindowDeps } from "./spend-window-compute.js";
 const defaultDeps = (): SpendWindowDeps => ({
   env: process.env,
   now: () => new Date(),
+  floor: floorIfConfigured(),
 });
 
 export function spendWindowRoute(
@@ -93,7 +95,7 @@ async function spendWindowBody(
 ) {
   return {
     interval: win.interval,
-    llm: await readLlmSpend(pool, win),
+    llm: await readLlmSpend(pool, win, deps.floor),
     billed: await readAnthropicSpend(pool, win),
     gcp: await readGcpSpend(pool, win),
     compute: await readComputeSpend(pool, win, deps),

@@ -115,7 +115,7 @@ Lore is modeled as an autonomous software **factory** ("Dark Factory" is a *mode
 | Term | What it is | Cardinality |
 |---|---|---|
 | **Factory** | the whole platform — Lore itself | 1 |
-| **Floor** | the long-running coordinator runtime: drains the event bus, walks AssemblyRuns, dispatches Stations, reaps leases | 1 → N (per team / cluster / trust tier) |
+| **Floor** | the assembly-line engine: the external floor ([re-cinq/floor](https://github.com/re-cinq/floor)) walks AssemblyRuns and runs their Stations | 1 → N (per team / cluster / trust tier) |
 | **AssemblyLine** | the authored blueprint — a graph of Stations with distinct responsibilities that hand off / wait on each other | per task type |
 | **AssemblyRun** | one execution of an AssemblyLine, which **clones** the blueprint at start and reads the clone thereafter, so an edit cannot change the graph under a walk in flight | per attempt |
 | **Station** | the unit that runs exactly one piece of work — an Agent pod, a station of the stations service, a **human station** whose worker is a person (it names the page they act on), or a **service station** reached by name over HTTP | per node |
@@ -124,7 +124,7 @@ Lore is modeled as an autonomous software **factory** ("Dark Factory" is a *mode
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyRuns ⊃ StationRuns ⊃ Agents** — blueprint-side, **AssemblyLine ⊃ Stations**.
 
-> **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator deployment was historically called "Lore Agent"; it is now the **Floor** (`apps/floor`, the `lore-floor` deployment).
+> **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator was historically called "Lore Agent", then Lore's own Floor (`apps/floor`, deleted 2026-10-02); it is now the external floor.
 
 ## Issue Triage Flow
 

@@ -8,6 +8,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
+import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { withPool, type PooledHandler } from "../with-pool.js";
 import { assembleForEval } from "../../../work/context-evals/assembled-for-eval.js";
 import { documentText } from "../../../work/context-evals/eval-documents.js";
@@ -23,17 +24,40 @@ const ContextEvalBody = z.object({
   path: z.string().min(1).max(500),
   // Pins the question, so a rerun after a fix grades the same one.
   question: z.string().min(1).max(1000).optional(),
+  // The store the assembly reads; "both" grades Lore's assembly and Utopia's side by side.
+  backend: KnowledgeBackendSchema.optional(),
 });
 
-const DocumentEvalSchema = z.object({
+const GradedSourceSchema = z.object({
   path: z.string(),
-  question: z.string(),
+  section: z.string(),
+  tokens: z.number(),
+  used: z.boolean(),
+});
+
+const Grade = {
   found: z.boolean(),
   answered: z.boolean(),
   useful_share: z.number(),
   reason: z.string(),
   model: z.string(),
-});
+  // Each returned source, its section, its tokens and whether the answer used it: where unused tokens come from.
+  sources: z.array(GradedSourceSchema),
+};
+
+const BackendVerdictSchema = z.object({ ...Grade, latency_ms: z.number() });
+
+const DocumentEvalSchema = z.union([
+  z.object({ path: z.string(), question: z.string(), ...Grade }),
+  z.object({
+    path: z.string(),
+    question: z.string(),
+    lore: BackendVerdictSchema,
+    utopia: BackendVerdictSchema,
+    top_k_overlap: z.number(),
+    only_answered_by: z.enum(["lore", "utopia"]).nullable(),
+  }),
+]);
 
 let depsOverride: EvalDeps | undefined;
 
@@ -89,6 +113,7 @@ function evalDeps(pool: Pool): EvalDeps {
     llm: Llm.for("eval"),
     judgeModel: process.env.LORE_EVAL_JUDGE_MODEL,
     document: (repo, path) => documentText(pool, repo, path),
-    assemble: (repo, question) => assembleForEval(pool, repo, question),
+    assemble: (repo, question, backend) =>
+      assembleForEval(pool, repo, question, backend),
   };
 }

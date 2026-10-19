@@ -12,6 +12,7 @@ export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "claude-sonnet-4-6", label: "Sonnet 4.6" },
   { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
   { id: "claude-fable-5", label: "Fable 5" },
+  { id: "gemini-4-argon", label: "Gemini 4 Argon" },
   { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (preview)" },
   { id: "gemini-3-flash-preview", label: "Gemini 3 Flash (preview)" },
   { id: "gemini-3.7-flash", label: "Gemini 3.7 Flash" },

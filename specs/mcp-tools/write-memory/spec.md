@@ -24,7 +24,7 @@ file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L46)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L48)).
 
 - **name**: `lore_write_memory`
 - **description** (verbatim):

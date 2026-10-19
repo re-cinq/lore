@@ -75,11 +75,16 @@ locals {
     # same 16/24/32-byte rule.
     var.enable_utopia ? [
       "lore-utopia-db-password",
+      "lore-utopia-app-db-password",
       "lore-utopia-secret-key",
       "lore-utopia-oauth-client-id",
       "lore-utopia-oauth-client-secret",
       "lore-utopia-cookie-secret",
     ] : [],
+    # The Utopia write token (utp_pat_…) of the Lore person, workspace admin of
+    # var.utopia_lore_workspace_id: lore-api sets a repo's knowledge base up with
+    # it on the repo's first spec/ADR ingest (ADR-052 amendment 2026-10-15).
+    var.enable_utopia_auto_setup ? ["lore-utopia-lore-api-token"] : [],
   )
 }
 

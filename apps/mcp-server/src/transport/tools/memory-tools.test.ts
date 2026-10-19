@@ -394,3 +394,60 @@ describe("lore_list_memories and lore_write_memory refuse a repo they cannot sco
     });
   });
 });
+
+describe("lore_search_memory backend param", () => {
+  let searchMemory: ToolHandler;
+
+  beforeAll(async () => {
+    const { registerMemoryTools } = await import("./memory-tools.js");
+
+    searchMemory = toolHandlers(registerMemoryTools, "full")[
+      "lore_search_memory"
+    ];
+  });
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  it("forwards backend both to POST /api/memory and prints the API's answer", async () => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    const answer = {
+      results: [],
+      notes: ["search_memory: no Utopia reader yet"],
+    };
+
+    fetchMock.mockResolvedValue({ ok: true, json: async () => answer });
+    const result = await searchMemory({
+      query: "deploys",
+      limit: 10,
+      backend: "both",
+    });
+
+    expect({
+      sent: JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body),
+      printed: JSON.parse(result.content[0].text),
+    }).toMatchObject({
+      sent: { action: "search", query: "deploys", backend: "both" },
+      printed: answer,
+    });
+  });
+
+  it("refuses backend utopia instead of searching the local file store when no API is configured", async () => {
+    delete process.env.LORE_API_URL;
+    const result = await searchMemory({
+      query: "deploys",
+      limit: 10,
+      backend: "utopia",
+    });
+
+    expect(result.content[0].text).toBe(
+      "backend utopia is answered by the Lore API only; set LORE_API_URL. The offline search reads Lore's stores alone.",
+    );
+  });
+});
