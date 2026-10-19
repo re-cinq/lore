@@ -8,6 +8,7 @@ import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 import { decideBranchResume, type OpenPr } from "./resume-branch.js";
 import { orderBacklog } from "./select-next-issue.js";
+import { taskHoldingTicket } from "./ticket-holder.js";
 import {
   implementationTicketDescription,
   ticketTextTooLong,
@@ -142,9 +143,7 @@ async function pickBacklogTicket(
       continue;
     }
 
-    const task = await deps.activeTaskByIssue(repo, candidate.number);
-
-    if (task && task.status !== "completed") {
+    if (await taskHoldingTicket(deps, repo, candidate.number)) {
       guarded.push(candidate.number);
       continue;
     }

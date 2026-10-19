@@ -121,7 +121,7 @@ describe("createImplementationLoopTickHandler", () => {
   });
 
   it("skips the pick while its task is still active (mint-to-run gap)", async () => {
-    const d = deps({ activeTaskByIssue: async () => ({ id: "task-0" }) });
+    const d = deps({ activeTaskByIssue: async () => ({ id: "task-0", status: "queued" }) });
 
     await createImplementationLoopTickHandler(d.deps)({});
 
@@ -252,11 +252,15 @@ describe("a guarded head does not freeze the queue", () => {
     issue(9, ["priority:medium"]),
   ];
 
-  it("skips a head whose task is completed-awaiting-merge and picks the next eligible ticket", async () => {
+  it("skips #5 while its completed task's pull request 77 is still open and picks #9", async () => {
     const d = deps({
       listIssues: twoTickets,
       activeTaskByIssue: async (_repo, n) =>
-        n === 5 ? { id: "done-task" } : null,
+        n === 5 ? { id: "done-task", status: "completed" } : null,
+      openPrForBranch: async (_repo, branch) =>
+        branch === "lore/implementation-loop/issue-5"
+          ? { number: 77, url: "https://gh/acme/widgets/pull/77" }
+          : null,
     });
 
     await createImplementationLoopTickHandler(d.deps)({});
@@ -284,7 +288,7 @@ describe("a guarded head does not freeze the queue", () => {
     const lines = await loggedLines(async () => {
       const d = deps({
         listIssues: twoTickets,
-        activeTaskByIssue: async () => ({ id: "t" }),
+        activeTaskByIssue: async () => ({ id: "t", status: "running" }),
       });
 
       await createImplementationLoopTickHandler(d.deps)({});
