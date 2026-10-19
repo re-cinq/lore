@@ -17,6 +17,7 @@
 - [ ] Record the mode at dispatch inside Floor's Agent CR creation / cost ingestion
 - [x] Update `/api/analytics/spend-window` endpoint to read the new mode directly
 - [x] Remove proxy wording from `SpendBillingSourceNote`
+- [x] Fix format/lint errors: remove test comments, fix max-lines-per-function, add spec link for acceptance tests
 
 ## Out of scope
 

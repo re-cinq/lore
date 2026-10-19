@@ -126,7 +126,7 @@ const BASE_ROWS: unknown[][] = [
   [{ kind: "Code review / detection line", calls: 78, cost_usd: 37.68 }],
   [{ bucket_date: "2026-09-01", calls: 32, cost_usd: 14.24 }],
   [{ task_type: "implementation", tasks: 30, cost_usd: 222.22 }],
-  [], // index 7: byBillingMode — empty signals billing_mode column not yet migrated; tests for recorded split use custom rows
+  [],
   [{ cluster: null, calls: 40, cost_usd: 20 }],
   [
     {
@@ -569,7 +569,7 @@ describe("GET /api/analytics/spend-window", () => {
     ];
     const rows = [...BASE_ROWS];
 
-    rows[7] = billingRows; // override: simulates migrated DB with recorded billing_mode
+    rows[7] = billingRows;
     const issued: Issued[] = [];
 
     const res = await get(await serverWith(rows, {}, issued));

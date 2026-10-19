@@ -34,23 +34,30 @@ export async function readLlmSpend(
 ) {
   const b = await llmBreakdowns(pool, win);
   const byCluster = await readByCluster(pool, win.fromTs, win.toTs);
-
-  if (b.byBillingMode.length > 0) {
-    return {
-      ...b.totals,
-      ...llmCuts(b),
-      by_cluster: byCluster,
-      by_billing_mode: b.byBillingMode,
-      floor_unavailable: false,
-    };
-  }
-
-  const floorModes = await floorBillingModes(floor, win);
-
+  const { by_billing_mode, floor_unavailable } = await resolveBillingMode(
+    b,
+    floor,
+    win,
+  );
   return {
     ...b.totals,
     ...llmCuts(b),
     by_cluster: byCluster,
+    by_billing_mode,
+    floor_unavailable,
+  };
+}
+
+async function resolveBillingMode(
+  b: Awaited<ReturnType<typeof llmBreakdowns>>,
+  floor: FloorCosts | null,
+  win: SpendWindow,
+) {
+  if (b.byBillingMode.length > 0) {
+    return { by_billing_mode: b.byBillingMode, floor_unavailable: false };
+  }
+  const floorModes = await floorBillingModes(floor, win);
+  return {
     by_billing_mode: billingModeSplit(b.totals, floorModes ?? []),
     floor_unavailable: floorModes === null,
   };
@@ -134,11 +141,9 @@ export function billingModeSplit(
 
 /** The seven breakdowns plus the recorded billing_mode split — they are independent reads over the same window. `by_kind` is the only view that separates code-review lines from tasks and memory jobs. */
 async function llmBreakdowns(pool: Pool, win: SpendWindow) {
-  const { fromTs, toTs } = win;
-  const params: [string, string] = [fromTs, toTs];
+  const params: [string, string] = [win.fromTs, win.toTs];
   const [totals, byBlueprint, byRepo, byModel, byKind, daily, byTaskType] =
     await breakdownQueries(pool, params);
-  // Migration-gated: column absent → empty rows → caller falls back to floor attribution.
   const byBillingMode = await optionalTableRows<BillingModeRow>(
     pool,
     BY_BILLING_MODE_SQL,

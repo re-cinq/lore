@@ -4,12 +4,26 @@ import { spendWindowRoute } from "./spend-window.js";
 
 const NOW = new Date("2026-09-02T12:00:00Z");
 
-function poolWith(rows: unknown[][]) {
-  let call = 0;
+async function serverWith() {
+  const server = Hapi.server();
+  server.auth.scheme("stub", () => ({
+    authenticate: (_request, h: any) => h.authenticated({ credentials: {} }),
+  }));
+  server.auth.strategy("bearer-scope", "stub");
+  server.auth.default("bearer-scope");
+  server.route(
+    spendWindowRoute(() => poolWith(), {
+      env: {},
+      now: () => NOW,
+      floor: null,
+    }),
+  );
+  return server;
+}
+
+function poolWith() {
   return {
     query: async (sql: string) => {
-      // Simulate DB queries:
-      // When querying TOTALS, return some calls.
       if (sql.includes("COUNT(*)") && !sql.includes("GROUP BY")) {
         return {
           rows: [
@@ -24,7 +38,6 @@ function poolWith(rows: unknown[][]) {
           ],
         };
       }
-      // When a new BY_BILLING_MODE query is added, return the precise recorded split.
       if (sql.includes("billing_mode")) {
         return {
           rows: [
@@ -38,26 +51,9 @@ function poolWith(rows: unknown[][]) {
   } as never;
 }
 
-async function serverWith(rows: unknown[][]) {
-  const server = Hapi.server();
-  server.auth.scheme("stub", () => ({
-    authenticate: (_request, h: any) => h.authenticated({ credentials: {} }),
-  }));
-  server.auth.strategy("bearer-scope", "stub");
-  server.auth.default("bearer-scope");
-  server.route(
-    spendWindowRoute(() => poolWith(rows), {
-      env: {},
-      now: () => NOW,
-      floor: null,
-    }),
-  );
-  return server;
-}
-
 describe("Spend Window billing mode (acceptance)", () => {
   it("splits by recorded billing_mode directly instead of inferring from cluster", async () => {
-    const server = await serverWith([]);
+    const server = await serverWith();
 
     const res = await server.inject({
       method: "GET",
@@ -67,9 +63,6 @@ describe("Spend Window billing mode (acceptance)", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
 
-    // The current API infers 100% of pipeline.llm_calls as 'api_key' because it expects the DB
-    // lacks billing_mode and falls back to cluster logic.
-    // It should instead pass through the true 'subscription' calls recorded in the database.
     expect(body.llm.by_billing_mode).toContainEqual({
       mode: "subscription",
       calls: 40,
