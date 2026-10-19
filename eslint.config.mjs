@@ -683,8 +683,12 @@ export default tseslint.config(
   // blocks mean the first describes nothing. Error for new code; the baseline
   // below tracks sites that predate the rule as warn so they show up in the
   // queue without blocking unrelated work.
+  //
+  // No `files` filter: ESLint 10 resolves the files pattern relative to the
+  // config file, so a fixture written to /tmp would compute a relative path
+  // starting with `..` — which minimatch's `**` (dot:false) never matches.
+  // Keeping this global ensures the rule fires even on out-of-tree files.
   {
-    files: ["**/*.{ts,tsx}"],
     plugins: { lore: lorePlugin },
     rules: { "lore/no-stranded-doc-comment": "error" },
   },

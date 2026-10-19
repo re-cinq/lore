@@ -16,6 +16,7 @@
 - [x] Skip the check if the first comment's owner is a type/interface declaration (including exported via `ExportNamedDeclaration`).
 - [x] Register the local rule in `eslint.config.mjs` under the `lore` plugin prefix.
 - [x] Fix acceptance test invocation for ESLint 10: add `--config eslint.config.mjs` so ESLint finds the config when linting files in `/tmp` (ESLint 10 looks from the file, not CWD).
+- [x] Register lore plugin globally (no `files` filter) so the rule applies to TypeScript files in any location: ESLint 10 resolves `files` globs relative to the config file, and minimatch's `**` (dot:false) never matches path segments starting with `.`, so a fixture at `/tmp` would not have matched `**/*.{ts,tsx}` and the rule would never have fired.
 
 ## Out of scope
 
