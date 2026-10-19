@@ -13,19 +13,6 @@ import {
 
 type LoadedTask = NonNullable<Awaited<ReturnType<typeof getTask>>>;
 
-function assertCanRetry(task: LoadedTask): void {
-  enforceTrue(
-    task.task_type !== "implementation-loop",
-    Error,
-    "Cannot retry an implementation-loop task — to re-queue this issue, remove the lore:blocked label from it instead.",
-  );
-  enforceTrue(
-    !(task.status !== "failed" && task.status !== "needs-human-help"),
-    Error,
-    `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
-  );
-}
-
 export async function retryTask(
   pool: PgPool,
   taskId: string,
@@ -38,6 +25,19 @@ export async function retryTask(
     retried_as: result.task_id,
   });
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
+}
+
+function assertCanRetry(task: LoadedTask): void {
+  enforceTrue(
+    task.task_type !== "implementation-loop",
+    Error,
+    "Cannot retry an implementation-loop task — to re-queue this issue, remove the lore:blocked label from it instead.",
+  );
+  enforceTrue(
+    !(task.status !== "failed" && task.status !== "needs-human-help"),
+    Error,
+    `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
+  );
 }
 
 /** The replacement task: same description, type and repo, attributed to `retry:<original creator>` and carrying `retry_of` in its context bundle. */
