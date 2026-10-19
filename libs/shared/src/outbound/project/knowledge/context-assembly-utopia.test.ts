@@ -91,7 +91,7 @@ describe("utopiaDocuments", () => {
     ]);
   });
 
-  it("keeps the three best-scoring of a spec's four statements, in the order they stand in it", () => {
+  it("keeps all four statements of a spec that matched, in the order they stand in it, however weakly the last matched", () => {
     const hits = [
       hit(`stmt:${SPEC}#0003`, specChunks, 0.032),
       hit(`stmt:${SPEC}#0001`, specChunks, 0.031),
@@ -100,7 +100,7 @@ describe("utopiaDocuments", () => {
     ];
 
     expect(utopiaDocuments(hits, REPO_FILTER)[0]?.text).toEqual(
-      "A 404 reads as no document.\nA search page carries its hits in rank order.\nA hit past offset 100 is refused.",
+      "A 404 reads as no document.\nA search page carries its hits in rank order.\nThe second page starts at offset 50.\nA hit past offset 100 is refused.",
     );
   });
 

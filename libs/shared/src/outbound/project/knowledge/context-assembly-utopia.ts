@@ -12,10 +12,7 @@ import {
   type StatementsChunk,
 } from "../../../domain/utopia/read-shapes.js";
 import type { UtopiaReads } from "../../utopia/utopia-reads.js";
-import {
-  CHUNKS_PER_DOCUMENT,
-  type SourceItem,
-} from "./context-assembly-format.js";
+import type { SourceItem } from "./context-assembly-format.js";
 import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
 import type { SectionReader } from "./context-assembly-types.js";
@@ -116,7 +113,7 @@ interface DocumentHits {
   parts: { ordinal: number; score: number; texts: string[] }[];
 }
 
-/** The documents the hits name, one item each in the rank of its best hit, scored so the best is 1 as Lore's are: the statements source's doc and statement chunks only, a document's best few in the order they stand in it, its title first. */
+/** The documents the hits name, one item each in the rank of its best hit, scored so the best is 1 as Lore's are: the statements source's doc and statement chunks only, every statement of a document that matched, in the order they stand in it, its title first. */
 export function utopiaDocuments(
   hits: SearchHit[],
   filter: DocumentFilter,
@@ -222,8 +219,6 @@ function documentTitles(chunk: StatementsChunk): string[] {
 
 function toItem(document: DocumentHits): SourceItem {
   const texts = [...document.parts]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, CHUNKS_PER_DOCUMENT)
     .sort((a, b) => a.ordinal - b.ordinal)
     .flatMap((part) => part.texts);
 
