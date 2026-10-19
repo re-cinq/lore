@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] `retryTask` checks if `task.task_type === "implementation-loop"` and throws an error if true.
-- [ ] The error message tells the user to remove the `lore:blocked` label.
+- [x] `retryTask` checks if `task.task_type === "implementation-loop"` and throws an error if true.
+- [x] The error message tells the user to remove the `lore:blocked` label.
 
 ## Out of scope
 

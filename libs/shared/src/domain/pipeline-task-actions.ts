@@ -21,6 +21,11 @@ export async function retryTask(
 
   enforceTrue(task, Error, "Task not found");
   enforceTrue(
+    task.task_type !== "implementation-loop",
+    Error,
+    "Cannot retry an implementation-loop task — to re-queue this issue, remove the lore:blocked label from it instead.",
+  );
+  enforceTrue(
     !(task.status !== "failed" && task.status !== "needs-human-help"),
     Error,
     `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
