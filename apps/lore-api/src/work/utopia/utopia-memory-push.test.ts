@@ -297,4 +297,25 @@ describe("mirrorEpisode", () => {
       ],
     });
   });
+
+  it("pushes episode:e8, whose ref is a task path under re-cinq/lore, to re-cinq/lore's base and not the org's", async () => {
+    const pool = poolHolding({
+      onboarded: ["re-cinq/lore"],
+      repoSources: LORE_SRC_1,
+      memorySources: [{ ...MEMORIES_SOURCE, id: "src-ep" }],
+    });
+
+    await mirrorEpisode(
+      asPool(pool),
+      {
+        id: "e8",
+        content: "Run of implementation-loop on re-cinq/lore ended as success.",
+        createdAt: "2026-10-19T09:05:00+00:00",
+        ref: "re-cinq/lore/1f2e3d4c-5b6a-4789-8abc-def012345678",
+      },
+      env,
+    );
+
+    expect(seen).toEqual(["POST /api/v1/sources/src-ep/ingest Bearer utp_mem"]);
+  });
 });

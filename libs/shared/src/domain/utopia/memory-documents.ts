@@ -48,3 +48,12 @@ export function episodeDocument(episode: MirroredEpisode): IngestDocument {
     doc_time: episode.createdAt,
   };
 }
+
+/** The `owner/repo` a ref starts with: a bare repo, a task path under it, `#<n>` after it, or a `session:` ref. The walk's SQL matches with the same pattern, so a live push and the walk send an episode to the same base. */
+export const REF_REPO_PATTERN = "^(?:session:)?([^/#\\s:]+/[^/#\\s]+)";
+
+const refRepo = new RegExp(REF_REPO_PATTERN);
+
+export function repoOfRef(ref: string | null): string | null {
+  return ref?.match(refRepo)?.[1] ?? null;
+}
