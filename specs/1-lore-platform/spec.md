@@ -956,7 +956,7 @@ is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-r
   directly from the DB rather than attributing by floor visit or cluster. The
   note on the spend page stops describing the split as derived from
   agent-startup credentials once the per-call mode is present.
-  ([validated by [splits by recorded billing_mode directly instead of inferring from cluster](apps/lore-api/src/transport/routes/analytics/spend-window-billing.acceptance.test.ts#L59), [stops calling the billing source a proxy once the recorded mode is present](apps/web-ui/src/app/spend/SpendBillingSource.acceptance.test.tsx#L7)])
+  ([validated by [splits by recorded billing_mode directly instead of inferring from cluster](apps/lore-api/src/transport/routes/analytics/spend-window-billing.acceptance.test.ts#L59), [stops calling the billing source a proxy once the recorded mode is present](apps/web-ui/src/app/spend/SpendBillingSource.acceptance.test.tsx#L7), [queries billing_mode from pipeline.llm_calls and surfaces the recorded split directly](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L565)])
 
 - **FR-19i — What a unit of work costs** _(added 2026-09-22, #2116)_.
   `GET /api/analytics/spend-window` also answers what one ticket, one PR's
