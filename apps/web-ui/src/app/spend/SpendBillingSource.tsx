@@ -60,11 +60,9 @@ function BillingSourceNotes({
 function BillingSourceNote() {
   return (
     <p className={`meta ${styles.subnote}`}>
-      Lore&apos;s own model calls run on the org&apos;s API key; each agent run
-      on the floor counts as one call, under the credential its agent reported
-      when it started. The billed figure covers only the API-key portion —
-      subscription runs bill each person&apos;s own account, so they never reach
-      the org invoice.
+      Each call&apos;s billing mode is recorded at dispatch time. The billed
+      figure covers only the API-key portion — subscription runs bill each
+      person&apos;s own account, so they never reach the org invoice.
     </p>
   );
 }

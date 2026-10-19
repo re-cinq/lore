@@ -12,6 +12,7 @@ import {
   BY_KIND_SQL,
   DAILY_SQL,
   BY_TASK_TYPE_SQL,
+  BY_BILLING_MODE_SQL,
 } from "./spend-window-llm-sql.js";
 
 /** The window's metered totals, prompt-cache reads and writes beside the uncached input — the response's own fields, as TOTALS_SQL names them. */
@@ -25,19 +26,31 @@ type LlmTotals = Pick<
   | "cache_write_tokens"
 >;
 
-/** What Lore metered itself, from pipeline.llm_calls: one total and seven cuts of it, and the billing-mode split that adds the floor's agent visits. */
+/** What Lore metered itself, from pipeline.llm_calls: one total and seven cuts of it, and the billing-mode split read from the recorded column (falling back to floor attribution for pre-migration rows). */
 export async function readLlmSpend(
   pool: Pool,
   win: SpendWindow,
   floor: FloorCosts | null,
 ) {
   const b = await llmBreakdowns(pool, win);
+  const byCluster = await readByCluster(pool, win.fromTs, win.toTs);
+
+  if (b.byBillingMode.length > 0) {
+    return {
+      ...b.totals,
+      ...llmCuts(b),
+      by_cluster: byCluster,
+      by_billing_mode: b.byBillingMode,
+      floor_unavailable: false,
+    };
+  }
+
   const floorModes = await floorBillingModes(floor, win);
 
   return {
     ...b.totals,
     ...llmCuts(b),
-    by_cluster: await readByCluster(pool, win.fromTs, win.toTs),
+    by_cluster: byCluster,
     by_billing_mode: billingModeSplit(b.totals, floorModes ?? []),
     floor_unavailable: floorModes === null,
   };
@@ -119,11 +132,18 @@ export function billingModeSplit(
   return rows.filter((row) => row.calls > 0 || row.cost_usd > 0);
 }
 
-/** The seven breakdowns, run together — they are independent reads over the same window, and doing them in sequence made the spend page's slowest query seven times over. `by_kind` is the only view that separates code-review lines (which carry no task) from tasks and from the memory jobs. */
+/** The seven breakdowns plus the recorded billing_mode split — they are independent reads over the same window. `by_kind` is the only view that separates code-review lines from tasks and memory jobs. */
 async function llmBreakdowns(pool: Pool, win: SpendWindow) {
   const { fromTs, toTs } = win;
+  const params: [string, string] = [fromTs, toTs];
   const [totals, byBlueprint, byRepo, byModel, byKind, daily, byTaskType] =
-    await breakdownQueries(pool, [fromTs, toTs]);
+    await breakdownQueries(pool, params);
+  // Migration-gated: column absent → empty rows → caller falls back to floor attribution.
+  const byBillingMode = await optionalTableRows<BillingModeRow>(
+    pool,
+    BY_BILLING_MODE_SQL,
+    params,
+  );
 
   return {
     totals: totals.rows[0] as LlmTotals,
@@ -133,6 +153,7 @@ async function llmBreakdowns(pool: Pool, win: SpendWindow) {
     byKind: byKind.rows,
     daily: daily.rows,
     byTaskType: byTaskType.rows,
+    byBillingMode,
   };
 }
 

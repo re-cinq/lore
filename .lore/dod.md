@@ -15,8 +15,8 @@
 
 - [ ] Add `billing_mode` column via migration
 - [ ] Record the mode at dispatch inside Floor's Agent CR creation / cost ingestion
-- [ ] Update `/api/analytics/spend-window` endpoint to read the new mode directly
-- [ ] Remove proxy wording from `SpendBillingSourceNote`
+- [x] Update `/api/analytics/spend-window` endpoint to read the new mode directly
+- [x] Remove proxy wording from `SpendBillingSourceNote`
 
 ## Out of scope
 
