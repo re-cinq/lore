@@ -13,8 +13,8 @@
 
 ## Facets
 
-- [ ] Extract the shared SQL construction and RRF logic from `hybridSearch` and `hybridChunkItems` into a single core.
-- [ ] Add a documented reason for any wrapper functions that remain.
+- [x] Extract the shared SQL construction and RRF logic from `hybridSearch` and `hybridChunkItems` into a single core.
+- [x] Add a documented reason for any wrapper functions that remain.
 
 ## Out of scope
 

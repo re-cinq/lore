@@ -11,8 +11,18 @@ import {
   normalizeScores,
   extractKeyTerms,
 } from "./context-assembly-items.js";
+import { RRF_DAMPING } from "./hybrid-rrf-core.js";
 
-/** Hybrid RRF retrieval over the repo's resolved chunk schema: pgvector cosine leg + BM25 (ts_rank) leg, same as search_context; degrades to keyword-only with no query embedding. */
+/**
+ * Hybrid RRF retrieval over the repo's resolved chunk schema: pgvector cosine leg + BM25
+ * (ts_rank) leg, degrades to keyword-only with no query embedding.
+ *
+ * Shares the RRF_DAMPING constant with the corpus search (hybridSearch in db.ts), which
+ * uses buildHybridCorpusSQL from hybrid-rrf-core.ts. This function keeps its own SQL
+ * because it selects SourceItem columns (file_path, content_type, similarity, content_hash),
+ * filters by content_type, and uses the HNSW sub-query optimisation — none of which apply
+ * to the schema-wide corpus search.
+ */
 
 /** One hybrid-search HIT, not a chunk row — `score` is a ts_rank/cosine aggregate the query computes, no column holds it (the repo had three types named ChunkRow; this is the one that never described a table). */
 
@@ -134,7 +144,7 @@ const VECTOR_SCAN_SETTINGS_SQL = `SELECT set_config('hnsw.ef_search', '${HNSW_EF
             THEN set_config('hnsw.iterative_scan', 'relaxed_order', true)
        END`;
 
-/** Reciprocal Rank Fusion over the two legs, joined FULL OUTER so a chunk that only one leg finds still scores. The 60 is RRF's usual damping: it stops a single leg's top hit from dominating a chunk both legs rank moderately. */
+/** Reciprocal Rank Fusion over the two legs, joined FULL OUTER so a chunk that only one leg finds still scores. RRF_DAMPING stops a single leg's top hit from dominating a chunk both legs rank moderately. */
 function hybridSql(schema: string): string {
   return `${hybridLegsSql(schema)}
        SELECT COALESCE(v.content, k.content) AS content,
@@ -143,7 +153,7 @@ function hybridSql(schema: string): string {
               COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
               COALESCE(v.content_hash, k.content_hash) AS content_hash,
               COALESCE(v.similarity, k.similarity) AS similarity,
-              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score,
+              (COALESCE(1.0 / (${RRF_DAMPING} + v.r), 0) + COALESCE(1.0 / (${RRF_DAMPING} + k.r), 0)) AS score,
               (SELECT COUNT(*) FROM vec) AS vec_rows
        FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
        ORDER BY score DESC LIMIT $5`;
