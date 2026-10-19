@@ -16,7 +16,16 @@ function runEslint(filePath) {
   try {
     output = execFileSync(
       "npx",
-      ["eslint", "--no-ignore", "-f", "json", filePath],
+      // ESLint 10 starts config lookup from the linted file, not CWD; --config pins it.
+      [
+        "eslint",
+        "--no-ignore",
+        "--config",
+        "eslint.config.mjs",
+        "-f",
+        "json",
+        filePath,
+      ],
       { cwd: repoRoot, encoding: "utf-8" },
     );
   } catch (error) {

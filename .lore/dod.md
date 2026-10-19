@@ -15,6 +15,7 @@
 - [x] Parse the AST to identify adjacent Block comments.
 - [x] Skip the check if the first comment's owner is a type/interface declaration (including exported via `ExportNamedDeclaration`).
 - [x] Register the local rule in `eslint.config.mjs` under the `lore` plugin prefix.
+- [x] Fix acceptance test invocation for ESLint 10: add `--config eslint.config.mjs` so ESLint finds the config when linting files in `/tmp` (ESLint 10 looks from the file, not CWD).
 
 ## Out of scope
 
