@@ -13,13 +13,7 @@ import {
 
 type LoadedTask = NonNullable<Awaited<ReturnType<typeof getTask>>>;
 
-export async function retryTask(
-  pool: PgPool,
-  taskId: string,
-): Promise<RetriedTask> {
-  const task = await getTask(pool, taskId);
-
-  enforceTrue(task, Error, "Task not found");
+function assertCanRetry(task: LoadedTask): void {
   enforceTrue(
     task.task_type !== "implementation-loop",
     Error,
@@ -30,12 +24,19 @@ export async function retryTask(
     Error,
     `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
   );
-  const result = await createRetryTask(pool, task, taskId);
+}
 
+export async function retryTask(
+  pool: PgPool,
+  taskId: string,
+): Promise<RetriedTask> {
+  const task = await getTask(pool, taskId);
+  enforceTrue(task, Error, "Task not found");
+  assertCanRetry(task);
+  const result = await createRetryTask(pool, task, taskId);
   await updateTaskStatus(pool, taskId, "retried", {
     retried_as: result.task_id,
   });
-
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
 }
 

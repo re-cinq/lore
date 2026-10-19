@@ -6,7 +6,7 @@
 
 ## Done when these pass
 
-- [ ] **refuses to retry an implementation-loop task and points at removing lore:blocked** — `retryTask` rejects the retry attempt with an error message mentioning `lore:blocked` when the task type is `implementation-loop`.
+- [x] **refuses to retry an implementation-loop task and points at removing lore:blocked** — `retryTask` rejects the retry attempt with an error message mentioning `lore:blocked` when the task type is `implementation-loop`.
   `libs/shared/src/domain/pipeline-task-actions.acceptance.test.ts`
 
 ## Facets
