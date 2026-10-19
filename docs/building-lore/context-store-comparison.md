@@ -1,6 +1,6 @@
 # Which store answers context questions best
 
-**For people deciding where Lore's knowledge should live.** This records the first side-by-side comparison of Lore's own stores and Utopia as the source of the context an agent gets, run on 2026-10-16, and what it says about the switch.
+**For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first, run on 2026-10-16, and the re-runs of 2026-10-19 (below), and what they say about the switch.
 
 ## Why we measured
 
@@ -36,7 +36,23 @@ What the columns mean:
 - **Source overlap**: the Jaccard overlap of the two assemblies' source paths, averaged over the documents.
 - **Utopia base**: whether the repository has a Utopia knowledge base (`settings.utopia`), and the ontology version it was last upgraded to.
 
-## What we read in it
+## Re-run on 2026-10-19: the gap was missing data
+
+By 2026-10-19 every onboarded repository had a Utopia base at ontology version 5 or 6, HALEngine's base was full, and Utopia ran `0.1.0-re.14`. The eval now records every returned source with its section, its tokens and whether the answer used it (#2812, `run.mjs --results`). The same 121 documents were asked four times (sample date pinned to 2026-10-19), changing one thing each time:
+
+| Run | Lore found | Lore answered | Lore useful | Utopia found | Utopia answered | Utopia useful | Utopia assembly p50 |
+|---|---|---|---|---|---|---|---|
+| Baseline (re.14) | 104 | 110 | 64% | **120** | **117** | 65% | 0.8 s |
+| A Utopia document capped at its 3 best hits (#2813) | 104 | 109 | 64% | 120 | 111 | 50% | 0.8 s |
+| … and the search scoped to `doc:`/`stmt:` items (#2814, re.15) | 104 | 109 | 64% | 69 | 64 | 27% | 30 s (timeout) |
+
+- **Utopia now finds and answers more than Lore.** The 10-16 gap came from bases that were missing or half-filled, not from Utopia's ranking. Per repository Utopia is level with Lore or ahead everywhere; its one weaker number is useful share on bowman-ui (53% against Lore's 82%).
+- **Utopia hands back smaller sources, used about as often.** Median tokens per source: Utopia 178, Lore 229. The share of tokens the answer used per section: Utopia `repo` 62%, `adrs` 68%; Lore `repo` 65%, `code` 51%, `adrs` 79%, `memories` 6%.
+- **Capping a document at its best three statements hurt** (answered 117 to 111): the statement that answers a question is often not among those that matched it best. Reverted (#2817).
+- **Scoping the search before recall made it time out.** For a big repository the allowed set is nearly every document of its statements source, which the vector channel cannot filter cheaply. Reverted on Lore's side (#2820); re.15 without the scope fields searches as re.14 did.
+- **Lore's own misses on re-cinq/lore are mostly not retrieval misses.** Twice it answered from current code (a third theme family) that the reference documents never mention, and once it cut ADR-039 before the amendment that reverses it.
+
+## What we read in it (2026-10-16)
 
 - **Where Utopia has the data, it already finds the right document.** On bowman-ui it found more source documents than Lore (18 against 15) and answered as many questions (19).
 - **Less of what Utopia returns gets used.** Its useful share is roughly half of Lore's wherever it answers at all. Useful share is a precision measure: the tokens of the sources the answer used, over all tokens returned. On CFOAgent it answered 11 questions while finding only 2 of their documents, so its answers came from neighbouring statements rather than the source. The cause is not known yet. It is *not* the size of an item: a check after this run showed the Utopia reader already returns only the statements its search matched (one statement per hit, section text dropped). The likelier suspects are ranking and recall: one search returns up to 50 statements across all sections, and a document that matched on one weak statement still takes a slot. The eval does not yet record each source's size, which is what would tell these apart.
