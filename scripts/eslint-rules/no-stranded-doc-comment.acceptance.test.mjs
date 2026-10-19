@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -37,7 +36,9 @@ function runEslint(filePath) {
 }
 
 test("reports a stranded doc comment using lore/no-stranded-doc-comment", () => {
-  const dir = mkdtempSync(join(tmpdir(), "stranded-"));
+  // ESLint 10 refuses to lint files outside the config file's base path.
+  // Create fixtures inside the repo so ESLint processes them normally.
+  const dir = mkdtempSync(join(__dirname, "fixture-"));
   const filePath = join(dir, "fixture.ts");
 
   writeFileSync(
@@ -78,7 +79,7 @@ export function layoutAssemblyLine() {}
 
 // specs/no-stranded-doc-comment#2
 test("does not flag a module-level doc comment when the next doc comment precedes an exported type or interface declaration", () => {
-  const dir = mkdtempSync(join(tmpdir(), "stranded-nofire-"));
+  const dir = mkdtempSync(join(__dirname, "fixture-nofire-"));
   const filePath = join(dir, "fixture.ts");
 
   writeFileSync(

@@ -17,6 +17,7 @@
 - [x] Register the local rule in `eslint.config.mjs` under the `lore` plugin prefix.
 - [x] Fix acceptance test invocation for ESLint 10: add `--config eslint.config.mjs` so ESLint finds the config when linting files in `/tmp` (ESLint 10 looks from the file, not CWD).
 - [x] Register lore plugin globally (no `files` filter) so the rule applies to TypeScript files in any location: ESLint 10 resolves `files` globs relative to the config file, and minimatch's `**` (dot:false) never matches path segments starting with `.`, so a fixture at `/tmp` would not have matched `**/*.{ts,tsx}` and the rule would never have fired.
+- [x] Create acceptance test fixtures inside the repo (not `/tmp`): ESLint 10 refuses to lint files outside its base path (the config file's directory), returning "File ignored because outside of base path" with exit code 0 instead of reporting rule violations. Fixtures must live under the repo root so ESLint processes them normally.
 
 ## Out of scope
 
