@@ -3,6 +3,16 @@
 /** RRF damping constant (Cormack & Clarke, 2009). Re-evaluating it is out of scope. */
 export const RRF_DAMPING = 60;
 
+/** Corpus search across the whole schema — $1=embedding, $2=keyword terms, $3=LIMIT. */
+export function buildHybridCorpusOrgWideSQL(schema: string): string {
+  return buildCorpusSQL(schema, ``, ``);
+}
+
+/** Corpus search scoped to one repo — $1=embedding, $2=keyword terms, $3=LIMIT, $4=repo. */
+export function buildHybridCorpusBoundSQL(schema: string): string {
+  return buildCorpusSQL(schema, `WHERE repo = $4`, `AND repo = $4`);
+}
+
 // eslint-disable-next-line max-lines-per-function -- one SQL statement returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
 function buildCorpusSQL(
   schema: string,
@@ -33,14 +43,4 @@ FROM vector_results v
 FULL OUTER JOIN keyword_results k ON v.id = k.id
 ORDER BY rrf_score DESC
 LIMIT $3;`;
-}
-
-/** Corpus search across the whole schema — $1=embedding, $2=keyword terms, $3=LIMIT. */
-export function buildHybridCorpusOrgWideSQL(schema: string): string {
-  return buildCorpusSQL(schema, ``, ``);
-}
-
-/** Corpus search scoped to one repo — $1=embedding, $2=keyword terms, $3=LIMIT, $4=repo. */
-export function buildHybridCorpusBoundSQL(schema: string): string {
-  return buildCorpusSQL(schema, `WHERE repo = $4`, `AND repo = $4`);
 }
