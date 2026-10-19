@@ -13,7 +13,7 @@
 
 - [x] Create the new rule `no-stranded-doc-comment` locally.
 - [x] Parse the AST to identify adjacent Block comments.
-- [x] Skip the check if the first comment's owner is a type/interface declaration.
+- [x] Skip the check if the first comment's owner is a type/interface declaration (including exported via `ExportNamedDeclaration`).
 - [x] Register the local rule in `eslint.config.mjs` under the `lore` plugin prefix.
 
 ## Out of scope

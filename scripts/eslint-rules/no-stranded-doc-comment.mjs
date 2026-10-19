@@ -5,7 +5,10 @@ function isDocComment(comment) {
 function isTypeDeclaration(node) {
   return (
     node.type === "TSInterfaceDeclaration" ||
-    node.type === "TSTypeAliasDeclaration"
+    node.type === "TSTypeAliasDeclaration" ||
+    (node.type === "ExportNamedDeclaration" &&
+      node.declaration != null &&
+      isTypeDeclaration(node.declaration))
   );
 }
 

@@ -8,7 +8,8 @@
  * with the declaration between them), then remove its line. When the list is
  * empty, delete this module and the config block that reads it.
  *
- * Generated 2026-10-19 from 40 findings across 19 files.
+ * Generated 2026-10-19 from 40 findings across 19 files; 6 more added same day
+ * after the rule was fixed to handle exported type/interface declarations.
  */
 export const NO_STRANDED_DOC_COMMENT_BASELINE = [
   "apps/lore-api/src/transport/routes/assembly-lines/run-read.ts",
@@ -24,6 +25,13 @@ export const NO_STRANDED_DOC_COMMENT_BASELINE = [
   "apps/lore-api/src/transport/routes/trace/trace-specs.ts",
   "apps/web-ui/src/app/repos/[owner]/[repo]/specs/StatementPopover.tsx",
   "apps/web-ui/src/components/LogEntriesView.tsx",
+  "libs/shared/src/domain/models/station-run.ts",
+  "libs/shared/src/domain/models/test-report.ts",
+  "libs/shared/src/domain/spec-blocks.ts",
+  "libs/shared/src/domain/spec-trace/line-range.ts",
+  "libs/shared/src/domain/spec-trace/test-declarations.ts",
+  "libs/shared/src/domain/spec-trace/trace-scope.ts",
+  "libs/shared/src/outbound/dgraph-vector.ts",
   "libs/shared/src/outbound/project/assembly-runs/assembly-runs-pg-lifecycle.ts",
   "libs/shared/src/outbound/project/assembly-runs/parked-node.ts",
   "libs/shared/src/outbound/project/chunks/chunks-memory-relocate.ts",
