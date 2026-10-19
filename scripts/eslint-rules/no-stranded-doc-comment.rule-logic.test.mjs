@@ -28,7 +28,9 @@ function runRule(comments, text, body) {
       ast: { body },
     },
   };
+
   rule.create(context).Program();
+
   return reported;
 }
 
