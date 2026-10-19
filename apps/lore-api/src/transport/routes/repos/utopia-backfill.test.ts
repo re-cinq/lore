@@ -75,11 +75,17 @@ const SRC_1 = { kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" };
 const poolHolding = (sources: (typeof SRC_1)[]) => {
   const pool = makePool();
 
-  pool.query.mockImplementation(async (sql: string) => ({
-    rows: /FROM lore\.repos/.test(sql)
-      ? [{ full_name: "re-cinq/lore" }]
-      : sources,
-  }));
+  pool.query.mockImplementation(async (sql: string) => {
+    if (/FROM (memory\.|lore\.utopia_memory_sources)/.test(sql)) {
+      return { rows: [] };
+    }
+
+    return {
+      rows: /FROM lore\.repos/.test(sql)
+        ? [{ full_name: "re-cinq/lore" }]
+        : sources,
+    };
+  });
 
   return pool;
 };
@@ -90,6 +96,16 @@ const backfill = (pool: unknown) =>
     url: "/api/repos/re-cinq/lore/utopia/backfill",
     headers: AUTH,
   });
+
+const NOTHING_WALKED = {
+  from: null,
+  to: null,
+  entries: 0,
+  created: 0,
+  updated: 0,
+  unchanged: 0,
+  failed: [],
+};
 
 describe("POST /api/repos/{owner}/{repo}/utopia/backfill", () => {
   useRateLimitSafeClock();
@@ -143,6 +159,10 @@ describe("POST /api/repos/{owner}/{repo}/utopia/backfill", () => {
           updated: 0,
           unchanged: 0,
           failed: [],
+        },
+        memory: {
+          memories: { ...NOTHING_WALKED, pass_complete: true },
+          episodes: NOTHING_WALKED,
         },
       },
       pushes: Array(4).fill(

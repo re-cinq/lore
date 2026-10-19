@@ -32,6 +32,9 @@ vi.mock("@re-cinq/lore-shared/project/knowledge/memory-search.js", () => ({
 vi.mock("../../../work/memory/fact-extraction.js", () => ({
   extractFactsForMemory: vi.fn(),
 }));
+vi.mock("../../../work/utopia/utopia-memory-push.js", () => ({
+  mirrorMemory: vi.fn(),
+}));
 
 import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
 import {
@@ -50,6 +53,7 @@ import {
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import { extractFactsForMemory } from "../../../work/memory/fact-extraction.js";
+import { mirrorMemory } from "../../../work/utopia/utopia-memory-push.js";
 
 const originalEnv = { ...process.env };
 
@@ -269,6 +273,47 @@ describe("POST /api/memory", () => {
     const res = await post({ action: "delete", key: "k" });
 
     expect(res.result).toEqual({ ok: true });
+  });
+
+  it("mirrors key k of agent-7 in o/r to Utopia after a DB write", async () => {
+    memoryDbUp();
+    vi.mocked(writeMemory).mockResolvedValue({ key: "k", version: 1 } as never);
+    const pool = makePool();
+
+    await post(
+      {
+        action: "write",
+        key: "k",
+        value: "v",
+        agent_id: "agent-7",
+        repo: "o/r",
+      },
+      pool,
+    );
+
+    expect(vi.mocked(mirrorMemory).mock.calls).toEqual([
+      [pool, { key: "k", agentId: "agent-7", repo: "o/r" }],
+    ]);
+  });
+
+  it("mirrors key k of agent-7 to Utopia after a DB delete, so its rows are tombstoned", async () => {
+    memoryDbUp();
+    vi.mocked(deleteMemory).mockResolvedValue({ key: "k", deleted: true });
+    const pool = makePool();
+
+    await post({ action: "delete", key: "k", agent_id: "agent-7" }, pool);
+
+    expect(vi.mocked(mirrorMemory).mock.calls).toEqual([
+      [pool, { key: "k", agentId: "agent-7" }],
+    ]);
+  });
+
+  it("mirrors nothing to Utopia when the write falls back to a file", async () => {
+    memoryDbDown();
+    vi.mocked(writeMemoryFile).mockReturnValue({ key: "k" } as never);
+    await post({ action: "write", key: "k", value: "v" });
+
+    expect(mirrorMemory).not.toHaveBeenCalled();
   });
 
   it("deletes via file fallback", async () => {

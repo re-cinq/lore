@@ -15,6 +15,10 @@ import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
+import {
+  scheduleEpisodeMirror,
+  type InsertedEpisode,
+} from "./write-effects.js";
 
 const EpisodeBody = z.object({
   content: z.string().min(1, "content required"),
@@ -84,15 +88,15 @@ async function writeEpisode(pool: Pool, body: EpisodeBody) {
     source: source || "session",
     ref: ref || null,
   };
-  const episodeId = await insertEpisode(pool, record);
+  const inserted = await insertEpisode(pool, record);
 
-  if (episodeId === undefined) {
+  if (inserted === undefined) {
     return { status: "duplicate" };
   }
+  scheduleBackgroundExtraction(pool, inserted.id, record);
+  scheduleEpisodeMirror(pool, inserted, { ...record, content: safeContent });
 
-  scheduleBackgroundExtraction(pool, episodeId, record);
-
-  return { status: "ok", episode_id: episodeId };
+  return { status: "ok", episode_id: inserted.id };
 }
 
 async function insertEpisode(pool: Pool, record: EpisodeRecord) {
@@ -101,11 +105,11 @@ async function insertEpisode(pool: Pool, record: EpisodeRecord) {
     `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (agent_id, content_hash) DO NOTHING
-     RETURNING id`,
+     RETURNING id, to_json(created_at) #>> '{}' AS created_at`,
     [agent, safeContent, contentHash, source, ref],
   );
 
-  return rows[0]?.id as string | undefined;
+  return rows[0] as InsertedEpisode | undefined;
 }
 
 function scheduleBackgroundExtraction(

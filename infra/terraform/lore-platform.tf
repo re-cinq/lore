@@ -88,6 +88,9 @@ resource "helm_release" "lore_platform" {
         # to be honest about "now".
         LORE_GKE_CPU_HOUR_USD     = "0.0489"
         LORE_GKE_MEM_GIB_HOUR_USD = "0.0054"
+        # Names the Utopia base `<org>/memory` that memories and episodes with no
+        # onboarded repo are mirrored into (specs/utopia-graph-mirror FR16).
+        GITHUB_ORG = var.github_org
       }
       dbPasswordSecret  = { name = "lore-api-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }

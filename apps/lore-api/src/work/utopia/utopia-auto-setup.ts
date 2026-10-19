@@ -6,7 +6,6 @@ import {
   utopiaClientFrom,
   type UtopiaEnv,
   type UtopiaSession,
-  type UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { Pool } from "pg";
 import {
@@ -19,7 +18,7 @@ import {
   storeUtopiaSetup,
 } from "./utopia-setup.js";
 
-const settingUp = new Map<string, Promise<UtopiaSource>>();
+const settingUp = new Map<string, Promise<StoredUtopiaSource>>();
 const upgrading = new Map<string, Promise<void>>();
 
 /** Two ingests of one repo in this process share one setup. Across processes, finding the base by name and the one-row-per-repo upsert keep it at one base, and the source saved last wins. */
@@ -28,7 +27,7 @@ export function autoSetUpRepo(
   repo: string,
   existing: StoredUtopiaSource | null,
   env: UtopiaEnv,
-): Promise<UtopiaSource> {
+): Promise<StoredUtopiaSource> {
   return sharedPerRepo(settingUp, repo, () =>
     setUpAndStore(pool, repo, existing, env),
   );
@@ -50,7 +49,8 @@ export function autoUpgradeOntology(
   });
 }
 
-function sharedPerRepo<T>(
+/** One call per key runs at a time in this process; a second call while it runs shares its answer. */
+export function sharedPerRepo<T>(
   running: Map<string, Promise<T>>,
   repo: string,
   start: () => Promise<T>,
@@ -68,7 +68,7 @@ async function setUpAndStore(
   repo: string,
   existing: StoredUtopiaSource | null,
   env: UtopiaEnv,
-): Promise<UtopiaSource> {
+): Promise<StoredUtopiaSource> {
   const setup = await setUpRepoInUtopia(loreSession(env), {
     repo,
     workspaceId: env.UTOPIA_WORKSPACE_ID!,
@@ -77,9 +77,9 @@ async function setUpAndStore(
 
   await storeUtopiaSetup(pool, repo, setup);
 
-  return { id: setup.source.id, key: setup.source.key };
+  return setup.source;
 }
 
-function loreSession(env: UtopiaEnv): UtopiaSession {
+export function loreSession(env: UtopiaEnv): UtopiaSession {
   return utopiaClientFrom(env).withCredential(env.UTOPIA_TOKEN!);
 }

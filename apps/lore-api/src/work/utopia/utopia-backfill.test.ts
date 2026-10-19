@@ -60,6 +60,23 @@ const NO_RELEASES = {
   mirror: async () => ({ ...LANDED, items: 0, created: 0, updated: 0 }),
 };
 
+const NO_MEMORY = {
+  base: "re-cinq/lore",
+  rows: async () => [],
+  cursor: { read: async () => "41", write: async () => {} },
+  push: async () => ({ action: "created" as const }),
+};
+
+const NOTHING_AFTER_41 = {
+  from: "41",
+  to: null,
+  entries: 0,
+  created: 0,
+  updated: 0,
+  unchanged: 0,
+  failed: [],
+};
+
 const NOTHING_RELEASED = {
   tags: 0,
   releases: 0,
@@ -102,6 +119,7 @@ describe("backfillRepo", () => {
   it("mirrors the two specs and the ADR of main's head abc123 at abc123, skips src/index.ts, and walks main's commits above the cursor and the issues and pull requests updated since its cursor and the tags and releases after them", async () => {
     const mirrored: MirroredDoc[] = [];
     const summary = await backfillRepo({
+      memory: NO_MEMORY,
       files: filesAt([
         "specs/a/spec.md",
         "specs/b/spec.md",
@@ -129,6 +147,10 @@ describe("backfillRepo", () => {
         commits: NO_COMMITS,
         tracker: NO_TRACKED,
         releases: NOTHING_RELEASED,
+        memory: {
+          memories: { ...NOTHING_AFTER_41, pass_complete: true },
+          episodes: NOTHING_AFTER_41,
+        },
       },
       mirrored: [
         {
@@ -165,6 +187,7 @@ describe("backfillRepo", () => {
       }),
     };
     const summary = await backfillRepo({
+      memory: NO_MEMORY,
       files: filesAt([
         "specs/a/spec.md",
         "specs/b/spec.md",
@@ -189,11 +212,16 @@ describe("backfillRepo", () => {
       commits: NO_COMMITS,
       tracker: NO_TRACKED,
       releases: NOTHING_RELEASED,
+      memory: {
+        memories: { ...NOTHING_AFTER_41, pass_complete: true },
+        episodes: NOTHING_AFTER_41,
+      },
     });
   });
 
   it("names the commit the walk stopped at under failed beside the documents, so the sweep and the script see it", async () => {
     const summary = await backfillRepo({
+      memory: NO_MEMORY,
       files: filesAt(["specs/a/spec.md"]),
       mirror: async () => LANDED,
       history: {
@@ -229,6 +257,7 @@ describe("backfillRepo", () => {
 
   it("names the issue or pull request the tracker walk stopped at under failed beside the documents", async () => {
     const summary = await backfillRepo({
+      memory: NO_MEMORY,
       files: filesAt(["specs/a/spec.md"]),
       mirror: async () => LANDED,
       history: NO_HISTORY,
@@ -268,6 +297,7 @@ describe("backfillRepo", () => {
 
   it("names the tag Utopia refused under failed beside the documents", async () => {
     const summary = await backfillRepo({
+      memory: NO_MEMORY,
       files: filesAt(["specs/a/spec.md"]),
       mirror: async () => LANDED,
       history: NO_HISTORY,
@@ -287,6 +317,43 @@ describe("backfillRepo", () => {
     }).toEqual({
       failed: ["tag:v1.1.0: Utopia answered 503"],
       releases: ["tag:v1.1.0: Utopia answered 503"],
+    });
+  });
+
+  it("walks the memories and episodes above their cursors and names episode:e7, which Utopia refused, under failed beside the documents", async () => {
+    const summary = await backfillRepo({
+      memory: {
+        ...NO_MEMORY,
+        rows: async (kind) =>
+          kind === "episodes"
+            ? [
+                {
+                  cursor: "2026-10-19T09:00:00+00:00|e7",
+                  document: {
+                    external_id: "episode:e7",
+                    filename: "episode-e7",
+                    content: "x",
+                  },
+                },
+              ]
+            : [],
+        push: async () => {
+          throw new Error("Utopia answered 503");
+        },
+      },
+      files: filesAt(["specs/a/spec.md"]),
+      mirror: async () => LANDED,
+      history: NO_HISTORY,
+      tracker: NO_ACTIVITY,
+      releases: NO_RELEASES,
+    });
+
+    expect({
+      failed: summary.failed,
+      episodes: summary.memory?.episodes.failed,
+    }).toEqual({
+      failed: ["episode:e7: Utopia answered 503"],
+      episodes: ["episode:e7: Utopia answered 503"],
     });
   });
 });
