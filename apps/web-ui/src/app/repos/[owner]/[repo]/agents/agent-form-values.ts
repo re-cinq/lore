@@ -29,6 +29,7 @@ export function agentFormValues(
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
   const promptInherited = !isNew && isPromptInherited(agent);
+
   return {
     name,
     executionMode,
@@ -52,7 +53,11 @@ function resolvePrompt(
   { isNew, promptInherited }: { isNew: boolean; promptInherited: boolean },
 ): string {
   const noProjectOverride = agent == null || agent.project_id == null;
-  if (isNew || promptInherited || noProjectOverride) return "";
+
+  if (isNew || promptInherited || noProjectOverride) {
+    return "";
+  }
+
   return agent.prompt ?? "";
 }
 

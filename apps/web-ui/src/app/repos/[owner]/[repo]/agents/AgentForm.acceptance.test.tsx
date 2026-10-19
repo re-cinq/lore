@@ -22,6 +22,7 @@ describe("AgentForm (Acceptance)", () => {
     let submittedPrompt: string | undefined = "not-submitted";
     const action = vi.fn(async (_prev: any, formData: FormData) => {
       submittedPrompt = (formData.get("prompt") as string) || undefined;
+
       return {};
     });
 
@@ -41,6 +42,7 @@ describe("AgentForm (Acceptance)", () => {
     const textarea = container.querySelector(
       'textarea[name="prompt"]',
     ) as HTMLTextAreaElement;
+
     expect({
       value: textarea.value,
       placeholder: textarea.placeholder,

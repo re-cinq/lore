@@ -8,6 +8,7 @@ describe("seedAgentDefaults – nullify duplicate project fields", () => {
     const mockPool: Pick<PgPool, "query"> = {
       async query(sql: string, _params?: unknown[]) {
         sqls.push(sql);
+
         return { rows: [], rowCount: 0 } as any;
       },
     };
