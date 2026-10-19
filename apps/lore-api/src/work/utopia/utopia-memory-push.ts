@@ -3,6 +3,7 @@
 import {
   episodeDocument,
   memoryDocument,
+  repoOfRef,
   type MirroredEpisode,
 } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import {
@@ -40,7 +41,7 @@ export async function mirrorEpisode(
   env: UtopiaEnv = process.env,
 ): Promise<void> {
   const base = utopiaConfigured(env)
-    ? await memoryBaseOf(pool, episode.ref, env)
+    ? await memoryBaseOf(pool, repoOfRef(episode.ref), env)
     : null;
 
   if (base) {

@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import {
   episodeDocument,
   memoryDocument,
+  REF_REPO_PATTERN,
   type IngestDocument,
   type MirroredMemory,
 } from "@re-cinq/lore-shared/utopia/memory-documents.js";
@@ -117,7 +118,7 @@ export async function episodeRowsAfter(
     `SELECT e.id, e.content, to_json(e.created_at) #>> '{}' AS created_at
        FROM memory.episodes e
       WHERE ($1::timestamptz IS NULL OR (e.created_at, e.id) > ($1::timestamptz, $2::uuid))
-        AND ${scopeOf(base, "e.ref", 4)}
+        AND ${scopeOf(base, EPISODE_REPO, 4)}
       ORDER BY e.created_at, e.id LIMIT $3`,
     [at, id, page.limit, ...repoParam(base)],
   );
@@ -127,6 +128,9 @@ export async function episodeRowsAfter(
     document: episodeDocument({ ...row, createdAt: row.created_at }),
   }));
 }
+
+// The repo an episode's ref names, read with the live push's pattern (a constant, never input).
+const EPISODE_REPO = `substring(e.ref from '${REF_REPO_PATTERN}')`;
 
 /** A repo's rows by their repo; the org base's are those with none, or with a repo Lore does not hold. */
 function scopeOf(base: MemoryBase, column: string, repoAt: number): string {
