@@ -26,7 +26,7 @@ export interface LoopTickDeps {
   activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null>;
+  ): Promise<{ id: string; status: string } | null>;
   listIssues(repo: string): Promise<IssueRef[]>;
   createTask(input: {
     description: string;
@@ -142,7 +142,9 @@ async function pickBacklogTicket(
       continue;
     }
 
-    if (await deps.activeTaskByIssue(repo, candidate.number)) {
+    const task = await deps.activeTaskByIssue(repo, candidate.number);
+
+    if (task && task.status !== "completed") {
       guarded.push(candidate.number);
       continue;
     }

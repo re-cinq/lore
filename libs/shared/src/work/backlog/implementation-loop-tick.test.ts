@@ -266,6 +266,20 @@ describe("a guarded head does not freeze the queue", () => {
     ]);
   });
 
+  it("picks #302 when its only task is completed and its branch has no open pull request", async () => {
+    const d = deps({
+      listIssues: async () => [issue(302, ["priority:high"])],
+      activeTaskByIssue: async () => ({ id: "6e5db2fc", status: "completed" }),
+      openPrForBranch: async () => null,
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted).toMatchObject([
+      { contextBundle: { github_issue_number: 302 } },
+    ]);
+  });
+
   it("says why when every eligible ticket is guarded, instead of exiting silently", async () => {
     const lines = await loggedLines(async () => {
       const d = deps({
