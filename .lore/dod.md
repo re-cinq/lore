@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Update `parseManifest` to return `[]Manifest` instead of `Manifest`.
-- [ ] Update `run()` in `main.go` to iterate over all valid manifest entries.
-- [ ] Build a combined report containing tests/results from all entries before posting.
+- [x] Update `parseManifest` to return `[]Manifest` instead of `Manifest`.
+- [x] Update `run()` in `main.go` to iterate over all valid manifest entries.
+- [x] Build a combined report containing tests/results from all entries before posting.
 
 ## Out of scope
 

@@ -69,7 +69,7 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", manifestRelPath, err)
 	}
-	m, err := parseManifest(data)
+	manifests, err := parseManifest(data)
 	if err != nil {
 		return err
 	}
@@ -79,15 +79,20 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	}
 
 	ctx := context.Background()
-	report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch}, runConcurrency, os.Stderr)
-	if err != nil {
-		return err
+	combined := TestReport{Commit: commit, Branch: branch}
+	for _, m := range manifests {
+		report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch}, runConcurrency, os.Stderr)
+		if err != nil {
+			return err
+		}
+		combined.Tests = append(combined.Tests, report.Tests...)
+		combined.Results = append(combined.Results, report.Results...)
 	}
 
 	if !post {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(report)
+		return enc.Encode(combined)
 	}
 
 	token := os.Getenv("LORE_INGEST_TOKEN")
@@ -115,7 +120,7 @@ func run(startDir string, post bool, stdout io.Writer) error {
 			post: func(ctx context.Context, d ingestDelta) error {
 				return postIngestDelta(ctx, apiBase, token, repo, d, deltaClient)
 			},
-		}, report)
+		}, combined)
 		if err == nil {
 			fmt.Fprintf(os.Stderr, "lore-code-trace: posted incremental test report for %s@%s\n",
 				repo, shortSHA(commit))
@@ -131,12 +136,12 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	if base == "" {
 		return fmt.Errorf("--post requires LORE_API_URL (incremental) or LORE_WEBHOOK_URL (chunked fallback)")
 	}
-	chunks := chunkReport(report, maxChunkBytes)
+	chunks := chunkReport(combined, maxChunkBytes)
 	if err := postReport(ctx, base+"/api/webhook/ci-tests", token, repo, chunks, client); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "lore-code-trace: posted %d test(s) in %d chunk(s) for %s@%s\n",
-		len(report.Tests), len(chunks), repo, shortSHA(commit))
+		len(combined.Tests), len(chunks), repo, shortSHA(commit))
 	return nil
 }
 
