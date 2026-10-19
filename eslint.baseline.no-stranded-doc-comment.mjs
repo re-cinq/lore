@@ -10,6 +10,7 @@
  *
  * Generated 2026-10-19 from 40 findings across 19 files; 6 more added same day
  * after the rule was fixed to handle exported type/interface declarations.
+ * 10 more added same day — files missed in the initial scan.
  */
 export const NO_STRANDED_DOC_COMMENT_BASELINE = [
   "apps/lore-api/src/transport/routes/assembly-lines/run-read.ts",
@@ -37,5 +38,15 @@ export const NO_STRANDED_DOC_COMMENT_BASELINE = [
   "libs/shared/src/outbound/project/chunks/chunks-memory-relocate.ts",
   "libs/shared/src/outbound/project/chunks/chunks-memory.ts",
   "libs/shared/src/outbound/project/leases/lease-backend-db.ts",
+  "libs/shared/src/outbound/project/events/dedupe.ts",
+  "libs/shared/src/outbound/project/events/event-tuning.ts",
+  "libs/shared/src/outbound/project/knowledge/context-assembly-items.ts",
+  "libs/shared/src/outbound/project/lib/platform-github-actions.ts",
+  "libs/shared/src/outbound/project/lib/platform-github-pulls-write.ts",
+  "libs/shared/src/transport/http/body-limits.ts",
+  "libs/shared/src/transport/http/route-options.ts",
+  "libs/shared/src/work/pr-section-check.ts",
+  "libs/shared/src/work/spec-trace/impact-render.ts",
   "libs/shared/src/work/spec-trace/impact-statement-delta.ts",
+  "libs/shared/src/work/spec-trace/statement-pairing.ts",
 ];
