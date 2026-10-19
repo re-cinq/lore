@@ -12,6 +12,7 @@ const repoRoot = join(__dirname, "../..");
 function runEslint(filePath) {
   let output = "";
   let status = 0;
+
   try {
     output = execFileSync(
       "npx",
@@ -22,6 +23,7 @@ function runEslint(filePath) {
     status = error.status;
     output = error.stdout || error.message;
   }
+
   return { status, output };
 }
 
@@ -42,6 +44,7 @@ export function layoutAssemblyLine() {}
 
   let reports;
   const { status, output } = runEslint(filePath);
+
   rmSync(dir, { recursive: true, force: true });
 
   assert.notEqual(status, 0, "ESLint should fail");
@@ -84,9 +87,11 @@ export interface Port {
   );
 
   const { status, output } = runEslint(filePath);
+
   rmSync(dir, { recursive: true, force: true });
 
   let reports;
+
   try {
     reports = JSON.parse(output);
   } catch (e) {
