@@ -1,20 +1,11 @@
-import type { ResolvedDarkFactorySettings } from "../../../domain/dark-factory-settings.js";
 import type { SettingsPort, RepoRecord } from "./settings-port.js";
 
-/** Repo-bound settings; resolution delegated to SettingsPort. */
+/** Repo-bound settings over SettingsPort. */
 export class Settings {
   constructor(
     private readonly repo: string,
     private readonly settings: SettingsPort,
   ) {}
-
-  resolve(): Promise<ResolvedDarkFactorySettings> {
-    return this.settings.resolve(this.repo);
-  }
-
-  resolveOrNull(): Promise<ResolvedDarkFactorySettings | null> {
-    return this.settings.resolveOrNull(this.repo);
-  }
 
   setRepoVariable(name: string, value: string): Promise<void> {
     return this.settings.setRepoVariable(this.repo, name, value);

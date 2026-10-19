@@ -36,10 +36,20 @@ function matchesTaskAndTiming(
   query: AssemblyRunQuery,
 ): boolean {
   return (
-    (query.taskId === undefined || row.taskId === query.taskId) &&
+    matchesTaskAndBranch(row, query) &&
     (query.prNumber === undefined ||
       Number(row.args.pr_number) === query.prNumber) &&
     (query.createdAfter === undefined || row.createdAt >= query.createdAfter)
+  );
+}
+
+function matchesTaskAndBranch(
+  row: AssemblyRunRecord,
+  query: AssemblyRunQuery,
+): boolean {
+  return (
+    (query.taskId === undefined || row.taskId === query.taskId) &&
+    (query.branch === undefined || row.branch === query.branch)
   );
 }
 
@@ -48,22 +58,7 @@ export class AssemblyRunQueryStore {
   constructor(
     private readonly rows: AssemblyRunRecord[],
     private readonly clock: () => Date,
-    private readonly hasOpenClaimByAgent: (
-      runId: string,
-      clusterAgentId: string,
-    ) => boolean,
   ) {}
-
-  private matchesSubjectAndClaim(
-    row: AssemblyRunRecord,
-    query: AssemblyRunQuery,
-  ): boolean {
-    return (
-      (query.subjectKey === undefined || row.subjectKey === query.subjectKey) &&
-      (query.clusterAgentId === undefined ||
-        this.hasOpenClaimByAgent(row.id, query.clusterAgentId))
-    );
-  }
 
   private matchesRunQuery(
     row: AssemblyRunRecord,
@@ -74,7 +69,7 @@ export class AssemblyRunQueryStore {
     return (
       matchesRepoAndKind(row, query, blueprints, statuses) &&
       matchesTaskAndTiming(row, query) &&
-      this.matchesSubjectAndClaim(row, query)
+      (query.subjectKey === undefined || row.subjectKey === query.subjectKey)
     );
   }
 

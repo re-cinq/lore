@@ -1,5 +1,5 @@
 import type { ResolvedAgentDefinition } from "../../../domain/models/agent-definition.js";
-// Agent definitions port (configuration side, project.agentDefs — distinct from AgentRunnerPort's execution side, project.agents.run()). project_id=null is the org default, a set project_id is that repo's override; resolution merges project → org → task-types.yaml.
+// Agent definitions port (configuration side, project.agentDefs). project_id=null is the org default, a set project_id is that repo's override; resolution merges project → org (lore-api seeds the org rows from libs/shared/src/agent-defaults).
 
 /** The resolved per-task-type config; shape lives with the table in models/agent-definition.ts — this is the merged projection, so no id or timestamps. */
 export type AgentDefinition = ResolvedAgentDefinition;
@@ -13,23 +13,16 @@ export interface PodResourcesWrite {
   inheritedConfig: Record<string, unknown> | null;
 }
 
-/** Curated model dropdown for the Agents tab (custom text is still allowed). */
-export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "claude-opus-4-8", label: "Opus 4.8" },
-  { id: "claude-sonnet-4-6", label: "Sonnet 4.6" },
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-  { id: "claude-fable-5", label: "Fable 5" },
-  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
-];
-
-/** The configuration surface of project.agents — read + write agent definitions; read adapters (yaml, http) implement resolve/list and throw on writes. */
-export interface AgentDefsPort {
-  /** The effective definition for a task type in a repo (project → org → yaml), or null. */
+/** Read surface implemented by all adapters. */
+export interface AgentDefsReadPort {
+  /** The effective definition for a task type in a repo (project → org), or null. */
   resolve(repo: string, name: string): Promise<AgentDefinition | null>;
   /** Every effective definition for a repo (org defaults overlaid with project rows). */
   list(repo: string): Promise<AgentDefinition[]>;
+}
+
+/** Write surface implemented only by PgAgentDefs; runner adapters do not carry these methods. */
+export interface AgentDefsWritePort extends AgentDefsReadPort {
   create(repo: string, def: AgentDefinitionInput): Promise<AgentDefinition>;
   update(
     repo: string,
@@ -50,22 +43,30 @@ const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
   return null;
 };
 
-/** Field-merges the precedence layers (project beats org beats yaml default); a null nullable field means "inherit the next layer down". Returns null only when every layer is absent. */
+/** Field-merges the precedence layers (project beats org); a null nullable field means "inherit the org row's". Returns null only when both layers are absent. */
 export function resolveAgentConfig(
   project: AgentDefinition | null,
   org: AgentDefinition | null,
-  yamlDefault: AgentDefinition | null,
 ): AgentDefinition | null {
-  const top = pick(project, org, yamlDefault);
+  const top = pick(project, org);
 
   if (!top) {
     return null;
   }
   // Per FIELD, not per layer: the topmost layer that sets a field wins it, so a project row overriding only the model still inherits the org prompt.
-  const layered: LayeredField = (field) =>
-    pick(project?.[field], org?.[field], yamlDefault?.[field]);
+  const layered: LayeredField = (field) => pick(project?.[field], org?.[field]);
 
-  return mergedFields(top.name, projectIdOf(project), layered);
+  return mergedFields(
+    top.name,
+    projectIdOf(project),
+    layered,
+    pick(testPolicyOf(project), testPolicyOf(org)),
+  );
+}
+
+/** The one config key that inherits across layers: a row that sets config for another reason (a skill, pod resources) must not silently switch a recipe's test guard from `none` back to the `scoped` default. */
+function testPolicyOf(def: AgentDefinition | null): unknown {
+  return def?.config?.test_policy;
 }
 
 function projectIdOf(project: AgentDefinition | null): string | null {
@@ -81,6 +82,7 @@ function mergedFields(
   name: string,
   projectId: string | null,
   layered: LayeredField,
+  testPolicy: unknown,
 ): AgentDefinition {
   return {
     name,
@@ -91,7 +93,18 @@ function mergedFields(
     execution_mode: layered("execution_mode") ?? "claude-code",
     review_required: layered("review_required") ?? false,
     project_id: projectId,
-    // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote.
-    config: layered("config"),
+    // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote. test_policy is the one exception (a guard, not a recipe field).
+    config: withTestPolicy(layered("config"), testPolicy),
   };
+}
+
+function withTestPolicy(
+  config: AgentDefinition["config"],
+  testPolicy: unknown,
+): AgentDefinition["config"] {
+  if (!config || config.test_policy !== undefined || testPolicy === null) {
+    return config;
+  }
+
+  return { ...config, test_policy: testPolicy };
 }

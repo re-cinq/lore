@@ -1,14 +1,25 @@
 /* eslint-disable max-lines -- one class implementing two ports, one delegating method per port method: the length IS the port surface, and splitting the class would put half of GitHub in one file and half in another. */
 import type { Octokit } from "octokit";
-import type { FileChange } from "./github-port.js";
+import type {
+  BranchHistoryOptions,
+  TrackerActivityOptions,
+  CommitDetail,
+  FileChange,
+} from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { buildOctokit } from "./platform-github-auth.js";
+import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type {
+  ReleaseEntry,
+  TagEntry,
+} from "../../../domain/utopia/release-statements.js";
 import type {
   GitHubPort,
   IssueRef,
   IssueFilter,
   IssueState,
   CloseReason,
+  IssueEdit,
   CheckRunInput,
 } from "./github-port.js";
 import type {
@@ -26,12 +37,19 @@ import type {
   CheckRun,
   ReviewThread,
   PullFileChange,
+  BranchRule,
+  Mergeability,
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
 import * as issues from "./platform-github-issues.js";
+import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
+import { listBranchHistory } from "./platform-github-history.js";
+import { listTrackerActivity } from "./platform-github-tracker.js";
+import { listReleases, listTags } from "./platform-github-releases.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
+import * as branchRule from "./platform-github-branch-rule.js";
 import * as pullsReviewReads from "./platform-github-pulls-review-reads.js";
 import * as pullsWrite from "./platform-github-pulls-write.js";
 import * as actionsReads from "./platform-github-actions.js";
@@ -75,6 +93,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return issues.getIssueLabels(await this.octo(), repo, number);
   }
 
+  async listOpenBlockers(repo: string, number: number): Promise<number[]> {
+    return issues.listOpenBlockers(await this.octo(), repo, number);
+  }
+
   async createIssue(
     repo: string,
     title: string,
@@ -82,6 +104,27 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     labels: string[] = ["lore-managed"],
   ): Promise<IssueRef> {
     return issues.createIssue(await this.octo(), repo, { title, body, labels });
+  }
+
+  async addSubIssue(
+    repo: string,
+    parentNumber: number,
+    childNumber: number,
+  ): Promise<void> {
+    return issueLinks.addSubIssue(
+      await this.octo(),
+      repo,
+      parentNumber,
+      childNumber,
+    );
+  }
+
+  async updateIssue(
+    repo: string,
+    number: number,
+    edit: IssueEdit,
+  ): Promise<void> {
+    return issueLinks.updateIssue(await this.octo(), repo, number, edit);
   }
 
   async listLabels(repo: string): Promise<string[]> {
@@ -101,6 +144,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     body: string,
   ): Promise<void> {
     return issues.commentOnIssue(await this.octo(), repo, number, body);
+  }
+
+  async updateIssueComment(
+    repo: string,
+    id: number,
+    body: string,
+  ): Promise<void> {
+    return issues.updateIssueComment(await this.octo(), repo, id, body);
   }
 
   async closeIssue(
@@ -149,15 +200,48 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return this.octo().then((ok) => fetchDefaultBranch(ok, repo));
   }
 
-  async listCommitsSince(
+  async branchHeadSha(repo: string, branch: string): Promise<string> {
+    const { git } = (await this.octo()).rest;
+
+    return repoContent.branchHeadSha(git, repo, branch);
+  }
+
+  async commitEmailOf(repo: string, login: string): Promise<string | null> {
+    return repoContent.commitEmailOf(await this.octo(), repo, login);
+  }
+
+  async listBranchHistory(
     repo: string,
-    since: string,
-  ): Promise<Array<{ sha: string; files: string[] }>> {
-    return repoContent.listCommitsSince(await this.octo(), repo, since);
+    branch: string,
+    opts: BranchHistoryOptions,
+  ): Promise<CommitDetail[]> {
+    return listBranchHistory(await this.octo(), repo, branch, opts);
+  }
+
+  async listTrackerActivity(
+    repo: string,
+    opts: TrackerActivityOptions,
+  ): Promise<TrackedEntry[]> {
+    return listTrackerActivity(await this.octo(), repo, opts);
+  }
+
+  async listReleases(repo: string): Promise<ReleaseEntry[]> {
+    return listReleases(await this.octo(), repo);
+  }
+
+  async listTags(repo: string): Promise<TagEntry[]> {
+    return listTags(await this.octo(), repo);
   }
 
   async branchExists(repo: string, branch: string): Promise<boolean> {
     return repoContent.branchExists(await this.octo(), repo, branch);
+  }
+
+  async branchMerged(
+    repo: string,
+    branch: string,
+  ): Promise<boolean | undefined> {
+    return repoContent.branchMerged(await this.octo(), repo, branch);
   }
 
   async createBranch(
@@ -202,6 +286,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsRead.list(await this.octo(), repo);
   }
 
+  async listMergedSince(repo: string, since: string): Promise<PullRef[]> {
+    return pullsRead.listMergedSince(await this.octo(), repo, since);
+  }
+
   async get(repo: string, number: number): Promise<PullRef | null> {
     return pullsRead.get(await this.octo(), repo, number);
   }
@@ -224,6 +312,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async getStats(repo: string, number: number): Promise<PullStats> {
     return pullsRead.getStats(await this.octo(), repo, number);
+  }
+
+  async getBranchRule(repo: string, branch: string): Promise<BranchRule> {
+    return branchRule.getBranchRule(await this.octo(), repo, branch);
+  }
+
+  async getMergeability(repo: string, number: number): Promise<Mergeability> {
+    return branchRule.getMergeability(await this.octo(), repo, number);
   }
 
   async changedFileCount(
@@ -340,6 +436,22 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsWrite.merge(await this.octo(), repo, number, method);
   }
 
+  async enablePullRequestAutoMerge(
+    prId: string,
+    mergeMethod?: MergeMethod,
+  ): Promise<void> {
+    return pullsWrite.enablePullRequestAutoMerge(
+      await this.octo(),
+      prId,
+      mergeMethod,
+    );
+  }
+
+  // eslint-disable-next-line re-lint/no-negative-names
+  async disablePullRequestAutoMerge(prId: string): Promise<void> {
+    return pullsWrite.disablePullRequestAutoMerge(await this.octo(), prId);
+  }
+
   async open(repo: string, branch: string, draft: PullDraft): Promise<PullRef> {
     return pullsWrite.open(await this.octo(), repo, branch, draft);
   }
@@ -356,19 +468,27 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsWrite.markReady(await this.octo(), repo, number);
   }
 
+  async close(repo: string, number: number): Promise<void> {
+    return pullsWrite.close(await this.octo(), repo, number);
+  }
+
   async resolveReviewThread(threadId: string): Promise<void> {
     return pullsWrite.resolveReviewThread(await this.octo(), threadId);
   }
 
   // ── auth ────────────────────────────────────────────────────────────
 
-  /** GitHub App installation token for the git-auth helper's clone/push credential; not on GitHubPort — consumers depend on the structural shape, keeping the Project facade token-free. Always FRESH (octokit caches tokens up to 59 minutes, so a cached one can die mid-run) and, given a repo, scoped to that one repo. */
-  async getInstallationToken(repo?: string): Promise<string> {
+  /** GitHub App installation token for the git-auth helper's clone/push credential; not on GitHubPort — consumers depend on the structural shape, keeping the Project facade token-free. Always FRESH (octokit caches tokens up to 59 minutes, so a cached one can die mid-run) and, given a repo, scoped to that one repo. Given `permissions`, the token carries only those, not every permission the App holds. */
+  async getInstallationToken(
+    repo?: string,
+    permissions?: Record<string, "read" | "write">,
+  ): Promise<string> {
     const ok = await this.octo();
     const auth = (await ok.auth({
       type: "installation",
       refresh: true,
       ...(repo ? { repositoryNames: [repo.split("/")[1]] } : {}),
+      ...(permissions ? { permissions } : {}),
     })) as { token: string };
 
     return auth.token;

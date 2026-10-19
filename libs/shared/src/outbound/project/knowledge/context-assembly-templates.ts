@@ -77,3 +77,13 @@ export function getTemplate(name: string): Template {
     }
   );
 }
+
+/** The sections an assembly reads. `cross_repo` only when explicitly requested: a linked repo's context is useful when someone asked for it and noise when they did not. */
+export function activeSections(
+  template: Template,
+  options: { crossRepo?: boolean },
+): TemplateSection[] {
+  return template.sections.filter(
+    (section) => section.source !== "cross_repo" || options.crossRepo,
+  );
+}

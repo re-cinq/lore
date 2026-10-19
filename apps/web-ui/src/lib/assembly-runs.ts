@@ -15,31 +15,56 @@ export * from "./assembly-run-rows";
 export interface AssemblyRunFilter {
   status?: string;
   repo?: string;
-  clusterAgentId?: string;
+  /** What the run works on, e.g. `plan:<id>`. */
+  subjectKey?: string;
+  blueprint?: string;
+  /** `lore`: only the runs Lore's own engine walked (Postgres). */
+  engine?: "lore";
   limit?: number;
 }
 
-/** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */
+/** The run list, filterable by status, repo, subject and blueprint (all SQL-side). Empty on pre-0025 DBs. */
 export async function fetchAssemblyRuns(
   opts: AssemblyRunFilter = {},
 ): Promise<AssemblyRun[]> {
   return readRuns(`?${assemblyRunFilterParams(opts)}`);
 }
 
+/** A plan's planning run — its open one, else the newest that was not cancelled, else its newest — or null before one has started. The run is keyed on the plan (`plan:<id>`, the subject the Floor stamps); a newer run can be over while an older one was reopened, and a shell run a migration cancelled after folding its steps into another run (#2154) must not hide the run that did the work. */
+export async function fetchPlanRun(
+  repo: string,
+  planId: string,
+): Promise<AssemblyRun | null> {
+  const runs = await fetchAssemblyRuns({
+    repo,
+    subjectKey: `plan:${planId}`,
+    blueprint: "feature-planning",
+  });
+
+  return (
+    runs.find((run) => OPEN_RUN.has(run.status)) ??
+    runs.find((run) => run.outcome !== CANCELLED) ??
+    runs.at(0) ??
+    null
+  );
+}
+
+const OPEN_RUN = new Set(["queued", "running"]);
+const CANCELLED = "cancelled";
+
 function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const params = new URLSearchParams();
+  const filters: Array<[string, string | undefined]> = [
+    ["status", opts.status],
+    ["repo", opts.repo],
+    ["subject_key", opts.subjectKey],
+    ["blueprint", opts.blueprint],
+    ["engine", opts.engine],
+  ];
 
-  if (opts.status) {
-    params.set("status", opts.status);
-  }
-
-  if (opts.repo) {
-    params.set("repo", opts.repo);
-  }
-
-  if (opts.clusterAgentId) {
-    params.set("cluster_agent_id", opts.clusterAgentId);
-  }
+  filters
+    .filter((filter): filter is [string, string] => Boolean(filter[1]))
+    .forEach(([name, value]) => params.set(name, value));
   params.set("limit", String(opts.limit ?? 50));
 
   return params;
@@ -96,6 +121,16 @@ export async function fetchAssemblyRunNodes(
   const { nodes } = result.data;
 
   return nodes.map(toAssemblyRunNode);
+}
+
+/** Whether the floor holds a newer version of the run's assembly line — false for any run the floor does not have, the legacy runs Lore's own engine walked included. */
+export async function hasAssemblyRunUpgrade(id: string): Promise<boolean> {
+  const result = await apiFetch<{ available: boolean }>(
+    "lore-api",
+    `/api/assembly-runs/${encodeURIComponent(id)}/upgrade`,
+  );
+
+  return result.status === "ok" && result.data.available;
 }
 
 /** A line's usage so far, or null on no-usage-yet/any error (a pre-0037 DB included) — reads `pipeline.agent_run_turns`, not `llm_calls`, since turns arrive mid-stream while a cost row lands only when the run ends; summed SQL-side (migration 0037 grants `lore_ui` SELECT). */

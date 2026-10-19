@@ -45,13 +45,13 @@ describe("createTask trust gate", () => {
     },
   );
 
-  it("still refuses an implementation task at trust level docs", async () => {
+  it("refuses an implementation-loop task at trust level docs", async () => {
     const { pool } = poolWithTrust("docs");
 
     await expect(
       createTask(pool, {
         description: "build it",
-        taskType: "implementation",
+        taskType: "implementation-loop",
         targetRepo: "o/r",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
@@ -119,4 +119,57 @@ describe("createTask group linking", () => {
     expect(insert?.[0]).not.toContain("task_group_id");
     expect(insert?.[1]).toMatchObject({ length: 6 });
   });
+});
+
+describe("createTask issue linking", () => {
+  it("records issue #2261 and its url on the task it creates", async () => {
+    const { pool, query } = poolWithTrust("full");
+
+    await createTask(pool, {
+      description: "T001",
+      taskType: "onboard",
+      targetRepo: "o/r",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+
+    const update = query.mock.calls.find(([sql]) =>
+      sql.includes("SET issue_number"),
+    );
+
+    expect(update?.[1]).toEqual([
+      2261,
+      "https://github.com/o/r/issues/2261",
+      "task-1",
+    ]);
+  });
+
+  it("writes no issue for a task created without one", async () => {
+    const { pool, query } = poolWithTrust("full");
+
+    await createTask(pool, {
+      description: "d",
+      taskType: "onboard",
+      targetRepo: "o/r",
+    });
+
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes("SET issue_number")),
+    ).toBe(false);
+  });
+});
+
+describe("spec-task is refused at every trust level, since nothing runs one", () => {
+  it.each(["docs", "tests", "implementation", "full"])(
+    "refuses a spec-task at trust level %s, pointing at the backlog loop",
+    async (level) => {
+      await expect(
+        createTask(poolWithTrust(level).pool, {
+          description: "T001 add the issue-triage line",
+          taskType: "spec-task",
+          targetRepo: "o/r",
+        }),
+      ).rejects.toThrow(/The "spec-task" task type was removed/);
+    },
+  );
 });

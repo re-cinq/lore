@@ -12,10 +12,15 @@ import {
   registerResponse,
   applyRequestBody,
   errorResponses,
+  registerStandalone,
   type JsonSchema,
   type Coverage,
 } from "./operation-responses.js";
 import { CATEGORY_ORDER, tagFor } from "./route-categories.js";
+import {
+  STANDALONE_SCHEMAS,
+  WEBSOCKET_EXTENSION,
+} from "./standalone-schemas.js";
 
 export type { Coverage } from "./operation-responses.js";
 export { tagFor } from "./route-categories.js";
@@ -44,6 +49,7 @@ export interface OpenApiDocument {
     schemas: Record<string, JsonSchema>;
     responses: Record<string, JsonSchema>;
   };
+  "x-websocket": typeof WEBSOCKET_EXTENSION;
 }
 
 export interface GenerateOptions {
@@ -111,6 +117,7 @@ export function generateOpenApi(
   const coverage = emptyCoverage();
 
   collectPaths(routes, { coverage, schemas, paths });
+  registerStandalone(STANDALONE_SCHEMAS, schemas);
 
   const usedTags = new Set<string>(
     Object.values(paths).flatMap((pathItem) =>
@@ -296,17 +303,22 @@ function openApiDocument(input: {
 
   return {
     openapi: "3.1.0",
-    info: {
-      title: API_TITLE,
-      version: opts.version ?? DEFAULT_VERSION,
-      description: DOCUMENT_DESCRIPTION,
-    },
+    info: documentInfo(opts),
     // Defaults to `/` when LORE_API_URL is unset; OpenAPI requires non-empty servers list.
     servers: [{ url: opts.serverUrl ?? "/" }],
     // Only categories actually in use, in canonical sidebar order.
     tags: CATEGORY_ORDER.filter((c) => usedTags.has(c.name)),
     paths: byKey(paths),
     components: documentComponents(schemas),
+    "x-websocket": WEBSOCKET_EXTENSION,
+  };
+}
+
+function documentInfo(opts: GenerateOptions): OpenApiDocument["info"] {
+  return {
+    title: API_TITLE,
+    version: opts.version ?? DEFAULT_VERSION,
+    description: DOCUMENT_DESCRIPTION,
   };
 }
 

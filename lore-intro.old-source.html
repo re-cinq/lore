@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lore</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { font-family: "IBM Plex Sans", sans-serif; color: #1f2323; font-size: 15px; line-height: 1.4; }
+  .slide { position: relative; width: 1280px; height: 720px; padding: 18px 56px 0 56px; overflow: hidden; page-break-after: always; break-after: page; background: #fff; }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+  .nav { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #9a9f9f; letter-spacing: .01em; }
+  .nav b { color: #1f2323; font-weight: 500; }
+  .nav span + span { margin-left: 18px; }
+  .tabs { display: flex; border: 1px solid #d9dcdc; margin-top: 8px; }
+  .tab { flex: 1; display: flex; align-items: baseline; justify-content: space-between; padding: 9px 14px; border-right: 1px solid #d9dcdc; font-size: 14px; font-weight: 600; }
+  .tab:last-child { border-right: 0; }
+  .tab .n { margin-right: 8px; font-weight: 600; }
+  .tab .k { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: #9a9f9f; font-weight: 400; }
+  .tab.on { background: #1d2121; color: #fff; }
+  .tab.on .k { color: #b8bebe; }
+  h1 { font-family: "Archivo", sans-serif; font-weight: 600; font-size: 40px; letter-spacing: -.01em; margin: 18px 0 4px 0; line-height: 1.1; }
+  h1.big { font-size: 56px; margin-top: 150px; }
+  .sub { color: #5f6666; font-size: 17px; margin: 0 0 18px 0; max-width: 920px; }
+  .label { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #5f6666; margin: 0 0 10px 0; }
+  .teal { color: #0f5f5c; }
+  .tag { display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 12px; padding: 3px 10px; border: 1px solid #0f5f5c; background: #dcecea; color: #0f3f3d; white-space: nowrap; }
+  .tag.ghost { border: 1px dashed #9a9f9f; background: #fff; color: #5f6666; }
+  .tag.dark { border-color: #1d2121; background: #1d2121; color: #fff; }
+  .tag.human { border-color: #9a5a00; background: #fbeed6; color: #6b3f00; }
+  .tag.red { border-color: #b4321e; background: #fde7e3; color: #8a2414; }
+  .cols { display: flex; gap: 40px; }
+  .col { flex: 1; min-width: 0; }
+  .card { border: 1px solid #d9dcdc; padding: 16px 18px; background: #fff; }
+  .card.grey { background: #f3f4f4; border-color: #f3f4f4; }
+  .num { font-family: "IBM Plex Mono", monospace; font-size: 22px; color: #0f5f5c; font-weight: 500; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #5f6666; font-weight: 400; background: #e9ebeb; padding: 8px 12px; }
+  td { padding: 10px 12px; border-bottom: 1px solid #d9dcdc; vertical-align: top; }
+  tr:last-child td { border-bottom: 1px solid #d9dcdc; }
+  td.k { font-weight: 600; width: 34%; }
+  td.arrow { color: #0f5f5c; width: 24px; text-align: center; }
+  .quote { border-left: 3px solid #0f5f5c; padding: 4px 0 4px 14px; margin: 12px 0; font-size: 14.5px; }
+  .quote b { font-weight: 600; }
+  table.tight { font-size: 12.8px; } table.tight td { padding: 6px 12px; } table.tight th { padding: 6px 12px; } table.tight td.k { width: auto; }
+  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; }
+  .step .tag { margin-top: 3px; min-width: 150px; text-align: center; }
+  .step h3 { margin: 0 0 3px 0; font-size: 16px; font-weight: 600; }
+  .step h3 small { font-weight: 400; color: #5f6666; font-size: 13px; margin-left: 8px; }
+  .step p { margin: 0; color: #2d3333; font-size: 14px; }
+  .list { margin: 0; padding: 0; list-style: none; }
+  .list li { display: block; padding-left: 26px; margin: 0 0 8px 0; font-size: 14px; }
+  .list li .i { display: inline-block; font-family: "IBM Plex Mono", monospace; color: #0f5f5c; width: 26px; margin-left: -26px; }
+  .list li .i.x { color: #b4321e; } .list li .i.r { color: #b07a00; }
+  .foot { position: absolute; left: 56px; right: 56px; bottom: 18px; border-top: 1px solid #d9dcdc; padding-top: 8px; display: flex; justify-content: space-between; font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: #5f6666; }
+  .code { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; background: #f3f4f4; padding: 14px 16px; white-space: pre; line-height: 1.5; color: #2d3333; }
+  .code .c { color: #0f5f5c; } .code .d { color: #9a9f9f; } .code .h { color: #9a5a00; }
+  .hstrip { border: 1px solid #d9dcdc; border-left: 4px solid #9a5a00; background: #fffaf2; padding: 10px 14px; font-size: 13.5px; display: flex; gap: 14px; align-items: flex-start; }
+  .hstrip .tag { margin-top: 1px; }
+  .hstrip b { font-weight: 600; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  svg text { font-family: "IBM Plex Mono", monospace; }
+  .band { fill: #fff; stroke: #d9dcdc; }
+  .bandt { font-family: "Archivo", sans-serif; font-weight: 600; font-size: 15px; fill: #1f2323; }
+  .box { fill: #dcecea; stroke: #0f5f5c; }
+  .boxg { fill: #f3f4f4; stroke: #c9cdcd; }
+  .boxh { fill: #fbeed6; stroke: #9a5a00; }
+  .boxd { fill: #1d2121; stroke: #1d2121; }
+  .sm { font-size: 10px; fill: #5f6666; }
+  .lbl { font-size: 10px; fill: #0f5f5c; }
+  .edge { stroke: #5f6666; fill: none; }
+  .edget { stroke: #0f5f5c; fill: none; }
+  .edgea { stroke: #b07a00; fill: none; }
+  .edgeh { stroke: #9a5a00; fill: none; stroke-dasharray: 4 3; }
+  .t { font-size: 12px; fill: #1f2323; }
+  .legend { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #5f6666; margin-top: 6px; }
+</style>
+</head>
+<body>
+<section class="slide">
+  <h1 class="big" style="margin-top:130px">Lore</h1>
+  <p class="sub" style="font-size:19px">Four layers that run the software factory, and the three assembly lines that run on them. Agents do the work. People decide.</p>
+  <div class="grid4" style="margin-top:28px">
+    <div class="card"><div class="num">01</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">ai-agent-subsystem</div><div class="mono" style="font-size:11.5px;color:#5f6666">one agent run = one Kubernetes resource</div></div>
+    <div class="card"><div class="num">02</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">Floor</div><div class="mono" style="font-size:11.5px;color:#5f6666">assembly lines · runs · the queue</div></div>
+    <div class="card"><div class="num">03</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">Lore</div><div class="mono" style="font-size:11.5px;color:#5f6666">GitHub · stations · context · people</div></div>
+    <div class="card"><div class="num">04</div><div style="font-weight:600;font-size:17px;margin:6px 0 4px">Knowledge graph</div><div class="mono" style="font-size:11.5px;color:#5f6666">what the org knows, with its source</div></div>
+  </div>
+  <div class="foot"><span>Lore · Oct 2026</span><span>1 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span><b>01 Layers</b></span><span>02 Assembly lines</span></div><div class="tabs"><div class="tab on"><span><span class="n">1</span>The map</span><span class="k">four layers</span></div><div class="tab"><span><span class="n">2</span>Who owns what</span><span class="k">owns · talks to · never</span></div><div class="tab"><span><span class="n">3</span>One run</span><span class="k">event → visit → pod → report</span></div></div>
+  <h1>Four layers, each with one job</h1>
+  <p class="sub" style="margin-bottom:8px">Every teal arrow is an HTTP call made by the layer that needs something: nothing pushes into a pod or into the floor. Amber is where people act.</p>
+  <svg width="1168" height="450" viewBox="0 0 1168 450"><defs>
+  <marker id="mt" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f5f5c"/></marker>
+  <marker id="mg" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f6666"/></marker>
+  <marker id="mh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9a5a00"/></marker>
+</defs><g><rect x="130" y="0" width="910" height="74" class="boxg"/><text x="146" y="28" class="bandt">04 · Knowledge graph</text><text x="146" y="48" class="sm" style="font-size:11px">what the organisation knows, every fact with its source, a confidence tier and a validity window</text><text x="146" y="65" class="lbl" style="font-size:11px">PostgreSQL + pgvector: conventions · specs · memories · facts   ·   Dgraph: spec statement ↔ test ↔ code   ·   Git: specs · ADRs · definitions</text><rect x="130" y="122" width="910" height="74" class="band"/><text x="146" y="150" class="bandt">03 · Lore</text><text x="146" y="170" class="sm" style="font-size:11px">owns GitHub and the people-facing surfaces; starts lines; runs every GitHub action a line takes as a service station</text><text x="146" y="187" class="lbl" style="font-size:11px">lore-api · event-router · stations · lore-mcp gateway · web UI</text><rect x="130" y="244" width="910" height="74" class="band"/><text x="146" y="272" class="bandt">02 · Floor</text><text x="146" y="292" class="sm" style="font-size:11px">the workflow engine: stores definitions, walks runs, hands out work; never calls out, does none of the work itself</text><text x="146" y="309" class="lbl" style="font-size:11px">assembly lines (definitions) · assembly runs (visits are the truth) · the queue (workers claim) · cluster-agent</text><rect x="130" y="366" width="910" height="74" class="band"/><text x="146" y="394" class="bandt">01 · ai-agent-subsystem</text><text x="146" y="414" class="sm" style="font-size:11px">Kubernetes operator: one agent run is one resource, its result is the resource's status; vendor-neutral</text><text x="146" y="431" class="lbl" style="font-size:11px">AgentDefinition → Station → Agent → Job → Pod   ·   Claude · Gemini · any command</text><line x1="300" y1="122" x2="300" y2="74" class="edget" marker-end="url(#mt)"/><text x="310" y="102.0" class="lbl" style="font-size:11px">writes what runs and merges taught; CI ingest</text><line x1="720" y1="122" x2="720" y2="74" class="edget" marker-end="url(#mt)"/><text x="730" y="102.0" class="lbl" style="font-size:11px">reads: one context call per task</text><line x1="300" y1="196" x2="300" y2="244" class="edget" marker-end="url(#mt)"/><text x="310" y="224.0" class="lbl" style="font-size:11px">POST /events: start a line · pipelines put at boot</text><line x1="720" y1="196" x2="720" y2="244" class="edget" marker-end="url(#mt)"/><text x="730" y="224.0" class="lbl" style="font-size:11px">stations claim their dispatches, post reports</text><line x1="300" y1="318" x2="300" y2="366" class="edget" marker-end="url(#mt)"/><text x="310" y="346.0" class="lbl" style="font-size:11px">cluster-agent creates one Agent per visit</text><line x1="720" y1="366" x2="720" y2="318" class="edget" marker-end="url(#mt)"/><text x="730" y="346.0" class="lbl" style="font-size:11px">pod: brief in; turns and cost out; lore-mcp for context</text><text x="10" y="148" class="t">People</text><line x1="70" y1="144" x2="130" y2="144" class="edgeh" marker-end="url(#mh)"/><text x="10" y="162" class="sm">web UI · plans</text><text x="10" y="175" class="sm">PR threads · MCP</text><text x="10" y="270" class="t">GitHub</text><line x1="72" y1="266" x2="130" y2="266" class="edge" marker-end="url(#mg)"/><line x1="130" y1="278" x2="80" y2="278" class="edge" marker-end="url(#mg)"/><text x="10" y="296" class="sm">webhooks in</text><text x="10" y="309" class="sm">PRs, checks out</text></g></svg>
+  <div class="foot"><span>01 Layers · Oct 2026</span><span>2 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span><b>01 Layers</b></span><span>02 Assembly lines</span></div><div class="tabs"><div class="tab"><span><span class="n">1</span>The map</span><span class="k">four layers</span></div><div class="tab on"><span><span class="n">2</span>Who owns what</span><span class="k">owns · talks to · never</span></div><div class="tab"><span><span class="n">3</span>One run</span><span class="k">event → visit → pod → report</span></div></div>
+  <h1>Who owns what, and what each layer refuses to do</h1>
+  <p class="sub" style="margin-bottom:12px">The relations hold because each layer has a short list of things it will never do. That is what lets any of them be swapped or run elsewhere.</p>
+  <table class="tight">
+    <tr><th style="width:15%">Layer</th><th style="width:31%">Owns</th><th style="width:24%">Talks to</th><th>Never does</th></tr>
+    <tr><td class="k">ai-agent-subsystem</td><td>Running one agent: the Agent resource, its Job and pod, the clone, the agent CLI, the supervised process and its streamed output. Vendor-neutral: Claude, Gemini or any command.</td><td>Kubernetes, the model vendor, and the floor's brief and sink endpoints. The pod calls out; nothing calls in.</td><td>Knows nothing about Lore, GitHub, assembly lines or what the work is for. Runs no code of ours inside the pod beyond the supervisor.</td></tr>
+    <tr><td class="k">Floor</td><td>Assembly line definitions, assembly runs and their visits, the bag between nodes, the dispatch queue, and the walk that picks the next node by replaying visits.</td><td>Postgres (only the api process), and whoever claims from its queue: its cluster-agent, Lore's service stations.</td><td>Holds no Kubernetes, GitHub or chat client. Never calls out, except to answer a pod's git-credential request. Does none of the work itself.</td></tr>
+    <tr><td class="k">Lore</td><td>GitHub: webhooks in; reviews, PRs, issues, checks and credentials out. The people-facing surfaces: plans, run pages, settings, agent definitions. The context service that agents and laptops read.</td><td>GitHub, the floor (start lines, claim service dispatches, relay run feeds), the knowledge graph, people.</td><td>Dispatches no work and reaches no pod. Never reads the floor's database. Decides nothing a person reserved: merging risky work, approving a plan, changing the rules.</td></tr>
+    <tr><td class="k">Knowledge graph</td><td>What the organisation knows outside the repo in front of the agent: conventions, decisions, specs, memories, facts with source and validity, the statement-to-test-to-code trace, what past work cost.</td><td>Lore's context service (reads); CI ingest and run outcomes (writes).</td><td>Stores no raw monitoring stream and no secrets: every write is redacted, and nothing lands without a source.</td></tr>
+  </table>
+  <div class="hstrip" style="margin-top:12px;padding:7px 14px"><span class="tag human">human</span><span><b>People sit above all four:</b> they change line and agent definitions by pull request, approve plans, answer reviews, merge what is not low-risk, and set the rules under which the factory may act alone.</span></div>
+  <div class="foot"><span>01 Layers · Oct 2026</span><span>3 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span><b>01 Layers</b></span><span>02 Assembly lines</span></div><div class="tabs"><div class="tab"><span><span class="n">1</span>The map</span><span class="k">four layers</span></div><div class="tab"><span><span class="n">2</span>Who owns what</span><span class="k">owns · talks to · never</span></div><div class="tab on"><span><span class="n">3</span>One run</span><span class="k">event → visit → pod → report</span></div></div>
+  <h1>One run, across the layers</h1>
+  <p class="sub" style="margin-bottom:6px">An event comes in, the floor decides the next node and puts a dispatch on its queue, a worker claims it, and the report advances the walk. The same ten steps for every node of every line.</p>
+  <div class="cols">
+    <div class="col" style="flex:1.35"><table class="tight" style="font-size:13px">
+  <tr><th style="width:6%">#</th><th>What happens</th><th style="width:22%">Where</th></tr>
+  <tr><td class="mono teal">1</td><td>Something posts an event: a PR opened, a plan approved, a schedule tick</td><td>Lore → Floor</td></tr>
+  <tr><td class="mono teal">2</td><td>The loop routes it: start a run, or join the run already open on this subject</td><td>Floor</td></tr>
+  <tr><td class="mono teal">3</td><td>The walk replays the run's visits and picks the next node</td><td>Floor</td></tr>
+  <tr><td class="mono teal">4</td><td>A visit opens; its brief is frozen, station and agent definition pinned by content hash</td><td>Floor</td></tr>
+  <tr><td class="mono teal">5</td><td>A dispatch goes on the queue, tagged. Nothing is pushed</td><td>Floor</td></tr>
+  <tr><td class="mono teal">6</td><td>A worker claims it by offering tags: the cluster-agent for an agent node, a Lore station for a service node</td><td>cluster-agent · Lore</td></tr>
+  <tr><td class="mono teal">7</td><td>For an agent node: one Agent resource → Job → Pod. The subsystem runs it</td><td>ai-agent-subsystem</td></tr>
+  <tr><td class="mono teal">8</td><td>The pod reads its brief, posts turns, cost and files to the sink, and reaches Lore through lore-mcp for context and memory</td><td>pod → Floor · Lore</td></tr>
+  <tr><td class="mono teal">9</td><td>Its lifecycle event ends the visit; the report is written and the walk advances in one transaction</td><td>Floor</td></tr>
+  <tr><td class="mono teal">10</td><td>The next node's dispatch, or the run settles and Lore hears it through a line of its own</td><td>Floor → Lore</td></tr>
+</table></div>
+    <div class="col">
+      <p class="label">Three kinds of node</p>
+      <div class="step"><span class="tag">agent</span><div><h3>An agent station</h3><p>The cluster-agent claims it and creates one Agent resource. The pod does the work and reports back itself.</p></div></div>
+      <div class="step"><span class="tag ghost">service</span><div><h3>A service station</h3><p>One of Lore's workers claims it and runs one function: post a review, open a PR, file issues, merge. Every GitHub action a line takes is one of these.</p></div></div>
+      <div class="step"><span class="tag human">human</span><div><h3>A human node</h3><p>Dispatches nothing and waits with no deadline. Lore serves the page: the plan editor, the PR. A person answers with a report or an event.</p></div></div>
+      <div class="quote" style="margin-top:4px"><b>Visits are the truth.</b> A run's status, bag, current node and cost are never stored; they are replayed from its visits. Every visit pins its station and agent definition by content hash, so a run can always be explained.</div>
+    </div>
+  </div>
+  <div class="foot"><span>01 Layers · Oct 2026</span><span>4 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Layers</span><span><b>02 Assembly lines</b></span></div><div class="tabs"><div class="tab on"><span><span class="n">1</span>Code review</span><span class="k">the simple one</span></div><div class="tab"><span><span class="n">2</span>Planning</span><span class="k">plan → spec → tickets</span></div><div class="tab"><span><span class="n">3</span>Implementation</span><span class="k">ticket → merged</span></div><div class="tab"><span><span class="n">4</span>People</span><span class="k">take over anywhere</span></div></div>
+  <h1>Code review: three short lines on one pull request</h1>
+  <p class="sub" style="margin-bottom:6px">The simplest family, and the one every other line relies on. One agent station reads, one Lore station posts. Everything GitHub-shaped is a service station, so the agent never touches GitHub.</p>
+  <div class="cols">
+    <div class="col" style="flex:1.2"><svg width="640" height="330" viewBox="0 0 640 330"><defs>
+  <marker id="m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f6666"/></marker>
+  <marker id="mt" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f5f5c"/></marker>
+  <marker id="ma" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b07a00"/></marker>
+  <marker id="mh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9a5a00"/></marker>
+</defs><g font-size="12"><text x="10" y="14" class="sm" style="letter-spacing:.08em">CODE-REVIEW · SUBJECT: THE PR, ONE OPEN RUN PER PR</text><rect x="10" y="46" width="120" height="40" class="box"/><text x="70.0" y="70.0" text-anchor="middle" class="t">review</text><rect x="190" y="46" width="120" height="40" class="boxg"/><text x="250.0" y="70.0" text-anchor="middle" class="t">post-review</text><rect x="370" y="46" width="90" height="40" class="boxd"/><text x="415.0" y="70.0" text-anchor="middle" class="t" style="fill:#fff">done</text><line x1="130" y1="66" x2="190" y2="66" class="edge" marker-end="url(#m)"/><text x="160" y="60" text-anchor="middle" class="sm">verdict</text><line x1="310" y1="66" x2="370" y2="66" class="edge" marker-end="url(#m)"/><path d="M90,46 C90,22 40,22 40,46" class="edgea" marker-end="url(#ma)"/><text x="140" y="32" class="sm" fill="#b07a00">failed · once</text><path d="M230,86 L230,104 L90,104 L90,86" class="edgea" marker-end="url(#ma)"/><text x="160" y="118" text-anchor="middle" class="sm" fill="#b07a00">post failed → review again, once</text><text x="10" y="152" class="sm" style="letter-spacing:.08em">CODE-REVIEW-RECHECK · SUBJECT: THE PUSHED COMMIT</text><rect x="10" y="166" width="120" height="40" class="box"/><text x="70.0" y="190.0" text-anchor="middle" class="t">recheck</text><rect x="190" y="166" width="120" height="40" class="boxg"/><text x="250.0" y="190.0" text-anchor="middle" class="t">post-review</text><rect x="370" y="166" width="90" height="40" class="boxd"/><text x="415.0" y="190.0" text-anchor="middle" class="t" style="fill:#fff">done</text><line x1="130" y1="186" x2="190" y2="186" class="edge" marker-end="url(#m)"/><line x1="310" y1="186" x2="370" y2="186" class="edge" marker-end="url(#m)"/><text x="10" y="226" class="sm">judges only the commits since the last verdict; a newer push cancels the open re-check</text><text x="10" y="258" class="sm" style="letter-spacing:.08em">CODE-REVIEW-REPLY · STARTED BY A PERSON'S REPLY IN A THREAD</text><rect x="10" y="272" width="110" height="40" class="boxg"/><text x="65.0" y="296.0" text-anchor="middle" class="t">read-review</text><rect x="170" y="272" width="110" height="40" class="box"/><text x="225.0" y="296.0" text-anchor="middle" class="t">reply</text><rect x="330" y="272" width="110" height="40" class="boxg"/><text x="385.0" y="296.0" text-anchor="middle" class="t">post-reply</text><rect x="490" y="272" width="90" height="40" class="boxd"/><text x="535.0" y="296.0" text-anchor="middle" class="t" style="fill:#fff">done</text><line x1="120" y1="292" x2="170" y2="292" class="edge" marker-end="url(#m)"/><line x1="280" y1="292" x2="330" y2="292" class="edge" marker-end="url(#m)"/><line x1="440" y1="292" x2="490" y2="292" class="edge" marker-end="url(#m)"/><text x="10" y="328" class="sm">"ok, fix it" → the agent pushes the fix and answers · "why?" → it explains · the reply resolves the thread</text></g></svg><div class="legend">teal = agent station · grey = Lore service station · amber = retry edge</div></div>
+    <div class="col">
+      <div class="step"><span class="tag ghost">trigger</span><div><h3>A PR opens or leaves draft</h3><p>GitHub's webhook lands on Lore; the stations service starts the line with the PR as subject. A second start for the same PR joins the open run instead of racing it.</p></div></div>
+      <div class="step"><span class="tag">review</span><div><h3>Reads the whole change in a clone</h3><p>Changed files, callers, tests, the spec statements they touch, the CI verdict through lore-mcp. Cannot install, build or run the suite. Ends with APPROVED or CHANGES_REQUESTED and its findings.</p></div></div>
+      <div class="step"><span class="tag ghost">post-review</span><div><h3>Posts the verdict, inline</h3><p>Each finding on its line with a suggestion; the review names the model and the run. When the run settles, a fourth line closes the check run and the announcement comment.</p></div></div>
+      <div class="hstrip"><span class="tag human">human</span><span>Reply in any thread, comment <span class="mono">@lore review</span> to re-run, or request changes to stop the factory on that PR. Merge stays a person's call unless lights-out is on.</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>02 Assembly lines · Oct 2026</span><span>5 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Layers</span><span><b>02 Assembly lines</b></span></div><div class="tabs"><div class="tab"><span><span class="n">1</span>Code review</span><span class="k">the simple one</span></div><div class="tab on"><span><span class="n">2</span>Planning</span><span class="k">plan → spec → tickets</span></div><div class="tab"><span><span class="n">3</span>Implementation</span><span class="k">ticket → merged</span></div><div class="tab"><span><span class="n">4</span>People</span><span class="k">take over anywhere</span></div></div>
+  <h1>Planning: a plan written together, then a spec, then tickets</h1>
+  <p class="sub" style="margin-bottom:6px">The agent analyses the repository and the knowledge graph and drafts; people and the agent edit the same versioned plan live. Two human nodes hold the line until a person acts: the plan's approval and the spec's merge.</p>
+  <svg width="1168" height="200" viewBox="0 0 1168 200"><defs>
+  <marker id="m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f6666"/></marker>
+  <marker id="mt" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f5f5c"/></marker>
+  <marker id="ma" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b07a00"/></marker>
+  <marker id="mh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9a5a00"/></marker>
+</defs><g font-size="12"><rect x="0" y="40" width="90" height="40" class="box"/><text x="45.0" y="64.0" text-anchor="middle" class="t">analyze</text><rect x="134" y="40" width="104" height="40" class="boxg"/><text x="186.0" y="64.0" text-anchor="middle" class="t">plan-pass-end</text><rect x="282" y="40" width="90" height="40" class="boxh"/><text x="327.0" y="64.0" text-anchor="middle" class="t">author</text><rect x="416" y="40" width="104" height="40" class="box"/><text x="468.0" y="64.0" text-anchor="middle" class="t">analyse-specs</text><rect x="564" y="40" width="80" height="40" class="box"/><text x="604.0" y="64.0" text-anchor="middle" class="t">write</text><rect x="688" y="40" width="104" height="40" class="boxg"/><text x="740.0" y="64.0" text-anchor="middle" class="t">open-spec-pr</text><rect x="836" y="40" width="80" height="40" class="boxh"/><text x="876.0" y="64.0" text-anchor="middle" class="t">merged</text><rect x="960" y="40" width="94" height="40" class="box"/><text x="1007.0" y="64.0" text-anchor="middle" class="t">decompose</text><rect x="1098" y="40" width="70" height="40" class="boxg"/><text x="1133.0" y="64.0" text-anchor="middle" class="t">issues</text><line x1="90" y1="60" x2="134" y2="60" class="edge" marker-end="url(#m)"/><line x1="238" y1="60" x2="282" y2="60" class="edge" marker-end="url(#m)"/><line x1="372" y1="60" x2="416" y2="60" class="edge" marker-end="url(#m)"/><line x1="520" y1="60" x2="564" y2="60" class="edge" marker-end="url(#m)"/><line x1="644" y1="60" x2="688" y2="60" class="edge" marker-end="url(#m)"/><line x1="792" y1="60" x2="836" y2="60" class="edge" marker-end="url(#m)"/><line x1="916" y1="60" x2="960" y2="60" class="edge" marker-end="url(#m)"/><line x1="1054" y1="60" x2="1098" y2="60" class="edge" marker-end="url(#m)"/><text x="394.0" y="52" text-anchor="middle" class="sm" fill="#9a5a00" font-size="9">approve</text><text x="938.0" y="52" text-anchor="middle" class="sm" fill="#9a5a00" font-size="9.5">merge</text><path d="M307.0,40 L307.0,18 L45.0,18 L45.0,40" class="edgea" marker-end="url(#ma)"/><text x="186.0" y="12" text-anchor="middle" class="sm" fill="#b07a00">refine a section → another pass</text><rect x="282" y="140" width="90" height="40" class="box"/><text x="327.0" y="164.0" text-anchor="middle" class="t">validate</text><path d="M327.0,140 L327.0,80" class="edgeh" marker-end="url(#mh)"/><text x="276" y="116" text-anchor="end" class="sm" fill="#9a5a00">Validate button</text><path d="M468.0,80 L468.0,100 L349.0,100 L349.0,80" class="edgea" marker-end="url(#ma)"/><text x="478.0" y="112" class="sm" fill="#b07a00">plan not ready</text><path d="M876.0,80 L876.0,122 L363.0,122 L363.0,80" class="edgea" marker-end="url(#ma)"/><text x="740.0" y="134" text-anchor="middle" class="sm" fill="#b07a00">spec PR sent back → plan again</text><path d="M604.0,80 L604.0,92 L498.0,92 L498.0,80" class="edgea" marker-end="url(#ma)"/><path d="M1133.0,80 L1133.0,92 L1027.0,92 L1027.0,80" class="edgea" marker-end="url(#ma)"/><text x="0" y="196" class="sm">teal = agent station (Claude Sonnet) · grey = Lore service station · amber box = human node, waits with no deadline · amber edge = loop · subject: the plan</text></g></svg>
+  <div class="cols" style="margin-top:10px">
+    <div class="col">
+      <div class="step"><span class="tag">analyze</span><div><h3>Each pass reads, then proposes</h3><p>The repo, similar specs and past outcomes from the knowledge graph; it proposes sections or asks the questions it cannot answer. Every button on the plan page is an event into the one open run.</p></div></div>
+      <div class="step"><span class="tag human">author</span><div><h3>People and the agent edit the same plan</h3><p>Every change is a version. A refine request sends the agent round again; Validate asks for a feasibility check whose result lands as comments. Approval is the decision.</p></div></div>
+    </div>
+    <div class="col">
+      <div class="step"><span class="tag">write</span><div><h3>The approved plan becomes a spec</h3><p>In the fixed format, opened as a pull request people review like code. Sent back, it returns to the plan.</p></div></div>
+      <div class="step"><span class="tag">decompose</span><div><h3>The merged spec becomes tickets</h3><p>Each with "done when these pass", sized for one implementation run. The issues station files them; the backlog loop picks them up.</p></div></div>
+    </div>
+  </div>
+  <div class="foot"><span>02 Assembly lines · Oct 2026</span><span>6 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Layers</span><span><b>02 Assembly lines</b></span></div><div class="tabs"><div class="tab"><span><span class="n">1</span>Code review</span><span class="k">the simple one</span></div><div class="tab"><span><span class="n">2</span>Planning</span><span class="k">plan → spec → tickets</span></div><div class="tab on"><span><span class="n">3</span>Implementation</span><span class="k">ticket → merged</span></div><div class="tab"><span><span class="n">4</span>People</span><span class="k">take over anywhere</span></div></div>
+  <h1>Implementation: one ticket, one line, CI judging every push</h1>
+  <p class="sub" style="margin-bottom:2px">The backlog loop starts one run per ticket. Each visit is a fresh agent in its own pod doing one bounded job; the pull request's own build decides the next node. The line never merges.</p>
+  <div class="cols">
+    <div class="col" style="flex:1.15"><svg width="640" height="330" viewBox="0 0 640 330"><defs>
+  <marker id="m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5f6666"/></marker>
+  <marker id="mt" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f5f5c"/></marker>
+  <marker id="ma" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b07a00"/></marker>
+  <marker id="mh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9a5a00"/></marker>
+</defs><g font-size="12"><rect x="10" y="40" width="110" height="40" class="box"/><text x="65.0" y="64.0" text-anchor="middle" class="t">dod</text><rect x="160" y="40" width="110" height="40" class="box"/><text x="215.0" y="64.0" text-anchor="middle" class="t">open-pr</text><rect x="310" y="40" width="110" height="40" class="box"/><text x="365.0" y="64.0" text-anchor="middle" class="t">tdd-round</text><rect x="490" y="40" width="110" height="40" fill="#fff" stroke="#9a9f9f" stroke-dasharray="4 3"/><text x="545" y="65" text-anchor="middle">await-ci</text><line x1="120" y1="60" x2="160" y2="60" class="edge" marker-end="url(#m)"/><line x1="270" y1="60" x2="310" y2="60" class="edge" marker-end="url(#m)"/><line x1="420" y1="60" x2="490" y2="60" class="edge" marker-end="url(#m)"/><path d="M545,40 C545,8 365,8 365,40" class="edgea" marker-end="url(#ma)"/><text x="455" y="20" text-anchor="middle" class="sm" fill="#b07a00">red · next round · max 12</text><rect x="310" y="140" width="110" height="40" class="box"/><text x="365.0" y="164.0" text-anchor="middle" class="t">repair-build</text><rect x="490" y="140" width="110" height="40" class="box"/><text x="545" y="160" text-anchor="middle" font-size="11">ready-for-</text><text x="545" y="173" text-anchor="middle" font-size="11">review</text><path d="M520,80 L520,110 L380,110 L380,140" class="edgea" marker-end="url(#ma)"/><text x="440" y="100" text-anchor="middle" class="sm" fill="#b07a00">stayed red · max 2</text><path d="M350,140 L350,125 L470,125 L470,85" class="edge" marker-end="url(#m)"/><text x="410" y="138" text-anchor="middle" class="sm">fixed</text><line x1="570" y1="80" x2="570" y2="140" class="edget" marker-end="url(#mt)"/><text x="578" y="113" class="lbl">green</text><rect x="490" y="240" width="110" height="40" fill="#fff" stroke="#9a9f9f" stroke-dasharray="4 3"/><text x="545" y="265" text-anchor="middle">await-pr</text><rect x="310" y="240" width="110" height="40" class="box"/><text x="365.0" y="264.0" text-anchor="middle" class="t">fix-ci</text><rect x="130" y="240" width="110" height="40" class="boxg"/><text x="185.0" y="264.0" text-anchor="middle" class="t">retrospective</text><line x1="545" y1="180" x2="545" y2="240" class="edge" marker-end="url(#m)"/><path d="M490,270 L420,270" class="edgea" marker-end="url(#ma)"/><text x="458" y="262" text-anchor="middle" font-size="9.5" fill="#b07a00">red · max 3</text><path d="M365,240 L365,210 L520,210 L520,240" class="edge" marker-end="url(#m)"/><text x="440" y="204" text-anchor="middle" class="sm">fixed</text><line x1="490" y1="250" x2="240" y2="250" class="edget" marker-end="url(#mt)"/><text x="330" y="292" text-anchor="middle" class="lbl">green · no open threads</text><text x="10" y="320" class="sm">dashed = parked, no pod, resumed by CI or review events · every failure edge ends in retrospective</text></g></svg></div>
+    <div class="col">
+      <div class="step"><span class="tag">dod</span><div><h3>Define done as failing tests</h3><p>Reads the ticket and the spec; writes the fewest red acceptance tests that mean "done" and a one-page brief every later agent reads. A ticket it cannot turn into tests is blocked with the reason.</p></div></div>
+      <div class="step"><span class="tag">tdd-round</span><div><h3>One red-green-refactor round</h3><p>Never edits an acceptance test to make it pass; never runs lint, typecheck or the suite, because CI does on every push.</p></div></div>
+      <div class="step"><span class="tag ghost">await-ci · await-pr</span><div><h3>Parks, costs nothing</h3><p>No pod while CI builds or review runs. Green moves on; red goes to the next round, a repair, or a fix from CI's report. Code review runs on this PR like any other.</p></div></div>
+      <div class="step"><span class="tag ghost">retrospective</span><div><h3>Writes back what happened</h3><p>Episode, memory and cost into the knowledge graph. Then auto-merge is evaluated, or a person merges.</p></div></div>
+      <div class="hstrip" style="padding:7px 14px"><span class="tag human">human</span><span>Push to the branch, request changes to stop the line on that PR, or take over a ticket labeled <span class="mono">lore:blocked</span>; remove the label to hand it back.</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>02 Assembly lines · Oct 2026</span><span>7 / 8</span></div>
+</section>
+<section class="slide">
+  <div class="nav"><span>01 Layers</span><span><b>02 Assembly lines</b></span></div><div class="tabs"><div class="tab"><span><span class="n">1</span>Code review</span><span class="k">the simple one</span></div><div class="tab"><span><span class="n">2</span>Planning</span><span class="k">plan → spec → tickets</span></div><div class="tab"><span><span class="n">3</span>Implementation</span><span class="k">ticket → merged</span></div><div class="tab on"><span><span class="n">4</span>People</span><span class="k">take over anywhere</span></div></div>
+  <h1>The factory does everything a person can do, except decide</h1>
+  <p class="sub" style="margin-bottom:12px">Same branch, same pull request, same tools. At every line a person can step in, and the critical decisions are human nodes or settings the factory cannot change.</p>
+  <table class="tight">
+    <tr><th style="width:13%">Line</th><th style="width:17%">Started by</th><th style="width:30%">The factory does</th><th style="width:22%">A person decides</th><th>How to take over</th></tr>
+    <tr><td class="k">Code review</td><td>A PR opened or pushed; a reply in a thread</td><td>Reads the change in full, posts the verdict with inline findings, re-checks each push, fixes what a reply asks for</td><td>Whether to take a finding; whether to merge</td><td>Reply in the thread; <span class="mono">@lore review</span>; request changes</td></tr>
+    <tr><td class="k">Planning</td><td>A plan created on the plan page</td><td>Analyses repo and knowledge, drafts and refines sections, validates, writes the spec, opens its PR, decomposes it into tickets, files them</td><td>Approve the plan; merge the spec PR (both human nodes)</td><td>Edit the plan live; reopen it; send the spec PR back</td></tr>
+    <tr><td class="k">Implementation</td><td>The backlog loop picking the next ticket</td><td>Red acceptance tests, the code, the draft PR, repairs from CI's report, the description, the retrospective</td><td>Merge, unless lights-out is on for low-risk paths; the ticket when the loop parks it</td><td>Push to the branch; remove <span class="mono">lore:blocked</span>; merge by hand</td></tr>
+    <tr><td class="k">The rules</td><td>A person, by pull request or settings</td><td>Nothing. Line definitions, agent definitions, trust levels, allowlists and lights-out are read, never written, by the factory</td><td>All of it; privileged settings take two people</td><td>A pull request on the definitions; the settings page</td></tr>
+  </table>
+  <div class="cols" style="margin-top:14px">
+    <div class="col"><div class="card"><div class="num">#2064</div><div style="font-weight:600;margin:4px 0">Next: a ticket to merged code, by the factory</div><div style="font-size:13.5px;color:#2d3333">The implementation line end to end, the parked re-run, and the hand-back.</div></div></div>
+    <div class="col"><div class="card"><div class="num">#2065</div><div style="font-weight:600;margin:4px 0">Next: a person's PR, corrected by code review</div><div style="font-size:13.5px;color:#2d3333">Blocked at five minutes with a suggested fix, the thread, the re-checks, the merge.</div></div></div>
+  </div>
+  <div class="foot"><span>02 Assembly lines · Oct 2026</span><span>8 / 8</span></div>
+</section>
+</body>
+</html>

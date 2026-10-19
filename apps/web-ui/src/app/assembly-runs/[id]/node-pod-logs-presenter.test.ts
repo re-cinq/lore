@@ -17,9 +17,9 @@ function resp(over: Partial<NodeLogsResponse>): NodeLogsResponse {
 }
 
 describe("nodeLogsUrl", () => {
-  it("builds the proxy path and encodes the agent CR name", () => {
-    expect(nodeLogsUrl("run-1", "05fc5491-review")).toBe(
-      "/api/assembly-runs/run-1/nodes/05fc5491-review/logs",
+  it("builds the proxy path and encodes the run id and the agent CR name", () => {
+    expect(nodeLogsUrl("run/1", "05fc5491-review")).toBe(
+      "/api/assembly-runs/run%2F1/nodes/05fc5491-review/logs",
     );
   });
 });
@@ -55,6 +55,16 @@ describe("unavailableMessage", () => {
 
   it("explains a missing agent", () => {
     expect(unavailableMessage("no-agent")).toMatch(/No agent/);
+  });
+
+  it("says the floor kept no log for a floor run's node whose visit has no records", () => {
+    expect(unavailableMessage("no-records", "floor")).toBe(
+      "The floor kept no log for this node; its transcript is above.",
+    );
+  });
+
+  it("keeps saying no agent was launched for a node of a run on the lore engine", () => {
+    expect(unavailableMessage("no-agent", "lore")).toMatch(/No agent/);
   });
 
   it("falls back for an unknown reason", () => {

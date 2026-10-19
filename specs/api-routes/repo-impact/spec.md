@@ -26,7 +26,7 @@ diff's changed ranges and returns the `ImpactReport` plus pre-shaped Checks-API
 
 - **Method + path**: `POST /api/repos/:owner/:repo/impact`
   (regex `^/api/repos/[^/]+/[^/]+/impact(\?|$)`).
-  Implemented by the [route registration](../../../apps/lore-api/src/app/build-server.ts#L116)
+  Implemented by the [route registration](../../../apps/lore-api/src/app/build-server.ts#L134)
   dispatching to the [`handleImpactRoute` handler](../../../apps/lore-api/src/transport/routes/impact/impact.ts#L48).
 - **Auth scope**: `write`. Matched by `SCOPE_OVERRIDES`
   (`/api/repos/[^/]+/[^/]+/impact(\?|$|/)` → `write`). The write scope reflects
@@ -154,11 +154,11 @@ The body accepts a `docs[]` array carrying the head text of changed spec/ADR fil
 
 `GET …/impact/base` serves the graph baseline and answers `{ graphCommit: null, source: "none" }` rather than erroring when Dgraph is unconfigured, so a missing baseline degrades the check instead of failing it; a request without a token is rejected. ([validated by `impact-base-route:35`](apps/lore-api/src/transport/routes/impact/impact-base-route.test.ts#L30), [validated by `impact-base-route:42`](apps/lore-api/src/transport/routes/impact/impact-base-route.test.ts#L37))
 
-A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L758), [validated by `trace-impact:729`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L771))
+A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L786), [validated by `trace-impact:729`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L799))
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised against a live Dgraph, which PR Checks now
-provides. ([validated by `trace-impact:254`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L240), [validated by `trace-impact:325`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L311), [validated by `trace-impact:404`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L390), [validated by `trace-impact:539`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L589))
+provides. ([validated by `trace-impact:254`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L268), [validated by `trace-impact:325`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L339), [validated by `trace-impact:404`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L418), [validated by `trace-impact:539`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L617))
 
 A 400 for a URL that does not resolve to `owner/repo` cannot be reached through
 the dispatcher (the route regex already requires two path segments before

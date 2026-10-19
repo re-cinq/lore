@@ -1,4 +1,3 @@
-import type { PipelineTask } from "../../../domain/types.js";
 import { enforceTrue } from "../../../lib/enforce.js";
 import {
   PIPELINE_TASK_COLUMNS,
@@ -49,17 +48,6 @@ export type StaleTask = TaskColumn<"id" | "targetRepo" | "taskType"> & {
   age_hours: number;
 };
 
-/** A pending spec-task whose declared dependencies are all satisfied. */
-export type ReadySpecTask = TaskColumn<
-  "id" | "description" | "contextBundle" | "targetRepo" | "taskGroupId"
->;
-
-/** Running/queued spec-task count for one task group (cnt is pg's text COUNT). */
-export interface SpecGroupCount {
-  task_group_id: string;
-  cnt: string;
-}
-
 /** A task parked in `awaiting_approval` that carries an issue (the label gate). */
 export type AwaitingApprovalTask = TaskColumn<"id" | "targetRepo"> & {
   issue_number: number;
@@ -84,7 +72,7 @@ export type MergeableTask = TaskColumn<
   pr_url: string;
   pr_number: number;
   context_bundle: {
-    feature_id?: string;
+    spec_path?: string;
     slug?: string;
     spec_slug?: string;
   } | null;
@@ -107,33 +95,6 @@ export interface InsertTaskInput {
   taskGroupId?: string;
 }
 
-/** Outcome of completing a spec-task: whether it flipped, and its now-ready dependents. */
-export interface CompletedSpecTask {
-  completed: boolean;
-  /** `"<spec_task_id>: <description>"` for each dependent unblocked by this completion. */
-  unblocked: string[];
-}
-
-/** Dependents unblocked by completing specTaskId in specSlug (same-spec tasks listing it in depends_on); shared by both adapters so the predicate stays single-sourced. */
-export function unblockedBy(
-  ready: ReadySpecTask[],
-  specSlug: string,
-  specTaskId: string,
-): string[] {
-  return ready
-    .filter((t) => {
-      const cb = t.context_bundle ?? {};
-      const deps = cb.depends_on;
-
-      return (
-        cb.spec_slug === specSlug &&
-        Array.isArray(deps) &&
-        deps.includes(specTaskId)
-      );
-    })
-    .map((t) => `${(t.context_bundle ?? {}).spec_task_id}: ${t.description}`);
-}
-
 /** A task with an open PR still eligible for the review-react loop. */
 export type ReviewableTask = TaskColumn<
   "id" | "description" | "taskType" | "targetRepo" | "issueNumber"
@@ -146,29 +107,14 @@ export type ReviewableTask = TaskColumn<
 
 /** Org-wide task-queue mechanics over pipeline.tasks (claim, crash-recovery/staleness sweeps, spec-task DAG dispatch); single-sourced from inline Floor-job SQL. Repo-scoped task record ops stay on project.tasks. */
 export interface TaskQueueRepository {
-  /** Next runnable pending task (immediate-priority first, then oldest; 30s grace before a normal task is eligible, so a local runner can claim first); null if none. */
-  claimNextPending(): Promise<PipelineTask | null>;
-
   /** running/queued tasks idle past `maxAgeMinutes` (default 30) — recovery candidates. */
   findRecoverable(maxAgeMinutes?: number): Promise<RecoverableTask[]>;
 
   /** `running` tasks older than `thresholdHours` — the stale-task safety-net set. */
   findStaleRunning(thresholdHours: number): Promise<StaleTask[]>;
 
-  /** Pending spec-tasks whose depends_on are all completed/merged in the same spec; org-wide by default, or scoped via repo (lore_ready_tasks path). */
-  findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]>;
-
-  /** running/queued spec-task counts per group, for the concurrency gate. */
-  countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]>;
-
-  /** Count of non-merged tasks in groupId (spec-status-upkeep FR1 group-completion signal); a closed-without-merge sibling keeps it above zero so no flip fires on a partially-abandoned group. */
+  /** Count of tasks in groupId neither merged nor cancelled (spec-status-upkeep FR1 group-completion signal). A closed-without-merge sibling (`failed`) keeps it above zero so no flip fires on a partially-abandoned group; a cancelled one was dropped from the plan by a rerun and is no longer owed. */
   countUnmergedInGroup(groupId: string): Promise<number>;
-
-  /** Atomically flips a pending spec-task to running; true iff this caller won. agentId records the claimer (default spec-task-executor). */
-  claimSpecTask(id: string, agentId?: string): Promise<boolean>;
-
-  /** Flips a running spec-task to completed and reports the dependents it unblocks; completed is false if the task is unknown or not running. */
-  completeSpecTask(id: string): Promise<CompletedSpecTask>;
 
   /** Tasks parked in `awaiting_approval` that carry an issue (the approval-label gate). */
   awaitingApproval(): Promise<AwaitingApprovalTask[]>;
@@ -194,9 +140,6 @@ export interface TaskQueueRepository {
   /** Tasks with an open PR (`pr-created`/`review`) whose merge state to poll. */
   mergeableTasks(): Promise<MergeableTask[]>;
 
-  /** True when a spec-task for this repo + spec slug already exists (idempotency). */
-  hasSpecTasksForSlug(repo: string, slug: string): Promise<boolean>;
-
   /** The contributing-context refs JSONB for a task, or null. */
   contextRefs(taskId: string): Promise<TaskContextRefs | null>;
 
@@ -212,11 +155,11 @@ export interface TaskQueueRepository {
     prNumber: number,
   ): Promise<{ id: string } | null>;
 
-  /** The active task id for a repo + issue (status NOT IN failed/cancelled), or null. */
+  /** The newest task for a repo + issue that is not failed, cancelled or retried, with its status, or null. A settled one holds the ticket only while its pull request is open (`taskHoldingTicket`). */
   activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null>;
+  ): Promise<{ id: string; status: string } | null>;
 
   /** Flip merged: feature-request tasks on a branch still in pr-created/review → merged. */
   markFeatureRequestMergedOnBranch(repo: string, branch: string): Promise<void>;

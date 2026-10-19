@@ -15,4 +15,3 @@ body:
     attributes:
       label: Review focus (optional)
       description: Any specific areas to pay attention to
-      placeholder: "Check that the new API endpoints follow our auth patterns from ADR-003"

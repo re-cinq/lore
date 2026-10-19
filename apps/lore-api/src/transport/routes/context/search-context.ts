@@ -13,6 +13,10 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { clampedLimit } from "../common-schemas.js";
+import {
+  KnowledgeBackendSchema,
+  searchBackend,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 
 // The corpus search behind `lore_search_context`. It lives here because the adapter holds no pool (ADR-032): without this route the tool's only path was a substring scan of the caller's local checkout, which answers nothing a natural-language question asks.
 const SearchContextResultSchema = z.object({
@@ -23,12 +27,15 @@ const SearchContextResultSchema = z.object({
       source_path: z.string().nullable(),
     }),
   ),
+  /** One line per store asked for that could not answer, e.g. "search_context: no Utopia reader yet"; absent for a Lore-only search. */
+  notes: z.array(z.string()).optional(),
 });
 
 const SearchContextQuery = z.object({
   query: z.string().min(1),
   team: z.string().optional(),
   limit: clampedLimit.default(8),
+  backend: KnowledgeBackendSchema.default("lore"),
 });
 
 type SearchContextQuery = z.infer<typeof SearchContextQuery>;
@@ -58,10 +65,15 @@ async function serveSearchContext(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const { query, team, limit } = request.query as SearchContextQuery;
-  const results = await searchWithOrgSharedFallback(query, team, limit);
+  const { query, team, limit, backend } = request.query as SearchContextQuery;
+  const { results, notes } = await searchBackend(
+    backend,
+    "search_context",
+    async () =>
+      (await searchWithOrgSharedFallback(query, team, limit)).map(toWire),
+  );
 
-  return h.response({ results: results.map(toWire) });
+  return h.response(notes.length > 0 ? { results, notes } : { results });
 }
 
 /** A provisioned team schema that matched nothing still leaves the org-wide corpus to try; only an org_shared miss is a real miss. */

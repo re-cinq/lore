@@ -17,7 +17,7 @@ authored, and what actually ran.
 | **StationRun** | One **visit** to a Station within an AssemblyRun — `(run, node, iteration)`, identified by a `station_run_id`. | per node-run |
 | **Station** | The unit that runs exactly one node's work — a Kubernetes pod (an `Agent` CR on the ai-agent-subsystem, ADR-031), a local sandbox/worktree, *or* a **human station** whose worker is a person and whose `route` names the page they work on. | per node |
 | **Agent** | A single ephemeral run of the Claude CLI/API + a prompt (context + task). | per Station |
-| **Agent definition** | The stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`). One definition; many Agents run from it. | per task-type (× repo) |
+| **Agent definition** | The stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default, the org rows seeded from `libs/shared/src/agent-defaults/*.md`). One definition; many Agents run from it. | per task-type (× repo) |
 
 ## Usage rules
 

@@ -12,9 +12,22 @@ const GITHUB_ANSWERS: Record<string, () => CheckRun[]> = {
   },
 };
 
+const GHOST = "re-cinq/ghost";
+
+const fakeSettings = (repo: string) => ({
+  record: async () => (repo === GHOST ? null : { fullName: repo }),
+});
+
+const githubReads = vi.fn();
+
 const fakePulls = {
-  get: async (number: number) => (number === 5 ? { branch: "topic" } : null),
+  get: async (number: number) => {
+    githubReads();
+
+    return number === 5 ? { branch: "topic" } : null;
+  },
   listBranchCommits: async (branch: string) => {
+    githubReads();
     GITHUB_ANSWERS[branch]?.();
 
     return [{ sha: "deadbeef", message: "feat: x", date: "t" }];
@@ -33,11 +46,15 @@ const fakePulls = {
     annotations: ["specs/x/spec.md:7 Status draft"],
     steps: ["Lint"],
     tail: ["✖ 1 problem"],
+    unreadable: ["log (403)"],
   }),
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({
-  projectFor: async () => ({ pulls: fakePulls }),
+  projectFor: async (repo: string) => ({
+    pulls: fakePulls,
+    settings: fakeSettings(repo),
+  }),
 }));
 
 import { buildServer } from "../../../app/build-server.js";
@@ -64,6 +81,7 @@ const REPORT = {
       steps: ["Lint"],
       tail: ["✖ 1 problem"],
       npm_script: null,
+      unreadable: ["log (403)"],
     },
   ],
 };
@@ -75,6 +93,7 @@ describe("GET /api/repos/{owner}/{repo}/ci-failures", () => {
   });
   afterEach(() => {
     process.env = { ...originalEnv };
+    githubReads.mockClear();
   });
 
   it("reports the branch's failed checks by branch name", async () => {
@@ -116,5 +135,19 @@ describe("GET /api/repos/{owner}/{repo}/ci-failures", () => {
       (await get("/api/repos/re-cinq/lore/ci-failures?branch=unconfigured"))
         .statusCode,
     ).toBe(424);
+  });
+
+  it("returns 404 without reading GitHub for a repo that is not onboarded", async () => {
+    const byBranch = await get(
+      "/api/repos/re-cinq/ghost/ci-failures?branch=topic",
+    );
+    const byPull = await get(
+      "/api/repos/re-cinq/ghost/ci-failures?pr_number=5",
+    );
+
+    expect({
+      statuses: [byBranch.statusCode, byPull.statusCode],
+      reads: githubReads.mock.calls.length,
+    }).toEqual({ statuses: [404, 404], reads: 0 });
   });
 });

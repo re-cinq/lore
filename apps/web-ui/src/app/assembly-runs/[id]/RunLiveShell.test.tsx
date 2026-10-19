@@ -3,33 +3,17 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import RunLiveShell, { type RunLiveShellProps } from "./RunLiveShell";
 import type { AssemblyRun } from "@/lib/assembly-runs";
-import { implementationDefinition } from "@/lib/definition-fixtures";
+import {
+  featurePlanningDefinition,
+  implementationDefinition,
+} from "@/lib/definition-fixtures";
+import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
+import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
+import type { RunStreamFrame } from "@/lib/run-stream-types";
 
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-  readonly listeners = new Map<string, (e: MessageEvent) => void>();
-  onerror: ((e: Event) => void) | null = null;
-
-  constructor(readonly url: string) {
-    FakeEventSource.instances.push(this);
-  }
-
-  addEventListener(name: string, fn: (e: MessageEvent) => void) {
-    this.listeners.set(name, fn);
-  }
-
-  removeEventListener(name: string) {
-    this.listeners.delete(name);
-  }
-
-  close() {}
-
-  emit(name: string, payload: unknown) {
-    this.listeners.get(name)?.({
-      data: JSON.stringify(payload),
-    } as MessageEvent);
-  }
-}
+vi.mock("./live-actions", () => ({
+  openRunChannelAction: async () => ({ token: "tok" }),
+}));
 
 const run: AssemblyRun = {
   id: "run-1",
@@ -61,8 +45,7 @@ async function settle() {
 }
 
 function renderShell(extra: Partial<RunLiveShellProps> = {}) {
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
+  FakeWebSocket.reset();
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -73,20 +56,29 @@ function renderShell(extra: Partial<RunLiveShellProps> = {}) {
   );
 
   return render(
-    <RunLiveShell
-      run={run}
-      nodes={[]}
-      definition={implementationDefinition}
-      taskEvents={[]}
-      llmCalls={[]}
-      {...extra}
-    />,
+    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+      <RunLiveShell
+        run={run}
+        nodes={[]}
+        definition={implementationDefinition}
+        taskEvents={[]}
+        llmCalls={[]}
+        {...extra}
+      />
+    </LiveSocketProvider>,
   );
 }
 
-async function emit(name: string, payload: unknown) {
+async function emit(_name: string, payload: unknown) {
   await act(async () => {
-    FakeEventSource.instances[0].emit(name, payload);
+    await FakeWebSocket.latest.acceptAndOpenAll();
+  });
+  await act(async () => {
+    FakeWebSocket.latest.receive({
+      type: "frame",
+      channel: FakeWebSocket.latest.opens[0].channel,
+      frame: payload as RunStreamFrame,
+    });
   });
 }
 
@@ -96,6 +88,27 @@ afterEach(() => {
 });
 
 describe("RunLiveShell", () => {
+  it("reads the header Waiting for you, not Running, while the run's only open visit is on author", () => {
+    renderShell({
+      run: { ...run, status: "running" },
+      definition: featurePlanningDefinition,
+      nodes: [
+        {
+          nodeId: "author",
+          iteration: 2,
+          outcome: null,
+          agentCrName: null,
+          commitSha: null,
+          durationSeconds: null,
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("heading", { level: 1 }).parentElement,
+    ).toHaveTextContent("Waiting for you");
+  });
+
   it("flips the header to the run's terminal status on a run_status frame without a reload", async () => {
     renderShell();
     await settle();
@@ -132,6 +145,10 @@ describe("RunLiveShell", () => {
         outcome: null,
         agent_cr_name: "05fc-implement",
         station_run_id: "sr-1",
+        produced: null,
+        route_url: null,
+        worker: null,
+        requested_by: null,
         input: null,
         commit_sha: null,
         started_at: "2026-09-09T10:00:10.000Z",
@@ -158,6 +175,10 @@ describe("RunLiveShell", () => {
         outcome: null,
         agent_cr_name: "05fc-implement",
         station_run_id: "sr-1",
+        produced: null,
+        route_url: null,
+        worker: null,
+        requested_by: null,
         input: null,
         commit_sha: null,
         started_at: "2026-09-09T10:00:10.000Z",
@@ -199,6 +220,99 @@ describe("RunLiveShell", () => {
 
     expect(
       screen.getByText("Issue #42 · Show the issue on the run page"),
+    ).toBeInTheDocument();
+  });
+
+  it("marks the page flush, so the shell leaves the gutters to the panel", async () => {
+    const { container } = renderShell();
+
+    await settle();
+
+    expect(container.querySelector("[data-flush-page]")).not.toBeNull();
+  });
+
+  it("draws the header above the graph and the issue card below the facts, all outside the aside", async () => {
+    const { container } = renderShell({
+      issue: {
+        number: 42,
+        title: "Show the issue on the run page",
+        state: "open",
+        url: "https://github.com/re-cinq/lore/issues/42",
+        body: "## Why",
+      },
+    });
+
+    await settle();
+
+    const order = [
+      screen.getByRole("heading", { name: "implementation", level: 1 }),
+      container.querySelector("[data-node]") as Node,
+      screen.getByText("Branch"),
+      screen.getByText("Issue #42 · Show the issue on the run page"),
+    ];
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
+
+    expect({
+      inReadingOrder: order.every(
+        (node, i) =>
+          i === 0 ||
+          Boolean(
+            order[i - 1].compareDocumentPosition(node) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          ),
+      ),
+      inAside: order.map((node) => aside.contains(node)),
+    }).toEqual({
+      inReadingOrder: true,
+      inAside: [false, false, false, false],
+    });
+  });
+
+  it("draws the run facts under the graph and the task-less notice after them, both outside the aside", async () => {
+    const { container } = renderShell({ run: { ...run, taskId: null } });
+
+    await settle();
+
+    const graph = container.querySelector("[data-node]") as Node;
+    const facts = screen.getByText("Branch");
+    const notice = screen.getByText(/This run has no backing task/);
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
+
+    expect({
+      graphThenFacts: Boolean(
+        graph.compareDocumentPosition(facts) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+      factsThenNotice: Boolean(
+        facts.compareDocumentPosition(notice) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+      inAside: [facts, notice].map((node) => aside.contains(node)),
+    }).toEqual({
+      graphThenFacts: true,
+      factsThenNotice: true,
+      inAside: [false, false],
+    });
+  });
+
+  it("says a task-less run has no cost when its cost is unknown", async () => {
+    renderShell({ run: { ...run, taskId: null, costUsd: null } });
+    await settle();
+
+    expect(
+      screen.getByText(
+        "This run has no backing task — cost and status-transition history are not available.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves cost out of the task-less notice when the run cost 0.42 dollars", async () => {
+    renderShell({ run: { ...run, taskId: null, costUsd: 0.42 } });
+    await settle();
+
+    expect(
+      screen.getByText(
+        "This run has no backing task — status-transition history is not available.",
+      ),
     ).toBeInTheDocument();
   });
 });

@@ -15,7 +15,7 @@ export {
   parseSpecAnchor,
   parseSpecAnchors,
   type SpecAnchor,
-} from "./spec-trace/spec-anchor.js";
+} from "../domain/spec-trace/spec-anchor.js";
 export {
   ingestSpecTrace,
   PAYLOAD_INGEST_KINDS,
@@ -43,6 +43,16 @@ export {
   type CoverageTarget,
 } from "../outbound/spec-trace/tests-covering.js";
 export {
+  callersOf,
+  type CodeCaller,
+  type CallDirection,
+} from "../outbound/spec-trace/code-callers.js";
+export {
+  projectCodeFile,
+  deleteCodeFile,
+  listCodeFilePaths,
+} from "./spec-trace/project-code-file.js";
+export {
   failuresTouching,
   type FailureHit,
 } from "./spec-trace/failure-nodes.js";
@@ -58,6 +68,8 @@ export {
 export {
   deleteSpecSubtree,
   deleteAdrSubtree,
+  listGraphDocPaths,
+  selectPruneCandidates,
 } from "./spec-trace/prune-removed-docs.js";
 export { pruneTestFiles } from "./spec-trace/prune-test-files.js";
 export {
@@ -85,14 +97,12 @@ export {
   fetchSpecRing,
   flattenSpecGraph,
   flattenSpecRing,
-  mergePersistentFeatures,
   specLabel,
   adrLabel,
   UNGROUPED_SECTION,
   type SpecGraph,
   type SpecGraphNode,
   type SpecGraphLink,
-  type PersistentFeatureNode,
   type SpecRing,
   type RingSection,
   type RingStatement,
@@ -142,3 +152,4 @@ export {
   type IngestGraphPorts,
   type IngestKindDef,
 } from "./spec-trace/ingest-graph-task.js";
+export { parseIngestPatterns } from "./spec-trace/ingest-patterns.js";

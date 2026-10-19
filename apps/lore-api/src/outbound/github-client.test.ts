@@ -89,6 +89,42 @@ const reviewBody = [
 const checkRunsBody = {
   check_runs: [{ name: "ci", status: "completed", conclusion: "success" }],
 };
+const reviewThreadsBody = {
+  data: {
+    repository: {
+      pullRequest: {
+        reviewThreads: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [
+            {
+              id: "t1",
+              isResolved: false,
+              isOutdated: false,
+              comments: { nodes: [] },
+            },
+            {
+              id: "t2",
+              isResolved: true,
+              isOutdated: false,
+              comments: { nodes: [] },
+            },
+            {
+              id: "t3",
+              isResolved: false,
+              isOutdated: true,
+              comments: { nodes: [] },
+            },
+          ],
+        },
+      },
+    },
+  },
+};
+const graphqlResponse = () =>
+  new Response(JSON.stringify(reviewThreadsBody), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
 const jsonResponse = (body: unknown) => ({
   ok: true,
   status: 200,
@@ -112,7 +148,7 @@ describe("fetchPrStatus", () => {
     expect(await fetchPrStatus("o/r", 5)).toBeNull();
   });
 
-  it("returns the PR with checks, reviews, and computed_status", async () => {
+  it("returns the PR with checks, reviews, 2 unresolved threads and computed_status", async () => {
     process.env.GITHUB_TOKEN = "t0k3n";
     vi.stubGlobal(
       "fetch",
@@ -120,6 +156,7 @@ describe("fetchPrStatus", () => {
         "/pulls/5": () => jsonResponse(prBody),
         "/pulls/5/reviews": () => jsonResponse(reviewBody),
         "/check-runs": () => jsonResponse(checkRunsBody),
+        "/graphql": graphqlResponse,
       }),
     );
 
@@ -133,8 +170,24 @@ describe("fetchPrStatus", () => {
       html_url: "https://github.com/o/r/pull/5",
       checks: [{ name: "ci", status: "completed", conclusion: "success" }],
       reviews: [{ user: "alice", state: "APPROVED", submitted_at: "t1" }],
+      unresolved_threads: 2,
       computed_status: "approved",
     });
+  });
+
+  it("reports null unresolved threads, not 0, when the review-threads read fails", async () => {
+    process.env.GITHUB_TOKEN = "t0k3n";
+    vi.stubGlobal(
+      "fetch",
+      fetchByPath({
+        "/pulls/5": () => jsonResponse(prBody),
+        "/pulls/5/reviews": () => jsonResponse(reviewBody),
+        "/check-runs": () => jsonResponse(checkRunsBody),
+        "/graphql": () => ({ ok: false, status: 502 }),
+      }),
+    );
+
+    expect((await fetchPrStatus("o/r", 5))?.unresolved_threads).toBeNull();
   });
 
   it("falls back to an empty review list when the reviews request fails", async () => {

@@ -62,6 +62,15 @@ describe("definitionForRun on a run carrying its own graph", () => {
     expect(synthetic).toBe(true);
     expect(definition?.nodes.map((n) => n.id)).toEqual(["review", "done"]);
   });
+
+  it("carries the recorded graph's fail node gave-up", () => {
+    const { definition } = definitionForRun("code-review", [], {
+      ...storedGraph,
+      fail: "gave-up",
+    });
+
+    expect(definition?.fail).toBe("gave-up");
+  });
 });
 
 describe("definitionForRun", () => {

@@ -102,47 +102,24 @@ function treeBlobPaths(
     .map((e) => e.path as string);
 }
 
-export async function listCommitsSince(
+export async function commitEmailOf(
   ok: Octokit,
   repo: string,
-  since: string,
-): Promise<Array<{ sha: string; files: string[] }>> {
+  login: string,
+): Promise<string | null> {
   const [owner, name] = split(repo);
   const { repos } = ok.rest;
-  const commits = await ok.paginate(repos.listCommits, {
+  const { data: commits } = await repos.listCommits({
     owner,
     repo: name,
-    since,
-    per_page: 100,
+    author: login,
+    per_page: 1,
   });
-  const result: Array<{ sha: string; files: string[] }> = [];
+  const newest = commits.at(0);
+  const author = newest?.commit.author;
+  const email = author?.email ?? "";
 
-  for (const c of commits) {
-    result.push({ sha: c.sha, files: await commitFiles(repos, repo, c.sha) });
-  }
-
-  return result;
-}
-
-/** The changed paths of one commit; a commit whose detail cannot be read contributes none. */
-async function commitFiles(
-  repos: ReposApi,
-  repo: string,
-  sha: string,
-): Promise<string[]> {
-  const [owner, name] = split(repo);
-
-  try {
-    const { data: detail } = await repos.getCommit({
-      owner,
-      repo: name,
-      ref: sha,
-    });
-
-    return (detail.files ?? []).map((f) => f.filename);
-  } catch {
-    return [];
-  }
+  return email && !email.endsWith("@users.noreply.github.com") ? email : null;
 }
 
 export async function branchExists(
@@ -166,6 +143,28 @@ export async function branchExists(
   }
 }
 
+export async function branchMerged(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+): Promise<boolean | undefined> {
+  const [owner, name] = split(repo);
+  const { repos } = ok.rest;
+
+  try {
+    const base = await defaultBranch(ok, repo);
+    const { data: comparison } = await repos.compareCommitsWithBasehead({
+      owner,
+      repo: name,
+      basehead: `${base}...${branch}`,
+    });
+
+    return comparison.status === "behind" || comparison.status === "identical";
+  } catch {
+    return undefined;
+  }
+}
+
 export async function createBranch(
   ok: Octokit,
   repo: string,
@@ -173,7 +172,7 @@ export async function createBranch(
   base = "main",
 ): Promise<void> {
   const { git } = ok.rest;
-  const sha = await baseSha(git, repo, base);
+  const sha = await branchHeadSha(git, repo, base);
   const create = refCreator(git, repo, branch, sha);
 
   try {
@@ -184,8 +183,8 @@ export async function createBranch(
   }
 }
 
-/** The head sha of the base branch a new branch forks from. */
-async function baseSha(
+/** The commit a branch points at; a new branch forks from its base's. */
+export async function branchHeadSha(
   git: GitApi,
   repo: string,
   base: string,

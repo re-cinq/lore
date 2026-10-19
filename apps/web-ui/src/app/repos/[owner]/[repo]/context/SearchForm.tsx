@@ -17,6 +17,7 @@ export default function SearchForm(props: SearchFormProps) {
   const { basePath, activeType, q } = props;
   const router = useRouter();
   const [value, setValue] = useState(q ?? "");
+  // eslint-disable-next-line no-restricted-syntax -- a router.push transition, not an HTTP action; nothing here for PendingActionButton to await
   const [isPending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {

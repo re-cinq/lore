@@ -27,4 +27,20 @@ export class InMemoryAudit implements AuditPort {
       .reverse()
       .slice(0, limit);
   }
+
+  async hasEntry(
+    eventType: string,
+    repo: string,
+    fields: Record<string, unknown>,
+  ): Promise<boolean> {
+    return this.entries
+      .filter((entry) => entry.event_type === eventType && entry.repo === repo)
+      .some((entry) => carries(entry.payload, fields));
+  }
 }
+
+const carries = (
+  payload: Record<string, unknown>,
+  fields: Record<string, unknown>,
+): boolean =>
+  Object.entries(fields).every(([key, value]) => payload[key] === value);

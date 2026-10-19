@@ -22,7 +22,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > **Amendment 2026-08-13 — one line spans the whole feature lifecycle.** The two-definition
 > split described immediately above is gone, and so is the separate decomposition run that
 > [ADR-029](./ADR-029-feature-spec-decomposition.md) introduced.
-> [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> feature-planning.yaml
 > is now the whole lifecycle:
 >
 > ```
@@ -34,7 +34,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > accepts a round — became a real `wait` node when the finalize line was folded in, and a
 > planning round is now a *resume* of the parked node rather than a new task. The
 > `merged` node applies the same idea to the spec PR: `pr_merged` was a declared but unused
-> `WaitSignal` in [loader.ts](../libs/assembly-lines/src/loader.ts), and using it turns the
+> `WaitSignal` in loader.ts, and using it turns the
 > "wait for a human to merge" gap into a step you can see in the graph. ADR-029 carries the
 > full rationale and the defect that forced it.
 >
@@ -42,14 +42,19 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > for a planning round; **finalize no longer commits as its own task** — the `write` and
 > `push` nodes do it on the same line; and the feature's `pr-open` transition belongs to
 > the `push` node's terminal handler, not to
-> [agent-watcher.ts](../apps/floor/src/work/watcher/agent-watcher.ts), which returns early
+> agent-watcher.ts, which returns early
 > for every assembly-line node CR.
+
+
+## Amendment 2026-09-21: plans replace the wizard
+
+The wizard, the `lore.features` / `lore.feature_iterations` tables, the `Features` Project port and the graph merge of persistent Feature nodes are gone. A feature is planned as a plan written together in lore-api (ADR-047); the `feature-planning` line survives, keyed on `args.plan_id`, its agent writing into the live plan instead of emitting a GapResult, and the spec graph shows only the computed Feature nodes.
 
 ## Context
 
 Spec authoring is the most context-dependent step in the Lore pipeline and the
 least interactive. `feature-request`
-([handle-feature-request.ts](../apps/floor/src/work/task/handle-feature-request.ts))
+
 runs one LLM pass and opens a PR — no human in the loop, no place for a draft,
 and no way to steer the architecture before the PR exists. Features themselves
 are not first-class: they are `specs/<n>-<name>/` folders *computed* into the
@@ -92,7 +97,7 @@ of truth in the graph.**
   `specs/<slug>/spec.md` and the existing watcher opens the PR + conditional Issue.
 - **Feature lifecycle is a Project port.** `lore.features` / `lore.feature_iterations`
   (the `lore` schema, owned by the migration runner) are reached only through a
-  `features` port on the Project facade ([libs/shared/src/outbound/project/features/](../libs/shared/src/outbound/project/features/)),
+  `features` port on the Project facade (libs/shared/src/outbound/project/features/),
   mirroring [task-store-pg.ts](../libs/shared/src/outbound/project/tasks/task-store-pg.ts).
   The draft spec stays uncommitted in `draft_spec_md` until the author finalizes;
   even then it ships as a PR, never a direct `main` commit.
@@ -108,7 +113,7 @@ of truth in the graph.**
 - **Generated mockups are untrusted.** `GapResult.mockups` carry LLM-generated SVG.
   Two layers defend it: (1) `sanitizeSvg()` strips script/foreignObject/handlers/
   external refs on every write path before persistence, and (2) the web UI
-  ([MockupSection.tsx](../apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/MockupSection.tsx))
+  (MockupSection.tsx)
   re-sanitizes with **DOMPurify** (SVG profile) on the client and injects the result
   via `innerHTML` after mount — never through the unsanitized `rehype-raw` path used
   elsewhere. Mockups render **inline** (responsive, theme-aware, downloadable) rather

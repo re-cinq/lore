@@ -1,10 +1,7 @@
-// Two-key CODEOWNERS-approval ceremony for dark-factory settings + agent-definition writes (ADR-016/025).
+// Two-key CODEOWNERS-approval ceremony for agent-definition image writes (ADR-025).
 
 import type { Request } from "@hapi/hapi";
-import {
-  verifyApproval,
-  TwoKeyError,
-} from "../../work/dark-factory/dark-factory-authz.js";
+import { verifyApproval, TwoKeyError } from "../../work/two-key/approval-pr.js";
 import { getOctokit } from "../../outbound/github-client.js";
 
 export interface ApprovalEvidence {

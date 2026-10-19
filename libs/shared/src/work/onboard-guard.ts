@@ -79,21 +79,15 @@ export function onboardLockKey(repo: string): string {
   return `lore.onboard:${repo}`;
 }
 
-// The pipeline turns this into the filed GitHub Issue's body — a bare repo name (what the UI used to send) produced an Issue reading as an empty request.
-export function onboardTaskDescription(repo: string): string {
-  return (
-    `Onboard ${repo} into Lore: inspect the repo and generate the scaffolding it is ` +
-    `missing (CLAUDE.md, AGENTS.md, PR template, CI workflows), then open a single PR. ` +
-    `Leave files that already exist untouched.`
-  );
-}
-
 // `reonboard` (the repo-page button) may target an already-onboarded repo but still respects the in-flight/open-PR blocks — either bypass would put a second agent on scaffolding one is already writing.
 export function decideOnboard(
   repo: string,
   state: OnboardState,
   options: { reonboard?: boolean } = {},
 ): OnboardDecision {
+  if (repo === "re-cinq/lore") {
+    return reCinqLoreBlock();
+  }
   const inFlight = inFlightBlock(repo, state);
 
   if (inFlight) {
@@ -105,6 +99,16 @@ export function decideOnboard(
   }
 
   return alreadyOnboardedBlock(repo);
+}
+
+function reCinqLoreBlock(): OnboardDecision {
+  return {
+    allowed: false,
+    block: "already-onboarded",
+    taskId: null,
+    message:
+      "re-cinq/lore is a special case: it is already onboarded and is the source of the templates, so it cannot be re-onboarded.",
+  };
 }
 
 /** The two blocks that hold even for a deliberate re-onboard: work already running, and work already waiting for a human. Both mean an agent is (or was) writing this scaffolding, and a second one would fight it. */

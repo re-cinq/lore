@@ -12,8 +12,8 @@
     }
   },
   "scripts": {
-    "build": "tsc && npm run copy:assembly-lines",
-    "copy:assembly-lines": "rm -rf dist/assembly-lines && mkdir -p dist/assembly-lines && cp -f src/assembly-lines/*.yaml dist/assembly-lines/",
+    "build": "tsc && npm run copy:floor-pipelines",
+    "copy:floor-pipelines": "rm -rf dist/floor-pipelines && mkdir -p dist/floor-pipelines && cp -f src/floor-pipelines/*.yaml dist/floor-pipelines/",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

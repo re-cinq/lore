@@ -99,6 +99,55 @@ describe("searchMemories", () => {
     expect(audit?.params[0]).toBe("agent-7");
   });
 
+  it("leaves no trace of a passive search: no retrieval UPDATE and no audit row for the episode e1 it returned", async () => {
+    const pool = scriptedPool((sql) =>
+      factKeywordQuery({ sql, params: [] })
+        ? [
+            {
+              id: "e1",
+              key: "e1",
+              value: "about e1",
+              agent_id: "a1",
+              source: "episode",
+              kw_rank: "1",
+            },
+          ]
+        : [],
+    );
+
+    const results = await searchMemories(pool, "deploy", { passive: true });
+
+    expect({
+      hits: results.map((r) => r.key),
+      writes: pool.calls.filter((c) => /^\s*(UPDATE|INSERT)/.test(c.sql)),
+    }).toEqual({ hits: ["e1"], writes: [] });
+  });
+
+  it("strengthens the episode e1 it returned and audits the search when it is not passive", async () => {
+    const pool = scriptedPool((sql) =>
+      factKeywordQuery({ sql, params: [] })
+        ? [
+            {
+              id: "e1",
+              key: "e1",
+              value: "about e1",
+              agent_id: "a1",
+              source: "episode",
+              kw_rank: "1",
+            },
+          ]
+        : [],
+    );
+
+    await searchMemories(pool, "deploy");
+
+    expect(
+      pool.calls
+        .filter((c) => /^\s*(UPDATE|INSERT)/.test(c.sql))
+        .map((c) => /(UPDATE|INSERT INTO) memory\.\w+/.exec(c.sql)?.[0]),
+    ).toEqual(["UPDATE memory.facts", "INSERT INTO memory.audit_log"]);
+  });
+
   it("keeps the search org-wide when actorId is given, so attribution does not narrow the scope", async () => {
     const pool = scriptedPool();
 

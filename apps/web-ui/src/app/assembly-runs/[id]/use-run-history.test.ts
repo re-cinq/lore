@@ -2,6 +2,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useRunHistory, useHistoryPoll } from "./use-run-history";
+
+vi.mock("./live-actions", () => ({
+  openRunChannelAction: async () => ({ token: "tok" }),
+}));
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 
 function row(id: string): Record<string, unknown> {

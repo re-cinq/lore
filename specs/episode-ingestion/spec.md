@@ -163,7 +163,7 @@ side effect of their work. The system handles curation.
 
 ### NFR-2: Storage
 
-- Episodes are stored as raw text. No compression.
+- Episodes are stored as text, uncompressed, after secrets are redacted from it (`redactSecrets`, at the write).
 - Content hash index prevents duplicates.
 - Facts reference their source episode for provenance.
 

@@ -18,7 +18,7 @@ const CHUNK_KINDS = new Set([
   "spec-ingest",
   "test-ranges",
   "spec-backfill",
-  "code-backfill",
+  "test-backfill",
   "has",
 ]);
 
@@ -53,8 +53,8 @@ const CHUNK_COLLECTION_BY_KIND: Record<
   "spec-backfill": async (chunks) => ({
     specs: await chunks.specChunksForBackfill(),
   }),
-  "code-backfill": async (chunks) => ({
-    chunks: await chunks.codeChunksForBackfill(),
+  "test-backfill": async (chunks) => ({
+    chunks: await chunks.testChunksForBackfill(),
   }),
   has: hasChunkResult,
 };

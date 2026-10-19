@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { useTransition } from "react";
 import { Alert } from "@/components/Alert";
+import PendingActionButton from "@/components/PendingActionButton";
 import type { ImplementationLoop } from "@/lib/api/backlog";
 
 interface OnboardingBannerProps {
@@ -39,7 +39,7 @@ function OnboardingNextStep({ onboarding, retry }: OnboardingStepProps) {
 
   if (onboarding.last_task?.in_flight) {
     return (
-      <Link href={`/tasks/${onboarding.last_task.id}`}>
+      <Link href={`/assembly-runs/${onboarding.last_task.id}`}>
         Onboarding is running
       </Link>
     );
@@ -78,17 +78,14 @@ interface OnboardButtonProps {
   retry: () => Promise<void>;
 }
 
-/** Queues onboarding. Disabled for the length of the transition, like the toggle, so a double click cannot queue two. */
+/** Queues onboarding. Disabled until the retry server action resolves, so a double click cannot queue two. */
 function OnboardButton({ label, retry }: OnboardButtonProps) {
-  const [pending, startTransition] = useTransition();
-
   return (
-    <button
-      className="button"
-      disabled={pending}
-      onClick={() => startTransition(() => retry())}
-    >
-      {label}
-    </button>
+    <PendingActionButton
+      action={retry}
+      text={label}
+      pendingText="Queuing…"
+      className=""
+    />
   );
 }

@@ -10,6 +10,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { resolve } from "node:path";
 import { buildMcpServer, type ServerMode } from "./build-mcp-server.js";
 import { handleSkillsRequest } from "./skills-registry.js";
+import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
 export interface HttpGatewayOptions {
   port: number;
@@ -70,6 +71,28 @@ interface McpContext {
 interface GatewayWiring {
   skillsRoot: string;
   authorized: (req: IncomingMessage) => boolean;
+}
+
+/** The gateway as the chart configures it: LORE_MCP_PORT is required, LORE_MCP_SERVER_MODE=agent drops the laptop-only tools. */
+export function startHttpGatewayFromEnv(env: NodeJS.ProcessEnv): Server {
+  void startGatewayMetrics(env);
+
+  return startHttpGateway({
+    port: requiredPort(env, "LORE_MCP_PORT"),
+    authToken: env.LORE_MCP_AUTH_TOKEN,
+    serverMode: env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full",
+  });
+}
+
+// Loaded here and not at the top: the laptop adapter never serves metrics, so it never loads the SDK (ADR-050).
+async function startGatewayMetrics(env: NodeJS.ProcessEnv): Promise<void> {
+  const { startPrometheusMetrics, metricsPortFromEnv } =
+    await import("@re-cinq/lore-shared/otel/prometheus-metrics.js");
+
+  startPrometheusMetrics({
+    serviceName: "lore-mcp-gateway",
+    port: metricsPortFromEnv(env),
+  });
 }
 
 export function startHttpGateway(opts: HttpGatewayOptions): Server {
@@ -200,7 +223,7 @@ async function handleMcpPost(
   let transport = sessionId ? ctx.sessions.get(sessionId) : undefined;
 
   if (!transport && !isInitializeRequest(body)) {
-    jsonRpcError(res, 400, "No valid session — send initialize first");
+    rejectMissingSession(res, sessionId);
 
     return;
   }
@@ -209,6 +232,18 @@ async function handleMcpPost(
     transport = newSession(ctx.opts, ctx.sessions);
   }
   await transport.handleRequest(req, res, body);
+}
+
+function rejectMissingSession(
+  res: ServerResponse,
+  sessionId: string | undefined,
+): void {
+  if (sessionId) {
+    jsonRpcError(res, 404, "Session not found");
+
+    return;
+  }
+  jsonRpcError(res, 400, "No valid session — send initialize first");
 }
 
 // A new McpServer + transport per MCP session (an McpServer binds to one transport), tracked by the session id the transport mints on initialize.
@@ -270,7 +305,13 @@ async function handleMcpSession(
   const transport = sessionId ? sessions.get(sessionId) : undefined;
 
   if (!transport) {
-    jsonRpcError(res, 400, "Unknown or missing session");
+    const unknown = Boolean(sessionId);
+
+    jsonRpcError(
+      res,
+      unknown ? 404 : 400,
+      unknown ? "Session not found" : "Unknown or missing session",
+    );
 
     return;
   }
@@ -301,7 +342,10 @@ function jsonRpcError(res: ServerResponse, status: number, message: string) {
   res.end(
     JSON.stringify({
       jsonrpc: "2.0",
-      error: { code: status === 401 ? -32001 : -32000, message },
+      error: {
+        code: status === 401 || status === 404 ? -32001 : -32000,
+        message,
+      },
       id: null,
     }),
   );

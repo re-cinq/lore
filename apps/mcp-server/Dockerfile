@@ -44,8 +44,6 @@ COPY --from=builder /app/libs ./libs
 COPY --from=builder /app/apps/mcp-server/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/mcp-server/dist ./dist
-# loadTaskTypes() reads scripts/task-types.yaml from cwd (falls back to empty).
-COPY scripts/task-types.yaml ./scripts/task-types.yaml
 # The agent-skills registry the gateway serves at /skills (server/skills-registry.ts).
 # Lore content in a Lore service — the ai-agent-subsystem bakes none of it. `tar` is a
 # required-priority package present in the debian base; the tarball serve spawns it.

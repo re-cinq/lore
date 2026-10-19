@@ -4,10 +4,14 @@ import type { PgPool } from "../../memory-store.js";
 import type { FetchResult } from "./context-assembly-types.js";
 import { mkItem } from "./context-assembly-items.js";
 import {
-  hybridChunkItems,
+  hybridChunkSearch,
+  type ChunkSearchResult,
   type ChunkSearchHit,
 } from "./context-assembly-chunk-search.js";
-import type { SourceFetcher } from "./context-assembly-fetchers-types.js";
+import type {
+  SourceFetcher,
+  SourceReader,
+} from "./context-assembly-fetchers-types.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import type { MemorySearchResult } from "./memory-search.js";
 
@@ -19,10 +23,10 @@ const RECENT_CONFLICTS_SQL = `SELECT new_fact_id FROM memory.fact_conflicts
 async function fetchMemories(
   pool: PgPool,
   query: string,
-  agentId: string | undefined,
+  reader: SourceReader = {},
 ): Promise<FetchResult> {
   try {
-    const results = await searchMemories(pool, query, { agentId, limit: 10 });
+    const results = await searchMemories(pool, query, { ...reader, limit: 10 });
 
     if (results.length === 0) {
       return { sources: [], status: "empty" };
@@ -81,19 +85,23 @@ function toMemoryItem(
 
   return mkItem(
     `**${result.key}** (${result.source})${tag}${conflict}: ${result.value}`,
-    { source_path: result.key, content_type: result.source },
+    {
+      source_path: result.key,
+      content_type: result.source,
+      ...measured(result),
+    },
   );
 }
 
 async function fetchEpisodes(
   pool: PgPool,
   query: string,
-  agentId: string | undefined,
+  reader: SourceReader = {},
 ): Promise<FetchResult> {
   try {
     // Asked for as episodes, not filtered out of a mixed top-5 — memories and facts outrank episodes often enough that the post-filter left this section empty on every call.
     const episodes = await searchMemories(pool, query, {
-      agentId,
+      ...reader,
       limit: 5,
       sources: ["episode"],
     });
@@ -108,10 +116,17 @@ async function fetchEpisodes(
   }
 }
 
+function measured(result: MemorySearchResult): { similarity?: number } {
+  return result.similarity === undefined
+    ? {}
+    : { similarity: result.similarity };
+}
+
 function toEpisodeItem(result: MemorySearchResult): SourceItem {
   return mkItem(`**${result.key}**: ${result.value}`, {
     source_path: result.key,
     content_type: "episode",
+    ...measured(result),
   });
 }
 
@@ -188,15 +203,23 @@ async function hybridSource(
   }
 
   try {
-    const sources = await hybridChunkItems(pool, query, repo, {
-      contentTypes,
-      limit,
-    });
-
-    return { sources, status: sources.length > 0 ? "ok" : "empty" };
+    return fetchResultOf(
+      await hybridChunkSearch(pool, query, repo, { contentTypes, limit }),
+    );
   } catch {
     return { sources: [], status: "error" };
   }
+}
+
+function fetchResultOf({
+  items: sources,
+  vectorLegRows,
+}: ChunkSearchResult): FetchResult {
+  return {
+    sources,
+    status: sources.length > 0 ? "ok" : "empty",
+    ...(vectorLegRows === undefined ? {} : { vectorLegRows }),
+  };
 }
 
 const MENTIONS_TESTS_RE =
@@ -206,30 +229,34 @@ function codeTypesFor(query: string): string[] {
   return MENTIONS_TESTS_RE.test(query) ? ["code", "test"] : ["code"];
 }
 
+/** How many documents a section keeps, whichever store answers it. */
+export const ITEM_LIMITS = { repo: 5, code: 6, adrs: 10 } as const;
+
 export const contentFetchers: Record<string, SourceFetcher> = {
   // Repo conventions: docs + specs (ADRs are their own section); hybrid ranking avoids floating unrelated web-ui specs on term overlap alone.
   repo: (pool, query, repo) =>
     hybridSource(pool, query, repo, {
       contentTypes: ["doc", "spec"],
-      limit: 5,
+      limit: ITEM_LIMITS.repo,
     }),
 
   // Source code the task touches — previously NEVER retrieved, so implementation tasks got zero of the files they edit. Tests join only when the question is about tests: a test file keyword-matches every symbol it exercises and outranked the source otherwise.
   code: (pool, query, repo) =>
     hybridSource(pool, query, repo, {
       contentTypes: codeTypesFor(query),
-      limit: 6,
+      limit: ITEM_LIMITS.code,
     }),
 
   // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   adrs: (pool, query, repo) =>
-    hybridSource(pool, query, repo, { contentTypes: ["adr"], limit: 10 }),
+    hybridSource(pool, query, repo, {
+      contentTypes: ["adr"],
+      limit: ITEM_LIMITS.adrs,
+    }),
 
-  memories: (pool, query, _repo, agentId) =>
-    fetchMemories(pool, query, agentId),
+  memories: (pool, query, _repo, reader) => fetchMemories(pool, query, reader),
 
-  episodes: (pool, query, _repo, agentId) =>
-    fetchEpisodes(pool, query, agentId),
+  episodes: (pool, query, _repo, reader) => fetchEpisodes(pool, query, reader),
 
   async rules(pool, query, repo): Promise<FetchResult> {
     // Load .claude/rules/*.md files whose filename keyword-matches the query.

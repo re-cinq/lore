@@ -93,24 +93,26 @@ section's budget on whatever was worst rather than on whatever was asked about.
 A statement now scores `signal x share-of-query-terms-it-mentions` and is
 dropped at zero, so an unrelated question gets an empty section rather than
 somebody else's violations.
-([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L46), [`keeps the auto-merge statement and drops the station one for 'auto-merge squash policy'`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L62), [`returns nothing when no statement shares a term with the query`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L99))
+([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L48), [`keeps the auto-merge statement and drops the station one for 'auto-merge squash policy'`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L64), [`returns nothing when no statement shares a term with the query`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L101))
 
 The `coupling` source is **fail-soft**: it returns `disabled` (no items) when no
 graph client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
 unaffected.
-([validated by `returns disabled when no graph client is wired`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L116))
+([validated by `returns disabled when no graph client is wired`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L118))
 
-When a graph client is present, the source reads the repo's coupled statements
-and projects them into items.
-([validated by `projects coupled statements from the graph into sources`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L123))
+When a graph is present, the source reads the repo's coupled statements through
+the trace port and projects them into items, the violated statement first.
+([validated by `projects coupled statements from the graph into sources`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L125), [`ranks the violated statement the graph source answers first`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L162))
 
 An empty `GraphContextBlock` projects to an empty item list, contributing nothing
 to the assembly.
-([validated by `returns an empty list for an empty block`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L105))
+([validated by `returns an empty list for an empty block`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L107))
 
 The `coupling` source is wired into the `implementation` and `review` templates;
-the `/api/context` handler constructs the (possibly-null) Dgraph client via
-`createDgraphClient(process.env)` and passes it to `assembleContext`.
+the `/api/context` handler passes the (possibly-null) trace port from
+`traceFromEnv(process.env)` to `assembleContext` as `graph`, and the coupling
+source reads the block through that port's `graphContext`, so a trace port over
+another graph store serves it unchanged.
 
 ## Out of Scope
 

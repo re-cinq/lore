@@ -1,3 +1,5 @@
+import { isFloorEngine } from "@/lib/assembly-run-rows";
+
 // Pure logic behind NodeLogPanel, kept out of the component so it is directly testable; driven by the Floor's /api/agent-logs response.
 export interface NodeLogsResponse {
   available: boolean;
@@ -13,7 +15,7 @@ export function nodeLogsUrl(
   assemblyLineId: string,
   agentCrName: string,
 ): string {
-  return `/api/assembly-runs/${assemblyLineId}/nodes/${encodeURIComponent(
+  return `/api/assembly-runs/${encodeURIComponent(assemblyLineId)}/nodes/${encodeURIComponent(
     agentCrName,
   )}/logs`;
 }
@@ -23,7 +25,12 @@ export function shouldPollNode(resp: NodeLogsResponse | null): boolean {
   return resp !== null && resp.available && resp.phase === "Running";
 }
 
-export function unavailableMessage(reason?: string): string {
+/** A floor run's node is read from the log the floor kept of its visit; a visit it kept none for has only its transcript. */
+export function unavailableMessage(reason?: string, engine?: string): string {
+  if (isFloorEngine(engine)) {
+    return "The floor kept no log for this node; its transcript is above.";
+  }
+
   switch (reason) {
     case "no-agent":
       return "No agent was launched for this node.";

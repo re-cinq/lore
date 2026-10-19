@@ -3,14 +3,11 @@
 import {
   STATIONS,
   hostCanRun,
-  isSweepModule,
   type StationPortName,
 } from "../../work/index.js";
 
 /** This service holds a pool AND a GitHub App, so it serves every port. */
 const SERVED: readonly StationPortName[] = [
-  "awaitingApproval",
-  "approvalLabel",
   "repoFor",
   "memoryLifecycle",
   "cost",
@@ -19,6 +16,7 @@ const SERVED: readonly StationPortName[] = [
 
 import type { StationHost } from "../../work/index.js";
 import type { Station } from "../../domain/station.js";
+import { timedStationRun } from "./timed-station-run.js";
 
 const hasHttpTrigger = (mod: {
   manifest: { triggers: readonly { kind: string }[] };
@@ -39,12 +37,14 @@ export function serviceStations(
   }
 
   const fromRegistry = Object.values(STATIONS)
-    .filter(isSweepModule)
     .filter(hasHttpTrigger)
     .filter((mod) => hostCanRun(mod.manifest, SERVED))
     .map((mod): [string, Station] => [
       mod.manifest.name,
-      () => mod.run({ trigger: "http", host }),
+      () =>
+        timedStationRun(mod.manifest.name, () =>
+          mod.run({ trigger: "http", host }),
+        ),
     ]);
 
   memo = new Map<string, Station>(fromRegistry);

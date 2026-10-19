@@ -1,14 +1,17 @@
-import type { TracePort } from "./trace-port.js";
-import type { TraceDocument } from "../../../domain/spec-trace/assemble-trace-document.js";
 import type {
+  TracePort,
+  TraceDocument,
   SpecSummary,
   AdrSummary,
-} from "../../spec-trace/trace-document-listing.js";
-import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
-import type {
+  SpecGraph,
+  SpecRing,
   CoveringTest,
   CoverageTarget,
-} from "../../spec-trace/tests-covering.js";
+  FailureHit,
+  CallDirection,
+  CodeCaller,
+  GraphContextBlock,
+} from "./trace-port.js";
 
 /** Spec-traceability graph view; graph is source of truth, not Postgres chunk store. */
 export class TraceView {
@@ -63,5 +66,23 @@ export class TraceView {
     branch?: string,
   ): Promise<CoveringTest[]> {
     return this.port.testsCovering(this.fullName, target, branch);
+  }
+
+  /** Failures recorded against a source file, newest first. */
+  failuresTouching(path: string): Promise<FailureHit[]> {
+    return this.port.failuresTouching(this.fullName, path);
+  }
+
+  /** One hop of the call graph from `symbol`: its callers, or with `callees` the definitions it calls. */
+  callers(
+    symbol: string,
+    direction: CallDirection = "callers",
+  ): Promise<CodeCaller[]> {
+    return this.port.callers(this.fullName, symbol, direction);
+  }
+
+  /** This repo's coupled spec statements, ranked by signal. */
+  graphContext(opts?: { limit?: number }): Promise<GraphContextBlock> {
+    return this.port.graphContext(this.fullName, opts);
   }
 }

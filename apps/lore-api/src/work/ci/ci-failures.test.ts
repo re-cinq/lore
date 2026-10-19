@@ -90,6 +90,7 @@ describe("readCiFailures", () => {
             job_id: 102476456760,
             ...failure,
             npm_script: null,
+            unreadable: [],
           },
         ],
       },

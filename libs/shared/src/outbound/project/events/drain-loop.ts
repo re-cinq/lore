@@ -1,6 +1,7 @@
 /** The drain loop (layer 2): claim a batch, dispatch each event to its registered handler, transition the row. At-least-once. */
 
-import { decideRetry } from "./retry.js";
+import { recordBusDelivery } from "../../otel/metrics.js";
+import { decideRetry, retryBudgetOf } from "./retry.js";
 import type { EventDeliveryRow as EventRow } from "./event-deliveries-port.js";
 
 /** Row identity a handler may need (e.g. to hand a large payload off by reference); handlers that don't care ignore it. */
@@ -155,17 +156,30 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
     // event_id, NOT id: `id` addresses the DELIVERY; a handler citing an event needs the event itself.
     await handler(ev.params ?? {}, { eventId: ev.event_id });
     await deps.markDone(ev.id);
+    recordBusDelivery(ev.event_name, "done");
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const decision = decideRetry({ attempts: ev.attempts });
-
-    if (decision.kind === "retry") {
-      await deps.markFailed(ev.id, message, decision.backoffSeconds);
-
-      return;
-    }
-    await deadLetter(deps, ev, message);
+    await retryOrDeadLetter(deps, ev, err);
   }
+}
+
+async function retryOrDeadLetter(
+  deps: LoopDeps,
+  ev: EventRow,
+  err: unknown,
+): Promise<void> {
+  const message = err instanceof Error ? err.message : String(err);
+  const decision = decideRetry({
+    attempts: ev.attempts,
+    max: retryBudgetOf(err),
+  });
+
+  if (decision.kind === "retry") {
+    await deps.markFailed(ev.id, message, decision.backoffSeconds);
+    recordBusDelivery(ev.event_name, "failed");
+
+    return;
+  }
+  await deadLetter(deps, ev, message);
 }
 
 /** Give up on a delivery, out loud — dead-lettering used to write the row and say nothing, and the row itself is deleted by the hourly prune a week later. */
@@ -178,4 +192,5 @@ async function deadLetter(
     `[events] dead-lettered ${ev.event_name} (delivery ${ev.id}, event ${ev.event_id}) after ${ev.attempts} attempt(s): ${reason}`,
   );
   await deps.markDead(ev.id, reason);
+  recordBusDelivery(ev.event_name, "dead");
 }

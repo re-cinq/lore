@@ -1,6 +1,6 @@
 // Event reporters: built from injected pool, not module singleton; lazy resolution per ADR-044.
 
-import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import { localEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-port.js";
 import { PgEventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-pg.js";
@@ -16,7 +16,7 @@ export function eventProxyFor(pool: Pool | null): EventProxy {
   if (existing) {
     return existing;
   }
-  const proxy = selectEventProxy({
+  const proxy = localEventProxy({
     local: () => {
       enforceTrue(
         pool,
@@ -34,7 +34,7 @@ export function eventProxyFor(pool: Pool | null): EventProxy {
   return proxy;
 }
 
-/** Report through router or pool; synchronous and throwing for 202-vs-500 semantics. */
+/** Report through the pool; synchronous and throwing for 202-vs-500 semantics. */
 export function eventReporterFor(pool: Pool | null): EventReporter {
   return eventProxyFor(pool);
 }

@@ -15,3 +15,55 @@ export function prFooter(opts: {
 
   return `\n\n${lines.join("\n")}`;
 }
+
+const LINKED_ISSUE = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i;
+
+/** The issue a pull request claims to RESOLVE: the number of the first `Closes`/`Fixes`/`Resolves #N` its body names, or null. `Refs #N` is deliberately not one: it names something related, and a reviewer handed it as "the issue this answers" blocks the pull request for not doing what it never claimed (HALEngine#123, 2026-09-30). */
+export function linkedIssueNumber(
+  prBody: string | null | undefined,
+): number | null {
+  const match = LINKED_ISSUE.exec(prBody ?? "");
+
+  return match ? Number(match[1]) : null;
+}
+
+const LINKED_ISSUES =
+  /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi;
+
+export interface LinkedIssue {
+  number: number;
+  /** `Closes`, `Fixes` or `Resolves` claim to resolve the issue; `Refs` only relates to it ({@link linkedIssueNumber}). */
+  resolves: boolean;
+}
+
+/** Every issue a pull request names with a keyword, once each in order of first mention, the first keyword saying whether the pull request resolves it. */
+export function linkedIssues(prBody: string | null | undefined): LinkedIssue[] {
+  const byNumber = new Map<number, LinkedIssue>();
+
+  for (const [, keyword, number] of (prBody ?? "").matchAll(LINKED_ISSUES)) {
+    const issue = {
+      number: Number(number),
+      resolves: !/^refs?$/i.test(keyword),
+    };
+
+    byNumber.set(issue.number, byNumber.get(issue.number) ?? issue);
+  }
+
+  return [...byNumber.values()];
+}
+
+const SQUASH_SUBJECT_PR = /\(#(\d+)\)\s*$/;
+
+/** The pull request a squash-merged commit names at the end of its subject, `(#NNNN)`, or null. */
+export function mergedPullRequestNumber(subject: string): number | null {
+  const match = SQUASH_SUBJECT_PR.exec(subject);
+
+  return match ? Number(match[1]) : null;
+}
+
+const LORE_TASK_LINE = /^Lore-Task:\s*([0-9a-f-]+)\s*$/im;
+
+/** The task a Lore-authored pull request belongs to: the uuid on the `Lore-Task:` line {@link prFooter} writes, or null. */
+export function loreTaskIdOf(prBody: string | null | undefined): string | null {
+  return LORE_TASK_LINE.exec(prBody ?? "")?.[1] ?? null;
+}

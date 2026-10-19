@@ -1,13 +1,17 @@
-/** Classifies repo's GitHub webhooks against the canonical hook URL (`LORE_WEBHOOK_URL`, the event-router front door); no IO (route lists hooks + calls this). */
+/** Classifies repo's GitHub webhooks against the canonical hook URL (`LORE_WEBHOOK_URL`, the public `/api/events` URL the ingress rewrites onto lore-api's `POST /api/webhook/github`); no IO (route lists hooks + calls this). */
 
 export const REQUIRED_EVENTS = [
   "pull_request",
   "pull_request_review",
   "pull_request_review_comment",
-  "check_run",
-  "check_suite",
   "issue_comment",
   "issues",
+  "repository",
+  /** A branch push: a protected branch's base moving under its pull requests, and the Utopia commit mirror's walk of the default branch. */
+  "push",
+  /** A release published or edited, and a tag created: the Utopia release mirror pushes the repo's tags and releases again. */
+  "release",
+  "create",
 ] as const;
 
 export interface RepoHook {
@@ -125,7 +129,7 @@ function isFailingDelivery(lastCode: number | null): boolean {
   return lastCode !== null && lastCode >= 400;
 }
 
-/** Every path Lore has pointed a repo hook at: the event-router front door and the pre-ADR-044 Floor ingress. A hook at either is ours — the classifier reports the legacy one as `wrong_url` and ensure repoints it in place instead of creating a second hook, so the legacy path stays listed for as long as any repo may still carry it. Host-agnostic on purpose: the host is what a repoint changes. */
+/** Every path Lore has pointed a repo hook at: the public front door (rewritten onto lore-api by the ingress) and the pre-ADR-044 Floor ingress. A hook at either is ours — the classifier reports the legacy one as `wrong_url` and ensure repoints it in place instead of creating a second hook, so the legacy path stays listed for as long as any repo may still carry it. Host-agnostic on purpose: the host is what a repoint changes. */
 export const LORE_HOOK_PATHS = ["/api/events", "/api/webhook/github"] as const;
 
 export function isLoreHook(hook: { config: { url?: string } }): boolean {

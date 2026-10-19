@@ -26,19 +26,6 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     pending: async (repo) => byStatus(repo, "pending"),
     running: async (repo) => byStatus(repo, "running"),
     executed: async (repo) => byStatus(repo, "merged"),
-    specTasksForFeature: async (repo, featureId) =>
-      rows
-        .filter(
-          (r) =>
-            r.target_repo === repo &&
-            r.task_type === "spec-task" &&
-            r.context_bundle?.["feature_id"] === featureId,
-        )
-        .map((r) => ({
-          description: r.description ?? "",
-          status: r.status ?? "",
-          context_bundle: r.context_bundle ?? null,
-        })),
     findOpenLike: async ({ repo, taskType, descriptionPrefix, statuses }) =>
       rows.filter(
         (r) =>
@@ -134,5 +121,22 @@ describe("TaskList", () => {
     await task!.cancel();
 
     expect(task!.status).toBe("cancelled");
+  });
+
+  it("carries issue 42 of the task it read, and null for a task with no issue", async () => {
+    const facade = new TaskList(
+      "re-cinq/lore",
+      fakeStore([
+        { ...row("a", "running"), issue_number: 42 },
+        row("b", "running"),
+      ]),
+    );
+
+    const [withIssue, without] = await Promise.all([
+      facade.getById("a"),
+      facade.getById("b"),
+    ]);
+
+    expect([withIssue?.issueNumber, without?.issueNumber]).toEqual([42, null]);
   });
 });

@@ -17,6 +17,42 @@ import {
 
 /** Allocating the token budget across sections by priority, and packing each section's deduped items into its share. */
 
+// Per-template default token budgets; research keeps the old 16K ceiling since it's memory/episode-heavy.
+const TEMPLATE_DEFAULT_BUDGETS: Record<string, number | undefined> = {
+  default: 8000,
+  implementation: 8000,
+  review: 8000,
+  research: 16000,
+};
+
+/** Never below 2000 tokens: a budget small enough to fit nothing still costs a request, and an agent that receives an empty block cannot tell it from a repo with no context at all. */
+export function assemblyBudget(
+  templateName: string,
+  maxTokens?: number,
+): number {
+  return Math.max(resolveEffectiveMax(templateName, maxTokens), 2000);
+}
+
+/** Each store's share when two are assembled side by side: half of what one assembly would get. */
+export function halfBudget(
+  templateName = "default",
+  maxTokens?: number,
+): number {
+  return Math.floor(resolveEffectiveMax(templateName, maxTokens) / 2);
+}
+
+function resolveEffectiveMax(
+  templateName: string,
+  maxTokens: number | undefined,
+): number {
+  return maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
+}
+
+// How far below the best chunk of the whole assembly a chunk may sit and still be kept (cosine similarity). Measured on 113 questions over production data: the document a question was written from sits within this of the best in nine cases out of ten, and the best chunk of an unrelated section sits further away in most.
+export const RELEVANCE_MARGIN = 0.08;
+
+const NOT_CLOSE_ENOUGH = "nothing close enough to the question";
+
 const STATUS_REASON: Record<FetchStatus, string> = {
   ok: "",
   empty: "no results",
@@ -44,6 +80,8 @@ interface SectionBudget {
 export interface FetchedSection {
   section: TemplateSection;
   res: FetchResult;
+  /** Why the section holds nothing, when that is not what its source reported. */
+  omitReason?: string;
 }
 
 interface SectionFitOutcome {
@@ -78,10 +116,39 @@ export function allocateSections(
   fetched: FetchedSection[],
   minTokens: number,
 ): AllocatedSections {
-  return packSections(orderedByPriority(fetched), {
+  const related = closeToTheBest(fetched);
+
+  return packSections(orderedByPriority(related), {
     minTokens,
-    nonEmptyWeight: computeNonEmptyWeight(fetched),
+    nonEmptyWeight: computeNonEmptyWeight(related),
   });
+}
+
+/** Every section with the chunks that sit far below the best one, anywhere, taken out. A section fills its share with whatever it has, so without this an ADR section with nothing to say about the question still spends a quarter of the budget. An item with no similarity (a memory, a rule, a keyword-only hit) was not measured and is never cut. */
+function closeToTheBest(fetched: FetchedSection[]): FetchedSection[] {
+  const floor = bestSimilarity(fetched) - RELEVANCE_MARGIN;
+
+  return fetched.map(({ section, res }) => {
+    const sources = res.sources.filter(
+      (source) => source.similarity === undefined || source.similarity >= floor,
+    );
+    const cutToNothing = sources.length === 0 && res.sources.length > 0;
+
+    return {
+      section,
+      res: { ...res, sources },
+      ...(cutToNothing ? { omitReason: NOT_CLOSE_ENOUGH } : {}),
+    };
+  });
+}
+
+function bestSimilarity(fetched: FetchedSection[]): number {
+  return Math.max(
+    0,
+    ...fetched.flatMap(({ res }) =>
+      res.sources.map((source) => source.similarity ?? 0),
+    ),
+  );
 }
 
 function orderedByPriority(fetched: FetchedSection[]): FetchedSection[] {
@@ -124,7 +191,7 @@ function packSections(
 
 /** One section's dedupe-then-fit pass, against what the sections before it already claimed. Reads `seenAcrossSections` without adding to it — a section that ends up omitted must not hold its documents back from the sections after it. */
 function fitOneSection(
-  { section, res }: FetchedSection,
+  { section, res, omitReason }: FetchedSection,
   seenAcrossSections: Set<string>,
   remaining: number,
   { minTokens, nonEmptyWeight }: SectionWeights,
@@ -134,11 +201,12 @@ function fitOneSection(
     new Set(seenAcrossSections),
   );
   const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
-  const fit = fitSection(deduped, res.status, section, {
+  const fitted = fitSection(deduped, res.status, section, {
     remaining,
     minTokens,
     nonEmptyWeight,
   });
+  const fit = omitReason ? { ...fitted, omitReason } : fitted;
 
   return { section, res, fit, deduped, rawTokens };
 }
@@ -260,6 +328,13 @@ function buildTraceSection(outcome: SectionFitOutcome): TraceSection {
     truncated: fit.truncated,
     included: fit.included,
     omitReason: fit.omitReason,
+    ...vectorLegTrace(res),
     items: fit.included ? fit.keptItems : deduped,
   };
+}
+
+function vectorLegTrace(res: FetchResult): Pick<TraceSection, "vectorLegRows"> {
+  return res.vectorLegRows === undefined
+    ? {}
+    : { vectorLegRows: res.vectorLegRows };
 }

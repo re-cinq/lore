@@ -79,3 +79,13 @@ export function runStatusVisual(
     }
   );
 }
+
+/** The run header's status: a run only people hold is open but nothing in it is running, so it says whose move it is; every other run reads by its status and outcome. */
+export function runHeaderVisual(
+  run: { status: string; outcome: string | null },
+  waitingOn: string | null,
+): StatusVisual {
+  return run.status === "running" && waitingOn
+    ? { label: waitingOn, tone: "info" }
+    : runStatusVisual(run.status, run.outcome);
+}

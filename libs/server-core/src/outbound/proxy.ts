@@ -168,13 +168,12 @@ function storeWhenCacheable(
   store(policy, body);
 }
 
-// Falls back to a stale cached copy only for a genuine "unreachable" outcome; denials pass through.
 function serveStaleFallback({
   policy,
   result,
   label,
 }: StaleFallbackInput): ProxyResult {
-  if (result.reason !== "unreachable") {
+  if (result.reason !== "unreachable" || result.status !== undefined) {
     return result;
   }
   const stale = readAny(policy);
@@ -206,8 +205,7 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
         signal: AbortSignal.timeout(15_000),
       }),
     `proxy GET ${path}`,
-    // Non-retriable 4xx: surface server's message to caller (no status/body carried for GET).
-    (_status, detail) => ({ ok: false, reason: "unreachable", detail }),
+    refusalResult,
   );
 }
 
@@ -224,6 +222,24 @@ export function unreachableError(
           `Lore API unreachable for ${op} after ${PROXY_RETRY_DELAYS_MS.length + 1} attempts: ${detail}. ` +
           `Refusing local-file fallback to prevent silent divergence from the org-wide DB. ` +
           `Check the GKE service (lore-api pods) and retry.`,
+      },
+    ],
+  };
+}
+
+export function failedProxyError(
+  op: string,
+  failure: Extract<ProxyResult, { reason: "unreachable" }>,
+): { content: [{ type: "text"; text: string }] } {
+  if (!failure.status) {
+    return unreachableError(op, failure.detail);
+  }
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `Lore API rejected ${op}: ${failure.detail}`,
       },
     ],
   };
@@ -247,11 +263,25 @@ export function deniedError(
   };
 }
 
-/** The MCP content envelope every tool answers in. One place to build it, so a tool returns text rather than assembling a protocol shape. */
+/** The MCP content envelope every tool answers in. One place to build it, so a tool returns text rather than assembling a protocol shape. A JSON array is wrapped as `{results}`: gemini-cli lifts a JSON text into `structuredContent`, which the MCP schema only accepts as an object, so an array answer failed every Gemini pod's call. */
 export function textResult(text: string): {
   content: [{ type: "text"; text: string }];
 } {
-  return { content: [{ type: "text" as const, text }] };
+  return { content: [{ type: "text" as const, text: objectText(text) }] };
+}
+
+function objectText(text: string): string {
+  if (!text.trimStart().startsWith("[")) {
+    return text;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    return Array.isArray(parsed) ? JSON.stringify({ results: parsed }) : text;
+  } catch {
+    return text;
+  }
 }
 
 // Format MCP error for unconfigured API endpoint/token; distinct from unreachable.

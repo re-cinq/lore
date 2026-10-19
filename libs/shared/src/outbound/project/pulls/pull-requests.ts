@@ -15,6 +15,8 @@ import type {
   JobFailure,
   ReviewThread,
   PullFileChange,
+  BranchRule,
+  Mergeability,
 } from "./pull-requests-port.js";
 
 /** Canonical PR surface, repo-bound; thin facade over PullRequestsPort. */
@@ -26,6 +28,10 @@ export class PullRequests {
 
   list(): Promise<PullRef[]> {
     return this.pulls.list(this.repo);
+  }
+
+  listMergedSince(since: string): Promise<PullRef[]> {
+    return this.pulls.listMergedSince(this.repo, since);
   }
 
   get(number: number): Promise<PullRef | null> {
@@ -56,6 +62,23 @@ export class PullRequests {
     return this.pulls.addLabel(this.repo, number, label);
   }
 
+  /** Takes the PR's GraphQL node id (`PullRef.nodeId`), not its number: the mutation is GraphQL-only. */
+  enableAutoMerge(nodeId: string, method?: MergeMethod): Promise<void> {
+    return this.pulls.enablePullRequestAutoMerge(nodeId, method);
+  }
+
+  cancelAutoMerge(nodeId: string): Promise<void> {
+    return this.pulls.disablePullRequestAutoMerge(nodeId);
+  }
+
+  getBranchRule(branch: string): Promise<BranchRule> {
+    return this.pulls.getBranchRule(this.repo, branch);
+  }
+
+  getMergeability(number: number): Promise<Mergeability> {
+    return this.pulls.getMergeability(this.repo, number);
+  }
+
   merge(number: number, method?: MergeMethod): Promise<void> {
     return this.pulls.merge(this.repo, number, method);
   }
@@ -73,6 +96,10 @@ export class PullRequests {
 
   markReady(number: number): Promise<void> {
     return this.pulls.markReady(this.repo, number);
+  }
+
+  close(number: number): Promise<void> {
+    return this.pulls.close(this.repo, number);
   }
 
   getDiff(number: number): Promise<string> {

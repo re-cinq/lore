@@ -1,8 +1,15 @@
-// Shared Kubernetes-style pagination loop (event-router watch, Floor reconcile, cluster client) — no one-shot list is offered: an unpaginated LIST of 180 CRs blew Node's heap and crash-looped the Floor on 2026-07-24.
+// Shared Kubernetes-style pagination loop (Floor reconcile, cluster client) — no one-shot list is offered: an unpaginated LIST of 180 CRs blew Node's heap and crash-looped the Floor on 2026-07-24.
 
 export interface Page<T> {
   items: T[];
   continueToken?: string;
+}
+
+/** One page asked for: at most `limit` items, resuming from a previous page's `continueToken`. */
+export interface PageRequest {
+  limit: number;
+  continue?: string;
+  labelSelector?: string;
 }
 
 /** Fetch every page, handing each to `onPage` as it arrives. */

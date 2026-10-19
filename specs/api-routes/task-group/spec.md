@@ -67,7 +67,7 @@ An unknown group id returns an empty group rather than a 404. ([validated by `re
 
 A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/transport/routes/tasks/task-group.test.ts#L72))
 
-The route is registered as `GET /api/task-groups/{id}`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L109), [implemented by](../../../apps/lore-api/src/transport/routes/tasks/task-group.ts#L21))
+The route is registered as `GET /api/task-groups/{id}`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L127), [implemented by](../../../apps/lore-api/src/transport/routes/tasks/task-group.ts#L21))
 
 ## Out of Scope
 

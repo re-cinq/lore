@@ -10,11 +10,10 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { projectFor } from "../../../outbound/project-boot.js";
 import { readCiFailures, type CiTarget } from "../../../work/ci/ci-failures.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { githubFailureResponse } from "./github-read.js";
+import { githubFailureResponse, onboardedProject } from "./github-read.js";
 
 const RepoParams = z.object({
   owner: z.string().min(1),
@@ -50,6 +49,7 @@ const CiFailuresSchema = z.object({
       npm_script: z
         .object({ package: z.string(), script: z.string() })
         .nullable(),
+      unreadable: z.array(z.string()),
     }),
   ),
 });
@@ -66,7 +66,7 @@ const ROUTE_OPTIONS = zodResponse(
   {
     name: "CiFailures",
     description:
-      "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail",
+      "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail, plus the reads GitHub refused (unreadable) so an empty part is not mistaken for a silent job",
     errors: [400, 404],
   },
 );
@@ -89,7 +89,7 @@ async function serveCiFailures(
   const query = request.query as unknown as CiFailuresQuery;
 
   try {
-    const project = await projectFor(`${owner}/${repo}`);
+    const project = await onboardedProject(`${owner}/${repo}`);
     const report = await readCiFailures(project.pulls, targetOf(query));
 
     enforceTrue(report !== null, apiError(404), "pull request not found");

@@ -79,10 +79,10 @@ The default config carries sensible values (`max_concurrent` 2, includes
 ([validated by `runner.local.test.ts:88`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L91))
 
 The config serializes and round-trips through JSON unchanged.
-([validated by `runner.local.test.ts:114`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L117))
+([validated by `runner.local.test.ts:114`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L118))
 
 The update merge keeps untouched fields and overwrites only provided ones.
-([validated by `runner.local.test.ts:264`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L267))
+([validated by `runner.local.test.ts:264`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L268))
 
 `writeConfig` writing to the live `~/.lore/local-runner.json` path is exercised
 only end-to-end. *(untested: `readConfig`/`writeConfig` use a module-load-fixed

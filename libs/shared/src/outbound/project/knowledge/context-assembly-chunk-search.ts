@@ -1,5 +1,6 @@
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import type { PgPool } from "../../memory-store.js";
+import { runInTransaction } from "../../db/pg-transaction.js";
 import { resolveChunkSchemaForRepo } from "../chunks/chunk-schema.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import { stripCoverageLinks } from "../../../domain/spec-link-strip.js";
@@ -14,13 +15,14 @@ import {
 /** Hybrid RRF retrieval over the repo's resolved chunk schema: pgvector cosine leg + BM25 (ts_rank) leg, same as search_context; degrades to keyword-only with no query embedding. */
 
 /** One hybrid-search HIT, not a chunk row — `score` is a ts_rank/cosine aggregate the query computes, no column holds it (the repo had three types named ChunkRow; this is the one that never described a table). */
-// eslint-disable-next-line re-lint/no-row-types-outside-models -- the search query's own projection: score is computed, content_hash is lifted out of the metadata jsonb
+
 export interface ChunkSearchHit {
   content: string;
   file_path: string;
   content_type?: string | null;
   ingested_at?: string | Date | null;
   score?: number | string | null;
+  similarity?: number | string | null;
   repo?: string;
   content_hash?: string | null;
 }
@@ -37,6 +39,9 @@ export interface Incident {
   url?: string;
 }
 
+// NULL for a chunk with no embedding: `<=>` against NULL is NULL, so a keyword-only hit carries no similarity rather than a zero.
+const SIMILARITY = "1 - (embedding <=> $2::vector) AS similarity";
+
 interface ChunkQuery {
   repo: string;
   keywordQuery: string;
@@ -44,41 +49,90 @@ interface ChunkQuery {
   limit: number;
 }
 
+export interface ChunkSearchResult {
+  items: SourceItem[];
+  vectorLegRows?: number;
+}
+
 export async function hybridChunkItems(
   pool: PgPool,
   query: string,
   repo: string,
-  { contentTypes, limit }: { contentTypes: string[]; limit: number },
+  options: { contentTypes: string[]; limit: number },
 ): Promise<SourceItem[]> {
+  return (await hybridChunkSearch(pool, query, repo, options)).items;
+}
+
+export async function hybridChunkSearch(
+  pool: PgPool,
+  query: string,
+  repo: string,
+  { contentTypes, limit }: { contentTypes: string[]; limit: number },
+): Promise<ChunkSearchResult> {
   const [embedding, schema] = await Promise.all([
     getQueryEmbedding(query),
     resolveChunkSchemaForRepo(pool, repo),
   ]);
   // Keyword leg searches distinctive terms (OR'd) rather than the whole paragraph, which would AND every filler word.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const chunkQuery = { repo, keywordQuery, contentTypes, limit };
+  // `limit` counts documents and the query returns chunks: a document may bring three (dedupeItems merges them).
+  const chunkQuery = { repo, keywordQuery, contentTypes, limit: limit * 3 };
 
   return embedding
     ? hybridRankedItems(pool, schema, embedding, chunkQuery)
-    : keywordRankedItems(pool, schema, chunkQuery);
+    : { items: await keywordRankedItems(pool, schema, chunkQuery) };
 }
+
+/** A fused row also carries how many rows the vector leg produced, the same count on every row. */
+type FusedHit = ChunkSearchHit & { vec_rows?: number | string | null };
 
 async function hybridRankedItems(
   pool: PgPool,
   schema: string,
   embedding: number[],
   chunkQuery: ChunkQuery,
-): Promise<SourceItem[]> {
-  const { rows } = await pool.query<ChunkSearchHit>(hybridSql(schema), [
-    chunkQuery.repo,
-    `[${embedding.join(",")}]`,
-    chunkQuery.contentTypes,
-    chunkQuery.keywordQuery,
-    chunkQuery.limit,
-  ]);
+): Promise<ChunkSearchResult> {
+  const rows = await runHybridQuery(pool, schema, embedding, chunkQuery);
 
-  return toItems(rows, chunkQuery.contentTypes);
+  return {
+    items: toItems(rows, chunkQuery.contentTypes),
+    vectorLegRows: Number(rows[0]?.vec_rows ?? 0),
+  };
 }
+
+function runHybridQuery(
+  pool: PgPool,
+  schema: string,
+  embedding: number[],
+  chunkQuery: ChunkQuery,
+): Promise<FusedHit[]> {
+  return runInTransaction(pool, async (tx) => {
+    if (tx !== pool) {
+      await tx.query(VECTOR_SCAN_SETTINGS_SQL);
+    }
+
+    const { rows } = await tx.query<FusedHit>(hybridSql(schema), [
+      chunkQuery.repo,
+      `[${embedding.join(",")}]`,
+      chunkQuery.contentTypes,
+      chunkQuery.keywordQuery,
+      chunkQuery.limit,
+    ]);
+
+    return rows;
+  });
+}
+
+const HNSW_EF_SEARCH = 200;
+
+const VECTOR_SCAN_SETTINGS_SQL = `SELECT set_config('hnsw.ef_search', '${HNSW_EF_SEARCH}', true),
+       CASE WHEN EXISTS (
+              SELECT 1 FROM pg_extension
+              WHERE extname = 'vector'
+                AND split_part(extversion, '.', 1)::int * 100 + substring(split_part(extversion, '.', 2) from '^[0-9]+')::int >= 8
+            )
+            THEN set_config('hnsw.iterative_scan', 'relaxed_order', true)
+       END`;
 
 /** Reciprocal Rank Fusion over the two legs, joined FULL OUTER so a chunk that only one leg finds still scores. The 60 is RRF's usual damping: it stops a single leg's top hit from dominating a chunk both legs rank moderately. */
 function hybridSql(schema: string): string {
@@ -88,27 +142,32 @@ function hybridSql(schema: string): string {
               COALESCE(v.content_type, k.content_type) AS content_type,
               COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
               COALESCE(v.content_hash, k.content_hash) AS content_hash,
-              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
+              COALESCE(v.similarity, k.similarity) AS similarity,
+              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score,
+              (SELECT COUNT(*) FROM vec) AS vec_rows
        FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
        ORDER BY score DESC LIMIT $5`;
 }
 
-/** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped at 20 candidates before fusion. */
+/** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped before fusion at 20 candidates, or at as many as the fusion is asked for when that is more, so one leg alone can fill the result. */
 function hybridLegsSql(schema: string): string {
   return `WITH vec AS (
-         SELECT id, ${HIT_COLUMNS},
+         SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
-         FROM ${schema}.chunks
-         WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
-         LIMIT 20
+         FROM (
+           SELECT * FROM ${schema}.chunks
+           WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
+           ORDER BY embedding <=> $2::vector
+           LIMIT GREATEST(20, $5)
+         ) nearest
        ),
        kw AS (
-         SELECT id, ${HIT_COLUMNS},
+         SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
                 ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $4)) DESC) AS r
          FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3)
            AND search_tsv @@ websearch_to_tsquery('english', $4)
-         LIMIT 20
+         LIMIT GREATEST(20, $5)
        )`;
 }
 
@@ -121,11 +180,18 @@ function toItems(rows: ChunkSearchHit[], contentTypes: string[]): SourceItem[] {
         source_path: r.file_path,
         content_type: r.content_type ?? contentTypes[0],
         score: toScore(r.score),
+        ...similarityOf(r),
         ingested_at: toIso(r.ingested_at),
         ...(r.content_hash ? { content_hash: r.content_hash } : {}),
       }),
     ),
   );
+}
+
+function similarityOf(hit: ChunkSearchHit): { similarity?: number } {
+  const similarity = toScore(hit.similarity);
+
+  return similarity === undefined ? {} : { similarity };
 }
 
 /** Keyword-only fallback: with no embedding the vector leg has nothing to compare against, so ranking falls back to text relevance alone. */

@@ -3,36 +3,58 @@ import Hapi from "@hapi/hapi";
 import { ingestDeltaRoute, type IngestDeltaDeps } from "./ingest-delta.js";
 
 const SHA_A = "a".repeat(40); // eslint-disable-line re-lint/declare-near-use -- paired fixture shas belong together at the head of the file
-const SHA_B = "b".repeat(40);
+const SHA_B = "b".repeat(40); // eslint-disable-line re-lint/declare-near-use -- paired with SHA_A above
 
 interface Issued {
   sql: string;
   params: unknown[];
 }
 
-function fakeDeps(): IngestDeltaDeps & {
+interface FakeDeps extends IngestDeltaDeps {
   calls: Array<[string, ...unknown[]]>;
-} {
+  mirrored: Array<[string, ...unknown[]]>;
+}
+
+function fakeDeps(
+  graph: { specs?: string[]; adrs?: string[]; code?: string[] } = {},
+  mirrorDoc: IngestDeltaDeps["mirrorDoc"] = async () => undefined,
+  mirrorReport: IngestDeltaDeps["mirrorReport"] = async () => undefined,
+  mirrorCode: IngestDeltaDeps["mirrorCode"] = async () => undefined,
+): FakeDeps {
   const calls: Array<[string, ...unknown[]]> = [];
+  const mirrored: Array<[string, ...unknown[]]> = [];
+  const recordProjection =
+    (name: string): IngestDeltaDeps["projectSpec"] =>
+    async (repo, path, content, projection) => {
+      calls.push([
+        name,
+        repo,
+        path,
+        content,
+        ...(projection.force ? ["forced"] : []),
+      ]);
+
+      return { projected: true };
+    };
 
   return {
     calls,
+    mirrored,
     dgraph: () => ({}) as never,
-    projectSpec: async (repo, path, content) => {
-      calls.push(["projectSpec", repo, path, content]);
-
-      return { projected: true };
-    },
-    projectAdr: async (repo, path, content) => {
-      calls.push(["projectAdr", repo, path, content]);
-
-      return { projected: true };
-    },
+    projectSpec: recordProjection("projectSpec"),
+    projectAdr: recordProjection("projectAdr"),
+    projectCode: recordProjection("projectCode"),
+    listSpecs: async () => graph.specs ?? [],
+    listAdrs: async () => graph.adrs ?? [],
+    listCode: async () => graph.code ?? [],
     deleteSpec: async (repo, path) => {
       calls.push(["deleteSpec", repo, path]);
     },
     deleteAdr: async (repo, path) => {
       calls.push(["deleteAdr", repo, path]);
+    },
+    deleteCode: async (repo, path) => {
+      calls.push(["deleteCode", repo, path]);
     },
     ingestReport: async (repo, payload) => {
       calls.push(["ingestReport", repo, payload]);
@@ -52,6 +74,27 @@ function fakeDeps(): IngestDeltaDeps & {
       return { prunedChunks: files.length };
     },
     defaultBranch: async () => "main",
+    mirrorDoc: async (repo, doc) => {
+      mirrored.push(["mirrorDoc", repo, doc]);
+      await mirrorDoc(repo, doc);
+    },
+    unmirrorDoc: async (repo, path) => {
+      mirrored.push(["unmirrorDoc", repo, path]);
+    },
+    mirrorReport: async (repo, report) => {
+      mirrored.push(["mirrorReport", repo, report]);
+      await mirrorReport(repo, report);
+    },
+    unmirrorTests: async (repo, paths) => {
+      mirrored.push(["unmirrorTests", repo, paths]);
+    },
+    mirrorCode: async (repo, code) => {
+      mirrored.push(["mirrorCode", repo, code]);
+      await mirrorCode(repo, code);
+    },
+    unmirrorCode: async (repo, paths) => {
+      mirrored.push(["unmirrorCode", repo, paths]);
+    },
   };
 }
 
@@ -134,6 +177,122 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     });
   });
 
+  it("mirrors a projected spec as kind spec at the delta's commit and unmirrors the deleted one", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "specs/x/spec.md", content: "# X\n" }],
+      deleted: ["specs/old/spec.md"],
+    });
+
+    expect(deps.mirrored).toEqual([
+      [
+        "mirrorDoc",
+        "re-cinq/lore",
+        {
+          path: "specs/x/spec.md",
+          content: "# X\n",
+          kind: "spec",
+          commit: SHA_B,
+        },
+      ],
+      ["unmirrorDoc", "re-cinq/lore", "specs/old/spec.md"],
+    ]);
+  });
+
+  it("answers 200 with the projection counted when the mirror throws", async () => {
+    const deps = fakeDeps({}, async () => {
+      throw new Error("utopia answered 503: busy");
+    });
+    const server = await serverWith(deps, casAdvances);
+    const res = await post(server, {
+      kind: "adrs",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "adrs/ADR-001.md", content: "# ADR-001\n" }],
+    });
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: {
+        kind: "adrs",
+        commit: SHA_B,
+        state: "advanced",
+        projected: 1,
+        deleted: 0,
+        test_chunks: 0,
+        pruned_test_files: 0,
+      },
+    });
+  });
+
+  it("mirrors a main code delta's files after projecting them", async () => {
+    const projectedBeforeMirror: string[][] = [];
+    const deps: FakeDeps = fakeDeps({}, undefined, undefined, async () => {
+      projectedBeforeMirror.push(deps.calls.map(([name]) => name));
+    });
+    const server = await serverWith(deps, casAdvances);
+    const files = [{ path: "src/runner.ts", content: "export {};" }];
+
+    await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files,
+    });
+
+    expect({ mirrored: deps.mirrored, projectedBeforeMirror }).toEqual({
+      mirrored: [["mirrorCode", "re-cinq/lore", { files, commit: SHA_B }]],
+      projectedBeforeMirror: [["projectCode"]],
+    });
+  });
+
+  it("tombstones the deleted code files", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      deleted: ["src/gone.ts", "src/old.ts"],
+    });
+
+    expect(deps.mirrored).toEqual([
+      ["unmirrorCode", "re-cinq/lore", ["src/gone.ts", "src/old.ts"]],
+    ]);
+  });
+
+  it("answers 200 when the code mirror throws", async () => {
+    const deps = fakeDeps({}, undefined, undefined, async () => {
+      throw new Error("utopia answered 503: busy");
+    });
+    const server = await serverWith(deps, casAdvances);
+    const res = await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "src/runner.ts", content: "export {};" }],
+    });
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: {
+        kind: "code",
+        commit: SHA_B,
+        state: "advanced",
+        projected: 1,
+        deleted: 0,
+        test_chunks: 0,
+        pruned_test_files: 0,
+      },
+    });
+  });
+
   it("routes adr files to the adr projector and adr deletions to the adr prune", async () => {
     const deps = fakeDeps();
     const server = await serverWith(deps, casFirstIngest);
@@ -149,6 +308,24 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(deps.calls).toEqual([
       ["projectAdr", "re-cinq/lore", "adrs/ADR-001.md", "# ADR-001\n"],
       ["deleteAdr", "re-cinq/lore", "adrs/ADR-000.md"],
+    ]);
+  });
+
+  it("routes src/runner.ts to the code projector and src/old.ts to the code prune", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, {
+      kind: "code",
+      commit: SHA_B,
+      base_commit: null,
+      files: [{ path: "src/runner.ts", content: "export {};\n" }],
+      deleted: ["src/old.ts"],
+    });
+
+    expect(deps.calls).toEqual([
+      ["projectCode", "re-cinq/lore", "src/runner.ts", "export {};\n"],
+      ["deleteCode", "re-cinq/lore", "src/old.ts"],
     ]);
   });
 
@@ -176,6 +353,72 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(JSON.parse(res.payload)).toMatchObject({
       test_chunks: 2,
       pruned_test_files: 1,
+    });
+  });
+
+  it("mirrors a main test-report at the delta's commit after projecting it", async () => {
+    const projectedBeforeMirror: string[][] = [];
+    const deps: FakeDeps = fakeDeps({}, undefined, async () => {
+      projectedBeforeMirror.push(deps.calls.map(([name]) => name));
+    });
+    const server = await serverWith(deps, casAdvances);
+    const report = {
+      tests: [{ id: "a.test.ts::t", name: "t", file: "a.test.ts" }],
+      results: [{ id: "a.test.ts::t", passed: true, covered: [] }],
+    };
+
+    await post(server, {
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      report,
+    });
+
+    expect({ mirrored: deps.mirrored, projectedBeforeMirror }).toEqual({
+      mirrored: [["mirrorReport", "re-cinq/lore", { report, commit: SHA_B }]],
+      projectedBeforeMirror: [["ingestReport"]],
+    });
+  });
+
+  it("tombstones the deleted test files of a test-report delta", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, {
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      deleted: ["gone.test.ts", "old.test.ts"],
+    });
+
+    expect(deps.mirrored).toEqual([
+      ["unmirrorTests", "re-cinq/lore", ["gone.test.ts", "old.test.ts"]],
+    ]);
+  });
+
+  it("answers 200 with test_chunks counted when the report mirror throws", async () => {
+    const deps = fakeDeps({}, undefined, async () => {
+      throw new Error("utopia answered 503: busy");
+    });
+    const server = await serverWith(deps, casAdvances);
+    const res = await post(server, {
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      report: { tests: [], results: [] },
+    });
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: {
+        kind: "test-report",
+        commit: SHA_B,
+        state: "advanced",
+        projected: 0,
+        deleted: 0,
+        test_chunks: 2,
+        pruned_test_files: 0,
+      },
     });
   });
 
@@ -395,6 +638,106 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
   });
 });
 
+describe("POST /api/repos/{owner}/{repo}/ingest with a forced or full doc delta", () => {
+  const fullSpecs = (extra: Record<string, unknown>) => ({
+    kind: "specs",
+    commit: SHA_B,
+    base_commit: null,
+    files: [{ path: "specs/a/spec.md", content: "a" }],
+    ...extra,
+  });
+
+  it("tells the projector to re-project when the delta is forced", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, fullSpecs({ force: true }));
+
+    expect(deps.calls).toEqual([
+      ["projectSpec", "re-cinq/lore", "specs/a/spec.md", "a", "forced"],
+    ]);
+  });
+
+  it("prunes specs/gone/spec.md when the graph holds it and present does not", async () => {
+    const deps = fakeDeps({
+      specs: ["specs/a/spec.md", "specs/b/spec.md", "specs/gone/spec.md"],
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(
+      server,
+      fullSpecs({ present: ["specs/a/spec.md", "specs/b/spec.md"] }),
+    );
+
+    expect(deps.calls).toEqual([
+      ["projectSpec", "re-cinq/lore", "specs/a/spec.md", "a"],
+      ["deleteSpec", "re-cinq/lore", "specs/gone/spec.md"],
+    ]);
+    expect(JSON.parse(res.payload)).toMatchObject({ projected: 1, deleted: 1 });
+  });
+
+  it("prunes adrs/ADR-009.md through the adr prune when present omits it", async () => {
+    const deps = fakeDeps({ adrs: ["adrs/ADR-001.md", "adrs/ADR-009.md"] });
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, {
+      kind: "adrs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [],
+      present: ["adrs/ADR-001.md"],
+    });
+
+    expect(deps.calls).toEqual([
+      ["deleteAdr", "re-cinq/lore", "adrs/ADR-009.md"],
+    ]);
+  });
+
+  it("prunes nothing when 5 of the graph's 6 specs are missing from present", async () => {
+    const deps = fakeDeps({
+      specs: ["a", "b", "c", "d", "e", "f"].map((n) => `specs/${n}/spec.md`),
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(server, fullSpecs({ present: ["specs/a/spec.md"] }));
+
+    expect(deps.calls).toEqual([
+      ["projectSpec", "re-cinq/lore", "specs/a/spec.md", "a"],
+    ]);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      state: "advanced",
+      deleted: 0,
+    });
+  });
+
+  it("prunes nothing when present is empty, forced or not", async () => {
+    const deps = fakeDeps({ specs: ["specs/a/spec.md", "specs/b/spec.md"] });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [],
+      present: [],
+      force: true,
+    });
+
+    expect(deps.calls).toEqual([]);
+    expect(JSON.parse(res.payload)).toMatchObject({ deleted: 0 });
+  });
+
+  it("prunes 5 of the graph's 6 specs when the delta is forced", async () => {
+    const deps = fakeDeps({
+      specs: ["a", "b", "c", "d", "e", "f"].map((n) => `specs/${n}/spec.md`),
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(
+      server,
+      fullSpecs({ present: ["specs/a/spec.md"], force: true }),
+    );
+
+    expect(JSON.parse(res.payload)).toMatchObject({ deleted: 5 });
+  });
+});
+
 describe("POST /api/repos/{owner}/{repo}/ingest from a branch", () => {
   const reportFor = (branch: string) => ({
     commit: SHA_B,
@@ -423,6 +766,15 @@ describe("POST /api/repos/{owner}/{repo}/ingest from a branch", () => {
         { ...reportFor("feat/x"), overlayBranch: "feat/x" },
       ],
     ]);
+  });
+
+  it("mirrors nothing for a feat/x test-report delta", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, deltaFor("feat/x"));
+
+    expect(deps.mirrored).toEqual([]);
   });
 
   it("leaves main's stored commit where it was and answers state overlay for a feat/x delta", async () => {

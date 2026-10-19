@@ -3,6 +3,15 @@ import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SpendView, { anthropicEstimate, type SpendWindow } from "./SpendView";
 
+const NO_UNITS = {
+  count: 0,
+  total_usd: 0,
+  avg_usd: 0,
+  median_usd: 0,
+  most: [],
+  least: [],
+};
+
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
@@ -30,6 +39,8 @@ const loreOnly: SpendWindow = {
     calls: 85,
     input_tokens: 12345,
     output_tokens: 735021,
+    cache_read_tokens: 4200000,
+    cache_write_tokens: 180000,
     by_blueprint: [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
     by_repo: [{ repo: "re-cinq/lore", usd: 80.1 }],
     by_model: [
@@ -54,6 +65,8 @@ const loreOnly: SpendWindow = {
       { task_type: "implementation", tasks: 30, cost_usd: 222.22 },
     ],
     by_cluster: [],
+    by_billing_mode: [],
+    floor_unavailable: false,
     by_vendor: [
       { vendor: "anthropic", calls: 82, cost_usd: 24.02 },
       { vendor: "gemini", calls: 3, cost_usd: 13.68 },
@@ -86,18 +99,11 @@ const loreOnly: SpendWindow = {
       { blueprint: "implementation-loop", pods: 9, hours: 6.5, est_usd: 0.22 },
     ],
     est_total_usd: 0.22,
-    live_pods: [
-      {
-        name: "agent-job-run1-tdd-round-abc",
-        phase: "Running",
-        started_at: "2026-09-02T11:00:00.000Z",
-        requests: { cpu: "1", memory: "16Gi" },
-        usd_per_hour: 0.07,
-        usd_so_far: 0.07,
-        station_run_id: "sr-1",
-      },
-    ],
-    live_usd_per_hour: 0.07,
+  },
+  unit_costs: {
+    tickets: NO_UNITS,
+    reviews: { per_pr: NO_UNITS, by_line: [], by_model: [] },
+    nodes: [],
   },
 };
 
@@ -160,13 +166,12 @@ const empty: SpendWindow = {
     daily: [],
     by_task_type: [],
     by_cluster: [],
+    by_billing_mode: [],
   },
   compute: {
     ...loreOnly.compute,
     pod_hours: [],
     est_total_usd: 0,
-    live_pods: [],
-    live_usd_per_hour: 0,
   },
 };
 
@@ -182,7 +187,6 @@ describe("SpendView", () => {
       "Cost by Repo",
       "Cost by Task Type",
       "Cost by Cluster",
-      "Pods Running Now",
       "Pod-Hours in Interval",
     ]) {
       expect(
@@ -210,21 +214,26 @@ describe("SpendView", () => {
     expect(screen.getByText(num(735021))).toBeInTheDocument();
   });
 
-  it("renders the Kubernetes estimate card with the live burn rate", () => {
+  it("headlines 4200000 cache-read and 180000 cache-write tokens beside the input tokens", () => {
     render(<SpendView spend={loreOnly} />);
-    expect(screen.getByText("Kubernetes (estimated)")).toBeInTheDocument();
-    expect(
-      screen.getByText(`+ ${usd(0.07)}/h burning now`),
-    ).toBeInTheDocument();
+
+    expect({
+      read: screen.getByText("Cache read tokens").nextElementSibling
+        ?.textContent,
+      write:
+        screen.getByText("Cache write tokens").nextElementSibling?.textContent,
+    }).toEqual({ read: num(4200000), write: num(180000) });
   });
 
-  it("renders the assembly-line, live-pod and pod-hours breakdowns with the rate note", () => {
+  it("renders the Kubernetes estimate card", () => {
+    render(<SpendView spend={loreOnly} />);
+    expect(screen.getByText("Kubernetes (estimated)")).toBeInTheDocument();
+  });
+
+  it("renders the assembly-line and pod-hours breakdowns with the rate note", () => {
     render(<SpendView spend={loreOnly} />);
     expect(
       within(tableByHeading("LLM by Assembly Line")).getByText(usd(27.47)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("agent-job-run1-tdd-round-abc"),
     ).toBeInTheDocument();
     expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
     expect(
@@ -282,13 +291,6 @@ describe("SpendView", () => {
     expect(
       screen.queryByRole("heading", { name: "GCP Daily Billed" }),
     ).not.toBeInTheDocument();
-  });
-
-  it("says so when no run pods are live", () => {
-    render(<SpendView spend={empty} />);
-    expect(
-      screen.getByText("No run pods are live right now."),
-    ).toBeInTheDocument();
   });
 
   it("renders cost-by-model rows, including the (non-token) fallback label", () => {
@@ -517,6 +519,18 @@ describe("SpendView redesign layout", () => {
     expect(within(computed).getByText("estimate")).toBeInTheDocument();
     expect(within(invoices).getByText("billed")).toBeInTheDocument();
     expect(within(compute).getByText("estimate")).toBeInTheDocument();
+  });
+
+  it("gives the cost per ticket, PR review and node its own estimate section", () => {
+    render(<SpendView spend={loreOnly} />);
+
+    const units = screen.getByRole("region", { name: "Cost per unit of work" });
+
+    expect({
+      pill: within(units).getByText("estimate").textContent,
+      ticket: within(units).getByRole("heading", { name: "Cost per Ticket" })
+        .textContent,
+    }).toEqual({ pill: "estimate", ticket: "Cost per Ticket" });
   });
 
   it("omits the vendor-invoices section until a vendor has synced", () => {

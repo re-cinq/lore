@@ -6,7 +6,7 @@ const fakeChunks = {
   specChunksWithIngest: vi.fn(async () => ["spec-2"]),
   testChunkRanges: vi.fn(async () => ["range-1"]),
   specChunksForBackfill: vi.fn(async () => ["spec-3"]),
-  codeChunksForBackfill: vi.fn(async () => ["chunk-1"]),
+  testChunksForBackfill: vi.fn(async () => ["chunk-1"]),
   hasChunk: vi.fn(async () => true),
 };
 
@@ -76,8 +76,8 @@ describe("GET /api/repos/{owner}/{repo}/chunks/{kind}", () => {
     expect(res.result).toEqual({ specs: ["spec-3"] });
   });
 
-  it("returns backfill code chunks for kind=code-backfill", async () => {
-    const res = await get("code-backfill");
+  it("returns backfill test chunks for kind=test-backfill", async () => {
+    const res = await get("test-backfill");
 
     expect(res.result).toEqual({ chunks: ["chunk-1"] });
   });

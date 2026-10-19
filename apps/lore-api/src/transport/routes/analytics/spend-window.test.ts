@@ -27,9 +27,9 @@ async function serverWith(
   server.auth.default("bearer-scope");
   server.route(
     spendWindowRoute(() => poolWith(rows, issued, rejectWhen), {
-      livePods: async () => [],
       env: {},
       now: () => NOW,
+      floor: null,
       ...deps,
     }),
   );
@@ -59,8 +59,59 @@ function poolWith(
   } as never;
 }
 
+const LORE_1648 = {
+  label: "re-cinq/lore#1648",
+  url: "https://github.com/re-cinq/lore/issues/1648",
+  runs: 4,
+  cost_usd: 70.27,
+};
+
+const UNIT_COST_ROWS: unknown[][] = [
+  [
+    {
+      count: 71,
+      total_usd: 872,
+      avg_usd: 12.28,
+      median_usd: 5.99,
+      most: [LORE_1648],
+      least: [],
+    },
+  ],
+  [
+    {
+      count: 2,
+      total_usd: 15.22,
+      avg_usd: 7.61,
+      median_usd: 7.61,
+      most: [],
+      least: [],
+    },
+  ],
+  [{ blueprint: "code-review", runs: 10, total_usd: 11.8, avg_usd: 1.18 }],
+  [{ model: "gemini-3.1-pro-preview", calls: 12, cost_usd: 14.1 }],
+  [
+    {
+      blueprint: "implementation-loop",
+      node_id: "tdd-round",
+      visits: 10,
+      total_usd: 14,
+      per_visit_usd: 1.4,
+      models: ["claude-opus-4-7"],
+    },
+  ],
+];
+
 const BASE_ROWS: unknown[][] = [
-  [{ calls: 42, usd: 82.5, input_tokens: 12345, output_tokens: 735021 }],
+  [
+    {
+      calls: 42,
+      total_usd: 82.5,
+      input_tokens: 12345,
+      output_tokens: 735021,
+      cache_read_tokens: 9000000,
+      cache_write_tokens: 250000,
+    },
+  ],
   [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
   [{ repo: "re-cinq/lore", usd: 80.1 }],
   [
@@ -105,6 +156,7 @@ const BASE_ROWS: unknown[][] = [
   [{ service: "Kubernetes Engine", cost_usd: 180.2 }],
   [{ bucket_date: "2026-09-01", cost_usd: 30.5 }],
   [{ blueprint: "implementation-loop", pods: 9, hours: 6.5 }],
+  ...UNIT_COST_ROWS,
 ];
 
 const get = (server: Hapi.Server, url = "/api/analytics/spend-window") =>
@@ -196,6 +248,36 @@ describe("GET /api/analytics/spend-window", () => {
     });
   });
 
+  it("carries 9000000 cache-read and 250000 cache-write tokens beside the metered totals", async () => {
+    const body = JSON.parse((await get(await serverWith(BASE_ROWS))).payload);
+
+    expect(body.llm).toMatchObject({
+      cache_read_tokens: 9000000,
+      cache_write_tokens: 250000,
+    });
+  });
+
+  it("carries what a ticket, a PR review and a node visit cost, lore issue 1648 dearest at 70.27 USD", async () => {
+    const body = JSON.parse((await get(await serverWith(BASE_ROWS))).payload);
+
+    expect(body.unit_costs).toEqual({
+      tickets: {
+        count: 71,
+        total_usd: 872,
+        avg_usd: 12.28,
+        median_usd: 5.99,
+        most: [LORE_1648],
+        least: [],
+      },
+      reviews: {
+        per_pr: UNIT_COST_ROWS[1][0],
+        by_line: UNIT_COST_ROWS[2],
+        by_model: UNIT_COST_ROWS[3],
+      },
+      nodes: UNIT_COST_ROWS[4],
+    });
+  });
+
   it("sums the GCP figures net of credits, since the invoice charges the net", async () => {
     const issued: Issued[] = [];
 
@@ -267,30 +349,6 @@ describe("GET /api/analytics/spend-window", () => {
     expect(issued.some(({ sql }) => sql.includes("credit_ledger"))).toBe(false);
   });
 
-  it("prices each live pod from its ACTUAL requests and sums the burn rate", async () => {
-    const server = await serverWith(BASE_ROWS, {
-      livePods: async () => [
-        {
-          name: "agent-job-run1-tdd-round-abc",
-          phase: "Running",
-          startedAt: "2026-09-02T11:00:00.000Z",
-          requests: { cpu: "1", memory: "16Gi" },
-          labels: { "lore.re-cinq.com/station-run-id": "sr-1" },
-        },
-      ],
-    });
-    const body = JSON.parse((await get(server)).payload);
-    const pod = body.compute.live_pods[0];
-
-    expect(pod).toMatchObject({
-      name: "agent-job-run1-tdd-round-abc",
-      usd_per_hour: 0.07,
-      usd_so_far: 0.07,
-      station_run_id: "sr-1",
-    });
-    expect(body.compute.live_usd_per_hour).toBe(0.07);
-  });
-
   it("defaults to the last 7 days and rejects a bad interval as a 400 naming the rule", async () => {
     const server = await serverWith(BASE_ROWS);
     const ok = await get(server);
@@ -322,18 +380,6 @@ describe("GET /api/analytics/spend-window", () => {
 
     expect(podHoursSql).toContain("sr.started_at + interval '2 hours'");
     expect(podHoursSql).not.toMatch(/coalesce\(sr\.finished_at,\s*now\(\)\)/);
-  });
-
-  it("an unreachable cluster-agent degrades to an empty live list, never a failed page", async () => {
-    const server = await serverWith(BASE_ROWS, {
-      livePods: async () => {
-        throw new Error("should be caught by the default deps, not reach here");
-      },
-    });
-    const res = await get(server);
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload).compute.live_pods).toEqual([]);
   });
 
   it("reports the billed half unavailable (not a confident zero) when the sync has never run", async () => {
@@ -422,6 +468,97 @@ describe("GET /api/analytics/spend-window", () => {
     expect(sql).toContain("LEFT JOIN pipeline.station_runs");
     expect(sql).toContain("LEFT JOIN pipeline.cluster_agents");
     expect(sql).toContain("cluster_agent_id");
+  });
+
+  it("splits billing mode into Lore's own calls on the org key plus the floor's visits by credential", async () => {
+    const asked: unknown[][] = [];
+    const floor = {
+      costs: {
+        summary: async (...args: unknown[]) => {
+          asked.push(args);
+
+          return [
+            {
+              key: "api_key",
+              costUsd: 10,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 3,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+            {
+              key: "subscription",
+              costUsd: 7,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 5,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+            {
+              key: "unknown",
+              costUsd: 2,
+              tokensIn: 0,
+              tokensOut: 0,
+              visits: 1,
+              visitsMissingCost: 0,
+              unpriced: [],
+            },
+          ];
+        },
+      },
+    };
+    const res = await get(
+      await serverWith(BASE_ROWS, { floor }),
+      "/api/analytics/spend-window?from=2026-09-01&to=2026-09-01",
+    );
+
+    expect({
+      asked,
+      split: JSON.parse(res.payload).llm.by_billing_mode,
+    }).toEqual({
+      asked: [
+        [
+          { since: "2026-09-01T00:00:00Z", until: "2026-09-02T00:00:00.000Z" },
+          "billing_mode",
+        ],
+      ],
+      split: [
+        { mode: "api_key", calls: 45, cost_usd: 92.5 },
+        { mode: "subscription", calls: 5, cost_usd: 7 },
+        { mode: "unknown", calls: 1, cost_usd: 2 },
+      ],
+    });
+  });
+
+  it("counts only Lore's own calls, on the org key, when no floor is configured", async () => {
+    const res = await get(await serverWith(BASE_ROWS));
+
+    expect(JSON.parse(res.payload).llm.by_billing_mode).toEqual([
+      { mode: "api_key", calls: 42, cost_usd: 82.5 },
+    ]);
+  });
+
+  it("answers 200 with Lore's own 42 calls on the org key and floor_unavailable true when the floor rejects the billing_mode group", async () => {
+    const floor = {
+      costs: {
+        summary: async () => {
+          throw new Error("400 unknown group: billing_mode");
+        },
+      },
+    };
+    const res = await get(await serverWith(BASE_ROWS, { floor }));
+
+    expect({
+      status: res.statusCode,
+      split: JSON.parse(res.payload).llm.by_billing_mode,
+      floorUnavailable: JSON.parse(res.payload).llm.floor_unavailable,
+    }).toEqual({
+      status: 200,
+      split: [{ mode: "api_key", calls: 42, cost_usd: 82.5 }],
+      floorUnavailable: true,
+    });
   });
 
   it("still renders cluster spend empty when the registry table is absent", async () => {

@@ -1,5 +1,6 @@
 import type { queryLiveGraph } from "./live-graph.js";
-import type { searchMemories } from "./memory-search.js";
+import { searchMemories } from "./memory-search.js";
+import type { PgPool } from "../../memory-store.js";
 import type { SourceItem } from "./context-assembly-format.js";
 
 /** Token estimation, item construction, and budget-packing helpers shared by every context-assembly source. */
@@ -45,6 +46,33 @@ export function collectContextRefIds(
     }
     factIds.push(r.id);
   }
+}
+
+export interface AssembledRefs {
+  factIds: string[];
+  memoryIds: string[];
+}
+
+export const emptyAssembledRefs: AssembledRefs = { factIds: [], memoryIds: [] };
+
+/** Context refs for outcome feedback; a search failure is non-fatal — the assembly still returns without refs. */
+export async function collectAssembledRefs(
+  pool: PgPool,
+  query: string,
+  agentId: string | undefined,
+): Promise<AssembledRefs> {
+  const factIds: string[] = [];
+  const memoryIds: string[] = [];
+
+  try {
+    const results = await searchMemories(pool, query, { agentId, limit: 20 });
+
+    collectContextRefIds(results, memoryIds, factIds);
+  } catch {
+    /* non-fatal */
+  }
+
+  return { factIds, memoryIds };
 }
 
 export function toScore(value: unknown): number | undefined {

@@ -1,6 +1,5 @@
-// Shared primitives for the PostgreSQL-backed memory store: pool handle, transaction wrapper, embedding encoding, and the audit writer. memory.ts and its siblings (memory-pools/snapshots/stats) both import here rather than from one another, breaking the cycle a straight split would leave behind.
+// Shared primitives for the PostgreSQL-backed memory store: pool handle, embedding encoding, and the audit writer. memory.ts and its siblings (memory-pools/snapshots/stats) both import here rather than from one another, breaking the cycle a straight split would leave behind.
 
-import { hasConnect } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 
 // ── Pool management ──────────────────────────────────────────────────
@@ -46,34 +45,6 @@ export interface MemoryWriteInput {
 
 export function toEmbeddingParam(embedding?: number[]): string | null {
   return embedding ? `[${embedding.join(",")}]` : null;
-}
-
-// The memories row and its version row must land together — prod ran for months with sequential writes leaving version-less memories behind (#1154); hasConnect feature-detects connect(), a pool without it keeps the plain sequential path.
-export async function runInTransaction<T>(
-  db: PgPool,
-  work: (tx: Pick<PgPool, "query">) => Promise<T>,
-): Promise<T> {
-  if (!hasConnect(db)) {
-    return work(db);
-  }
-
-  const client = await db.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const result = await work(client);
-
-    await client.query("COMMIT");
-
-    return result;
-  } catch (err) {
-    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
 }
 
 // ── Audit helper ─────────────────────────────────────────────────────

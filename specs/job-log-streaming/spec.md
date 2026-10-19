@@ -106,12 +106,46 @@ with the run page.
    the one holding the failure; one that exited 0, one still running, and
    a pod with no init containers name none, so an ordinary run is still
    read from the default container.
-   ([validated by names the init container that exited 1](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L40), [`kube-pod-logs.test.ts:46`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L46), [`kube-pod-logs.test.ts:50`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L50), [`kube-pod-logs.test.ts:54`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L54))
 
 2. `podLog` returns the failed init container's log when there is one and
    the default container's otherwise, so the init failure reaches every
    caller of the port without any of them asking for it.
-   ([validated by returns the init container's log when init failed](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L70), [`kube-pod-logs.test.ts:78`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L78))
+
+## Amendment (2026-09-17, the failure reason quotes the pod)
+
+The 2026-09-09 amendment made the init container's log readable, but the
+run's terminal reason still came from the Agent CR alone. Run `447b8249`
+(`re-cinq/Otto`, `tdd-round`) died in 2 seconds because its init container's
+`git clone` got "Repository not found", and the run page said
+*"BackoffLimitExceeded … The pod died rather than the work failing — a crash,
+an OOM, an eviction, or a Job deadline"*, none of which happened.
+
+3. `podFailureCause` names the container that ended the pod (a failed init
+   container ahead of `agent`), its exit code, and the last plain lines of its
+   log — lifecycle markers, stream-json and the step runner's echo of the
+   command it ran are dropped, and secrets are redacted. An OOMKilled container
+   is named as such from its terminated state even when its log is only JSON.
+   A pod with no failed container, or whose failed container printed no plain
+   line, yields nothing, so the Job-level reason and its classification stand.
+
+4. `KubePodLogs.failureCause` reads that cause off the Job's newest pod, and
+   yields nothing once the Job's pods are gone.
+
+5. The cluster-agent's Agent watch attaches the cause to a failed Agent's
+   terminal report as `status.errorText`, beside the CR's `failureReason`; a
+   pod it cannot read still reports the failure without one.
+
+6. The Floor keeps the reported `errorText`, which already outranks
+   `failureReason` as the node's failure detail, so the station run records
+   the refused clone and classifies it `repo-checkout` rather than `infra`.
+  
+
+7. Kubernetes' own reason for stopping the pod — preempted, evicted — is
+   read off the pod's status first and named as
+   `pod stopped by Kubernetes (<reason>): <message>`, since no container log
+   records it; and no log is requested when no container failed, because
+   asking for one that never started (a preempted pod's `agent`) answers
+   `400`. The first deploy logged exactly that for a preempted ingest pod.
 
 ### Why the cause was invisible
 
@@ -141,7 +175,7 @@ against it reached the live apiserver.
 
 1. A running task's live output is one click from the task page: the
    runs list links to the run detail page, whose per-node panels render
-   the pod stream. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L67))
+   the pod stream. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86))
 
 2. No kubectl access needed to see what the agent is doing
 
@@ -203,7 +237,7 @@ A gemini `init` event becomes a session-init entry exposing the model and the pr
 
 A gemini `message` with string content classifies by role — user-text for the injected prompt, assistant-text otherwise. ([validated by `agent-log-entries.test.ts:643`](apps/web-ui/src/lib/agent-log-entries.test.ts#L676))
 
-Assistant prose arrives ONLY as `delta: true` chunks — gemini-cli emits no final complete message — so adjacent chunks merge into one assistant-text entry, and the fold is adjacent-only: a tool call between chunks starts a new paragraph rather than gluing across it. `mergedDelta` is the one home for the rule, shared by the blob parser and the run page's timed conversation, which keeps the merged utterance on its FIRST chunk's timestamp. ([validated by `agent-log-entries.test.ts:682`](apps/web-ui/src/lib/agent-log-entries.test.ts#L715), [`agent-log-entries.test.ts:697`](apps/web-ui/src/lib/agent-log-entries.test.ts#L730), [`agent-log-entries.test.ts:733`](apps/web-ui/src/lib/agent-log-entries.test.ts#L766), [`turn-transcript-presenter.test.ts:363`](apps/web-ui/src/app/assembly-runs/[id]/turn-transcript-presenter.test.ts#L341))
+Assistant prose arrives ONLY as `delta: true` chunks — gemini-cli emits no final complete message — so adjacent chunks merge into one assistant-text entry, and the fold is adjacent-only: a tool call between chunks starts a new paragraph rather than gluing across it. `mergedDelta` is the one home for the rule, shared by the blob parser and the run page's timed conversation, which keeps the merged utterance on its FIRST chunk's timestamp. ([validated by `agent-log-entries.test.ts:682`](apps/web-ui/src/lib/agent-log-entries.test.ts#L715), [`agent-log-entries.test.ts:697`](apps/web-ui/src/lib/agent-log-entries.test.ts#L730), [`agent-log-entries.test.ts:733`](apps/web-ui/src/lib/agent-log-entries.test.ts#L766), [`turn-transcript-presenter.test.ts:363`](apps/web-ui/src/app/assembly-runs/[id]/turn-transcript-presenter.test.ts#L351))
 
 A top-level gemini `tool_use` summarizes as `→ <tool>: <most relevant arg>` from `tool_name` and `parameters`, through the same summary rule the claude blocks use. ([validated by `agent-log-entries.test.ts:652`](apps/web-ui/src/lib/agent-log-entries.test.ts#L685))
 
@@ -241,18 +275,9 @@ The Raw/Formatted toggle marks the active option via aria-pressed and reports ch
 
 A run's turns span every node visit of its assembly line, so the formatted transcript renders one segment per consecutive (node, iteration) run — labeled `node · iteration N`, bare node name when the iteration is unknown, no label for uncorrelated turns — and the parser runs per segment so each visit keeps its own transcript, via the grouping in `@/lib/turn-segments` consumed by the run page's full transcript panel (specs/turn-level-transcript-store FR5). ([validated by `turn-segments.test.ts:31`](apps/web-ui/src/lib/turn-segments.test.ts#L31), [validated by `turn-segments.test.ts:46`](apps/web-ui/src/lib/turn-segments.test.ts#L46), [validated by `turn-segments.test.ts:60`](apps/web-ui/src/lib/turn-segments.test.ts#L60), [validated by `turn-segments.test.ts:69`](apps/web-ui/src/lib/turn-segments.test.ts#L69), [validated by `turn-segments.test.ts:75`](apps/web-ui/src/lib/turn-segments.test.ts#L75), [validated by `turn-segments.test.ts:79`](apps/web-ui/src/lib/turn-segments.test.ts#L79), [validated by `turn-segments.test.ts:83`](apps/web-ui/src/lib/turn-segments.test.ts#L83), [validated by `turn-segments.test.ts:91`](apps/web-ui/src/lib/turn-segments.test.ts#L91), [validated by `turn-segments.test.ts:104`](apps/web-ui/src/lib/turn-segments.test.ts#L104))
 
-An opened assembly-line pod-log panel renders the same formatted transcript, switches to the raw blob via the toggle, and keeps the `(no output yet)` placeholder for empty logs. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L67), [validated by `NodeLogPanel.test.tsx:81`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L81), [validated by `NodeLogPanel.test.tsx:95`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L95))
+An opened assembly-line pod-log panel renders the same formatted transcript, switches to the raw blob via the toggle, and keeps the `(no output yet)` placeholder for empty logs. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86), [validated by `NodeLogPanel.test.tsx:81`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L100), [validated by `NodeLogPanel.test.tsx:95`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L114))
 
 ### FailurePanel
 
-FailurePanel renders nothing when the metadata carries neither an error nor any detail rows — undefined fields, an empty details array, or undefined metadata. ([validated by `FailurePanel.test.tsx:9`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L9), [validated by `FailurePanel.test.tsx:15`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L15), [validated by `FailurePanel.test.tsx:23`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L23))
+_(Removed 2026-10-05.)_ The panel went with the task page (`specs/1-lore-platform` FR-19): a failed run says why on its own page, in the run header and on the failed node.
 
-A top-level error renders the "Failure" heading and the error paragraph; detail rows alone, with no top-level error, still render the heading and their error text. ([validated by `FailurePanel.test.tsx:34`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L34), [validated by `FailurePanel.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L162))
-
-The category badge maps a known code to its human label, falls back to the raw code string when unmapped, shows "Unknown" for the reserved `unknown` code, and is omitted entirely when no category is present. ([validated by `FailurePanel.test.tsx:42`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L42), [validated by `FailurePanel.test.tsx:52`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L52), [validated by `FailurePanel.test.tsx:177`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L177), [validated by `FailurePanel.test.tsx:62`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L62))
-
-A remediation hint renders under a "How to fix:" label and is omitted when no hint is provided. ([validated by `FailurePanel.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L70), [validated by `FailurePanel.test.tsx:81`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L81))
-
-Error text is linkified — a file path inside the top-level error becomes a GitHub blob link opening in a new tab. ([validated by `FailurePanel.test.tsx:86`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L86))
-
-Per-step detail rows render the step code with its own category badge, error, and linkified hint; the badge and hint are omitted when a detail lacks them, and multiple rows preserve their declared order. ([validated by `FailurePanel.test.tsx:102`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L102), [validated by `FailurePanel.test.tsx:129`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L129), [validated by `FailurePanel.test.tsx:143`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L143))

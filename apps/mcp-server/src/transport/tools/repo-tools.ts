@@ -1,16 +1,21 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import {
   proxyToApi,
   proxyGetApi,
   deniedError,
-  unreachableError,
+  failedProxyError,
   textResult,
   type ProxyResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
+import {
+  repoParam,
+  resolveRepo,
+  withRepo,
+  type ServerMode,
+} from "./repo-scope.js";
 
 const NOT_CONFIGURED =
   "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.";
@@ -24,19 +29,14 @@ const ONBOARD_REPO_INPUT = {
     .boolean()
     .optional()
     .describe(
-      "Repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Still refused while an onboard task is in flight or its onboarding PR is open.",
+      "Update run over an already-onboarded repo: one assembly run that refreshes Lore's own files wherever they drifted (workflows, lore issue templates), adds any file newly required, realigns the instruction-written workflows, and opens ONE PR — or none when the setup is already current. Still refused while an onboard task is in flight or its onboarding PR is open.",
     ),
 };
 
-const INGEST_FILES_INPUT = {
+const ingestFilesInput = (mode: ServerMode) => ({
   files: z.array(z.string()).describe("Repo-relative file paths to ingest."),
-  repo: z
-    .string()
-    .optional()
-    .describe(
-      '"owner/repo" format. Auto-detected from cwd git remote when omitted.',
-    ),
-};
+  repo: repoParam(mode),
+});
 
 type ToolTextResult = ReturnType<typeof textResult>;
 
@@ -50,10 +50,10 @@ interface IngestOutcome {
   message: string;
 }
 
-export function registerRepoTools(server: McpServer) {
+export function registerRepoTools(server: McpServer, mode: ServerMode) {
   registerListReposTool(server);
   registerOnboardRepoTool(server);
-  registerIngestFilesTool(server);
+  registerIngestFilesTool(server, mode);
 }
 
 function registerListReposTool(server: McpServer) {
@@ -152,13 +152,13 @@ function proxyFailure(
     return deniedError(toolName, proxied.detail);
   }
 
-  return unreachableError(toolName, proxied.detail);
+  return failedProxyError(toolName, proxied);
 }
 
 function registerOnboardRepoTool(server: McpServer) {
   server.tool(
     "lore_onboard_repo",
-    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
+    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task: the Floor enrols the repo (labels, webhook, ingest callback, verbatim workflows) and the onboard assembly line authors AGENTS.md/PR-template/ADRs/spec from the onboarding ticket and opens the ONE PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
     ONBOARD_REPO_INPUT,
     onboardRepo,
   );
@@ -194,14 +194,16 @@ function onboardFailure(
   return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
 }
 
-function registerIngestFilesTool(server: McpServer) {
+function registerIngestFilesTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_ingest_files",
     `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.`,
-    INGEST_FILES_INPUT,
+    ingestFilesInput(mode),
     async ({ files, repo }) => {
       try {
-        return await ingestFiles(files, repo);
+        return await withRepo({ repo }, mode, (a) =>
+          ingestFiles(files, mode, a.repo),
+        );
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
@@ -210,14 +212,11 @@ function registerIngestFilesTool(server: McpServer) {
 }
 
 /** Ingests now rather than waiting for the nightly pass, then drops the assemble cache for that repo — a freshly merged ADR that the next bundle does not contain is the whole reason somebody reaches for this tool. */
-async function ingestFiles(files: string[], repo?: string) {
-  const resolvedRepo = repo || detectCurrentRepo();
-
-  if (!resolvedRepo) {
-    return textResult(
-      "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
-    );
-  }
+async function ingestFiles(
+  files: string[],
+  mode: ServerMode,
+  resolvedRepo: string,
+) {
   const credentials = ingestCredentials();
 
   if (!credentials) {
@@ -225,7 +224,7 @@ async function ingestFiles(files: string[], repo?: string) {
       "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
     );
   }
-  const commit = await resolveCommitSha(resolvedRepo);
+  const commit = await resolveCommitSha(resolvedRepo, mode);
   const outcome = await postIngest(credentials, files, resolvedRepo, commit);
 
   if (outcome.ingested) {
@@ -247,11 +246,14 @@ function ingestCredentials(): IngestCredentials | null {
 }
 
 // The local HEAD commit only stands in for the target repo when the caller's cwd git remote actually IS that repo; otherwise "HEAD" tells GitHub to resolve the default branch.
-async function resolveCommitSha(resolvedRepo: string): Promise<string> {
+async function resolveCommitSha(
+  resolvedRepo: string,
+  mode: ServerMode,
+): Promise<string> {
   try {
     const { execSync } = await import("node:child_process");
 
-    if (detectCurrentRepo() !== resolvedRepo) {
+    if (resolveRepo(undefined, mode) !== resolvedRepo) {
       return "HEAD";
     }
 

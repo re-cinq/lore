@@ -7,10 +7,12 @@ import {
   hybridSearch,
   isDbAvailable,
 } from "@re-cinq/lore-server-core/platform/db.js";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
 import { textResult, proxyGetApi } from "./deps.js";
 import { registerAssembleContextTool } from "./context-tools-assemble.js";
+import { resolveRepo, type ServerMode } from "./repo-scope.js";
+import { backendNeedsApi, backendParam, readsUtopia } from "./backend-param.js";
+import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -28,6 +30,7 @@ const SEARCH_CONTEXT_INPUT = {
       "Team schema name to scope the search (e.g. 'platform'). Omit to search org_shared; unknown teams fall back to org_shared on the DB path or return an error on the file path.",
     ),
   limit: z.number().default(8).describe("Maximum passages to return."),
+  backend: backendParam,
 };
 
 interface ParagraphScan {
@@ -37,35 +40,53 @@ interface ParagraphScan {
   limit: number;
 }
 
-export function registerContextTools(server: McpServer) {
-  registerSearchContextTool(server);
-  registerAssembleContextTool(server);
+export function registerContextTools(server: McpServer, mode: ServerMode) {
+  registerSearchContextTool(server, mode);
+  registerAssembleContextTool(server, mode);
 }
 
-function registerSearchContextTool(server: McpServer) {
+function registerSearchContextTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_search_context",
     `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval over the ingested corpus, through the API when the adapter holds no pool of its own; only with neither does it fall back to a substring scan of local .md files, and it says so when it does.
 Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
     SEARCH_CONTEXT_INPUT,
-    async ({ query, team, limit }) => {
-      logDetectedRepo(team);
+    (search) => searchContextFor(search, mode),
+  );
+}
 
-      if (await isDbAvailable()) {
-        return searchDbContext(query, team, limit);
-      }
+/** One corpus search as the tool takes it. */
+interface CorpusSearch {
+  query: string;
+  team?: string;
+  limit: number;
+  backend?: KnowledgeBackend;
+}
 
-      return (
-        (await searchApiContext(query, team, limit)) ??
-        fileFallbackSearch(query, team, limit)
-      );
-    },
+/** A Utopia read goes to the API or is refused: the local paths read Lore's stores alone. */
+async function searchContextFor(search: CorpusSearch, mode: ServerMode) {
+  const { query, team, limit, backend } = search;
+
+  logDetectedRepo(team, mode);
+
+  if (readsUtopia(backend)) {
+    return (
+      (await searchApiContext(search)) ?? textResult(backendNeedsApi(backend))
+    );
+  }
+
+  if (await isDbAvailable()) {
+    return searchDbContext(query, team, limit);
+  }
+
+  return (
+    (await searchApiContext(search)) ?? fileFallbackSearch(query, team, limit)
   );
 }
 
 // Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
-function logDetectedRepo(team: string | undefined): void {
-  const detectedRepo = !team ? detectCurrentRepo() : null;
+function logDetectedRepo(team: string | undefined, mode: ServerMode): void {
+  const detectedRepo = !team ? resolveRepo(undefined, mode) : null;
 
   if (detectedRepo) {
     console.error(
@@ -128,31 +149,44 @@ function renderScoredPassages(
 
 /** The corpus search as the API answers it. The adapter holds no pool (ADR-032), so this — not the local scan — is what a laptop gets. */
 async function searchApiContext(
-  query: string,
-  team: string | undefined,
-  limit: number,
+  search: CorpusSearch,
 ): Promise<{ content: Array<{ type: "text"; text: string }> } | null> {
-  const results = await fetchCorpusPassages(corpusParams(query, team, limit));
+  const answer = await fetchCorpusPassages(corpusParams(search));
 
-  if (!results) {
+  if (!answer) {
     return null;
   }
-  const namespace = team || "org_shared";
 
   traceRetrieval({
-    query,
-    namespace,
-    topScore: topRrfScore(results),
-    resultCount: results.length,
+    query: search.query,
+    namespace: search.team || "org_shared",
+    topScore: topRrfScore(answer.results),
+    resultCount: answer.results.length,
   });
 
-  return renderScoredPassages(query, results);
+  return withNotes(
+    renderScoredPassages(search.query, answer.results),
+    answer.notes,
+  );
+}
+
+/** The API's word on a store it could not read (e.g. "search_context: no Utopia reader yet"), after the passages. */
+function withNotes(
+  rendered: { content: Array<{ type: "text"; text: string }> },
+  notes: string[],
+): { content: Array<{ type: "text"; text: string }> } {
+  const [{ text }] = rendered.content;
+
+  return notes.length > 0
+    ? textResult([text, ...notes].join("\n\n"))
+    : rendered;
 }
 
 /** The API's passages in the shape the renderer takes, or null when the proxy could not answer at all — a reachable API that matched nothing returns an empty list, which is a real answer. */
-async function fetchCorpusPassages(
-  params: URLSearchParams,
-): Promise<{ rrf_score: number; content: string }[] | null> {
+async function fetchCorpusPassages(params: URLSearchParams): Promise<{
+  results: { rrf_score: number; content: string }[];
+  notes: string[];
+} | null> {
   const proxied = await proxyGetApi(`/api/search-context?${params.toString()}`);
 
   if (!proxied.ok) {
@@ -160,23 +194,29 @@ async function fetchCorpusPassages(
   }
   const body = JSON.parse(proxied.body) as {
     results?: { content: string; score: number }[];
+    notes?: string[];
   };
 
-  return (body.results ?? []).map((r) => ({
-    rrf_score: r.score,
-    content: r.content,
-  }));
+  return {
+    results: (body.results ?? []).map((r) => ({
+      rrf_score: r.score,
+      content: r.content,
+    })),
+    notes: body.notes ?? [],
+  };
 }
 
-function corpusParams(
-  query: string,
-  team: string | undefined,
-  limit: number,
-): URLSearchParams {
+function corpusParams({
+  query,
+  team,
+  limit,
+  backend,
+}: CorpusSearch): URLSearchParams {
   return new URLSearchParams({
     query,
     limit: String(limit),
     ...(team ? { team } : {}),
+    ...(backend ? { backend } : {}),
   });
 }
 

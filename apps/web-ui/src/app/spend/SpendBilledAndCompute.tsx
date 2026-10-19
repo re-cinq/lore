@@ -103,14 +103,12 @@ interface ComputeBreakdownsProps {
   gcpAvailable: boolean;
 }
 
-/** Pods burning money right now, and the hours already spent in the interval. */
+/** The pod hours spent in the interval. */
 export function ComputeBreakdowns(props: ComputeBreakdownsProps) {
   const { compute, gcpAvailable } = props;
 
   return (
     <>
-      <LivePods pods={compute.live_pods} />
-
       <CostTable
         title="Pod-Hours in Interval"
         columns={["Assembly line", "Pods", "Hours", "Est. cost"]}
@@ -120,64 +118,6 @@ export function ComputeBreakdowns(props: ComputeBreakdownsProps) {
       />
       <ComputeEstimateNote compute={compute} gcpAvailable={gcpAvailable} />
     </>
-  );
-}
-
-interface LivePodsProps {
-  pods: SpendWindow["compute"]["live_pods"];
-}
-
-/** What is burning money right now, as opposed to the interval totals below it. */
-function LivePods({ pods }: LivePodsProps) {
-  return (
-    <>
-      <h2>Pods Running Now</h2>
-      {pods.length === 0 ? (
-        <p className="meta">No run pods are live right now.</p>
-      ) : (
-        <LivePodTable pods={pods} />
-      )}
-    </>
-  );
-}
-
-function LivePodTable({ pods }: LivePodsProps) {
-  return (
-    <table>
-      <thead>
-        <tr>
-          <th>Pod</th>
-          <th>Requests</th>
-          <th>$/hour</th>
-          <th>So far</th>
-        </tr>
-      </thead>
-      <tbody>
-        {pods.map((pod) => (
-          <LivePodRow key={pod.name} pod={pod} />
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-/** One running pod and what it has cost so far. */
-function LivePodRow({
-  pod,
-}: {
-  pod: SpendWindow["compute"]["live_pods"][number];
-}) {
-  return (
-    <tr>
-      <td>{pod.name}</td>
-      <td>
-        {/* requests is a `{[key: string]: string}` index signature — cpu/memory keys aren't guaranteed present. */}
-        {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
-        {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
-      </td>
-      <td>{usd(pod.usd_per_hour)}</td>
-      <td>{usd(pod.usd_so_far)}</td>
-    </tr>
   );
 }
 
