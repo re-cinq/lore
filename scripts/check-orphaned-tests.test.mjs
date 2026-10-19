@@ -7,6 +7,7 @@ test("findOrphaned returns files not covered by any configured glob", () => {
     ["libs/shared/src/foo.test.ts", "tools/vitest/bar.test.ts"],
     ["libs/shared/**"],
   );
+
   assert.deepEqual(orphaned, ["tools/vitest/bar.test.ts"]);
 });
 
@@ -15,6 +16,7 @@ test("findOrphaned returns empty array when all files are covered", () => {
     ["scripts/check-bootstrap-columns.test.mjs", "apps/web-ui/src/foo.test.ts"],
     ["scripts/**/*.test.mjs", "apps/web-ui/**"],
   );
+
   assert.deepEqual(orphaned, []);
 });
 
@@ -23,5 +25,6 @@ test("findOrphaned matches a specific file path exactly", () => {
     ["tools/vitest/workspace-source.test.ts", "tools/vitest/other.test.ts"],
     ["tools/vitest/workspace-source.test.ts"],
   );
+
   assert.deepEqual(orphaned, ["tools/vitest/other.test.ts"]);
 });

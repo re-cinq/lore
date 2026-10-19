@@ -26,11 +26,13 @@ export function findTestFiles(root) {
 
   const walk = (absDir) => {
     let entries;
+
     try {
       entries = readdirSync(absDir, { withFileTypes: true });
     } catch {
       return;
     }
+
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (!EXCLUDE_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
@@ -45,6 +47,7 @@ export function findTestFiles(root) {
   };
 
   walk(absRoot);
+
   return results;
 }
 
@@ -53,14 +56,18 @@ export function findTestFiles(root) {
 function matchesGlob(filePath, glob) {
   if (glob.endsWith("/**")) {
     const prefix = glob.slice(0, -3);
+
     return filePath === prefix || filePath.startsWith(prefix + "/");
   }
   const wildcardIdx = glob.indexOf("/**/*.");
+
   if (wildcardIdx !== -1) {
     const dir = glob.slice(0, wildcardIdx);
     const ext = glob.slice(wildcardIdx + 6);
+
     return filePath.startsWith(dir + "/") && filePath.endsWith("." + ext);
   }
+
   return filePath === glob;
 }
 
@@ -72,15 +79,21 @@ export function findOrphaned(testFiles, coveredGlobs) {
 /** Maps workspace package names to their directory paths. */
 function buildWorkspaceDirMap() {
   const map = new Map();
+
   for (const wsRoot of ["libs", "apps"]) {
     let entries;
+
     try {
       entries = readdirSync(join(repoRoot, wsRoot), { withFileTypes: true });
     } catch {
       continue;
     }
+
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
       try {
         const pkg = JSON.parse(
           readFileSync(
@@ -88,12 +101,16 @@ function buildWorkspaceDirMap() {
             "utf8",
           ),
         );
-        if (pkg.name) map.set(pkg.name, `${wsRoot}/${entry.name}`);
+
+        if (pkg.name) {
+          map.set(pkg.name, `${wsRoot}/${entry.name}`);
+        }
       } catch {
         // no package.json — skip
       }
     }
   }
+
   return map;
 }
 
@@ -107,7 +124,10 @@ function parseWorkflowGlobs(yaml, workspaceDirMap) {
     /npm (?:run )?(?:test|test:\S+)\s+-w\s+(\S+)/g,
   )) {
     const dir = workspaceDirMap.get(m[1]);
-    if (dir) globs.add(`${dir}/**`);
+
+    if (dir) {
+      globs.add(`${dir}/**`);
+    }
   }
 
   // npm run test:coverage --prefix <dir> (web-ui)
@@ -141,14 +161,19 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dirMap = buildWorkspaceDirMap();
 
   const allGlobs = new Set();
+
   for (const name of ["pr-checks.yml", "migrations.yml"]) {
     let yaml;
+
     try {
       yaml = readFileSync(join(repoRoot, ".github/workflows", name), "utf8");
     } catch {
       continue;
     }
-    for (const g of parseWorkflowGlobs(yaml, dirMap)) allGlobs.add(g);
+
+    for (const g of parseWorkflowGlobs(yaml, dirMap)) {
+      allGlobs.add(g);
+    }
   }
 
   const testFiles = findTestFiles(".");
@@ -158,7 +183,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error(
       "[lore] orphaned test files — no CI runner is configured for them:\n",
     );
-    for (const f of orphaned) console.error(`  ${f}`);
+
+    for (const f of orphaned) {
+      console.error(`  ${f}`);
+    }
     console.error(
       "\nAdd each to a runner in .github/workflows/pr-checks.yml or migrations.yml.",
     );
