@@ -118,6 +118,7 @@ export async function episodeRowsAfter(
     `SELECT e.id, e.content, to_json(e.created_at) #>> '{}' AS created_at
        FROM memory.episodes e
       WHERE ($1::timestamptz IS NULL OR (e.created_at, e.id) > ($1::timestamptz, $2::uuid))
+        AND e.created_at > now() - interval '${EPISODE_WINDOW}'
         AND ${scopeOf(base, EPISODE_REPO, 4)}
       ORDER BY e.created_at, e.id LIMIT $3`,
     [at, id, page.limit, ...repoParam(base)],
@@ -128,6 +129,9 @@ export async function episodeRowsAfter(
     document: episodeDocument({ ...row, createdAt: row.created_at }),
   }));
 }
+
+// Utopia extracts about two documents a minute, so the walk mirrors the episodes still worth reading, not every session ever dumped; a new one is pushed as it is written.
+const EPISODE_WINDOW = "90 days";
 
 // The repo an episode's ref names, read with the live push's pattern (a constant, never input).
 const EPISODE_REPO = `substring(e.ref from '${REF_REPO_PATTERN}')`;
