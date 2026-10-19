@@ -34,21 +34,23 @@ describe("AgentForm (Acceptance)", () => {
       />,
     );
 
-    // Should indicate the field is inherited (this is missing, test fails)
     expect(
       getByText(/inherited from org/i, { selector: ".prompt-note" }),
     ).toBeInTheDocument();
 
-    // The textarea should be empty because it is inherited, showing placeholder
     const textarea = container.querySelector(
       'textarea[name="prompt"]',
     ) as HTMLTextAreaElement;
-    expect(textarea.value).toBe("");
-    expect(textarea.placeholder).toBe("org prompt");
+    expect({
+      value: textarea.value,
+      placeholder: textarea.placeholder,
+    }).toEqual({ value: "", placeholder: "org prompt" });
 
     fireEvent.submit(container.querySelector("form")!);
 
-    expect(action).toHaveBeenCalled();
-    expect(submittedPrompt).toBe("");
+    expect({
+      called: action.mock.calls.length > 0,
+      prompt: submittedPrompt,
+    }).toEqual({ called: true, prompt: "" });
   });
 });

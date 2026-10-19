@@ -1,6 +1,5 @@
 "use client";
 import { useActionState, useState } from "react";
-import { type AgentDefinition } from "@/lib/agents-mirror";
 import { type AgentFormState } from "@/lib/agents-form";
 import {
   agentFormValues,

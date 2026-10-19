@@ -29,7 +29,6 @@ describe("seedAgentDefaults (Acceptance)", () => {
   });
 
   it("nulls project row fields that are identical to the org row default", async () => {
-    // 1. Setup org row (committed so seedAgentDefaults can see it on its own connection)
     await pool.query(
       `INSERT INTO lore.agent_definitions (
         name, model, timeout_minutes, prompt, image, execution_mode, review_required, config
@@ -39,7 +38,6 @@ describe("seedAgentDefaults (Acceptance)", () => {
       [AGENT_NAME],
     );
 
-    // 2. Insert a real repo row to satisfy the FK on project_id (uuid references lore.repos)
     const { rows: repoRows } = await pool.query(
       `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged)
        VALUES ('test-acc', 'seed-acc-repo', $1, false)
@@ -48,7 +46,6 @@ describe("seedAgentDefaults (Acceptance)", () => {
     );
     const projectId: string = repoRows[0].id;
 
-    // 3. Setup project row that carries a full copy of the org prompt
     await pool.query(
       `INSERT INTO lore.agent_definitions (
         name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id
@@ -58,8 +55,6 @@ describe("seedAgentDefaults (Acceptance)", () => {
       [AGENT_NAME, projectId],
     );
 
-    // Run seed — it always executes NULLIFY_DUPLICATE_PROJECT_FIELDS_SQL, which
-    // sets to null any project-row field identical to the matching org-row field.
     await seedAgentDefaults(pool);
 
     const { rows } = await pool.query(
