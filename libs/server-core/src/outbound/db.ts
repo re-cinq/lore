@@ -9,7 +9,10 @@ import {
 } from "@re-cinq/lore-shared";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { extractKeyTerms } from "@re-cinq/lore-shared/project/knowledge/context-assembly-items.js";
-import { buildHybridCorpusSQL } from "@re-cinq/lore-shared/project/knowledge/hybrid-rrf-core.js";
+import {
+  buildHybridCorpusOrgWideSQL,
+  buildHybridCorpusBoundSQL,
+} from "@re-cinq/lore-shared/project/knowledge/hybrid-rrf-core.js";
 
 // Re-exported from shared embedding-service singleton for back-compat.
 export { getQueryEmbedding, embeddingHealth, embedderDegraded };
@@ -108,7 +111,10 @@ async function runHybridSQL(options: {
 }): Promise<SearchResult[]> {
   const { embedding, keywordQuery, schema, limit, repo } = options;
   const embeddingStr = `[${embedding.join(",")}]`;
-  const sql = buildHybridCorpusSQL(schema, repo !== undefined);
+  const sql =
+    repo !== undefined
+      ? buildHybridCorpusBoundSQL(schema)
+      : buildHybridCorpusOrgWideSQL(schema);
   const params: unknown[] = [embeddingStr, keywordQuery, limit];
 
   if (repo) {

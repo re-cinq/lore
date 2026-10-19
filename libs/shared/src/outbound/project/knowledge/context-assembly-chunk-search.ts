@@ -13,17 +13,6 @@ import {
 } from "./context-assembly-items.js";
 import { RRF_DAMPING } from "./hybrid-rrf-core.js";
 
-/**
- * Hybrid RRF retrieval over the repo's resolved chunk schema: pgvector cosine leg + BM25
- * (ts_rank) leg, degrades to keyword-only with no query embedding.
- *
- * Shares the RRF_DAMPING constant with the corpus search (hybridSearch in db.ts), which
- * uses buildHybridCorpusSQL from hybrid-rrf-core.ts. This function keeps its own SQL
- * because it selects SourceItem columns (file_path, content_type, similarity, content_hash),
- * filters by content_type, and uses the HNSW sub-query optimisation — none of which apply
- * to the schema-wide corpus search.
- */
-
 /** One hybrid-search HIT, not a chunk row — `score` is a ts_rank/cosine aggregate the query computes, no column holds it (the repo had three types named ChunkRow; this is the one that never described a table). */
 
 export interface ChunkSearchHit {
