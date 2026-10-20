@@ -41,7 +41,7 @@ describe("AppShell static structure", () => {
     renderShell();
     expect(screen.getByTestId("sidebar-nav")).toHaveTextContent("SIDEBAR");
     expect(screen.getByTestId("page-body")).toHaveTextContent("PAGE");
-    expect(screen.getByText("LORE")).toBeInTheDocument();
+    expect(screen.getByText("lore")).toBeInTheDocument();
     expect(screen.getByTestId("icon")).toHaveAttribute("data-name", "close");
     expect(screen.getByTestId("icon")).toHaveAttribute("data-size", "16");
   });

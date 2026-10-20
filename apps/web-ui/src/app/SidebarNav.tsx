@@ -254,7 +254,7 @@ function GroupHeader({ label, collapsed, onToggle }: GroupHeaderProps) {
       onClick={() => onToggle(label)}
       aria-expanded={!collapsed}
     >
-      {label}
+      <span className={styles.groupName}>{label}</span>
       <Icon
         name="chevron"
         size={12}

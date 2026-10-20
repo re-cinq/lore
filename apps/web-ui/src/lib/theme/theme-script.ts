@@ -5,7 +5,7 @@ export const THEME_SCRIPT = `
 (function(){
   try {
     var f = localStorage.getItem('${FAMILY_KEY}');
-    if (f !== 'elegant' && f !== 'retro' && f !== 'chicago') f = 'elegant';
+    if (f !== 'lore' && f !== 'elegant' && f !== 'retro' && f !== 'chicago') f = 'lore';
     var s = localStorage.getItem('${SCHEME_KEY}');
     if (s !== 'light' && s !== 'dark' && s !== 'auto') s = 'auto';
     var resolved = s === 'auto'
@@ -16,7 +16,7 @@ export const THEME_SCRIPT = `
     el.setAttribute('data-color-scheme', resolved);
     window.__loreFamily = f;
   } catch (e) {
-    document.documentElement.setAttribute('data-theme-family', 'elegant');
+    document.documentElement.setAttribute('data-theme-family', 'lore');
     document.documentElement.setAttribute('data-color-scheme', 'dark');
   }
 })();

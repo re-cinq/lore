@@ -1,0 +1,153 @@
+/*
+ * Lore v2 component layer (the re:cinq brand). Every rule is scoped to
+ * [data-theme-family='lore'], so the file is inert for elegant/retro/chicago,
+ * as chicago.css is for the others. theme.css carries the palette; this file
+ * carries the shapes the palette alone cannot express: full-pill controls,
+ * lavender active states, the `{group}` mono labels and the gradient headline.
+ */
+
+/* ------------------------------------------------------------- Shell ----- */
+
+[data-theme-family="lore"] .sidebar {
+  width: 248px;
+  background: var(--sidebar-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  padding: var(--space-5) 0 var(--space-4);
+}
+
+[data-theme-family="lore"] .sidebar-brand {
+  justify-content: flex-start;
+  padding: var(--space-3) var(--space-6) var(--space-6);
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+[data-theme-family="lore"] .sidebar-brand:hover {
+  text-decoration: none;
+}
+
+[data-theme-family="lore"] .sidebar nav {
+  padding: 0 var(--space-4);
+}
+
+[data-theme-family="lore"] .sidebar nav a {
+  min-height: 36px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-weight: var(--fw-normal);
+}
+
+[data-theme-family="lore"] .sidebar nav a:hover {
+  background: var(--bg-hover);
+  color: var(--heading-color);
+}
+
+[data-theme-family="lore"] .sidebar nav a.active {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-weight: var(--fw-medium);
+}
+
+[data-theme-family="lore"] .main-content {
+  padding: var(--space-7) var(--space-8);
+}
+
+[data-theme-family="lore"] .mobile-header {
+  background: var(--glass-bg);
+}
+
+[data-theme-family="lore"] .sidebar-version {
+  padding: var(--space-3) var(--space-6);
+}
+
+/* ---------------------------------------------------------- Headings ----- */
+
+[data-theme-family="lore"] h1,
+[data-theme-family="lore"] h2,
+[data-theme-family="lore"] h3 {
+  font-weight: var(--fw-medium);
+  letter-spacing: -0.02em;
+  color: var(--heading-color);
+}
+
+/* The re:cinq headline gradient, on the page title only: on smaller headings
+   it would read as decoration rather than as the page's name. */
+[data-theme-family="lore"] .main-content h1:not(:has(.brand-lockup)) {
+  background: var(--heading-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  width: fit-content;
+}
+
+/* ----------------------------------------------------------- Buttons ----- */
+
+[data-theme-family="lore"] button {
+  min-height: 36px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--text-on-accent);
+  transition: background var(--transition);
+}
+
+[data-theme-family="lore"] button:hover {
+  background: var(--primary-hover);
+}
+
+[data-theme-family="lore"] button.btn-secondary {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  border: none;
+}
+
+[data-theme-family="lore"] button.btn-secondary:hover {
+  background: var(--pill-bg-hover);
+  color: var(--pill-fg);
+}
+
+[data-theme-family="lore"] input:not([type="checkbox"], [type="radio"]),
+[data-theme-family="lore"] select,
+[data-theme-family="lore"] textarea {
+  border-radius: var(--radius);
+}
+
+/* ------------------------------------------------------ Data display ----- */
+
+/* Tables keep mono for values but read their headers as small mono labels,
+   the way the design sets every `{section}` caption. */
+[data-theme-family="lore"] table {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+
+[data-theme-family="lore"] thead th {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-normal);
+  text-transform: lowercase;
+  letter-spacing: 0.06em;
+}
+
+[data-theme-family="lore"] .badge,
+[data-theme-family="lore"] .status-pill,
+[data-theme-family="lore"] .count-pill {
+  font-family: var(--font-ui);
+  font-weight: var(--fw-medium);
+}
+
+[data-theme-family="lore"] .badge-gray {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}
+
+[data-theme-family="lore"] .count-pill {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}
+
+[data-theme-family="lore"] pre,
+[data-theme-family="lore"] code {
+  background: var(--sidebar-bg);
+}

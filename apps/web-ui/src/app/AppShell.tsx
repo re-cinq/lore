@@ -173,7 +173,7 @@ function MobileHeader({ buttonRef, sidebarOpen, onOpen }: MobileHeaderProps) {
         <span />
         <span />
       </button>
-      <span className="mobile-brand">LORE</span>
+      <span className="mobile-brand">lore</span>
     </header>
   );
 }

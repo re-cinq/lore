@@ -90,6 +90,51 @@ option {
   margin-bottom: var(--space-3);
 }
 
+/* The mark + "lore / by re:cinq" wordmark (BrandLockup). The light and dark
+   carts are both in the page; the scheme picks one, before React hydrates. */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.brand-mark {
+  height: 44px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.brand-mark-dark,
+[data-color-scheme="dark"] .brand-mark-light {
+  display: none;
+}
+
+[data-color-scheme="dark"] .brand-mark-dark {
+  display: block;
+}
+
+.brand-words {
+  display: flex;
+  flex-direction: column;
+  line-height: var(--lh-1);
+  gap: var(--space-2);
+}
+
+.brand-name {
+  font-family: var(--font-heading, var(--font-ui));
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-lg);
+  letter-spacing: -0.02em;
+  color: var(--heading-color);
+}
+
+.brand-by {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
 .sidebar nav {
   display: flex;
   flex-direction: column;

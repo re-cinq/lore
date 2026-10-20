@@ -7,6 +7,7 @@ import type { IconName } from "@/lib/icon-map";
 import styles from "./ThemeSwitcher.module.css";
 
 const FAMILIES: { value: ThemeFamily; label: string }[] = [
+  { value: "lore", label: "Lore" },
   { value: "elegant", label: "Elegant" },
   { value: "retro", label: "Retro" },
   { value: "chicago", label: "Classic" },
