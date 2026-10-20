@@ -149,7 +149,7 @@ async function overlayDeltaResult(
   };
 }
 
-/** A default-branch delta: project it, THEN settle main's stored pointer, so a failed projection never moves the pointer past work that did not land. */
+/** A default-branch delta: project it, THEN settle main's stored pointer, so a failed projection never moves the pointer past work that did not land. A settled delta also stamps the repo's `last_ingested_at`; a partial upload has not finished ingesting. */
 async function mainDeltaResult(
   pool: Pool,
   deps: IngestDeltaDeps,
@@ -157,13 +157,13 @@ async function mainDeltaResult(
   body: IngestDeltaBody,
 ) {
   const counts = await applyDelta(deps, repo, body);
+  const state = await settleDelta(pool, repo, body);
 
-  return {
-    kind: body.kind,
-    commit: body.commit,
-    state: await settleDelta(pool, repo, body),
-    ...counts,
-  };
+  if (state !== "pending-chunks") {
+    await deps.markIngested(repo);
+  }
+
+  return { kind: body.kind, commit: body.commit, state, ...counts };
 }
 
 /** Every reason to refuse a delta BEFORE projecting any of it. The stale-base check is the race detection: two CI runs diffing the same base would each project against a commit the other has moved past, so the loser must re-fetch and re-diff. */

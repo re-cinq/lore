@@ -13,6 +13,7 @@ interface Issued {
 interface FakeDeps extends IngestDeltaDeps {
   calls: Array<[string, ...unknown[]]>;
   mirrored: Array<[string, ...unknown[]]>;
+  ingested: string[];
 }
 
 function fakeDeps(
@@ -23,6 +24,7 @@ function fakeDeps(
 ): FakeDeps {
   const calls: Array<[string, ...unknown[]]> = [];
   const mirrored: Array<[string, ...unknown[]]> = [];
+  const ingested: string[] = [];
   const recordProjection =
     (name: string): IngestDeltaDeps["projectSpec"] =>
     async (repo, path, content, projection) => {
@@ -40,6 +42,10 @@ function fakeDeps(
   return {
     calls,
     mirrored,
+    ingested,
+    markIngested: async (repo) => {
+      ingested.push(repo);
+    },
     dgraph: () => ({}) as never,
     projectSpec: recordProjection("projectSpec"),
     projectAdr: recordProjection("projectAdr"),
@@ -475,6 +481,59 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     ).toBe(true);
   });
 
+  it("stamps the repo as ingested once a delta advances the state", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, {
+      kind: "adrs",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "adrs/ADR-001.md", content: "# ADR-001\n" }],
+    });
+
+    expect(deps.ingested).toEqual(["re-cinq/lore"]);
+  });
+
+  it("stamps the repo only on the final chunk of a chunked ingest", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+    const chunk = (seq: number) => ({
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      seq,
+      total: 2,
+      report: { commit: SHA_B, tests: [], results: [] },
+    });
+
+    await post(server, chunk(1));
+    const stampedAfterFirst = [...deps.ingested];
+
+    await post(server, chunk(2));
+
+    expect({ stampedAfterFirst, stamped: deps.ingested }).toEqual({
+      stampedAfterFirst: [],
+      stamped: ["re-cinq/lore"],
+    });
+  });
+
+  it("does not stamp the repo when the delta is refused as stale", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, [
+      [/SELECT commit_sha/, [{ commit_sha: SHA_B }]],
+    ]);
+
+    await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "specs/x/spec.md", content: "# X\n" }],
+    });
+
+    expect(deps.ingested).toEqual([]);
+  });
+
   it("rejects an unknown kind and a malformed commit as 400s", async () => {
     const server = await serverWith(fakeDeps());
 
@@ -775,6 +834,15 @@ describe("POST /api/repos/{owner}/{repo}/ingest from a branch", () => {
     await post(server, deltaFor("feat/x"));
 
     expect(deps.mirrored).toEqual([]);
+  });
+
+  it("does not stamp the repo as ingested for a feat/x delta", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, deltaFor("feat/x"));
+
+    expect(deps.ingested).toEqual([]);
   });
 
   it("leaves main's stored commit where it was and answers state overlay for a feat/x delta", async () => {

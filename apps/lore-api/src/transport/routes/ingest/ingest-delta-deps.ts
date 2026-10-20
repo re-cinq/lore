@@ -63,6 +63,8 @@ export interface IngestDeltaDeps {
   pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
   /** The repo's default branch: a test report for any other branch is work in flight and goes to that branch's overlay. */
   defaultBranch(repo: string): Promise<string>;
+  /** Stamps `lore.repos.last_ingested_at`, which the repo list and `/api/repo-status` report as the context's age. */
+  markIngested(repo: string): Promise<void>;
   /** The Utopia mirror of one projected spec or ADR (specs/utopia-graph-mirror); a no-op on a repo not set up there. */
   mirrorDoc(repo: string, doc: MirroredDoc): Promise<void>;
   unmirrorDoc(repo: string, path: string): Promise<void>;
@@ -149,6 +151,8 @@ export const defaultDeps = (): IngestDeltaDeps => {
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),
     defaultBranch: async (repo) =>
       (await projectFor(repo)).repo.defaultBranch(),
+    markIngested: async (repo) =>
+      (await projectFor(repo)).settings.markIngested(),
     ...UTOPIA_MIRROR,
   };
 };
