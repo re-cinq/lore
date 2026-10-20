@@ -75,6 +75,21 @@ describe("CompareView", () => {
     );
   });
 
+  it("keeps the picked B as the active chip when it is not among the candidates", () => {
+    render(
+      <CompareView
+        a={A}
+        b={B}
+        candidates={[run("cccccccc-3")]}
+        nowMs={NOW}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: `#${B.run.id.slice(0, 8)}` }),
+    ).toHaveAttribute("href", `/compare?a=aaaaaaaa-1&b=${B.run.id}`);
+  });
+
   it("draws the time per station for both runs with the difference A − B", () => {
     render(<CompareView a={A} b={B} candidates={[]} nowMs={NOW} />);
 

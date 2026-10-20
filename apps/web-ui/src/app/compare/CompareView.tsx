@@ -86,7 +86,10 @@ function chipsOf(
   b: CompareSide | null,
   candidates: readonly AssemblyRun[],
 ): FilterChip[] {
-  return candidates.map((run) => ({
+  const pickedOutsideCandidates =
+    b && !candidates.some((run) => run.id === b.run.id) ? [b.run] : [];
+
+  return [...pickedOutsideCandidates, ...candidates].map((run) => ({
     label: `#${run.id.slice(0, 8)}`,
     href: `/compare?a=${a.run.id}&b=${run.id}`,
     active: run.id === b?.run.id,
