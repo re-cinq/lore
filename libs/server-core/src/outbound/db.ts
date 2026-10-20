@@ -8,6 +8,11 @@ import {
   embedderDegraded,
 } from "@re-cinq/lore-shared";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
+import { extractKeyTerms } from "@re-cinq/lore-shared/project/knowledge/context-assembly-items.js";
+import {
+  buildHybridCorpusOrgWideSQL,
+  buildHybridCorpusBoundSQL,
+} from "@re-cinq/lore-shared/project/knowledge/hybrid-rrf-core.js";
 
 // Re-exported from shared embedding-service singleton for back-compat.
 export { getQueryEmbedding, embeddingHealth, embedderDegraded };
@@ -83,26 +88,41 @@ export async function hybridSearch(
   query: string,
   schema: string,
   limit: number = 8,
+  repo?: string,
 ): Promise<SearchResult[]> {
   if (!(await isDbAvailable())) {
     return [];
   }
-
-  // Unknown schema falls back to org_shared; provisioned team schemas read directly.
-  const resolvedSchema = await chunkSchemaOrOrgShared(getPool(), schema);
-
+  const resolved = await chunkSchemaOrOrgShared(getPool(), schema);
   const embedding = await getQueryEmbedding(query);
+  const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
 
-  if (!embedding) {
-    return keywordOnlySearch(query, resolvedSchema, limit);
-  }
+  return embedding
+    ? runHybridSQL({ embedding, keywordQuery, schema: resolved, limit, repo })
+    : keywordOnlySearch(query, resolved, limit, repo);
+}
 
-  // Full hybrid search (vector + keyword)
+async function runHybridSQL(options: {
+  embedding: number[];
+  keywordQuery: string;
+  schema: string;
+  limit: number;
+  repo?: string;
+}): Promise<SearchResult[]> {
+  const { embedding, keywordQuery, schema, limit, repo } = options;
   const embeddingStr = `[${embedding.join(",")}]`;
-  const sql = buildHybridSearchSQL(resolvedSchema);
-  const { rows } = await getPool().query(sql, [embeddingStr, query, limit]);
+  const sql =
+    repo !== undefined
+      ? buildHybridCorpusBoundSQL(schema)
+      : buildHybridCorpusOrgWideSQL(schema);
+  const params: unknown[] = [embeddingStr, keywordQuery, limit];
 
-  return rows as SearchResult[];
+  if (repo) {
+    params.push(repo);
+  }
+  const { rows } = await getPool().query(sql, params);
+
+  return normalizeSearchScores(rows as SearchResult[]);
 }
 
 // Keyword-only, for when no embedding could be obtained. Degraded rather than empty: a repo whose embeddings are unavailable still answers a search, and the caller cannot tell the difference except in ranking.
@@ -110,44 +130,29 @@ async function keywordOnlySearch(
   query: string,
   schema: string,
   limit: number,
+  repo?: string,
 ): Promise<SearchResult[]> {
+  const params: unknown[] = repo ? [query, limit, repo] : [query, limit];
   const { rows } = await getPool().query(
     `
       SELECT id, content, metadata,
              ts_rank(search_tsv, plainto_tsquery($1)) AS rrf_score
       FROM ${schema}.chunks
-      WHERE search_tsv @@ plainto_tsquery($1)
+      WHERE search_tsv @@ plainto_tsquery($1) ${repo ? "AND repo = $3" : ""}
       ORDER BY rrf_score DESC
       LIMIT $2;`,
-    [query, limit],
+    params,
   );
 
   return rows as SearchResult[];
 }
 
-// eslint-disable-next-line max-lines-per-function -- one SQL statement, returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
-function buildHybridSearchSQL(schema: string): string {
-  return `
-WITH vector_results AS (
-  SELECT id, content, metadata,
-         ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS vec_rank
-  FROM ${schema}.chunks
-  LIMIT 20
-),
-keyword_results AS (
-  SELECT id, content, metadata,
-         ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, plainto_tsquery($2)) DESC) AS kw_rank
-  FROM ${schema}.chunks
-  WHERE search_tsv @@ plainto_tsquery($2)
-  LIMIT 20
-)
-SELECT
-  COALESCE(v.id, k.id) AS id,
-  COALESCE(v.content, k.content) AS content,
-  COALESCE(v.metadata, k.metadata) AS metadata,
-  (COALESCE(1.0 / (60 + v.vec_rank), 0) + COALESCE(1.0 / (60 + k.kw_rank), 0)) AS rrf_score
-FROM vector_results v
-FULL OUTER JOIN keyword_results k ON v.id = k.id
-ORDER BY rrf_score DESC
-LIMIT $3;`;
+function normalizeSearchScores(rows: SearchResult[]): SearchResult[] {
+  const max = Math.max(0, ...rows.map((r) => r.rrf_score));
+
+  if (max <= 0) {
+    return rows;
+  }
+
+  return rows.map((r) => ({ ...r, rrf_score: r.rrf_score / max }));
 }

@@ -1,7 +1,13 @@
-/** GitHub webhook → event mapping: produces zero or more EventInputs per PR/review/comment. */
+/** GitHub webhook → event mapping: produces zero or more EventInputs per PR/review/comment, check suite and branch push, plus the Utopia mirror's event for an issue or pull request that changed. */
 
 import type { EventInsert as EventInput } from "../../events.js";
 import { githubDedupeKey } from "./dedupe.js";
+import {
+  mirrorEvents,
+  RELEASE_CHANGED,
+  TRACKER_CHANGED,
+} from "./github-map-mirror.js";
+import { branchPushParams, checkSuiteParams } from "./github-map-ci.js";
 
 const PR_REVIEW_TRIGGER_ACTIONS = new Set([
   "synchronize",
@@ -21,6 +27,10 @@ export const GITHUB_EVENT_NAMES: string[] = [
   "github.issue_comment.created",
   "github.issues.labeled",
   "github.repository.renamed",
+  "github.check_suite.completed",
+  "github.push",
+  TRACKER_CHANGED,
+  RELEASE_CHANGED,
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
@@ -39,6 +49,14 @@ const EVENT_MAPPERS: Record<string, EventMapper | undefined> = {
   pull_request_review_comment: mapReviewComment,
   issues: mapIssueLabeled,
   repository: mapRepositoryRenamed,
+  check_suite: (payload, repo, key) =>
+    eventWhen(
+      "github.check_suite.completed",
+      checkSuiteParams(payload, repo),
+      key,
+    ),
+  push: (payload, repo, key) =>
+    eventWhen("github.push", branchPushParams(payload, repo), key),
 };
 
 export function mapGitHubEvent(
@@ -52,12 +70,9 @@ export function mapGitHubEvent(
     return [];
   }
   const mapper = EVENT_MAPPERS[eventType];
+  const own = mapper ? mapper(payload, repo, githubDedupeKey(deliveryId)) : [];
 
-  if (!mapper) {
-    return [];
-  }
-
-  return mapper(payload, repo, githubDedupeKey(deliveryId));
+  return [...own, ...mirrorEvents(eventType, payload, repo, deliveryId)];
 }
 
 function mapPullRequest(
@@ -300,6 +315,14 @@ function oneEvent(
   key: string,
 ): EventInput[] {
   return [{ eventName, source: "github", params, dedupeKey: key }];
+}
+
+function eventWhen(
+  eventName: string,
+  params: Record<string, unknown> | null,
+  key: string,
+): EventInput[] {
+  return params ? oneEvent(eventName, params, key) : [];
 }
 
 function labelNames(labels: unknown): string[] {

@@ -10,4 +10,11 @@ export class Audit {
   write(entry: Omit<AuditLogEntry, "repo">): Promise<void> {
     return this.port.write({ ...entry, repo: this.repo });
   }
+
+  recorded(
+    eventType: string,
+    fields: Record<string, unknown>,
+  ): Promise<boolean> {
+    return this.port.hasEntry(eventType, this.repo, fields);
+  }
 }

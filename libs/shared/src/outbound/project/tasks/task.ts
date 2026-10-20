@@ -28,6 +28,11 @@ export class Task {
     return this.row.pr_url;
   }
 
+  /** The backlog issue the task works on; null when it has none. */
+  get issueNumber(): number | null {
+    return this.row.issue_number ?? null;
+  }
+
   /** Failure reason; planning poll shows this even when iteration stuck at running. */
   get failureReason(): string | null {
     return this.row.failure_reason ?? null;

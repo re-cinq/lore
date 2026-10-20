@@ -1,7 +1,10 @@
-export const usd = (n: number) =>
-  Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
+// Pinned to en-US: the server and the reader's browser must render the same text, whatever either machine's locale.
+const LOCALE = "en-US";
 
-export const num = (n: number) => Number(n).toLocaleString();
+export const usd = (n: number) =>
+  Number(n).toLocaleString(LOCALE, { style: "currency", currency: "USD" });
+
+export const num = (n: number) => Number(n).toLocaleString(LOCALE);
 
 /** Render YYYY-MM-DD as DD-MM-YYYY: parse string not Date to avoid UTC shift, fixed locale for consistency. */
 export const day = (isoDay: string) => {

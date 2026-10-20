@@ -1,0 +1,24 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-7);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-muted);
+}
+
+.title {
+  margin: 0;
+}
+
+.lede {
+  margin: 0;
+  max-width: var(--measure-sm);
+  font-size: var(--fs-base);
+  color: var(--text-muted);
+}

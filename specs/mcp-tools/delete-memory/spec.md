@@ -22,7 +22,7 @@ search while keeping its history intact.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L124)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L127)).
 
 - **name**: `lore_delete_memory`
 - **description** (verbatim):

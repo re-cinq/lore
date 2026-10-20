@@ -1,33 +1,256 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
 .header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
+  gap: var(--space-5);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The `{work}` group label is the re:cinq brand's; other families hide it. */
+.eyebrow {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-muted);
+}
+
+.title {
+  margin: 0;
+}
+
+.summaryLine {
+  margin: 0;
+  color: var(--text-muted);
 }
 
 .headerActions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   align-items: center;
 }
 
-.cardTitle {
+.addRepo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-lg);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--text-on-accent);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: background var(--transition);
+}
+
+.addRepo:hover {
+  background: var(--primary-hover);
+  color: var(--text-on-accent);
+  text-decoration: none;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.chip:hover {
+  background: var(--pill-bg-hover);
+  color: var(--pill-fg);
+  text-decoration: none;
+}
+
+.chip[aria-current="page"] {
+  background: var(--primary);
+  color: var(--text-on-accent);
+}
+
+.chipCount {
+  opacity: 0.7;
+}
+
+.grid {
+  margin-top: 0;
+  gap: var(--space-5);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  border-radius: var(--radius-lg);
+  transition:
+    transform var(--transition),
+    box-shadow var(--transition),
+    border-color var(--transition);
+}
+
+.card:hover {
+  text-decoration: none;
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.card .cardTitle {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-weight: var(--fw-medium);
+}
+
+.cardOwner {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.cardName {
+  font-size: var(--fs-lg);
+  color: var(--heading-color);
+  overflow-wrap: anywhere;
+}
+
+.team {
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.statValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.statLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.cardNote,
+.attention {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
 }
 
-/* Both colours below come from the freshness/ingest palettes in lib — the card
-   hands the value over, the rule stays here. */
+.cardNote {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.attention {
+  font-weight: var(--fw-medium);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.attention[data-tone="danger"] {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Both colours below come from the freshness palette — the card hands the
+   value over, the rule stays here. */
 .freshnessDot {
   display: inline-block;
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   flex-shrink: 0;
   background: var(--dot-color);
 }
 
-.ingestBadge {
-  background: var(--badge-color);
-  color: var(--text-on-accent);
+.runningDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+  background: var(--info);
+  animation: pulse var(--pulse-duration) ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runningDot {
+    animation: none;
+  }
+}
+
+/* The lifted card and the gradient name are the re:cinq brand's touches. */
+:global([data-theme-family="lore"]) .card:hover {
+  transform: translateY(calc(-1 * var(--space-2)));
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border);
+}
+
+:global([data-theme-family="lore"]) .eyebrow {
+  display: block;
 }

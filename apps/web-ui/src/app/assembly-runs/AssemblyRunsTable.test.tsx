@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
-import AssemblyRunsTable from "./AssemblyRunsTable";
+import AssemblyRunsTable, { whereRunStands } from "./AssemblyRunsTable";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 
 beforeEach(() => {
@@ -239,5 +239,17 @@ describe("AssemblyRunsTable", () => {
       header: "Stages",
       dots: ["review: running", "done: pending"],
     });
+  });
+
+  it("says which stage an open run stands at, and nothing once it ended", () => {
+    const pipeline = [
+      { node_id: "dod", state: "success" },
+      { node_id: "human-review", state: "waiting" },
+    ];
+
+    expect({
+      open: whereRunStands(run({ status: "running", pipeline })),
+      ended: whereRunStands(run({ pipeline })),
+    }).toEqual({ open: "waiting at human-review", ended: null });
   });
 });

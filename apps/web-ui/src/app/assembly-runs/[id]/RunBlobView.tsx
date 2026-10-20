@@ -13,7 +13,7 @@ export default function RunBlobView({ runId, blob }: RunBlobViewProps) {
   return (
     <div>
       <div className="breadcrumb">
-        <Link href="/assembly-runs">Assembly Runs</Link> /{" "}
+        <Link href="/assembly-runs">Assembly runs</Link> /{" "}
         <Link href={`/assembly-runs/${runId}`}>{runId}</Link> / blob
       </div>
       <code className={styles.hash}>{blob.hash}</code>

@@ -1,4 +1,4 @@
-// The repository events that need no assembly line: an Issue labelled for Lore, a repository renamed, a pull request closed, a repository moved to another team. They were handled by Lore's own Floor; they are answered here so it can be switched off (specs/external-floor FR16).
+// The repository events that need no assembly line: an Issue labelled for Lore, a repository renamed, a pull request closed, a branch pushed, an issue or pull request changed, a release published, a repository moved to another team. They were handled by Lore's own Floor; they are answered here so it can be switched off (specs/external-floor FR16).
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import {
   dispatchLabeledIssue,
@@ -28,6 +28,12 @@ export interface RepoEventDeps {
   reportTriageGate(visitId: string): Promise<void>;
   /** A team change moves the repository's stored context into the team's schema, where reads now look; answers what it did. */
   relocateChunks(repo: string): Promise<string>;
+  /** A push to the default branch has lore-api walk its new commits into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR12); answers what the walk did, or why it was skipped. */
+  mirrorCommits(repo: string, branch: string): Promise<string>;
+  /** An issue or pull request that changed has lore-api walk what GitHub updated since its cursor into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR14); answers what the walk did. */
+  mirrorTracker(repo: string): Promise<string>;
+  /** A published release or a created tag has lore-api push the repo's tags and releases into its Utopia knowledge base (specs/utopia-graph-mirror FR15); answers what the push did. */
+  mirrorReleases(repo: string): Promise<string>;
 }
 
 export const REPO_EVENTS: readonly string[] = [
@@ -35,6 +41,9 @@ export const REPO_EVENTS: readonly string[] = [
   "github.issue_comment",
   "github.repository.renamed",
   "github.pull_request.closed",
+  "github.push",
+  "github.tracker.changed",
+  "github.release.changed",
   "internal.repo.team_changed",
 ];
 
@@ -46,6 +55,9 @@ export function repoEventHandlers(
     ["github.issue_comment", issueComment(deps)],
     ["github.repository.renamed", repositoryRenamed(deps)],
     ["github.pull_request.closed", pullRequestClosed(deps)],
+    ["github.push", branchPushed(deps)],
+    ["github.tracker.changed", trackerChanged(deps)],
+    ["github.release.changed", releaseChanged(deps)],
     ["internal.repo.team_changed", teamChanged(deps)],
   ]);
 }
@@ -123,6 +135,43 @@ function pullRequestClosed(deps: RepoEventDeps): EventHandler {
 
     if (repo && branch) {
       await deps.dropOverlay(repo, branch);
+    }
+  };
+}
+
+// lore-api skips any branch but the default one itself, so every push is posted.
+function branchPushed(deps: RepoEventDeps): EventHandler {
+  return async (params) => {
+    const { repo, branch } = params as { repo?: string; branch?: string };
+
+    if (repo && branch) {
+      const outcome = await deps.mirrorCommits(repo, branch);
+
+      console.log(`[stations] push to ${repo} ${branch}: ${outcome}`);
+    }
+  };
+}
+
+function trackerChanged(deps: RepoEventDeps): EventHandler {
+  return async (params) => {
+    const { repo } = params as { repo?: string };
+
+    if (repo) {
+      const outcome = await deps.mirrorTracker(repo);
+
+      console.log(`[stations] tracker of ${repo} changed: ${outcome}`);
+    }
+  };
+}
+
+function releaseChanged(deps: RepoEventDeps): EventHandler {
+  return async (params) => {
+    const { repo } = params as { repo?: string };
+
+    if (repo) {
+      const outcome = await deps.mirrorReleases(repo);
+
+      console.log(`[stations] releases of ${repo} changed: ${outcome}`);
     }
   };
 }

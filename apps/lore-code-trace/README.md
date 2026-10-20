@@ -31,11 +31,12 @@ and [ADR-023](../../adrs/ADR-023-ci-driven-doc-and-test-projection.md).
    `TN:` grouping is dropped — the file is the coverage granularity. A failed or
    unparseable per-file run is logged and skipped, never fatal.
 5. Prints the `{commit, branch, tests, results}` report as JSON to stdout, or
-   with `--post` splits it into ≤512KB chunks and POSTs each (plus the `repo`
-   slug) to `$LORE_WEBHOOK_URL/api/webhook/ci-tests` with a bearer token.
-   Transient failures (5xx, 429, transport errors) retry 3 times with backoff;
-   a 4xx aborts immediately. Ingest is idempotent (xid upserts), so re-sending
-   a chunk is safe.
+   with `--post` reads `$LORE_API_URL/api/repos/<o>/<r>/ingest-state` and
+   POSTs only what changed since the last ingested commit to
+   `$LORE_API_URL/api/repos/<o>/<r>/ingest` with a bearer token. Ingest is
+   idempotent (xid upserts), so re-sending is safe. The chunked
+   `$LORE_WEBHOOK_URL/api/webhook/ci-tests` fallback is still in the binary,
+   but the Floor that served that route was deleted on 2026-10-02.
 
 ## Specs and ADRs: `docs`
 
@@ -93,7 +94,7 @@ Exit code: `0` on success, `1` on any fatal error
 | Variable               | Purpose                                                                                                  |
 | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `LORE_API_URL`         | Base URL of lore-api (`--post`): the incremental ingest for the test report, and the only path for `docs`. |
-| `LORE_WEBHOOK_URL`     | Base URL of the Floor server: the test report's chunked fallback when lore-api lacks the ingest route.    |
+| `LORE_WEBHOOK_URL`     | Legacy: the chunked fallback's base URL. Its server (Lore's own Floor) was deleted on 2026-10-02.       |
 | `LORE_INGEST_TOKEN`    | Bearer token for the ingest POST (`--post` only, required).                                               |
 | `LORE_TRACE_TIMEOUT_MS`| Per-command timeout for `list` and each `run`, in ms. Default 120000. CI sets 600000 for cold runners.    |
 | `LORE_DB_HOST`         | If set, the binary **refuses to run** — trust-boundary parity with the TS runner: repo commands execute only in a trusted sandbox (CI/local), never the shared server. |
@@ -103,7 +104,7 @@ Exit code: `0` on success, `1` on any fatal error
 ```bash
 cd /path/to/repo          # any repo with .lore/test-commands.yml
 lore-code-trace           # print the report to stdout
-LORE_WEBHOOK_URL=https://lore-floor.example.com \
+LORE_API_URL=https://lore-api.example.com \
 LORE_INGEST_TOKEN=... \
 lore-code-trace --post    # run + ingest
 ```

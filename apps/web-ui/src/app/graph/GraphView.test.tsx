@@ -59,12 +59,12 @@ describe("GraphView", () => {
         edges={[]}
       />,
     );
-    expect(screen.getByText("all")).toHaveClass("op-search");
-    const serviceBadge = screen.getByText("service (7)");
+    const all = screen.getByRole("link", { name: "all" });
+    const serviceChip = screen.getByRole("link", { name: "service 7" });
 
-    expect(serviceBadge).toBeInTheDocument();
-    expect(serviceBadge).not.toHaveClass("op-search");
-    expect(serviceBadge.getAttribute("href")).toEqual("/graph?type=service");
+    expect(all).toHaveAttribute("aria-current", "page");
+    expect(serviceChip).not.toHaveAttribute("aria-current");
+    expect(serviceChip.getAttribute("href")).toEqual("/graph?type=service");
   });
 
   it("marks the matching type badge active and the all badge inactive when a type is selected", () => {
@@ -78,8 +78,13 @@ describe("GraphView", () => {
         edges={[]}
       />,
     );
-    expect(screen.getByText("all")).not.toHaveClass("op-search");
-    expect(screen.getByText("service (7)")).toHaveClass("op-search");
+    expect(screen.getByRole("link", { name: "all" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("link", { name: "service 7" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("hides the type filter row when there are no entity types", () => {
@@ -95,7 +100,7 @@ describe("GraphView", () => {
     expect(screen.queryByText("all")).not.toBeInTheDocument();
   });
 
-  it("renders an entity row with name, type badge, repo, edge count and explore link", () => {
+  it("renders an entity row with name, type pill, repo, edge count and explore link", () => {
     render(
       <GraphView
         type="service"
@@ -106,12 +111,9 @@ describe("GraphView", () => {
         edges={[]}
       />,
     );
-    expect(screen.getByText("lore-agent")).toBeInTheDocument();
-    expect(screen.getByText("service")).toBeInTheDocument();
-    expect(screen.getByText("re-cinq/lore")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    const explore = screen.getByText("explore");
+    const explore = screen.getByRole("link", { name: /^lore-agent/ });
 
+    expect(explore).toHaveTextContent("lore-agentre-cinq/loreservice3 edges");
     expect(explore.getAttribute("href")).toEqual(
       "/graph?entity=lore-agent&type=service",
     );
@@ -140,9 +142,9 @@ describe("GraphView", () => {
         edges={[]}
       />,
     );
-    expect(screen.getByText("explore").getAttribute("href")).toEqual(
-      "/graph?entity=lore-agent",
-    );
+    expect(
+      screen.getByRole("link", { name: /^lore-agent/ }).getAttribute("href"),
+    ).toEqual("/graph?entity=lore-agent");
   });
 
   it("shows the entities empty state when there are no entities", () => {
@@ -187,7 +189,7 @@ describe("GraphView", () => {
       />,
     );
     expect(
-      screen.getByText('Relationships for "lore-agent"'),
+      screen.getByRole("heading", { name: "Relationships for lore-agent" }),
     ).toBeInTheDocument();
     const toggle = screen.getByText("Show invalidated edges");
 

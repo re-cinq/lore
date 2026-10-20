@@ -1,8 +1,11 @@
 "use client";
-import HelpPopover from "@/components/HelpPopover";
 import SettingsFormShell, { type SaveAction } from "./SettingsFormShell";
 import DigestFields from "./DigestFields";
+import SettingsHelp from "./SettingsHelp";
 import { SubmitButton } from "@/components/SubmitButton";
+import { type SettingsNavItem } from "@/components/SettingsLayout";
+import { SettingsCard } from "@/components/SettingsCard";
+import Switch from "@/components/Switch";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
 
@@ -22,6 +25,14 @@ export interface SettingsViewProps {
 const SETTINGS_LEDE =
   "Per-repo general configuration: routing, trust, cross-repo context, and the daily Slack digest.";
 
+/** The sub-navigation, in the order the cards are shown. */
+const SETTINGS_NAV: SettingsNavItem[] = [
+  { id: "set-general", label: "General" },
+  { id: "set-policy", label: "Run policy" },
+  { id: "set-cross-repo", label: "Cross-repo context" },
+  { id: "set-digest", label: "Daily digest" },
+];
+
 export default function SettingsView(props: SettingsViewProps) {
   const { fullName, team, settings, allRepos, saveAction } = props;
 
@@ -32,9 +43,12 @@ export default function SettingsView(props: SettingsViewProps) {
       title="Settings"
       help={<SettingsHelp />}
       lede={SETTINGS_LEDE}
+      nav={SETTINGS_NAV}
     >
       <SettingsSections team={team} settings={settings} allRepos={allRepos} />
-      <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
+      <div className={styles.saveRow}>
+        <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
+      </div>
     </SettingsFormShell>
   );
 }
@@ -44,11 +58,12 @@ type SettingsSectionsProps = Pick<
   "team" | "settings" | "allRepos"
 >;
 
-/** The form's three sections, top to bottom. */
+/** The form's four section cards, top to bottom. */
 function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
   return (
     <>
       <GeneralFields team={team} settings={settings} />
+      <RunPolicyFields {...selectFieldDefaults(settings)} />
       <CrossRepoField
         allRepos={allRepos}
         selectedRepos={settings.cross_repo_repos ?? []}
@@ -58,38 +73,6 @@ function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
         slackChannelSet={Boolean(settings.slack_channel_id)}
       />
     </>
-  );
-}
-
-function SettingsHelp() {
-  return (
-    <HelpPopover label="How settings are applied">
-      <p>
-        Per-repo configuration, applied over the org-wide defaults — repo values
-        win.
-      </p>
-      <SettingsHelpPoints />
-    </HelpPopover>
-  );
-}
-
-/** The three things a reader most often gets wrong about this page. */
-function SettingsHelpPoints() {
-  return (
-    <ul>
-      <li>
-        <strong>Trust level</strong> controls which task types are allowed, and
-        auto-promotes after 3 successful merges.
-      </li>
-      <li>
-        <strong>Cross-repo</strong> links are bidirectional — adding a repo here
-        adds this repo to theirs.
-      </li>
-      <li>
-        Per-repo <strong>agents</strong> live on the <strong>Agents</strong>{" "}
-        tab; autonomy on the <strong>Dark Factory</strong> tab.
-      </li>
-    </ul>
   );
 }
 
@@ -120,21 +103,21 @@ const GENERAL_FIELDS = [
   },
 ];
 
-/** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
+/** Routing: who owns the repo, what it may run, and where it talks. */
 function GeneralFields({ team, settings }: GeneralFieldsProps) {
   const values = generalValues({ team, settings });
-  const { trustLevel, autoReview } = selectFieldDefaults(settings);
 
   return (
-    <>
-      <h3 className={styles.section}>General</h3>
-
+    <SettingsCard
+      id="set-general"
+      title="General"
+      description="Who owns this repository, what it may run, and where Lore posts about it."
+      headingLevel={3}
+    >
       {GENERAL_FIELDS.map((field) => (
         <TextField key={field.name} {...field} value={values[field.name]} />
       ))}
-
-      <RunPolicyFields trustLevel={trustLevel} autoReview={autoReview} />
-    </>
+    </SettingsCard>
   );
 }
 
@@ -164,7 +147,8 @@ function textFieldDefaults(settings: RepoSettingsShape) {
 function selectFieldDefaults(settings: RepoSettingsShape) {
   return {
     trustLevel: settings.trust?.level ?? "implementation",
-    autoReview: settings.auto_review ? "yes" : "no",
+    autoReview: Boolean(settings.auto_review),
+    autoMergeApprover: settings.auto_merge?.approver ?? "none",
   };
 }
 
@@ -178,36 +162,105 @@ interface TextFieldProps {
 /** A labelled free-text setting. Uncontrolled on purpose: the form posts to a server action, so the browser holds the edits and a re-render cannot discard what the reader typed. */
 function TextField({ label, name, value, placeholder }: TextFieldProps) {
   return (
-    <>
-      <label>{label}</label>
-      <input name={name} defaultValue={value} placeholder={placeholder} />
-    </>
+    <div className={styles.field}>
+      <label htmlFor={`setting-${name}`}>{label}</label>
+      <input
+        id={`setting-${name}`}
+        name={name}
+        defaultValue={value}
+        placeholder={placeholder}
+      />
+    </div>
   );
 }
 
 interface RunPolicyFieldsProps {
   trustLevel: string;
-  autoReview: string;
+  autoReview: boolean;
+  autoMergeApprover: string;
 }
 
 /** Not more text boxes: trust level decides which task types this repo accepts at all, and auto-review decides whether a PR is reviewed without anyone asking. */
-function RunPolicyFields({ trustLevel, autoReview }: RunPolicyFieldsProps) {
+function RunPolicyFields(props: RunPolicyFieldsProps) {
+  const { trustLevel, autoReview, autoMergeApprover } = props;
+
   return (
-    <>
-      <label>Trust Level</label>
-      <select name="trust_level" defaultValue={trustLevel}>
+    <SettingsCard
+      id="set-policy"
+      title="Run policy"
+      description="How much Lore does on this repository without a person asking."
+      headingLevel={3}
+    >
+      <TrustLevelField trustLevel={trustLevel} />
+      <AutoReviewField autoReview={autoReview} />
+      <input
+        type="hidden"
+        name="auto_merge_approver_saved"
+        value={autoMergeApprover}
+      />
+      <AutoMergeApproverField autoMergeApprover={autoMergeApprover} />
+    </SettingsCard>
+  );
+}
+
+function TrustLevelField({ trustLevel }: { trustLevel: string }) {
+  return (
+    <div className={styles.field}>
+      <label htmlFor="setting-trust_level">Trust Level</label>
+      <select
+        id="setting-trust_level"
+        name="trust_level"
+        defaultValue={trustLevel}
+      >
         <option value="docs">Docs only (gap-fill, runbook)</option>
         <option value="tests">Tests (+ review)</option>
         <option value="implementation">Implementation (default)</option>
         <option value="full">Full (all task types)</option>
       </select>
+    </div>
+  );
+}
 
-      <label>Auto-review PRs</label>
-      <select name="auto_review" defaultValue={autoReview}>
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
+/** A switch posting "yes" when on, the value the server action reads. */
+function AutoReviewField({ autoReview }: { autoReview: boolean }) {
+  return (
+    <Switch
+      name="auto_review"
+      value="yes"
+      defaultChecked={autoReview}
+      label="Auto-review PRs"
+      detail="Every open pull request gets a review from the code-review line."
+    />
+  );
+}
+
+const INSTALL_URL = "https://github.com/apps/lore-reviewer/installations/new";
+
+function AutoMergeApproverField(props: { autoMergeApprover: string }) {
+  return (
+    <div className={styles.field}>
+      <label htmlFor="setting-auto_merge_approver">Auto-merge Approver</label>
+      <select
+        id="setting-auto_merge_approver"
+        name="auto_merge_approver"
+        defaultValue={props.autoMergeApprover}
+      >
+        <option value="none">none</option>
+        <option value="lore-reviewer">lore-reviewer</option>
       </select>
-    </>
+      <ReviewerInstallHint />
+    </div>
+  );
+}
+
+function ReviewerInstallHint() {
+  return (
+    <span className={styles.hint}>
+      Requires the second App to be installed on the repository.{" "}
+      <a href={INSTALL_URL} target="_blank" rel="noopener noreferrer">
+        Install lore-reviewer
+      </a>
+    </span>
   );
 }
 
@@ -218,9 +271,27 @@ type CrossRepoFieldProps = Pick<SettingsViewProps, "allRepos"> & {
 /** Links are bidirectional — adding a repo here adds this repo to theirs — so this is a two-sided edit wearing a one-sided control. */
 function CrossRepoField({ allRepos, selectedRepos }: CrossRepoFieldProps) {
   return (
-    <>
-      <label>Cross-repo context (select repos to include)</label>
+    <SettingsCard
+      id="set-cross-repo"
+      title="Cross-repo context"
+      description="Repositories whose context sessions in this one also search."
+      headingLevel={3}
+    >
+      <CrossRepoSelect allRepos={allRepos} selectedRepos={selectedRepos} />
+      <span className={styles.hint}>
+        Hold Cmd/Ctrl to select multiple. Linked repos automatically get this
+        repo added to their cross-repo list.
+      </span>
+    </SettingsCard>
+  );
+}
+
+function CrossRepoSelect({ allRepos, selectedRepos }: CrossRepoFieldProps) {
+  return (
+    <div className={styles.field}>
+      <label htmlFor="setting-cross_repo_repos">Repos to include</label>
       <select
+        id="setting-cross_repo_repos"
         name="cross_repo_repos"
         multiple
         size={Math.min(Math.max(allRepos.length, 1), 6)}
@@ -228,11 +299,7 @@ function CrossRepoField({ allRepos, selectedRepos }: CrossRepoFieldProps) {
       >
         <RepoOptions allRepos={allRepos} />
       </select>
-      <span className={`meta ${styles.hint}`}>
-        Hold Cmd/Ctrl to select multiple. Linked repos automatically get this
-        repo added to their cross-repo list.
-      </span>
-    </>
+    </div>
   );
 }
 

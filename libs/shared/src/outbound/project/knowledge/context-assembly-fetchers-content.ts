@@ -229,24 +229,30 @@ function codeTypesFor(query: string): string[] {
   return MENTIONS_TESTS_RE.test(query) ? ["code", "test"] : ["code"];
 }
 
+/** How many documents a section keeps, whichever store answers it. */
+export const ITEM_LIMITS = { repo: 5, code: 6, adrs: 10 } as const;
+
 export const contentFetchers: Record<string, SourceFetcher> = {
   // Repo conventions: docs + specs (ADRs are their own section); hybrid ranking avoids floating unrelated web-ui specs on term overlap alone.
   repo: (pool, query, repo) =>
     hybridSource(pool, query, repo, {
       contentTypes: ["doc", "spec"],
-      limit: 5,
+      limit: ITEM_LIMITS.repo,
     }),
 
   // Source code the task touches — previously NEVER retrieved, so implementation tasks got zero of the files they edit. Tests join only when the question is about tests: a test file keyword-matches every symbol it exercises and outranked the source otherwise.
   code: (pool, query, repo) =>
     hybridSource(pool, query, repo, {
       contentTypes: codeTypesFor(query),
-      limit: 6,
+      limit: ITEM_LIMITS.code,
     }),
 
   // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   adrs: (pool, query, repo) =>
-    hybridSource(pool, query, repo, { contentTypes: ["adr"], limit: 10 }),
+    hybridSource(pool, query, repo, {
+      contentTypes: ["adr"],
+      limit: ITEM_LIMITS.adrs,
+    }),
 
   memories: (pool, query, _repo, reader) => fetchMemories(pool, query, reader),
 

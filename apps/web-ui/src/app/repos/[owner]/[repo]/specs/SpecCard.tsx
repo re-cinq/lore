@@ -45,11 +45,26 @@ function CoverageNote({
     return null;
   }
 
+  const percent = Math.round(coverage.ratio * 100);
+
   return (
-    <p className={styles.note}>
-      Coverage: {coverage.covered} / {coverage.testable} (
-      {Math.round(coverage.ratio * 100)}%)
-    </p>
+    <div className={styles.coverage}>
+      <CoverageBar percent={percent} />
+      <p className={styles.note}>
+        Coverage: {coverage.covered} / {coverage.testable} ({percent}%)
+      </p>
+    </div>
+  );
+}
+
+/** The note drawn as a bar; hidden from assistive tech, which reads the note. */
+function CoverageBar({ percent }: { percent: number }) {
+  return (
+    <span
+      aria-hidden
+      className={styles.bar}
+      style={{ ["--covered" as string]: `${percent}%` }}
+    />
   );
 }
 

@@ -14,7 +14,7 @@ import PRStatusBadgePanel from "./PRStatusBadgePanel";
 import styles from "./AssemblyRunsTable.module.css";
 
 const EM_DASH = "—";
-const BASE_COLUMNS = 9;
+const BASE_COLUMNS = 7;
 const columnCountFor = ({ showStages }: StagesProps): number =>
   showStages ? BASE_COLUMNS + 1 : BASE_COLUMNS;
 const BY_COLUMN_TITLE =
@@ -55,7 +55,7 @@ export default function AssemblyRunsTable(props: AssemblyRunsTableProps) {
   const visibleRuns = showSkips ? runs : withoutCoordinationSkips(runs);
 
   return (
-    <table className={styles.table}>
+    <table className={`${styles.table} ${showStages ? styles.live : ""}`}>
       <RunsTableHead showStages={showStages} />
       <TableBody visibleRuns={visibleRuns} showStages={showStages} />
       <SkipToggleFooter
@@ -72,9 +72,7 @@ function RunsTableHead({ showStages }: StagesProps) {
   return (
     <thead>
       <tr>
-        <th>Definition</th>
-        <th>Repo</th>
-        <th>Branch</th>
+        <th>Line · repo · branch</th>
         <th>Status</th>
         {showStages ? <th>Stages</th> : null}
         <th>PR</th>
@@ -130,12 +128,8 @@ function SkipToggleFooter(props: SkipToggleFooterProps) {
 
 function RunRow({ run, showStages }: RunRowProps & StagesProps) {
   return (
-    <tr>
-      <DefinitionCell run={run} />
-      <RepoCell run={run} />
-      <td className={styles.branch}>
-        <BranchCell branch={run.branch} />
-      </td>
+    <tr className={styles.row}>
+      <LineCell run={run} />
       <td>
         <StatusCell run={run} />
       </td>
@@ -180,27 +174,32 @@ function SkipToggleButton({
   );
 }
 
-function RepoCell({ run }: RunRowProps) {
+/** The line, its run id, and where it runs: repo and branch under the name. */
+function LineCell({ run }: RunRowProps) {
   return (
-    <td>
-      <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
+    <td className={styles.lineCell}>
+      <span className={styles.lineName}>
+        <Link href={`/assembly-runs/${run.id}`}>{run.blueprintName}</Link>
+        <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
+      </span>
+      <span className={styles.lineWhere}>
+        <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
+        <span className={styles.branch}>
+          <BranchCell branch={run.branch} />
+        </span>
+      </span>
     </td>
   );
 }
 
 function StagesCell({ run }: RunRowProps) {
   return (
-    <td>
-      <MiniPipeline runId={run.id} pipeline={run.pipeline ?? []} />
-    </td>
-  );
-}
-
-function DefinitionCell({ run }: RunRowProps) {
-  return (
-    <td>
-      <Link href={`/assembly-runs/${run.id}`}>{run.blueprintName}</Link>
-      <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
+    <td className={styles.stages}>
+      <MiniPipeline
+        runId={run.id}
+        pipeline={run.pipeline ?? []}
+        variant="bar"
+      />
     </td>
   );
 }
@@ -217,20 +216,40 @@ function BranchCell({ branch }: { branch: string | null }) {
   );
 }
 
+/** The status pill, where an open run is standing, and a failed run's reason. */
 function StatusCell({ run }: RunRowProps) {
   const visual = runStatusVisual(run.status, run.outcome);
   const showReason = run.status === "failed" && run.reason;
+  const where = whereRunStands(run);
 
   return (
-    <>
-      <span
-        className={`${styles.dot} ${styles[visual.tone]}`}
-        aria-hidden="true"
-      />
-      {visual.label}
+    <span className={styles.statusStack}>
+      <span className={`${styles.pill} ${styles[`${visual.tone}Pill`]}`}>
+        <span
+          className={`${styles.dot} ${styles[visual.tone]}`}
+          aria-hidden="true"
+        />
+        {visual.label}
+      </span>
+      {where ? <span className={styles.where}>{where}</span> : null}
       {showReason ? <span className={styles.reason}>{run.reason}</span> : null}
-    </>
+    </span>
   );
+}
+
+const STANDING: Partial<Record<string, string>> = {
+  running: "at",
+  waiting: "waiting at",
+};
+
+/** The stage an open run is on, from its pipeline: "at review", "waiting at human-review". */
+export function whereRunStands(run: AssemblyRun): string | null {
+  if (run.status !== "running") {
+    return null;
+  }
+  const node = (run.pipeline ?? []).find((stage) => STANDING[stage.state]);
+
+  return node ? `${STANDING[node.state]} ${node.node_id}` : null;
 }
 
 function RunSummaryCells({ run }: RunRowProps) {

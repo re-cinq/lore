@@ -1,0 +1,26 @@
+.tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+// The open tab is underlined in the accent; the rest stay muted.
+.tab {
+  margin-bottom: calc(-1 * 1px);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--space-1) solid transparent;
+  color: var(--text-muted);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--heading-color);
+    text-decoration: none;
+  }
+
+  &[aria-current="page"] {
+    border-bottom-color: var(--accent);
+    color: var(--heading-color);
+  }
+}

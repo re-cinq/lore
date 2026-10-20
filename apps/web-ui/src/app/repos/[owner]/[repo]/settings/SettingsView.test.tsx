@@ -42,9 +42,7 @@ describe("SettingsView (general only)", () => {
         ) as HTMLInputElement
       ).value,
     ).toBe("general");
-    expect(container.querySelector('select[name="auto_review"]')).toHaveValue(
-      "yes",
-    );
+    expect(container.querySelector('input[name="auto_review"]')).toBeChecked();
     expect(container.querySelector('select[name="trust_level"]')).toHaveValue(
       "full",
     );
@@ -72,10 +70,43 @@ describe("SettingsView (general only)", () => {
     );
   });
 
+  it("links the sub-navigation to the four section cards", () => {
+    const { container } = renderView();
+    const hrefs = Array.from(
+      container.querySelectorAll('nav[aria-label="Settings sections"] a'),
+    ).map((link) => link.getAttribute("href"));
+
+    expect(hrefs).toEqual([
+      "#set-general",
+      "#set-policy",
+      "#set-cross-repo",
+      "#set-digest",
+    ]);
+  });
+
   it("renders no agent or approval-PR controls", () => {
     const { container } = renderView();
 
     expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
     expect(container.querySelector('select[name="model_select"]')).toBeNull();
+  });
+
+  it("renders the auto_merge.approver select prefilled from settings", () => {
+    const { container } = renderView({
+      auto_merge: { approver: "lore-reviewer" },
+    });
+
+    expect(
+      container.querySelector('select[name="auto_merge_approver"]'),
+    ).toHaveValue("lore-reviewer");
+  });
+
+  it("links to GitHub's install page for lore-reviewer on that repo", () => {
+    const { container } = renderView();
+    const link = container.querySelector(
+      'a[href*="/apps/lore-reviewer/installations/new"]',
+    );
+
+    expect(link).not.toBeNull();
   });
 });

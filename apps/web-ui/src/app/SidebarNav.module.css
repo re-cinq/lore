@@ -44,6 +44,11 @@
   transform: rotate(-90deg);
 }
 
+/* A titling wrapper that takes no box, so the link stays the flex item. */
+.item {
+  display: contents;
+}
+
 .footer {
   display: flex;
   flex-direction: column;
@@ -98,4 +103,54 @@
 
 .addRepo:global(.active) {
   color: var(--accent);
+}
+
+/* Lore v2: group captions are re:cinq's braced mono labels, `{insights}`; the
+   braces are drawn, not written, so the accessible name stays "Insights". */
+:global([data-theme-family="lore"]) .groupLabel {
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-normal);
+  text-transform: lowercase;
+  opacity: 1;
+}
+
+:global([data-theme-family="lore"]) .groupName::before {
+  content: "{";
+}
+
+:global([data-theme-family="lore"]) .groupName::after {
+  content: "}";
+}
+
+:global([data-theme-family="lore"]) .footer {
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+:global([data-theme-family="lore"]) .footerLink {
+  border-radius: var(--radius-pill);
+  font-weight: var(--fw-normal);
+}
+
+:global([data-theme-family="lore"]) .footerLink:global(.active) {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}
+
+:global([data-theme-family="lore"]) .addRepo {
+  min-height: var(--control-lg);
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--text-on-accent);
+}
+
+:global([data-theme-family="lore"]) .addRepo:hover {
+  background: var(--primary-hover);
+  color: var(--text-on-accent);
+}
+
+:global([data-theme-family="lore"]) .addRepo:global(.active) {
+  color: var(--text-on-accent);
 }

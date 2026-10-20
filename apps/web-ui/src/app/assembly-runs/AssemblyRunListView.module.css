@@ -1,9 +1,89 @@
-/* Global assembly-runs list header — co-located with AssemblyLineListView.tsx.
-   The table styling lives in AssemblyLineTable.module.css. */
+/* The assembly-runs list page: title block, status chips, the table, pages. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
 
 .header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   /* The chip sits on the heading's first line, whether the heading is one row or a title above an intro. */
   align-items: baseline;
+  gap: var(--space-5);
+}
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.titleBlock h1 {
+  margin: 0;
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-muted);
+}
+.intro {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+}
+
+/* The live channel's state, with a dot that breathes while it is live. */
+.connection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.liveDot {
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :global(.badge-green) > .liveDot {
+    animation: livePulse var(--pulse-duration) ease-in-out infinite;
+  }
+}
+@keyframes livePulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Status filters and page links as pills; the active one is filled. */
+.chips,
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: background var(--transition);
+}
+.chip:hover {
+  background: var(--pill-bg-hover);
+  color: var(--pill-fg);
+}
+.chip:global(.active) {
+  background: var(--primary);
+  color: var(--text-on-accent);
 }

@@ -68,7 +68,7 @@ describe("POST /api/webhook/github", () => {
     process.env = { ...originalEnv };
   });
 
-  it("answers 202 and writes github.pull_request.closed deduped on github:d-1 for signed delivery d-1", async () => {
+  it("answers 202 and writes github.pull_request.closed deduped on github:d-1 and github.tracker.changed deduped on github:d-1:utopia for signed delivery d-1", async () => {
     const { statements, pool } = recordingPool();
     const body = closedPullRequest();
 
@@ -84,10 +84,14 @@ describe("POST /api/webhook/github", () => {
 
     expect({ status: res.statusCode, body: res.result }).toEqual({
       status: 202,
-      body: { captured: 1, events: ["github.pull_request.closed"] },
+      body: {
+        captured: 2,
+        events: ["github.pull_request.closed", "github.tracker.changed"],
+      },
     });
     expect(eventInserts(statements)).toEqual([
       expect.arrayContaining(["github.pull_request.closed", "github:d-1"]),
+      expect.arrayContaining(["github.tracker.changed", "github:d-1:utopia"]),
     ]);
   });
 

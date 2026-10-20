@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../../lib/row.js";
 
-/** `lore.live_tokens` — a short-lived token that opens one subject of the live socket (a `run` token opens one assembly run's channel, a `runs` token the external floor's run list) as one person; only its sha256 is stored. */
+/* `lore.live_tokens` — a short-lived token that opens one subject of the live socket (a `run` token opens one assembly run's channel, a `runs` token the external floor's run list) as one person; only its sha256 is stored. */
 
 /** The one subject of a `runs` token: the external floor's run list. */
 export const LIVE_RUNS_SUBJECT = "floor";

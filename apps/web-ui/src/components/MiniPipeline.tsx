@@ -11,16 +11,29 @@ const DOT_STATES = new Set([
   "stalled",
 ]);
 
+export interface MiniPipelineProps {
+  runId: string;
+  pipeline: readonly PipelineNode[];
+  /** `bar`: one segment per stage filling the cell, as the run list draws it; dots otherwise. */
+  variant?: "dots" | "bar";
+}
+
+const VARIANT_CLASS: Record<
+  NonNullable<MiniPipelineProps["variant"]>,
+  string
+> = {
+  dots: styles.miniPipeline,
+  bar: `${styles.miniPipeline} ${styles.bar}`,
+};
+
 export default function MiniPipeline({
   runId,
   pipeline,
-}: {
-  runId: string;
-  pipeline: readonly PipelineNode[];
-}) {
+  variant = "dots",
+}: MiniPipelineProps) {
   return (
     <a
-      className={styles.miniPipeline}
+      className={VARIANT_CLASS[variant]}
       href={`/assembly-runs/${runId}`}
       title="Open the live run"
       data-testid="mini-pipeline"

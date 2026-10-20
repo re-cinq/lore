@@ -2,6 +2,7 @@
 import type { Project } from "../../outbound/project/index.js";
 import type { LoopTickDeps } from "./implementation-loop-tick.js";
 import type { LoopRunClosedDeps } from "./loop-run-closed.js";
+import { openPrOnBranch } from "./ticket-holder.js";
 
 type ProjectOf = (
   repo: string,
@@ -60,18 +61,8 @@ function repoPortsOf(projectOf: ProjectOf): RepoPorts {
     openBlockers: async (repo, issueNumber) =>
       (await projectOf(repo)).issues.openBlockers(issueNumber),
     openPrForBranch: async (repo, branch) =>
-      openPrOn(await projectOf(repo), branch),
+      openPrOnBranch(await projectOf(repo), branch),
   };
-}
-
-async function openPrOn(
-  project: Pick<Project, "pulls">,
-  branch: string,
-): Promise<{ number: number; url: string } | null> {
-  const open = await project.pulls.list();
-  const forBranch = open.find((pr) => pr.branch === branch);
-
-  return forBranch ? { number: forBranch.number, url: forBranch.url } : null;
 }
 
 /** What settling a ticket writes to GitHub. */

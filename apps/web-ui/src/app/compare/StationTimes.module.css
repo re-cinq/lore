@@ -1,0 +1,126 @@
+.card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  color: var(--heading-color);
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: inline-block;
+  width: var(--space-4);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.swatchA,
+.fillA {
+  background: var(--primary);
+  fill: var(--primary);
+}
+
+.swatchB,
+.fillB {
+  background: var(--accent);
+  fill: var(--accent);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.station {
+  flex: 0 0 calc(var(--space-8) * 3.5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.bars {
+  display: flex;
+  flex: 1 1 calc(var(--space-8) * 6);
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.barLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.track {
+  flex: 1;
+  height: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--bg-hover);
+}
+
+.seconds {
+  flex: 0 0 calc(var(--space-8) + var(--space-5));
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.delta {
+  flex: 0 0 calc(var(--space-8) + var(--space-7));
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.slower {
+  color: var(--danger);
+}
+
+.faster {
+  color: var(--success);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-5);
+}

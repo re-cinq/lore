@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { AssemblyRun, AssemblyRunNode } from "@/lib/assembly-runs";
 import CollapsibleCard from "@/components/CollapsibleCard";
@@ -24,23 +25,37 @@ export default function AssemblyRunView({
   const visual = runHeaderVisual(run, waitingOn);
 
   return (
-    <div>
+    <div className={styles.top}>
       <RunTrail run={run} />
       <div className={styles.header}>
         <h1>{run.blueprintName}</h1>
         <span className={`${styles.status} ${styles[visual.tone]}`}>
+          <span className={styles.statusDot} aria-hidden="true" />
           {visual.label}
         </span>
+        <CompareLink runId={run.id} />
       </div>
     </div>
+  );
+}
+
+/** Opens the comparison with this run as A; the compare page offers the other runs of its line as B. */
+function CompareLink({ runId }: { runId: string }) {
+  return (
+    <Link
+      href={`/compare?a=${encodeURIComponent(runId)}`}
+      className={styles.compare}
+    >
+      Compare
+    </Link>
   );
 }
 
 /** Where this run sits: the runs list, its repo, the backlog when one started it, then the line it ran — the same trail every other detail page carries. */
 function RunTrail({ run }: AssemblyRunViewProps) {
   return (
-    <div className="breadcrumb">
-      <Link href="/assembly-runs">Assembly Runs</Link> /{" "}
+    <div className={`breadcrumb ${styles.trail}`}>
+      <Link href="/assembly-runs">Assembly runs</Link> /{" "}
       <Link href={`/repos/${run.repo}`}>{run.repo}</Link> /{" "}
       <BacklogStep run={run} />
       <strong>{run.blueprintName}</strong>
@@ -60,20 +75,33 @@ interface RunFactsProps {
 export function RunFacts({ run, bag = null, nodes = [] }: RunFactsProps) {
   return (
     <CollapsibleCard title="Run facts" defaultOpen>
-      <dl className={styles.facts}>
-        <dt>Branch</dt>
-        <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
-        <dt>Outcome</dt>
-        <dd>{run.outcome ?? EM_DASH}</dd>
+      <dl className={`${styles.facts} ${styles.factTiles}`}>
+        <Fact label="Branch" valueClass={styles.mono}>
+          {run.branch ?? EM_DASH}
+        </Fact>
+        <Fact label="Outcome">{run.outcome ?? EM_DASH}</Fact>
         <ReasonFact reason={run.reason} />
-        <dt>Duration</dt>
-        <dd>{formatDuration(run.durationSeconds)}</dd>
+        <Fact label="Duration">{formatDuration(run.durationSeconds)}</Fact>
         <TaskFact run={run} />
         <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
         <IssueFact issueUrl={run.issueUrl} issueNumber={run.issueNumber} />
       </dl>
       <RunBagFacts runId={run.id} bag={bag} nodes={nodes} />
     </CollapsibleCard>
+  );
+}
+
+/** One name/value pair, wrapped so the Lore family can draw it as a tile; other families lay the wrapper out of the way. */
+function Fact(props: {
+  label: string;
+  valueClass?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.fact}>
+      <dt>{props.label}</dt>
+      <dd className={props.valueClass}>{props.children}</dd>
+    </div>
   );
 }
 
@@ -99,10 +127,9 @@ function ReasonFact({ reason }: { reason: string | null }) {
   }
 
   return (
-    <>
-      <dt>Reason</dt>
-      <dd className={styles.reason}>{reason}</dd>
-    </>
+    <Fact label="Reason" valueClass={styles.reason}>
+      {reason}
+    </Fact>
   );
 }
 
@@ -113,12 +140,9 @@ function TaskFact({ run }: AssemblyRunViewProps) {
   }
 
   return (
-    <>
-      <dt>Task</dt>
-      <dd>
-        <CancelTaskButton taskId={run.taskId} />
-      </dd>
-    </>
+    <Fact label="Task">
+      <CancelTaskButton taskId={run.taskId} />
+    </Fact>
   );
 }
 
@@ -133,14 +157,11 @@ function PrFact({ prUrl, prNumber }: PrFactProps) {
   }
 
   return (
-    <>
-      <dt>PR</dt>
-      <dd>
-        <a href={prUrl} target="_blank" rel="noreferrer">
-          #{prNumber}
-        </a>
-      </dd>
-    </>
+    <Fact label="PR">
+      <a href={prUrl} target="_blank" rel="noreferrer">
+        #{prNumber}
+      </a>
+    </Fact>
   );
 }
 
@@ -155,13 +176,10 @@ function IssueFact({ issueUrl, issueNumber }: IssueFactProps) {
   }
 
   return (
-    <>
-      <dt>Issue</dt>
-      <dd>
-        <a href={issueUrl} target="_blank" rel="noreferrer">
-          #{issueNumber}
-        </a>
-      </dd>
-    </>
+    <Fact label="Issue">
+      <a href={issueUrl} target="_blank" rel="noreferrer">
+        #{issueNumber}
+      </a>
+    </Fact>
   );
 }

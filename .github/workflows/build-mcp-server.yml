@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/_build-image.yml'
       - "apps/mcp-server/**"
       # The compiled shared + server-core packages are bundled into the image —
       # a lib-only change must rebuild + redeploy or the gateway runs stale code.
@@ -17,6 +18,7 @@ on:
       - 'scripts/ci/helm-lock-contention.sh'
   pull_request:
     paths:
+      - '.github/workflows/_build-image.yml'
       - "apps/mcp-server/**"
       - "libs/shared/**"
       - "libs/server-core/**"
@@ -38,44 +40,14 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/_build-image.yml
     permissions:
       contents: read
       packages: write
-    outputs:
-      image_tag: ${{ steps.sha.outputs.short_sha }}
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Short SHA
-        id: sha
-        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: apps/mcp-server/Dockerfile
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+    with:
+      image_name: re-cinq/lore-mcp
+      dockerfile: apps/mcp-server/Dockerfile
+    secrets: inherit
 
   deploy:
     needs: build

@@ -21,7 +21,7 @@ describe("mapGitHubEvent — pull_request", () => {
     ]);
   });
 
-  it("maps closed+merged to github.pull_request.closed carrying merged/branch/base_ref/sha/labels", () => {
+  it("maps closed+merged to github.pull_request.closed carrying merged/branch/base_ref/sha/labels, and to github.tracker.changed under the delivery's utopia key", () => {
     const payload = {
       ...REPO,
       action: "closed",
@@ -49,6 +49,12 @@ describe("mapGitHubEvent — pull_request", () => {
           labels: ["spec"],
         },
         dedupeKey: "github:d2",
+      },
+      {
+        eventName: "github.tracker.changed",
+        source: "github",
+        params: { repo: "re-cinq/lore" },
+        dedupeKey: "github:d2:utopia",
       },
     ]);
   });
@@ -80,17 +86,43 @@ describe("mapGitHubEvent — pull_request", () => {
         },
         dedupeKey: "github:d3",
       },
+      {
+        eventName: "github.tracker.changed",
+        source: "github",
+        params: { repo: "re-cinq/lore" },
+        dedupeKey: "github:d3:utopia",
+      },
     ]);
   });
 
-  it("ignores edited", () => {
+  it("maps an edited pull request to github.tracker.changed alone, so the Utopia mirror reads its new title", () => {
     expect(
       mapGitHubEvent(
         "pull_request",
         { ...REPO, action: "edited", pull_request: { number: 9 } },
         "d4",
       ),
-    ).toEqual([]);
+    ).toEqual([
+      {
+        eventName: "github.tracker.changed",
+        source: "github",
+        params: { repo: "re-cinq/lore" },
+        dedupeKey: "github:d4:utopia",
+      },
+    ]);
+  });
+
+  it("maps opened to github.pull_request.opened and github.tracker.changed, each under its own dedupe key", () => {
+    expect(
+      mapGitHubEvent(
+        "pull_request",
+        { ...REPO, action: "opened", pull_request: { number: 13 } },
+        "d5",
+      ).map((event) => [event.eventName, event.dedupeKey]),
+    ).toEqual([
+      ["github.pull_request.opened", "github:d5"],
+      ["github.tracker.changed", "github:d5:utopia"],
+    ]);
   });
 });
 
@@ -310,7 +342,89 @@ describe("mapGitHubEvent — issues.labeled", () => {
         },
         dedupeKey: "github:d10",
       },
+      {
+        eventName: "github.tracker.changed",
+        source: "github",
+        params: { repo: "re-cinq/lore" },
+        dedupeKey: "github:d10:utopia",
+      },
     ]);
+  });
+});
+
+describe("mapGitHubEvent — issues the Utopia mirror reads", () => {
+  it("maps an opened issue to github.tracker.changed alone", () => {
+    expect(
+      mapGitHubEvent(
+        "issues",
+        { ...REPO, action: "opened", issue: { number: 43 } },
+        "d11",
+      ),
+    ).toEqual([
+      {
+        eventName: "github.tracker.changed",
+        source: "github",
+        params: { repo: "re-cinq/lore" },
+        dedupeKey: "github:d11:utopia",
+      },
+    ]);
+  });
+
+  it("returns nothing for an assigned issue, which changes nothing the mirror holds", () => {
+    expect(
+      mapGitHubEvent(
+        "issues",
+        { ...REPO, action: "assigned", issue: { number: 43 } },
+        "d12",
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("mapGitHubEvent — releases and tags the Utopia mirror reads", () => {
+  it("maps a published release to github.release.changed", () => {
+    expect(
+      mapGitHubEvent(
+        "release",
+        { ...REPO, action: "published", release: { tag_name: "v1.2.0" } },
+        "d13",
+      ),
+    ).toEqual([
+      {
+        eventName: "github.release.changed",
+        source: "github",
+        params: { repo: "re-cinq/lore" },
+        dedupeKey: "github:d13:utopia",
+      },
+    ]);
+  });
+
+  it("maps a created tag to github.release.changed", () => {
+    expect(
+      mapGitHubEvent(
+        "create",
+        { ...REPO, ref_type: "tag", ref: "v1.2.0" },
+        "d14",
+      ),
+    ).toEqual([
+      {
+        eventName: "github.release.changed",
+        source: "github",
+        params: { repo: "re-cinq/lore" },
+        dedupeKey: "github:d14:utopia",
+      },
+    ]);
+  });
+
+  it("returns nothing for a created branch or a release still a draft", () => {
+    expect([
+      mapGitHubEvent(
+        "create",
+        { ...REPO, ref_type: "branch", ref: "feat/x" },
+        "d15",
+      ),
+      mapGitHubEvent("release", { ...REPO, action: "created" }, "d16"),
+    ]).toEqual([[], []]);
   });
 });
 
@@ -338,6 +452,61 @@ describe("mapGitHubEvent — repository", () => {
   it("returns nothing for an archived repository", () => {
     expect(
       mapGitHubEvent("repository", { ...REPO, action: "archived" }, "d14"),
+    ).toEqual([]);
+  });
+});
+
+describe("mapGitHubEvent — check_suite and push", () => {
+  it("maps a completed check_suite on abc123 to github.check_suite.completed carrying PRs 4 and 9", () => {
+    const payload = {
+      ...REPO,
+      action: "completed",
+      check_suite: {
+        head_sha: "abc123",
+        pull_requests: [{ number: 4 }, { number: 9 }],
+      },
+    };
+
+    expect(mapGitHubEvent("check_suite", payload, "d20")).toEqual([
+      {
+        eventName: "github.check_suite.completed",
+        source: "github",
+        params: {
+          repo: "re-cinq/lore",
+          head_sha: "abc123",
+          pr_numbers: [4, 9],
+        },
+        dedupeKey: "github:d20",
+      },
+    ]);
+  });
+
+  it("returns nothing for a requested check_suite", () => {
+    expect(
+      mapGitHubEvent(
+        "check_suite",
+        { ...REPO, action: "requested", check_suite: { head_sha: "abc123" } },
+        "d21",
+      ),
+    ).toEqual([]);
+  });
+
+  it("maps a push to refs/heads/main to github.push on branch main", () => {
+    expect(
+      mapGitHubEvent("push", { ...REPO, ref: "refs/heads/main" }, "d22"),
+    ).toEqual([
+      {
+        eventName: "github.push",
+        source: "github",
+        params: { repo: "re-cinq/lore", branch: "main" },
+        dedupeKey: "github:d22",
+      },
+    ]);
+  });
+
+  it("returns nothing for a push of the tag refs/tags/release", () => {
+    expect(
+      mapGitHubEvent("push", { ...REPO, ref: "refs/tags/release" }, "d23"),
     ).toEqual([]);
   });
 });

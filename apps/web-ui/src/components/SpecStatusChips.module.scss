@@ -9,18 +9,27 @@
   flex-wrap: wrap;
 }
 
-// Layered on the global `.badge`: same pill metrics, made pressable.
-.chip {
+// Layered on the global `.badge`: same pill metrics, made pressable. Nested
+// under `.row` so it outranks the lore family's blanket `button` rule.
+.row .chip {
   @include t.row(var(--space-3));
   display: inline-flex;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  color: var(--text);
+  min-height: 0;
+  padding: var(--space-2) var(--space-4);
+  background: var(--pill-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  color: var(--pill-fg);
+  font-weight: var(--fw-medium);
   cursor: pointer;
 
+  &:hover {
+    background: var(--pill-bg-hover);
+  }
+
   &[aria-pressed="true"] {
-    background: var(--info-bg);
-    border-color: var(--accent);
+    background: var(--primary);
+    color: var(--text-on-accent);
   }
 }
 

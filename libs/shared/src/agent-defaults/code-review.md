@@ -1,15 +1,15 @@
 ---
-timeout_minutes: 10
+timeout_minutes: 25
 review_required: false
 execution_mode: claude-code
 # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
 test_policy: none
-# Review reads diff + spec and posts comments — no codegen. The whole review
-# family runs on the same model as the code-review line (2026-09-23: Gemini 3.1
-# Pro reviews found the must-fixes the cheaper tiers approved past). If the
+# Review reads diff + spec and posts comments — no codegen. Review and re-check
+# run on Gemini 4 Argon (2026-10-14 local bench: 5/5 must-fixes vs Sonnet's 4/6,
+# no false alarms, ~3x slower); the reply agent stays on Sonnet. If the
 # structured REVIEW_RESULT marker goes missing, the runner parser defaults to
 # changes-requested, which is the safe fallback.
-model: claude-sonnet-4-6
+model: gemini-4-argon
 ---
 {description}
 

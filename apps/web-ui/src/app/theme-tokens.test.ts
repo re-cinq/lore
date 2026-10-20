@@ -25,22 +25,31 @@ function tokensOf(selector: string): Set<string> {
   return new Set(Object.keys(declarationsOf(selector)));
 }
 
-const RETRO = "[data-theme-family='retro'] {";
-const RETRO_LIGHT = "[data-theme-family='retro'][data-color-scheme='light']";
-const RETRO_DARK = "[data-theme-family='retro'][data-color-scheme='dark']";
-const CHICAGO = "[data-theme-family='chicago'] {";
-const CHICAGO_LIGHT =
-  "[data-theme-family='chicago'][data-color-scheme='light']";
-const CHICAGO_DARK = "[data-theme-family='chicago'][data-color-scheme='dark']";
+function familyBlocks(family: string) {
+  const base = `[data-theme-family='${family}']`;
+
+  return {
+    base: `${base} {`,
+    light: `${base}[data-color-scheme='light']`,
+    dark: `${base}[data-color-scheme='dark']`,
+  };
+}
+
+const LORE = familyBlocks("lore");
+const RETRO = familyBlocks("retro");
+const CHICAGO = familyBlocks("chicago");
 
 const OVERRIDE_BLOCKS = [
   "[data-color-scheme='dark'] {",
-  RETRO,
-  RETRO_LIGHT,
-  RETRO_DARK,
-  CHICAGO,
-  CHICAGO_LIGHT,
-  CHICAGO_DARK,
+  LORE.base,
+  LORE.light,
+  LORE.dark,
+  RETRO.base,
+  RETRO.light,
+  RETRO.dark,
+  CHICAGO.base,
+  CHICAGO.light,
+  CHICAGO.dark,
 ];
 
 const DEFAULTS = ":root {";
@@ -70,21 +79,26 @@ describe("theme.css token contract", () => {
   });
 
   it("defines the same color token names in the light and dark blocks of each overriding family", () => {
-    expect([...tokensOf(RETRO_DARK)].sort()).toEqual(
-      [...tokensOf(RETRO_LIGHT)].sort(),
+    expect([...tokensOf(LORE.dark)].sort()).toEqual(
+      [...tokensOf(LORE.light)].sort(),
     );
-    expect([...tokensOf(CHICAGO_DARK)].sort()).toEqual(
-      [...tokensOf(CHICAGO_LIGHT)].sort(),
+    expect([...tokensOf(RETRO.dark)].sort()).toEqual(
+      [...tokensOf(RETRO.light)].sort(),
+    );
+    expect([...tokensOf(CHICAGO.dark)].sort()).toEqual(
+      [...tokensOf(CHICAGO.light)].sort(),
     );
   });
 
-  it("defines the chart palette in the defaults and per scheme for retro and chicago", () => {
+  it("defines the chart palette in the defaults and per scheme for lore, retro and chicago", () => {
     for (const block of [
       DEFAULTS,
-      RETRO_LIGHT,
-      RETRO_DARK,
-      CHICAGO_LIGHT,
-      CHICAGO_DARK,
+      LORE.light,
+      LORE.dark,
+      RETRO.light,
+      RETRO.dark,
+      CHICAGO.light,
+      CHICAGO.dark,
     ]) {
       expect([...tokensOf(block)]).toEqual(
         expect.arrayContaining(CHART_TOKENS),
@@ -93,7 +107,7 @@ describe("theme.css token contract", () => {
   });
 
   it("pins every retro body size to the 14px bitmap grid", () => {
-    expect(declarationsOf(RETRO)).toMatchObject({
+    expect(declarationsOf(RETRO.base)).toMatchObject({
       "--fs-2xs": "14px",
       "--fs-xs": "14px",
       "--fs-sm": "14px",
@@ -103,7 +117,7 @@ describe("theme.css token contract", () => {
 
   it("defines the sidebar micro-label size as 10px by default and 14px for retro", () => {
     expect(declarationsOf(DEFAULTS)["--fs-2xs"]).toBe("10px");
-    expect(declarationsOf(RETRO)["--fs-2xs"]).toBe("14px");
+    expect(declarationsOf(RETRO.base)["--fs-2xs"]).toBe("14px");
   });
 
   it("declares the spacing, font-weight, line-height and z-index scales in the defaults", () => {
@@ -134,7 +148,7 @@ describe("theme.css token contract", () => {
   });
 
   it("gives chicago a compact spacing scale and bold-only weights", () => {
-    expect(declarationsOf(CHICAGO)).toMatchObject({
+    expect(declarationsOf(CHICAGO.base)).toMatchObject({
       "--space-3": "6px",
       "--space-4": "8px",
       "--space-5": "12px",

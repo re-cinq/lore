@@ -8,15 +8,23 @@ import SearchView, {
 } from "./SearchView";
 
 interface SearchPageProps {
-  searchParams: Promise<{ q?: string; repo?: string }>;
+  searchParams: Promise<{ q?: string; repo?: string; source?: string }>;
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
-  const { q, repo } = await searchParams;
+  const { q, repo, source } = await searchParams;
   const repos = await repoFilterOptions();
   const results = q ? await runSearch(q, repo) : [];
 
-  return <SearchView q={q} repo={repo} repos={repos} results={results} />;
+  return (
+    <SearchView
+      q={q}
+      repo={repo}
+      source={source}
+      repos={repos}
+      results={results}
+    />
+  );
 }
 
 /** The options behind the repo filter dropdown, in name order. */

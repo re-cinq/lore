@@ -15,7 +15,7 @@ export {
   parseSpecAnchor,
   parseSpecAnchors,
   type SpecAnchor,
-} from "./spec-trace/spec-anchor.js";
+} from "../domain/spec-trace/spec-anchor.js";
 export {
   ingestSpecTrace,
   PAYLOAD_INGEST_KINDS,
@@ -152,3 +152,4 @@ export {
   type IngestGraphPorts,
   type IngestKindDef,
 } from "./spec-trace/ingest-graph-task.js";
+export { parseIngestPatterns } from "./spec-trace/ingest-patterns.js";
