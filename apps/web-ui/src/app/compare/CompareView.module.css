@@ -15,7 +15,10 @@
 
 .heads {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--space-8) * 5.5)), 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, calc(var(--space-8) * 5.5)), 1fr)
+  );
   gap: var(--space-5);
 }
 

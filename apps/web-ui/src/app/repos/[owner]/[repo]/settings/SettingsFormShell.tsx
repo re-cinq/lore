@@ -1,6 +1,8 @@
 "use client";
 import { useActionState, type ReactNode } from "react";
-import SettingsLayout, { type SettingsNavItem } from "@/components/SettingsLayout";
+import SettingsLayout, {
+  type SettingsNavItem,
+} from "@/components/SettingsLayout";
 import SaveResultBanner, {
   INITIAL_SAVE_STATE,
   type SaveState,

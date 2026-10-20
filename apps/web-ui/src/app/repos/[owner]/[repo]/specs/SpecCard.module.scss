@@ -38,7 +38,8 @@
   display: flex;
   height: var(--space-3);
   border-radius: var(--radius-pill);
-  background: linear-gradient(
+  background:
+    linear-gradient(
       to right,
       var(--success) var(--covered),
       transparent var(--covered)

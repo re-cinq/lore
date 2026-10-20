@@ -59,7 +59,9 @@ describe("Panel", () => {
   it("carries only the panel class when no className and not soft", () => {
     const { container } = render(<Panel title="Plain">x</Panel>);
 
-    expect(container.querySelector("section")?.className).toMatch(/^_panel_\w+$/);
+    expect(container.querySelector("section")?.className).toMatch(
+      /^_panel_\w+$/,
+    );
   });
 });
 
