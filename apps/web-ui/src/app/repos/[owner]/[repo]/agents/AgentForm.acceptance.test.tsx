@@ -19,9 +19,9 @@ const agent: AgentDefinition & { inherited_fields?: string[] } = {
 
 describe("AgentForm (Acceptance)", () => {
   it("renders 'inherited from org' for an inherited prompt and sends it as null", async () => {
-    let submittedPrompt: string | undefined = "not-submitted";
-    const action = vi.fn(async (_prev: any, formData: FormData) => {
-      submittedPrompt = (formData.get("prompt") as string) || undefined;
+    let submittedPrompt: FormDataEntryValue | null = "not-submitted";
+    const action = vi.fn(async (_prev: unknown, formData: FormData) => {
+      submittedPrompt = formData.get("prompt");
 
       return {};
     });
