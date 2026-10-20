@@ -7,7 +7,7 @@
 | Created | 2026-10-09 |
 | Owner   | CI Owners |
 
-This feature adds multi-architecture manifest indices to the four container images (`lore-api`, `lore-mcp`, `lore-stations`, and `lore-ui`) by producing native `linux/arm64` manifests alongside the existing `linux/amd64` manifests.
+This feature adds multi-architecture manifest indices to the five container images (`lore-api`, `lore-mcp`, `lore-stations`, `lore-ui`, and the agent pods' `lore-agent`) by producing native `linux/arm64` manifests alongside the existing `linux/amd64` manifests.
 
 ## Problem Statement
 
@@ -42,6 +42,8 @@ Developers using Apple Silicon or ARM64 machines can pull and run the container 
 - **FR-008**: GKE node pool machine types and Helm charts MUST NOT be changed; production continues to run on AMD64 and the new `linux/arm64` manifest entry is invisible to AMD64 GKE nodes because GHCR manifest selection is per-puller architecture. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#scope-p-7))
 - **FR-009**: `infra/compose.yaml` local-dev backing services MUST NOT be changed; `pgvector/pgvector:pg16` already publishes a native `linux/arm64` image. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#scope-p-9))
 - **FR-010**: Kubernetes manifests, RBAC, secrets, and Workload Identity MUST NOT be changed; none is architecture-sensitive. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/45934dba-f20d-4f44-9d21-96838670a121#scope-p-10))
+- **FR-011**: `.github/workflows/build-agent-image.yml` MUST call `.github/workflows/_build-image.yml` like the four service workflows, so `ghcr.io/re-cinq/lore-agent` is a manifest index listing `linux/amd64` and `linux/arm64`; its tool smoke test runs inside the built image on every matrix leg before the push, through the reusable workflow's `smoke_command` input.
+- **FR-012**: Every workflow that calls `.github/workflows/_build-image.yml` MUST list it in its `push` and `pull_request` path filters (and `build-ui.yml` in its `changes` job's pattern), so a change to the shared build rebuilds every image on main.
 
 ## Success Criteria
 

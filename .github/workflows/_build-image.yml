@@ -17,6 +17,11 @@ on:
         required: false
         type: string
         default: ''
+      smoke_command:
+        description: 'Shell command run inside the built image on every platform before it is pushed'
+        required: false
+        type: string
+        default: ''
     outputs:
       image_tag:
         description: 'Short SHA tag applied to the manifest index'
@@ -47,6 +52,23 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build for the smoke test
+        if: inputs.smoke_command != ''
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: smoke:${{ matrix.suffix }}
+          build-args: ${{ inputs.build_args }}
+
+      - name: Smoke test
+        if: inputs.smoke_command != ''
+        env:
+          SMOKE_COMMAND: ${{ inputs.smoke_command }}
+        run: docker run --rm "smoke:${{ matrix.suffix }}" sh -c "$SMOKE_COMMAND"
 
       # On main: push each arch by digest only (no named tag yet); the merge job
       # creates the manifest index and applies the :<sha> and :latest tags.
