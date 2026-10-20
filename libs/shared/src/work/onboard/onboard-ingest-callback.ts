@@ -47,7 +47,8 @@ async function setIngestSecret(
   settings: IngestCallbackSettings,
   failures: string[],
 ): Promise<void> {
-  const token = process.env.LORE_INGEST_TOKEN;
+  // Inside stations LORE_INGEST_TOKEN is the Floor token, which lore-api rejects with 403; LORE_STATION_TOKEN is lore-api's.
+  const token = process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
 
   if (!token) {
     failures.push(
