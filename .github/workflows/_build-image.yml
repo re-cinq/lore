@@ -30,16 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-            suffix: amd64
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-            suffix: arm64
-    # On non-main refs (PRs, feature branches) only the amd64 leg runs — ARM64
-    # regressions are caught on the main push, keeping PR feedback time unchanged.
-    if: github.ref == 'refs/heads/main' || matrix.suffix == 'amd64'
+        include: ${{ fromJSON(github.ref == 'refs/heads/main' && '[{"platform":"linux/amd64","runner":"ubuntu-latest","suffix":"amd64"},{"platform":"linux/arm64","runner":"ubuntu-24.04-arm","suffix":"arm64"}]' || '[{"platform":"linux/amd64","runner":"ubuntu-latest","suffix":"amd64"}]') }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -146,9 +137,11 @@ jobs:
 
       # Fail loudly if the manifest index is missing the arm64 entry — an arm64
       # build failure that somehow produced no digest would ship an amd64-only tag.
-      - name: Verify manifest lists linux/arm64
+      - name: Verify manifest lists linux/amd64 and linux/arm64
         run: |
-          docker buildx imagetools inspect \
+          platforms=$(docker buildx imagetools inspect \
             ${{ env.REGISTRY }}/${{ inputs.image_name }}:${{ steps.sha.outputs.short_sha }} \
-            --format '{{range .Manifest.Manifests}}{{.Platform}}{{"\n"}}{{end}}' \
-            | grep -q linux/arm64
+            --format '{{range .Manifest.Manifests}}{{.Platform}}{{"\n"}}{{end}}')
+          echo "$platforms"
+          grep -qx linux/amd64 <<< "$platforms"
+          grep -qx linux/arm64 <<< "$platforms"

@@ -69,6 +69,7 @@ jobs:
     with:
       image_name: re-cinq/lore-ui
       context: apps/web-ui
+      dockerfile: apps/web-ui/Dockerfile
       build_args: GIT_SHA=${{ needs.changes.outputs.short_sha }}
     secrets: inherit
 
