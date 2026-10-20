@@ -5,37 +5,42 @@ import { usePathname } from "next/navigation";
 import NavLink from "@/components/NavLink";
 import Icon from "@/components/Icon";
 import { isNavActive } from "@/lib/nav-active";
+import type { IconName } from "@/lib/icon-map";
 import styles from "./SidebarNav.module.css";
 
 interface NavGroup {
-  label?: string;
-  links: { href: string; label: string }[];
+  label: string;
+  links: { href: string; label: string; icon: IconName }[];
 }
 
-// Repo-centric nav (spec 4-ux-repo-onboarding FR-3.8) — only genuinely cross-repo views live at top level.
+// Lore v2's three sections (spec 4-ux-repo-onboarding FR-3.8: only genuinely cross-repo views live at top level).
 const groups: NavGroup[] = [
   {
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the nav section table, restated in SidebarNav.test.tsx as the exact sections and order a reader must see; the restatement is the assertion, so there is nothing here to share with it
+    label: "Work",
     links: [
-      { href: "/", label: "Repos" },
-      { href: "/assembly-runs", label: "Assembly Runs" },
-      { href: "/agents", label: "Agents" },
-      { href: "/search", label: "Search" },
-      { href: "/audit", label: "Audit" },
-      { href: "/pools", label: "Pools" },
+      { href: "/", label: "Repos", icon: "navRepos" },
+      { href: "/assembly-runs", label: "Assembly runs", icon: "navRuns" },
+      { href: "/agents", label: "Agents", icon: "navAgents" },
+    ],
+  },
+  {
+    label: "Knowledge",
+    links: [
+      { href: "/search", label: "Search", icon: "search" },
+      { href: "/specs", label: "Specs", icon: "navSpecs" },
+      { href: "/adrs", label: "ADRs", icon: "navAdrs" },
+      { href: "/graph", label: "Graph", icon: "navGraph" },
+      { href: "/episodes", label: "Episodes", icon: "navEpisodes" },
+      { href: "/pools", label: "Pools", icon: "navPools" },
     ],
   },
   {
     label: "Insights",
     links: [
-      // eslint-disable-next-line re-lint/no-duplicate-code -- the second nav section's links, likewise restated in SidebarNav.test.tsx as the expected list; a test that imported this table would assert only that the table equals itself
-      { href: "/analytics", label: "Analytics" },
-      { href: "/spend", label: "Spend" },
-      { href: "/gaps", label: "Gaps" },
-      { href: "/episodes", label: "Episodes" },
-      { href: "/graph", label: "Graph" },
-      { href: "/specs", label: "Specs" },
-      { href: "/adrs", label: "ADRs" },
+      { href: "/analytics", label: "Analytics", icon: "navAnalytics" },
+      { href: "/spend", label: "Spend", icon: "navSpend" },
+      { href: "/gaps", label: "Gaps", icon: "navGaps" },
+      { href: "/audit", label: "Audit", icon: "navAudit" },
     ],
   },
 ];
@@ -71,16 +76,16 @@ interface NavGroupsProps {
   onToggle: (label: string) => void;
 }
 
-/** Every group in nav order. A group with no label has no collapsed state to look up, so it is asked for none. */
+/** Every group in nav order. */
 function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
   return (
     <nav>
-      {groups.map((group, i) => (
+      {groups.map((group) => (
         <NavGroupSection
-          key={group.label ?? `group-${i}`}
+          key={group.label}
           group={group}
           pathname={pathname}
-          collapsed={group.label ? (collapsed[group.label] ?? false) : false}
+          collapsed={collapsed[group.label] ?? false}
           onToggle={onToggle}
         />
       ))}
@@ -98,19 +103,30 @@ function NavFooter({ pathname, externalApps }: NavFooterProps) {
   return (
     <div className={styles.footer}>
       <ExternalApps {...externalApps} />
+      <FooterActions pathname={pathname} />
+    </div>
+  );
+}
+
+/** Settings and Add repo: the two in-app destinations that belong to no section. */
+function FooterActions({ pathname }: { pathname: string }) {
+  return (
+    <>
       <NavLink
         href="/settings"
         label="Settings"
+        icon="settings"
         active={isNavActive(pathname, "/settings", "/")}
         className={styles.footerLink}
       />
       <NavLink
         href="/onboard"
-        label="+ Add Repo"
+        label="Add repo"
+        icon="add"
         active={isNavActive(pathname, "/onboard", "/")}
         className={styles.addRepo}
       />
-    </div>
+    </>
   );
 }
 
@@ -182,23 +198,17 @@ interface NavGroupSectionProps {
   onToggle: (label: string) => void;
 }
 
-/** A labelled group collapses; an unlabelled one is always open, which is how the top-level links render without a header. */
+/** A group's toggle always shows; its links only while it is open. */
 function NavGroupSection({
   group,
   pathname,
   collapsed,
   onToggle,
 }: NavGroupSectionProps) {
-  const links = navLinks(group, pathname);
-
-  if (!group.label) {
-    return <div className={styles.group}>{links}</div>;
-  }
-
   return (
     <CollapsibleGroup
       label={group.label}
-      links={links}
+      links={navLinks(group, pathname)}
       collapsed={collapsed}
       onToggle={onToggle}
     />
@@ -207,11 +217,12 @@ function NavGroupSection({
 
 /** The group's links, each knowing whether it is the current page. Active is computed here rather than per link so one pass over the pathname answers for the whole group. */
 function navLinks(group: NavGroup, pathname: string) {
-  return group.links.map(({ href, label }) => (
+  return group.links.map(({ href, label, icon }) => (
     <NavLink
       key={href}
       href={href}
       label={label}
+      icon={icon}
       active={isNavActive(pathname, href, "/")}
     />
   ));
