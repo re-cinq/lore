@@ -420,7 +420,7 @@ LOCKED` — atomically prevents duplicate work without versioning
   status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/outbound/project/issues/issues.test.ts#L111), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L124))
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
-  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L125))
+  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L122))
 ### FR-5: Spec-Driven Feature Workflow
 
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
@@ -1303,7 +1303,7 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, run transcripts, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:111`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L111), [`NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86), [`OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9))
+- Web UI (`/onboard`, pipeline status, run transcripts, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:33`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L33), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86), [`OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L11))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).

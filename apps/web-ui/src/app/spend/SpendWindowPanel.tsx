@@ -91,7 +91,7 @@ interface DateFieldProps extends IntervalPickerProps {
 function IntervalPicker({ interval, onChange }: IntervalPickerProps) {
   return (
     <div className={styles.presetRow}>
-      <PresetButtons onChange={onChange} />
+      <PresetButtons interval={interval} onChange={onChange} />
       <DateField
         label="from"
         field="from"
@@ -115,22 +115,27 @@ const PRESETS: Array<{ key: SpendPreset; label: string }> = [
   { key: "mtd", label: "Month to date" },
 ];
 
-/** The common ranges, as one click each. A preset REPLACES the interval rather than editing an end of it, so picking one never leaves a stale `from` paired with a fresh `to`. */
-function PresetButtons({ onChange }: { onChange: IntervalChange }) {
+/** The common ranges, as one click each. A preset REPLACES the interval rather than editing an end of it, so picking one never leaves a stale `from` paired with a fresh `to`. The preset the interval still matches reads as pressed. */
+function PresetButtons({ interval, onChange }: IntervalPickerProps) {
   return (
-    <>
+    <span className={styles.presets} role="group" aria-label="Window">
       {PRESETS.map((preset) => (
         <button
           key={preset.key}
           type="button"
-          className="btn-secondary"
+          className={styles.preset}
+          aria-pressed={sameInterval(interval, presetInterval(preset.key))}
           onClick={() => onChange(() => presetInterval(preset.key))}
         >
           {preset.label}
         </button>
       ))}
-    </>
+    </span>
   );
+}
+
+function sameInterval(a: Interval, b: Interval): boolean {
+  return a.from === b.from && a.to === b.to;
 }
 
 /** One end of the range. Edits the named field and leaves the other alone, so moving `from` past `to` is the reader's business rather than something this control silently corrects. */

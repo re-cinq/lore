@@ -1,0 +1,249 @@
+/* Shared building blocks of the Insights pages (usage, spend, gaps, audit). */
+
+/* ---------------------------------------------------------- Heading ----- */
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.headingText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.title {
+  margin: 0;
+}
+
+.lede {
+  margin: 0;
+  max-width: 720px;
+  font-size: var(--fs-base);
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------- Card ----- */
+
+.card {
+  min-width: 0;
+  margin-bottom: var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.cardHead,
+.cardHeadRule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) 0;
+}
+
+.cardHeadRule {
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.caption {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.cardBody {
+  padding: var(--space-5);
+}
+
+.cardFlush {
+  overflow-x: auto;
+}
+
+/* A table set inside a flush card runs edge to edge under the card's rule. */
+.cardFlush :global(table) {
+  width: 100%;
+  margin: 0;
+  border: 0;
+}
+
+.cardFlush :global(th),
+.cardFlush :global(td) {
+  padding-left: var(--space-5);
+  padding-right: var(--space-5);
+}
+
+/* -------------------------------------------------------- Stat tiles ----- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.tile,
+.tileHero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+
+.tileHero {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--text-on-accent);
+}
+
+.tileLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.tileHero .tileLabel,
+.tileHero :global(.meta) {
+  color: var(--text-on-accent);
+  opacity: 0.75;
+}
+
+.tileValue {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-1);
+  letter-spacing: -0.02em;
+  color: var(--heading-color);
+  overflow-wrap: anywhere;
+}
+
+.tileHero .tileValue {
+  color: var(--text-on-accent);
+}
+
+.dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+}
+
+.dotOk {
+  background: var(--success);
+}
+
+.dotBad {
+  background: var(--danger);
+}
+
+.dotWarn {
+  background: var(--warning);
+}
+
+.dotRun {
+  background: var(--info);
+}
+
+/* ------------------------------------------------------------ Meter ----- */
+
+.meterTrack {
+  display: flex;
+  flex: 1;
+  min-width: 48px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.meterFill {
+  width: var(--meter-fill, 0%);
+  border-radius: var(--radius-pill);
+}
+
+.meterOk {
+  background: var(--success);
+}
+
+.meterBad {
+  background: var(--danger);
+}
+
+.meterAccent {
+  background: var(--accent);
+}
+
+/* ------------------------------------------------------ Column chart ----- */
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.columns {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  height: 160px;
+}
+
+.column {
+  flex: 1;
+  min-height: 2px;
+  height: var(--column-h, 0%);
+  background: var(--accent);
+  border-radius: var(--radius-sm) var(--radius-sm) var(--space-1) var(--space-1);
+  opacity: 0.85;
+  transition: opacity var(--transition);
+}
+
+.column:hover {
+  opacity: 1;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- Misc ----- */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
