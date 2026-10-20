@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Icon from "@/components/Icon";
+import { BrandMarks } from "@/components/BrandLockup";
+import ShellProvider, { useShell } from "@/components/shell/ShellProvider";
+import { MobileSearchButton } from "@/components/shell/SidebarTools";
 
 type ButtonRef = React.RefObject<HTMLButtonElement | null>;
 
@@ -19,12 +22,26 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-export default function AppShell({ sidebar, children }: AppShellProps) {
+/** The frame every page sits in, holding the overlays (palette, shortcuts, glossary) and the rail choice for all of it. */
+export default function AppShell(props: AppShellProps) {
+  return (
+    <ShellProvider>
+      <ShellFrame {...props} />
+    </ShellProvider>
+  );
+}
+
+function ShellFrame({ sidebar, children }: AppShellProps) {
   const drawer = useSidebarDrawer();
-  const openClass = drawer.sidebarOpen ? " sidebar-open" : "";
+  const { rail } = useShell();
+  const classes = [
+    "app-layout",
+    drawer.sidebarOpen ? "sidebar-open" : "",
+    rail ? "sidebar-rail" : "",
+  ];
 
   return (
-    <div className={`app-layout${openClass}`}>
+    <div className={classes.filter(Boolean).join(" ")}>
       <SidebarDrawer drawer={drawer} sidebar={sidebar} />
       <MainArea drawer={drawer}>{children}</MainArea>
     </div>
@@ -158,7 +175,7 @@ interface MobileHeaderProps {
   onOpen: () => void;
 }
 
-/** The narrow-screen bar: the only way to reach the nav once the sidebar is a drawer. `aria-expanded` tracks the drawer so the control reports its own state rather than just its label. */
+/** The narrow-screen bar: the only way to reach the nav once the sidebar is a drawer, and a second door to the palette. `aria-expanded` tracks the drawer so the control reports its own state rather than just its label. */
 function MobileHeader({ buttonRef, sidebarOpen, onOpen }: MobileHeaderProps) {
   return (
     <header className="mobile-header">
@@ -169,11 +186,13 @@ function MobileHeader({ buttonRef, sidebarOpen, onOpen }: MobileHeaderProps) {
         aria-label="Open menu"
         aria-expanded={sidebarOpen}
       >
-        <span />
-        <span />
-        <span />
+        <Icon name="menu" size={20} />
       </button>
-      <span className="mobile-brand">lore</span>
+      <span className="mobile-brand">
+        <BrandMarks />
+        lore
+      </span>
+      <MobileSearchButton />
     </header>
   );
 }

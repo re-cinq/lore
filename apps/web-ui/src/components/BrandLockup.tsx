@@ -2,13 +2,22 @@
 export default function BrandLockup() {
   return (
     <span className="brand-lockup">
-      <BrandMark scheme="light" />
-      <BrandMark scheme="dark" />
-      <span className="brand-words">
+      <BrandMarks />
+      <span className="brand-words rail-hidden">
         <span className="brand-name">lore</span>
         <span className="brand-by">by re:cinq</span>
       </span>
     </span>
+  );
+}
+
+/** The cart alone, in both scheme variants: the lockup's mark, and the mobile header's. */
+export function BrandMarks() {
+  return (
+    <>
+      <BrandMark scheme="light" />
+      <BrandMark scheme="dark" />
+    </>
   );
 }
 

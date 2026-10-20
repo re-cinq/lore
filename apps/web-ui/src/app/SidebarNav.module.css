@@ -44,6 +44,11 @@
   transform: rotate(-90deg);
 }
 
+/* A titling wrapper that takes no box, so the link stays the flex item. */
+.item {
+  display: contents;
+}
+
 .footer {
   display: flex;
   flex-direction: column;

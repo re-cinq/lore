@@ -5,45 +5,14 @@ import { usePathname } from "next/navigation";
 import NavLink from "@/components/NavLink";
 import Icon from "@/components/Icon";
 import { isNavActive } from "@/lib/nav-active";
-import type { IconName } from "@/lib/icon-map";
+import { SidebarHelp } from "@/components/shell/SidebarTools";
+import {
+  footerDestinations,
+  navGroups,
+  type NavDestination,
+  type NavGroup,
+} from "@/components/shell/nav-groups";
 import styles from "./SidebarNav.module.css";
-
-interface NavGroup {
-  label: string;
-  links: { href: string; label: string; icon: IconName }[];
-}
-
-// Lore v2's three sections (spec 4-ux-repo-onboarding FR-3.8: only genuinely cross-repo views live at top level).
-const groups: NavGroup[] = [
-  {
-    label: "Work",
-    links: [
-      { href: "/", label: "Repos", icon: "navRepos" },
-      { href: "/assembly-runs", label: "Assembly runs", icon: "navRuns" },
-      { href: "/agents", label: "Agents", icon: "navAgents" },
-    ],
-  },
-  {
-    label: "Knowledge",
-    links: [
-      { href: "/search", label: "Search", icon: "search" },
-      { href: "/specs", label: "Specs", icon: "navSpecs" },
-      { href: "/adrs", label: "ADRs", icon: "navAdrs" },
-      { href: "/graph", label: "Graph", icon: "navGraph" },
-      { href: "/episodes", label: "Episodes", icon: "navEpisodes" },
-      { href: "/pools", label: "Pools", icon: "navPools" },
-    ],
-  },
-  {
-    label: "Insights",
-    links: [
-      { href: "/analytics", label: "Analytics", icon: "navAnalytics" },
-      { href: "/spend", label: "Spend", icon: "navSpend" },
-      { href: "/gaps", label: "Gaps", icon: "navGaps" },
-      { href: "/audit", label: "Audit", icon: "navAudit" },
-    ],
-  },
-];
 
 /** Each address is the deployment's to name; an absent one renders no link at all (lib/headlamp-url.ts). */
 interface ExternalAppUrls {
@@ -80,7 +49,7 @@ interface NavGroupsProps {
 function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
   return (
     <nav>
-      {groups.map((group) => (
+      {navGroups.map((group) => (
         <NavGroupSection
           key={group.label}
           group={group}
@@ -98,35 +67,56 @@ interface NavFooterProps {
   externalApps: ExternalAppUrls;
 }
 
-/** The links belonging to no section of the app: settings is org-wide, adding a repo grows the list itself, and the cluster dashboard, Grafana and Utopia are different applications. */
+/** The links belonging to no section of the app, under the two help dialogs: settings is org-wide, adding a repo grows the list itself, and the cluster dashboard, Grafana and Utopia are different applications. */
 function NavFooter({ pathname, externalApps }: NavFooterProps) {
   return (
     <div className={styles.footer}>
+      <SidebarHelp />
       <ExternalApps {...externalApps} />
       <FooterActions pathname={pathname} />
     </div>
   );
 }
 
+const FOOTER_CLASS: Record<string, string> = {
+  "/settings": styles.footerLink,
+  "/onboard": styles.addRepo,
+};
+
 /** Settings and Add repo: the two in-app destinations that belong to no section. */
 function FooterActions({ pathname }: { pathname: string }) {
   return (
     <>
-      <NavLink
-        href="/settings"
-        label="Settings"
-        icon="settings"
-        active={isNavActive(pathname, "/settings", "/")}
-        className={styles.footerLink}
-      />
-      <NavLink
-        href="/onboard"
-        label="Add repo"
-        icon="add"
-        active={isNavActive(pathname, "/onboard", "/")}
-        className={styles.addRepo}
-      />
+      {footerDestinations.map((link) => (
+        <TitledNavLink
+          key={link.href}
+          link={link}
+          pathname={pathname}
+          className={FOOTER_CLASS[link.href]}
+        />
+      ))}
     </>
+  );
+}
+
+interface TitledNavLinkProps {
+  link: NavDestination;
+  pathname: string;
+  className?: string;
+}
+
+/** A nav link titled with its label, so the icon rail still names it on hover. */
+function TitledNavLink({ link, pathname, className }: TitledNavLinkProps) {
+  return (
+    <span title={link.label} className={styles.item}>
+      <NavLink
+        href={link.href}
+        label={link.label}
+        icon={link.icon}
+        active={isNavActive(pathname, link.href, "/")}
+        className={className}
+      />
+    </span>
   );
 }
 
@@ -182,7 +172,7 @@ function ExternalAppLink({ href, label, title }: ExternalAppLinkProps) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className={styles.footerLink}
+      className={`${styles.footerLink} rail-hidden`}
       title={title}
     >
       {label}
@@ -217,14 +207,8 @@ function NavGroupSection({
 
 /** The group's links, each knowing whether it is the current page. Active is computed here rather than per link so one pass over the pathname answers for the whole group. */
 function navLinks(group: NavGroup, pathname: string) {
-  return group.links.map(({ href, label, icon }) => (
-    <NavLink
-      key={href}
-      href={href}
-      label={label}
-      icon={icon}
-      active={isNavActive(pathname, href, "/")}
-    />
+  return group.links.map((link) => (
+    <TitledNavLink key={link.href} link={link} pathname={pathname} />
   ));
 }
 
@@ -261,7 +245,7 @@ function GroupHeader({ label, collapsed, onToggle }: GroupHeaderProps) {
   return (
     <button
       type="button"
-      className={styles.groupLabel}
+      className={`${styles.groupLabel} rail-hidden`}
       onClick={() => onToggle(label)}
       aria-expanded={!collapsed}
     >

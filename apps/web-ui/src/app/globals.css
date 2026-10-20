@@ -80,14 +80,24 @@ option {
   padding: var(--space-5) 0;
 }
 
+/* The brand and the rail toggle share the sidebar's top row. */
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-4);
+}
+
 .sidebar-brand {
+  flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   padding: var(--space-4) var(--space-5);
   text-decoration: none;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-3);
 }
 
 /* The mark + "lore / by re:cinq" wordmark (BrandLockup). The light and dark
@@ -170,10 +180,19 @@ option {
   color: var(--accent);
 }
 
+/* The page column is at most 1336px wide, centred: the side padding grows
+   past --main-pad-x once the viewport is wider than that, so the scroll bar
+   stays at the window's edge. */
 .main-content {
+  --main-max: 1336px;
+  --main-pad-x: var(--space-7);
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-6) var(--space-7);
+  padding-block: var(--space-6);
+  padding-inline: max(
+    var(--main-pad-x),
+    calc((100% - var(--main-max)) / 2 + var(--main-pad-x))
+  );
 }
 
 /* A page that lays out its own gutters marks its root `data-flush-page`, so the shell's padding does not double them (the run page). */
@@ -186,8 +205,9 @@ option {
 .mobile-header {
   display: none;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
   background: var(--glass-bg);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
@@ -199,36 +219,65 @@ option {
 }
 
 .mobile-brand {
-  font-size: var(--fs-md);
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.05em;
-  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-heading, var(--font-ui));
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  letter-spacing: -0.02em;
+  color: var(--heading-color, var(--text));
+}
+
+.mobile-brand .brand-mark {
+  height: 28px;
 }
 
 .hamburger-btn {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  background: none;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
   border: none;
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg, var(--bg-hover));
+  color: var(--pill-fg, var(--text));
   cursor: pointer;
-  padding: var(--space-2);
-  width: 32px;
-  height: 32px;
-}
-
-.hamburger-btn span {
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: var(--text);
-  border-radius: var(--radius-sm);
 }
 
 .hamburger-btn:hover {
-  background: var(--bg-hover);
-  border-radius: var(--radius-sm);
+  background: var(--pill-bg-hover, var(--border-hover));
+}
+
+/* Icon rail (AppShell's sidebar-rail): the sidebar folds to its icons, every
+   label hidden but kept as the link's title. Only beside the page; the narrow
+   screen's drawer always shows its labels. */
+@media (min-width: 641px) {
+  .app-layout.sidebar-rail .sidebar {
+    width: 76px;
+  }
+
+  .sidebar-rail .sidebar .rail-hidden,
+  .sidebar-rail .sidebar .nav-label {
+    display: none;
+  }
+
+  .sidebar-rail .sidebar-head {
+    flex-direction: column;
+    padding: 0 0 var(--space-3);
+  }
+
+  .sidebar-rail .sidebar-brand {
+    padding: var(--space-3) 0;
+  }
+
+  .sidebar-rail .sidebar a {
+    justify-content: center;
+  }
 }
 
 /* Close button inside sidebar — hidden on desktop */
@@ -1142,7 +1191,7 @@ textarea:focus-visible,
   }
 
   .main-content {
-    padding: var(--space-6) var(--space-6);
+    --main-pad-x: var(--space-6);
   }
 
   .repo-grid {
@@ -1186,7 +1235,8 @@ textarea:focus-visible,
   }
 
   .main-content {
-    padding: var(--space-5);
+    --main-pad-x: var(--space-5);
+    padding-block: var(--space-5);
   }
 
   .main-content h1 {
@@ -1318,10 +1368,3 @@ textarea:focus-visible,
   background: var(--bg-hover);
 }
 
-/* Deployed build SHA at the foot of the sidebar — visibility into what's live. */
-.sidebar-version {
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--fs-xs);
-  opacity: 0.6;
-  font-family: var(--font-mono, monospace);
-}

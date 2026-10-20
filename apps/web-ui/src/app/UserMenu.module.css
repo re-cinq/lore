@@ -1,15 +1,8 @@
 .menu {
-  padding: var(--space-5);
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.identity {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  padding: var(--space-3) var(--space-5) 0;
 }
 
 .avatar {
@@ -19,17 +12,59 @@
   border-radius: var(--radius-pill);
 }
 
-.name {
+.initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.who {
+  flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: var(--lh-sm);
+}
+
+.name {
   color: var(--text);
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .signOut {
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--fs-sm);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.signOut:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }

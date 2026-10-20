@@ -25,6 +25,7 @@ vi.mock("@/components/Icon", () => ({
 import SidebarNav from "./SidebarNav";
 
 const PRIMARY_LINKS = [
+  { href: "/inbox", label: "Inbox" },
   { href: "/", label: "Repos" },
   { href: "/assembly-runs", label: "Assembly runs" },
   { href: "/agents", label: "Agents" },
@@ -175,7 +176,7 @@ describe("SidebarNav active-link highlighting", () => {
     expect(repos.className).toContain("active");
     expect(repos).toHaveAttribute("aria-current", "page");
 
-    for (const { label } of [...PRIMARY_LINKS.slice(1), ...FOOTER_LINKS]) {
+    for (const { label } of ALL_LINKS.filter((l) => l !== PRIMARY_LINKS[1])) {
       const link = linkByLabel(label);
 
       expect(link.className).not.toContain("active");
@@ -346,7 +347,7 @@ describe("SidebarNav accordion groups", () => {
   it("heads the nav with the Work, Knowledge and Insights sections in that order", () => {
     render(<SidebarNav />);
     const headers = screen
-      .getAllByRole("button")
+      .getAllByRole("button", { expanded: true })
       .map((button) => button.textContent);
 
     expect(headers).toEqual(GROUP_HEADERS);

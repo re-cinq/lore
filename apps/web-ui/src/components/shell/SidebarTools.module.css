@@ -1,0 +1,129 @@
+.searchRow {
+  padding: 0 var(--space-3) var(--space-4);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.search:hover {
+  background: var(--bg-surface);
+  border-color: var(--accent);
+}
+
+.searchText {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  box-sizing: border-box;
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.help {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+}
+
+.helpButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 32px;
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-normal);
+  cursor: pointer;
+}
+
+.helpButton:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.railToggle,
+.mobileSearch {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.railToggle {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.railToggle:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.mobileSearch {
+  width: 40px;
+  height: 40px;
+  background: var(--pill-bg, var(--bg-hover));
+  color: var(--pill-fg, var(--text));
+}
+
+.mobileSearch:hover {
+  background: var(--pill-bg-hover, var(--border-hover));
+}
+
+/* The drawer is the narrow screen's sidebar; it has no rail to fold to. */
+@media (max-width: 640px) {
+  .railToggle {
+    display: none;
+  }
+}
+
+/* In the icon rail the pill is the search icon alone, centred. */
+@media (min-width: 641px) {
+  :global(.sidebar-rail) .search {
+    justify-content: center;
+    padding: var(--space-3);
+  }
+}

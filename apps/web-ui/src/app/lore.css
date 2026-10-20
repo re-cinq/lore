@@ -9,18 +9,27 @@
 /* ------------------------------------------------------------- Shell ----- */
 
 [data-theme-family="lore"] .sidebar {
-  width: 248px;
+  width: 256px;
   background: var(--sidebar-bg);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   padding: var(--space-5) 0 var(--space-4);
 }
 
-[data-theme-family="lore"] .sidebar-brand {
-  justify-content: flex-start;
-  padding: var(--space-3) var(--space-6) var(--space-6);
+[data-theme-family="lore"] .sidebar-head {
+  padding-right: var(--space-4);
   border-bottom: none;
   margin-bottom: 0;
+}
+
+[data-theme-family="lore"] .sidebar-brand {
+  justify-content: flex-start;
+  padding: var(--space-3) var(--space-6) var(--space-5);
+}
+
+[data-theme-family="lore"] .sidebar-rail .sidebar-brand {
+  justify-content: center;
+  padding: var(--space-3) 0;
 }
 
 [data-theme-family="lore"] .sidebar-brand:hover {
@@ -51,15 +60,27 @@
 }
 
 [data-theme-family="lore"] .main-content {
-  padding: var(--space-7) var(--space-8);
+  --main-pad-x: var(--space-8);
+  padding-block: var(--space-7);
 }
 
 [data-theme-family="lore"] .mobile-header {
-  background: var(--glass-bg);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
 }
 
-[data-theme-family="lore"] .sidebar-version {
-  padding: var(--space-3) var(--space-6);
+@media (max-width: 900px) {
+  [data-theme-family="lore"] .main-content {
+    --main-pad-x: var(--space-6);
+  }
+}
+
+@media (max-width: 640px) {
+  [data-theme-family="lore"] .main-content {
+    --main-pad-x: var(--space-5);
+    padding-block: var(--space-6);
+  }
 }
 
 /* ---------------------------------------------------------- Headings ----- */
@@ -84,7 +105,10 @@
 
 /* ----------------------------------------------------------- Buttons ----- */
 
-[data-theme-family="lore"] button {
+/* :where() keeps these at element weight, so a component's own button class
+   (a close pill, an icon button, button.danger) still wins over the default. */
+
+:where([data-theme-family="lore"]) button {
   min-height: 36px;
   padding: var(--space-3) var(--space-5);
   border-radius: var(--radius-pill);
@@ -93,17 +117,17 @@
   transition: background var(--transition);
 }
 
-[data-theme-family="lore"] button:hover {
+:where([data-theme-family="lore"]) button:hover {
   background: var(--primary-hover);
 }
 
-[data-theme-family="lore"] button.btn-secondary {
+:where([data-theme-family="lore"]) button.btn-secondary {
   background: var(--pill-bg);
   color: var(--pill-fg);
   border: none;
 }
 
-[data-theme-family="lore"] button.btn-secondary:hover {
+:where([data-theme-family="lore"]) button.btn-secondary:hover {
   background: var(--pill-bg-hover);
   color: var(--pill-fg);
 }
@@ -150,4 +174,88 @@
 [data-theme-family="lore"] pre,
 [data-theme-family="lore"] code {
   background: var(--sidebar-bg);
+}
+
+/* -------------------------------------------------------------- Cards ----- */
+
+/* Every shared card surface is the design's 20px card on the soft shadow. */
+[data-theme-family="lore"] .spec-card,
+[data-theme-family="lore"] .stat-card,
+[data-theme-family="lore"] .repo-card,
+[data-theme-family="lore"] .memory-card,
+[data-theme-family="lore"] .content-viewer {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+[data-theme-family="lore"] .spec-card {
+  padding: var(--space-3) var(--space-4);
+}
+
+[data-theme-family="lore"] .spec-card h3,
+[data-theme-family="lore"] .stat-label {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-normal);
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+[data-theme-family="lore"] .stat-value {
+  font-weight: var(--fw-medium);
+  letter-spacing: -0.01em;
+  color: var(--heading-color);
+}
+
+/* -------------------------------------------------------- Chips + tabs ----- */
+
+/* Filter chips: the active one in the primary ink, the rest soft pills. */
+[data-theme-family="lore"] .filter-buttons a {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-5);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-sm);
+}
+
+[data-theme-family="lore"] .filter-buttons a:hover {
+  background: var(--pill-bg-hover);
+  color: var(--pill-fg);
+}
+
+[data-theme-family="lore"] .filter-buttons a.active {
+  background: var(--primary);
+  color: var(--text-on-accent);
+}
+
+[data-theme-family="lore"] .tab-link {
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+[data-theme-family="lore"] .tab-link.active {
+  color: var(--heading-color);
+}
+
+[data-theme-family="lore"] .pagination a {
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}
+
+/* ------------------------------------------------------- Empty states ----- */
+
+[data-theme-family="lore"] .empty-state {
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7) var(--space-6);
+}
+
+[data-theme-family="lore"] .empty-state p:first-child {
+  color: var(--heading-color);
+  font-weight: var(--fw-medium);
 }
