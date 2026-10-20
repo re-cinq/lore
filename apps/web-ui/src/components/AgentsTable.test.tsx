@@ -170,11 +170,10 @@ describe("AgentsTable rows", () => {
     );
     const link = screen.getByRole("link", { name: "agent x/1" });
 
-    expect(link).toHaveAttribute("href", "/agents/agent%20x%2F1");
-    expect(screen.getByText("Local MCP")).toHaveClass("badge");
-
     const table = screen.getByRole("table");
 
+    expect(link).toHaveAttribute("href", "/agents/agent%20x%2F1");
+    expect(within(table).getByText("Local MCP")).toHaveClass("badge");
     expect(within(table).getByText("99")).toBeInTheDocument();
     expect(within(table).getByText("$0")).toBeInTheDocument();
   });
@@ -201,6 +200,26 @@ describe("AgentsTable rows", () => {
       screen.queryByRole("link", { name: /agent/ }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByText("—")).not.toHaveLength(0);
+  });
+});
+
+describe("AgentsTable chips and footnote", () => {
+  it("counts the local agents in a chip beside the task-agent toggle", () => {
+    render(
+      <AgentsTable agents={[local(), local({ agent_id: "b" }), task()]} />,
+    );
+    const chip = screen.getByText(/^Local MCP$/, {
+      selector: "span:not(.badge)",
+    });
+
+    expect(chip.textContent).toEqual("Local MCP2");
+  });
+
+  it("states under the table that cost is a lower bound", () => {
+    render(<AgentsTable agents={[local()]} embedded />);
+    expect(
+      screen.getByText(/so treat it as a lower bound/),
+    ).toBeInTheDocument();
   });
 });
 

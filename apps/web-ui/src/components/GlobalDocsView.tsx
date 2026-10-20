@@ -8,6 +8,7 @@ import DocListControls from "@/components/DocListControls";
 import SpecStatusChips from "@/components/SpecStatusChips";
 import SpecStatusPill from "@/components/SpecStatusPill";
 import { filterDocCards } from "@/lib/doc-filter";
+import { docCardLabel, type DocCardLabel } from "./doc-card-label";
 import type {
   DocKind,
   SpecStatusFilter,
@@ -114,18 +115,44 @@ function RepoDocList({ repo, paths, kind, statusOf }: RepoDocListProps) {
     <section className={styles.repoGroup}>
       <h2 className={styles.repoName}>{repo}</h2>
       <ul className={styles.docList}>
-        {paths.map((filePath) => {
-          const status = statusOf(repo, filePath);
-
-          return (
-            <li key={filePath} className={styles.docItem}>
-              <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
-              {status && <SpecStatusPill status={status} />}
-            </li>
-          );
-        })}
+        {paths.map((filePath) => (
+          <DocCard
+            key={filePath}
+            href={hrefFor(kind, repo, filePath)}
+            label={docCardLabel(kind, filePath)}
+            filePath={filePath}
+            status={statusOf(repo, filePath)}
+          />
+        ))}
       </ul>
     </section>
+  );
+}
+
+interface DocCardProps {
+  href: string;
+  label: DocCardLabel;
+  filePath: string;
+  status: SpecStatusInfo | undefined;
+}
+
+/** One doc as a card: its number and status, the name read off its path, then the path itself. */
+function DocCard({ href, label, filePath, status }: DocCardProps) {
+  return (
+    <li className={styles.docItem}>
+      <Link href={href} className={styles.card}>
+        {(label.number || status) && (
+          <span className={styles.cardHead}>
+            {label.number && (
+              <span className={styles.number}>{label.number}</span>
+            )}
+            {status && <SpecStatusPill status={status} />}
+          </span>
+        )}
+        <span className={styles.title}>{label.title}</span>
+        <span className={styles.path}>{filePath}</span>
+      </Link>
+    </li>
   );
 }
 
