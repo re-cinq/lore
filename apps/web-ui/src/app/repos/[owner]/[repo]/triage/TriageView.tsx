@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { TriageIssue } from "@/lib/api/triage";
+import OverviewPanel, { PanelTable } from "../OverviewPanel";
+import styles from "./TriageView.module.css";
 
 interface TriageViewProps {
   issues: readonly TriageIssue[];
@@ -11,11 +13,11 @@ export default function TriageView({ issues }: TriageViewProps) {
   }
 
   return (
-    <>
+    <div className={styles.groups}>
       {[...groupByLabel(issues)].map(([label, group]) => (
         <TriageGroup key={label} label={label} issues={group} />
       ))}
-    </>
+    </div>
   );
 }
 
@@ -42,10 +44,11 @@ function TriageGroup({
   const headingId = `triage-${label.replace(/\W+/g, "-")}`;
 
   return (
-    <section aria-labelledby={headingId}>
-      <h2 id={headingId}>{label}</h2>
-      <TriageTable issues={issues} />
-    </section>
+    <OverviewPanel title={label} headingId={headingId}>
+      <PanelTable>
+        <TriageTable issues={issues} />
+      </PanelTable>
+    </OverviewPanel>
   );
 }
 

@@ -58,6 +58,8 @@ async function loadRepoOverview(fullName: string) {
     enrollmentChecks: buildEnrollmentChecks(panels, chunkSummary, webhook),
     trustLevel: settings.trustLevel,
     tasksWeek: panels.activityCounts.tasks ?? 0,
+    chunkCount: chunkSummary.count,
+    conventionFiles: chunkSummary.convention_files,
     recentTasks: panels.recentTasks as unknown as RecentTask[],
     latestEvents: panels.latestEvents,
   };

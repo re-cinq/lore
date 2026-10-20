@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import HomeView, { type Repo } from "./HomeView";
 import { type IngestWorkflowStatus } from "@/lib/ingest-workflow";
+import { type RepoFilter } from "./HomeView.filters";
 
 vi.mock("@/components/Icon", () => ({
   default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
@@ -21,14 +22,24 @@ const repo = (over: Partial<Repo>): Repo => ({
   ...over,
 });
 
+const statValue = (label: string) =>
+  screen
+    .getByText(label, { selector: "dt" })
+    .parentElement!.querySelector("dd");
+
 vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-01-01") });
 const action = vi.fn();
+
+interface HomeOptions {
+  impactMisaligned?: string[];
+  filter?: RepoFilter;
+}
 
 const renderHome = (
   repos: Repo[],
   status: Record<string, IngestWorkflowStatus> = {},
   misaligned: string[] = [],
-  impactMisaligned: string[] = [],
+  { impactMisaligned = [], filter }: HomeOptions = {},
 ) =>
   render(
     <HomeView
@@ -38,6 +49,7 @@ const renderHome = (
       fixIngestWorkflows={action}
       impactMisaligned={impactMisaligned}
       fixTraceImpactWorkflows={action}
+      filter={filter}
     />,
   );
 
@@ -77,15 +89,16 @@ describe("HomeView", () => {
 
   it("always renders the + Add Repo link to onboard", () => {
     renderHome([]);
-    expect(
-      screen.getByRole("button", { name: "+ Add Repo" }).closest("a"),
-    ).toHaveAttribute("href", "/onboard");
+    expect(screen.getByRole("link", { name: /Add repo/ })).toHaveAttribute(
+      "href",
+      "/onboard",
+    );
   });
 
   it("renders the team badge and task count when a team is set", () => {
     renderHome([repo({ team: "platform", task_count: 7 })]);
     expect(screen.getByText("platform")).toBeInTheDocument();
-    expect(screen.getByText("7 tasks")).toBeInTheDocument();
+    expect(statValue("Tasks")).toHaveTextContent("7");
   });
 
   it("omits the team badge when team is null", () => {
@@ -95,33 +108,34 @@ describe("HomeView", () => {
 
   it("renders the running-agents badge when active_agents is positive", () => {
     renderHome([repo({ active_agents: 3 })]);
-    expect(screen.getByText("3 running")).toBeInTheDocument();
+    expect(screen.getByTitle("3 running")).toBeInTheDocument();
+    expect(statValue("Agents running")).toHaveTextContent("3");
   });
 
   it("omits the running-agents badge when active_agents is zero", () => {
     renderHome([repo({ active_agents: 0 })]);
-    expect(screen.queryByText(/running/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/running/)).not.toBeInTheDocument();
   });
 
   it("renders the missing-workflow badge for a repo with missing ingest status", () => {
     renderHome([repo({ full_name: "re-cinq/lore" })], {
       "re-cinq/lore": "missing",
     });
-    expect(screen.getByText("no ingest workflow")).toBeInTheDocument();
+    expect(screen.getByText("No ingest workflow")).toBeInTheDocument();
   });
 
   it("renders the stale-workflow badge for a repo with stale ingest status", () => {
     renderHome([repo({ full_name: "re-cinq/lore" })], {
       "re-cinq/lore": "stale",
     });
-    expect(screen.getByText("ingest workflow outdated")).toBeInTheDocument();
+    expect(screen.getByText("Ingest workflow outdated")).toBeInTheDocument();
   });
 
   it("renders no workflow badge for aligned or unknown ingest status", () => {
     renderHome([repo({ full_name: "re-cinq/lore" })], {
       "re-cinq/lore": "aligned",
     });
-    expect(screen.queryByText(/ingest workflow/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ingest workflow/i)).not.toBeInTheDocument();
   });
 
   it("shows the last-ingested date when last_ingested_at is present", () => {
@@ -235,8 +249,73 @@ describe("HomeView", () => {
     const scope = within(card);
 
     expect(scope.getByText("platform")).toBeInTheDocument();
-    expect(scope.getByText("5 tasks")).toBeInTheDocument();
-    expect(scope.getByText("2 running")).toBeInTheDocument();
-    expect(scope.getByText("ingest workflow outdated")).toBeInTheDocument();
+    expect(scope.getByTitle("2 running")).toBeInTheDocument();
+    expect(scope.getByText("Ingest workflow outdated")).toBeInTheDocument();
+  });
+
+  it("summarises onboarded, attention and running counts under the title", () => {
+    renderHome(
+      [repo({ active_agents: 2 }), repo({ full_name: "re-cinq/atlas" })],
+      { "re-cinq/atlas": "missing" },
+    );
+    expect(
+      screen.getByText("2 onboarded · 1 need attention · 2 agents running"),
+    ).toBeInTheDocument();
+  });
+
+  it("flags a repo whose spec-impact workflow is outdated", () => {
+    renderHome([repo({ full_name: "re-cinq/lore" })], {}, [], {
+      impactMisaligned: ["re-cinq/lore"],
+    });
+    expect(
+      screen.getByText("Spec-impact workflow outdated"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps only the repos needing attention under the Needs attention chip", () => {
+    renderHome(
+      [
+        repo({ name: "lore" }),
+        repo({ full_name: "re-cinq/atlas", name: "atlas" }),
+      ],
+      { "re-cinq/atlas": "stale" },
+      [],
+      { filter: "attention" },
+    );
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(1);
+    expect(
+      screen.getByRole("link", { name: /Needs attention/ }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps only repos with running agents under the Agents running chip", () => {
+    renderHome(
+      [repo({ name: "lore", active_agents: 1 }), repo({ name: "atlas" })],
+      {},
+      [],
+      { filter: "running" },
+    );
+    expect(
+      screen.getByRole("heading", { level: 3, name: /lore/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /atlas/ })).toBeNull();
+  });
+
+  it("links each chip to its filter with the count it would show", () => {
+    renderHome([repo({ active_agents: 1 })]);
+    expect(screen.getByRole("link", { name: "All1" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+    expect(
+      screen.getByRole("link", { name: "Agents running1" }),
+    ).toHaveAttribute("href", "/?filter=running");
+  });
+
+  it("says no repo matches when a chip hides every repo", () => {
+    renderHome([repo({})], {}, [], { filter: "running" });
+    expect(
+      screen.getByText("No repositories match this filter."),
+    ).toBeInTheDocument();
   });
 });
