@@ -1,32 +1,88 @@
+/* The run's header: the trail, then the line's name beside a tinted status pill. */
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.trail {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
 .header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-5);
-  margin-bottom: var(--space-5);
+  gap: var(--space-4) var(--space-5);
+}
+.compare {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+.compare:hover {
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+.header h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 .status {
-  padding: var(--space-1) var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
   border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
   font-size: var(--fs-sm);
-  color: var(--text-on-accent);
+  font-weight: var(--fw-medium);
+}
+.statusDot {
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: currentColor;
 }
 .success {
-  background: var(--success);
+  background: var(--success-bg);
+  color: color-mix(in srgb, var(--success) 45%, var(--text));
 }
 .danger {
-  background: var(--danger);
+  background: var(--danger-bg);
+  color: color-mix(in srgb, var(--danger) 60%, var(--text));
 }
 .warning {
-  background: var(--warning);
+  background: var(--warning-bg);
+  color: color-mix(in srgb, var(--warning) 45%, var(--text));
 }
-.info {
-  background: var(--info);
-}
+.info,
 .running {
-  background: var(--accent);
+  background: var(--info-bg);
+  color: var(--accent);
 }
 .muted {
-  background: var(--text-muted);
+  background: var(--pill-bg);
+  color: var(--text-muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .running .statusDot {
+    animation: statusPulse 1.6s ease-in-out infinite;
+  }
+}
+@keyframes statusPulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .facts {
@@ -44,6 +100,29 @@
 .facts dt {
   color: var(--text-muted);
   font-size: var(--fs-sm);
+}
+/* A fact's wrapper stays out of the two-column grid; the Lore family lays the run's facts out as tiles instead. */
+.fact {
+  display: contents;
+}
+:global([data-theme-family="lore"]) .factTiles {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+}
+:global([data-theme-family="lore"]) .factTiles .fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-surface);
+}
+:global([data-theme-family="lore"]) .factTiles dt {
+  font-size: var(--fs-xs);
 }
 .mono {
   font-family: var(--font-mono);
@@ -76,14 +155,18 @@
   display: contents;
 }
 /* The attempt that put an item in the bag: a link to it on this page, drawn as one. */
-.putBy {
+/* Doubled class: the Lore family's button rule carries a type selector too. */
+.putBy.putBy {
+  min-height: 0;
   padding: 0;
+  border-radius: 0;
   border: 0;
   background: none;
   color: var(--accent);
   font: inherit;
   cursor: pointer;
 }
-.putBy:hover {
+.putBy.putBy:hover {
+  background: none;
   text-decoration: underline;
 }

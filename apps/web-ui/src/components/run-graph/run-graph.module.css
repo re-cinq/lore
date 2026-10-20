@@ -310,3 +310,18 @@
   font-size: var(--fs-sm);
   line-height: var(--lh-base);
 }
+
+/* Lore: the stations as rounded cards on the surface, the heading in the display weight. */
+:global([data-theme-family="lore"]) .heading {
+  color: var(--heading-color);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+}
+:global([data-theme-family="lore"]) .box {
+  rx: var(--radius);
+  fill: color-mix(in srgb, var(--family, var(--border)) 6%, var(--bg-surface));
+  filter: none;
+}
+:global([data-theme-family="lore"]) .selected .box {
+  filter: drop-shadow(0 0 var(--space-3) var(--focus-ring));
+}

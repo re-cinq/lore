@@ -17,7 +17,7 @@ export interface AssemblyRunListViewProps {
   connection?: ChannelState;
   /** Where the filter and page links point; the global list by default. */
   basePath?: string;
-  /** Shown in place of the default "Assembly Runs" heading. */
+  /** Shown in place of the default "Assembly runs" heading. */
   heading?: ReactNode;
 }
 
@@ -38,7 +38,7 @@ export default function AssemblyRunListView(props: AssemblyRunListViewProps) {
   const { basePath = GLOBAL_RUNS_PATH, activeStatus } = props;
 
   return (
-    <div>
+    <div className={styles.page}>
       <RunListHeader connection={props.connection} heading={props.heading} />
       <StatusFilterBar activeStatus={activeStatus} basePath={basePath} />
       <AssemblyRunsTable runs={props.runs} showStages />
@@ -69,10 +69,18 @@ function PageLinks({
     runsHref(basePath, { status: activeStatus, cursor: page });
 
   return (
-    <div className="filter-form">
-      {cursor && <a href={hrefAt()}>Newest</a>}
-      {nextCursor && <a href={hrefAt(nextCursor)}>Older</a>}
-    </div>
+    <nav className={styles.pager} aria-label="Pages">
+      {cursor && <PageLink href={hrefAt()}>Newest</PageLink>}
+      {nextCursor && <PageLink href={hrefAt(nextCursor)}>Older</PageLink>}
+    </nav>
+  );
+}
+
+function PageLink(props: { href: string; children: ReactNode }) {
+  return (
+    <a className={styles.chip} href={props.href}>
+      {props.children}
+    </a>
   );
 }
 
@@ -97,7 +105,7 @@ function StatusFilterBar(props: { activeStatus?: string; basePath: string }) {
   const { activeStatus, basePath } = props;
 
   return (
-    <div className="filter-form">
+    <nav className={styles.chips} aria-label="Status">
       {[undefined, ...FILTERS].map((status) => (
         <FilterLink
           key={status ?? "all"}
@@ -107,7 +115,7 @@ function StatusFilterBar(props: { activeStatus?: string; basePath: string }) {
           {status ? runStatusVisual(status, null).label : "All"}
         </FilterLink>
       ))}
-    </div>
+    </nav>
   );
 }
 
@@ -117,7 +125,11 @@ function FilterLink(props: {
   children: ReactNode;
 }) {
   return (
-    <a href={props.href} className={props.isActive ? "active" : ""}>
+    <a
+      href={props.href}
+      className={`${styles.chip} ${props.isActive ? "active" : ""}`}
+      aria-current={props.isActive ? "page" : undefined}
+    >
       {props.children}
     </a>
   );
@@ -125,7 +137,7 @@ function FilterLink(props: {
 
 function RunListHeader({
   connection,
-  heading = <h1>Assembly Runs</h1>,
+  heading = <DefaultHeading />,
 }: Pick<AssemblyRunListViewProps, "connection" | "heading">) {
   return (
     <div className={styles.header}>
@@ -135,13 +147,27 @@ function RunListHeader({
   );
 }
 
+/** The page's own title: the section it sits in, its name, and what it lists. */
+function DefaultHeading() {
+  return (
+    <div className={styles.titleBlock}>
+      <span className={styles.eyebrow}>{"{work}"}</span>
+      <h1>Assembly runs</h1>
+      <p className={styles.intro}>
+        Every run of every assembly line, across repos.
+      </p>
+    </div>
+  );
+}
+
 function ConnectionChip({ state }: { state: ChannelState }) {
   return (
     <span
       data-testid="runs-connection"
-      className={`badge ${CONNECTION_BADGES[state]}`}
+      className={`badge ${CONNECTION_BADGES[state]} ${styles.connection}`}
       role="status"
     >
+      <span className={styles.liveDot} aria-hidden="true" />
       {connectionLabel(state)}
     </span>
   );
