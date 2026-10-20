@@ -219,14 +219,15 @@ Migration 0015 applied to a throwaway Postgres confirmed the org seed (10 rows),
 the `task_overrides` backfill, idempotency, and the project-over-org resolve
 query (documented in the PR). Suites green: shared, mcp-server, floor, web-ui.
 
-## Open Questions
+## Resolved Questions
 
-- Should the base image apply to station nodes (the non-agent steps: validation, detection, gates) as well as agent nodes, or to agent nodes only? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#q-station-nodes))
-- Should the base image selector offer a curated list of approved images or allow free-form text entry? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#q-image-input))
-- Where in the UI should the base image setting appear: in the Agents tab alongside the list of agent definitions, or as a separate section in the repo's general settings? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#q-ui-location))
+Each question the plan raised is answered by the statements above.
 
-- Does the two-key approval ceremony apply to setting or changing the repo base image? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#q-two-key-gate))
-- Since the two-key approval ceremony does not apply, what authorization is required to set or change the repo base image? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#q-auth-gate))
+- Station nodes: the base image applies to every pod the floor dispatches, agent and station nodes alike (FR-BASE-RESOLUTION).
+- Curated list or free text: only platform-published approved images are offered; free-form text is not allowed (FR-BASE-UI).
+- Where it appears: the Agents tab is the primary surface, with a shortcut on the repo's general settings page (FR-BASE-UI).
+- Two-key ceremony: it does not apply to the repo base image (Constraints, "Two-key exemption").
+- Authorization instead: the same admin scope that governs agent-definition writes (FR-BASE-SETTING).
 
 ## Ownership
 
