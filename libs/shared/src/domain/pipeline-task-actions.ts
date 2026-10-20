@@ -20,11 +20,7 @@ export async function retryTask(
   const task = await getTask(pool, taskId);
 
   enforceTrue(task, Error, "Task not found");
-  enforceTrue(
-    !(task.status !== "failed" && task.status !== "needs-human-help"),
-    Error,
-    `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
-  );
+  assertCanRetry(task);
   const result = await createRetryTask(pool, task, taskId);
 
   await updateTaskStatus(pool, taskId, "retried", {
@@ -32,6 +28,19 @@ export async function retryTask(
   });
 
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
+}
+
+function assertCanRetry(task: LoadedTask): void {
+  enforceTrue(
+    task.task_type !== "implementation-loop",
+    Error,
+    "Cannot retry an implementation-loop task — to re-queue this issue, remove the lore:blocked label from it instead.",
+  );
+  enforceTrue(
+    !(task.status !== "failed" && task.status !== "needs-human-help"),
+    Error,
+    `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
+  );
 }
 
 /** The replacement task: same description, type and repo, attributed to `retry:<original creator>` and carrying `retry_of` in its context bundle. */
