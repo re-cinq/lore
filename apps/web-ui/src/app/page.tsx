@@ -17,10 +17,16 @@ import {
 import { fixIngestWorkflows, fixTraceImpactWorkflows } from "./actions";
 import { reposNeedingWorkflowFix } from "@/lib/workflow-fix";
 import HomeView, { type Repo } from "./HomeView";
+import { parseRepoFilter } from "./HomeView.filters";
 
 const HOME_REPO_LIMIT = 100;
 
-export default async function HomePage() {
+interface HomePageProps {
+  searchParams: Promise<{ filter?: string | string[] }>;
+}
+
+export default async function HomePage(props: HomePageProps) {
+  const { filter } = await props.searchParams;
   // Query repos with activity summary, bounded to the most recently onboarded.
   const repoList = reposOrThrow(await listRepos());
   // ONE page only: most recently onboarded repos (unlike pickers).
@@ -38,6 +44,7 @@ export default async function HomePage() {
       fixTraceImpactWorkflows={fixTraceImpactWorkflows}
       misaligned={misaligned}
       fixIngestWorkflows={fixIngestWorkflows}
+      filter={parseRepoFilter(filter)}
     />
   );
 }

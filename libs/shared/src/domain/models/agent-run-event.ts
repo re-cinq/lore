@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../../lib/row.js";
 
-/** `pipeline.agent_run_events` (migration `0031`, + `station_run_id` in `0040`) — one projected tool call from an agent's stream-json output, behind the live run viz (ADR-037); no FKs (skip-not-fail ingest); `id` is a string-encoded bigint doubling as the SSE `Last-Event-ID` cursor; `assemblyLineId` keeps its pre-rename spelling since 0040 gave the pointed-at tables no compat view (0040:130-137) — `stationRunId` is the go-forward key. */
+/* `pipeline.agent_run_events` (migration `0031`, + `station_run_id` in `0040`) — one projected tool call from an agent's stream-json output, behind the live run viz (ADR-037); no FKs (skip-not-fail ingest); `id` is a string-encoded bigint doubling as the SSE `Last-Event-ID` cursor; `assemblyLineId` keeps its pre-rename spelling since 0040 gave the pointed-at tables no compat view (0040:130-137) — `stationRunId` is the go-forward key. */
 
 /** The seven stream-json line kinds the projector persists (others dropped); `hook` covers only a hook's TERMINAL line since `hook_progress` restates the whole output each time and this store has no fold. */
 export const AgentRunEventTypeSchema = z.enum([

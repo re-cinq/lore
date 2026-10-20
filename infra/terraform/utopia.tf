@@ -129,7 +129,7 @@ resource "kubectl_manifest" "utopia_db_cluster" {
         ]
       }
 
-      storage = { size = "10Gi" }
+      storage = { size = "40Gi" }
 
       # Utopia's job worker runs up to 64 jobs at once against this database: a
       # backfill of one repo (thousands of pushed items) held it at its old 1-CPU

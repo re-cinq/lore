@@ -1,0 +1,169 @@
+name: Build multi-arch image
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      context:
+        required: false
+        type: string
+        default: '.'
+      build_args:
+        required: false
+        type: string
+        default: ''
+      smoke_command:
+        description: 'Shell command run inside the built image on every platform before it is pushed'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      image_tag:
+        description: 'Short SHA tag applied to the manifest index'
+        value: ${{ jobs.merge.outputs.image_tag }}
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(github.ref == 'refs/heads/main' && '[{"platform":"linux/amd64","runner":"ubuntu-latest","suffix":"amd64"},{"platform":"linux/arm64","runner":"ubuntu-24.04-arm","suffix":"arm64"}]' || '[{"platform":"linux/amd64","runner":"ubuntu-latest","suffix":"amd64"}]') }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build for the smoke test
+        if: inputs.smoke_command != ''
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: smoke:${{ matrix.suffix }}
+          build-args: ${{ inputs.build_args }}
+
+      - name: Smoke test
+        if: inputs.smoke_command != ''
+        env:
+          SMOKE_COMMAND: ${{ inputs.smoke_command }}
+        run: docker run --rm "smoke:${{ matrix.suffix }}" sh -c "$SMOKE_COMMAND"
+
+      # On main: push each arch by digest only (no named tag yet); the merge job
+      # creates the manifest index and applies the :<sha> and :latest tags.
+      - name: Build and push by digest
+        if: github.ref == 'refs/heads/main'
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ inputs.image_name }},push-by-digest=true,name-canonical=true,push=true
+          build-args: ${{ inputs.build_args }}
+
+      # On non-main refs: build only, no push.
+      - name: Build (no push)
+        if: github.ref != 'refs/heads/main'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          push: false
+          build-args: ${{ inputs.build_args }}
+
+      - name: Export digest
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.suffix }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.sha.outputs.short_sha }}
+    steps:
+      - name: Short SHA
+        id: sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ inputs.image_name }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create manifest and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ inputs.image_name }}@sha256:%s ' *)
+
+      # Fail loudly if the manifest index is missing the arm64 entry — an arm64
+      # build failure that somehow produced no digest would ship an amd64-only tag.
+      - name: Verify manifest lists linux/amd64 and linux/arm64
+        run: |
+          platforms=$(docker buildx imagetools inspect \
+            ${{ env.REGISTRY }}/${{ inputs.image_name }}:${{ steps.sha.outputs.short_sha }} \
+            --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}}{{"\n"}}{{end}}')
+          echo "$platforms"
+          grep -qx linux/amd64 <<< "$platforms"
+          grep -qx linux/arm64 <<< "$platforms"

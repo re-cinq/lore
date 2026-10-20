@@ -21,18 +21,31 @@ type Manifest struct {
 
 var validCoverageFormats = map[string]bool{"lcov": true, "cobertura": true, "json": true}
 
-// parseManifest decodes and validates a single test-commands manifest. A polyglot
-// repo may declare a YAML array; as with the TS loader we take the first entry.
-func parseManifest(data []byte) (Manifest, error) {
+// parseManifest decodes and validates a test-commands manifest. A polyglot repo
+// may declare a YAML list; all entries are validated and returned. A single-entry
+// object is wrapped in a one-element slice.
+func parseManifest(data []byte) ([]Manifest, error) {
 	var entries []Manifest
 	if err := yaml.Unmarshal(data, &entries); err == nil && len(entries) > 0 {
-		return validateManifest(entries[0])
+		valid := make([]Manifest, 0, len(entries))
+		for _, e := range entries {
+			m, err := validateManifest(e)
+			if err != nil {
+				return nil, err
+			}
+			valid = append(valid, m)
+		}
+		return valid, nil
 	}
-	var m Manifest
-	if err := yaml.Unmarshal(data, &m); err != nil {
-		return Manifest{}, fmt.Errorf("parsing test-commands manifest: %w", err)
+	var single Manifest
+	if err := yaml.Unmarshal(data, &single); err != nil {
+		return nil, fmt.Errorf("parsing test-commands manifest: %w", err)
 	}
-	return validateManifest(m)
+	m, err := validateManifest(single)
+	if err != nil {
+		return nil, err
+	}
+	return []Manifest{m}, nil
 }
 
 // validateManifest mirrors the relaxed TS parser (#1604 / #1601): run is the only

@@ -1,5 +1,5 @@
 import type { components } from "@/lib/api/schema";
-/** Token counts: shapes and arithmetic only (IO-free for client bundle; values in assembly-runs.ts). */
+/* Token counts: shapes and arithmetic only (IO-free for client bundle; values in assembly-runs.ts). */
 
 /** One turn's usage, already unwrapped from the stream-json envelope by SQL. */
 export type TurnUsageRow = components["schemas"]["AssemblyRunTokenUsage"];

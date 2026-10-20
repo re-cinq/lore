@@ -26,7 +26,28 @@ export type IconName =
   | "address"
   | "retrospective"
   | "done"
-  | "gate";
+  | "gate"
+  | "navInbox"
+  | "navRepos"
+  | "navRuns"
+  | "navAgents"
+  | "navSpecs"
+  | "navAdrs"
+  | "navGraph"
+  | "navEpisodes"
+  | "navPools"
+  | "navAnalytics"
+  | "navSpend"
+  | "navGaps"
+  | "navAudit"
+  | "signOut"
+  | "glossary"
+  | "keyboard"
+  | "sidebarCollapse"
+  | "sidebarExpand"
+  | "github"
+  | "arrowRight"
+  | "info";
 
 // Chicago (Win98) reuses the pixelarticons set — its blocky glyphs read as period-correct chrome next to the beveled silver controls.
 const PIXELART: Record<IconName, string> = {
@@ -56,37 +77,83 @@ const PIXELART: Record<IconName, string> = {
   retrospective: "pixelarticons:notes",
   done: "pixelarticons:flag",
   gate: "pixelarticons:debug",
+  navInbox: "pixelarticons:inbox",
+  navRepos: "pixelarticons:folder",
+  navRuns: "pixelarticons:git-branch",
+  navAgents: "pixelarticons:android",
+  navSpecs: "pixelarticons:file",
+  navAdrs: "pixelarticons:file-alt",
+  navGraph: "pixelarticons:flatten",
+  navEpisodes: "pixelarticons:clock",
+  navPools: "pixelarticons:database",
+  navAnalytics: "pixelarticons:chart-bar",
+  navSpend: "pixelarticons:coin",
+  navGaps: "pixelarticons:zap",
+  navAudit: "pixelarticons:script",
+  signOut: "pixelarticons:logout",
+  glossary: "pixelarticons:book-open",
+  keyboard: "pixelarticons:keyboard",
+  sidebarCollapse: "pixelarticons:chevron-left",
+  sidebarExpand: "pixelarticons:chevron-right",
+  github: "pixelarticons:github",
+  arrowRight: "pixelarticons:arrow-right",
+  info: "pixelarticons:info-box",
+};
+
+// Lore and Elegant share the Lucide set: Lore v2 is drawn with Lucide icons.
+const LUCIDE: Record<IconName, string> = {
+  check: "lucide:check",
+  warning: "lucide:triangle-alert",
+  error: "lucide:x",
+  unknown: "lucide:minus",
+  pending: "lucide:clock",
+  external: "lucide:arrow-up-right",
+  lock: "lucide:lock",
+  close: "lucide:x",
+  add: "lucide:plus",
+  search: "lucide:search",
+  settings: "lucide:settings",
+  menu: "lucide:menu",
+  chevron: "lucide:chevron-down",
+  sun: "lucide:sun",
+  moon: "lucide:moon",
+  monitor: "lucide:monitor",
+  bullet: "lucide:dot",
+  draft: "lucide:pencil",
+  implement: "lucide:wrench",
+  validate: "lucide:circle-check",
+  push: "lucide:arrow-up",
+  review: "lucide:search",
+  address: "lucide:hammer",
+  retrospective: "lucide:notebook-pen",
+  done: "lucide:flag",
+  gate: "lucide:construction",
+  navInbox: "lucide:inbox",
+  navRepos: "lucide:folder-git-2",
+  navRuns: "lucide:workflow",
+  navAgents: "lucide:bot",
+  navSpecs: "lucide:file-text",
+  navAdrs: "lucide:file-check",
+  navGraph: "lucide:network",
+  navEpisodes: "lucide:history",
+  navPools: "lucide:database",
+  navAnalytics: "lucide:chart-column",
+  navSpend: "lucide:wallet",
+  navGaps: "lucide:scan-search",
+  navAudit: "lucide:scroll-text",
+  signOut: "lucide:log-out",
+  glossary: "lucide:book-open",
+  keyboard: "lucide:keyboard",
+  sidebarCollapse: "lucide:panel-left-close",
+  sidebarExpand: "lucide:panel-left-open",
+  github: "lucide:github",
+  arrowRight: "lucide:arrow-right",
+  info: "lucide:info",
 };
 
 export const ICONS: Record<ThemeFamily, Record<IconName, string>> = {
-  elegant: {
-    check: "lucide:check",
-    warning: "lucide:triangle-alert",
-    error: "lucide:x",
-    unknown: "lucide:minus",
-    pending: "lucide:clock",
-    external: "lucide:arrow-up-right",
-    lock: "lucide:lock",
-    close: "lucide:x",
-    add: "lucide:plus",
-    search: "lucide:search",
-    settings: "lucide:settings",
-    menu: "lucide:menu",
-    chevron: "lucide:chevron-down",
-    sun: "lucide:sun",
-    moon: "lucide:moon",
-    monitor: "lucide:monitor",
-    bullet: "lucide:dot",
-    draft: "lucide:pencil",
-    implement: "lucide:wrench",
-    validate: "lucide:circle-check",
-    push: "lucide:arrow-up",
-    review: "lucide:search",
-    address: "lucide:hammer",
-    retrospective: "lucide:notebook-pen",
-    done: "lucide:flag",
-    gate: "lucide:construction",
-  },
+  lore: LUCIDE,
+  elegant: LUCIDE,
   retro: PIXELART,
   chicago: PIXELART,
 };

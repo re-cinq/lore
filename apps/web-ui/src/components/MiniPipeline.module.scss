@@ -45,3 +45,23 @@
     opacity: 0.4;
   }
 }
+
+/* The run list's stage strip: each stage a pill segment sharing the cell. */
+.bar {
+  display: flex;
+  width: 100%;
+  gap: var(--space-1);
+
+  .dot {
+    flex: 1;
+    width: auto;
+    min-width: var(--space-3);
+    height: 6px;
+    border-radius: var(--radius-pill);
+  }
+
+  .waiting,
+  .pending {
+    border-width: 1px;
+  }
+}

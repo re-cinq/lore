@@ -4,8 +4,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 const pathname = vi.fn(() => "/some/path");
 
+const push = vi.fn();
+
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname(),
+  useRouter: () => ({ push }),
 }));
 
 vi.mock("@/components/Icon", () => ({
@@ -15,6 +18,7 @@ vi.mock("@/components/Icon", () => ({
 }));
 
 import AppShell from "./AppShell";
+import { RailToggle } from "@/components/shell/SidebarTools";
 
 const layout = () => document.querySelector(".app-layout") as HTMLElement;
 const overlay = () => document.querySelector(".sidebar-overlay");
@@ -37,18 +41,25 @@ afterEach(() => {
 });
 
 describe("AppShell static structure", () => {
-  it("renders the sidebar prop, children, and the close-icon marker", () => {
+  it("renders the sidebar prop, children, and the mobile wordmark", () => {
     renderShell();
     expect(screen.getByTestId("sidebar-nav")).toHaveTextContent("SIDEBAR");
     expect(screen.getByTestId("page-body")).toHaveTextContent("PAGE");
-    expect(screen.getByText("LORE")).toBeInTheDocument();
-    expect(screen.getByTestId("icon")).toHaveAttribute("data-name", "close");
-    expect(screen.getByTestId("icon")).toHaveAttribute("data-size", "16");
+    expect(screen.getByText("lore")).toBeInTheDocument();
   });
 
-  it("renders the three hamburger bars inside the open-menu button", () => {
+  it("draws the drawer's close button as the close icon", () => {
     renderShell();
-    expect(hamburger().querySelectorAll("span")).toHaveLength(3);
+    const icon = closeBtn().querySelector("[data-testid=icon]");
+
+    expect(icon).toHaveAttribute("data-name", "close");
+  });
+
+  it("draws the menu icon inside the open-menu button", () => {
+    renderShell();
+    const icon = hamburger().querySelector("[data-testid=icon]");
+
+    expect(icon).toHaveAttribute("data-name", "menu");
   });
 });
 
@@ -178,5 +189,41 @@ describe("AppShell unmount cleanup", () => {
     unmount();
     expect(removeSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
     removeSpy.mockRestore();
+  });
+});
+
+describe("AppShell mobile search", () => {
+  it("opens the command palette from the mobile header's search pill", () => {
+    renderShell();
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(
+      screen.getByRole("dialog", { name: "Search or jump to" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("AppShell icon rail", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  const renderWithToggle = () =>
+    render(
+      <AppShell sidebar={<RailToggle />}>
+        <p>PAGE</p>
+      </AppShell>,
+    );
+
+  it("folds the layout to the rail when the toggle is pressed", () => {
+    renderWithToggle();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(layout()).toHaveClass("sidebar-rail");
+    expect(
+      screen.getByRole("button", { name: "Expand sidebar" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("remembers the rail across visits", () => {
+    renderWithToggle();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(window.localStorage.getItem("lore-sidebar-rail")).toBe("1");
   });
 });

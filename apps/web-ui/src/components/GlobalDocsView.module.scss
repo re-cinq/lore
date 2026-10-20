@@ -5,7 +5,7 @@
 }
 
 .repoGroup {
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-7);
 }
 
 .repoName {
@@ -13,11 +13,58 @@
 }
 
 .docList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-5);
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .docItem {
-  @include t.row(var(--space-3));
-  margin-bottom: var(--space-2);
+  display: flex;
+  min-width: 0;
+}
+
+// The whole card is the link, so the title and the path take one click target.
+.card {
+  @include t.stack(var(--space-3));
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--transition);
+
+  &:hover {
+    border-color: var(--border-hover);
+    text-decoration: none;
+  }
+}
+
+.cardHead {
+  @include t.row-between(var(--space-3));
+}
+
+.number {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.title {
+  color: var(--heading-color);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  text-wrap: pretty;
+}
+
+.path {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
 }

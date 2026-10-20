@@ -7,6 +7,12 @@ vi.mock("@/lib/github", () => ({
   getRepoMeta: vi.fn().mockResolvedValue({ description: "Test Repo" }),
 }));
 
+vi.mock("@/lib/api/repos", () => ({
+  getRepo: vi.fn().mockResolvedValue({ status: "error" }),
+}));
+
+vi.mock("@/components/Icon", () => ({ default: () => null }));
+
 vi.mock("./TabNav", () => ({
   default: ({ tabs }: { tabs: { label: string }[] }) => (
     <div data-testid="tabnav">

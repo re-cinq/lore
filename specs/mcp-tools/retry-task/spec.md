@@ -75,6 +75,12 @@ A single MCP text content block — one of: the missing-DB message, the compact
 
 ## Acceptance Criteria
 
+An `implementation-loop` task is refused regardless of its status, with a message directing the user to remove the `lore:blocked` label from the issue instead of retrying.
+([validated by `refuses an implementation-loop task and mentions removing lore:blocked`](libs/shared/src/domain/pipeline-tasks.retry-loop.test.ts#L16))
+
+When an `implementation-loop` task is refused, no INSERT or UPDATE is issued to the database — the guard fires before any write.
+([validated by `leaves the task unchanged — no INSERT or UPDATE issued`](libs/shared/src/domain/pipeline-tasks.retry-loop.test.ts#L31))
+
 A failed task spawns a new linked task and returns the new id alongside the
 original via `retry_of`.
 ([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L105))

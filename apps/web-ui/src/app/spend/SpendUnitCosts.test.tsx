@@ -3,9 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { UnitCosts } from "./SpendUnitCosts";
 import type { SpendWindow } from "./SpendView";
-
-const usd = (n: number) =>
-  Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
+import { usd } from "./spend-format";
 
 const tableByHeading = (heading: string): HTMLElement => {
   const h2 = screen.getByRole("heading", { name: heading, level: 2 });

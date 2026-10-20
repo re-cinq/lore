@@ -7,6 +7,17 @@ import Icon from "@/components/Icon";
 import Link from "next/link";
 import styles from "./HomeView.module.css";
 import type { components } from "@/lib/api/schema";
+import {
+  REPO_FILTERS,
+  filterRepos,
+  repoAttention,
+  type Attention,
+  type RepoFilter,
+} from "./HomeView.filters";
+import {
+  freshnessIndicator,
+  ingestAge,
+} from "./repos/[owner]/[repo]/repo-freshness";
 
 // A PICK over the published shape, not a copy — types still come from the contract.
 export type Repo = Pick<
@@ -30,56 +41,90 @@ export interface HomeViewProps {
   fixIngestWorkflows: (repos: string[]) => Promise<FixWorkflowResult>;
   impactMisaligned: string[];
   fixTraceImpactWorkflows: (repos: string[]) => Promise<FixWorkflowResult>;
+  /** The chip the reader picked (`?filter=`); every repo when absent. */
+  filter?: RepoFilter;
 }
 
-// Pure render — repo list/status come from page.tsx; fixIngestWorkflows is the only mutation, fired via the client button.
+// Pure render — repo list/status come from page.tsx; the fix buttons are the only mutations.
 export default function HomeView(props: HomeViewProps) {
-  const { repos, ingestStatus } = props;
+  const filter = props.filter ?? "all";
+  const attention = attentionByRepo(props);
 
   return (
-    <div>
-      <DashboardHeader
-        misaligned={props.misaligned}
-        fixIngestWorkflows={props.fixIngestWorkflows}
-        impactMisaligned={props.impactMisaligned}
-        fixTraceImpactWorkflows={props.fixTraceImpactWorkflows}
+    <div className={styles.page}>
+      <DashboardHeader {...props} attention={attention} />
+      <FilterChips repos={props.repos} attention={attention} active={filter} />
+      <RepoGrid
+        repos={filterRepos(props.repos, filter, attention)}
+        attention={attention}
+        filtered={props.repos.length > 0}
       />
-      <RepoGrid repos={repos} ingestStatus={ingestStatus} />
     </div>
   );
 }
 
-type DashboardHeaderProps = Pick<
-  HomeViewProps,
-  | "misaligned"
-  | "fixIngestWorkflows"
-  | "impactMisaligned"
-  | "fixTraceImpactWorkflows"
->;
+type AttentionMap = Map<string, Attention>;
 
-/** The title and the three things a reader can do from the dashboard. The two fix buttons hide themselves when nothing is misaligned, so this row is usually just "Add Repo". */
+/** Which repos need a fix, keyed by full name — counted by the header and the chips, drawn on the cards. */
+function attentionByRepo(props: HomeViewProps): AttentionMap {
+  const impact = new Set(props.impactMisaligned);
+  const out: AttentionMap = new Map();
+
+  for (const r of props.repos) {
+    const found = repoAttention(r.full_name, props.ingestStatus, impact);
+
+    if (found) {
+      out.set(r.full_name, found);
+    }
+  }
+
+  return out;
+}
+
+type DashboardHeaderProps = HomeViewProps & { attention: AttentionMap };
+
+/** The title, the one-line summary, and the three things a reader can do. */
 function DashboardHeader(props: DashboardHeaderProps) {
   return (
-    <div className={styles.header}>
-      <h1>Repositories</h1>
-      <div className={styles.headerActions}>
-        <FixIngestButton
-          repos={props.misaligned}
-          action={props.fixIngestWorkflows}
-        />
-        <FixImpactButton
-          repos={props.impactMisaligned}
-          action={props.fixTraceImpactWorkflows}
-        />
-        <Link href="/onboard">
-          <button>+ Add Repo</button>
-        </Link>
+    <header className={styles.header}>
+      <div className={styles.titleBlock}>
+        <div className={styles.eyebrow}>{"{work}"}</div>
+        <h1 className={styles.title}>Repositories</h1>
+        <p className={styles.summaryLine}>
+          {summaryLine(props.repos, props.attention)}
+        </p>
       </div>
+      <HeaderActions {...props} />
+    </header>
+  );
+}
+
+/** The two fix buttons hide themselves when nothing is misaligned, so this row is usually just "Add repo". */
+function HeaderActions(props: DashboardHeaderProps) {
+  return (
+    <div className={styles.headerActions}>
+      <FixIngestButton
+        repos={props.misaligned}
+        action={props.fixIngestWorkflows}
+      />
+      <FixImpactButton
+        repos={props.impactMisaligned}
+        action={props.fixTraceImpactWorkflows}
+      />
+      <Link href="/onboard" className={styles.addRepo}>
+        <Icon name="add" size={16} inline /> Add repo
+      </Link>
     </div>
   );
 }
 
-/** Opens the PR that installs the current spec-impact workflow. The title spells out the consequence of NOT fixing it: a repo on an old workflow has its impact findings suppressed rather than reported. */
+function summaryLine(repos: Repo[], attention: AttentionMap): string {
+  const running = repos.reduce((n, r) => n + r.active_agents, 0);
+
+  return `${repos.length} onboarded · ${attention.size} need attention · ${running} agents running`;
+}
+
+/** Opens the PR that installs the current spec-impact workflow. The title spells out the consequence of NOT fixing it: a repo on an old workflow has its impact findings suppressed. */
 function FixImpactButton({
   repos,
   action,
@@ -97,48 +142,151 @@ function FixImpactButton({
   );
 }
 
-/** The grid itself, and the one place that knows an empty list is an onboarding prompt rather than a card. */
-function RepoGrid({
-  repos,
-  ingestStatus,
-}: Pick<HomeViewProps, "repos" | "ingestStatus">) {
+interface FilterChipsProps {
+  repos: Repo[];
+  attention: AttentionMap;
+  active: RepoFilter;
+}
+
+/** All / Needs attention / Agents running, as links: the filter lives in the URL, so it survives a reload and needs no client state. */
+function FilterChips({ repos, attention, active }: FilterChipsProps) {
   return (
-    <div className="repo-grid">
+    <nav className={styles.chips} aria-label="Filter repositories">
+      {REPO_FILTERS.map((f) => (
+        <Link
+          key={f.id}
+          href={f.id === "all" ? "/" : `/?filter=${f.id}`}
+          className={styles.chip}
+          aria-current={f.id === active ? "page" : undefined}
+        >
+          {f.label}
+          <span className={styles.chipCount}>
+            {filterRepos(repos, f.id, attention).length}
+          </span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+interface RepoGridProps {
+  repos: Repo[];
+  attention: AttentionMap;
+  /** True when repos exist but the chip hid them all — not a first run. */
+  filtered: boolean;
+}
+
+/** The grid itself, and the one place that knows an empty list is an onboarding prompt rather than a card. */
+function RepoGrid({ repos, attention, filtered }: RepoGridProps) {
+  if (repos.length === 0) {
+    return filtered ? <FilterEmpty /> : <EmptyRepos />;
+  }
+
+  return (
+    <div className={`repo-grid ${styles.grid}`}>
       {repos.map((r) => (
         <RepoCard
           key={r.full_name}
           repo={r}
-          ingest={ingestStatus.get(r.full_name)}
+          attention={attention.get(r.full_name)}
         />
       ))}
-      {repos.length === 0 && <EmptyRepos />}
     </div>
   );
 }
 
 interface RepoCardProps {
-  repo: HomeViewProps["repos"][number];
-  ingest: ReturnType<HomeViewProps["ingestStatus"]["get"]>;
+  repo: Repo;
+  attention: Attention | undefined;
 }
 
-/** One repo's card. The freshness dot and the ingest badge are the two things a reader scans for — everything else on the card is context for them. */
-function RepoCard({ repo: r, ingest }: RepoCardProps) {
+/** One repo's card: who owns it, what it is doing, how fresh its context is, and — when there is one — the fix it needs. */
+function RepoCard({ repo: r, attention }: RepoCardProps) {
   return (
-    <Link href={`/repos/${r.owner}/${r.name}`} className="repo-card">
-      <h3 className={styles.cardTitle}>
-        <FreshnessDot lastIngestedAt={r.last_ingested_at} />
-        {r.full_name}
-      </h3>
-      <div className="repo-meta">
-        {r.team && <span className="badge">{r.team}</span>}
-        <span className="meta">{r.task_count} tasks</span>
-        {r.active_agents > 0 && (
-          <span className="badge badge-green">{r.active_agents} running</span>
-        )}
-        <IngestBadge ingest={ingest} />
-      </div>
-      <div className="meta">{ingestionSummary(r)}</div>
+    <Link
+      href={`/repos/${r.owner}/${r.name}`}
+      className={`repo-card ${styles.card}`}
+    >
+      <CardHead repo={r} />
+      <CardStats repo={r} />
+      {attention ? (
+        <AttentionNote attention={attention} />
+      ) : (
+        <div className={styles.cardNote}>{ingestionSummary(r)}</div>
+      )}
     </Link>
+  );
+}
+
+function CardHead({ repo: r }: { repo: Repo }) {
+  return (
+    <div className={styles.cardHead}>
+      <h3 className={styles.cardTitle}>
+        <span className={styles.cardOwner}>{r.owner}/</span>
+        <span className={styles.cardName}>{r.name}</span>
+      </h3>
+      {r.team && <span className={styles.team}>{r.team}</span>}
+    </div>
+  );
+}
+
+/** Tasks, running agents and ingest age — the three figures a reader compares across the grid. */
+function CardStats({ repo: r }: { repo: Repo }) {
+  return (
+    <dl className={styles.stats}>
+      <Stat label="Tasks" value={r.task_count} />
+      <Stat
+        label="Agents running"
+        value={<RunningValue count={r.active_agents} />}
+      />
+      <Stat
+        label="Last ingest"
+        value={<IngestValue lastIngestedAt={r.last_ingested_at} />}
+      />
+    </dl>
+  );
+}
+
+/** The running count, with a pulsing dot while any agent works. */
+function RunningValue({ count }: { count: number }) {
+  return (
+    <>
+      {count > 0 && (
+        <span className={styles.runningDot} title={`${count} running`} />
+      )}
+      {count}
+    </>
+  );
+}
+
+function IngestValue({ lastIngestedAt }: { lastIngestedAt: string | null }) {
+  return (
+    <>
+      <FreshnessDot lastIngestedAt={lastIngestedAt} />
+      {ingestAge(lastIngestedAt)}
+    </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className={styles.stat}>
+      <dd className={styles.statValue}>{value}</dd>
+      <dt className={styles.statLabel}>{label}</dt>
+    </div>
+  );
+}
+
+/** The fix a repo needs. The title says it is fixable from this page, because the note is otherwise a report with no next step. */
+function AttentionNote({ attention }: { attention: Attention }) {
+  return (
+    <div
+      className={styles.attention}
+      data-tone={attention.tone}
+      title={`${attention.label} — fixable from the dashboard`}
+    >
+      <Icon name="warning" size={14} inline /> {attention.label}
+    </div>
   );
 }
 
@@ -154,7 +302,18 @@ function EmptyRepos() {
   );
 }
 
-/** How recently this repo was ingested, as a colour. A dot rather than a date because it is scanned across a grid: the reader is looking for the stale one, not reading each timestamp. */
+function FilterEmpty() {
+  return (
+    <div className="placeholder">
+      <p>No repositories match this filter.</p>
+      <p>
+        <Link href="/">Show all repositories</Link>
+      </p>
+    </div>
+  );
+}
+
+/** How recently this repo was ingested, as a colour. A dot rather than a date because it is scanned across a grid: the reader is looking for the stale one. */
 function FreshnessDot({ lastIngestedAt }: { lastIngestedAt: string | null }) {
   const indicator = freshnessIndicator(lastIngestedAt);
 
@@ -164,29 +323,6 @@ function FreshnessDot({ lastIngestedAt }: { lastIngestedAt: string | null }) {
       className={styles.freshnessDot}
       style={{ ["--dot-color" as string]: indicator.color }}
     />
-  );
-}
-
-/** Present only when the repo's ingest workflow needs attention. The title says it is fixable from this page, because the badge is otherwise a report with no next step. */
-function IngestBadge({
-  ingest,
-}: {
-  ingest: ReturnType<HomeViewProps["ingestStatus"]["get"]>;
-}) {
-  const badge = ingestBadge(ingest);
-
-  if (!badge) {
-    return null;
-  }
-
-  return (
-    <span
-      className={`badge ${styles.ingestBadge}`}
-      title={`${badge.label} — fixable from the dashboard`}
-      style={{ ["--badge-color" as string]: badge.color }}
-    >
-      <Icon name="warning" size={12} inline /> {badge.label}
-    </span>
   );
 }
 
@@ -200,40 +336,4 @@ function ingestionSummary(repo: Repo): string {
   }
 
   return "Onboarding PR pending";
-}
-
-function freshnessIndicator(lastIngestedAt: string | null): {
-  color: string;
-  label: string;
-} {
-  if (!lastIngestedAt) {
-    return { color: "var(--text-muted)", label: "Never ingested" };
-  }
-  const now = new Date();
-  const ingested = new Date(lastIngestedAt);
-  const hoursAgo = (now.getTime() - ingested.getTime()) / (1000 * 60 * 60);
-
-  if (hoursAgo < 24) {
-    return { color: "var(--success)", label: "Fresh (< 24h)" };
-  }
-
-  if (hoursAgo < 7 * 24) {
-    return { color: "var(--warning)", label: "Stale (< 7d)" };
-  }
-
-  return { color: "var(--danger)", label: "Outdated (> 7d)" };
-}
-
-function ingestBadge(
-  status: IngestWorkflowStatus | undefined,
-): { label: string; color: string } | null {
-  if (status === "missing") {
-    return { label: "no ingest workflow", color: "var(--danger)" };
-  }
-
-  if (status === "stale") {
-    return { label: "ingest workflow outdated", color: "var(--warning)" };
-  }
-
-  return null;
 }

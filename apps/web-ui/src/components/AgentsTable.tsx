@@ -42,6 +42,9 @@ const KIND_LABEL: Record<AgentKind, string> = {
   task: "Task",
 };
 
+const COST_NOTE =
+  "Cost sums tracked llm_calls. Headless agent token spend is not metered, so treat it as a lower bound.";
+
 type WhyColumn = Pick<AgentRowsProps, "hasWhy">;
 
 interface TaskAgentsToggleProps {
@@ -61,17 +64,19 @@ export default function AgentsTable(props: AgentsTableProps) {
   const [showTaskAgents, setShowTaskAgents] = useState(false);
   const taskAgentCount = agents.filter((a) => a.kind === "task").length;
   const visible = showTaskAgents ? agents : localAgents(agents);
-  const hasWhy = hasReasonColumn(agents);
 
   return (
     <div>
       {!embedded && <AgentsTableHeading title={title} intro={intro} />}
-      <TaskAgentsToggle
-        taskAgentCount={taskAgentCount}
-        showTaskAgents={showTaskAgents}
-        onToggle={() => setShowTaskAgents((v) => !v)}
-      />
-      <AgentRows agents={visible} hasWhy={hasWhy} />
+      <div className={styles.chips}>
+        <LocalAgentsChip count={agents.length - taskAgentCount} />
+        <TaskAgentsToggle
+          taskAgentCount={taskAgentCount}
+          showTaskAgents={showTaskAgents}
+          onToggle={() => setShowTaskAgents((v) => !v)}
+        />
+      </div>
+      <AgentsCard agents={visible} hasWhy={hasReasonColumn(agents)} />
     </div>
   );
 }
@@ -86,6 +91,26 @@ function hasReasonColumn(agents: AgentRow[]): boolean {
   return agents.some((a) => a.reason != null || a.reason_type != null);
 }
 
+/** Local agents are always listed, so their chip is a count rather than a switch. */
+function LocalAgentsChip({ count }: { count: number }) {
+  return (
+    <span className={`${styles.chip} ${styles.chipOn}`}>
+      {KIND_LABEL.local}
+      <span className={styles.chipCount}>{count}</span>
+    </span>
+  );
+}
+
+/** The table and the caveat on its cost column, as one card. */
+function AgentsCard({ agents, hasWhy }: AgentRowsProps) {
+  return (
+    <div className={styles.card}>
+      <AgentRows agents={agents} hasWhy={hasWhy} />
+      <div className={styles.footnote}>{COST_NOTE}</div>
+    </div>
+  );
+}
+
 function TaskAgentsToggle({
   taskAgentCount,
   showTaskAgents,
@@ -98,7 +123,7 @@ function TaskAgentsToggle({
   return (
     <button
       type="button"
-      className={`badge ${styles.toggle}`}
+      className={styles.chip}
       aria-pressed={showTaskAgents}
       onClick={onToggle}
     >
@@ -182,7 +207,14 @@ function AgentLink({ agentId }: { agentId: string | null }) {
     return <span className="meta">—</span>;
   }
 
-  return <a href={`/agents/${encodeURIComponent(agentId)}`}>{agentId}</a>;
+  return (
+    <a
+      href={`/agents/${encodeURIComponent(agentId)}`}
+      className={styles.agentLink}
+    >
+      {agentId}
+    </a>
+  );
 }
 
 /** What an agent IS, said once beside the table rather than in every page that embeds it. */

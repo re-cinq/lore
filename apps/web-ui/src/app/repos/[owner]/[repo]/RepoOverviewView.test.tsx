@@ -55,6 +55,8 @@ const baseProps = {
   enrollmentChecks: checks,
   trustLevel: "implementation",
   tasksWeek: 0,
+  chunkCount: 0,
+  conventionFiles: [] as string[],
   recentTasks: [] as RecentTask[],
   latestEvents: [] as RepoEvent[],
   reonboardAction: action,
@@ -101,9 +103,7 @@ describe("RepoOverviewView", () => {
     render(
       <RepoOverviewView {...baseProps} trustLevel="full" tasksWeek={12} />,
     );
-    const card = screen
-      .getByRole("heading", { level: 3, name: "Activity" })
-      .closest(".spec-card") as HTMLElement;
+    const card = screen.getByRole("region", { name: "Activity" });
 
     expect(within(card).getByText("full")).toBeInTheDocument();
     expect(within(card).getByText("12")).toBeInTheDocument();
@@ -203,5 +203,24 @@ describe("RepoOverviewView", () => {
       "href",
       "/repos/re-cinq/lore/events",
     );
+  });
+
+  it("lists the ingested convention files and the indexed chunk count", () => {
+    render(
+      <RepoOverviewView
+        {...baseProps}
+        chunkCount={12480}
+        conventionFiles={["CLAUDE.md", "AGENTS.md"]}
+      />,
+    );
+    expect(screen.getByText("CLAUDE.md")).toBeInTheDocument();
+    expect(screen.getByText((12480).toLocaleString())).toBeInTheDocument();
+  });
+
+  it("says so when no convention files are ingested", () => {
+    render(<RepoOverviewView {...baseProps} />);
+    expect(
+      screen.getByText("No convention files ingested yet."),
+    ).toBeInTheDocument();
   });
 });

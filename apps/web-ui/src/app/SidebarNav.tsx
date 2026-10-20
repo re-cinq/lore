@@ -5,40 +5,14 @@ import { usePathname } from "next/navigation";
 import NavLink from "@/components/NavLink";
 import Icon from "@/components/Icon";
 import { isNavActive } from "@/lib/nav-active";
+import { SidebarHelp } from "@/components/shell/SidebarTools";
+import {
+  footerDestinations,
+  navGroups,
+  type NavDestination,
+  type NavGroup,
+} from "@/components/shell/nav-groups";
 import styles from "./SidebarNav.module.css";
-
-interface NavGroup {
-  label?: string;
-  links: { href: string; label: string }[];
-}
-
-// Repo-centric nav (spec 4-ux-repo-onboarding FR-3.8) — only genuinely cross-repo views live at top level.
-const groups: NavGroup[] = [
-  {
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the nav section table, restated in SidebarNav.test.tsx as the exact sections and order a reader must see; the restatement is the assertion, so there is nothing here to share with it
-    links: [
-      { href: "/", label: "Repos" },
-      { href: "/assembly-runs", label: "Assembly Runs" },
-      { href: "/agents", label: "Agents" },
-      { href: "/search", label: "Search" },
-      { href: "/audit", label: "Audit" },
-      { href: "/pools", label: "Pools" },
-    ],
-  },
-  {
-    label: "Insights",
-    links: [
-      // eslint-disable-next-line re-lint/no-duplicate-code -- the second nav section's links, likewise restated in SidebarNav.test.tsx as the expected list; a test that imported this table would assert only that the table equals itself
-      { href: "/analytics", label: "Analytics" },
-      { href: "/spend", label: "Spend" },
-      { href: "/gaps", label: "Gaps" },
-      { href: "/episodes", label: "Episodes" },
-      { href: "/graph", label: "Graph" },
-      { href: "/specs", label: "Specs" },
-      { href: "/adrs", label: "ADRs" },
-    ],
-  },
-];
 
 /** Each address is the deployment's to name; an absent one renders no link at all (lib/headlamp-url.ts). */
 interface ExternalAppUrls {
@@ -71,16 +45,16 @@ interface NavGroupsProps {
   onToggle: (label: string) => void;
 }
 
-/** Every group in nav order. A group with no label has no collapsed state to look up, so it is asked for none. */
+/** Every group in nav order. */
 function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
   return (
     <nav>
-      {groups.map((group, i) => (
+      {navGroups.map((group) => (
         <NavGroupSection
-          key={group.label ?? `group-${i}`}
+          key={group.label}
           group={group}
           pathname={pathname}
-          collapsed={group.label ? (collapsed[group.label] ?? false) : false}
+          collapsed={collapsed[group.label] ?? false}
           onToggle={onToggle}
         />
       ))}
@@ -93,24 +67,56 @@ interface NavFooterProps {
   externalApps: ExternalAppUrls;
 }
 
-/** The links belonging to no section of the app: settings is org-wide, adding a repo grows the list itself, and the cluster dashboard, Grafana and Utopia are different applications. */
+/** The links belonging to no section of the app, under the two help dialogs: settings is org-wide, adding a repo grows the list itself, and the cluster dashboard, Grafana and Utopia are different applications. */
 function NavFooter({ pathname, externalApps }: NavFooterProps) {
   return (
     <div className={styles.footer}>
+      <SidebarHelp />
       <ExternalApps {...externalApps} />
-      <NavLink
-        href="/settings"
-        label="Settings"
-        active={isNavActive(pathname, "/settings", "/")}
-        className={styles.footerLink}
-      />
-      <NavLink
-        href="/onboard"
-        label="+ Add Repo"
-        active={isNavActive(pathname, "/onboard", "/")}
-        className={styles.addRepo}
-      />
+      <FooterActions pathname={pathname} />
     </div>
+  );
+}
+
+const FOOTER_CLASS: Record<string, string> = {
+  "/settings": styles.footerLink,
+  "/onboard": styles.addRepo,
+};
+
+/** Settings and Add repo: the two in-app destinations that belong to no section. */
+function FooterActions({ pathname }: { pathname: string }) {
+  return (
+    <>
+      {footerDestinations.map((link) => (
+        <TitledNavLink
+          key={link.href}
+          link={link}
+          pathname={pathname}
+          className={FOOTER_CLASS[link.href]}
+        />
+      ))}
+    </>
+  );
+}
+
+interface TitledNavLinkProps {
+  link: NavDestination;
+  pathname: string;
+  className?: string;
+}
+
+/** A nav link titled with its label, so the icon rail still names it on hover. */
+function TitledNavLink({ link, pathname, className }: TitledNavLinkProps) {
+  return (
+    <span title={link.label} className={styles.item}>
+      <NavLink
+        href={link.href}
+        label={link.label}
+        icon={link.icon}
+        active={isNavActive(pathname, link.href, "/")}
+        className={className}
+      />
+    </span>
   );
 }
 
@@ -166,7 +172,7 @@ function ExternalAppLink({ href, label, title }: ExternalAppLinkProps) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className={styles.footerLink}
+      className={`${styles.footerLink} rail-hidden`}
       title={title}
     >
       {label}
@@ -182,23 +188,17 @@ interface NavGroupSectionProps {
   onToggle: (label: string) => void;
 }
 
-/** A labelled group collapses; an unlabelled one is always open, which is how the top-level links render without a header. */
+/** A group's toggle always shows; its links only while it is open. */
 function NavGroupSection({
   group,
   pathname,
   collapsed,
   onToggle,
 }: NavGroupSectionProps) {
-  const links = navLinks(group, pathname);
-
-  if (!group.label) {
-    return <div className={styles.group}>{links}</div>;
-  }
-
   return (
     <CollapsibleGroup
       label={group.label}
-      links={links}
+      links={navLinks(group, pathname)}
       collapsed={collapsed}
       onToggle={onToggle}
     />
@@ -207,13 +207,8 @@ function NavGroupSection({
 
 /** The group's links, each knowing whether it is the current page. Active is computed here rather than per link so one pass over the pathname answers for the whole group. */
 function navLinks(group: NavGroup, pathname: string) {
-  return group.links.map(({ href, label }) => (
-    <NavLink
-      key={href}
-      href={href}
-      label={label}
-      active={isNavActive(pathname, href, "/")}
-    />
+  return group.links.map((link) => (
+    <TitledNavLink key={link.href} link={link} pathname={pathname} />
   ));
 }
 
@@ -250,11 +245,11 @@ function GroupHeader({ label, collapsed, onToggle }: GroupHeaderProps) {
   return (
     <button
       type="button"
-      className={styles.groupLabel}
+      className={`${styles.groupLabel} rail-hidden`}
       onClick={() => onToggle(label)}
       aria-expanded={!collapsed}
     >
-      {label}
+      <span className={styles.groupName}>{label}</span>
       <Icon
         name="chevron"
         size={12}

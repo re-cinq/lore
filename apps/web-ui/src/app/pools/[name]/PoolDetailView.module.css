@@ -1,32 +1,117 @@
+.crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.crumbName {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.title {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
 .summary {
-  margin-bottom: var(--space-5);
+  margin: 0 0 var(--space-6);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.cardHead,
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.cardHead {
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+
+.meta {
+  gap: var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.version {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
 }
 
 .valueCell {
-  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .valuePre {
   margin: 0;
-  background: transparent;
-  border: none;
-  padding: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
+  line-height: var(--lh-lg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .valueActions {
   display: flex;
   gap: var(--space-3);
-  margin-top: var(--space-2);
 }
 
 .valueAction {
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-1) var(--space-4);
   font-size: var(--fs-xs);
 }
 
-.emptyCell {
+.empty {
+  padding: var(--space-7) var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   text-align: center;
   color: var(--text-muted);
-  padding: var(--space-6);
 }

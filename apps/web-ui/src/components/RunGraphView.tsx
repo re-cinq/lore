@@ -41,7 +41,7 @@ export interface RunGraphViewProps {
 // The mode-selected workflow graph: drawn at its natural size and wrapped onto as many rows as the panel's width needs.
 export default function RunGraphView(props: RunGraphViewProps) {
   const [panelRef, panelWidth] = useElementWidth<HTMLElement>();
-  const { graph, heading = "Graph" } = props;
+  const { graph, heading = "Stations" } = props;
 
   if (graph.nodes.length === 0) {
     return <EmptyGraph />;

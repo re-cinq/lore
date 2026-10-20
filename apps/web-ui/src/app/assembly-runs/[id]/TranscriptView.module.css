@@ -114,3 +114,18 @@
   background: var(--bg-hover);
   border-radius: var(--radius-sm);
 }
+
+/* Lore v2: the transcript on the run page's navy log ground (RunVisualizationPanel.module.css sets the --run-term-* palette); the tokens are re-pointed inside it so every rule above reads on the dark block. Only the run page draws it, inside that panel. */
+:global([data-theme-family="lore"]) .terminal {
+  --text: var(--run-term-fg);
+  --text-muted: var(--run-term-muted);
+  --accent: var(--run-term-accent);
+  --danger: var(--run-term-danger);
+  --border: color-mix(in srgb, var(--run-term-fg) 14%, transparent);
+  --bg-hover: color-mix(in srgb, var(--run-term-fg) 8%, transparent);
+  padding: var(--space-5) var(--space-6);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--run-term-bg);
+  color: var(--text);
+}

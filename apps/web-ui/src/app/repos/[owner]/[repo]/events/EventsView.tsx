@@ -1,4 +1,5 @@
 import { Alert } from "@/components/Alert";
+import Panel, { PanelTable } from "@/components/Panel";
 import EventRow, { EventsTableHead } from "./EventRow";
 import InfiniteEvents from "./InfiniteEvents";
 import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
@@ -17,8 +18,7 @@ export default function EventsView(props: EventsViewProps) {
   const { owner, repo, events } = props;
 
   return (
-    <div>
-      <h2>Events</h2>
+    <Panel title="Events">
       <p className="meta">
         Event-bus activity for {owner}/{repo}, newest first.
       </p>
@@ -27,26 +27,28 @@ export default function EventsView(props: EventsViewProps) {
       ) : (
         <EventsTable {...props} />
       )}
-    </div>
+    </Panel>
   );
 }
 
 /** The first page as rows, with the pager as the last of them. `InfiniteEvents` renders inside this `tbody` rather than after the table so its appended rows and its sentinel are part of the same row sequence. */
 function EventsTable({ owner, repo, events, hasMore }: EventsViewProps) {
   return (
-    <table>
-      <EventsTableHead />
-      <tbody>
-        {events.map((e) => (
-          <EventRow key={e.id} event={e} />
-        ))}
-        <InfiniteEvents
-          owner={owner}
-          repo={repo}
-          initialOffset={EVENTS_PAGE_SIZE}
-          hasMore={hasMore}
-        />
-      </tbody>
-    </table>
+    <PanelTable>
+      <table>
+        <EventsTableHead />
+        <tbody>
+          {events.map((e) => (
+            <EventRow key={e.id} event={e} />
+          ))}
+          <InfiniteEvents
+            owner={owner}
+            repo={repo}
+            initialOffset={EVENTS_PAGE_SIZE}
+            hasMore={hasMore}
+          />
+        </tbody>
+      </table>
+    </PanelTable>
   );
 }

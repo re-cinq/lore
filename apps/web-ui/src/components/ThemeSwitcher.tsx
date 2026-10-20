@@ -7,6 +7,7 @@ import type { IconName } from "@/lib/icon-map";
 import styles from "./ThemeSwitcher.module.css";
 
 const FAMILIES: { value: ThemeFamily; label: string }[] = [
+  { value: "lore", label: "Lore" },
   { value: "elegant", label: "Elegant" },
   { value: "retro", label: "Retro" },
   { value: "chicago", label: "Classic" },
@@ -109,7 +110,7 @@ interface SchemeOptionProps {
   onSelect: (next: ColorSchemePref) => void;
 }
 
-/** One appearance choice. Icon-only, so the label rides as both `title` and `aria-label` — the icon alone names nothing to a screen reader. */
+/** One appearance choice. Icon-only outside the Lore family, so the label rides as both `title` and `aria-label`; the visible label Lore shows is hidden from screen readers to avoid naming it twice. */
 function SchemeOption({ option, selected, onSelect }: SchemeOptionProps) {
   return (
     <label
@@ -125,6 +126,15 @@ function SchemeOption({ option, selected, onSelect }: SchemeOptionProps) {
         aria-label={option.label}
       />
       <Icon name={option.icon} size={16} />
+      <SchemeName label={option.label} />
     </label>
+  );
+}
+
+function SchemeName({ label }: { label: string }) {
+  return (
+    <span className={styles.schemeLabel} aria-hidden="true">
+      {label}
+    </span>
   );
 }

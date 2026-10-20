@@ -1,39 +1,147 @@
-/* GitLab-pipelines-style assembly-line table — shared by the global list and
-   the per-repo tab. Co-located with AssemblyLineTable.tsx. */
+/* The assembly-run table, shared by the global list and the per-repo tab: one
+   rounded card, a soft header band, roomy rows that stack on a phone. */
 
 .table {
   width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.table th {
+  padding: var(--space-4) var(--space-6);
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-normal);
+  text-align: left;
+  white-space: nowrap;
 }
 .table td {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border);
   vertical-align: top;
-}
-
-/* Status cell */
-
-.ciIcon {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
   font-size: var(--fs-sm);
 }
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-pill);
-  flex: none;
+.table tbody tr:last-child td {
+  border-bottom: none;
 }
-.statusMeta {
+.row {
+  transition: background var(--transition);
+}
+.row:hover {
+  background: var(--bg-hover);
+}
+
+/* Line · repo · branch */
+
+.lineCell {
+  min-width: 0;
+}
+.lineName,
+.lineWhere {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.lineName a {
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+.lineWhere {
   margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+}
+.lineWhere a {
+  color: var(--heading-color);
+}
+.subId {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
+.branch {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+/* A branch name can be a long, unbreakable commit-SHA path; cap it so it never
+   forces the table into horizontal scroll. Full value stays in the title. */
+.branchText {
+  display: inline-block;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 
-/* Status tones — shared by the status dot and the per-stage dots. */
+/* Status: a tinted pill with its dot, where the run stands, why it failed. */
+
+.statusStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.successPill {
+  background: var(--success-bg);
+  color: color-mix(in srgb, var(--success) 45%, var(--text));
+}
+.dangerPill {
+  background: var(--danger-bg);
+  color: color-mix(in srgb, var(--danger) 60%, var(--text));
+}
+.warningPill {
+  background: var(--warning-bg);
+  color: color-mix(in srgb, var(--warning) 45%, var(--text));
+}
+.infoPill,
+.runningPill {
+  background: var(--info-bg);
+  color: var(--accent);
+}
+.dot {
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-pill);
+  flex: none;
+}
+.where {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.reason {
+  display: block;
+  max-width: 40ch;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+  color: color-mix(in srgb, var(--danger) 60%, var(--text));
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+/* Status tones — the status dot. */
 .success {
   background: var(--success);
 }
@@ -52,184 +160,81 @@
 .muted {
   background: var(--text-muted);
 }
-
-/* Assembly-line cell */
-
-.runTitle {
-  display: block;
-  max-width: 48ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: var(--fw-semibold);
-  margin-bottom: var(--space-2);
+@media (prefers-reduced-motion: no-preference) {
+  .running {
+    animation: livePulse var(--pulse-duration) ease-in-out infinite;
+  }
 }
-.runId {
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-}
-.metaRow {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-.metaBadge {
-  background: var(--bg-hover);
-  border-radius: var(--radius-sm);
-  padding: 1px var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-}
-.prCell {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
+@keyframes livePulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
-/* Created-by avatar */
+/* Stages strip and PR */
 
-.avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-pill);
-  background: var(--bg-hover);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-}
-
-/* Stages mini-graph */
-
-.miniGraph {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.stage {
-  position: relative;
-  display: inline-block;
-}
-.stageSummary {
-  cursor: pointer;
-  list-style: none;
-}
-.stageSummary::-webkit-details-marker {
-  display: none;
-}
-.stageDot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: var(--radius-pill);
-  border: 2px solid var(--bg-surface);
-  box-shadow: 0 0 0 1px var(--border);
-}
-.stagePanel {
-  position: absolute;
-  top: 130%;
-  left: 0;
-  z-index: var(--z-dropdown);
-  min-width: 220px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-3) var(--space-4);
-  box-shadow: var(--shadow-lg);
-}
-.stagePanelHead {
-  font-weight: var(--fw-bold);
-  font-size: var(--fs-xs);
-  margin-bottom: var(--space-3);
-}
-.stageLink {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.stageDesc {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 28ch;
-}
-
-/* Actions */
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.actionLink {
-  font-size: var(--fs-sm);
-}
-.runNowForm {
-  display: inline;
-}
-.runNowBtn {
-  background: var(--accent);
-  color: var(--text-on-accent);
-  border: none;
-  padding: var(--space-1) var(--space-4);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--fs-xs);
-}
-
-.emptyCell {
-  text-align: center;
-}
-
-/* run-keyed additions */
-.empty {
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  padding: var(--space-4, 1rem) 0;
-}
-.subId {
-  margin-left: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-}
-.reason {
-  display: block;
-  font-size: var(--fs-xs);
-  color: var(--danger);
+.stages {
+  min-width: 9rem;
+  padding-top: var(--space-6);
 }
 .pr {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
 }
-.branch {
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
+
+.empty {
   color: var(--text-muted);
+  font-size: var(--fs-sm);
+  padding: var(--space-5) 0;
 }
-/* A branch name can be a long, unbreakable commit-SHA path; cap it so it never
-   forces the table into horizontal scroll. Full value stays in the title. */
-.branchText {
-  display: inline-block;
-  max-width: 24ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.table .empty {
+  padding: var(--space-6);
 }
-.skipToggle {
-  background: none;
+/* Doubled class: the Lore family's button rule carries a type selector too. */
+.skipToggle.skipToggle {
+  width: 100%;
+  min-height: 0;
+  padding: var(--space-4) var(--space-6);
   border: none;
-  padding: var(--space-3) 0;
+  border-radius: 0;
+  background: var(--sidebar-bg);
   color: var(--text-muted);
   font-size: var(--fs-xs);
+  text-align: left;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
-.skipToggle:hover {
+.skipToggle.skipToggle:hover {
+  background: var(--bg-hover);
   color: var(--text);
+}
+.table tfoot td {
+  padding: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+}
+
+/* A phone: the header goes, each run becomes a wrapped card of its facts. */
+@media (max-width: 720px) {
+  .table thead {
+    display: none;
+  }
+  .table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-5);
+    padding: var(--space-5);
+    border-bottom: 1px solid var(--border);
+  }
+  .table tbody td {
+    padding: 0;
+    border: none;
+  }
+  .lineCell {
+    flex: 1 1 100%;
+  }
+  .stages {
+    flex: 1 1 100%;
+    padding-top: 0;
+  }
 }

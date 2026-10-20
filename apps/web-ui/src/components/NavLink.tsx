@@ -1,12 +1,16 @@
 "use client";
 
 import Link, { useLinkStatus } from "next/link";
+import Icon from "@/components/Icon";
+import type { IconName } from "@/lib/icon-map";
 
 interface NavLinkProps {
   href: string;
   label: string;
   active: boolean;
   className?: string;
+  /** Drawn before the label; the label stays the link's accessible name. */
+  icon?: IconName;
 }
 
 export default function NavLink({
@@ -14,6 +18,7 @@ export default function NavLink({
   label,
   active,
   className,
+  icon,
 }: NavLinkProps) {
   const classes = [className, active ? "active" : ""].filter(Boolean).join(" ");
 
@@ -23,6 +28,7 @@ export default function NavLink({
       className={classes}
       aria-current={active ? "page" : undefined}
     >
+      {icon && <Icon name={icon} size={18} />}
       <NavLabelLive label={label} />
     </Link>
   );

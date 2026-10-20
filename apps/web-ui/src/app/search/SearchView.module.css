@@ -1,22 +1,101 @@
-.repoFilter {
+.page {
+  max-width: 68rem;
+}
+
+/* The query, the repo and the button share one pill-shaped field. */
+.field {
   display: flex;
-  gap: var(--space-3);
+  flex-wrap: wrap;
   align-items: center;
-  margin-bottom: var(--space-3);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
 }
 
-.repoSelect {
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--fg);
+.fieldIcon {
+  color: var(--text-muted);
 }
 
-.resultCount {
+.field .query {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: var(--space-4) 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+
+.field .repoSelect {
+  padding: var(--space-3) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-weight: var(--fw-medium);
+}
+
+.field .submit {
+  border-radius: var(--radius-pill);
+}
+
+.field:focus-within {
+  border-color: var(--accent);
+}
+
+.sourceBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
   margin-bottom: var(--space-5);
 }
 
-.repoBadge {
-  margin-left: var(--space-3);
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.chip:hover {
+  background: var(--pill-bg-hover);
+  text-decoration: none;
+}
+
+.chip[aria-current="true"] {
+  background: var(--primary);
+  color: var(--text-on-accent);
+}
+
+.chipCount {
+  opacity: 0.7;
+}
+
+.resultCount {
+  margin: 0 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
