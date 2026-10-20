@@ -12,16 +12,19 @@ const TARGET = {
 const saved = {
   url: process.env.LORE_INGEST_URL,
   token: process.env.LORE_INGEST_TOKEN,
+  stationToken: process.env.LORE_STATION_TOKEN,
 };
 
 beforeEach(() => {
   process.env.LORE_INGEST_URL = "https://lore.example.test";
   process.env.LORE_INGEST_TOKEN = "test-ingest-token";
+  delete process.env.LORE_STATION_TOKEN;
 });
 
 afterEach(() => {
   restore("LORE_INGEST_URL", saved.url);
   restore("LORE_INGEST_TOKEN", saved.token);
+  restore("LORE_STATION_TOKEN", saved.stationToken);
 });
 
 function restore(name: string, value: string | undefined): void {
@@ -37,6 +40,7 @@ function scene(overrides: Partial<EnrolRepoDeps> = {}) {
   const commits: string[] = [];
   const labels: string[] = [];
   const configured: string[] = [];
+  const secretValues: string[] = [];
   const audited: AuditLogEntry[] = [];
   const deps: EnrolRepoDeps = {
     repo: {
@@ -53,8 +57,9 @@ function scene(overrides: Partial<EnrolRepoDeps> = {}) {
 
         return Promise.resolve();
       },
-      setRepoSecret: (name) => {
+      setRepoSecret: (name, value) => {
         configured.push(name);
+        secretValues.push(value);
 
         return Promise.resolve();
       },
@@ -74,7 +79,7 @@ function scene(overrides: Partial<EnrolRepoDeps> = {}) {
     ...overrides,
   };
 
-  return { deps, commits, labels, configured, audited };
+  return { deps, commits, labels, configured, secretValues, audited };
 }
 
 describe("enrolRepo", () => {
@@ -154,6 +159,15 @@ describe("enrolRepo", () => {
         repo: "re-cinq/app",
       },
     ]);
+  });
+
+  it("writes LORE_STATION_TOKEN as the repo secret when set, since stations' own LORE_INGEST_TOKEN is not a lore-api token", async () => {
+    process.env.LORE_STATION_TOKEN = "lore-api-token";
+    const { deps, secretValues } = scene();
+
+    await enrolRepo(deps, TARGET);
+
+    expect(secretValues).toEqual(["lore-api-token"]);
   });
 
   it("reports an unset LORE_INGEST_TOKEN as a gap instead of writing an empty secret", async () => {

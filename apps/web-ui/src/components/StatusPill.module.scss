@@ -1,9 +1,24 @@
+/* A pill with a tone dot, as Lore v2 draws every status: the dot carries the
+   tone's strong colour, the pill its soft background. */
 .pill {
-  display: inline-block;
-  padding: var(--space-1) var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-pill);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
+  line-height: var(--lh-base);
+  white-space: nowrap;
+}
+
+.pill::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
 }
 
 .ok {
@@ -26,13 +41,43 @@
   color: var(--info);
 }
 
-/* Parked, not executing: warning tone, never the running blue. */
+.running::before {
+  animation: pill-pulse 1.6s ease-in-out infinite;
+}
+
+/* Parked on a person, not executing: the wait tone where a theme has one,
+   the warning tone otherwise — never the running blue. */
 .waiting {
-  background: var(--warning-bg);
-  color: var(--warning);
+  background: var(--wait-bg, var(--warning-bg));
+  color: var(--wait, var(--warning));
 }
 
 .idle {
   border: 1px solid var(--border);
   color: var(--text-muted);
+}
+
+.idle::before {
+  background: var(--border-hover);
+}
+
+:global([data-theme-family="lore"]) .pill {
+  font-weight: var(--fw-medium);
+}
+
+:global([data-theme-family="lore"]) .idle {
+  border: none;
+  background: var(--bg-hover);
+}
+
+@keyframes pill-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .running::before {
+    animation: none;
+  }
 }

@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SpendView, { anthropicEstimate, type SpendWindow } from "./SpendView";
+import { num, usd } from "./spend-format";
 
 const NO_UNITS = {
   count: 0,
@@ -11,11 +12,6 @@ const NO_UNITS = {
   most: [],
   least: [],
 };
-
-const usd = (n: number) =>
-  Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
-
-const num = (n: number) => Number(n).toLocaleString();
 
 const day = (isoDay: string) => {
   const [year, month, dayOfMonth] = isoDay.split("-");

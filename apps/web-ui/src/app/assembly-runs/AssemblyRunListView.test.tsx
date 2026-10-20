@@ -16,7 +16,7 @@ describe("AssemblyRunListView", () => {
     render(<AssemblyRunListView runs={[]} />);
 
     expect(
-      screen.getByRole("heading", { name: "Assembly Runs" }),
+      screen.getByRole("heading", { name: "Assembly runs" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Create Task/ })).toBeNull();
   });

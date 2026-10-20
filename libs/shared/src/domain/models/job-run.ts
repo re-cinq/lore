@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../../lib/row.js";
 
-/** `pipeline.job_runs` — one scheduled-job invocation's lifecycle; Floor scheduler stamps a `running` row on start and closes it on completion or failure. */
+/* `pipeline.job_runs` — one scheduled-job invocation's lifecycle; Floor scheduler stamps a `running` row on start and closes it on completion or failure. */
 
 /** What the scheduler writes; the column has no CHECK, so `status` stays TEXT rather than claim a union the database doesn't enforce. */
 export const JobRunStatusSchema = z.enum(["running", "completed", "failed"]);

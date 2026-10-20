@@ -51,9 +51,9 @@
 
 .summary {
   margin-bottom: var(--space-5);
-  padding: var(--space-4);
+  padding: var(--space-5);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--bg-surface);
 }
 
@@ -92,9 +92,9 @@
 
 .card {
   margin-bottom: var(--space-4);
-  padding: var(--space-4) var(--space-4);
+  padding: var(--space-5);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--bg-surface);
 }
 
@@ -158,6 +158,6 @@
   margin-top: var(--space-4);
   padding: var(--space-5);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--bg-surface);
 }

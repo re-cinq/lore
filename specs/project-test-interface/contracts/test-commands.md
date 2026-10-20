@@ -39,7 +39,7 @@ run: "npm run consumer"
 Such an entry is kept as a run-whole entry rather than rejected; an unknown
 `coverage_format` is ignored rather than dropping the entry, and an entry with
 no usable `run` is skipped without discarding its valid siblings. Polyglot
-monorepos may declare a list of manifests, each with its own `cwd`.
+monorepos may declare a list of manifests, each with its own `cwd`. ([validated by TestParseManifestAcceptsMultiEntryManifest](apps/lore-code-trace/manifest.acceptance.test.go#L9))
 
 ## `tests.list` — enumerate available tests
 

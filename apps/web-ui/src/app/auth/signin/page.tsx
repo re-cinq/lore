@@ -1,12 +1,15 @@
 "use client";
 import { signIn } from "next-auth/react";
+import BrandLockup from "@/components/BrandLockup";
 import styles from "./page.module.css";
 
 export default function SignIn() {
   return (
     <div className={styles.wrap}>
       <div className={styles.panel}>
-        <h1 className={styles.title}>Lore</h1>
+        <h1 className={styles.title} aria-label="Lore">
+          <BrandLockup />
+        </h1>
         <p className={styles.subtitle}>Sign in to access the platform</p>
         <button
           onClick={() => void signIn("github", { callbackUrl: "/" })}

@@ -252,3 +252,21 @@ commit. Otherwise `-target` the rest of the stack and leave the secrets standing
 a rebuilt platform re-attaches to them with no re-seeding.
 
 All state is in Terraform. Secrets are in GCP Secret Manager. Task history is in PostgreSQL (back up separately).
+
+## Running on ARM64
+
+Lore, the ai-agent-subsystem, and the floor run natively on ARM64 machines (Apple Silicon, Graviton, Ampere) without emulation. Docker picks the right architecture automatically with no `--platform` flag needed.
+
+- **Lore images**: `lore-api`, `lore-mcp`, `lore-stations`, `lore-ui`, and `lore-agent` are multi-arch.
+- **ai-agent-subsystem**: its `images.yml` builds `linux/amd64` and `linux/arm64`.
+- **floor**: both its release tags (`publish.yml`) and dev images (`build.yml`) are multi-arch.
+
+Local dev on Apple Silicon is fully supported; the Dgraph compose service runs natively.
+
+To verify a specific image's supported platforms, use:
+```bash
+docker buildx imagetools inspect <image>
+```
+If multi-arch, the output lists `linux/arm64` among its platforms.
+
+> **Note**: The GKE cluster itself stays on amd64 nodes. This section is for people running the stack on ARM machines of their own.

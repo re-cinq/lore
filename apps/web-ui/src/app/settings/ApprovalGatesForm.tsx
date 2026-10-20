@@ -1,4 +1,6 @@
 import { SubmitButton } from "@/components/SubmitButton";
+import { SettingsCard } from "@/components/SettingsCard";
+import Switch from "@/components/Switch";
 import styles from "./SettingsView.module.css";
 import type { SettingsViewProps } from "./SettingsView";
 
@@ -9,26 +11,31 @@ type ApprovalGatesFormProps = Pick<
 
 /** The gate that makes a human add a label before an agent picks a task up, plus the two ways around it: per-task-type and per-repo. */
 export default function ApprovalGatesForm(props: ApprovalGatesFormProps) {
+  return (
+    <SettingsCard
+      id="set-approval"
+      title="Approval gates"
+      description="Whether a person must approve a task before an agent picks it up, and the two ways around it."
+    >
+      <ApprovalForm {...props} />
+    </SettingsCard>
+  );
+}
+
+function ApprovalForm(props: ApprovalGatesFormProps) {
   const { approvalConfig, repoLines, saveApprovalConfig } = props;
 
   return (
-    <>
-      <h2 className={styles.sectionHeading}>Approval Gates</h2>
-      <form action={saveApprovalConfig} className={`task-form ${styles.form}`}>
-        <GateToggle approvalConfig={approvalConfig} />
-
-        <GateExemptions
-          autoApprove={approvalConfig.auto_approve}
-          repoLines={repoLines}
-        />
-
-        <div className={styles.actions}>
-          <SubmitButton pendingLabel="Saving…">
-            Save Approval Config
-          </SubmitButton>
-        </div>
-      </form>
-    </>
+    <form action={saveApprovalConfig} className={`task-form ${styles.form}`}>
+      <GateToggle approvalConfig={approvalConfig} />
+      <GateExemptions
+        autoApprove={approvalConfig.auto_approve}
+        repoLines={repoLines}
+      />
+      <div className={styles.actions}>
+        <SubmitButton pendingLabel="Saving…">Save approval gates</SubmitButton>
+      </div>
+    </form>
   );
 }
 
@@ -46,33 +53,26 @@ function GateToggle({ approvalConfig }: GateToggleProps) {
 
 function GateRequiredField({ required }: { required: boolean }) {
   return (
-    <>
-      <label className={styles.checkboxLabel}>
-        <input
-          type="checkbox"
-          name="approval_required"
-          defaultChecked={required}
-        />
-        Require approval for new tasks
-      </label>
-      <p className={`meta ${styles.fieldNote}`}>
-        When enabled, new pipeline tasks will wait for a human to add the
-        approval label on the GitHub Issue before the agent processes them.
-      </p>
-    </>
+    <Switch
+      name="approval_required"
+      defaultChecked={required}
+      label="Require approval for new tasks"
+      detail="New pipeline tasks wait for a human to add the approval label on the GitHub Issue before the agent processes them."
+    />
   );
 }
 
 function ApprovalLabelField({ label }: { label: string }) {
   return (
     <>
-      <label className={styles.labelSpaced}>Approval Label</label>
+      <label htmlFor="approval_label">Approval label</label>
       <input
+        id="approval_label"
         name="approval_label"
         defaultValue={label}
         placeholder="approved"
       />
-      <p className={`meta ${styles.fieldNote}`}>
+      <p className={styles.fieldNote}>
         The GitHub Issue label that approves a task. The agent checks for this
         label every minute.
       </p>
@@ -99,15 +99,16 @@ function GateExemptions({ autoApprove, repoLines }: GateExemptionsProps) {
 function AutoApproveField({ autoApprove }: { autoApprove: string[] }) {
   return (
     <>
-      <label className={styles.labelSpaced}>
-        Auto-approve Task Types (comma-separated)
+      <label htmlFor="auto_approve">
+        Auto-approve task types (comma-separated)
       </label>
       <input
+        id="auto_approve"
         name="auto_approve"
         defaultValue={autoApprove.join(", ")}
         placeholder="general, gap-fill"
       />
-      <p className={`meta ${styles.fieldNote}`}>
+      <p className={styles.fieldNote}>
         These task types skip the approval gate and are processed immediately,
         even when approval is required globally.
       </p>
@@ -123,10 +124,11 @@ interface ApprovalReposFieldProps {
 function ApprovalReposField({ repoLines }: ApprovalReposFieldProps) {
   return (
     <>
-      <label className={styles.labelSpaced}>
-        Repos Requiring Approval (one per line, owner/repo)
+      <label htmlFor="approval_repos">
+        Repos requiring approval (one per line, owner/repo)
       </label>
       <textarea
+        id="approval_repos"
         name="approval_repos"
         defaultValue={repoLines}
         rows={4}
@@ -140,7 +142,7 @@ function ApprovalReposField({ repoLines }: ApprovalReposFieldProps) {
 
 function ApprovalReposNote() {
   return (
-    <p className={`meta ${styles.fieldNote}`}>
+    <p className={styles.fieldNote}>
       Per-repo overrides. Tasks targeting these repos always require approval,
       regardless of the global setting. Leave empty to use only the global
       toggle.

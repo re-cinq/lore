@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
 import styles from "./GraphView.module.css";
 import type { components } from "@/lib/api/schema";
-import DataTable from "@/components/DataTable";
+import ScreenHeader from "@/components/ScreenHeader";
+import FilterChips, { type FilterChip } from "@/components/FilterChips";
+import { StatusPill } from "@/components/StatusPill";
+import { entityTone, graphHref } from "./entity-tone";
 
 // Aliases over /api/graph-browse; Entity/Edge include subqueries, route states them.
 
@@ -12,8 +14,10 @@ export type Edge = Browse["edges"][number];
 export type Stats = Browse["stats"];
 export type EntityTypeCount = Browse["entity_types"][number];
 
-const TYPE_BADGE = "op-badge";
-const TYPE_BADGE_ACTIVE = "op-badge op-search";
+const LEDE =
+  "Built from episodes and memories. Entities and relationships are extracted automatically; a relationship that stops holding is invalidated, not deleted.";
+
+const NO_ENTITIES = "No entities yet. Write episodes to populate the graph.";
 
 export interface GraphViewProps {
   /** The selected entity name, or undefined when none is being explored. */
@@ -29,38 +33,23 @@ export interface GraphViewProps {
 }
 
 /** Knowledge graph explorer; pure render with memory.* queries from container. */
-export default function GraphView({
-  entity,
-  type,
-  showInvalid,
-  stats,
-  entityTypes,
-  entities,
-  edges,
-}: GraphViewProps) {
+export default function GraphView(props: GraphViewProps) {
+  const { entity, type, stats, entityTypes, entities } = props;
+
   return (
     <div>
-      <GraphHeading />
+      <ScreenHeader group="knowledge" title="Knowledge graph" lede={LEDE} />
       <GraphStats stats={stats} />
       <TypeFilters entityTypes={entityTypes} type={type} />
-      <EntityTable entities={entities} entity={entity} type={type} />
-      <EdgeTable entity={entity} edges={edges} showInvalid={showInvalid} />
+      <div className={styles.split}>
+        <EntityList entities={entities} entity={entity} type={type} />
+        {entities.length > 0 || entity ? <RelationsPanel {...props} /> : null}
+      </div>
     </div>
   );
 }
 
-function GraphHeading() {
-  return (
-    <>
-      <h1>Knowledge Graph</h1>
-      <p className={`meta ${styles.intro}`}>
-        Live knowledge graph built from episodes and memories. Entities and
-        relationships are extracted automatically.
-      </p>
-    </>
-  );
-}
-
+/** The three graph totals; the first is the lead figure, so it is filled. */
 function GraphStats({ stats }: Pick<GraphViewProps, "stats">) {
   const cards: [number, string][] = [
     [stats.entity_count, "Entities"],
@@ -69,15 +58,20 @@ function GraphStats({ stats }: Pick<GraphViewProps, "stats">) {
   ];
 
   return (
-    <div className={styles.statRow}>
-      {cards.map(([value, label]) => (
-        <div className="stat-card" key={label}>
-          <div className="stat-value">{value}</div>
-          <div className="stat-label">{label}</div>
+    <div className={styles.stats}>
+      {cards.map(([value, label], i) => (
+        <div className={i === 0 ? styles.statLead : styles.stat} key={label}>
+          <span className={styles.statLabel}>{label}</span>
+          <span className={styles.statValue}>{formatCount(value)}</span>
         </div>
       ))}
     </div>
   );
+}
+
+/** A count as the reader expects it; a missing figure reads as nought. */
+function formatCount(value: number | undefined): string {
+  return Number.isFinite(value) ? Number(value).toLocaleString() : "0";
 }
 
 type TypeFiltersProps = Pick<GraphViewProps, "entityTypes" | "type">;
@@ -87,158 +81,207 @@ function TypeFilters({ entityTypes, type }: TypeFiltersProps) {
   if (entityTypes.length === 0) {
     return null;
   }
+  const chips: FilterChip[] = [
+    { label: "all", href: "/graph", active: !type, tone: "neutral" },
+    ...entityTypes.map((t) => ({
+      label: t.entity_type,
+      href: graphHref({ type: t.entity_type }),
+      active: type === t.entity_type,
+      count: t.cnt,
+      tone: entityTone(t.entity_type),
+    })),
+  ];
 
+  return <FilterChips label="Entity types" chips={chips} />;
+}
+
+type EntityListProps = Pick<GraphViewProps, "entities" | "entity" | "type">;
+
+function EntityList({ entities, entity, type }: EntityListProps) {
   return (
-    <div className={styles.filterRow}>
-      <a href="/graph" className={type ? TYPE_BADGE : TYPE_BADGE_ACTIVE}>
-        all
-      </a>
-      {entityTypes.map((t) => (
-        <TypeFilterLink
-          key={t.entity_type}
-          entityType={t}
-          active={type === t.entity_type}
-        />
-      ))}
-    </div>
+    <section className={`${styles.card} ${styles.entities}`}>
+      <header className={styles.cardHead}>
+        <h2 className={styles.cardTitle}>Entities</h2>
+        <span className={styles.hint}>Select one to explore</span>
+      </header>
+      <EntityRows entities={entities} entity={entity} type={type} />
+    </section>
   );
 }
 
-interface TypeFilterLinkProps {
-  entityType: EntityTypeCount;
-  active: boolean;
+function EntityRows({ entities, entity, type }: EntityListProps) {
+  if (entities.length === 0) {
+    return <p className={styles.empty}>{NO_ENTITIES}</p>;
+  }
+  const selected = entity?.toLowerCase();
+
+  return (
+    <ul className={styles.entityList}>
+      {entities.map((e) => (
+        <EntityRow
+          key={e.id}
+          entity={e}
+          type={type}
+          selected={selected === e.name.toLowerCase()}
+        />
+      ))}
+    </ul>
+  );
 }
 
-function TypeFilterLink({ entityType, active }: TypeFilterLinkProps) {
+interface EntityRowProps {
+  entity: Entity;
+  type: GraphViewProps["type"];
+  selected: boolean;
+}
+
+/** One entity, as the link that recentres the graph on it. The type filter is carried into that link so exploring an entity does not silently widen the view back to every type. */
+function EntityRow({ entity, type, selected }: EntityRowProps) {
+  return (
+    <li>
+      <a
+        href={graphHref({ entity: entity.name, type })}
+        aria-current={selected ? "true" : undefined}
+        className={styles.entityRow}
+        title={`Updated ${new Date(entity.updated_at).toLocaleDateString()}`}
+      >
+        <EntityName entity={entity} />
+        <StatusPill
+          label={entity.entity_type}
+          tone={entityTone(entity.entity_type)}
+        />
+        <span className={styles.entityEdges}>{entity.edge_count} edges</span>
+      </a>
+    </li>
+  );
+}
+
+/** The entity's name over the repo it belongs to, or a dash for none. */
+function EntityName({ entity }: { entity: Entity }) {
+  return (
+    <span className={styles.entityName}>
+      <strong>{entity.name}</strong>
+      <span className={styles.muted}>{entity.repo || "—"}</span>
+    </span>
+  );
+}
+
+/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. Relationships need an entity to hang off, so with none selected the panel only says how to get some. */
+function RelationsPanel({ entity, type, edges, showInvalid }: GraphViewProps) {
+  if (!entity) {
+    return <RelationsIdle />;
+  }
+
+  return (
+    <section className={`${styles.card} ${styles.panel}`}>
+      <header className={styles.panelHead}>
+        <h2 className={styles.panelTitle}>
+          <span className={styles.panelEyebrow}>Relationships for</span>{" "}
+          <span className={styles.panelName}>{entity}</span>
+        </h2>
+        <span className={styles.panelActions}>
+          <EntityPageLink entity={entity} />
+          <InvalidEdgesToggle query={{ entity, type, showInvalid }} />
+        </span>
+      </header>
+      <EdgeList edges={edges} />
+    </section>
+  );
+}
+
+/** The entity's own page: its relationships over time and what Lore knows about it. */
+function EntityPageLink({ entity }: { entity: string }) {
   return (
     <a
-      href={`/graph?type=${entityType.entity_type}`}
-      className={active ? TYPE_BADGE_ACTIVE : TYPE_BADGE}
+      href={`/entities/${encodeURIComponent(entity)}`}
+      className={styles.toggle}
     >
-      {entityType.entity_type} ({entityType.cnt})
+      Open entity page
     </a>
   );
 }
 
-type EntityTableProps = Pick<GraphViewProps, "entities" | "entity" | "type">;
-
-function EntityTable({ entities, entity, type }: EntityTableProps) {
+/** Flips whether invalidated edges are listed, keeping the entity and type. */
+function InvalidEdgesToggle({
+  query,
+}: {
+  query: Parameters<typeof graphHref>[0];
+}) {
   return (
-    <DataTable
-      title="Entities"
-      columns={["Name", "Type", "Repo", "Edges", "Updated", ""]}
-      rows={entities}
-      rowKey={(e) => e.id}
-      rowClass={(e) =>
-        entity?.toLowerCase() === e.name.toLowerCase()
-          ? styles.activeRow
-          : undefined
-      }
-      empty="No entities yet. Write episodes to populate the graph."
-      cells={(e) => entityCells(e, type)}
-    />
+    <a
+      href={graphHref({ ...query, showInvalid: !query.showInvalid })}
+      className={styles.toggle}
+    >
+      {query.showInvalid ? "Hide invalidated" : "Show invalidated edges"}
+    </a>
   );
 }
 
-/** One entity as a row, with the link that recentres the graph on it. The type filter is carried into that link so exploring an entity does not silently widen the view back to every type. */
-function entityCells(
-  entity: GraphViewProps["entities"][number],
-  type: GraphViewProps["type"],
-): ReactNode[] {
-  const exploreHref = `/graph?entity=${encodeURIComponent(entity.name)}${type ? `&type=${type}` : ""}`;
-
-  return [
-    <strong key="name">{entity.name}</strong>,
-    <span className="op-badge" key="type">
-      {entity.entity_type}
-    </span>,
-    entity.repo || "—",
-    entity.edge_count,
-    new Date(entity.updated_at).toLocaleDateString(),
-    <a key="explore" href={exploreHref}>
-      explore
-    </a>,
-  ];
+function RelationsIdle() {
+  return (
+    <section className={`${styles.card} ${styles.panel} ${styles.panelIdle}`}>
+      <p className={styles.muted}>
+        Select an entity to see what it is connected to.
+      </p>
+    </section>
+  );
 }
 
-type EdgeTableProps = Pick<GraphViewProps, "entity" | "edges" | "showInvalid">;
-
-/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. Relationships need an entity to hang off, so with none selected there is nothing to show. */
-function EdgeTable({ entity, edges, showInvalid }: EdgeTableProps) {
-  if (!entity) {
-    return null;
+function EdgeList({ edges }: Pick<GraphViewProps, "edges">) {
+  if (edges.length === 0) {
+    return (
+      <p className={styles.empty}>No relationships found for this entity.</p>
+    );
   }
 
   return (
-    <>
-      <h2>Relationships for &quot;{entity}&quot;</h2>
-      <InvalidEdgesToggle entity={entity} showInvalid={showInvalid} />
-      <DataTable
-        columns={["Source", "Relation", "Target", "Since", "Status", "From"]}
-        rows={edges}
-        rowKey={(_e, i) => String(i)}
-        rowClass={(e) => (e.valid_to ? styles.invalidatedRow : undefined)}
-        empty="No relationships found for this entity."
-        cells={edgeCells}
-      />
-    </>
+    <ul className={styles.edgeList}>
+      {edges.map((e, i) => (
+        <EdgeCard key={i} edge={e} />
+      ))}
+    </ul>
   );
 }
 
-type InvalidEdgesToggleProps = Pick<GraphViewProps, "showInvalid"> & {
-  entity: string;
-};
+/** One relationship. An invalidated edge keeps its dates and is dimmed rather than hidden — that a relationship USED to hold is part of what the graph records. */
+function EdgeCard({ edge }: { edge: Edge }) {
+  const className = edge.valid_to
+    ? `${styles.edge} ${styles.edgeInvalid}`
+    : styles.edge;
 
-function InvalidEdgesToggle({ entity, showInvalid }: InvalidEdgesToggleProps) {
   return (
-    <div className={styles.invalidToggle}>
-      <a
-        href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? "" : "&show_invalid=1"}`}
-        className={styles.invalidToggleLink}
-      >
-        {showInvalid ? "Hide invalidated" : "Show invalidated edges"}
-      </a>
-    </div>
+    <li className={className}>
+      <span className={styles.edgeLine}>
+        <Endpoint name={edge.source_name} entityType={edge.source_type} />
+        <span className={styles.relation}>{edge.relation_type}</span>
+        <Endpoint name={edge.target_name} entityType={edge.target_type} />
+      </span>
+      <span className={styles.edgeMeta}>
+        <EdgeStatus validTo={edge.valid_to} />
+        <span>since {new Date(edge.valid_from).toLocaleDateString()}</span>
+        <span>from {edge.source_label}</span>
+      </span>
+    </li>
   );
-}
-
-/** One relationship row. An invalidated edge keeps its dates and is styled rather than hidden — that a relationship USED to hold is part of what the graph records. */
-function edgeCells(e: GraphViewProps["edges"][number]): ReactNode[] {
-  return [
-    edgeEndpointCell(e.source_name, e.source_type, "source"),
-    <span className="op-badge" key="rel">
-      {e.relation_type}
-    </span>,
-    edgeEndpointCell(e.target_name, e.target_type, "target"),
-    new Date(e.valid_from).toLocaleDateString(),
-    edgeStatusCell(e.valid_to),
-    <span className="meta" key="from">
-      {e.source_label}
-    </span>,
-  ];
 }
 
 /** One end of a relationship: the entity's name, with its type alongside. */
-function edgeEndpointCell(
-  name: Edge["source_name"],
-  entityType: Edge["source_type"],
-  key: string,
-): ReactNode {
+function Endpoint(props: { name: string; entityType: string }) {
   return (
-    <span key={key}>
-      <strong>{name}</strong> <span className="meta">({entityType})</span>
+    <span className={styles.endpoint}>
+      <strong>{props.name}</strong>{" "}
+      <span className={styles.endpointType}>{props.entityType}</span>
     </span>
   );
 }
 
-function edgeStatusCell(validTo: Edge["valid_to"]): ReactNode {
+function EdgeStatus({ validTo }: { validTo: Edge["valid_to"] }) {
   return validTo ? (
-    <span className="op-badge op-delete" key="status">
-      invalidated {new Date(validTo).toLocaleDateString()}
-    </span>
+    <StatusPill
+      tone="err"
+      label={`invalidated ${new Date(validTo).toLocaleDateString()}`}
+    />
   ) : (
-    <span className="op-badge op-write" key="status">
-      active
-    </span>
+    <StatusPill tone="ok" label="active" />
   );
 }

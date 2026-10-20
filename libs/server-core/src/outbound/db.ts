@@ -9,6 +9,10 @@ import {
 } from "@re-cinq/lore-shared";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { extractKeyTerms } from "@re-cinq/lore-shared/project/knowledge/context-assembly-items.js";
+import {
+  buildHybridCorpusOrgWideSQL,
+  buildHybridCorpusBoundSQL,
+} from "@re-cinq/lore-shared/project/knowledge/hybrid-rrf-core.js";
 
 // Re-exported from shared embedding-service singleton for back-compat.
 export { getQueryEmbedding, embeddingHealth, embedderDegraded };
@@ -107,9 +111,10 @@ async function runHybridSQL(options: {
 }): Promise<SearchResult[]> {
   const { embedding, keywordQuery, schema, limit, repo } = options;
   const embeddingStr = `[${embedding.join(",")}]`;
-  const sql = repo
-    ? buildRepoBoundHybridSearchSQL(schema)
-    : buildHybridSearchSQL(schema);
+  const sql =
+    repo !== undefined
+      ? buildHybridCorpusBoundSQL(schema)
+      : buildHybridCorpusOrgWideSQL(schema);
   const params: unknown[] = [embeddingStr, keywordQuery, limit];
 
   if (repo) {
@@ -150,60 +155,4 @@ function normalizeSearchScores(rows: SearchResult[]): SearchResult[] {
   }
 
   return rows.map((r) => ({ ...r, rrf_score: r.rrf_score / max }));
-}
-
-// eslint-disable-next-line max-lines-per-function -- one SQL statement, returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
-function buildHybridSearchSQL(schema: string): string {
-  return `
-WITH vector_results AS (
-  SELECT id, content, metadata,
-         ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS vec_rank
-  FROM ${schema}.chunks
-  
-  LIMIT 20
-),
-keyword_results AS (
-  SELECT id, content, metadata,
-         ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $2)) DESC) AS kw_rank
-  FROM ${schema}.chunks
-  WHERE search_tsv @@ websearch_to_tsquery('english', $2) 
-  LIMIT 20
-)
-SELECT
-  COALESCE(v.id, k.id) AS id,
-  COALESCE(v.content, k.content) AS content,
-  COALESCE(v.metadata, k.metadata) AS metadata,
-  (COALESCE(1.0 / (60 + v.vec_rank), 0) + COALESCE(1.0 / (60 + k.kw_rank), 0)) AS rrf_score
-FROM vector_results v
-FULL OUTER JOIN keyword_results k ON v.id = k.id
-ORDER BY rrf_score DESC
-LIMIT $3;`;
-}
-
-// eslint-disable-next-line max-lines-per-function -- one SQL statement, returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
-function buildRepoBoundHybridSearchSQL(schema: string): string {
-  return `
-WITH vector_results AS (
-  SELECT id, content, metadata,
-         ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS vec_rank
-  FROM ${schema}.chunks
-  WHERE repo = $4
-  LIMIT 20
-),
-keyword_results AS (
-  SELECT id, content, metadata,
-         ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $2)) DESC) AS kw_rank
-  FROM ${schema}.chunks
-  WHERE search_tsv @@ websearch_to_tsquery('english', $2) AND repo = $4
-  LIMIT 20
-)
-SELECT
-  COALESCE(v.id, k.id) AS id,
-  COALESCE(v.content, k.content) AS content,
-  COALESCE(v.metadata, k.metadata) AS metadata,
-  (COALESCE(1.0 / (60 + v.vec_rank), 0) + COALESCE(1.0 / (60 + k.kw_rank), 0)) AS rrf_score
-FROM vector_results v
-FULL OUTER JOIN keyword_results k ON v.id = k.id
-ORDER BY rrf_score DESC
-LIMIT $3;`;
 }

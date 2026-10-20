@@ -171,3 +171,77 @@
   padding: var(--space-1) 0;
   color: var(--text-muted);
 }
+
+/* ---- Lore v2: the station drawer's body. The "why" reads as the summary line, the facts as a two-column metric grid, a failure as a tinted block. ---- */
+:global([data-theme-family="lore"]) .why {
+  margin: var(--space-4) 0;
+  padding: var(--space-4) var(--space-5);
+  border-left: 0;
+  border-radius: var(--radius);
+  font-size: var(--fs-base);
+}
+:global([data-theme-family="lore"]) .whyIdle {
+  background: var(--bg-hover);
+}
+:global([data-theme-family="lore"]) .facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+}
+:global([data-theme-family="lore"]) .fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-surface);
+}
+:global([data-theme-family="lore"]) .fact dt {
+  text-transform: none;
+  letter-spacing: 0;
+}
+:global([data-theme-family="lore"]) .fact dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+:global([data-theme-family="lore"]) .failures {
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+}
+:global([data-theme-family="lore"]) .failuresHead {
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+:global([data-theme-family="lore"]) .failItem {
+  padding: var(--space-3) var(--space-5);
+  border-top-color: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+:global([data-theme-family="lore"]) .failDetail {
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+:global([data-theme-family="lore"]) .attempts {
+  border-radius: var(--radius);
+}
+:global([data-theme-family="lore"]) .attemptsHead {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--heading-color);
+  background: var(--bg-hover);
+}
+:global([data-theme-family="lore"]) .files {
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+}

@@ -13,7 +13,69 @@
   margin-bottom: var(--space-5);
 }
 
-.toggle {
-  margin-bottom: var(--space-4);
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+/* Nested under .chips so the pill outranks a theme family's blanket button rule. */
+.chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-2) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+.chips button.chip {
   cursor: pointer;
+}
+
+.chips button.chip:hover {
+  background: var(--pill-bg-hover);
+}
+
+.chips .chipOn,
+.chips .chip[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--text-on-accent);
+}
+
+.chipCount {
+  opacity: 0.7;
+}
+
+/* The table and its footnote read as one card. */
+.card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.card table {
+  margin: 0;
+  border: 0;
+}
+
+.agentLink {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.footnote {
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }

@@ -1,0 +1,30 @@
+/* The tab row under the Usage & spend title: a rule under the row, and the
+   active tab underlined in the accent just above it. */
+.tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 2px solid transparent;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition:
+    color var(--transition),
+    border-color var(--transition);
+}
+
+.tab:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.tab[aria-current="page"] {
+  color: var(--heading-color);
+  border-bottom-color: var(--accent);
+}

@@ -4,7 +4,7 @@ import Skeleton from "@/components/Skeleton";
 export default function SearchLoading() {
   return (
     <div role="status" aria-label="Loading search">
-      <h1>Search Memories</h1>
+      <h1>Search</h1>
       <div className={styles.page}>
         <Skeleton height={38} />
         {Array.from({ length: 3 }, (_, i) => (

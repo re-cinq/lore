@@ -5,8 +5,10 @@
   margin-bottom: var(--space-5);
 }
 
-.section {
-  margin-bottom: var(--space-6);
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 .ticket {
@@ -25,7 +27,7 @@
   display: inline-block;
   margin-left: var(--space-2);
   padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-pill);
   font-size: var(--fs-xs);
   color: var(--warning);
   background: var(--warning-bg);
@@ -49,14 +51,18 @@
   th {
     text-align: left;
     font-size: var(--fs-sm);
-    padding: var(--space-3) var(--space-3);
-    border-bottom: 2px solid var(--border);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border);
   }
 
   td {
-    padding: var(--space-3) var(--space-3);
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--border);
     vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
   }
 }
 
@@ -69,28 +75,44 @@
   text-align: right;
 }
 
+/* A status pill in its tone, led by a dot of the same colour. */
 .statusBadge {
-  display: inline-block;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-lg);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
   font-size: var(--fs-xs);
-  color: var(--text-on-accent);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: currentcolor;
+  }
 }
 
 .tone_success {
-  background: var(--success);
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .tone_danger {
-  background: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .tone_info {
-  background: var(--info);
+  background: var(--info-bg);
+  color: var(--info);
 }
 
 .tone_neutral {
-  background: var(--chart-neutral);
+  background: var(--bg-hover);
+  color: var(--text-muted);
 }
 
 .timeAgo {
@@ -119,5 +141,5 @@
 }
 
 .sectionNotice {
-  margin-bottom: var(--space-3);
+  margin-bottom: 0;
 }

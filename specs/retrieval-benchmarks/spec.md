@@ -49,26 +49,33 @@ data volumes.
 
 - FR-2.1: Add a "Retrieval Performance" section to `/analytics`; when no
   latency has been recorded the section renders a "No latency data yet"
-  empty state instead of the table. ([section heading](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L111), [empty-latency state](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L172))
+  empty state instead of the table. ([section heading](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [empty-latency state](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L179))
 - FR-2.2: Show p50, p95, p99 latency per tool for the last 7
-  days. ([validated by `AnalyticsView.test.tsx:149`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L149))
+  days. ([validated by `AnalyticsView.test.tsx:154`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L154))
 - FR-2.3: Show latency trend chart (daily p95).
 - FR-2.4: Highlight tools exceeding the 200ms p95 threshold with a
   `>200ms` badge; tools at or under the threshold show an `OK` badge
-  instead. ([over-threshold badge](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L149), [OK badge under threshold](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L163))
+  instead. ([over-threshold badge](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L154), [OK badge under threshold](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L169))
 - FR-2.5: The `/analytics` page frames the Retrieval Performance table
   among the platform's other usage sections — four task-summary stat
   cards with locale-formatted totals (all zero when the summary is
   null), a usage-by-task-type table and a tasks-by-repo table with
   locale-formatted token and task counts, and a daily-usage table with
   formatted dates — each falling back to its own empty state when it
-  has no rows. ([validated by `AnalyticsView.test.tsx:130`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L130), [`AnalyticsView.test.tsx:144`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L144), [`AnalyticsView.test.tsx:181`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L181), [`AnalyticsView.test.tsx:191`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L191), [`AnalyticsView.test.tsx:198`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L198), [`AnalyticsView.test.tsx:206`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L206), [`AnalyticsView.test.tsx:214`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L214), [`AnalyticsView.test.tsx:226`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L226), [`AnalyticsView.test.tsx:278`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L278))
+  has no rows. ([validated by `AnalyticsView.test.tsx:135`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L135), [`AnalyticsView.test.tsx:149`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L149), [`AnalyticsView.test.tsx:186`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L188), [`AnalyticsView.test.tsx:196`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L198), [`AnalyticsView.test.tsx:203`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L205), [`AnalyticsView.test.tsx:211`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L213), [`AnalyticsView.test.tsx:219`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L221), [`AnalyticsView.test.tsx:231`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L233), [`AnalyticsView.test.tsx:300`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L310))
 - FR-2.6: A Recent Job Runs table lists each run with its name, a
   duration in seconds or minutes, a status badge, and its result
   summary — showing the error in place of the result when the run
   failed, em-dashes for a run that has not completed, and a logs link
   only when a completed run carries a log path — with an empty state
-  when there are no runs. ([validated by `AnalyticsView.test.tsx:233`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L233), [`AnalyticsView.test.tsx:248`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L248), [`AnalyticsView.test.tsx:262`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L262), [`AnalyticsView.test.tsx:271`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L271))
+  when there are no runs. ([validated by `AnalyticsView.test.tsx:255`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L265), [`AnalyticsView.test.tsx:270`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L280), [`AnalyticsView.test.tsx:284`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L294), [`AnalyticsView.test.tsx:293`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L303))
+- FR-2.7: `/analytics` and `/spend` share one "Usage & spend" header — the
+  `{insights}` caption, the title, and an Activity / Spend tab row where each
+  tab is a link to its own route and only the current route's tab is marked
+  as the current page. ([validated by `UsageHeader.test.tsx:7`](apps/web-ui/src/app/analytics/UsageHeader.test.tsx#L7), [`UsageHeader.test.tsx:19`](apps/web-ui/src/app/analytics/UsageHeader.test.tsx#L19), [`UsageHeader.test.tsx:30`](apps/web-ui/src/app/analytics/UsageHeader.test.tsx#L30))
+- FR-2.8: The Activity tab charts LLM calls per day over the window, oldest
+  first, under the window's total call count, and says there were no calls
+  instead of drawing an empty chart. ([validated by `AnalyticsView.test.tsx:238`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L240), [`AnalyticsView.test.tsx:249`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L256))
 
 ### FR-3: Baseline Measurement
 

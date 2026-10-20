@@ -1,6 +1,9 @@
-import { Alert } from "@/components/Alert";
 import { TimeAgo } from "@/components/TimeAgo";
+import Icon from "@/components/Icon";
+import { InsightsHeading } from "@/components/insights/InsightsHeading";
+import { InsightsCard } from "@/components/insights/InsightsCard";
 import type { MemoryAuditEntry } from "@/lib/api/activity";
+import { groupSearches, type SearchGroup } from "./group-searches";
 import styles from "./GapsView.module.css";
 
 export type ZeroResultSearchRow = Pick<
@@ -19,6 +22,17 @@ export interface GapsViewProps {
   zeroResultSearches: ZeroResultSearchRow[];
 }
 
+const DRAFT_PRS_URL =
+  "https://github.com/re-cinq/lore/pulls?q=label:context-gap-draft";
+
+const LEDE = (
+  <>
+    Context the org is missing, across all repos: what the gap agent found, and
+    what people searched for and got nothing back. For one repo&apos;s gaps,
+    open it from <a href="/">Repositories</a>.
+  </>
+);
+
 /** Gap detection view; pure render with audit_log and memories from container (read-only). */
 export default function GapsView({
   gapMemories,
@@ -26,38 +40,33 @@ export default function GapsView({
 }: GapsViewProps) {
   return (
     <div>
-      <h1>Gap Detection</h1>
-      <div className={styles.notice}>
-        <p className={`meta ${styles.noticeText}`}>
-          This is the global view across all repos. For repo-specific gaps,
-          visit <a href="/">Repositories</a> and select a repo.
-        </p>
-      </div>
-
-      <DraftPrsSection />
-
+      <InsightsHeading title="Gaps" lede={LEDE} />
+      <DraftPrsBanner />
       <AgentFindings gapMemories={gapMemories} />
       <ZeroResultSearches zeroResultSearches={zeroResultSearches} />
     </div>
   );
 }
 
-/** Where the gap agent's own output goes. The PRs live on GitHub rather than in this page, so the section is a signpost — there is nothing here to act on. */
-function DraftPrsSection() {
+const BANNER_NOTE =
+  "The gap agent opens a draft PR when it finds missing context. They live on GitHub under the context-gap-draft label.";
+
+/** Where the gap agent's own output goes. The PRs live on GitHub rather than in this page, so the banner is a signpost. */
+function DraftPrsBanner() {
   return (
-    <section className={styles.section}>
-      <h2>Context Gap Draft PRs</h2>
-      <p className="meta">
-        The gap detection agent creates draft PRs when it identifies missing
-        context.
-      </p>
+    <section className={styles.banner} aria-label="Context gap draft PRs">
+      <span className={styles.bannerText}>
+        <h2 className={styles.bannerTitle}>Draft PRs fill context gaps</h2>
+        <span className={styles.bannerNote}>{BANNER_NOTE}</span>
+      </span>
       <a
-        href="https://github.com/re-cinq/lore/pulls?q=label:context-gap-draft"
+        href={DRAFT_PRS_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className={styles.draftLink}
+        className={styles.bannerLink}
       >
-        View context-gap-draft PRs on GitHub &rarr;
+        View on GitHub
+        <Icon name="external" size={14} />
       </a>
     </section>
   );
@@ -65,14 +74,18 @@ function DraftPrsSection() {
 
 function AgentFindings({ gapMemories }: Pick<GapsViewProps, "gapMemories">) {
   return (
-    <section className={styles.section}>
-      <h2>Gap Detection Agent Findings</h2>
+    <section className={styles.findings} aria-label="Gap agent findings">
+      <h2 className={styles.findingsTitle}>Gap agent findings</h2>
       {gapMemories.length === 0 ? (
-        <Alert variant="secondary">
+        <p className={`meta ${styles.empty}`}>
           No findings from the gap detection agent yet.
-        </Alert>
+        </p>
       ) : (
-        gapMemories.map((mem, i) => <GapFindingCard key={i} memory={mem} />)
+        <div className={styles.findingGrid}>
+          {gapMemories.map((mem, i) => (
+            <GapFindingCard key={i} memory={mem} />
+          ))}
+        </div>
       )}
     </section>
   );
@@ -80,13 +93,13 @@ function AgentFindings({ gapMemories }: Pick<GapsViewProps, "gapMemories">) {
 
 function GapFindingCard({ memory }: { memory: GapMemoryRow }) {
   return (
-    <div className="spec-card">
-      <h3>{memory.key}</h3>
-      <span className="meta">
+    <article className={styles.finding}>
+      <span className={`meta ${styles.findingWhen}`}>
         <TimeAgo date={memory.created_at} />
       </span>
-      <pre className={styles.findingValue}>{memory.value}</pre>
-    </div>
+      <h3 className={styles.findingKey}>{memory.key}</h3>
+      <p className={styles.findingValue}>{memory.value}</p>
+    </article>
   );
 }
 
@@ -94,60 +107,43 @@ function GapFindingCard({ memory }: { memory: GapMemoryRow }) {
 function ZeroResultSearches({
   zeroResultSearches,
 }: Pick<GapsViewProps, "zeroResultSearches">) {
+  const groups = groupSearches(zeroResultSearches);
+
   return (
-    <section>
-      <h2>Zero-Result Searches</h2>
-      <p className="meta">
-        Searches that returned no results indicate potential gaps in
-        organizational context.
-      </p>
-      {zeroResultSearches.length === 0 ? (
-        <Alert variant="secondary">No zero-result searches recorded.</Alert>
+    <InsightsCard
+      title="Zero-result searches"
+      caption="Most recent searches · grouped by query"
+      flush
+    >
+      {groups.length === 0 ? (
+        <p className={`meta ${styles.emptyRow}`}>
+          No zero-result searches recorded.
+        </p>
       ) : (
-        <SearchesTable zeroResultSearches={zeroResultSearches} />
+        <SearchList groups={groups} />
       )}
-    </section>
+    </InsightsCard>
   );
 }
 
-/** The searches that came back empty, newest first. Rows are keyed by index because a search has no id of its own — two identical queries a minute apart are two separate signals, not one. */
-function SearchesTable({
-  zeroResultSearches,
-}: Pick<GapsViewProps, "zeroResultSearches">) {
+function SearchList({ groups }: { groups: SearchGroup[] }) {
   return (
-    <table className={styles.table}>
-      <SearchesTableHead />
-      <tbody>
-        {zeroResultSearches.map((entry, i) => (
-          <ZeroResultRow key={i} entry={entry} />
-        ))}
-      </tbody>
-    </table>
+    <ul className={styles.searches} aria-label="Searches with no results">
+      {groups.map((g) => (
+        <SearchRow key={g.query} group={g} />
+      ))}
+    </ul>
   );
 }
 
-function SearchesTableHead() {
+function SearchRow({ group }: { group: SearchGroup }) {
   return (
-    <thead>
-      <tr>
-        <th className={styles.th}>Query</th>
-        <th className={styles.th}>Details</th>
-        <th className={styles.th}>Time</th>
-      </tr>
-    </thead>
-  );
-}
-
-function ZeroResultRow({ entry }: { entry: ZeroResultSearchRow }) {
-  return (
-    <tr>
-      <td className={styles.td}>{entry.memory_key}</td>
-      <td className={styles.td}>
-        <code>{JSON.stringify(entry.metadata)}</code>
-      </td>
-      <td className={`meta ${styles.td}`}>
-        <TimeAgo date={entry.created_at} />
-      </td>
-    </tr>
+    <li className={styles.search}>
+      <span className={styles.query}>&ldquo;{group.query}&rdquo;</span>
+      <span className={styles.asked}>{group.count}&times; asked</span>
+      <span className={`meta ${styles.when}`}>
+        <TimeAgo date={group.latest} />
+      </span>
+    </li>
   );
 }

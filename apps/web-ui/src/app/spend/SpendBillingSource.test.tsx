@@ -2,9 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { BillingSource } from "./SpendBillingSource";
-
-const usd = (n: number) =>
-  Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
+import { usd } from "./spend-format";
 
 const byBillingMode = [
   { mode: "api_key" as const, calls: 1500, cost_usd: 260.3 },
