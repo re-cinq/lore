@@ -188,7 +188,7 @@ export {
   type ClassifiedFailure,
 } from "./lib/error-classify.js";
 export { isBusinessHours } from "./lib/business-hours.js";
-export { prFooter } from "./domain/pr-body.js";
+export { loreTaskIdOf, prFooter } from "./domain/pr-body.js";
 export { clampPrTitle } from "./domain/pr-title.js";
 export {
   ciConclusionOf,

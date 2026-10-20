@@ -15,6 +15,8 @@ import type {
   JobFailure,
   ReviewThread,
   PullFileChange,
+  BranchRule,
+  Mergeability,
 } from "./pull-requests-port.js";
 
 /** Canonical PR surface, repo-bound; thin facade over PullRequestsPort. */
@@ -58,6 +60,23 @@ export class PullRequests {
 
   addLabel(number: number, label: string): Promise<void> {
     return this.pulls.addLabel(this.repo, number, label);
+  }
+
+  /** Takes the PR's GraphQL node id (`PullRef.nodeId`), not its number: the mutation is GraphQL-only. */
+  enableAutoMerge(nodeId: string, method?: MergeMethod): Promise<void> {
+    return this.pulls.enablePullRequestAutoMerge(nodeId, method);
+  }
+
+  cancelAutoMerge(nodeId: string): Promise<void> {
+    return this.pulls.disablePullRequestAutoMerge(nodeId);
+  }
+
+  getBranchRule(branch: string): Promise<BranchRule> {
+    return this.pulls.getBranchRule(this.repo, branch);
+  }
+
+  getMergeability(number: number): Promise<Mergeability> {
+    return this.pulls.getMergeability(this.repo, number);
   }
 
   merge(number: number, method?: MergeMethod): Promise<void> {

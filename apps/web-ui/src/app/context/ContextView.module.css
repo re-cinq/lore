@@ -1,11 +1,10 @@
-.notice {
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-4) var(--space-5);
-  margin-bottom: var(--space-5);
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
-.noticeText {
+/* Cards space themselves through the list's gap, not their own margins. */
+.list > * {
   margin: 0;
 }

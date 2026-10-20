@@ -1,10 +1,11 @@
 import styles from "./loading.module.scss";
 import Skeleton from "@/components/Skeleton";
+import ScreenHeader from "@/components/ScreenHeader";
 
 export default function ContextLoading() {
   return (
     <div role="status" aria-label="Loading context">
-      <h1>Context</h1>
+      <ScreenHeader group="knowledge" title="Context" />
       <div className={styles.chips}>
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton width={72} height={26} key={i} className={styles.chip} />

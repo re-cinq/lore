@@ -1,5 +1,5 @@
-/* Per-repo settings page — co-located with page.tsx. Static styling only; the
-   form values carry no dynamic styling. */
+/* Per-repo settings tab — co-located with SettingsView.tsx. One form spans
+   the section cards SettingsLayout lays out; these style what sits inside. */
 
 .titleRow {
   display: flex;
@@ -12,51 +12,80 @@
 }
 
 .lede {
-  margin-top: var(--space-3);
-  margin-bottom: var(--space-5);
+  margin: var(--space-3) 0 var(--space-6);
+  max-width: var(--measure-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
 }
 
+/* The layout spaces the cards; the form adds no gap of its own. */
 .form {
-  max-width: 500px;
+  gap: 0;
+}
+
+/* One label with its control and hint. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .hint {
   font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
-.section {
-  margin-top: var(--space-6);
-  margin-bottom: var(--space-2);
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-5);
+/* A row of checkboxes (weekdays, digest sections) under one legend. */
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: none;
 }
 
-.gated {
-  font-size: var(--fs-xs);
-  font-weight: normal;
-  color: var(--warning);
-  border: 1px solid var(--warning);
-  border-radius: var(--radius-sm);
-  padding: 1px var(--space-3);
-  margin-left: var(--space-3);
-  vertical-align: middle;
-}
-
-.override {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-4);
-}
-
-.override legend {
+.choices legend {
+  margin-bottom: var(--space-3);
+  padding: 0;
+  font-size: var(--fs-base);
   font-weight: var(--fw-semibold);
-  padding: 0 var(--space-3);
+  color: var(--text-muted);
+}
+
+/* `.task-form input` would stretch the box into a text field. */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.choices .choice input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}
+
+.saveRow {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .banner {
-  margin: var(--space-4) 0;
-  max-width: 500px;
+  margin: 0 0 var(--space-5);
+  max-width: var(--measure-lg);
 }
 
 .savedOk {
@@ -71,8 +100,4 @@
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-4);
   margin: var(--space-3) 0;
-}
-
-.incidents {
-  max-width: 500px;
 }

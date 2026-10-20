@@ -108,7 +108,7 @@ describe("ThemeProvider seeding", () => {
     expect(screen.getByTestId("family")).toHaveTextContent("retro");
   });
 
-  it("falls back to the default elegant family when neither source is set", () => {
+  it("falls back to the default lore family when neither source is set", () => {
     installMatchMedia("light");
 
     render(
@@ -117,7 +117,7 @@ describe("ThemeProvider seeding", () => {
       </ThemeProvider>,
     );
 
-    expect(screen.getByTestId("family")).toHaveTextContent("elegant");
+    expect(screen.getByTestId("family")).toHaveTextContent("lore");
   });
 
   it("seeds scheme from localStorage", () => {

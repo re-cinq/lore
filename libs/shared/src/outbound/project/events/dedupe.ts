@@ -5,6 +5,11 @@ export function githubDedupeKey(deliveryId: string): string {
   return `github:${deliveryId}`;
 }
 
+/** A second event from the same delivery (the Utopia mirror's) needs its own key, or the first one's ON CONFLICT would drop it. */
+export function githubMirrorDedupeKey(deliveryId: string): string {
+  return `${githubDedupeKey(deliveryId)}:utopia`;
+}
+
 /** One event per Agent CR per terminal phase (the CR re-emits MODIFIED repeatedly). */
 export function k8sDedupeKey(taskId: string, phase: string): string {
   return `k8s:${taskId}:${phase}`;

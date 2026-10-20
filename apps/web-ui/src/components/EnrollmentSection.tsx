@@ -60,10 +60,25 @@ function EnrollmentHeader({
       <span className={`meta ${styles.summary}`}>
         {passed}/{total} checks passing
       </span>
+      <SetupProgress passed={passed} total={total} />
       {reonboardAction && triggerText ? (
         <ReonboardButton action={reonboardAction} text={triggerText} />
       ) : null}
     </div>
+  );
+}
+
+/** How far through setup the repo is, as a bar; the figure beside it is the accessible reading. */
+function SetupProgress({ passed, total }: { passed: number; total: number }) {
+  const pct = total === 0 ? 0 : Math.round((passed / total) * 100);
+
+  return (
+    <span className={styles.progress} aria-hidden="true">
+      <span
+        className={styles.progressFill}
+        style={{ ["--progress" as string]: `${pct}%` }}
+      />
+    </span>
   );
 }
 

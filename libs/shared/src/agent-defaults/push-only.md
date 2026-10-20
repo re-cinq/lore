@@ -1,7 +1,6 @@
 ---
-# The `push` node of every assembly line that produces a PR (implementation,
-# general, gap-fill, spec-write, feature-planning) names this recipe via
-# `prompt_ref: push-only`. It did not exist until #1329 — `buildPrompt` fell back
+# The `push` node of the assembly lines Lore's own Floor walked named this
+# recipe via `prompt_ref: push-only`; no floor pipeline file uses it now. It did not exist until #1329 — `buildPrompt` fell back
 # to `general`, so every push node ran "complete the following task" against the
 # whole description, edited files, committed, and exited 0 without ever pushing.
 # The branch stayed empty, the PR open failed with "No commits between…", and the

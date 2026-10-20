@@ -1,0 +1,28 @@
+{
+  "id": "5c9d1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e22",
+  "external_id": "stmt:specs/utopia-graph-mirror/spec.md#0003",
+  "filename": "stmt:specs/utopia-graph-mirror/spec.md#0003",
+  "mime": "application/json",
+  "sha256": "3f79bb7b435b05321651daefd374cdc681dc06faa65e374e38337b88ca046dea",
+  "size_bytes": 412,
+  "status": "ready",
+  "doc_time": "2026-10-15T10:00:00Z",
+  "updated_at": "2026-10-16T08:12:44.512Z",
+  "missing_since": null,
+  "version": 2,
+  "content": "{\n  \"external_id\": \"stmt:specs/utopia-graph-mirror/spec.md#0003\"\n}",
+  "versions": [
+    {
+      "version": 1,
+      "sha256": "a1fff0ffefb9eace7230c24e50731f0a91c62f9cefdfe77121c2f607125dffae",
+      "size_bytes": 398,
+      "ingested_at": "2026-10-15T10:00:03Z"
+    },
+    {
+      "version": 2,
+      "sha256": "3f79bb7b435b05321651daefd374cdc681dc06faa65e374e38337b88ca046dea",
+      "size_bytes": 412,
+      "ingested_at": "2026-10-16T08:12:44.512Z"
+    }
+  ]
+}

@@ -1889,6 +1889,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 1000
+                  },
+                  "backend": {
+                    "type": "string",
+                    "enum": ["lore", "utopia", "both"]
                   }
                 },
                 "required": ["repo", "path"],
@@ -2950,6 +2954,11 @@
                       "graph_augment": {
                         "default": false,
                         "type": "boolean"
+                      },
+                      "backend": {
+                        "default": "lore",
+                        "type": "string",
+                        "enum": ["lore", "utopia", "both"]
                       }
                     },
                     "required": ["action", "query"],
@@ -4050,6 +4059,111 @@
           },
           {
             "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/auto-merge/kpis": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_auto-merge_kpis",
+        "summary": "GET /api/repos/{owner}/{repo}/auto-merge/kpis",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Successful response (2xx; the response body is not described — see info.description)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/blocked-pulls": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_blocked-pulls",
+        "summary": "GET /api/repos/{owner}/{repo}/blocked-pulls",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Read the blocked PRs for a specific repo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedPulls"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
             "in": "path",
             "required": true,
             "schema": {
@@ -6301,6 +6415,70 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/pulls/{number}/blocked-reason": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_pulls_number_blocked-reason",
+        "summary": "GET /api/repos/{owner}/{repo}/pulls/{number}/blocked-reason",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Read the blocked reason for a specific PR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedReason"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/pulls/{number}/files": {
       "get": {
         "operationId": "get_api_repos_owner_repo_pulls_number_files",
@@ -6920,6 +7098,456 @@
           }
         },
         "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/utopia/backfill": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_backfill",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/backfill",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The commit the specs and ADRs were read at, how many were mirrored, Utopia's created/updated/unchanged item counts, and each document that did not land whole",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaBackfillSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/utopia/commits": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_commits",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/commits",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The cursor the walk started above, the newest commit pushed, Utopia's created/updated/unchanged item counts, and the commit the walk stopped at; skipped names a branch that is not the default one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaCommitsSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "branch": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/utopia/memory": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_memory",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/memory",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Each walk's cursor before and after, Utopia's created/updated/unchanged document counts, and the memory or episode the walk stopped at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaMemorySummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/utopia/releases": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_releases",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/releases",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "How many tags and published releases were read, Utopia's created/updated/unchanged item counts, and every item it refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaReleasesSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/utopia/setup": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_setup",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/setup",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The repo's Utopia knowledge base and push source, now in its settings; the source key itself is never answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaSetupResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "session_token": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "workspace_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["session_token", "workspace_id"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/utopia/tracker": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_tracker",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/tracker",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The update time the walk asked from, the newest one pushed, Utopia's created/updated/unchanged item counts, and the issue or pull request the walk stopped at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaTrackerSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
         "parameters": [
           {
             "name": "owner",
@@ -8290,6 +8918,53 @@
         "x-required-scope": "read"
       }
     },
+    "/api/utopia/memory": {
+      "post": {
+        "operationId": "post_api_utopia_memory",
+        "summary": "POST /api/utopia/memory",
+        "tags": ["Memory"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Each walk's cursor before and after, Utopia's created/updated/unchanged document counts, and the memory or episode the walk stopped at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaOrgMemorySummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin"
+      }
+    },
     "/api/webhook/github": {
       "post": {
         "operationId": "post_api_webhook_github",
@@ -9596,6 +10271,88 @@
         "required": ["previews"],
         "additionalProperties": false
       },
+      "BlockedPulls": {
+        "type": "object",
+        "properties": {
+          "pulls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "repo": {
+                  "type": "string"
+                },
+                "prNumber": {
+                  "type": "number"
+                },
+                "reason": {
+                  "type": ["string", "null"]
+                },
+                "label": {
+                  "type": ["string", "null"]
+                },
+                "detail": {
+                  "type": ["string", "null"]
+                },
+                "since": {
+                  "type": ["string", "null"]
+                },
+                "updatedAt": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "repo",
+                "prNumber",
+                "reason",
+                "label",
+                "detail",
+                "since",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["pulls"],
+        "additionalProperties": false
+      },
+      "BlockedReason": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string"
+          },
+          "prNumber": {
+            "type": "number"
+          },
+          "reason": {
+            "type": ["string", "null"]
+          },
+          "label": {
+            "type": ["string", "null"]
+          },
+          "detail": {
+            "type": ["string", "null"]
+          },
+          "since": {
+            "type": ["string", "null"]
+          },
+          "updatedAt": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "repo",
+          "prNumber",
+          "reason",
+          "label",
+          "detail",
+          "since",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
       "BranchCreated": {
         "type": "object",
         "properties": {
@@ -9873,40 +10630,211 @@
         "additionalProperties": false
       },
       "DocumentEval": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string"
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "found": {
+                "type": "boolean"
+              },
+              "answered": {
+                "type": "boolean"
+              },
+              "useful_share": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "tokens": {
+                      "type": "number"
+                    },
+                    "used": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["path", "section", "tokens", "used"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "path",
+              "question",
+              "found",
+              "answered",
+              "useful_share",
+              "reason",
+              "model",
+              "sources"
+            ],
+            "additionalProperties": false
           },
-          "question": {
-            "type": "string"
-          },
-          "found": {
-            "type": "boolean"
-          },
-          "answered": {
-            "type": "boolean"
-          },
-          "useful_share": {
-            "type": "number"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
+          {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "lore": {
+                "type": "object",
+                "properties": {
+                  "found": {
+                    "type": "boolean"
+                  },
+                  "answered": {
+                    "type": "boolean"
+                  },
+                  "useful_share": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "section": {
+                          "type": "string"
+                        },
+                        "tokens": {
+                          "type": "number"
+                        },
+                        "used": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["path", "section", "tokens", "used"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "found",
+                  "answered",
+                  "useful_share",
+                  "reason",
+                  "model",
+                  "sources",
+                  "latency_ms"
+                ],
+                "additionalProperties": false
+              },
+              "utopia": {
+                "type": "object",
+                "properties": {
+                  "found": {
+                    "type": "boolean"
+                  },
+                  "answered": {
+                    "type": "boolean"
+                  },
+                  "useful_share": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "section": {
+                          "type": "string"
+                        },
+                        "tokens": {
+                          "type": "number"
+                        },
+                        "used": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["path", "section", "tokens", "used"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "found",
+                  "answered",
+                  "useful_share",
+                  "reason",
+                  "model",
+                  "sources",
+                  "latency_ms"
+                ],
+                "additionalProperties": false
+              },
+              "top_k_overlap": {
+                "type": "number"
+              },
+              "only_answered_by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["lore", "utopia"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "question",
+              "lore",
+              "utopia",
+              "top_k_overlap",
+              "only_answered_by"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "path",
-          "question",
-          "found",
-          "answered",
-          "useful_share",
-          "reason",
-          "model"
-        ],
-        "additionalProperties": false
+        ]
       },
       "DodProgress": {
         "type": "object",
@@ -12356,6 +13284,51 @@
           {
             "type": "object",
             "properties": {
+              "results": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "agent_id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": ["memory", "fact", "episode", "graph"]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["key", "value", "score", "agent_id", "source"],
+                  "additionalProperties": false
+                }
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["results", "notes"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
               "key": {
                 "type": "string"
               },
@@ -13423,6 +14396,16 @@
                     },
                     "additionalProperties": {}
                   },
+                  "auto_merge": {
+                    "type": "object",
+                    "properties": {
+                      "approver": {
+                        "type": "string",
+                        "enum": ["none", "lore-reviewer"]
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
                   "cross_repo": {
                     "type": "boolean"
                   },
@@ -13486,16 +14469,6 @@
                       }
                     ]
                   },
-                  "auto_merge": {
-                    "type": "object",
-                    "properties": {
-                      "approver": {
-                        "type": "string",
-                        "enum": ["none", "lore-reviewer"]
-                      }
-                    },
-                    "additionalProperties": {}
-                  },
                   "dispatch_label": {
                     "type": "string"
                   },
@@ -13506,6 +14479,32 @@
                   "incidents": {
                     "type": "array",
                     "items": {}
+                  },
+                  "utopia": {
+                    "type": "object",
+                    "properties": {
+                      "kb_id": {
+                        "type": "string"
+                      },
+                      "source_id": {
+                        "type": "string"
+                      },
+                      "ontology_version": {
+                        "type": "number"
+                      },
+                      "commits_head": {
+                        "type": "string"
+                      },
+                      "tracker_since": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kb_id", "source_id"],
+                    "additionalProperties": false
+                  },
+                  "context_backend": {
+                    "type": "string",
+                    "enum": ["lore", "utopia", "both"]
                   }
                 },
                 "additionalProperties": {}
@@ -13805,6 +14804,16 @@
                           },
                           "additionalProperties": {}
                         },
+                        "auto_merge": {
+                          "type": "object",
+                          "properties": {
+                            "approver": {
+                              "type": "string",
+                              "enum": ["none", "lore-reviewer"]
+                            }
+                          },
+                          "additionalProperties": {}
+                        },
                         "cross_repo": {
                           "type": "boolean"
                         },
@@ -13868,16 +14877,6 @@
                             }
                           ]
                         },
-                        "auto_merge": {
-                          "type": "object",
-                          "properties": {
-                            "approver": {
-                              "type": "string",
-                              "enum": ["none", "lore-reviewer"]
-                            }
-                          },
-                          "additionalProperties": {}
-                        },
                         "dispatch_label": {
                           "type": "string"
                         },
@@ -13888,6 +14887,32 @@
                         "incidents": {
                           "type": "array",
                           "items": {}
+                        },
+                        "utopia": {
+                          "type": "object",
+                          "properties": {
+                            "kb_id": {
+                              "type": "string"
+                            },
+                            "source_id": {
+                              "type": "string"
+                            },
+                            "ontology_version": {
+                              "type": "number"
+                            },
+                            "commits_head": {
+                              "type": "string"
+                            },
+                            "tracker_since": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kb_id", "source_id"],
+                          "additionalProperties": false
+                        },
+                        "context_backend": {
+                          "type": "string",
+                          "enum": ["lore", "utopia", "both"]
                         }
                       },
                       "additionalProperties": {}
@@ -14850,6 +15875,12 @@
               },
               "required": ["content", "score", "source_path"],
               "additionalProperties": false
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         },
@@ -16582,6 +17613,564 @@
           }
         },
         "required": ["forwarded", "skipped"],
+        "additionalProperties": false
+      },
+      "UtopiaBackfillSummary": {
+        "type": "object",
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "documents": {
+            "type": "number"
+          },
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "unchanged": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "commits": {
+            "type": "object",
+            "properties": {
+              "branch": {
+                "type": "string"
+              },
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "commits": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "skipped": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "branch",
+              "from",
+              "to",
+              "commits",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          },
+          "tracker": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          },
+          "releases": {
+            "type": "object",
+            "properties": {
+              "tags": {
+                "type": "number"
+              },
+              "releases": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "tags",
+              "releases",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          },
+          "memory": {
+            "type": "object",
+            "properties": {
+              "memories": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": ["string", "null"]
+                  },
+                  "to": {
+                    "type": ["string", "null"]
+                  },
+                  "entries": {
+                    "type": "number"
+                  },
+                  "created": {
+                    "type": "number"
+                  },
+                  "updated": {
+                    "type": "number"
+                  },
+                  "unchanged": {
+                    "type": "number"
+                  },
+                  "failed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "pass_complete": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "entries",
+                  "created",
+                  "updated",
+                  "unchanged",
+                  "failed",
+                  "pass_complete"
+                ],
+                "additionalProperties": false
+              },
+              "episodes": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": ["string", "null"]
+                  },
+                  "to": {
+                    "type": ["string", "null"]
+                  },
+                  "entries": {
+                    "type": "number"
+                  },
+                  "created": {
+                    "type": "number"
+                  },
+                  "updated": {
+                    "type": "number"
+                  },
+                  "unchanged": {
+                    "type": "number"
+                  },
+                  "failed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "entries",
+                  "created",
+                  "updated",
+                  "unchanged",
+                  "failed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["memories", "episodes"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "commit",
+          "documents",
+          "created",
+          "updated",
+          "unchanged",
+          "failed"
+        ],
+        "additionalProperties": false
+      },
+      "UtopiaCommitsSummary": {
+        "type": "object",
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "from": {
+            "type": ["string", "null"]
+          },
+          "to": {
+            "type": ["string", "null"]
+          },
+          "commits": {
+            "type": "number"
+          },
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "unchanged": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "skipped": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch",
+          "from",
+          "to",
+          "commits",
+          "created",
+          "updated",
+          "unchanged",
+          "failed"
+        ],
+        "additionalProperties": false
+      },
+      "UtopiaMemorySummary": {
+        "type": "object",
+        "properties": {
+          "memories": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pass_complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed",
+              "pass_complete"
+            ],
+            "additionalProperties": false
+          },
+          "episodes": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["memories", "episodes"],
+        "additionalProperties": false
+      },
+      "UtopiaOrgMemorySummary": {
+        "type": "object",
+        "properties": {
+          "memories": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pass_complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed",
+              "pass_complete"
+            ],
+            "additionalProperties": false
+          },
+          "episodes": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": ["string", "null"]
+              },
+              "to": {
+                "type": ["string", "null"]
+              },
+              "entries": {
+                "type": "number"
+              },
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "entries",
+              "created",
+              "updated",
+              "unchanged",
+              "failed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["memories", "episodes"],
+        "additionalProperties": false
+      },
+      "UtopiaReleasesSummary": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "number"
+          },
+          "releases": {
+            "type": "number"
+          },
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "unchanged": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "tags",
+          "releases",
+          "created",
+          "updated",
+          "unchanged",
+          "failed"
+        ],
+        "additionalProperties": false
+      },
+      "UtopiaSetupResult": {
+        "type": "object",
+        "properties": {
+          "kb_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "ontology_version": {
+            "type": "number"
+          }
+        },
+        "required": ["kb_id", "source_id", "ontology_version"],
+        "additionalProperties": false
+      },
+      "UtopiaTrackerSummary": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": ["string", "null"]
+          },
+          "to": {
+            "type": ["string", "null"]
+          },
+          "entries": {
+            "type": "number"
+          },
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "unchanged": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "entries",
+          "created",
+          "updated",
+          "unchanged",
+          "failed"
+        ],
         "additionalProperties": false
       },
       "VisitEvents": {

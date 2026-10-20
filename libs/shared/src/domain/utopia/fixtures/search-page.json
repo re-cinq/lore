@@ -1,0 +1,32 @@
+{
+  "results": [
+    {
+      "id": "0b7e3c1a-2f4d-4c8e-9a51-6d2f0e8b7c11",
+      "document_id": "5c9d1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e22",
+      "seq": 0,
+      "text": "{\n  \"external_id\": \"stmt:specs/utopia-graph-mirror/spec.md#0003.2\"\n}",
+      "filename": "stmt:specs/utopia-graph-mirror/spec.md#0003.2",
+      "source_id": "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533",
+      "external_id": "stmt:specs/utopia-graph-mirror/spec.md#0003.2",
+      "score": 0.0325,
+      "bm25_rank": 1,
+      "vector_rank": null
+    },
+    {
+      "id": "1c8f4d2b-3e5a-4d9f-8b62-7e3f1a9c8d44",
+      "document_id": "6dae2f30-4b5c-4d6e-9f70-8b9cad1e2f55",
+      "seq": 4,
+      "text": "Retention notes uploaded by hand",
+      "filename": "retention.md",
+      "source_id": null,
+      "external_id": null,
+      "score": 0.0161,
+      "bm25_rank": null,
+      "vector_rank": 2
+    }
+  ],
+  "offset": 0,
+  "top_k": 2,
+  "has_more": true,
+  "vector_used": true
+}

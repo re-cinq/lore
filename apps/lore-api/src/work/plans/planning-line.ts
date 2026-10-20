@@ -1,7 +1,7 @@
 import { type PlanLine } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 import { type ParkedTarget } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 
-/** A plan's planning line (ADR-047): the agent drafts, people refine and approve, and approval moves the plan on to its spec PR and spec-tasks. */
+/* A plan's planning line (ADR-047): the agent drafts, people refine and approve, and approval moves the plan on to its spec PR and spec-tasks. */
 
 /** What GitHub says of a spec PR now; null when it is gone. */
 export type SpecPrState = "open" | "closed" | "merged" | null;

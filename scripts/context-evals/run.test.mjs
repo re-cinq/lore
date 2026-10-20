@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderSummary, runEval, summarize } from "./run.mjs";
+import {
+  compareSides,
+  renderSideBySide,
+  renderSummary,
+  runEval,
+  summarize,
+} from "./run.mjs";
 
 const ENV = { LORE_API_URL: "https://lore.example", LORE_INGEST_TOKEN: "tok" };
 const ADR = (n) => `adrs/ADR-${n}.md`;
@@ -193,6 +199,7 @@ test("counts a document lore-api answers 500 for as neither found nor answered, 
       useful_share: 0,
       reason: "lore-api answered 500: boom",
       model: "",
+      sources: [],
     },
   ]);
 });
@@ -364,5 +371,123 @@ test("renders a note instead of a table for a repository with no documents", () 
   assert.match(
     renderSummary("re-cinq/empty", [], 0.85),
     /re-cinq\/empty has no ingested ADRs or specs: nothing to evaluate/,
+  );
+});
+
+const grade = (over = {}) => ({
+  found: true,
+  answered: true,
+  useful_share: 0.5,
+  reason: "Agrees with the document.",
+  model: "gemini-2.5-flash",
+  latency_ms: 100,
+  ...over,
+});
+
+const sideBySide = (path, { lore = {}, utopia = {}, ...over } = {}) => ({
+  path,
+  question: `What does ${path} decide?`,
+  lore: grade(lore),
+  utopia: grade(utopia),
+  top_k_overlap: 0.5,
+  only_answered_by: null,
+  ...over,
+});
+
+test("posts backend both with each document when the run names it", async () => {
+  const api = loreApi({
+    documents: [ADR(1)],
+    verdicts: { [ADR(1)]: sideBySide(ADR(1)) },
+  });
+
+  await run(api, { backend: "both" });
+
+  assert.deepEqual(api.requests.at(-1).body, {
+    repo: "re-cinq/lore",
+    path: ADR(1),
+    backend: "both",
+  });
+});
+
+test("passes a side-by-side run on Lore's 3 of 3 answered while Utopia answered none", async () => {
+  const unanswered = (path) =>
+    sideBySide(path, {
+      utopia: { answered: false },
+      only_answered_by: "lore",
+    });
+  const api = loreApi({
+    documents: [ADR(1), ADR(2), ADR(3)],
+    verdicts: Object.fromEntries(
+      [ADR(1), ADR(2), ADR(3)].map((path) => [path, unanswered(path)]),
+    ),
+  });
+  const outcome = await run(api, { backend: "both" });
+
+  assert.deepEqual(
+    { passed: outcome.passed, stats: outcome.stats },
+    {
+      passed: true,
+      stats: { total: 3, found: 3, answered: 3, usefulShare: 0.5 },
+    },
+  );
+});
+
+test("refuses a backend of dgraph, naming it", async () => {
+  await assert.rejects(
+    run(loreApi({ documents: [] }), { backend: "dgraph" }),
+    new Error("--backend must be lore, utopia or both, not dgraph"),
+  );
+});
+
+test("compares 2 side-by-side results: each store's numbers, a mean overlap of 0.3 and one document answered by Utopia alone", () => {
+  assert.deepEqual(
+    compareSides([
+      sideBySide(ADR(1), { top_k_overlap: 0.2 }),
+      sideBySide(ADR(2), {
+        lore: { found: false, answered: false, useful_share: 0 },
+        top_k_overlap: 0.4,
+        only_answered_by: "utopia",
+      }),
+    ]),
+    {
+      lore: { total: 2, found: 1, answered: 1, usefulShare: 0.25 },
+      utopia: { total: 2, found: 2, answered: 2, usefulShare: 0.5 },
+      meanOverlap: 0.3,
+      onlyLore: 0,
+      onlyUtopia: 1,
+    },
+  );
+});
+
+test("renders Lore's and Utopia's rows side by side, the mean overlap, a verdict on Lore alone and Lore's unanswered documents", () => {
+  const markdown = renderSideBySide(
+    "re-cinq/lore",
+    [
+      sideBySide(ADR(1), {
+        only_answered_by: "lore",
+        utopia: { answered: false },
+      }),
+      sideBySide(ADR(2), {
+        lore: { answered: false, reason: "Contradicts the ADR." },
+        only_answered_by: "utopia",
+      }),
+    ],
+    0.85,
+  );
+
+  assert.deepEqual(
+    markdown
+      .split("\n")
+      .filter((line) => line.startsWith("|") || line.startsWith("Mean")),
+    [
+      "| Store | Found | Answered | Useful share | Answered alone |",
+      "| --- | --- | --- | --- | --- |",
+      "| Lore | 2 / 2 | 1 / 2 | 50% | 1 |",
+      "| Utopia | 2 / 2 | 1 / 2 | 50% | 1 |",
+      "Mean source overlap: 50%. Verdict, on Lore's numbers alone: pass",
+      "| Document | Question | Found | Answered | Useful | Why |",
+      "| --- | --- | --- | --- | --- | --- |",
+      "| adrs/ADR-2.md | What does adrs/ADR-2.md decide? | yes | no | 50% | Contradicts the ADR. |",
+    ],
   );
 });

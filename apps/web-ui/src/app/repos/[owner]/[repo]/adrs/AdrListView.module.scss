@@ -1,0 +1,6 @@
+// Decision records sit side by side as cards; each SpecCard keeps its own spacing.
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 0 var(--space-5);
+}

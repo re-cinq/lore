@@ -78,7 +78,12 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 	}
 	tests, err := parseDescriptors(listOut)
 	if err != nil {
-		return TestReport{}, fmt.Errorf("parsing tests.list output: %w", err)
+		// Fall back to a plain string array: each element is a file path, and the
+		// workspace cwd is prepended to make IDs repo-relative across workspaces.
+		tests, err = parseSimpleDescriptors(listOut, m.Cwd)
+		if err != nil {
+			return TestReport{}, fmt.Errorf("parsing tests.list output: %w", err)
+		}
 	}
 	for i := range tests {
 		tests[i].File = stripPrefix(tests[i].File, m.PathPrefixStrip)
@@ -206,6 +211,28 @@ func parseDescriptors(out []byte) ([]TestDescriptor, error) {
 		if d.ID == "" || d.Name == "" || d.File == "" {
 			return nil, fmt.Errorf("descriptor %d is missing a required id/name/file", i)
 		}
+	}
+	return ds, nil
+}
+
+// parseSimpleDescriptors handles a list command that outputs a JSON array of
+// file-path strings rather than full descriptor objects. Each string becomes a
+// descriptor whose ID is prefixed with the workspace cwd to stay repo-relative.
+func parseSimpleDescriptors(out []byte, cwdPrefix string) ([]TestDescriptor, error) {
+	var files []string
+	if err := json.Unmarshal(out, &files); err != nil {
+		return nil, fmt.Errorf("expected a JSON array of descriptors or file paths: %w", err)
+	}
+	ds := make([]TestDescriptor, len(files))
+	for i, f := range files {
+		if f == "" {
+			return nil, fmt.Errorf("descriptor %d is an empty file path", i)
+		}
+		id := f
+		if cwdPrefix != "" && cwdPrefix != "." {
+			id = cwdPrefix + "/" + f
+		}
+		ds[i] = TestDescriptor{ID: id, Name: f, File: f}
 	}
 	return ds, nil
 }

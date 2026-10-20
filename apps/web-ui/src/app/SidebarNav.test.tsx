@@ -26,21 +26,21 @@ import SidebarNav from "./SidebarNav";
 
 const PRIMARY_LINKS = [
   { href: "/", label: "Repos" },
-  { href: "/assembly-runs", label: "Assembly Runs" },
+  { href: "/assembly-runs", label: "Assembly runs" },
   { href: "/agents", label: "Agents" },
   { href: "/search", label: "Search" },
-  { href: "/audit", label: "Audit" },
+  { href: "/specs", label: "Specs" },
+  { href: "/adrs", label: "ADRs" },
+  { href: "/graph", label: "Graph" },
+  { href: "/episodes", label: "Episodes" },
   { href: "/pools", label: "Pools" },
   { href: "/analytics", label: "Analytics" },
   { href: "/spend", label: "Spend" },
   { href: "/gaps", label: "Gaps" },
-  { href: "/episodes", label: "Episodes" },
-  { href: "/graph", label: "Graph" },
-  { href: "/specs", label: "Specs" },
-  { href: "/adrs", label: "ADRs" },
+  { href: "/audit", label: "Audit" },
 ];
 const SETTINGS = { href: "/settings", label: "Settings" };
-const ADD_REPO = { href: "/onboard", label: "+ Add Repo" };
+const ADD_REPO = { href: "/onboard", label: "Add repo" };
 const FOOTER_LINKS = [SETTINGS, ADD_REPO];
 const ALL_LINKS = [...PRIMARY_LINKS, ...FOOTER_LINKS];
 
@@ -97,7 +97,7 @@ describe("SidebarNav rendering", () => {
 
   it("applies the distinguishing module classes to the footer links only", () => {
     render(<SidebarNav />);
-    expect(linkByLabel("+ Add Repo").className).toContain("addRepo");
+    expect(linkByLabel("Add repo").className).toContain("addRepo");
     expect(linkByLabel("Settings").className).toContain("footerLink");
 
     expect(linkByLabel("Repos").className).not.toContain("addRepo");
@@ -175,7 +175,7 @@ describe("SidebarNav active-link highlighting", () => {
     expect(repos.className).toContain("active");
     expect(repos).toHaveAttribute("aria-current", "page");
 
-    for (const { label } of [...PRIMARY_LINKS.slice(1), ...FOOTER_LINKS]) {
+    for (const { label } of ALL_LINKS.filter((l) => l !== PRIMARY_LINKS[0])) {
       const link = linkByLabel(label);
 
       expect(link.className).not.toContain("active");
@@ -233,7 +233,7 @@ describe("SidebarNav active-link highlighting", () => {
     pathname.mockReturnValue("/onboard");
     render(<SidebarNav />);
 
-    const addRepo = linkByLabel("+ Add Repo");
+    const addRepo = linkByLabel("Add repo");
 
     expect(addRepo.className).toContain("active");
     expect(addRepo).toHaveAttribute("aria-current", "page");
@@ -262,7 +262,7 @@ describe("SidebarNav active-link highlighting", () => {
   it("marks the Add Repo link active on an /onboard sub-route", () => {
     pathname.mockReturnValue("/onboard/step-2");
     render(<SidebarNav />);
-    const addRepo = linkByLabel("+ Add Repo");
+    const addRepo = linkByLabel("Add repo");
 
     expect(addRepo.className).toContain("active");
     expect(addRepo).toHaveAttribute("aria-current", "page");
@@ -330,7 +330,7 @@ describe("SidebarNav interactions", () => {
 });
 
 describe("SidebarNav accordion groups", () => {
-  const GROUP_HEADERS = ["Insights"];
+  const GROUP_HEADERS = ["Work", "Knowledge", "Insights"];
 
   it("renders every labelled group as an expanded collapse header", () => {
     render(<SidebarNav />);
@@ -343,10 +343,13 @@ describe("SidebarNav accordion groups", () => {
     }
   });
 
-  it("keeps the label-less top group headerless so Repos is always visible", () => {
+  it("heads the nav with the Work, Knowledge and Insights sections in that order", () => {
     render(<SidebarNav />);
-    expect(linkByLabel("Repos")).toHaveAttribute("href", "/");
-    expect(screen.queryByRole("button", { name: "Repos" })).toBeNull();
+    const headers = screen
+      .getAllByRole("button", { expanded: true })
+      .map((button) => button.textContent);
+
+    expect(headers).toEqual(GROUP_HEADERS);
   });
 
   it("hides only that group's links when a header is collapsed", () => {
@@ -357,21 +360,13 @@ describe("SidebarNav accordion groups", () => {
 
     expect(insights).toHaveAttribute("aria-expanded", "false");
 
-    for (const label of [
-      "Analytics",
-      "Spend",
-      "Gaps",
-      "Episodes",
-      "Graph",
-      "Specs",
-      "ADRs",
-    ]) {
+    for (const label of ["Analytics", "Spend", "Gaps", "Audit"]) {
       expect(screen.queryByRole("link", { name: label })).toBeNull();
     }
     expect(linkByLabel("Repos")).toBeInTheDocument();
-    expect(linkByLabel("Search")).toBeInTheDocument();
+    expect(linkByLabel("Graph")).toBeInTheDocument();
     expect(linkByLabel("Settings")).toBeInTheDocument();
-    expect(linkByLabel("+ Add Repo")).toBeInTheDocument();
+    expect(linkByLabel("Add repo")).toBeInTheDocument();
   });
 
   it("restores a group's links when its header is toggled back open", () => {

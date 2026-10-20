@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { AgentDefs } from "./agent-defs.js";
+import { AgentDefs, AgentDefsWriter } from "./agent-defs.js";
 import type {
   AgentDefinition,
   AgentDefinitionInput,
-  AgentDefsPort,
+  AgentDefsWritePort,
 } from "./agent-defs-port.js";
 
 function recordingDefs(
   calls: Array<{ method: string; args: unknown[] }> = [],
-): AgentDefsPort {
+): AgentDefsWritePort {
   const def: AgentDefinition = {
     name: "general",
     model: "claude-sonnet-4-6",
@@ -62,9 +62,10 @@ describe("AgentDefs", () => {
 
   it("delegates create/delete to the defs port with the bound repo", async () => {
     const calls: Array<{ method: string; args: unknown[] }> = [];
-    const agentDefs = new AgentDefs("re-cinq/re-plan", recordingDefs(calls));
+    const defs = recordingDefs(calls);
+    const agentDefsWriter = new AgentDefsWriter("re-cinq/re-plan", defs);
 
-    await agentDefs.create({
+    await agentDefsWriter.create({
       name: "custom",
       model: "claude-opus-4-8",
       timeout_minutes: 45,
@@ -74,7 +75,7 @@ describe("AgentDefs", () => {
       review_required: true,
       config: null,
     });
-    await agentDefs.delete("custom");
+    await agentDefsWriter.delete("custom");
 
     expect(calls.map((c) => c.method)).toEqual(["create", "delete"]);
     expect(calls[1].args).toEqual(["re-cinq/re-plan", "custom"]);

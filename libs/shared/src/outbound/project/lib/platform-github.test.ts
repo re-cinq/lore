@@ -27,7 +27,11 @@ const state: {
   reviewCall?: Record<string, unknown>;
   prData?: Record<string, unknown>;
   treeData?: Record<string, unknown>;
+  refCall?: Record<string, unknown>;
   issuesData?: Array<Record<string, unknown>>;
+  issuesListCall?: Record<string, unknown>;
+  releasesData?: Array<Record<string, unknown>>;
+  tagsData?: Array<Record<string, unknown>>;
   pullsPages?: Array<Array<Record<string, unknown>>>;
   pullsListCall?: Record<string, unknown>;
   pagesServed: number;
@@ -171,7 +175,14 @@ vi.mock("octokit", () => ({
           return { data: state.jobLog };
         },
       },
-      git: { getTree: async () => ({ data: state.treeData }) },
+      git: {
+        getTree: async () => ({ data: state.treeData }),
+        getRef: async (params: Record<string, unknown>) => {
+          state.refCall = params;
+
+          return { data: { object: { sha: "abc123" } } };
+        },
+      },
       repos: {
         getCombinedStatusForRef: async () => {
           if (state.statusesForbidden) {
@@ -183,10 +194,16 @@ vi.mock("octokit", () => ({
           return { data: { statuses: state.statuses ?? [] } };
         },
         listCommits: async () => ({ data: state.branchCommits ?? [] }),
+        listReleases: async () => state.releasesData ?? [],
+        listTags: async () => state.tagsData ?? [],
       },
       issues: {
         addLabels: async () => ({}),
-        listForRepo: async () => state.issuesData ?? [],
+        listForRepo: async (params: Record<string, unknown>) => {
+          state.issuesListCall = params;
+
+          return state.issuesData ?? [];
+        },
         get: async () => ({ data: state.issueData }),
         update: async (params: Record<string, unknown>) => {
           state.issueUpdateCall = params;
@@ -726,6 +743,40 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     });
   });
 
+  it("get exposes node id PR_kw_7 and base branch main", async () => {
+    state.prData = {
+      number: 7,
+      title: "t",
+      head: { ref: "feat/x", sha: "deadbeef" },
+      base: { ref: "main" },
+      node_id: "PR_kw_7",
+      state: "open",
+      html_url: "https://gh/pr/7",
+      user: { login: "bob" },
+    };
+
+    expect(await gh().get("re-cinq/lore", 7)).toMatchObject({
+      nodeId: "PR_kw_7",
+      baseBranch: "main",
+    });
+  });
+
+  it("get reads an armed auto-merge as autoMerge true", async () => {
+    state.prData = {
+      number: 7,
+      title: "t",
+      head: { ref: "feat/x", sha: "deadbeef" },
+      state: "open",
+      html_url: "https://gh/pr/7",
+      user: { login: "bob" },
+      auto_merge: { merge_method: "squash" },
+    };
+
+    expect(await gh().get("re-cinq/lore", 7)).toMatchObject({
+      autoMerge: true,
+    });
+  });
+
   it("listTree throws instead of returning a truncated tree", async () => {
     state.treeData = {
       truncated: true,
@@ -749,6 +800,15 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     };
 
     expect(await gh().listTree("re-cinq/lore", "main")).toEqual(["specs/a.md"]);
+  });
+
+  it("reads heads/main of re-cinq/lore and answers its head sha abc123", async () => {
+    const sha = await gh().branchHeadSha("re-cinq/lore", "main");
+
+    expect({ sha, call: state.refCall }).toEqual({
+      sha: "abc123",
+      call: { owner: "re-cinq", repo: "lore", ref: "heads/main" },
+    });
   });
 });
 
@@ -1080,6 +1140,155 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     ]);
   });
 
+  it("listBranchHistory reads main newest-first from the commit listing alone, stops at the cursor, keeps the newest two of the three commits above it, and answers them oldest-first", async () => {
+    const listed = (sha: string, message: string) => ({
+      sha,
+      parents: [{ sha: `${sha}-parent` }],
+      commit: { message, author: { name: "Szabo Bogdan", date: `${sha}-at` } },
+    });
+
+    state.pullsPages = [
+      [listed("c3", "Three (#3)\n\nCloses #9\n"), listed("c2", "Two")],
+      [listed("c1", "One"), listed("cursor", "Old"), listed("c0", "Older")],
+    ];
+    const history = await gh().listBranchHistory("re-cinq/lore", "main", {
+      until: "cursor",
+      limit: 2,
+    });
+
+    expect(history).toEqual([
+      {
+        sha: "c2",
+        parents: ["c2-parent"],
+        subject: "Two",
+        body: "",
+        author: "Szabo Bogdan",
+        authoredAt: "c2-at",
+      },
+      {
+        sha: "c3",
+        parents: ["c3-parent"],
+        subject: "Three (#3)",
+        body: "Closes #9",
+        author: "Szabo Bogdan",
+        authoredAt: "c3-at",
+      },
+    ]);
+  });
+
+  it("listTrackerActivity asks for every issue and pull request updated since the cursor, oldest first, and answers the first two of three as tracked entries, stopping before the next page", async () => {
+    const row = (number: number, extra: Record<string, unknown> = {}) => ({
+      number,
+      title: `Title ${number}`,
+      body: null,
+      user: { login: "gedaiu" },
+      labels: ["utopia", { name: "lore" }],
+      created_at: `${number}-opened`,
+      closed_at: null,
+      updated_at: `${number}-updated`,
+      ...extra,
+    });
+
+    state.pullsPages = [
+      [
+        row(5),
+        row(6, {
+          body: "Closes #5",
+          closed_at: "6-closed",
+          pull_request: { merged_at: "6-merged" },
+        }),
+      ],
+      [row(7)],
+    ];
+    state.pagesServed = 0;
+    const activity = await gh().listTrackerActivity("re-cinq/lore", {
+      since: "2026-10-16T00:00:00Z",
+      limit: 2,
+    });
+
+    expect({
+      activity,
+      call: state.issuesListCall,
+      pages: state.pagesServed,
+    }).toEqual({
+      activity: [
+        {
+          kind: "issue",
+          number: 5,
+          title: "Title 5",
+          body: "",
+          author: "gedaiu",
+          labels: ["utopia", "lore"],
+          openedAt: "5-opened",
+          closedAt: null,
+          mergedAt: null,
+          updatedAt: "5-updated",
+        },
+        {
+          kind: "pull",
+          number: 6,
+          title: "Title 6",
+          body: "Closes #5",
+          author: "gedaiu",
+          labels: ["utopia", "lore"],
+          openedAt: "6-opened",
+          closedAt: "6-closed",
+          mergedAt: "6-merged",
+          updatedAt: "6-updated",
+        },
+      ],
+      call: {
+        owner: "re-cinq",
+        repo: "lore",
+        state: "all",
+        sort: "updated",
+        direction: "asc",
+        since: "2026-10-16T00:00:00Z",
+        per_page: 100,
+      },
+      pages: 1,
+    });
+  });
+
+  it("listReleases answers the published releases with their tag, name, notes, author and publish time, leaving out a draft", async () => {
+    state.releasesData = [
+      {
+        tag_name: "v1.2.0",
+        name: "Lore 1.2",
+        body: "Notes",
+        draft: false,
+        author: { login: "gedaiu" },
+        published_at: "2026-10-17T09:00:00Z",
+      },
+      {
+        tag_name: "v1.3.0",
+        name: null,
+        body: null,
+        draft: true,
+        author: { login: "gedaiu" },
+        published_at: null,
+      },
+    ];
+
+    expect(await gh().listReleases("re-cinq/lore")).toEqual([
+      {
+        tag: "v1.2.0",
+        name: "Lore 1.2",
+        body: "Notes",
+        author: "gedaiu",
+        publishedAt: "2026-10-17T09:00:00Z",
+      },
+    ]);
+  });
+
+  it("listTags answers each tag's name and the commit it points to", async () => {
+    state.tagsData = [{ name: "v1.2.0", commit: { sha: "abc123" } }];
+
+    expect(await gh().listTags("re-cinq/lore")).toEqual([
+      { name: "v1.2.0", sha: "abc123" },
+    ]);
+  });
+
   it("jobLog returns the job's raw log", async () => {
     state.jobLog =
       "2026-09-09T13:06:58.1703793Z ##[error]    7:1  error  Status";
@@ -1211,6 +1420,27 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
 
     expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
       requiredApprovals: 0,
+      codeOwnersReview: false,
+      requiredChecks: [],
+    });
+  });
+
+  it("getBranchRule reads 1 approval from the ruleset when classic protection answers 403", async () => {
+    state.requestAnswers = {
+      [RULES]: [
+        {
+          type: "pull_request",
+          parameters: { required_approving_review_count: 1 },
+        },
+      ],
+      [CLASSIC]: Object.assign(
+        new Error("Resource not accessible by integration"),
+        { status: 403 },
+      ),
+    };
+
+    expect(await gh().getBranchRule("re-cinq/lore", "main")).toEqual({
+      requiredApprovals: 1,
       codeOwnersReview: false,
       requiredChecks: [],
     });

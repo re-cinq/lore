@@ -56,7 +56,7 @@ async function registerStoredPorts(
   ports.set("memory", new bridge.MemoryStoreBridge(memory));
   ports.set("tasks", new tasks.PgTaskStore(pgPool));
   ports.set("chunks", new chunks.PgChunks(pgPool));
-  ports.set("trace", new trace.DgraphTrace(dgraphClient));
+  ports.set("trace", providers.trace ?? new trace.DgraphTrace(dgraphClient));
   registerPipelinePorts(ports, providers.pipeline, {
     assemblyRuns: new runs.PgAssemblyRuns(pgPool),
   });

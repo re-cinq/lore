@@ -104,7 +104,7 @@ A result with no `results` array still answers 200. ([validated by returns 200 w
 A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L78))
 
 
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L118), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L21))
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L118), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L23))
 
 A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/work/spec-trace/ingest.test.ts#L62), [`ingest.test.ts:57`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L71))
 
@@ -114,19 +114,19 @@ When the supplied `commit` belongs to a different repo than the one being fetche
 
 A file resolved at the exact given commit is ingested with a single GitHub call — no HEAD retry. ([validated by `ingests a file resolved at the given commit without retrying HEAD`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L178))
 
-A 404 at the given commit (when it differs from `HEAD`) retries the fetch at `HEAD` and ingests the file found there. ([validated by `falls back to HEAD when the commit is unknown to the repo`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L223))
+A 404 at the given commit (when it differs from `HEAD`) retries the fetch at `HEAD` and ingests the file found there. ([validated by `falls back to HEAD when the commit is unknown to the repo`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L229))
 
-When the commit is already `HEAD` and the file 404s, the file is reported `deleted` (its chunks removed) without a second fetch attempt. ([validated by `marks a file deleted (no HEAD retry) when the commit is already HEAD and the file 404s`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L253))
+When the commit is already `HEAD` and the file 404s, the file is reported `deleted` (its chunks removed) without a second fetch attempt. ([validated by `marks a file deleted (no HEAD retry) when the commit is already HEAD and the file 404s`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L262))
 
-A path that resolves to a directory (no file content) is reported `skipped` with `"not a file (directory?)"`, not deleted. ([validated by `skips a not-a-file result (directory) without deleting or throwing`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L277))
+A path that resolves to a directory (no file content) is reported `skipped` with `"not a file (directory?)"`, not deleted. ([validated by `skips a not-a-file result (directory) without deleting or throwing`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L289))
 
-Inline `{path, content}` files never call GitHub; an unclassifiable extension is reported `skipped` with `"unsupported file type"`. ([validated by `skips an unsupported file type without a GitHub call for inline content`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L296))
+Inline `{path, content}` files never call GitHub; an unclassifiable extension is reported `skipped` with `"unsupported file type"`. ([validated by `skips an unsupported file type without a GitHub call for inline content`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L311))
 
-An inline entry whose `content` is the empty string is content the caller supplied, not an absent one: it resolves to `""` without a GitHub call, so a payload-only ingest with no GitHub client does not fault. ([validated by `returns the empty content of an inline entry without reaching GitHub`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L361))
+An inline entry whose `content` is the empty string is content the caller supplied, not an absent one: it resolves to `""` without a GitHub call, so a payload-only ingest with no GitHub client does not fault. ([validated by `returns the empty content of an inline entry without reaching GitHub`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L421))
 
-A non-404 GitHub failure is caught per-file and reported as an `error` result rather than throwing out of `ingestFiles`. ([validated by `records an error result (not a thrown error) for a non-404 GitHub failure`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L311))
+A non-404 GitHub failure is caught per-file and reported as an `error` result rather than throwing out of `ingestFiles`. ([validated by `records an error result (not a thrown error) for a non-404 GitHub failure`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L325))
 
-The returned `ingested`/`deleted`/`errors` counts tally the per-file outcomes of a mixed batch. ([validated by `tallies ingested, deleted, and error counts across a mixed batch`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L331))
+The returned `ingested`/`deleted`/`errors` counts tally the per-file outcomes of a mixed batch. ([validated by `tallies ingested, deleted, and error counts across a mixed batch`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L348))
 
 ### POST /api/repos/{owner}/{repo}/chunks/prune — the orphan sweep
 

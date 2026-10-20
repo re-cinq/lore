@@ -15,6 +15,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
 import { applyDocDelta } from "./ingest-doc-delta.js";
+import { mirrorReportDelta } from "./ingest-report-mirror.js";
 import {
   advanceStoredCommit,
   storedCommit,
@@ -218,6 +219,7 @@ async function applyDelta(
   return { projected, deleted, test_chunks: 0, pruned_test_files: 0 };
 }
 
+/** Projects a default-branch report and prunes its deleted test files, then mirrors both to Utopia. A branch's report goes to its overlay instead and is not mirrored. */
 async function applyTestReportDelta(
   deps: IngestDeltaDeps,
   repo: string,
@@ -234,6 +236,8 @@ async function applyTestReportDelta(
     await deps.pruneTests(repo, body.deleted);
     prunedTestFiles = body.deleted.length;
   }
+
+  await mirrorReportDelta(deps, repo, body);
 
   return { test_chunks: testChunks, pruned_test_files: prunedTestFiles };
 }

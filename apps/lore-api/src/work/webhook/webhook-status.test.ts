@@ -82,6 +82,37 @@ describe("classifyWebhook", () => {
     );
   });
 
+  it("returns narrow_events for the hook re-cinq/lore had, which carries every pull-request and issue event but not push", () => {
+    const withoutPush = [
+      "issues",
+      "issue_comment",
+      "pull_request",
+      "pull_request_review",
+      "pull_request_review_comment",
+      "repository",
+    ];
+
+    expect(classifyWebhook([hook({ events: withoutPush })], URL).state).toBe(
+      "narrow_events",
+    );
+  });
+
+  it("returns narrow_events for a hook that carries push but neither release nor create, which the Utopia release mirror needs", () => {
+    const withoutReleases = [
+      "issues",
+      "issue_comment",
+      "pull_request",
+      "pull_request_review",
+      "pull_request_review_comment",
+      "repository",
+      "push",
+    ];
+
+    expect(
+      classifyWebhook([hook({ events: withoutReleases })], URL).state,
+    ).toBe("narrow_events");
+  });
+
   it("returns delivery_failing when the last delivery was a 401 (secret mismatch)", () => {
     expect(
       classifyWebhook(

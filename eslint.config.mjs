@@ -8,12 +8,20 @@ import css from "@eslint/css";
 import importX from "eslint-plugin-import-x";
 import reLint from "@re-cinq/eslint-plugin-re-lint";
 import { MAX_EXPECTS_BASELINE } from "./eslint.baseline.max-expects.mjs";
+import { NO_STRANDED_DOC_COMMENT_BASELINE } from "./eslint.baseline.no-stranded-doc-comment.mjs";
+import noStrandedDocComment from "./scripts/eslint-rules/no-stranded-doc-comment.mjs";
 
 /**
  * Repo-wide ESLint (flat config). One common linter across every package plus the
  * published `@re-cinq/eslint-plugin-re-lint` house rules (key `re-lint`). Type-aware via projectService so
  * typed rules run against each package's own tsconfig (there is no shared base).
  */
+const lorePlugin = {
+  rules: {
+    "no-stranded-doc-comment": noStrandedDocComment,
+  },
+};
+
 const ENFORCE_MODULE = {
   specifier: "@re-cinq/lore-shared/lib/enforce.js",
   sourceDir: "libs/shared/src",
@@ -669,5 +677,23 @@ export default tseslint.config(
   {
     files: MAX_EXPECTS_BASELINE,
     rules: { "re-lint/max-expects": ["warn", { max: 3 }] },
+  },
+
+  // Catch doc comments stranded by function extraction: two adjacent /** */
+  // blocks mean the first describes nothing. Error for new code; the baseline
+  // below tracks sites that predate the rule as warn so they show up in the
+  // queue without blocking unrelated work.
+  //
+  // No `files` filter: ESLint 10 resolves the files pattern relative to the
+  // config file, so a fixture written to /tmp would compute a relative path
+  // starting with `..` — which minimatch's `**` (dot:false) never matches.
+  // Keeping this global ensures the rule fires even on out-of-tree files.
+  {
+    plugins: { lore: lorePlugin },
+    rules: { "lore/no-stranded-doc-comment": "error" },
+  },
+  {
+    files: NO_STRANDED_DOC_COMMENT_BASELINE,
+    rules: { "lore/no-stranded-doc-comment": "warn" },
   },
 );

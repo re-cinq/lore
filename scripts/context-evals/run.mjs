@@ -1,6 +1,6 @@
-// One repository's nightly context eval (specs/context-evals): pick tonight's documents, have lore-api evaluate each, write the summary, and fail when too few could be answered from what Lore returned.
+// One repository's context eval (specs/context-evals), run from a developer machine: pick the day's documents, have lore-api evaluate each, write the summary, and fail when too few could be answered from what Lore returned.
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { ApiRefusal, loreApi } from "./lore-api.mjs";
@@ -9,22 +9,33 @@ import { sampleDocuments } from "./sample.mjs";
 // 500 is in the list because a rate limit of the model reaches the runner as one.
 const RETRIED = new Set([429, 500, 502, 503, 504]);
 const RETRY_AFTER_MS = [5000, 15000];
+const BACKENDS = ["lore", "utopia", "both"];
 
 export async function runEval(run) {
-  const { repo, threshold } = run;
+  const { repo, threshold, backend } = run;
+
+  if (backend !== undefined && !BACKENDS.includes(backend)) {
+    throw new Error(`--backend must be lore, utopia or both, not ${backend}`);
+  }
   const api = loreApi(run);
   const results = [];
 
   for (const path of await documentsToEvaluate(api, run)) {
     results.push(await evaluate(api, run, path));
   }
-  const stats = summarize(results);
+  const sideBySide = backend === "both";
+  // Utopia is under evaluation: a side-by-side run is gated on Lore's numbers alone.
+  const stats = summarize(
+    sideBySide ? results.map((result) => sideOf(result, "lore")) : results,
+  );
 
   return {
     results,
     stats,
     passed: passes(stats, threshold),
-    markdown: renderSummary(repo, results, threshold),
+    markdown: sideBySide
+      ? renderSideBySide(repo, results, threshold)
+      : renderSummary(repo, results, threshold),
   };
 }
 
@@ -46,7 +57,11 @@ async function documentsToEvaluate(api, run) {
 async function evaluate(api, run, path) {
   try {
     return await patiently(run, () =>
-      api.post("/api/context-evals", { repo: run.repo, path }),
+      api.post("/api/context-evals", {
+        repo: run.repo,
+        path,
+        ...(run.backend ? { backend: run.backend } : {}),
+      }),
     );
   } catch (failure) {
     return unanswered(path, reasonOf(failure));
@@ -85,6 +100,7 @@ function unanswered(path, reason) {
     useful_share: 0,
     reason,
     model: "",
+    sources: [],
   };
 }
 
@@ -145,6 +161,65 @@ export function renderSummary(repo, results, threshold) {
   ].join("\n");
 }
 
+/** One store's grade of a side-by-side result, in the shape of a single-store one; a document whose request failed has no sides and stands for both. */
+export function sideOf(result, side) {
+  const verdict = result[side];
+
+  return verdict
+    ? { path: result.path, question: result.question, ...verdict }
+    : result;
+}
+
+/** Each store's numbers over tonight's side-by-side results, the mean overlap of their sources, and how often one store alone let the question be answered. */
+export function compareSides(results) {
+  const overlaps = results
+    .map((result) => result.top_k_overlap)
+    .filter((overlap) => typeof overlap === "number");
+  const answeredOnlyBy = (side) =>
+    results.filter((result) => result.only_answered_by === side).length;
+
+  return {
+    lore: summarize(results.map((result) => sideOf(result, "lore"))),
+    utopia: summarize(results.map((result) => sideOf(result, "utopia"))),
+    meanOverlap:
+      overlaps.length === 0
+        ? 0
+        : Math.round(
+            (overlaps.reduce((sum, overlap) => sum + overlap, 0) /
+              overlaps.length) *
+              100,
+          ) / 100,
+    onlyLore: answeredOnlyBy("lore"),
+    onlyUtopia: answeredOnlyBy("utopia"),
+  };
+}
+
+export function renderSideBySide(repo, results, threshold) {
+  if (results.length === 0) {
+    return renderSummary(repo, results, threshold);
+  }
+  const comparison = compareSides(results);
+  const verdict = passes(comparison.lore, threshold) ? "pass" : "**fail**";
+  const row = (name, stats, alone) =>
+    `| ${name} | ${stats.found} / ${stats.total} | ${stats.answered} / ${stats.total} | ${percent(stats.usefulShare)} | ${alone} |`;
+  const loreResults = results.map((result) => sideOf(result, "lore"));
+
+  return [
+    `## Context evals: ${repo}, Lore and Utopia side by side`,
+    "",
+    "| Store | Found | Answered | Useful share | Answered alone |",
+    "| --- | --- | --- | --- | --- |",
+    row("Lore", comparison.lore, comparison.onlyLore),
+    row("Utopia", comparison.utopia, comparison.onlyUtopia),
+    "",
+    `Mean source overlap: ${percent(comparison.meanOverlap)}. Verdict, on Lore's numbers alone: ${verdict}`,
+    "",
+    ...failedTable(
+      loreResults.filter((result) => !(result.found && result.answered)),
+    ),
+  ].join("\n");
+}
+
 function failedTable(failed) {
   if (failed.length === 0) {
     return ["Every document was found and answered.", ""];
@@ -178,6 +253,12 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       sample: { type: "string", default: "20" },
       threshold: { type: "string", default: "0.85" },
       date: { type: "string", default: new Date().toISOString().slice(0, 10) },
+      backend: {
+        type: "string",
+        default: process.env.LORE_EVAL_BACKEND || "lore",
+      },
+      // Every verdict as JSON, each returned source with its section, tokens and whether the answer used it.
+      results: { type: "string" },
     },
   });
   const outcome = await runEval({
@@ -187,9 +268,17 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     date: values.date,
     sample: Number(values.sample),
     threshold: Number(values.threshold),
+    backend: values.backend,
   });
 
   console.log(outcome.markdown);
+
+  if (values.results) {
+    writeFileSync(
+      values.results,
+      `${JSON.stringify(outcome.results, null, 2)}\n`,
+    );
+  }
 
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${outcome.markdown}\n`);

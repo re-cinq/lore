@@ -15,6 +15,23 @@ import {
   type DgraphClientPort,
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
+import {
+  mirrorCodeFor,
+  mirrorDocFor,
+  mirrorReportFor,
+  unmirrorCodeFor,
+  unmirrorDocFor,
+  unmirrorTestFilesFor,
+  type MirroredCode,
+  type MirroredDoc,
+  type MirroredReport,
+} from "../../../work/utopia/utopia-mirror.js";
+
+export type {
+  MirroredCode,
+  MirroredDoc,
+  MirroredReport,
+} from "../../../work/utopia/utopia-mirror.js";
 
 /** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
 export interface DocProjection {
@@ -46,6 +63,15 @@ export interface IngestDeltaDeps {
   pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
   /** The repo's default branch: a test report for any other branch is work in flight and goes to that branch's overlay. */
   defaultBranch(repo: string): Promise<string>;
+  /** The Utopia mirror of one projected spec or ADR (specs/utopia-graph-mirror); a no-op on a repo not set up there. */
+  mirrorDoc(repo: string, doc: MirroredDoc): Promise<void>;
+  unmirrorDoc(repo: string, path: string): Promise<void>;
+  /** The Utopia mirror of one default-branch test report: one item per test file. */
+  mirrorReport(repo: string, mirrored: MirroredReport): Promise<void>;
+  unmirrorTests(repo: string, paths: string[]): Promise<void>;
+  /** The Utopia mirror of one code delta: one item per source file, its definitions and the links between them. */
+  mirrorCode(repo: string, mirrored: MirroredCode): Promise<void>;
+  unmirrorCode(repo: string, paths: string[]): Promise<void>;
 }
 
 /** The client every projector needs; a delta that reached here without one is a wiring bug, not a request error. */
@@ -90,6 +116,24 @@ function docDeps(must: () => DgraphClientPort): DocDeps {
   };
 }
 
+/** The Utopia writes that follow each graph write. */
+const UTOPIA_MIRROR: Pick<
+  IngestDeltaDeps,
+  | "mirrorDoc"
+  | "unmirrorDoc"
+  | "mirrorReport"
+  | "unmirrorTests"
+  | "mirrorCode"
+  | "unmirrorCode"
+> = {
+  mirrorDoc: mirrorDocFor,
+  unmirrorDoc: unmirrorDocFor,
+  mirrorReport: mirrorReportFor,
+  unmirrorTests: unmirrorTestFilesFor,
+  mirrorCode: mirrorCodeFor,
+  unmirrorCode: unmirrorCodeFor,
+};
+
 /** The production deps, with the dgraph client created once and shared by every projector. */
 export const defaultDeps = (): IngestDeltaDeps => {
   let client: DgraphClientPort | null | undefined;
@@ -105,5 +149,6 @@ export const defaultDeps = (): IngestDeltaDeps => {
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),
     defaultBranch: async (repo) =>
       (await projectFor(repo)).repo.defaultBranch(),
+    ...UTOPIA_MIRROR,
   };
 };

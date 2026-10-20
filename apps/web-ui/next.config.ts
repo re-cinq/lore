@@ -39,6 +39,13 @@ const nextConfig: NextConfig = {
     "@octokit/auth-app",
   ],
   redirects: async () => LEGACY_REDIRECTS,
+  // Internal tool: keep every page, including the sign-in page, out of search indexes.
+  headers: async () => [
+    {
+      source: "/:path*",
+      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+    },
+  ],
 };
 
 export default nextConfig;

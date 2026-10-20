@@ -250,13 +250,13 @@ export class PgTaskQueue implements TaskQueueRepository {
   async activeTaskByIssue(
     repo: string,
     issueNumber: number,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ id: string; status: string } | null> {
     const { rows } = await this.pool.query(
-      `SELECT id FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled', 'retried')`,
+      `SELECT id, status FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled', 'retried') ORDER BY created_at DESC LIMIT 1`,
       [issueNumber, repo],
     );
 
-    return (rows.at(0) as { id: string } | undefined) ?? null;
+    return (rows.at(0) as { id: string; status: string } | undefined) ?? null;
   }
 
   async markFeatureRequestMergedOnBranch(

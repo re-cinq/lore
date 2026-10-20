@@ -89,3 +89,16 @@ through existing `agent_definitions` rows and their resolve chain.
   review).
 - Cross-family prompt behavior differs; the review prompt in
   `task-types.yaml` needs a validation pass against the chosen family.
+
+## Amendment 2026-10-14: review shares the implementer's family
+
+`code-review` and `code-review-recheck` run on `gemini-4-argon`, the same
+family as the implementation loop's `gemini-3.1-pro-preview`; `code-review-reply`
+stays on `claude-sonnet-4-6`. A local bench on five merged pull requests with
+known must-fixes had Argon find all five that finished (one timed out) with no
+false alarms, against four of six for Sonnet, plus a real bug neither Sonnet nor
+the posted review caught (#2742). The catch rate outweighed the self-preference
+risk this ADR names, so cross-family review is no longer a rule, only one input
+to the model choice. The cost: Argon is about three times slower (review timeout
+25 min, re-check 20) and about 40% dearer per review. If same-family review
+starts to under-catch, the measure is the same bench, rerun.

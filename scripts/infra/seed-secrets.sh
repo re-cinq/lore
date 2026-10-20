@@ -62,15 +62,19 @@ OPTIONAL=(
   lore-grafana-oauth-client-id
   lore-grafana-oauth-client-secret
   lore-grafana-cookie-secret
-  # Behind enable_utopia (utopia.tf): the database owner's password (hex, so it
-  # needs no URL-encoding: openssl rand -hex 24), the 32-byte credential-sealing
+  # Behind enable_utopia (utopia.tf): the database owner's and the runtime role's
+  # passwords (hex, so they need no URL-encoding: openssl rand -hex 24), the 32-byte credential-sealing
   # key (openssl rand -hex 32), and its own Google OAuth web client plus cookie
   # key under the 16/24/32-byte rule.
   lore-utopia-db-password
+  lore-utopia-app-db-password
   lore-utopia-secret-key
   lore-utopia-oauth-client-id
   lore-utopia-oauth-client-secret
   lore-utopia-cookie-secret
+  # Behind enable_utopia_auto_setup: the Utopia write token (utp_pat_…) of the
+  # Lore person, minted in Utopia (docs/managing-secrets.md).
+  lore-utopia-lore-api-token
   # Behind enable_external_floor: the bearer tokens between Lore and the external
   # floor engine (its service token, and the one it presents to lore-api's
   # /api/floor/git-credential).

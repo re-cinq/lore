@@ -10,7 +10,7 @@ import { AssemblyRuns } from "../assembly-runs/assembly-runs.js";
 import { KnowledgeView } from "../knowledge/knowledge.js";
 import { TestSuite } from "../test-runner/test-suite.js";
 import { TraceView } from "../trace/trace.js";
-import { AgentDefs } from "../agents/agent-defs.js";
+import { AgentDefs, AgentDefsWriter } from "../agents/agent-defs.js";
 import { Workspace } from "../workspace/workspace.js";
 
 import { Audit } from "../audit/audit.js";
@@ -26,7 +26,10 @@ import type { AssemblyRunsPort } from "../assembly-runs/assembly-runs-port.js";
 import type { KnowledgePort } from "../knowledge/knowledge-port.js";
 import type { TestRunnerPort } from "../test-runner/test-runner-port.js";
 import type { TracePort } from "../trace/trace-port.js";
-import type { AgentDefsPort } from "../agents/agent-defs-port.js";
+import type {
+  AgentDefsReadPort,
+  AgentDefsWritePort,
+} from "../agents/agent-defs-port.js";
 import type { GitPort } from "../workspace/git-port.js";
 import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AuditPort } from "../audit/audit-port.js";
@@ -99,7 +102,17 @@ export class Project {
 
   /** Agent *definitions* — the stored config CRUD (model/timeout/prompt/image). */
   get agentDefs(): AgentDefs {
-    return new AgentDefs(this.fullName, this.port<AgentDefsPort>("agentDefs"));
+    return new AgentDefs(
+      this.fullName,
+      this.port<AgentDefsReadPort>("agentDefs"),
+    );
+  }
+
+  get agentDefsWriter(): AgentDefsWriter {
+    return new AgentDefsWriter(
+      this.fullName,
+      this.port<AgentDefsWritePort>("agentDefs"),
+    );
   }
 
   /** Branch-lease coordination (supervisor pod ownership). */

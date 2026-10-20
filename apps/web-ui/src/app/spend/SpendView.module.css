@@ -1,32 +1,10 @@
 /* Claude API Spend view — co-located with SpendView.tsx. All values static;
    nothing here is computed at render. */
 
-/* Four to a row, so seven headline cards land as two balanced rows (4 + 3) with
-   the figures kept prominent, rather than seven cramped columns on one line.
-   Drops to two per row once the viewport can no longer hold four. */
-.cards {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
-}
-
-@media (max-width: 720px) {
-  .cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* The global .spec-card ships 4px; these want equal room on every side. */
-.card {
-  padding: var(--space-4) var(--space-5);
-  min-width: 0;
-}
-
-/* Below the page's --fs-xl, but still a prominent headline figure. */
-.figure {
-  font-size: var(--fs-lg);
-  font-weight: bold;
+/* An estimate in a headline tile keeps the info tone that marks every
+   Lore-computed figure on the page. */
+.figureEstimate {
+  color: var(--info);
 }
 
 .figureInfo {
@@ -37,15 +15,6 @@
 
 .subnote {
   font-size: var(--fs-xs);
-}
-
-.warningCard {
-  margin-bottom: var(--space-6);
-  border-color: var(--warning);
-}
-
-.warningNote {
-  margin-top: var(--space-2);
 }
 
 .mono {
@@ -69,9 +38,40 @@
 .presetRow {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-wrap: wrap;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+/* The window presets as one segmented pill; the pressed one is the window
+   the page is showing. */
+.presets {
+  display: inline-flex;
+  padding: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+}
+
+.preset,
+.presets .preset {
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--pill-fg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
+.presets .preset:hover {
+  background: var(--pill-bg-hover);
+}
+
+.presets .preset[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--text-on-accent);
 }
 
 /* The from/to controls, styled to sit with the preset buttons rather than as raw
@@ -117,30 +117,48 @@
 
 /* --- Redesign: labelled sections, estimate-vs-billed bars, daily trend --- */
 
-/* Each of the three groups (Lore-computed, vendor invoices, compute) is a band.
-   The rule under the title is the only heavy divider on the page, so the three
-   kinds of number read apart at a glance rather than as one long scroll. */
+/* Each group (Lore-computed, unit costs, vendor invoices, compute) is a card.
+   The rule under the title states, with the pill, which kind of number the
+   tables below hold, so the groups read apart at a glance. */
 .section {
-  margin: 0 0 var(--space-8);
+  min-width: 0;
+  margin: 0 0 var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
 }
 
 .sectionHead {
   display: flex;
   align-items: baseline;
   gap: var(--space-4);
-  margin: var(--space-6) 0 var(--space-2);
-  padding-bottom: var(--space-3);
-  border-bottom: 2px solid var(--border);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: var(--fs-lg);
+  font-size: var(--fs-md);
+}
+
+/* The tables inside a card are titled by an h2 of their own; set them a step
+   below the card's title so the card stays the group. */
+.section :global(h2):not(.sectionTitle) {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--fs-base);
+}
+
+.section :global(table) {
+  width: 100%;
 }
 
 /* The estimate/billed pill sits on the section head, stating once for the whole
    group whether these figures are Lore's estimate or a vendor's invoice. */
 .kindPill {
+  border-radius: var(--radius-pill);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: var(--fs-2xs);

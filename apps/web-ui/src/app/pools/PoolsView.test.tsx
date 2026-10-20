@@ -14,19 +14,16 @@ const makePool = (overrides: Partial<PoolRow> = {}): PoolRow => ({
 });
 
 describe("PoolsView", () => {
-  it("renders heading and column headers", () => {
-    render(<PoolsView pools={[]} />);
+  it("renders heading and each card's figure labels", () => {
+    render(<PoolsView pools={[makePool()]} />);
     expect(
-      screen.getByRole("heading", { name: "Shared Memory Pools" }),
+      screen.getByRole("heading", { name: "Shared memory pools" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Pool Name")).toBeInTheDocument();
     expect(screen.getByText("Entries")).toBeInTheDocument();
-    expect(screen.getByText("Contributing Agents")).toBeInTheDocument();
-    expect(screen.getByText("Created By")).toBeInTheDocument();
-    expect(screen.getByText("Created")).toBeInTheDocument();
+    expect(screen.getByText("Contributing agents")).toBeInTheDocument();
   });
 
-  it("renders empty state row when no pools", () => {
+  it("renders the empty state when no pools", () => {
     render(<PoolsView pools={[]} />);
     expect(screen.getByText("No shared pools yet")).toBeInTheDocument();
   });
@@ -75,7 +72,7 @@ describe("PoolsView", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders one row per pool and no empty state when populated", () => {
+  it("renders one card per pool and no empty state when populated", () => {
     render(
       <PoolsView
         pools={[

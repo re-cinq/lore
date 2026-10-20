@@ -11,7 +11,7 @@ export default function TaskWithoutRun({ task }: TaskWithoutRunProps) {
   return (
     <div>
       <div className="breadcrumb">
-        <Link href="/assembly-runs">Assembly Runs</Link> /{" "}
+        <Link href="/assembly-runs">Assembly runs</Link> /{" "}
         <Link href={`/repos/${task.target_repo}`}>{task.target_repo}</Link>
       </div>
       <h1>This task has no run</h1>

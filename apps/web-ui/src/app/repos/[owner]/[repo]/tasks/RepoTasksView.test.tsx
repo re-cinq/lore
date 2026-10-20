@@ -38,7 +38,7 @@ describe("RepoTasksView", () => {
     renderView();
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Assembly Runs" }),
+      screen.getByRole("heading", { level: 2, name: "Assembly runs" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Assembly lines targeting this repo/),

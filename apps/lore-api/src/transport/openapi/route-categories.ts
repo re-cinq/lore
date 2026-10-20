@@ -74,6 +74,8 @@ const TAG_RULES: Array<[RegExp, string]> = [
   // Connecting GitHub decides which orgs' repos Lore can serve.
   [/^\/api\/github\/installations\b/, "Repositories"],
   [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],
+  // The org's memories and episodes, mirrored into its Utopia base.
+  [/^\/api\/utopia\/memory$/, "Memory"],
 ];
 
 /** The sidebar category for a normalized path. */

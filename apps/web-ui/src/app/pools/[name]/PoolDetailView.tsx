@@ -25,17 +25,24 @@ export default function PoolDetailView(props: PoolDetailViewProps) {
 
   return (
     <div>
-      <div className="breadcrumb">
-        <Link href="/pools">Pools</Link> / <strong>{poolName}</strong>
-      </div>
-      <h1>{poolName}</h1>
+      <PoolCrumb poolName={poolName} />
+      <h1 className={styles.title}>{poolName}</h1>
       <PoolSummary
         createdBy={createdBy}
         createdAt={createdAt}
-        entryCount={entries.length}
+        entries={entries}
       />
-      <PoolEntriesTable entries={entries} />
+      <PoolEntries entries={entries} />
     </div>
+  );
+}
+
+function PoolCrumb({ poolName }: { poolName: string }) {
+  return (
+    <nav aria-label="Breadcrumb" className={`breadcrumb ${styles.crumb}`}>
+      <Link href="/pools">Pools</Link> <span aria-hidden="true">/</span>{" "}
+      <span className={styles.crumbName}>{poolName}</span>
+    </nav>
   );
 }
 
@@ -43,9 +50,7 @@ export default function PoolDetailView(props: PoolDetailViewProps) {
 function PoolNotFound({ poolName }: { poolName: string }) {
   return (
     <div>
-      <div className="breadcrumb">
-        <Link href="/pools">Pools</Link> / {poolName}
-      </div>
+      <PoolCrumb poolName={poolName} />
       <h1>Pool Not Found</h1>
       <div className="empty-state">
         <p>No pool named &quot;{poolName}&quot; exists.</p>
@@ -57,75 +62,57 @@ function PoolNotFound({ poolName }: { poolName: string }) {
 interface PoolSummaryProps {
   createdBy: string;
   createdAt: string;
-  entryCount: number;
+  entries: PoolEntryRow[];
 }
 
-function PoolSummary({ createdBy, createdAt, entryCount }: PoolSummaryProps) {
+/** Who made the pool, when, and how much is in it from how many agents. */
+function PoolSummary({ createdBy, createdAt, entries }: PoolSummaryProps) {
   return (
-    <p className={`meta ${styles.summary}`}>
+    <p className={styles.summary}>
       Created by {displayAgentId(createdBy)} on{" "}
-      <TimeAgo date={createdAt} inline /> · {entryCount} entr
-      {entryCount !== 1 ? "ies" : "y"}
+      <TimeAgo date={createdAt} inline /> · {entryCountText(entries)}
     </p>
   );
 }
 
-interface PoolEntriesTableProps {
-  entries: PoolDetailViewProps["entries"];
+/** "3 entries from 2 agents"; the agents are counted from the entries shown. */
+function entryCountText(entries: PoolEntryRow[]): string {
+  const count = entries.length;
+  const agents = new Set(entries.map((e) => e.agent_id)).size;
+  const text = `${count} entr${count === 1 ? "y" : "ies"}`;
+
+  return agents === 0
+    ? text
+    : `${text} from ${agents} agent${agents === 1 ? "" : "s"}`;
 }
 
-function PoolEntriesTable({ entries }: PoolEntriesTableProps) {
+function PoolEntries({ entries }: Pick<PoolDetailViewProps, "entries">) {
+  if (entries.length === 0) {
+    return <p className={styles.empty}>No entries in this pool</p>;
+  }
+
   return (
-    <table>
-      <EntriesHead />
-      <tbody>
-        {entries.map((entry) => (
-          <EntryRow key={entry.id} entry={entry} />
-        ))}
-        {entries.length === 0 && (
-          <tr>
-            <td colSpan={5} className={styles.emptyCell}>
-              No entries in this pool
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+    <ul className={styles.list} aria-label="Pool entries">
+      {entries.map((entry) => (
+        <EntryCard key={entry.id} entry={entry} />
+      ))}
+    </ul>
   );
 }
 
-/** The entry columns. */
-function EntriesHead() {
+/** One entry, at the version currently in the pool. The agent's full id is in the title attribute; the card shows the shortened form so the line stays readable. */
+function EntryCard({ entry }: { entry: PoolEntryRow }) {
   return (
-    <thead>
-      <tr>
-        <th>Key</th>
-        <th>Value</th>
-        <th>Agent</th>
-        <th>Version</th>
-        <th>Created</th>
-      </tr>
-    </thead>
-  );
-}
-
-/** One entry, at the version currently in the pool. The agent's full id is in the title attribute; the cell shows the shortened form so the column stays readable. */
-function EntryRow({
-  entry,
-}: {
-  entry: PoolDetailViewProps["entries"][number];
-}) {
-  return (
-    <tr>
-      <td>
-        <strong>{entry.key}</strong>
-      </td>
+    <li className={styles.card}>
+      <div className={styles.cardHead}>
+        <strong className={styles.key}>{entry.key}</strong>
+        <span className={styles.meta}>
+          <span className={styles.version}>v{entry.version}</span>
+          <span title={entry.agent_id}>{displayAgentId(entry.agent_id)}</span>
+          <TimeAgo date={entry.created_at} inline />
+        </span>
+      </div>
       <PoolValueCell value={entry.value} />
-      <td title={entry.agent_id}>{displayAgentId(entry.agent_id)}</td>
-      <td>v{entry.version}</td>
-      <td>
-        <TimeAgo date={entry.created_at} />
-      </td>
-    </tr>
+    </li>
   );
 }

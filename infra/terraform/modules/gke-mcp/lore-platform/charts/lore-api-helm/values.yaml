@@ -104,7 +104,7 @@ floor:
   enabled: false
   apiUrl: http://floor-api.floor.svc.cluster.local:8080
   # The image a floor agent's pod runs in: node:22-bookworm plus the tools the agents
-  # lean on (jq, yq, rg, python3, make ...), built from apps/agent-image. The subsystem
+  # lean on (jq, yq, rg, python3, make, a Temurin 21 JDK ...), built from apps/agent-image. The subsystem
   # brings its own supervisor; this is only the container the agent works inside.
   agentImage: ghcr.io/re-cinq/lore-agent:latest
   # In-cluster lore-mcp gateway skills registry; set by terraform.
@@ -115,6 +115,18 @@ floor:
   gitCredentialTokenSecret:
     name: floor-git-credential-token
     key: token
+
+# Utopia (deeplethe/utopia), the knowledge-graph service the spec/ADR chain is
+# mirrored into (specs/utopia-graph-mirror). Off by default: terraform sets
+# enabled from var.enable_utopia. Each repo's push key lives in lore.utopia_sources.
+# With tokenSecret (the Secret holding a Utopia write token under `token`) and
+# workspaceId set, a repo's first spec/ADR ingest creates its knowledge base in
+# that workspace; empty, a person sets each repo up through the setup route.
+utopia:
+  enabled: false
+  apiUrl: http://utopia.utopia.svc.cluster.local
+  workspaceId: ""
+  tokenSecret: ""
 
 # The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
 # namespace-scoped, so this names the lore-api-namespace copy that the

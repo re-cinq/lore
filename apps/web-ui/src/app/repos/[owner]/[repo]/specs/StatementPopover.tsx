@@ -88,7 +88,7 @@ function TestedState({ statement, repo, branch }: StatementViewProps) {
   );
 }
 
-/** The tests that validate this statement, each linking to its exact line. The rationale under each link repeats the file and line as WRITTEN, so a reader can see what the link claims without following it. */
+/* The tests that validate this statement, each linking to its exact line. The rationale under each link repeats the file and line as WRITTEN, so a reader can see what the link claims without following it. */
 /** How many tests claim this statement, in the tooltip's own voice rather than as a bare number. */
 function TestedCount({ count }: { count: number }) {
   return (

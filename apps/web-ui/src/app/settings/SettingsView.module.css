@@ -1,78 +1,77 @@
-/* Org-wide settings view — co-located with SettingsView.tsx. Static styling
-   lives here; the form values themselves carry no dynamic styling. */
-
-.appearanceCard {
-  max-width: 600px;
-  margin-bottom: var(--space-6);
-}
-
-.appearanceNote {
-  font-size: var(--fs-xs);
-  margin-top: 0;
-  margin-bottom: var(--space-4);
-}
+/* Org-wide settings view — co-located with SettingsView.tsx and the forms it
+   renders. Each section is a SettingsCard; these style what goes inside. */
 
 .statsRow {
-  display: flex;
-  gap: var(--space-5);
-  margin-bottom: var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
 }
 
 .statCard {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+}
+
+.statLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
 .statValue {
   font-size: var(--fs-xl);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
+  color: var(--heading-color);
 }
 
 .form {
-  max-width: 600px;
+  gap: var(--space-3);
 }
 
 .fieldNote {
+  margin: 0 0 var(--space-3);
   font-size: var(--fs-xs);
-  margin-top: var(--space-1);
+  color: var(--text-muted);
 }
 
-.labelSpaced {
-  margin-top: var(--space-5);
-}
-
-.tokenInput {
+.monoInput {
   font-family: var(--font-mono);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
+}
+
+.tokenRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tokenRow input {
+  flex: 1;
+  min-width: 0;
 }
 
 .actions {
   display: flex;
+  justify-content: flex-end;
   gap: var(--space-3);
-  margin-top: var(--space-5);
-}
-
-.regenerateForm {
-  margin-top: var(--space-3);
 }
 
 .regenerateButton {
-  font-size: var(--fs-xs);
-  padding: var(--space-3) var(--space-4);
+  white-space: nowrap;
 }
 
-.regenerateNote {
-  margin-left: var(--space-3);
-  font-size: var(--fs-xs);
+/* The design's soft destructive button: tinted ground, danger text. */
+:global([data-theme-family="lore"]) .regenerateButton {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
-.sectionHeading {
-  margin-top: var(--space-7);
-}
-
-.checkboxLabel {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+:global([data-theme-family="lore"]) .regenerateButton:hover {
+  background: var(--danger);
+  color: var(--text-on-accent);
 }
 
 .reposTextarea {
@@ -82,8 +81,15 @@
 
 .installPre {
   margin: 0;
-  font-size: var(--fs-sm);
+  padding: var(--space-5);
+  border-radius: var(--radius);
+  background: var(--sidebar-bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-lg);
   overflow-x: auto;
+  white-space: pre;
 }
 
 .warn {

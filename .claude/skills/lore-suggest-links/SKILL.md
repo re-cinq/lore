@@ -1,6 +1,6 @@
 ---
 name: lore-suggest-links
-description: Suggest inline test-link parentheticals for un-linked testable statements in a spec.md. Subscription-billed, on-demand, single-spec sibling to the weekly spec-coverage-backfill cron. Works against the developer's local working tree; opens a PR with the suggested edits.
+description: Suggest inline test-link parentheticals for un-linked testable statements in a spec.md. Subscription-billed, on-demand, single-spec sibling to the weekly spec-upkeep line. Works against the developer's local working tree; opens a PR with the suggested edits.
 ---
 
 You are helping a developer add inline test-link parentheticals to a
@@ -283,7 +283,7 @@ gh pr create \
 # Suggested test links for \`$spec_path\`
 
 Suggestions emitted by \`/lore-suggest-links\` (subscription-billed,
-on-demand sibling to the weekly \`spec-coverage-backfill\` cron).
+on-demand sibling to the weekly \`spec-upkeep\` line).
 
 ## Rationales
 
@@ -337,7 +337,7 @@ Read it once to calibrate; do not paste it back verbatim.
 <!-- lore-help:begin -->
 **Summary.** Suggest inline `([validated by …])` test links for a spec's un-linked testable statements, and open a PR with them.
 **Usage:** `/lore-suggest-links <path/to/spec.md>`
-**Use when.** A spec's coverage bar is red and you don't want to wait for the weekly `spec-coverage-backfill` cron. Billed to your Claude subscription, not the org's API key.
+**Use when.** A spec's coverage bar is red and you don't want to wait for the weekly `spec-upkeep` line. Billed to your Claude subscription, not the org's API key.
 **Not for.** Statements you can link yourself in ten seconds — hand-writing the parenthetical is free and always wins on accuracy.
 **Examples**
 - `/lore-suggest-links specs/dark-factory/spec.md` — segments the spec, skips narrative and already-linked statements, judges candidate tests, and opens a `lore-managed` PR

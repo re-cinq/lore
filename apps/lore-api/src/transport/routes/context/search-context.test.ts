@@ -110,4 +110,35 @@ describe("GET /api/search-context", () => {
       searched: vi.mocked(hybridSearch).mock.calls.length,
     }).toEqual({ status: 400, searched: 0 });
   });
+
+  it("answers no passages and a no-reader note for backend=utopia, without searching Lore", async () => {
+    const res = await get("/api/search-context?query=deploys&backend=utopia");
+
+    expect({
+      body: res.result,
+      searched: vi.mocked(hybridSearch).mock.calls.length,
+    }).toEqual({
+      body: { results: [], notes: ["search_context: no Utopia reader yet"] },
+      searched: 0,
+    });
+  });
+
+  it("answers Lore's passages plus the no-reader note for backend=both", async () => {
+    vi.mocked(hybridSearch).mockResolvedValue([hit("deploy on Friday", 0.03)]);
+
+    const res = await get("/api/search-context?query=deploys&backend=both");
+
+    expect(res.result).toEqual({
+      results: [
+        { content: "deploy on Friday", score: 0.03, source_path: null },
+      ],
+      notes: ["search_context: no Utopia reader yet"],
+    });
+  });
+
+  it("refuses a backend of dgraph with 400", async () => {
+    const res = await get("/api/search-context?query=deploys&backend=dgraph");
+
+    expect(res.statusCode).toBe(400);
+  });
 });

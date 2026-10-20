@@ -17,3 +17,13 @@
   background: var(--bg-surface);
   border-color: var(--border);
 }
+
+:global([data-theme-family="lore"]) .alert {
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-6);
+}
+
+:global([data-theme-family="lore"]) .secondary {
+  background: var(--bg-hover);
+}

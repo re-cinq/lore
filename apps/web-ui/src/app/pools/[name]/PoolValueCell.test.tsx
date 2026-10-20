@@ -4,17 +4,9 @@ import { render, fireEvent, within, act } from "@testing-library/react";
 import { PoolValueCell } from "./PoolValueCell";
 
 const renderCell = (value: string) => {
-  const { container } = render(
-    <table>
-      <tbody>
-        <tr>
-          <PoolValueCell value={value} />
-        </tr>
-      </tbody>
-    </table>,
-  );
+  const { container } = render(<PoolValueCell value={value} />);
 
-  return within(container.querySelector("td")!);
+  return within(container.firstElementChild as HTMLElement);
 };
 
 const stubClipboard = () => {

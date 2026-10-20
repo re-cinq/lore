@@ -80,3 +80,47 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
+
+/* Only the Lore family shows the scheme's name under its icon. */
+.schemeLabel {
+  display: none;
+}
+
+/* Lore: the three schemes are cards in a row, as the design draws them. */
+:global([data-theme-family="lore"]) .segmented {
+  display: flex;
+  gap: var(--space-3);
+  border: none;
+  background: none;
+  overflow: visible;
+}
+
+:global([data-theme-family="lore"]) .option {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+
+:global([data-theme-family="lore"]) .option + .option {
+  border-left: 1px solid var(--border);
+}
+
+:global([data-theme-family="lore"]) .option.iconOnly {
+  flex: 1 1 0;
+  flex-direction: column;
+  width: auto;
+  height: auto;
+  min-width: 96px;
+  padding: var(--space-5) var(--space-3);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+:global([data-theme-family="lore"]) .schemeLabel {
+  display: block;
+}
+
+:global([data-theme-family="lore"]) .option.selected {
+  border-color: var(--accent);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}

@@ -38,7 +38,7 @@ function TasksHeading() {
   return (
     <div>
       <div className={styles.heading}>
-        <h2 className={styles.title}>Assembly Runs</h2>
+        <h2 className={styles.title}>Assembly runs</h2>
         <AssemblyLineHelp />
       </div>
       <p className={`meta ${styles.intro}`}>

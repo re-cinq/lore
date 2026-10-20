@@ -52,8 +52,14 @@ export interface PullRef {
   mergeable?: boolean | null;
   /** ISO merge time; present on a merged PR read from octokit, absent on open PRs and legacy doubles. */
   mergedAt?: string;
+  /** GraphQL Node ID of the pull request, used for mutations like enablePullRequestAutoMerge. */
+  nodeId?: string;
+  /** The branch the PR merges into: its branch rule decides whether auto-merge may be armed. Absent on legacy doubles. */
+  baseBranch?: string;
   /** PR body (octokit adapter only; GitHub returns null if empty) — the digest reads its closing keywords. */
   body?: string;
+  /** GitHub's native auto-merge is armed on the PR; absent on legacy doubles. */
+  autoMerge?: boolean;
 }
 
 export interface PullReview {

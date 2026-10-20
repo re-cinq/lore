@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
 import AuditView, { type AuditEntryRow } from "./AuditView";
 import { formatEnumLabel } from "@/lib/enum-label";
+
+vi.mock("@/components/Icon", () => ({
+  default: () => <i aria-hidden="true" />,
+}));
 
 const OPERATIONS = [
   "write",
@@ -28,7 +32,7 @@ const row = (over: Partial<AuditEntryRow>): AuditEntryRow => ({
 });
 
 describe("AuditView", () => {
-  it("renders one table row per entry with truncated agent and operation badge", () => {
+  it("renders one row per entry with truncated agent and operation badge", () => {
     const { container } = render(
       <AuditView
         entries={[
@@ -59,7 +63,7 @@ describe("AuditView", () => {
     expect(writeBadge).toBeInTheDocument();
     expect(writeBadge).toHaveTextContent("Write");
     expect(container.querySelector(".op-badge.op-read")).toBeInTheDocument();
-    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
   it("renders the key, pool and stringified metadata cells when present", () => {
@@ -83,14 +87,13 @@ describe("AuditView", () => {
 
     expect(screen.getByText("deploy-notes")).toBeInTheDocument();
     expect(screen.getByText("team-pool")).toBeInTheDocument();
-    expect(screen.getByText("view")).toBeInTheDocument();
     expect(container.querySelector("details pre")?.textContent).toContain(
       '"ttl": 3600',
     );
   });
 
-  it("falls back to an em-dash for null key, null pool and null metadata", () => {
-    render(
+  it("falls back to an em-dash for null key and pool, and nothing to open for null metadata", () => {
+    const { container } = render(
       <AuditView
         entries={[row({ memory_key: null, pool_name: null, metadata: null })]}
         totalCount={1}
@@ -101,7 +104,9 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
-    expect(screen.getAllByText("—")).toHaveLength(3);
+
+    expect(screen.getAllByText("—")).toHaveLength(2);
+    expect(container.querySelector("details")).toBeNull();
   });
 
   it("renders full metadata as collapsible pretty-printed JSON", () => {
@@ -118,7 +123,7 @@ describe("AuditView", () => {
       />,
     );
 
-    expect(screen.getByText("view")).toBeInTheDocument();
+    expect(container.querySelector("details summary")).toBeInTheDocument();
     const pre = container.querySelector("details pre");
 
     expect(pre?.textContent).toContain('"description"');
@@ -126,7 +131,7 @@ describe("AuditView", () => {
   });
 
   it("shows the empty state when there are no entries", () => {
-    const { container } = render(
+    render(
       <AuditView
         entries={[]}
         totalCount={0}
@@ -139,7 +144,7 @@ describe("AuditView", () => {
     );
 
     expect(screen.getByText("No activity recorded yet")).toBeInTheDocument();
-    expect(container.querySelector('td[colspan="6"]')).toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).toBeNull();
   });
 
   it("shows the no-matches state, not first-run, on an out-of-range page of a populated log", () => {
@@ -164,7 +169,7 @@ describe("AuditView", () => {
     );
   });
 
-  it("renders the operations filter dropdown with all options plus the all-operations default", () => {
+  it("renders an operation chip per operation plus All, which is current with no op filter", () => {
     render(
       <AuditView
         entries={[]}
@@ -176,17 +181,22 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
-    expect(
-      screen.getByRole("option", { name: "All operations" }),
-    ).toBeInTheDocument();
-    OPERATIONS.forEach((o) => {
-      expect(
-        screen.getByRole("option", { name: formatEnumLabel(o) }),
-      ).toBeInTheDocument();
-    });
+    const chips = within(screen.getByRole("navigation", { name: "Operation" }));
+
+    expect(chips.getByRole("link", { name: "All" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(chips.getAllByRole("link").map((a) => a.textContent)).toEqual(
+      ["All"].concat(OPERATIONS.map(formatEnumLabel)),
+    );
+    expect(chips.getByRole("link", { name: "Read" })).toHaveAttribute(
+      "href",
+      "/audit?op=read",
+    );
   });
 
-  it("seeds the filter inputs from the current agent and op values", () => {
+  it("seeds the agent search from the current agent, keeps the op, and marks its chip current", () => {
     const { container } = render(
       <AuditView
         entries={[]}
@@ -204,7 +214,11 @@ describe("AuditView", () => {
     expect(container.querySelector('input[name="agent"]')).toHaveValue(
       "abcdef0123456789",
     );
-    expect(container.querySelector('select[name="op"]')).toHaveValue("search");
+    expect(container.querySelector('input[name="op"]')).toHaveValue("search");
+    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute(
+      "href",
+      "/audit?agent=abcdef0123456789&op=search",
+    );
   });
 
   it("disables both pagination links on a single full-of-results first page", () => {

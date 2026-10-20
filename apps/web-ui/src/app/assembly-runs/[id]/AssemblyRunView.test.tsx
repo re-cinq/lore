@@ -196,7 +196,7 @@ describe("AssemblyRunView", () => {
     const { container } = render(<AssemblyRunView run={run()} />);
 
     expect(container.querySelector(".breadcrumb")).toHaveTextContent(
-      "Assembly Runs / re-cinq/lore / code-review",
+      "Assembly runs / re-cinq/lore / code-review",
     );
   });
   it("steps through the repo's backlog for a run the implementation loop started", () => {
@@ -222,7 +222,7 @@ describe("AssemblyRunView", () => {
     );
 
     expect(container.querySelector(".breadcrumb")).toHaveTextContent(
-      "Assembly Runs / re-cinq/lore / Backlog / implementation-loop",
+      "Assembly runs / re-cinq/lore / Backlog / implementation-loop",
     );
   });
 

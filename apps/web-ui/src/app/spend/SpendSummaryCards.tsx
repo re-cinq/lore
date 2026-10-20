@@ -2,11 +2,14 @@ import type { ReactNode } from "react";
 import styles from "./SpendView.module.css";
 import type { SpendWindow } from "./SpendView";
 import { usd, num, day, stamp } from "./spend-format";
+import { StatTile, StatTiles } from "@/components/insights/StatTile";
 
 interface StatCardProps {
   label: ReactNode;
   figure: string;
   estimate?: boolean;
+  /** The headline tile, set on the primary color. */
+  hero?: boolean;
   children?: ReactNode;
 }
 
@@ -23,7 +26,7 @@ export function SummaryCards(props: SummaryCardsProps) {
   const { llm, billed, gcp, compute } = props;
 
   return (
-    <div className={styles.cards}>
+    <StatTiles title="Headline figures">
       <LoreComputedCards llm={llm} />
       {billed.available && <AnthropicBilledCard billed={billed} />}
       <StatCard
@@ -33,7 +36,7 @@ export function SummaryCards(props: SummaryCardsProps) {
       />
       {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
       {gcp.available && <GcpBilledCard gcp={gcp} />}
-    </div>
+    </StatTiles>
   );
 }
 
@@ -41,9 +44,23 @@ export function SummaryCards(props: SummaryCardsProps) {
 function LoreComputedCards({ llm }: Pick<SummaryCardsProps, "llm">) {
   return (
     <>
-      <StatCard label="Lore-computed cost" figure={usd(llm.total_usd)} estimate>
+      <StatCard
+        label="Lore-computed cost"
+        figure={usd(llm.total_usd)}
+        estimate
+        hero
+      >
         <Subnote>estimate from token counts</Subnote>
       </StatCard>
+      <TokenCards llm={llm} />
+    </>
+  );
+}
+
+/** The counts the estimate is computed from. */
+function TokenCards({ llm }: Pick<SummaryCardsProps, "llm">) {
+  return (
+    <>
       <StatCard label="API calls" figure={num(llm.calls)} />
       <StatCard label="Input tokens" figure={num(llm.input_tokens)} />
       <StatCard label="Output tokens" figure={num(llm.output_tokens)} />
@@ -91,20 +108,18 @@ function GcpBilledCard({ gcp }: { gcp: SpendWindow["gcp"] }) {
 }
 
 /** One headline figure. `estimate` marks a number Lore computed rather than one a vendor billed, which is the distinction the whole page turns on. */
-function StatCard({
-  label,
-  figure,
-  estimate = false,
-  children,
-}: StatCardProps) {
+function StatCard(props: StatCardProps) {
+  const { label, figure, estimate = false, hero = false, children } = props;
+
   return (
-    <div className={`spec-card ${styles.card}`}>
-      <div className="meta">{label}</div>
-      <div className={estimate ? styles.figureInfo : styles.figure}>
-        {figure}
-      </div>
+    <StatTile
+      label={label}
+      value={figure}
+      hero={hero}
+      valueClass={estimate && !hero ? styles.figureEstimate : undefined}
+    >
       {children}
-    </div>
+    </StatTile>
   );
 }
 

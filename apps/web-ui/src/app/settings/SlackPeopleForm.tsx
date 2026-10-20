@@ -1,4 +1,5 @@
 import { SubmitButton } from "@/components/SubmitButton";
+import { SettingsCard } from "@/components/SettingsCard";
 import styles from "./SettingsView.module.css";
 import type { SettingsViewProps } from "./SettingsView";
 
@@ -8,14 +9,15 @@ type SlackPeopleFormProps = Pick<
 >;
 
 /** Who a GitHub login is in Slack, for the daily digest's names (specs/daily-digest FR12). Most people match by their commit email on their own; a line here fills a gap or overrides a wrong match. */
-export default function SlackPeopleForm({
-  slackPeopleLines,
-  slackPeopleRejected,
-  saveSlackPeople,
-}: SlackPeopleFormProps) {
+export default function SlackPeopleForm(props: SlackPeopleFormProps) {
+  const { slackPeopleLines, slackPeopleRejected, saveSlackPeople } = props;
+
   return (
-    <>
-      <h2 className={styles.sectionHeading}>Slack people</h2>
+    <SettingsCard
+      id="set-slack"
+      title="Slack people"
+      description="Who each GitHub login is in Slack, for the names in the daily digest."
+    >
       <form action={saveSlackPeople} className={`task-form ${styles.form}`}>
         {slackPeopleRejected.length > 0 && (
           <RejectedLines lines={slackPeopleRejected} />
@@ -25,7 +27,7 @@ export default function SlackPeopleForm({
           <SubmitButton pendingLabel="Saving…">Save Slack people</SubmitButton>
         </div>
       </form>
-    </>
+    </SettingsCard>
   );
 }
 
@@ -49,7 +51,7 @@ function SlackPeopleField({ lines }: { lines: string }) {
 
 function SlackPeopleHint() {
   return (
-    <span className="meta">
+    <span className={styles.fieldNote}>
       The daily digest shows each person under their Slack name. People are
       matched by their commit email first; a line here wins over that match. A
       Slack user id is in the person&apos;s profile under &quot;Copy member

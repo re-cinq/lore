@@ -1,4 +1,4 @@
-/** Pure ring-exclusion geometry for D3 spec-graph; keeps non-ring nodes outside discs via radial push; deterministic, no side effects. */
+/* Pure ring-exclusion geometry for D3 spec-graph; keeps non-ring nodes outside discs via radial push; deterministic, no side effects. */
 
 /** An exclusion disc: center (x, y) and radius r, in layout coordinates. */
 export type Disc = { x: number; y: number; r: number };
