@@ -43,7 +43,7 @@
   margin: 0;
   font-size: var(--fs-xl);
   font-weight: var(--fw-medium);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-snug);
   color: var(--heading-color);
 }
 
@@ -52,8 +52,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--control-lg);
+  height: var(--control-lg);
   padding: 0;
   border: none;
   border-radius: var(--radius-pill);
@@ -70,8 +70,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 22px;
+  min-width: var(--size-badge);
+  height: var(--size-badge);
   padding: 0 var(--space-2);
   box-sizing: border-box;
   border: 1px solid var(--border-hover);

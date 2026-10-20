@@ -14,7 +14,7 @@
 :global([data-theme-family="lore"]) .link {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: var(--control);
   padding: var(--space-3) var(--space-5);
   border-bottom: none;
   border-radius: var(--radius-pill);

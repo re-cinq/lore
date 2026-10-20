@@ -214,7 +214,7 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   :global([data-theme-family="lore"]) .live::before {
-    animation: livePulse 1.6s ease-in-out infinite;
+    animation: livePulse var(--pulse-duration) ease-in-out infinite;
   }
 }
 @keyframes livePulse {

@@ -76,7 +76,7 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   .running .statusDot {
-    animation: statusPulse 1.6s ease-in-out infinite;
+    animation: statusPulse var(--pulse-duration) ease-in-out infinite;
   }
 }
 @keyframes statusPulse {
@@ -106,7 +106,7 @@
   display: contents;
 }
 :global([data-theme-family="lore"]) .factTiles {
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-150), 1fr));
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--border);

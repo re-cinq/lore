@@ -3,7 +3,7 @@
 .installLink {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: var(--control);
   padding: var(--space-2) var(--space-5);
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-pill);
@@ -44,8 +44,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--control-lg);
+  height: var(--control-lg);
   flex-shrink: 0;
   border-radius: var(--radius);
   background: var(--bg-surface);

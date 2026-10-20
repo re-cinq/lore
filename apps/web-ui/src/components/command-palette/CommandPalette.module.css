@@ -13,7 +13,7 @@
   top: 12vh;
   left: 50%;
   transform: translateX(-50%);
-  width: min(640px, calc(100vw - var(--space-7)));
+  width: min(var(--measure-sm), calc(100vw - var(--space-7)));
   display: flex;
   flex-direction: column;
   overflow: hidden;

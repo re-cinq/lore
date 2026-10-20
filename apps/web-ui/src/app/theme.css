@@ -71,6 +71,36 @@
   --z-offcanvas: 50;
   --z-popover: 60;
 
+  /* Control sizes: the height of a button, input or row, and the square of an icon button. */
+  --control-sm: 32px;
+  --control: 36px;
+  --control-lg: 40px;
+  --control-xl: 44px;
+  --size-badge: 22px;
+
+  /* Text measures: the widest a block of copy or a form is allowed to run. */
+  --measure-sm: 640px;
+  --measure: 720px;
+  --measure-lg: 760px;
+
+  /* Column and tile widths for flex bases and grid minimums, named by their pixels. */
+  --size-96: 96px;
+  --size-150: 150px;
+  --size-160: 160px;
+  --size-180: 180px;
+  --size-200: 200px;
+  --size-220: 220px;
+  --size-280: 280px;
+  --size-480: 480px;
+
+  /* Letter spacing: capitals labels, headings. */
+  --tracking-caps: 0.06em;
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.01em;
+
+  /* The live "something is running" pulse. */
+  --pulse-duration: 1.6s;
+
   /* Absolute colors, for surfaces that must not follow the scheme. */
   --white: #ffffff;
   --black: #000000;

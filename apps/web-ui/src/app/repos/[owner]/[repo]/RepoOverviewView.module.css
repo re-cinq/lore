@@ -8,7 +8,7 @@
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-180), 1fr));
   gap: var(--space-5);
 }
 
@@ -31,7 +31,7 @@
   font-size: var(--fs-xl);
   font-weight: var(--fw-medium);
   line-height: var(--lh-1);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
   color: var(--heading-color);
 }
 
@@ -63,11 +63,11 @@
 }
 
 .mainPanel {
-  flex: 2 1 480px;
+  flex: 2 1 var(--size-480);
 }
 
 .sidePanel {
-  flex: 1 1 280px;
+  flex: 1 1 var(--size-280);
 }
 
 .panel {
@@ -131,7 +131,7 @@
 }
 
 .taskTitle {
-  flex: 1 1 220px;
+  flex: 1 1 var(--size-220);
   min-width: 0;
   font-weight: var(--fw-medium);
   color: var(--text);

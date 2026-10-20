@@ -54,7 +54,7 @@
 
 .preset,
 .presets .preset {
-  min-height: 32px;
+  min-height: var(--control-sm);
   padding: var(--space-2) var(--space-5);
   border: 0;
   border-radius: var(--radius-pill);

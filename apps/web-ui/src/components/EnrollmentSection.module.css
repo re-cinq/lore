@@ -107,7 +107,7 @@
 
 .progress {
   display: flex;
-  flex: 0 1 200px;
+  flex: 0 1 var(--size-200);
   min-width: 80px;
   height: 8px;
   border-radius: var(--radius-pill);

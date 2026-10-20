@@ -33,7 +33,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 40px;
+  min-height: var(--control-lg);
   padding: var(--space-3) var(--space-6);
   border-radius: var(--radius-pill);
   background: var(--primary);
@@ -61,7 +61,7 @@
 
 .findingGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-280), 1fr));
   gap: var(--space-5);
 }
 
@@ -141,7 +141,7 @@
 }
 
 .when {
-  flex: 0 0 96px;
+  flex: 0 0 var(--size-96);
   font-size: var(--fs-sm);
   text-align: right;
 }

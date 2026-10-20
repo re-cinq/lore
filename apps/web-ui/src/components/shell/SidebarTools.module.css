@@ -8,7 +8,7 @@
   gap: var(--space-3);
   width: 100%;
   box-sizing: border-box;
-  min-height: 40px;
+  min-height: var(--control-lg);
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-pill);
@@ -38,8 +38,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 22px;
+  min-width: var(--size-badge);
+  height: var(--size-badge);
   padding: 0 var(--space-2);
   box-sizing: border-box;
   border: 1px solid var(--border-hover);
@@ -60,7 +60,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 32px;
+  min-height: var(--control-sm);
   padding: var(--space-2) var(--space-4);
   border: none;
   border-radius: var(--radius-pill);
@@ -90,9 +90,9 @@
 }
 
 .railToggle {
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  min-height: var(--control-sm);
   background: transparent;
   color: var(--text-muted);
 }
@@ -103,8 +103,8 @@
 }
 
 .mobileSearch {
-  width: 40px;
-  height: 40px;
+  width: var(--control-lg);
+  height: var(--control-lg);
   background: var(--pill-bg, var(--bg-hover));
   color: var(--pill-fg, var(--text));
 }

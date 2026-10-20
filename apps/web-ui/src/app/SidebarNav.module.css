@@ -140,7 +140,7 @@
 }
 
 :global([data-theme-family="lore"]) .addRepo {
-  min-height: 40px;
+  min-height: var(--control-lg);
   border-radius: var(--radius-pill);
   background: var(--primary);
   color: var(--text-on-accent);

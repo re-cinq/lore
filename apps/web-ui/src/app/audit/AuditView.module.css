@@ -16,7 +16,7 @@
   align-items: center;
   gap: var(--space-3);
   min-width: 220px;
-  height: 44px;
+  height: var(--control-xl);
   padding: 0 var(--space-2) 0 var(--space-5);
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-pill);
@@ -50,7 +50,7 @@
 
 .search .searchSubmit {
   flex: 0 0 auto;
-  min-height: 32px;
+  min-height: var(--control-sm);
   padding: var(--space-2) var(--space-5);
   border: 0;
   border-radius: var(--radius-pill);
@@ -74,7 +74,7 @@
 .chip {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: var(--control);
   padding: var(--space-2) var(--space-5);
   border-radius: var(--radius-pill);
   background: var(--pill-bg);
@@ -146,7 +146,7 @@ summary.rowLine:hover {
 }
 
 .when {
-  flex: 0 0 96px;
+  flex: 0 0 var(--size-96);
   font-size: var(--fs-sm);
   color: var(--text-muted);
 }
@@ -170,13 +170,13 @@ summary.rowLine:hover {
 }
 
 .pool {
-  flex: 0 1 180px;
+  flex: 0 1 var(--size-180);
   font-size: var(--fs-sm);
   color: var(--text-muted);
 }
 
 .agent {
-  flex: 0 1 180px;
+  flex: 0 1 var(--size-180);
   overflow: hidden;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
@@ -219,7 +219,7 @@ details[open] .chevron {
 }
 
 .pager .pagerLink {
-  min-height: 40px;
+  min-height: var(--control-lg);
   padding: var(--space-3) var(--space-5);
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-pill);

@@ -1,7 +1,7 @@
 /* Onboard page: one card holding the repo field, what the PR adds, and the submit. */
 
 .page {
-  max-width: 720px;
+  max-width: var(--measure);
 }
 
 .card {
@@ -79,7 +79,7 @@
 
 .files {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-200), 1fr));
   gap: var(--space-3);
   margin: 0;
   padding: 0;

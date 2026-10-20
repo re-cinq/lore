@@ -26,7 +26,7 @@
 .eyebrow {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-caps);
   color: var(--text-muted);
 }
 .intro {
@@ -49,7 +49,7 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   :global(.badge-green) > .liveDot {
-    animation: livePulse 1.6s ease-in-out infinite;
+    animation: livePulse var(--pulse-duration) ease-in-out infinite;
   }
 }
 @keyframes livePulse {
@@ -69,7 +69,7 @@
 .chip {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: var(--control);
   padding: var(--space-2) var(--space-5);
   border-radius: var(--radius-pill);
   background: var(--pill-bg);

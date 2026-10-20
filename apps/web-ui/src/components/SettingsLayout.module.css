@@ -8,7 +8,7 @@
 }
 
 .nav {
-  flex: 0 0 200px;
+  flex: 0 0 var(--size-200);
   position: sticky;
   top: var(--space-6);
   display: flex;
@@ -37,9 +37,9 @@
 }
 
 .content {
-  flex: 1 1 480px;
+  flex: 1 1 var(--size-480);
   min-width: 0;
-  max-width: 760px;
+  max-width: var(--measure-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -102,7 +102,7 @@
 .eyebrow {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-caps);
   color: var(--text-muted);
 }
 
@@ -112,7 +112,7 @@
 
 .lede {
   margin: 0;
-  max-width: 640px;
+  max-width: var(--measure-sm);
   font-size: var(--fs-base);
   color: var(--text-muted);
 }
@@ -162,7 +162,7 @@
   appearance: none;
   position: relative;
   flex-shrink: 0;
-  width: 44px;
+  width: var(--control-xl);
   height: 26px;
   margin: 0;
   padding: 0;

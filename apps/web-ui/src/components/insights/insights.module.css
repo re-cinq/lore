@@ -22,7 +22,7 @@
   margin: 0;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-caps);
   color: var(--text-muted);
 }
 
@@ -32,7 +32,7 @@
 
 .lede {
   margin: 0;
-  max-width: 720px;
+  max-width: var(--measure);
   font-size: var(--fs-base);
   color: var(--text-muted);
   text-wrap: pretty;
@@ -99,7 +99,7 @@
 
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-180), 1fr));
   gap: var(--space-5);
   margin-bottom: var(--space-6);
 }
@@ -140,7 +140,7 @@
   font-size: var(--fs-xl);
   font-weight: var(--fw-medium);
   line-height: var(--lh-1);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
   color: var(--heading-color);
   overflow-wrap: anywhere;
 }
