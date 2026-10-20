@@ -97,6 +97,9 @@
   --info: #0071e3;
   --success-bg: #e4f3e8;
   --warning-bg: #fbf3da;
+  /* Waiting on a person or a gate: the Lore family paints it violet; every other family reads it as a warning. */
+  --wait: var(--warning);
+  --wait-bg: var(--warning-bg);
   --danger-bg: #ffe5e6;
   --info-bg: #e3f0fd;
 
@@ -234,6 +237,8 @@
   --info: #0014eb;
   --success-bg: #e5f6ec;
   --warning-bg: #fdf2dc;
+  --wait: #8e2ee0;
+  --wait-bg: #f3e8fc;
   --danger-bg: #fce8e8;
   --info-bg: #e8eafe;
 
@@ -252,7 +257,12 @@
   --pill-fg: #010967;
   --sidebar-bg: #f7f8ff;
   --heading-color: #010967;
-  --heading-gradient: linear-gradient(96deg, #000000 12%, #010967 56%, #0014eb 96%);
+  --heading-gradient: linear-gradient(
+    96deg,
+    #000000 12%,
+    #010967 56%,
+    #0014eb 96%
+  );
 
   /* Brand hues for the chart palette. */
   --chart-feature: #8e2ee0;
@@ -291,6 +301,8 @@
   --info: #b4baff;
   --success-bg: rgba(116, 208, 151, 0.14);
   --warning-bg: rgba(242, 181, 68, 0.14);
+  --wait: #c28eec;
+  --wait-bg: rgba(194, 142, 236, 0.16);
   --danger-bg: rgba(232, 93, 93, 0.16);
   --info-bg: rgba(138, 147, 255, 0.16);
 
@@ -308,7 +320,12 @@
   --pill-fg: #e6e8fd;
   --sidebar-bg: #00053c;
   --heading-color: #ffffff;
-  --heading-gradient: linear-gradient(96deg, #ffffff 12%, #c9cdfb 56%, #8a93ff 96%);
+  --heading-gradient: linear-gradient(
+    96deg,
+    #ffffff 12%,
+    #c9cdfb 56%,
+    #8a93ff 96%
+  );
 
   /* Brand hues, lifted for the navy ground. */
   --chart-feature: #c28eec;
