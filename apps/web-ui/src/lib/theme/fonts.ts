@@ -1,4 +1,9 @@
-import { Inter, IBM_Plex_Mono, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import {
+  Inter,
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  JetBrains_Mono,
+} from "next/font/google";
 import localFont from "next/font/local";
 
 export const inter = Inter({
