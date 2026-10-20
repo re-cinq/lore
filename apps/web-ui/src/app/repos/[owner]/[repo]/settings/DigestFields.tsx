@@ -5,7 +5,8 @@ import {
   WEEKDAYS,
   type DigestBlock,
 } from "@/lib/settings-digest";
-import { SettingsCard, SettingsSwitch } from "@/components/SettingsLayout";
+import { SettingsCard } from "@/components/SettingsCard";
+import Switch from "@/components/Switch";
 import styles from "./page.module.css";
 
 export interface DigestFieldsProps {
@@ -56,7 +57,7 @@ function SlackChannelHint() {
 
 function EnableField({ enabled }: { enabled: boolean }) {
   return (
-    <SettingsSwitch
+    <Switch
       name="digest_enabled"
       value="yes"
       defaultChecked={enabled}

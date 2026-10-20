@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { SubmitButton } from "@/components/SubmitButton";
-import { SettingsHeader } from "@/components/SettingsLayout";
+import { SettingsHeader } from "@/components/SettingsHeader";
 import Icon from "@/components/Icon";
 import styles from "./OnboardView.module.css";
 

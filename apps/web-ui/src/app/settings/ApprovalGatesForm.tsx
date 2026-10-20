@@ -1,5 +1,6 @@
 import { SubmitButton } from "@/components/SubmitButton";
-import { SettingsCard, SettingsSwitch } from "@/components/SettingsLayout";
+import { SettingsCard } from "@/components/SettingsCard";
+import Switch from "@/components/Switch";
 import styles from "./SettingsView.module.css";
 import type { SettingsViewProps } from "./SettingsView";
 
@@ -52,7 +53,7 @@ function GateToggle({ approvalConfig }: GateToggleProps) {
 
 function GateRequiredField({ required }: { required: boolean }) {
   return (
-    <SettingsSwitch
+    <Switch
       name="approval_required"
       defaultChecked={required}
       label="Require approval for new tasks"

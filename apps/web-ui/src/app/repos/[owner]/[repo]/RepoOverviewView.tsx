@@ -9,7 +9,7 @@ import { type Check } from "@/lib/enrollment";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./RepoOverviewView.module.css";
-import Panel from "./OverviewPanel";
+import Panel, { PanelTable } from "@/components/Panel";
 
 export interface RepoReadme {
   markdown: string;
@@ -197,6 +197,7 @@ function ContextFiles({
       title="Context files"
       link={{ href: `/repos/${owner}/${repo}/context`, text: "Context →" }}
       className={styles.sidePanel}
+      soft
     >
       {files.length === 0 ? (
         <p className="meta">No convention files ingested yet.</p>
@@ -245,12 +246,12 @@ function EventsTable({
   }
 
   return (
-    <div className={styles.tableWrap}>
+    <PanelTable>
       <table>
         <EventsTableHead />
         <tbody>{events.map(eventRow)}</tbody>
       </table>
-    </div>
+    </PanelTable>
   );
 }
 

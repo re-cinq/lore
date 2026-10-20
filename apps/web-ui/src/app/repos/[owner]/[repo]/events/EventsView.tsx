@@ -1,5 +1,5 @@
 import { Alert } from "@/components/Alert";
-import OverviewPanel, { PanelTable } from "../OverviewPanel";
+import Panel, { PanelTable } from "@/components/Panel";
 import EventRow, { EventsTableHead } from "./EventRow";
 import InfiniteEvents from "./InfiniteEvents";
 import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
@@ -18,7 +18,7 @@ export default function EventsView(props: EventsViewProps) {
   const { owner, repo, events } = props;
 
   return (
-    <OverviewPanel title="Events">
+    <Panel title="Events">
       <p className="meta">
         Event-bus activity for {owner}/{repo}, newest first.
       </p>
@@ -27,7 +27,7 @@ export default function EventsView(props: EventsViewProps) {
       ) : (
         <EventsTable {...props} />
       )}
-    </OverviewPanel>
+    </Panel>
   );
 }
 

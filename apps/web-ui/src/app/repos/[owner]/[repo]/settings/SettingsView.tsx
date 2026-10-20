@@ -3,11 +3,9 @@ import SettingsFormShell, { type SaveAction } from "./SettingsFormShell";
 import DigestFields from "./DigestFields";
 import SettingsHelp from "./SettingsHelp";
 import { SubmitButton } from "@/components/SubmitButton";
-import {
-  SettingsCard,
-  SettingsSwitch,
-  type SettingsNavItem,
-} from "@/components/SettingsLayout";
+import { type SettingsNavItem } from "@/components/SettingsLayout";
+import { SettingsCard } from "@/components/SettingsCard";
+import Switch from "@/components/Switch";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
 
@@ -226,7 +224,7 @@ function TrustLevelField({ trustLevel }: { trustLevel: string }) {
 /** A switch posting "yes" when on, the value the server action reads. */
 function AutoReviewField({ autoReview }: { autoReview: boolean }) {
   return (
-    <SettingsSwitch
+    <Switch
       name="auto_review"
       value="yes"
       defaultChecked={autoReview}

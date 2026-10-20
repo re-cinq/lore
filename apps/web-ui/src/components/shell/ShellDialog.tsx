@@ -75,8 +75,3 @@ function CloseButton({
     </button>
   );
 }
-
-/** A key cap, as the shortcuts list and the palette draw them. */
-export function Kbd({ children }: { children: React.ReactNode }) {
-  return <kbd className={styles.kbd}>{children}</kbd>;
-}

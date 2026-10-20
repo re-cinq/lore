@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
-import { Kbd } from "@/components/shell/ShellDialog";
+import Kbd from "@/components/Kbd";
 import { moveSelection, paletteItems, type PaletteItem } from "./palette-items";
 import styles from "./CommandPalette.module.css";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { TriageIssue } from "@/lib/api/triage";
-import OverviewPanel, { PanelTable } from "../OverviewPanel";
+import Panel, { PanelTable } from "@/components/Panel";
 import styles from "./TriageView.module.css";
 
 interface TriageViewProps {
@@ -44,11 +44,11 @@ function TriageGroup({
   const headingId = `triage-${label.replace(/\W+/g, "-")}`;
 
   return (
-    <OverviewPanel title={label} headingId={headingId}>
+    <Panel title={label} headingId={headingId}>
       <PanelTable>
         <TriageTable issues={issues} />
       </PanelTable>
-    </OverviewPanel>
+    </Panel>
   );
 }
 

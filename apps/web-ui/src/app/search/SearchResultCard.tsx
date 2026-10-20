@@ -1,6 +1,7 @@
 import { displayAgentId } from "@/lib/agent-id";
 import { formatEnumLabel } from "@/lib/enum-label";
 import type { SearchResult } from "./SearchView";
+import { Meter } from "@/components/insights/Meter";
 import styles from "./SearchResultCard.module.css";
 
 interface SearchResultCardProps {
@@ -46,15 +47,9 @@ function ResultMeta(props: {
 
 /** The score as a number and as a bar relative to the best hit; ranked scores are only comparable within one search. */
 function ScoreMeter({ score, best }: { score: number; best: number }) {
-  const share = best > 0 ? Math.round((score / best) * 100) : 0;
-
   return (
     <span className={styles.score}>
-      <span
-        aria-hidden
-        className={styles.scoreBar}
-        style={{ ["--share" as string]: `${share}%` }}
-      />
+      <Meter fraction={best > 0 ? score / best : 0} />
       score {score.toFixed(3)}
     </span>
   );

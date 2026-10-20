@@ -1,6 +1,6 @@
 import type { components } from "@/lib/api/schema";
 import Icon from "@/components/Icon";
-import { SettingsCard } from "@/components/SettingsLayout";
+import { SettingsCard } from "@/components/SettingsCard";
 import styles from "./GithubConnectSection.module.css";
 
 export type GithubInstallationRow = components["schemas"]["GithubInstallation"];

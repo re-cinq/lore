@@ -1,6 +1,7 @@
 "use client";
 
-import ShellDialog, { Kbd } from "./ShellDialog";
+import Kbd from "../Kbd";
+import ShellDialog from "./ShellDialog";
 import { SHORTCUTS } from "./shell-content";
 import styles from "./ShellLists.module.css";
 

@@ -1,11 +1,9 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import CopyButton from "@/components/CopyButton";
 import { SubmitButton } from "@/components/SubmitButton";
-import SettingsLayout, {
-  SettingsCard,
-  SettingsHeader,
-  type SettingsNavItem,
-} from "@/components/SettingsLayout";
+import SettingsLayout, { type SettingsNavItem } from "@/components/SettingsLayout";
+import { SettingsCard } from "@/components/SettingsCard";
+import { SettingsHeader } from "@/components/SettingsHeader";
 import ApprovalGatesForm from "./ApprovalGatesForm";
 import SlackPeopleForm from "./SlackPeopleForm";
 import GithubConnectSection, {

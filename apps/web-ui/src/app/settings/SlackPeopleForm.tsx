@@ -1,5 +1,5 @@
 import { SubmitButton } from "@/components/SubmitButton";
-import { SettingsCard } from "@/components/SettingsLayout";
+import { SettingsCard } from "@/components/SettingsCard";
 import styles from "./SettingsView.module.css";
 import type { SettingsViewProps } from "./SettingsView";
 

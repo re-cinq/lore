@@ -68,18 +68,6 @@
   font-size: var(--fs-xs);
 }
 
-.scoreBar {
-  width: var(--space-8);
-  height: var(--space-2);
-  border-radius: var(--radius-pill);
-  background: linear-gradient(
-      to right,
-      var(--accent) var(--share),
-      transparent var(--share)
-    ),
-    var(--pill-bg);
-}
-
 .value {
   margin: 0;
   padding: var(--space-4);

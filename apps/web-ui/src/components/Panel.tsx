@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import styles from "./RepoOverviewView.module.css";
+import styles from "./Panel.module.css";
 
 interface PanelProps {
   title: string;
@@ -8,14 +8,18 @@ interface PanelProps {
   /** Names the section by its heading, for a page that lists several. */
   headingId?: string;
   className?: string;
+  /** Sits on the brand's soft fill instead of the surface, as the design draws a side card. */
+  soft?: boolean;
   children: ReactNode;
 }
 
 /** A titled card with an optional link at the right of its head. The repo's sub-pages draw their sections with it too, so every tab speaks the same card language. */
-export default function OverviewPanel(props: PanelProps) {
+export default function Panel(props: PanelProps) {
+  const classes = [styles.panel, props.soft && styles.soft, props.className];
+
   return (
     <section
-      className={`${styles.panel} ${props.className ?? ""}`}
+      className={classes.filter(Boolean).join(" ")}
       aria-labelledby={props.headingId}
     >
       <PanelHead {...props} />
@@ -26,12 +30,12 @@ export default function OverviewPanel(props: PanelProps) {
 
 function PanelHead({ title, link, headingId }: PanelProps) {
   return (
-    <div className={styles.panelHead}>
-      <h2 id={headingId} className={styles.panelTitle}>
+    <div className={styles.head}>
+      <h2 id={headingId} className={styles.title}>
         {title}
       </h2>
       {link && (
-        <Link href={link.href} className={styles.panelLink}>
+        <Link href={link.href} className={styles.link}>
           {link.text}
         </Link>
       )}

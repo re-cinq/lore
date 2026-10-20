@@ -4,7 +4,7 @@ import { Alert } from "@/components/Alert";
 import MiniPipeline from "@/components/MiniPipeline";
 import PendingActionButton from "@/components/PendingActionButton";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
-import OverviewPanel, { PanelTable } from "../OverviewPanel";
+import Panel, { PanelTable } from "@/components/Panel";
 import styles from "./ImplementationLoopView.module.scss";
 import OnboardingBanner from "./OnboardingBanner";
 import TicketTitleCell from "./TicketTitleCell";
@@ -153,7 +153,7 @@ function LoopSection(props: LoopSectionProps) {
   const { heading, tickets, emptyText, notice } = props;
 
   return (
-    <OverviewPanel title={heading}>
+    <Panel title={heading}>
       {notice && (
         <p
           className={`meta ${styles.sectionNotice}`}
@@ -163,7 +163,7 @@ function LoopSection(props: LoopSectionProps) {
         </p>
       )}
       <TicketTable tickets={tickets} emptyText={emptyText} />
-    </OverviewPanel>
+    </Panel>
   );
 }
 
