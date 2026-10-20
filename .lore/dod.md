@@ -11,12 +11,12 @@
 
 ## Facets
 
-- [ ] `.github/workflows/_build-image.yml`: Create reusable workflow with amd64/arm64 matrix legs, `setup-buildx-action`, digest upload, and manifest-merge job.
-- [ ] `.github/workflows/build-lore-api.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` job to depend on it.
-- [ ] `.github/workflows/build-mcp-server.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` job to depend on it.
-- [ ] `.github/workflows/build-stations.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` job to depend on it.
-- [ ] `.github/workflows/build-ui.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` and `verify` jobs to depend on it.
-- [ ] `apps/lore-api/Dockerfile`: Change line 48 to `FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS gobuilder`.
+- [x] `.github/workflows/_build-image.yml`: Create reusable workflow with amd64/arm64 matrix legs, `setup-buildx-action`, digest upload, and manifest-merge job.
+- [x] `.github/workflows/build-lore-api.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` job to depend on it.
+- [x] `.github/workflows/build-mcp-server.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` job to depend on it.
+- [x] `.github/workflows/build-stations.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` job to depend on it.
+- [x] `.github/workflows/build-ui.yml`: Replace `build` job with call to `_build-image.yml`; update `deploy` and `verify` jobs to depend on it.
+- [x] `apps/lore-api/Dockerfile`: Change line 48 to `FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS gobuilder`.
 
 ## Out of scope
 
