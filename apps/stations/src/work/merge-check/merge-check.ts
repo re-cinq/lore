@@ -172,7 +172,7 @@ async function checkMergeableTask(
   return "unchanged";
 }
 
-/** A merged task: mark merged, close Issue, boost memory, promote trust. */
+/* A merged task: mark merged, close Issue, boost memory, promote trust. */
 
 /** A PR closed without merging: mark failed and penalize contributing memory. */
 async function handleRejectedTask(task: MergeableTask): Promise<void> {
