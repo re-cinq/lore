@@ -42,9 +42,7 @@ describe("SettingsView (general only)", () => {
         ) as HTMLInputElement
       ).value,
     ).toBe("general");
-    expect(container.querySelector('select[name="auto_review"]')).toHaveValue(
-      "yes",
-    );
+    expect(container.querySelector('input[name="auto_review"]')).toBeChecked();
     expect(container.querySelector('select[name="trust_level"]')).toHaveValue(
       "full",
     );
@@ -70,6 +68,20 @@ describe("SettingsView (general only)", () => {
     expect(names.indexOf("digest_enabled")).toBeGreaterThan(
       names.indexOf("cross_repo_repos"),
     );
+  });
+
+  it("links the sub-navigation to the four section cards", () => {
+    const { container } = renderView();
+    const hrefs = Array.from(
+      container.querySelectorAll('nav[aria-label="Settings sections"] a'),
+    ).map((link) => link.getAttribute("href"));
+
+    expect(hrefs).toEqual([
+      "#set-general",
+      "#set-policy",
+      "#set-cross-repo",
+      "#set-digest",
+    ]);
   });
 
   it("renders no agent or approval-PR controls", () => {

@@ -1,4 +1,7 @@
 import type { components } from "@/lib/api/schema";
+import Icon from "@/components/Icon";
+import { SettingsCard } from "@/components/SettingsLayout";
+import styles from "./GithubConnectSection.module.css";
 
 export type GithubInstallationRow = components["schemas"]["GithubInstallation"];
 
@@ -15,11 +18,19 @@ export default function GithubConnectSection({
   installUrl,
 }: GithubConnectSectionProps) {
   return (
-    <section>
-      <h2>GitHub</h2>
+    <SettingsCard
+      id="set-github"
+      title="GitHub"
+      action={
+        installUrl && (
+          <a href={installUrl} className={styles.installLink}>
+            Install on another account
+          </a>
+        )
+      }
+    >
       <InstallationList installations={installations} />
-      {installUrl && <a href={installUrl}>Install on another account</a>}
-    </section>
+    </SettingsCard>
   );
 }
 
@@ -28,17 +39,50 @@ function InstallationList({
   installations,
 }: Pick<GithubConnectSectionProps, "installations">) {
   if (installations.length === 0) {
-    return <p>Lore is not connected to any GitHub account yet.</p>;
+    return <FirstConnectionPrompt />;
   }
 
   return (
-    <ul>
+    <ul className={styles.list}>
       {installations.map((installation) => (
-        <li key={installation.installation_id}>
-          {installation.account_login} — {installation.account_type},{" "}
-          {installation.repository_selection} repos
-        </li>
+        <InstallationRow
+          key={installation.installation_id}
+          installation={installation}
+        />
       ))}
     </ul>
   );
+}
+
+function FirstConnectionPrompt() {
+  return (
+    <p className={styles.empty}>
+      Lore is not connected to any GitHub account yet.
+    </p>
+  );
+}
+
+/** One account: who it is, what kind, which repos, and whether it is live. */
+function InstallationRow(props: { installation: GithubInstallationRow }) {
+  const { installation } = props;
+  const suspended = installation.suspended_at !== null;
+
+  return (
+    <li className={styles.row}>
+      <span className={styles.avatar} aria-hidden="true">
+        <Icon name="github" size={18} />
+      </span>
+      <span className={styles.account}>
+        <span className={styles.login}>{installation.account_login}</span>
+        <span className={styles.detail}>{accountDetail(installation)}</span>
+      </span>
+      <span className={suspended ? styles.suspended : styles.installed}>
+        {suspended ? "Suspended" : "Installed"}
+      </span>
+    </li>
+  );
+}
+
+function accountDetail(installation: GithubInstallationRow): string {
+  return `${installation.account_type} · ${installation.repository_selection} repos`;
 }

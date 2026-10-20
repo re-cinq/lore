@@ -1,0 +1,88 @@
+/* The GitHub card: one row per connected account. */
+
+.installLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.installLink:hover {
+  background: var(--bg-hover);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--heading-color);
+}
+
+.account {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.login {
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.detail {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.installed,
+.suspended {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.installed {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.suspended {
+  background: var(--warning-bg);
+  color: var(--warning);
+}

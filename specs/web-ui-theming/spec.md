@@ -99,8 +99,8 @@ fallback dropping glass to opaque.
 
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
-`ThemeSwitcher.tsx` (+ module CSS): a Family text toggle and a Light/Auto/Dark
-square icon-only toggle, accessible radio groups ([both toggles](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L31), [accessible radios](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L53)). Mounted on `/settings` only.
+`ThemeSwitcher.tsx` (+ module CSS): a Family text toggle listing Lore first and a Light/Auto/Dark
+toggle (square and icon-only, drawn as labelled cards in the Lore family), accessible radio groups ([both toggles](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L31), [accessible radios](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L63), [Lore first](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L45)). Mounted on `/settings` only.
 
 **Edited** — `layout.tsx` (fonts on `<html>`, inline script, provider, import
 `theme.css` before `globals.css`); `globals.css` fully tokenized (color, radius,
@@ -112,7 +112,7 @@ swapped to tokens.
 
 The `ThemeSwitcher` maps each appearance option to its icon (sun / monitor / moon),
 marks the active family label and the active appearance label as selected, and
-calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:45`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L45), [`ThemeSwitcher.test.tsx:67`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L67), [`ThemeSwitcher.test.tsx:80`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L80), [`ThemeSwitcher.test.tsx:95`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L95), [`ThemeSwitcher.test.tsx:106`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L106), [`ThemeSwitcher.test.tsx:115`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L115), [`ThemeSwitcher.test.tsx:126`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L126))
+calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:45`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L55), [`ThemeSwitcher.test.tsx:67`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L77), [`ThemeSwitcher.test.tsx:80`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L90), [`ThemeSwitcher.test.tsx:95`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L105), [`ThemeSwitcher.test.tsx:106`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L116), [`ThemeSwitcher.test.tsx:115`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L125), [`ThemeSwitcher.test.tsx:126`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L136))
 
 The shared `Alert` atom (`web-ui/src/components/Alert.tsx`) is the one way a
 page shows a passive informational note — a bootstrap-style alert box drawn from

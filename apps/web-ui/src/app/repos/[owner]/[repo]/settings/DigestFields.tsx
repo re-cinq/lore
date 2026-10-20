@@ -5,6 +5,7 @@ import {
   WEEKDAYS,
   type DigestBlock,
 } from "@/lib/settings-digest";
+import { SettingsCard, SettingsSwitch } from "@/components/SettingsLayout";
 import styles from "./page.module.css";
 
 export interface DigestFieldsProps {
@@ -14,15 +15,24 @@ export interface DigestFieldsProps {
 }
 
 /** The daily Slack digest (specs/daily-digest FR10): whether, when, and what. Uncontrolled like the rest of the form; the server action reads the whole block back. */
-export default function DigestFields({
-  digest,
-  slackChannelSet,
-}: DigestFieldsProps) {
+export default function DigestFields(props: DigestFieldsProps) {
+  return (
+    <SettingsCard
+      id="set-digest"
+      title="Daily digest"
+      description="A daily Slack post of what moved on this repository."
+      headingLevel={3}
+    >
+      <DigestBody {...props} />
+    </SettingsCard>
+  );
+}
+
+function DigestBody({ digest, slackChannelSet }: DigestFieldsProps) {
   const current = { ...DIGEST_DEFAULTS, ...digest };
 
   return (
     <>
-      <h3 className={styles.section}>Daily digest</h3>
       {!slackChannelSet && <SlackChannelHint />}
       <EnableField enabled={current.enabled} />
       <ScheduleFields
@@ -38,7 +48,7 @@ export default function DigestFields({
 
 function SlackChannelHint() {
   return (
-    <span className={`meta ${styles.hint}`}>
+    <span className={styles.hint}>
       Set a Slack Channel ID above first: the digest is posted there.
     </span>
   );
@@ -46,15 +56,12 @@ function SlackChannelHint() {
 
 function EnableField({ enabled }: { enabled: boolean }) {
   return (
-    <label>
-      <input
-        type="checkbox"
-        name="digest_enabled"
-        value="yes"
-        defaultChecked={enabled}
-      />{" "}
-      Post a daily digest to the Slack channel
-    </label>
+    <SettingsSwitch
+      name="digest_enabled"
+      value="yes"
+      defaultChecked={enabled}
+      label="Post a daily digest to the Slack channel"
+    />
   );
 }
 
@@ -67,31 +74,40 @@ interface ScheduleFieldsProps {
 function ScheduleFields({ time, days, timezone }: ScheduleFieldsProps) {
   return (
     <>
-      <label>Time of day</label>
-      <input type="time" name="digest_time" defaultValue={time} />
-      <label>Days</label>
+      <div className={styles.field}>
+        <label htmlFor="digest_time">Time of day</label>
+        <input
+          id="digest_time"
+          type="time"
+          name="digest_time"
+          defaultValue={time}
+        />
+      </div>
       <WeekdayBoxes days={days} />
-      <label>Timezone</label>
-      <TimezoneSelect timezone={timezone} />
+      <div className={styles.field}>
+        <label htmlFor="digest_timezone">Timezone</label>
+        <TimezoneSelect timezone={timezone} />
+      </div>
     </>
   );
 }
 
 function WeekdayBoxes({ days }: { days: number[] }) {
   return (
-    <div>
+    <fieldset className={styles.choices}>
+      <legend>Days</legend>
       {WEEKDAYS.map((day) => (
-        <label key={day.value}>
+        <label key={day.value} className={styles.choice}>
           <input
             type="checkbox"
             name="digest_days"
             value={day.value}
             defaultChecked={days.includes(day.value)}
           />{" "}
-          {day.label}{" "}
+          {day.label}
         </label>
       ))}
-    </div>
+    </fieldset>
   );
 }
 
@@ -101,7 +117,7 @@ function TimezoneSelect({ timezone }: { timezone: string }) {
   const options = zones.includes(timezone) ? zones : [timezone, ...zones];
 
   return (
-    <select name="digest_timezone" defaultValue={timezone}>
+    <select id="digest_timezone" name="digest_timezone" defaultValue={timezone}>
       {options.map((zone) => (
         <option key={zone} value={zone}>
           {zone}
@@ -119,22 +135,28 @@ interface ContentFieldsProps {
 function ContentFields({ sections, groupBy }: ContentFieldsProps) {
   return (
     <>
-      <label>Sections</label>
       <SectionBoxes chosen={sections ?? []} />
-      <label>Group by</label>
-      <select name="digest_group_by" defaultValue={groupBy}>
-        <option value="person">Person (author or assignee)</option>
-        <option value="area">Area (area:* labels)</option>
-      </select>
+      <div className={styles.field}>
+        <label htmlFor="digest_group_by">Group by</label>
+        <select
+          id="digest_group_by"
+          name="digest_group_by"
+          defaultValue={groupBy}
+        >
+          <option value="person">Person (author or assignee)</option>
+          <option value="area">Area (area:* labels)</option>
+        </select>
+      </div>
     </>
   );
 }
 
 function SectionBoxes({ chosen }: { chosen: string[] }) {
   return (
-    <div>
+    <fieldset className={styles.choices}>
+      <legend>Sections</legend>
       {DIGEST_SECTIONS.map((section) => (
-        <label key={section.value}>
+        <label key={section.value} className={styles.choice}>
           <input
             type="checkbox"
             name="digest_sections"
@@ -144,21 +166,22 @@ function SectionBoxes({ chosen }: { chosen: string[] }) {
           {section.label}
         </label>
       ))}
-    </div>
+    </fieldset>
   );
 }
 
 /** Who the agent writes the intro, the ending and a one-line aside after each section as; empty keeps a plain tone and no asides (FR13). */
 function VoiceField({ voice }: { voice: DigestBlock["voice"] }) {
   return (
-    <>
-      <label>Voice (optional)</label>
+    <div className={styles.field}>
+      <label htmlFor="digest_voice">Voice (optional)</label>
       <input
+        id="digest_voice"
         name="digest_voice"
         defaultValue={voice}
         maxLength={200}
         placeholder="e.g. Michael Scott from The Office"
       />
-    </>
+    </div>
   );
 }

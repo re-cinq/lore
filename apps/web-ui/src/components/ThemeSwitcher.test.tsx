@@ -42,6 +42,16 @@ describe("ThemeSwitcher", () => {
     expect(screen.getByRole("radio", { name: "Dark" })).toBeInTheDocument();
   });
 
+  it("lists the Lore family first", () => {
+    render(<ThemeSwitcher />);
+    const families = screen
+      .getAllByRole("radio")
+      .filter((radio) => radio.getAttribute("name") === "theme-family")
+      .map((radio) => radio.getAttribute("value"));
+
+    expect(families).toEqual(["lore", "elegant", "retro", "chicago"]);
+  });
+
   it("maps each appearance option to its icon (sun / monitor / moon)", () => {
     render(<ThemeSwitcher />);
 
