@@ -3,7 +3,7 @@
 | Feature | ARM Image Builds |
 | ------- | ---------------- |
 | Branch  | arm-image-builds |
-| Status  | Shipped     |
+| Status  | Draft       |
 | Created | 2026-10-09 |
 | Owner   | CI Owners |
 
