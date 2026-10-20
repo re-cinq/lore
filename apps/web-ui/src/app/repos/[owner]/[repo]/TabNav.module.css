@@ -1,0 +1,38 @@
+/* The global .tab-nav underline stays for the other families; the re:cinq
+   brand draws the repo's tabs as pills, the way it draws the sidebar. */
+:global([data-theme-family="lore"]) .nav {
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+:global([data-theme-family="lore"]) .nav::-webkit-scrollbar {
+  display: none;
+}
+
+:global([data-theme-family="lore"]) .link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  color: var(--text-muted);
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+:global([data-theme-family="lore"]) .link:hover {
+  background: var(--bg-hover);
+  color: var(--heading-color);
+}
+
+:global([data-theme-family="lore"]) .link:global(.active) {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}

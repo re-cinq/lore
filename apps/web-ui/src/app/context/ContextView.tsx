@@ -1,6 +1,7 @@
 import ContextFilters from "@/app/repos/[owner]/[repo]/context/ContextFilters";
 import ContextCard from "@/app/repos/[owner]/[repo]/context/ContextCard";
 import { EmptyState } from "@/components/EmptyState";
+import ScreenHeader from "@/components/ScreenHeader";
 import styles from "./ContextView.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -22,8 +23,11 @@ export default function ContextView(props: ContextViewProps) {
 
   return (
     <div>
-      <h1>Context</h1>
-      <GlobalScopeNotice />
+      <ScreenHeader
+        group="knowledge"
+        title="Context"
+        lede={<GlobalScopeNotice />}
+      />
 
       <ContextFilters
         basePath="/context"
@@ -40,12 +44,10 @@ export default function ContextView(props: ContextViewProps) {
 /** Says which context this is. Worth saying because the per-repo view looks the same and answers a narrower question — a reader who arrived here from a repo page would otherwise read another repo's chunks as that repo's. */
 function GlobalScopeNotice() {
   return (
-    <div className={styles.notice}>
-      <p className={`meta ${styles.noticeText}`}>
-        This is the global view across all repos. For repo-specific context,
-        visit <a href="/">Repositories</a> and select a repo.
-      </p>
-    </div>
+    <>
+      Every ingested chunk across all repos. For one repo&apos;s context, open
+      it from <a href="/">Repositories</a>.
+    </>
   );
 }
 
@@ -58,11 +60,11 @@ function ContextChunkList({ chunks, filtered }: ContextChunkListProps) {
   return chunks.length === 0 ? (
     <ContextEmptyState filtered={filtered} />
   ) : (
-    <>
+    <div className={styles.list}>
       {chunks.map((chunk) => (
         <GlobalChunkCard key={chunk.id} chunk={chunk} />
       ))}
-    </>
+    </div>
   );
 }
 

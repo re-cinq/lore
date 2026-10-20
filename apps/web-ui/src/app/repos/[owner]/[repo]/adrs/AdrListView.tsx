@@ -2,6 +2,7 @@
 
 // ADR list from graph /trace API; status filters from frontmatter (no Postgres).
 import SpecCard from "../specs/SpecCard";
+import styles from "./AdrListView.module.scss";
 import DocListToolbar, { useDocListView } from "@/components/DocListToolbar";
 import { filterDocCards, sortDocCards } from "@/lib/doc-filter";
 import type { SpecStatusInfo } from "@/lib/spec-status";
@@ -89,7 +90,7 @@ interface AdrCardsProps {
 
 function AdrCards({ adrs, statusOf, base }: AdrCardsProps) {
   return (
-    <>
+    <div className={styles.grid}>
       {adrs.map((adr) => (
         <SpecCard
           key={adr.filePath}
@@ -99,7 +100,7 @@ function AdrCards({ adrs, statusOf, base }: AdrCardsProps) {
           detailsHref={`${base}/adrs/${encodeURIComponent(adr.filePath)}`}
         />
       ))}
-    </>
+    </div>
   );
 }
 

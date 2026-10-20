@@ -1,0 +1,15 @@
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-badge);
+  height: var(--size-badge);
+  padding: 0 var(--space-2);
+  box-sizing: border-box;
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}

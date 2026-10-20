@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { TimeAgo } from "@/components/TimeAgo";
-import { formatEnumLabel } from "@/lib/enum-label";
-import { displayAgentId } from "@/lib/agent-id";
 import { EmptyState } from "@/components/EmptyState";
-import DataTable from "@/components/DataTable";
+import { InsightsHeading } from "@/components/insights/InsightsHeading";
+import { AuditFilters } from "./AuditFilters";
+import { AuditRow } from "./AuditRow";
+import { auditUrl } from "./audit-url";
 import styles from "./AuditView.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -37,129 +37,41 @@ export default function AuditView(props: AuditViewProps) {
 
   return (
     <div>
-      <h1>Audit Trail</h1>
-      <p className="meta page-lede">
-        Every memory read and write across the org, in time order. Filter by
-        agent or operation.
-      </p>
+      <InsightsHeading
+        title="Audit trail"
+        lede="Every memory read and write across the org, newest first."
+      />
       <AuditFilters agent={agent} op={op} operations={operations} />
       <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
-      <AuditTable entries={entries} agent={agent} op={op} total={totalCount} />
+      <AuditLog
+        entries={entries}
+        filtered={!!(agent || op || totalCount > 0)}
+      />
       <AuditPager pageUrl={pageUrl} pagination={props} />
     </div>
   );
 }
 
-interface AuditTableProps {
-  entries: AuditViewProps["entries"];
-  agent: AuditViewProps["agent"];
-  op: AuditViewProps["op"];
-  total: number;
-}
-
 /** The empty state distinguishes "nothing matches these filters" from "nothing recorded yet", so a filter that hides everything does not read as an empty audit trail. */
-function AuditTable({ entries, agent, op, total }: AuditTableProps) {
+interface AuditLogProps {
+  entries: AuditEntryRow[];
+  filtered: boolean;
+}
+
+function AuditLog({ entries, filtered }: AuditLogProps) {
   return (
-    <DataTable
-      columns={["Time", "Agent", "Operation", "Key", "Pool", "Details"]}
-      rows={entries}
-      rowKey={(e) => e.id}
-      empty={<AuditEmptyState filtered={!!(agent || op || total > 0)} />}
-      cells={auditCells}
-    />
+    <section className={styles.log} aria-label="Audit entries">
+      {entries.length === 0 ? (
+        <AuditEmptyState filtered={filtered} />
+      ) : (
+        <ul className={styles.rows}>
+          {entries.map((entry) => (
+            <AuditRow key={entry.id} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </section>
   );
-}
-
-interface AuditPagerProps {
-  pageUrl: (offset: number) => string;
-  pagination: AuditPagination;
-}
-
-function AuditPager({ pageUrl, pagination }: AuditPagerProps) {
-  const { offset, pageSize, totalCount, hasPrev, hasNext } = pagination;
-
-  return (
-    <div className="pagination">
-      <PagerLink href={pageUrl(offset - pageSize)} enabled={hasPrev}>
-        &larr; Previous
-      </PagerLink>
-      <span className="page-info">
-        {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
-        {totalCount}
-      </span>
-      <PagerLink href={pageUrl(offset + pageSize)} enabled={hasNext}>
-        Next &rarr;
-      </PagerLink>
-    </div>
-  );
-}
-
-interface AuditUrlParams {
-  agent?: string | null;
-  op?: string | null;
-  offset: number;
-}
-
-/** The current filters carried into a page link, so paging never silently widens the view. */
-function auditUrl({ agent, op, offset }: AuditUrlParams): string {
-  const p = new URLSearchParams();
-
-  if (agent) {
-    p.set("agent", agent);
-  }
-
-  if (op) {
-    p.set("op", op);
-  }
-
-  if (offset > 0) {
-    p.set("offset", String(offset));
-  }
-  const qs = p.toString();
-
-  return `/audit${qs ? `?${qs}` : ""}`;
-}
-
-interface AuditFiltersProps {
-  agent?: string | null;
-  op?: string | null;
-  operations: string[];
-}
-
-function AuditFilters({ agent, op, operations }: AuditFiltersProps) {
-  return (
-    <form method="get" className="filter-form">
-      <input
-        type="text"
-        name="agent"
-        defaultValue={agent || ""}
-        placeholder="Filter by agent ID..."
-      />
-      <OperationSelect op={op} operations={operations} />
-      {/* eslint-disable-next-line no-restricted-syntax -- native GET filter form, no mutation, no client JS state to show */}
-      <button type="submit">Filter</button>
-    </form>
-  );
-}
-
-/** One audit entry as a row. The agent's full id is in the title attribute — the displayed form is shortened, and the full id is what someone needs when tracing an operation back. */
-function auditCells(entry: AuditViewProps["entries"][number]) {
-  return [
-    <TimeAgo date={entry.created_at} key="time" />,
-    <span title={entry.agent_id} key="agent">
-      {displayAgentId(entry.agent_id)}
-    </span>,
-    <span className={`op-badge op-${entry.operation}`} key="op">
-      {formatEnumLabel(entry.operation)}
-    </span>,
-    entry.memory_key || "—",
-    entry.pool_name || "—",
-    entry.metadata ? (
-      <MetadataDetails metadata={entry.metadata} key="meta" />
-    ) : (
-      "—"
-    ),
-  ];
 }
 
 /** An empty page under a filter is a different story from an empty trail, and only the first one has an action. */
@@ -182,6 +94,30 @@ function AuditEmptyState({ filtered }: { filtered: boolean }) {
   );
 }
 
+interface AuditPagerProps {
+  pageUrl: (offset: number) => string;
+  pagination: AuditPagination;
+}
+
+function AuditPager({ pageUrl, pagination }: AuditPagerProps) {
+  const { offset, pageSize, totalCount, hasPrev, hasNext } = pagination;
+
+  return (
+    <div className={`pagination ${styles.pager}`}>
+      <PagerLink href={pageUrl(offset - pageSize)} enabled={hasPrev}>
+        Previous
+      </PagerLink>
+      <span className="page-info">
+        {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
+        {totalCount}
+      </span>
+      <PagerLink href={pageUrl(offset + pageSize)} enabled={hasNext}>
+        Next
+      </PagerLink>
+    </div>
+  );
+}
+
 interface PagerLinkProps {
   href: string;
   enabled: boolean;
@@ -191,30 +127,12 @@ interface PagerLinkProps {
 /** Both arrows stay LINKS and are styled disabled rather than removed, so the control keeps its position between the first page and the rest. */
 function PagerLink({ href, enabled, children }: PagerLinkProps) {
   return (
-    <Link href={href} className={enabled ? "" : "disabled"}>
+    <Link
+      href={href}
+      className={`${styles.pagerLink} ${enabled ? "" : "disabled"}`}
+      aria-disabled={enabled ? undefined : true}
+    >
       {children}
     </Link>
-  );
-}
-
-function OperationSelect({ op, operations }: Omit<AuditFiltersProps, "agent">) {
-  return (
-    <select name="op" defaultValue={op || ""}>
-      <option value="">All operations</option>
-      {operations.map((o) => (
-        <option key={o} value={o}>
-          {formatEnumLabel(o)}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function MetadataDetails({ metadata }: { metadata: unknown }) {
-  return (
-    <details>
-      <summary className="meta">view</summary>
-      <pre className={styles.metadata}>{JSON.stringify(metadata, null, 2)}</pre>
-    </details>
   );
 }

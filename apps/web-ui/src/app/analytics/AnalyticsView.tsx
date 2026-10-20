@@ -1,5 +1,9 @@
 import styles from "./AnalyticsView.module.css";
 import DataTable from "@/components/DataTable";
+import { InsightsCard } from "@/components/insights/InsightsCard";
+import { UsageHeader } from "./UsageHeader";
+import { DailyCallsChart, TaskSummaryTiles } from "./ActivitySummary";
+import { RetrievalLatency } from "./LatencyRows";
 import type { components } from "@/lib/api/schema";
 
 export interface TaskSummary {
@@ -27,64 +31,21 @@ export interface AnalyticsViewProps {
   jobRuns: JobRun[];
 }
 
-// Pure render — page.tsx runs all the SQL and passes resolved row arrays.
-export default function AnalyticsView({
-  taskSummary,
-  latencyStats,
-  usageByTaskType,
-  usageByRepo,
-  dailyUsage,
-  jobRuns,
-}: AnalyticsViewProps) {
+// Pure render — page.tsx reads lore-api and passes resolved row arrays.
+export default function AnalyticsView(props: AnalyticsViewProps) {
   return (
     <div>
-      <h1>Analytics</h1>
-
-      <TaskSummaryCards taskSummary={taskSummary} />
-      <RetrievalLatency latencyStats={latencyStats} />
-      <UsageByTaskType usageByTaskType={usageByTaskType} />
-      <TasksByRepo usageByRepo={usageByRepo} />
-      <DailyUsage dailyUsage={dailyUsage} />
-      <RecentJobRuns jobRuns={jobRuns} />
-    </div>
-  );
-}
-
-function TaskSummaryCards({
-  taskSummary,
-}: Pick<AnalyticsViewProps, "taskSummary">) {
-  const cards = summaryCards(taskSummary);
-
-  return (
-    <>
-      <h2>Task Summary</h2>
-      <div className={styles.statsRow}>
-        {cards.map(([label, value, tone]) => (
-          <SummaryStatCard
-            key={label}
-            label={label}
-            value={value}
-            tone={tone}
-          />
-        ))}
+      <UsageHeader active="activity" />
+      <TaskSummaryTiles summary={props.taskSummary} />
+      <DailyCallsChart dailyUsage={props.dailyUsage} />
+      <RetrievalLatency latencyStats={props.latencyStats} />
+      <div className={styles.pair}>
+        <UsageByTaskType usageByTaskType={props.usageByTaskType} />
+        <TasksByRepo usageByRepo={props.usageByRepo} />
       </div>
-    </>
-  );
-}
-
-function RetrievalLatency({
-  latencyStats,
-}: Pick<AnalyticsViewProps, "latencyStats">) {
-  return (
-    <DataTable
-      title="Retrieval Performance (Last 7 Days)"
-      columns={["Tool", "Calls", "p50", "p95", "p99", "Status"]}
-      rows={latencyStats}
-      rowKey={(r) => r.tool}
-      monoColumns={[2, 3, 4]}
-      empty="No latency data yet. Use search_memory, query_graph, or assemble_context to generate data."
-      cells={latencyCells}
-    />
+      <DailyUsage dailyUsage={props.dailyUsage} />
+      <RecentJobRuns jobRuns={props.jobRuns} />
+    </div>
   );
 }
 
@@ -92,120 +53,64 @@ function UsageByTaskType({
   usageByTaskType,
 }: Pick<AnalyticsViewProps, "usageByTaskType">) {
   return (
-    <DataTable
-      title="Usage by Task Type"
-      columns={["Task Type", "Tasks", "Input Tokens", "Output Tokens"]}
-      rows={usageByTaskType}
-      rowKey={(r) => r.task_type}
-      monoColumns={[2, 3]}
-      cells={usageByTaskTypeCells}
-    />
+    <InsightsCard title="Usage by Task Type" flush>
+      <DataTable
+        columns={["Task Type", "Tasks", "Input Tokens", "Output Tokens"]}
+        rows={usageByTaskType}
+        rowKey={(r) => r.task_type}
+        monoColumns={[2, 3]}
+        cells={usageByTaskTypeCells}
+      />
+    </InsightsCard>
   );
 }
 
 function TasksByRepo({ usageByRepo }: Pick<AnalyticsViewProps, "usageByRepo">) {
   return (
-    <DataTable
-      title="Tasks by Repo"
-      columns={["Repo", "Tasks"]}
-      rows={usageByRepo}
-      rowKey={(r) => r.target_repo}
-      monoColumns={[0]}
-      cells={(r) => [r.target_repo, Number(r.task_count).toLocaleString()]}
-    />
+    <InsightsCard title="Tasks by Repo" flush>
+      <DataTable
+        columns={["Repo", "Tasks"]}
+        rows={usageByRepo}
+        rowKey={(r) => r.target_repo}
+        monoColumns={[0]}
+        cells={(r) => [r.target_repo, Number(r.task_count).toLocaleString()]}
+      />
+    </InsightsCard>
   );
 }
 
 function DailyUsage({ dailyUsage }: Pick<AnalyticsViewProps, "dailyUsage">) {
   return (
-    <DataTable
-      title="Daily Usage (Last 14 Days)"
-      columns={["Date", "LLM Calls", "Input Tokens", "Output Tokens"]}
-      rows={dailyUsage}
-      rowKey={(r) => r.day}
-      monoColumns={[2, 3]}
-      cells={(r) => [
-        new Date(r.day).toLocaleDateString(),
-        Number(r.calls).toLocaleString(),
-        Number(r.input_tokens).toLocaleString(),
-        Number(r.output_tokens).toLocaleString(),
-      ]}
-    />
+    <InsightsCard title="Daily Usage (Last 14 Days)" flush>
+      <DataTable
+        columns={["Date", "LLM Calls", "Input Tokens", "Output Tokens"]}
+        rows={dailyUsage}
+        rowKey={(r) => r.day}
+        monoColumns={[2, 3]}
+        cells={(r) => [
+          new Date(r.day).toLocaleDateString(),
+          Number(r.calls).toLocaleString(),
+          Number(r.input_tokens).toLocaleString(),
+          Number(r.output_tokens).toLocaleString(),
+        ]}
+      />
+    </InsightsCard>
   );
 }
 
 function RecentJobRuns({ jobRuns }: Pick<AnalyticsViewProps, "jobRuns">) {
   return (
-    <DataTable
-      title="Recent Job Runs"
-      columns={["Job", "Started", "Duration", "Status", "Result", "Logs"]}
-      rows={jobRuns}
-      rowKey={(r) => r.id}
-      monoColumns={[2]}
-      empty="No job runs"
-      cells={jobRunCells}
-    />
+    <InsightsCard title="Recent Job Runs" flush>
+      <DataTable
+        columns={["Job", "Started", "Duration", "Status", "Result", "Logs"]}
+        rows={jobRuns}
+        rowKey={(r) => r.id}
+        monoColumns={[2]}
+        empty="No job runs"
+        cells={jobRunCells}
+      />
+    </InsightsCard>
   );
-}
-
-const EMPTY_TASK_SUMMARY: TaskSummary = {
-  total: 0,
-  succeeded: 0,
-  failed: 0,
-  active: 0,
-};
-
-function summaryCards(
-  taskSummary: TaskSummary | null,
-): [string, number, string | undefined][] {
-  const summary = taskSummary ?? EMPTY_TASK_SUMMARY;
-
-  return [
-    ["Total Tasks", summary.total, undefined],
-    ["Succeeded", summary.succeeded, styles.statValueSuccess],
-    ["Failed", summary.failed, styles.statValueDanger],
-    ["Active", summary.active, styles.statValueWarning],
-  ];
-}
-
-interface SummaryStatCardProps {
-  label: string;
-  value: number;
-  tone: string | undefined;
-}
-
-function SummaryStatCard({ label, value, tone }: SummaryStatCardProps) {
-  return (
-    <div className={`spec-card ${styles.statCard}`}>
-      <div className="meta">{label}</div>
-      <div className={tone ? `${styles.statValue} ${tone}` : styles.statValue}>
-        {Number(value).toLocaleString()}
-      </div>
-    </div>
-  );
-}
-
-/** One tool's latency percentiles, with a verdict on p95. */
-function latencyCells(row: AnalyticsViewProps["latencyStats"][number]) {
-  return [
-    <span className="badge" key="tool">
-      {row.tool}
-    </span>,
-    Number(row.call_count).toLocaleString(),
-    `${Number(row.p50_ms).toFixed(0)}ms`,
-    `${Number(row.p95_ms).toFixed(0)}ms`,
-    `${Number(row.p99_ms).toFixed(0)}ms`,
-    <LatencyVerdict p95Ms={Number(row.p95_ms)} key="status" />,
-  ];
-}
-
-/** Whether this tool is inside the retrieval budget. 200ms is the line: past it, context assembly is what the developer is waiting on rather than something they would not notice. */
-function LatencyVerdict({ p95Ms }: { p95Ms: number }) {
-  if (p95Ms > 200) {
-    return <span className="op-badge op-delete">&gt;200ms</span>;
-  }
-
-  return <span className="op-badge op-write">OK</span>;
 }
 
 function usageByTaskTypeCells(

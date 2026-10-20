@@ -1,46 +1,74 @@
-/* Analytics dashboard view — co-located with AnalyticsView.tsx. Static styling
-   lives here; every styled value below is fixed, not derived from row data. */
+/* Usage & spend, Activity tab — co-located with AnalyticsView.tsx. */
 
-.statsRow {
+/* Two small tables side by side once there is room for both. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 0 var(--space-6);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.latencyRow {
   display: flex;
-  gap: var(--space-5);
-  margin-bottom: var(--space-6);
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--border);
 }
 
-.statCard {
-  flex: 1;
-  min-width: 150px;
+.latencyRow:last-child {
+  border-bottom: 0;
 }
 
-.statValue {
-  font-size: var(--fs-xl);
-  font-weight: bold;
-}
-
-.statValueSuccess {
-  color: var(--success);
-}
-
-.statValueDanger {
-  color: var(--danger);
-}
-
-.statValueWarning {
-  color: var(--warning);
-}
-
-.monoCell {
+.tool {
+  flex: 1 1 var(--size-200);
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
-.emptyCell {
-  text-align: center;
-}
-
-.smallCell {
+.calls {
+  flex: 0 0 var(--size-96);
   font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.p95 {
+  display: flex;
+  flex: 1 1 var(--size-200);
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.tails {
+  flex: 0 0 var(--size-150);
+  color: var(--text-muted);
+}
+
+.verdict:global(.op-badge) {
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-4);
+}
+
+.emptyRow {
+  margin: 0;
+  padding: var(--space-6) var(--space-5);
 }
 
 .error {

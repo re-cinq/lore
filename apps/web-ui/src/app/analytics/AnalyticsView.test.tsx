@@ -107,15 +107,20 @@ const fullProps: AnalyticsViewProps = {
   jobRuns,
 };
 
+const card = (name: string): HTMLElement =>
+  screen.getByRole("region", { name });
+
+const LATENCY = "Retrieval Performance (Last 7 Days)";
+
 describe("AnalyticsView", () => {
   it("renders all six section headings", () => {
     render(<AnalyticsView {...fullProps} />);
     expect(
-      screen.getByRole("heading", { level: 1, name: "Analytics" }),
+      screen.getByRole("heading", { level: 1, name: "Usage & spend" }),
     ).toBeInTheDocument();
     [
       "Task Summary",
-      "Retrieval Performance (Last 7 Days)",
+      LATENCY,
       "Usage by Task Type",
       "Tasks by Repo",
       "Daily Usage (Last 14 Days)",
@@ -128,17 +133,17 @@ describe("AnalyticsView", () => {
   });
 
   it("renders the four task-summary stat cards with locale-formatted numbers", () => {
-    const { container } = render(<AnalyticsView {...fullProps} />);
+    render(<AnalyticsView {...fullProps} />);
+    const tiles = within(card("Task Summary"));
 
-    expect(container.querySelectorAll(".spec-card")).toHaveLength(4);
-    expect(screen.getByText("Total Tasks")).toBeInTheDocument();
-    expect(screen.getByText("1,234")).toBeInTheDocument();
-    expect(screen.getByText("Succeeded")).toBeInTheDocument();
-    expect(screen.getByText("1,000")).toBeInTheDocument();
-    expect(screen.getByText("Failed")).toBeInTheDocument();
-    expect(screen.getByText("34")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.getByText("200")).toBeInTheDocument();
+    expect(tiles.getByText("Tasks")).toBeInTheDocument();
+    expect(tiles.getByText("1,234")).toBeInTheDocument();
+    expect(tiles.getByText("Succeeded")).toBeInTheDocument();
+    expect(tiles.getByText("1,000")).toBeInTheDocument();
+    expect(tiles.getByText("Failed")).toBeInTheDocument();
+    expect(tiles.getByText("34")).toBeInTheDocument();
+    expect(tiles.getByText("Active")).toBeInTheDocument();
+    expect(tiles.getByText("200")).toBeInTheDocument();
   });
 
   it("falls back to zero on every stat card when task summary is null", () => {
@@ -148,8 +153,9 @@ describe("AnalyticsView", () => {
 
   it("renders the latency table with mono p-values and a >200ms delete badge when p95 exceeds 200", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[0];
-    const slow = within(table).getByText("search_memory").closest("tr")!;
+    const slow = within(card(LATENCY))
+      .getByText("search_memory")
+      .closest("li")!;
 
     expect(within(slow).getByText("5,000")).toBeInTheDocument();
     expect(within(slow).getByText("12ms")).toBeInTheDocument();
@@ -162,25 +168,26 @@ describe("AnalyticsView", () => {
 
   it("renders an OK write badge when p95 is at or under 200ms", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[0];
-    const fast = within(table).getByText("assemble_context").closest("tr")!;
+    const fast = within(card(LATENCY))
+      .getByText("assemble_context")
+      .closest("li")!;
     const badge = within(fast).getByText("OK");
 
     expect(badge).toHaveClass("op-badge", "op-write");
   });
 
   it("renders the empty-latency message when there are no latency stats", () => {
-    const { container } = render(
-      <AnalyticsView {...fullProps} latencyStats={[]} />,
-    );
+    render(<AnalyticsView {...fullProps} latencyStats={[]} />);
 
-    expect(screen.getByText(/No latency data yet/)).toBeInTheDocument();
-    expect(container.querySelector('td[colspan="6"]')).toBeInTheDocument();
+    expect(
+      within(card(LATENCY)).getByText(/No latency data yet/),
+    ).toBeInTheDocument();
+    expect(within(card(LATENCY)).queryByRole("list")).toBeNull();
   });
 
   it("renders usage-by-task-type rows with locale-formatted token counts", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[1];
+    const table = card("Usage by Task Type");
     const impl = within(table).getByText("implementation").closest("tr")!;
 
     expect(within(impl).getByText("42")).toBeInTheDocument();
@@ -190,14 +197,14 @@ describe("AnalyticsView", () => {
 
   it("renders the empty-usage message when there are no task-type rows", () => {
     render(<AnalyticsView {...fullProps} usageByTaskType={[]} />);
-    const table = screen.getAllByRole("table")[1];
+    const table = card("Usage by Task Type");
 
     expect(within(table).getByText("No data")).toBeInTheDocument();
   });
 
   it("renders tasks-by-repo rows with repo path and count", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[2];
+    const table = card("Tasks by Repo");
     const repo = within(table).getByText("re-cinq/lore").closest("tr")!;
 
     expect(within(repo).getByText("88")).toBeInTheDocument();
@@ -213,7 +220,7 @@ describe("AnalyticsView", () => {
 
   it("renders daily-usage rows with formatted dates and token counts", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[3];
+    const table = card("Daily Usage (Last 14 Days)");
     const day = within(table)
       .getByText(new Date("2026-06-03").toLocaleDateString())
       .closest("tr")!;
@@ -225,14 +232,39 @@ describe("AnalyticsView", () => {
 
   it("renders the empty-daily message when there is no daily usage", () => {
     render(<AnalyticsView {...fullProps} dailyUsage={[]} />);
-    const table = screen.getAllByRole("table")[3];
+    const table = card("Daily Usage (Last 14 Days)");
 
     expect(within(table).getByText("No data")).toBeInTheDocument();
   });
 
+  it("charts LLM calls per day oldest first under the window's call total", () => {
+    render(<AnalyticsView {...fullProps} />);
+    const chart = card("LLM calls per day");
+    const columns = chart.querySelectorAll("[title]");
+
+    expect(within(chart).getByText("Last 14 days · 4,212 calls")).toBeVisible();
+    expect(columns[0]).toHaveAttribute(
+      "title",
+      expect.stringContaining(": 12 calls"),
+    );
+    expect(columns[1]).toHaveAttribute(
+      "title",
+      expect.stringContaining(": 4,200 calls"),
+    );
+  });
+
+  it("says there were no LLM calls instead of drawing an empty chart", () => {
+    render(<AnalyticsView {...fullProps} dailyUsage={[]} />);
+    expect(
+      within(card("LLM calls per day")).getByText(
+        "No LLM calls in the last 14 days.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders job runs with seconds duration, result summary and a logs view link", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[4];
+    const table = card("Recent Job Runs");
     const row = within(table).getByText("auto-merge").closest("tr")!;
 
     expect(within(row).getByText("42s")).toBeInTheDocument();
@@ -247,7 +279,7 @@ describe("AnalyticsView", () => {
 
   it("renders a minutes duration and shows the error in place of the result when a job failed", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[4];
+    const table = card("Recent Job Runs");
     const row = within(table).getByText("lease-reaper").closest("tr")!;
 
     expect(within(row).getByText("5m")).toBeInTheDocument();
@@ -261,7 +293,7 @@ describe("AnalyticsView", () => {
 
   it("renders an em-dash duration, em-dash result and em-dash logs for a running job with no completion", () => {
     render(<AnalyticsView {...fullProps} />);
-    const table = screen.getAllByRole("table")[4];
+    const table = card("Recent Job Runs");
     const row = within(table).getByText("baseline").closest("tr")!;
 
     expect(within(row).queryByRole("link")).not.toBeInTheDocument();
@@ -270,7 +302,7 @@ describe("AnalyticsView", () => {
 
   it("renders the empty job-runs message when there are no job runs", () => {
     render(<AnalyticsView {...fullProps} jobRuns={[]} />);
-    const table = screen.getAllByRole("table")[4];
+    const table = card("Recent Job Runs");
 
     expect(within(table).getByText("No job runs")).toBeInTheDocument();
   });

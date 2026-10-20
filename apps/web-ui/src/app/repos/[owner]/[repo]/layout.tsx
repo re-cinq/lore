@@ -1,5 +1,7 @@
 import { getRepoMeta } from "@/lib/github";
+import { getRepo } from "@/lib/api/repos";
 import TabNav from "./TabNav";
+import RepoHeader from "./RepoHeader";
 import styles from "./layout.module.css";
 
 interface RepoLayoutProps {
@@ -10,20 +12,32 @@ interface RepoLayoutProps {
 export default async function RepoLayout(props: RepoLayoutProps) {
   const { owner, repo } = await props.params;
   const base = `/repos/${owner}/${repo}`;
-  const meta = await getRepoMeta(`${owner}/${repo}`).catch(() => null);
+  const { meta, record } = await readHeader(`${owner}/${repo}`);
 
   return (
     <div>
-      <h1 className={styles.title}>
-        {owner}/{repo}
-      </h1>
-      {meta?.description && (
-        <p className={`meta ${styles.desc}`}>{meta.description}</p>
-      )}
+      <RepoHeader
+        owner={owner}
+        repo={repo}
+        description={meta?.description}
+        record={record}
+      />
       <TabNav tabs={repoTabs(base)} base={base} />
       <div className={styles.body}>{props.children}</div>
     </div>
   );
+}
+
+/** The GitHub description and Lore's record, both fail-soft: a header that cannot read either still names the repo and keeps its tabs. */
+async function readHeader(fullName: string) {
+  const [meta, record] = await Promise.all([
+    getRepoMeta(fullName).catch(() => null),
+    getRepo(fullName)
+      .then((r) => (r.status === "ok" ? r.data : null))
+      .catch(() => null),
+  ]);
+
+  return { meta, record };
 }
 
 /** Every tab a repo has, in the order they are shown. Reads as the repo's table of contents, so the order is deliberate rather than alphabetical: what a reader wants first comes first. */

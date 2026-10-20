@@ -1,0 +1,65 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: calc(var(--space-7) + var(--space-2));
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: filter var(--transition);
+}
+
+.chip:hover {
+  filter: brightness(0.96);
+  text-decoration: none;
+}
+
+.count {
+  opacity: 0.7;
+}
+
+.neutral {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.warn,
+.waiting {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.err {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.running {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.idle {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}
+
+.active {
+  background: var(--primary);
+  color: var(--text-on-accent);
+}

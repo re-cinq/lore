@@ -32,3 +32,11 @@
   justify-content: flex-end;
   margin: var(--space-3) var(--space-4) var(--space-2);
 }
+
+/* Lore v2: pod logs on the same navy ground as the transcript (palette from RunVisualizationPanel.module.css). */
+:global([data-theme-family="lore"]) .terminal {
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--run-term-bg, var(--bg));
+  color: var(--run-term-fg, var(--text));
+}

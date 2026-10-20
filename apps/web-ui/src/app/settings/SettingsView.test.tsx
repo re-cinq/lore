@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SettingsView, { type SettingsApprovalConfig } from "./SettingsView";
 
+vi.mock("@/components/Icon", () => ({ default: () => <span /> }));
+
 vi.mock("@/components/ThemeSwitcher", () => ({
   default: () => <div data-testid="theme-switcher" />,
 }));
@@ -44,24 +46,19 @@ function renderView(
 describe("SettingsView", () => {
   it("renders the page heading and all section headings", () => {
     renderView();
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Settings" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Appearance" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Platform Configuration" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Approval Gates" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        level: 2,
-        name: "Developer Install Command",
-      }),
-    ).toBeInTheDocument();
+    const sections = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+
+    expect(sections).toEqual([
+      "Appearance",
+      "GitHub",
+      "Platform",
+      "Approval gates",
+      "Slack people",
+      "Developer install",
+      "Regenerate ingest token",
+    ]);
     expect(screen.getByTestId("theme-switcher")).toBeInTheDocument();
   });
 
@@ -115,7 +112,7 @@ describe("SettingsView", () => {
   it("renders the regenerate-token form with its danger button and warning", () => {
     renderView();
     expect(
-      screen.getByRole("button", { name: "Regenerate Token" }),
+      screen.getByRole("button", { name: "Regenerate token" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/invalidates all existing tokens/),
@@ -126,7 +123,7 @@ describe("SettingsView", () => {
     const { container } = renderView();
 
     expect(
-      screen.getByRole("button", { name: "Save Approval Config" }),
+      screen.getByRole("button", { name: "Save approval gates" }),
     ).toBeInTheDocument();
     expect(
       container.querySelector('input[name="approval_required"]'),
@@ -207,8 +204,8 @@ describe("SettingsView", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "GitHub" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("re-cinq — Organization, selected repos"),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent(
+      "re-cinqOrganization · selected repos",
+    );
   });
 });

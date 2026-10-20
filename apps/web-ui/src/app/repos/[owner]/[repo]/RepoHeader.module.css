@@ -1,0 +1,67 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.crumbHere {
+  overflow-wrap: anywhere;
+}
+
+.title {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.team {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.sep {
+  color: var(--border-hover);
+}
+
+.fresh,
+.github {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The colour comes from the shared freshness palette. */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--dot-color);
+}
+
+.desc {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--text-muted);
+}

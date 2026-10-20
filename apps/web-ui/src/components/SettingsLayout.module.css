@@ -1,0 +1,56 @@
+/* Settings pages: sub-navigation beside a column of section cards. */
+
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-7);
+  align-items: flex-start;
+}
+
+.nav {
+  flex: 0 0 var(--size-200);
+  position: sticky;
+  top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.navLink {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.navLink:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.navLink.navDanger {
+  color: var(--danger);
+}
+
+.content {
+  flex: 1 1 var(--size-480);
+  min-width: 0;
+  max-width: var(--measure-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Narrow screens: the sub-navigation becomes a wrapping row of pills. */
+@media (max-width: 720px) {
+  .nav {
+    flex: 1 1 100%;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

@@ -1,4 +1,9 @@
-import { Inter, IBM_Plex_Mono } from "next/font/google";
+import {
+  Inter,
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  JetBrains_Mono,
+} from "next/font/google";
 import localFont from "next/font/local";
 
 export const inter = Inter({
@@ -20,4 +25,19 @@ export const gohu = localFont({
   src: "./fonts/gohufont-uni-14.ttf",
   display: "swap",
   variable: "--font-gohu",
+});
+
+// Lore family: Plex Sans stands in for the brand's licensed Neue Montreal, which a public repo cannot ship.
+export const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-ibm-plex-sans",
+});
+
+export const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
 });

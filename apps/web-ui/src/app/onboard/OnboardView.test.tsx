@@ -3,22 +3,22 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import OnboardView from "./OnboardView";
 
+vi.mock("@/components/Icon", () => ({ default: () => <span /> }));
+
 const action = vi.fn().mockResolvedValue(null);
 
 describe("OnboardView", () => {
   it("renders the heading and intro copy", () => {
     render(<OnboardView onboarded={[]} onboardRepoAction={action} />);
     expect(
-      screen.getByRole("heading", { level: 1, name: "Add Repository" }),
+      screen.getByRole("heading", { level: 1, name: "Add a repository" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /Onboard a repository to Lore. This will create a PR on the target repo/,
-      ),
+      screen.getByText(/Lore opens a PR on the target repo/),
     ).toBeInTheDocument();
   });
 
-  it("lists already-onboarded repos joined by comma when present", () => {
+  it("lists each already-onboarded repo as a pill when present", () => {
     render(
       <OnboardView
         onboarded={[
@@ -28,9 +28,9 @@ describe("OnboardView", () => {
         onboardRepoAction={action}
       />,
     );
-    expect(
-      screen.getByText(/Already onboarded: re-cinq\/lore, re-cinq\/other/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Already onboarded:/)).toHaveTextContent(
+      "Already onboarded:re-cinq/lorere-cinq/other",
+    );
   });
 
   it("omits the already-onboarded hint when the list is empty", () => {
@@ -47,7 +47,7 @@ describe("OnboardView", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Onboard Repository" }),
+      screen.getByRole("button", { name: "Open onboarding PR" }),
     ).toBeInTheDocument();
     const input = container.querySelector('input[name="full_name"]');
 
@@ -70,12 +70,25 @@ describe("OnboardView", () => {
     )!;
 
     fireEvent.change(input, { target: { value: "re-cinq/nope" } });
-    fireEvent.click(screen.getByRole("button", { name: "Onboard Repository" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open onboarding PR" }));
 
     expect(
       await screen.findByText("re-cinq/nope is already onboarded."),
     ).toHaveAttribute("role", "alert");
     await waitFor(() => expect(input.value).toBe("re-cinq/nope"));
+  });
+
+  it("lists what the onboarding PR adds", () => {
+    render(<OnboardView onboarded={[]} onboardRepoAction={action} />);
+    const fileCards = screen
+      .getAllByRole("listitem")
+      .map((li) => li.textContent);
+
+    expect(fileCards).toEqual([
+      "CLAUDE.md, AGENTS.mdConventions and context for agents",
+      "PR templateWhat every pull request describes",
+      "CI workflowsIngest and test tracing on push to main",
+    ]);
   });
 
   it("renders no alert before any submit", () => {

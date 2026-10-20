@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SearchView, {
   type SearchResult,
   type SearchRepoOption,
 } from "./SearchView";
+
+vi.mock("@/components/Icon", () => ({
+  default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
+}));
 
 const REPOS: SearchRepoOption[] = [
   { full_name: "re-cinq/lore" },
@@ -21,18 +25,17 @@ const result = (over: Partial<SearchResult>): SearchResult => ({
   ...over,
 });
 
-describe("SearchView", () => {
+const card = (key: string) => screen.getByRole("article", { name: key });
+
+const countLine = (pattern: RegExp) =>
+  (screen.getByText(pattern).closest("p") as HTMLElement).textContent;
+
+describe("SearchView form", () => {
   it("renders the repo filter options with the active repo preselected", () => {
     render(<SearchView repo="re-cinq/atlas" repos={REPOS} results={[]} />);
-    expect(
-      screen.getByRole("option", { name: "All repos" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("option", { name: "re-cinq/lore" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("option", { name: "re-cinq/atlas" }),
-    ).toBeInTheDocument();
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+
+    expect(options).toEqual(["All repos", "re-cinq/lore", "re-cinq/atlas"]);
     expect((screen.getByRole("combobox") as HTMLSelectElement).value).toEqual(
       "re-cinq/atlas",
     );
@@ -46,26 +49,31 @@ describe("SearchView", () => {
     ).toEqual("env var");
   });
 
-  it("shows no result-count line and no empty-state when no query has run", () => {
+  it("titles the screen Search under the knowledge group", () => {
+    render(<SearchView repos={REPOS} results={[]} />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toEqual(
+      "Search",
+    );
+    expect(screen.getByText("{knowledge}")).toBeInTheDocument();
+  });
+});
+
+describe("SearchView result count", () => {
+  it("shows no result-count line, chips or empty-state when no query has run", () => {
     render(<SearchView repos={REPOS} results={[]} />);
     expect(screen.queryByText(/result/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByText(/No results found/)).not.toBeInTheDocument();
   });
 
   it("shows the singular result count for exactly one match", () => {
     render(<SearchView q="env" repos={REPOS} results={[result({})]} />);
-    const meta = screen.getByText(/1 result for/).closest("p") as HTMLElement;
-
-    expect(meta.textContent).toContain("1 result for");
-    expect(meta.textContent).toContain('"env"');
+    expect(countLine(/1 result for/)).toEqual('1 result for "env"');
   });
 
   it("shows the plural result count and zero-match empty state", () => {
     render(<SearchView q="missing" repos={REPOS} results={[]} />);
-    const meta = screen.getByText(/0 results for/).closest("p") as HTMLElement;
-
-    expect(meta.textContent).toContain("0 results for");
-    expect(meta.textContent).toContain('"missing"');
+    expect(countLine(/0 results for/)).toEqual('0 results for "missing"');
     expect(
       screen.getByText("No results found. Try a different search term."),
     ).toBeInTheDocument();
@@ -80,61 +88,46 @@ describe("SearchView", () => {
         results={[result({})]}
       />,
     );
-    const meta = screen.getByText(/result for/).closest("p") as HTMLElement;
-
-    expect(within(meta).getByText("re-cinq/lore")).toBeInTheDocument();
-    expect(meta.textContent).toContain("in");
-  });
-
-  it("renders a memory result with truncated agent id, fixed score and a read badge", () => {
-    render(
-      <SearchView
-        q="env"
-        repos={REPOS}
-        results={[
-          result({
-            key: "deployment-gotchas-2026",
-            agent_id: "abcdef0123456789",
-            score: 0.4287,
-            source: "memory",
-            repo: null,
-          }),
-        ]}
-      />,
+    expect(countLine(/result for/)).toEqual(
+      '1 result for "env" in re-cinq/lore',
     );
-    expect(screen.getByText("deployment-gotchas-2026")).toBeInTheDocument();
+  });
+});
+
+describe("SearchView result cards", () => {
+  it("renders a memory result with its key, value, truncated agent id and fixed score", () => {
+    render(<SearchView q="env" repos={REPOS} results={[result({})]} />);
+    const scoped = within(card("deployment-gotchas-2026"));
+
+    expect(scoped.getByText("agent abcdef01…")).toBeInTheDocument();
+    expect(scoped.getByText(/score 0\.429/)).toBeInTheDocument();
     expect(
-      screen.getByText(/agent: abcdef01… · score: 0\.429/),
+      scoped.getByText("Always set the env var before deploy"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Always set the env var before deploy"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Memory")).toHaveClass("op-badge", "op-read");
   });
 
-  it("renders a fact result with the op-search badge", () => {
+  it("labels each card with its source in that source's tone", () => {
+    const sources = ["memory", "fact", "chunk", "episode"] as const;
+
     render(
       <SearchView
         q="env"
         repos={REPOS}
-        results={[result({ source: "fact" })]}
+        results={sources.map((source) => result({ key: source, source }))}
       />,
     );
-    expect(screen.getByText("Fact")).toHaveClass("op-badge", "op-search");
-  });
-
-  it("renders an episode result with the op-read badge", () => {
-    render(
-      <SearchView
-        q="env"
-        repos={REPOS}
-        results={[result({ source: "episode" })]}
-      />,
+    const tones = sources.map(
+      (source) =>
+        within(card(source)).getByText(/^(Memory|Fact|Chunk|Episode)$/)
+          .className,
     );
-    expect(screen.getByText("Episode")).toHaveClass("op-badge", "op-read");
+
+    expect(tones.map((t, i) => t.includes(`_${sources[i]}_`))).toEqual(
+      sources.map(() => true),
+    );
   });
 
-  it("renders a chunk result with the op-write badge plus the repo meta and repo badge", () => {
+  it("attributes a chunk result to its repo", () => {
     render(
       <SearchView
         q="env"
@@ -144,31 +137,22 @@ describe("SearchView", () => {
             key: "src/index.ts",
             source: "chunk",
             repo: "re-cinq/lore",
-            agent_id: "ingestion-svc",
           }),
         ]}
       />,
     );
-    const card = screen
-      .getByText("src/index.ts")
-      .closest(".search-result") as HTMLElement;
-    const scoped = within(card);
-
-    expect(scoped.getByText("Chunk")).toHaveClass("op-badge", "op-write");
-    expect(scoped.getAllByText("re-cinq/lore")).toHaveLength(2);
-    expect(card.querySelector(".badge")?.textContent).toEqual("re-cinq/lore");
+    expect(
+      within(card("src/index.ts")).getByText("re-cinq/lore"),
+    ).toBeInTheDocument();
   });
 
-  it("omits the repo meta and repo badge when the result has no repo", () => {
+  it("omits the repo when the result has no repo", () => {
     render(
       <SearchView q="env" repos={REPOS} results={[result({ repo: null })]} />,
     );
-    const card = screen
-      .getByText("deployment-gotchas-2026")
-      .closest(".search-result") as HTMLElement;
-
-    expect(card.querySelector(".badge")).toBeNull();
-    expect(within(card).queryByText(/· repo:/)).not.toBeInTheDocument();
+    expect(
+      within(card("deployment-gotchas-2026")).queryByText(/re-cinq/),
+    ).not.toBeInTheDocument();
   });
 
   it("renders multiple results in order", () => {
@@ -187,10 +171,59 @@ describe("SearchView", () => {
         ]}
       />,
     );
-    expect(screen.getByText("mem-one")).toBeInTheDocument();
-    expect(screen.getByText("fact-two")).toBeInTheDocument();
-    expect(screen.getByText("chunk-three")).toBeInTheDocument();
-    expect(screen.getByText("A derived fact")).toBeInTheDocument();
+    const keys = screen.getAllByRole("article").map((a) => a.ariaLabel);
+
+    expect(keys).toEqual(["mem-one", "fact-two", "chunk-three"]);
     expect(screen.getByText(/3 results for/)).toBeInTheDocument();
+  });
+});
+
+describe("SearchView source chips", () => {
+  const mixed = [
+    result({ key: "mem-one", source: "memory" }),
+    result({ key: "mem-two", source: "memory" }),
+    result({ key: "fact-one", source: "fact" }),
+  ];
+
+  it("offers All plus each source that has hits, with counts from the full set", () => {
+    render(<SearchView q="env" repos={REPOS} results={mixed} source="fact" />);
+    const chips = within(
+      screen.getByRole("navigation", { name: "Result sources" }),
+    ).getAllByRole("link");
+
+    expect(chips.map((c) => c.textContent)).toEqual([
+      "All3",
+      "Memory2",
+      "Fact1",
+    ]);
+  });
+
+  it("links each chip to the same search narrowed to its source", () => {
+    render(
+      <SearchView
+        q="env var"
+        repo="re-cinq/lore"
+        repos={REPOS}
+        results={mixed}
+      />,
+    );
+    const memory = screen.getByRole("link", { name: "Memory2" });
+
+    expect(memory.getAttribute("href")).toEqual(
+      "/search?q=env+var&repo=re-cinq%2Flore&source=memory",
+    );
+  });
+
+  it("shows only the active source's cards and marks its chip current", () => {
+    render(
+      <SearchView q="env" repos={REPOS} results={mixed} source="memory" />,
+    );
+    const keys = screen.getAllByRole("article").map((a) => a.ariaLabel);
+
+    expect(keys).toEqual(["mem-one", "mem-two"]);
+    expect(screen.getByRole("link", { name: "Memory2" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
   });
 });

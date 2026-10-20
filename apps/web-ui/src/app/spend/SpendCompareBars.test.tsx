@@ -2,9 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SpendCompareBars } from "./SpendCompareBars";
-
-const usd = (n: number) =>
-  Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
+import { usd } from "./spend-format";
 
 describe("SpendCompareBars", () => {
   const mixed = [

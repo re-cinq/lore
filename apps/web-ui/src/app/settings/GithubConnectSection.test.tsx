@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import GithubConnectSection from "./GithubConnectSection";
+
+vi.mock("@/components/Icon", () => ({ default: () => <span /> }));
 
 const RE_CINQ = {
   installation_id: "81234567",
@@ -23,8 +25,19 @@ describe("GithubConnectSection", () => {
     );
 
     expect(screen.getByRole("listitem")).toHaveTextContent(
-      "re-cinq — Organization, selected repos",
+      "re-cinqOrganization · selected reposInstalled",
     );
+  });
+
+  it("marks a suspended installation as Suspended rather than Installed", () => {
+    render(
+      <GithubConnectSection
+        installations={[{ ...RE_CINQ, suspended_at: "2026-10-01T09:00:00Z" }]}
+        installUrl={null}
+      />,
+    );
+
+    expect(screen.getByRole("listitem")).toHaveTextContent(/Suspended$/);
   });
 
   it("links to installing the App on another account at the lore-agent install URL", () => {

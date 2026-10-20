@@ -4,6 +4,7 @@ import { Alert } from "@/components/Alert";
 import MiniPipeline from "@/components/MiniPipeline";
 import PendingActionButton from "@/components/PendingActionButton";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
+import Panel, { PanelTable } from "@/components/Panel";
 import styles from "./ImplementationLoopView.module.scss";
 import OnboardingBanner from "./OnboardingBanner";
 import TicketTitleCell from "./TicketTitleCell";
@@ -50,9 +51,11 @@ export default function ImplementationLoopView(props: LoopViewProps) {
       <OnboardingBanner loop={loop} retry={retryOnboarding} />
       <LoopExplainer />
 
-      {backlogStages(loop).map((stage) => (
-        <LoopSection key={stage.heading} {...stage} />
-      ))}
+      <div className={styles.sections}>
+        {backlogStages(loop).map((stage) => (
+          <LoopSection key={stage.heading} {...stage} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -150,8 +153,7 @@ function LoopSection(props: LoopSectionProps) {
   const { heading, tickets, emptyText, notice } = props;
 
   return (
-    <section className={styles.section}>
-      <h2>{heading}</h2>
+    <Panel title={heading}>
       {notice && (
         <p
           className={`meta ${styles.sectionNotice}`}
@@ -161,7 +163,7 @@ function LoopSection(props: LoopSectionProps) {
         </p>
       )}
       <TicketTable tickets={tickets} emptyText={emptyText} />
-    </section>
+    </Panel>
   );
 }
 
@@ -176,14 +178,16 @@ function TicketTable({ tickets, emptyText }: TicketTableProps) {
   }
 
   return (
-    <table className={styles.ticketTable} data-testid="ticket-table">
-      <TicketTableHead />
-      <tbody>
-        {tickets.map((ticket, i) => (
-          <TicketRow key={`${ticket.issue_number}-${i}`} ticket={ticket} />
-        ))}
-      </tbody>
-    </table>
+    <PanelTable>
+      <table className={styles.ticketTable} data-testid="ticket-table">
+        <TicketTableHead />
+        <tbody>
+          {tickets.map((ticket, i) => (
+            <TicketRow key={`${ticket.issue_number}-${i}`} ticket={ticket} />
+          ))}
+        </tbody>
+      </table>
+    </PanelTable>
   );
 }
 

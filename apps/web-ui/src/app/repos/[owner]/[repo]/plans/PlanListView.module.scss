@@ -12,12 +12,27 @@
 
 .grid {
   display: grid;
-  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-5);
 }
 
+/* A plan reads as one of the repo's cards: the overview's radius and padding,
+   lifted on hover the way the repository cards are. */
 .card {
   display: block;
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  color: inherit;
   text-decoration: none;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+
+  &:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow);
+  }
 }
 
 .cardHeader {
@@ -26,6 +41,9 @@
 
 .cardTitle {
   margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  color: var(--heading-color);
 }
 
 .detail {
