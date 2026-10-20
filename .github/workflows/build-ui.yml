@@ -31,7 +31,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       relevant: ${{ steps.diff.outputs.relevant }}
+      short_sha: ${{ steps.sha.outputs.short_sha }}
     steps:
+      - name: Short SHA
+        id: sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -58,45 +62,16 @@ jobs:
   build:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/_build-image.yml
     permissions:
       contents: read
       packages: write
-    outputs:
-      image_tag: ${{ steps.sha.outputs.short_sha }}
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Short SHA
-        id: sha
-        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: apps/web-ui
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            GIT_SHA=${{ steps.sha.outputs.short_sha }}
+    with:
+      image_name: re-cinq/lore-ui
+      context: apps/web-ui
+      dockerfile: apps/web-ui/Dockerfile
+      build_args: GIT_SHA=${{ needs.changes.outputs.short_sha }}
+    secrets: inherit
 
   deploy:
     needs: build

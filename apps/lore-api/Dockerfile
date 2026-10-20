@@ -45,7 +45,7 @@ RUN npm run build --workspace=@re-cinq/lore-api
 # Go builder: cross-compile the portable test-ingestion binary for the targets
 # the /dist/lore-code-trace route serves. Baked into this image so onboarded CI
 # downloads a binary that always matches this server's ingestion contract.
-FROM golang:1.26-alpine AS gobuilder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS gobuilder
 WORKDIR /src
 COPY apps/lore-code-trace/go.mod apps/lore-code-trace/go.sum ./
 RUN go mod download
