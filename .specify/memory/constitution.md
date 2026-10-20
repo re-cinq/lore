@@ -67,10 +67,10 @@ cost pressure from pushing a bad workflow into production infra.
 ### Principle 2: Zero Stored Credentials
 
 No long-lived credentials anywhere in the system. This is a hard
-requirement with no exceptions.
+requirement with no exceptions. ([validated by `no chart embeds a PEM private key or a credentials.json reference`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L75))
 
 - PostgreSQL (CNPG) auth: Workload Identity for all GKE workloads.
-- GitHub Actions: Workload Identity Federation.
+- GitHub Actions: Workload Identity Federation. ([validated by `finds the WIF auth action wired into build/deploy workflows`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L92))
 - Cloud Monitoring: default GKE service account scoping.
 - MCP server keys: scoped per team via IAM.
 
@@ -87,7 +87,7 @@ of well-structured PRs are required before Phase 1 ingestion has
 meaningful content.
 
 Required PR sections:
-- `## Why` — what problem this solves.
+- `## Why` — what problem this solves. ([validated by `answers Why, What Changed and Testing for a repository with no template, and for one whose template has only # and ### headings`](apps/stations/src/implementation-loop/pr-sections.test.ts#L49))
 - `## Alternatives rejected` — what else was considered and why not.
   "N/A" is not acceptable.
 - `## ADR references` — links to relevant ADRs.
