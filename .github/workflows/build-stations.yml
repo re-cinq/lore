@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/_build-image.yml'
       - 'apps/stations/**'
       # The compiled `shared` package is bundled into the image — a shared-only
       # change must rebuild + redeploy, or the cluster runs stale shared code
