@@ -2,6 +2,7 @@
 
 import type { StationModule } from "./lib/station.js";
 import { anthropicCostSync } from "./anthropic-cost-sync/manifest.js";
+import { ingestSecretRepairStation } from "./ingest-secret-repair/manifest.js";
 import { importanceDecayStation } from "./importance-decay/manifest.js";
 import { memoryTtl } from "./memory-ttl/manifest.js";
 import { mergeCheck } from "./merge-check/manifest.js";
@@ -27,6 +28,7 @@ export const STATION_NAMES = [
   "digest-tick",
   "gcp-cost-sync",
   "importance-decay",
+  "ingest-secret-repair",
   "issue-triage-tick",
   "loop-tick",
   "memory-ttl",
@@ -48,6 +50,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "digest-tick": digestTickStation,
   "gcp-cost-sync": gcpCostSync,
   "importance-decay": importanceDecayStation,
+  "ingest-secret-repair": ingestSecretRepairStation,
   "issue-triage-tick": issueTriageTickStation,
   "loop-tick": loopTickStation,
   "memory-ttl": memoryTtl,
