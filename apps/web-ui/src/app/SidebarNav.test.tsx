@@ -25,7 +25,6 @@ vi.mock("@/components/Icon", () => ({
 import SidebarNav from "./SidebarNav";
 
 const PRIMARY_LINKS = [
-  { href: "/inbox", label: "Inbox" },
   { href: "/", label: "Repos" },
   { href: "/assembly-runs", label: "Assembly runs" },
   { href: "/agents", label: "Agents" },
@@ -176,7 +175,7 @@ describe("SidebarNav active-link highlighting", () => {
     expect(repos.className).toContain("active");
     expect(repos).toHaveAttribute("aria-current", "page");
 
-    for (const { label } of ALL_LINKS.filter((l) => l !== PRIMARY_LINKS[1])) {
+    for (const { label } of ALL_LINKS.filter((l) => l !== PRIMARY_LINKS[0])) {
       const link = linkByLabel(label);
 
       expect(link.className).not.toContain("active");

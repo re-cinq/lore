@@ -55,7 +55,7 @@ describe("command palette", () => {
     fireEvent.keyDown(document, { key: "k", metaKey: true });
     fireEvent.keyDown(field(), { key: "ArrowDown" });
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(push).toHaveBeenCalledWith("/");
+    expect(push).toHaveBeenCalledWith("/assembly-runs");
     expect(palette()).toBeNull();
   });
 
