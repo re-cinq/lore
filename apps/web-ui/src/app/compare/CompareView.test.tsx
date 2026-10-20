@@ -77,12 +77,7 @@ describe("CompareView", () => {
 
   it("keeps the picked B as the active chip when it is not among the candidates", () => {
     render(
-      <CompareView
-        a={A}
-        b={B}
-        candidates={[run("cccccccc-3")]}
-        nowMs={NOW}
-      />,
+      <CompareView a={A} b={B} candidates={[run("cccccccc-3")]} nowMs={NOW} />,
     );
 
     expect(
