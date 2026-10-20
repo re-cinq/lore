@@ -44,16 +44,16 @@ describe("EpisodesView", () => {
       />,
     );
 
-    const table = within(screen.getByRole("table"));
+    const table = within(screen.getByRole("list", { name: "Episodes" }));
 
     expect(table.getByText("abcdef01…")).toBeInTheDocument();
     expect(table.getByText("99887766…")).toBeInTheDocument();
-    expect(table.getByText("Manual")).toHaveClass("op-badge", "op-manual");
-    expect(table.getByText("Session")).toHaveClass("op-badge", "op-session");
+    expect(table.getByText("Manual")).toBeInTheDocument();
+    expect(table.getByText("Session")).toBeInTheDocument();
     expect(table.getByText("pr-42")).toBeInTheDocument();
     expect(table.getByText("sess-7")).toBeInTheDocument();
-    expect(table.getByText("3")).toBeInTheDocument();
-    expect(table.getByText("9")).toBeInTheDocument();
+    expect(table.getByText("3 facts")).toBeInTheDocument();
+    expect(table.getByText("9 facts")).toBeInTheDocument();
     expect(screen.getByText("2 episodes")).toBeInTheDocument();
   });
 
@@ -99,7 +99,7 @@ describe("EpisodesView", () => {
     expect(screen.queryByText("short body...")).not.toBeInTheDocument();
   });
 
-  it("renders the source filter options", () => {
+  it("renders the source filter chips", () => {
     render(
       <EpisodesView
         source="session"
@@ -110,18 +110,25 @@ describe("EpisodesView", () => {
         episodes={[row({})]}
       />,
     );
-    expect(
-      screen.getByRole("option", { name: "All sources" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("option", { name: "PR review" }),
-    ).toBeInTheDocument();
-    expect((screen.getByRole("combobox") as HTMLSelectElement).value).toEqual(
-      "session",
+    const chips = within(
+      screen.getByRole("navigation", { name: "Episode sources" }),
+    );
+
+    expect(chips.getByRole("link", { name: "All sources" })).toHaveAttribute(
+      "href",
+      "/episodes",
+    );
+    expect(chips.getByRole("link", { name: "PR review" })).toHaveAttribute(
+      "href",
+      "/episodes?source=pr-review",
+    );
+    expect(chips.getByRole("link", { name: "Session" })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
   });
 
-  it("shows the empty-state row when there are no episodes", () => {
+  it("shows the empty state when there are no episodes", () => {
     render(
       <EpisodesView
         offset={0}
@@ -145,8 +152,8 @@ describe("EpisodesView", () => {
         episodes={[row({})]}
       />,
     );
-    expect(screen.queryByText("← Previous")).not.toBeInTheDocument();
-    expect(screen.queryByText("Next →")).not.toBeInTheDocument();
+    expect(screen.queryByText("Previous")).not.toBeInTheDocument();
+    expect(screen.queryByText("Next")).not.toBeInTheDocument();
   });
 
   it("disables Previous and links Next on the first page with source carried into the url", () => {
@@ -160,8 +167,8 @@ describe("EpisodesView", () => {
         episodes={[row({})]}
       />,
     );
-    const prev = screen.getByText("← Previous");
-    const next = screen.getByText("Next →");
+    const prev = screen.getByText("Previous");
+    const next = screen.getByText("Next");
 
     expect(prev).toHaveClass("disabled");
     expect(prev).toHaveAttribute("href", "/episodes?source=manual");
@@ -180,8 +187,8 @@ describe("EpisodesView", () => {
         episodes={[row({})]}
       />,
     );
-    const prev = screen.getByText("← Previous");
-    const next = screen.getByText("Next →");
+    const prev = screen.getByText("Previous");
+    const next = screen.getByText("Next");
 
     expect(next).toHaveClass("disabled");
     expect(prev).not.toHaveClass("disabled");

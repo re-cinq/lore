@@ -10,7 +10,7 @@ export function PoolValueCell({ value }: { value: string }) {
   const shown = expanded || !long ? value : `${value.substring(0, 200)}…`;
 
   return (
-    <td className={styles.valueCell}>
+    <div className={styles.valueCell}>
       <pre className={styles.valuePre}>{shown}</pre>
       <ValueActions
         long={long}
@@ -19,7 +19,7 @@ export function PoolValueCell({ value }: { value: string }) {
         onToggle={() => setExpanded((v) => !v)}
         onCopy={() => void copy()}
       />
-    </td>
+    </div>
   );
 }
 

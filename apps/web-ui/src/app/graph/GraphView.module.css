@@ -1,39 +1,279 @@
-.intro {
-  margin-bottom: var(--space-4);
-}
+/* ------------------------------------------------------------ Stats ----- */
 
-.statRow {
-  display: flex;
-  gap: var(--space-7);
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-5);
   margin-bottom: var(--space-6);
-  flex-wrap: wrap;
 }
 
-.filterRow {
-  margin-bottom: var(--space-5);
+.stat,
+.statLead {
   display: flex;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+}
+
+.stat {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+
+/* The lead figure is filled, like the design's dark stat tile. */
+.statLead {
+  background: var(--primary);
+  color: var(--text-on-accent);
+}
+
+.statLabel {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.statLead .statLabel {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.statValue {
+  font-size: calc(var(--fs-xl) * 1.5);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-1);
+  letter-spacing: -0.02em;
+  color: var(--heading-color);
+}
+
+.statLead .statValue {
+  color: inherit;
+}
+
+/* ------------------------------------------------------------ Cards ----- */
+
+.split {
+  display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
 }
 
-.activeRow {
-  background: var(--border);
+.card {
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
-.emptyCell {
+.entities {
+  flex: 1 1 340px;
+  overflow: hidden;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.hint,
+.muted {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-6);
   text-align: center;
   color: var(--text-muted);
+}
+
+/* --------------------------------------------------------- Entities ----- */
+
+.entityList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entityRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+
+.entityList li:last-child .entityRow {
+  border-bottom: 0;
+}
+
+.entityRow:hover,
+.entityRow[aria-current] {
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+
+.entityRow[aria-current] strong {
+  color: var(--accent);
+}
+
+.entityName {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.entityName strong {
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.entityEdges {
+  flex: 0 0 auto;
+  min-width: 4.5em;
+  text-align: right;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------- Relationships ----- */
+
+.panel {
+  display: flex;
+  flex: 1.4 1 420px;
+  flex-direction: column;
+  gap: var(--space-5);
   padding: var(--space-6);
 }
 
-.invalidToggle {
-  margin-bottom: var(--space-3);
+.panelIdle {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
 }
 
-.invalidToggleLink {
+.panelIdle p {
+  margin: 0;
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.panelTitle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.panelEyebrow {
   font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  letter-spacing: 0;
+  color: var(--text-muted);
 }
 
-.invalidatedRow {
-  opacity: 0.5;
+.panelName {
+  font-size: var(--fs-xl);
+  overflow-wrap: anywhere;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--space-7) + var(--space-2));
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.toggle:hover {
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+
+.edgeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.edge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+}
+
+.edgeInvalid {
+  opacity: 0.55;
+}
+
+.edgeLine,
+.edgeMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.edgeMeta {
+  gap: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.endpoint strong {
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.endpointType {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.relation {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
 }

@@ -43,7 +43,7 @@ describe("PoolDetailView", () => {
       "href",
       "/pools",
     );
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("renders pool name heading, breadcrumb and truncated creator with plural entry count", () => {
@@ -66,7 +66,7 @@ describe("PoolDetailView", () => {
     expect(
       screen.getByText(/Created by creator-id-very-long-value on/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/· 2 entries$/)).toBeInTheDocument();
+    expect(screen.getByText(/· 2 entries from 2 agents$/)).toBeInTheDocument();
   });
 
   it("renders short value verbatim and truncates value over 200 chars with ellipsis", () => {
@@ -79,7 +79,7 @@ describe("PoolDetailView", () => {
         entries={[shortEntry, longEntry]}
       />,
     );
-    const table = screen.getByRole("table");
+    const table = screen.getByRole("list", { name: "Pool entries" });
 
     expect(
       within(table).getByText("always set the env var"),
@@ -98,7 +98,7 @@ describe("PoolDetailView", () => {
         entries={[shortEntry, longEntry]}
       />,
     );
-    const table = screen.getByRole("table");
+    const table = screen.getByRole("list", { name: "Pool entries" });
 
     expect(within(table).getByText("deployment-gotchas")).toBeInTheDocument();
     expect(within(table).getByText("big-blob")).toBeInTheDocument();
@@ -124,10 +124,10 @@ describe("PoolDetailView", () => {
         entries={[shortEntry]}
       />,
     );
-    expect(screen.getByText(/· 1 entry$/)).toBeInTheDocument();
+    expect(screen.getByText(/· 1 entry from 1 agent$/)).toBeInTheDocument();
   });
 
-  it("renders empty entries row and plural word when found pool has zero entries", () => {
+  it("renders the empty entries state and plural word when found pool has zero entries", () => {
     render(
       <PoolDetailView
         poolName="empty-pool"
