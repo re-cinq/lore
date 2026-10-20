@@ -74,30 +74,41 @@ folder, `apps/lore-api/src/transport/routes/inbox/`, registered in
 - FR1.6: A source that cannot be read (the floor unreachable, GitHub refusing)
   does not fail the whole read: the response lists it in
   `unavailable: string[]` and serves the other sources.
+- FR1.7: Every signed-in user sees the items of every onboarded repo; the
+  inbox does not filter by the person's GitHub access, in line with "every
+  member sees every item" under Out of Scope.
 
 ## FR2 — What waits on a person, and since when
 
 Each kind has one source and one definition of "waiting since". Kinds are
 decided by what the step waits on, never by a run being open.
 
-- FR2.1 `plan_review`: a plan in `lore.plans` whose status is `in-review` (or
-  `draft` with an open `author` visit on its feature-planning run). This needs
-  a cross-repo plan query; the store gains one beside `listPlanMetas`.
-  `waiting_since` is when the plan entered that status (or the visit's
-  `openedAt`). `open_url` is the plan page.
+- FR2.1 `plan_review`: a `draft` plan in `lore.plans` whose feature-planning
+  run has an open `author` visit (`waiting_since` is that visit's `openedAt`),
+  or a plan whose status is `in-review` (`waiting_since` is the plan's
+  `updated_at`). This needs a cross-repo plan query; the store gains one
+  beside `listPlanMetas`. `open_url` is `/repos/{owner}/{repo}/plans/{id}`.
 - FR2.2 `spec_pr`: a feature-planning run with an open visit on its `merged`
-  node (`spec-pr-merged` station). `waiting_since` is that visit's `openedAt`.
-  `open_url` is the spec pull request.
+  node (`spec-pr-merged` station). `waiting_since` is that visit's `openedAt`;
+  `open_url` is resolved from the visit's `pr_url` need with `resolveRoute`
+  (`apps/lore-api/src/work/floor/route-template.ts`).
 - FR2.3 `triage`: an issue-triage run with an open visit on its `human-gate`
-  node. `waiting_since` is the visit's `openedAt`; `open_url` is the issue.
+  node. `waiting_since` is the visit's `openedAt`; `open_url` is the run's
+  `issue_url` start item, resolved with `resolveRoute` on `{args.issue_url}`.
+- FR2.3a: `title` and `open_url` of a floor-backed item come from the run's
+  start items and the visit's needs, which the reads in FR2.8 already return.
+  Building an item makes no GitHub call.
 - FR2.4 `onboarding_pr`: a repo with `onboarding_pr_url` set and
   `onboarding_pr_merged` false, read through
   `SettingsPort.pendingOnboardingRepos()`. `waiting_since` is the pull
   request's opening time when known, else when the URL was recorded.
-- FR2.5 `failed_run`: a floor run whose outcome is a failure, finished within
-  the last 7 days, that no later run of the same line and subject has
-  superseded. `waiting_since` is the run's `finishedAt`; `detail` is its
-  `reason`.
+- FR2.5 `failed_run`: a floor run whose outcome is `error` or `failed`
+  (`FAILED_OUTCOMES` in `apps/lore-api/src/work/floor/floor-run-mapping.ts`
+  also holds `cancelled`, which the inbox excludes: a person cancelled it),
+  finished within the last 7 days, that no later run of the same `line_id`
+  and `subject_key` has superseded. `waiting_since` is the run's `finishedAt`;
+  `detail` is its `reason`. The node FR4.2 retries is the last visit that is
+  not a terminal node (`!endsRun`) and whose report outcome is not `success`.
 - FR2.6: A floor visit counts as waiting on a person only when its station's
   `kind` is `human` (the floor contract's `StationKind`) **and** the
   station is not answered by a sweep. The stations a sweep answers
@@ -108,8 +119,9 @@ decided by what the step waits on, never by a run being open.
 - FR2.7: The station kind is read from the station body the line version names
   (`readLineFacts`, `apps/lore-api/src/work/floor/floor-line-facts.ts`), not
   inferred from the node type. Today `factsOf` turns every `human` station
-  that `produces` into `author` → `feature_review`, so an open `await-ci` is
-  drawn as `running` rather than `waiting` on the run list. Fixing that
+  that `produces` into `author` → `feature_review`, so an open `await-ci`
+  (`loop-await-ci` produces `ci_feedback_sha`) is drawn as `running` rather
+  than `waiting` on the run list. Fixing that
   classification is in scope, because FR2.6 depends on it.
 - FR2.8: Reading the waiting visits must not cost one floor call per run per
   request. lore-api lists open runs of the lines that have person-waiting
@@ -166,9 +178,9 @@ new way to change a run or a plan.
 
 ## FR5 — The Inbox screen
 
-- FR5.1: `/inbox` in the web UI, first in the sidebar's Work section
-  (`apps/web-ui/src/components/shell/nav-groups.ts`, which the command palette
-  reads too), with the count of open items as a badge.
+- FR5.1: `/inbox` in the web UI, first link of the sidebar's top group
+  (`apps/web-ui/src/app/SidebarNav.tsx`), with the count of open items as a
+  badge.
 - FR5.2: Filter chips per kind with their counts (FR1.5), a list ordered by
   `waiting_since` (longest wait first), and the selected item's detail beside
   the list on wide screens.
@@ -203,7 +215,7 @@ new way to change a run or a plan.
   (`apps/lore-api/src/work/two-key/approval-pr.ts` checks one on demand), and
   finding them means a GitHub search per repo. A later item kind.
 - Repos needing attention (missing or outdated workflows): computed in the web
-  tier from GitHub files (`apps/web-ui/src/app/HomeView.filters.ts`); it is a
+  tier from GitHub files (`apps/web-ui/src/app/HomeView.tsx`); it is a
   repo health signal, not a decision waiting on a person.
 - Notifications (Slack, email) for new inbox items.
 - Cancelling a floor run from the inbox: lore-api has no route for it today.
