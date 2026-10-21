@@ -29,13 +29,16 @@ describe("lore.skill_definitions table structure", () => {
 
     const columns = res.rows.map((r) => r.column_name);
 
-    expect(columns.length).toBeGreaterThan(0);
-    expect(columns).toContain("name");
-    expect(columns).toContain("title");
-    expect(columns).toContain("description");
-    expect(columns).toContain("model");
-    expect(columns).toContain("content");
-    expect(columns).toContain("enabled");
-    expect(columns).toContain("project_id");
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        "name",
+        "title",
+        "description",
+        "model",
+        "content",
+        "enabled",
+        "project_id",
+      ]),
+    );
   });
 });

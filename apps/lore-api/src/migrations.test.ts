@@ -28,7 +28,7 @@ function allMigrationSql(): string {
 describe("ui-helm migrations — 0112 lore.skill_definitions ([validated by migrations](specs/org-skills/spec.md#L20))", () => {
   const sql = allMigrationSql();
 
-  it("creates lore.skill_definitions table if not exists", () => {
+  it("creates lore.skill_definitions table if not exists ([validated by](specs/org-skills/spec.md#L20))", () => {
     expect(sql).toMatch(/create table if not exists lore\.skill_definitions/);
   });
 });
