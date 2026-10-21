@@ -1,22 +1,21 @@
 # Definition of Done
 
-> Record the actual billing mode per call so the split is exact rather than inferred
+> The domain model for lore.skill_definitions MUST be defined as a Zod schema with ColumnMap + fromRow/selectList helpers, following existing models like agent-definition. The skill payload maps directly to the schema expected by Claude Code.
 
-**Strategy: `direct`** — The write path ingestion exposes a direct seam via `ensureStationRun` and `logLlmCall`. We can assert that the generated `llm_calls` row surfaces the provided `billingMode` in the Spend API. The red bar is CI's to show ("Integration Tests" job).
+**Strategy: `direct`** — The file and module for the new domain model do not exist yet, so we write an acceptance test that attempts to use the non-existent schema and fails by `ERR_MODULE_NOT_FOUND` as the behavior is absent.
 
 ## Done when these pass
 
-- [ ] **records the billing mode at dispatch and joins it into the cost row** — When `ensureStationRun` receives a `billingMode`, `logLlmCall` propagates it to `pipeline.llm_calls` where the `/spend-window` endpoint correctly surfaces it.
-  `apps/lore-api/src/integration-tests/billing-mode-write.acceptance.test.ts`
+- [ ] **validates and deserializes skill definition rows** — verify serialization/deserialization for skill definitions using the new Zod schema and ColumnMap
+  `libs/shared/src/domain/models/skill-definition.acceptance.test.ts`
 
 ## Facets
 
-- [x] Add `billing_mode` column to `pipeline.llm_calls` (or `pipeline.station_runs`) via `ui-helm/migrations/`.
-- [x] Add `billingMode` property to `StationRunStartInput`.
-- [x] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
-- [x] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
-- [x] Fix TypeScript compilation errors: `visitToStationRun` in `floor-run-mapping.ts` missing `billingMode`, acceptance test imports using wrong relative paths, fixture objects missing `billingMode`.
+- [ ] Create `libs/shared/src/domain/models/skill-definition.ts`
+- [ ] Define Zod schema mapping to DB columns (name, title, description, model, content, enabled, project_id)
+- [ ] Define `SKILL_DEFINITION_COLUMNS` ColumnMap
 
 ## Out of scope
 
-- Emitting the credential from the separate `ai-agent-subsystem` repo (the ticket marks this as follow-up work).
+- CRUD REST API for skill definitions
+- Implementing the web UI for skills
