@@ -13,7 +13,7 @@ export const SkillDefinitionSchema = z.object({
 
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>;
 
-export const SKILL_DEFINITION_COLUMNS = {
+export const SKILL_DEFINITION_COLUMNS: ColumnMap<SkillDefinition> = {
   name: "name",
   title: "title",
   description: "description",
@@ -21,6 +21,6 @@ export const SKILL_DEFINITION_COLUMNS = {
   content: "content",
   enabled: "enabled",
   projectId: "project_id",
-} as const satisfies ColumnMap<SkillDefinition>;
+};
 
 export const SKILL_DEFINITION_TABLE = "lore.skill_definitions";
