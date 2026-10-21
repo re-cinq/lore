@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Write `0112_skill_definitions.sql` (using the actual next free slot instead of the taken `0094`) to create `lore.skill_definitions`.
+- [x] Write `0112_skill_definitions.sql` (using the actual next free slot instead of the taken `0094`) to create `lore.skill_definitions`.
 
 ## Out of scope
 
