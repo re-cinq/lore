@@ -11,9 +11,10 @@ const TOKEN = "test-billing-mode-token";
 describe("Billing mode write path", () => {
   let pool: pg.Pool;
   let server: Server;
-  const runId = crypto.randomUUID();
+  let runId: string;
 
   beforeAll(async () => {
+    runId = crypto.randomUUID();
     process.env.LORE_INGEST_TOKEN = TOKEN;
     pool = new pg.Pool({
       host: process.env.LORE_DB_HOST || "localhost",

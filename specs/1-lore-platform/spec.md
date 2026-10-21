@@ -965,7 +965,7 @@ is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-r
 
 - **FR-19h.2 — Recording billing mode at dispatch** _(added 2026-10-21)_.
   `ensureStationRun` accepts a `billingMode` and persists it in `pipeline.station_runs.billing_mode`; `logLlmCall` joins to that row via the resolved `station_run_id` and writes the value into `pipeline.llm_calls.billing_mode`, so the per-call column the read path queries is populated by the write path.
-  ([validated by [includes billing_mode in the llm_calls INSERT, resolved from station_runs via the carried station_run_id](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L202)])
+  ([validated by [includes billing_mode in the llm_calls INSERT, resolved from station_runs via the carried station_run_id](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L202), [records the billing mode at dispatch and joins it into the cost row](apps/lore-api/src/integration-tests/billing-mode-write.acceptance.test.ts#L40)])
 
 - **FR-19i — What a unit of work costs** _(added 2026-09-22, #2116)_.
   `GET /api/analytics/spend-window` also answers what one ticket, one PR's

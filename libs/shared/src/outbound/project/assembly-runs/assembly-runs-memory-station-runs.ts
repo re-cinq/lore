@@ -89,16 +89,20 @@ function isSameVisit(
   );
 }
 
+function nullOr<T>(val: T | null | undefined): T | null {
+  return val ?? null;
+}
+
 /** A seed row in the port's spelling: pre-flip seeds omit the claim columns, so they read with the push-era defaults (running, no claim, no tags). */
 function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
   return {
     ...node,
     status: node.status ?? "running",
-    clusterAgentId: node.clusterAgentId ?? null,
+    clusterAgentId: nullOr(node.clusterAgentId),
     requiredTags: node.requiredTags ?? [],
-    claimedAt: node.claimedAt ?? null,
-    requestedBy: node.requestedBy ?? null,
-    billingMode: node.billingMode ?? null,
+    claimedAt: nullOr(node.claimedAt),
+    requestedBy: nullOr(node.requestedBy),
+    billingMode: nullOr(node.billingMode),
   };
 }
 
