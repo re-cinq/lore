@@ -778,11 +778,18 @@ describe("GET with tickets the loop is not working", () => {
   });
 
   it("does not also list a parked ticket's completed task under recently addressed", async () => {
-    const loop = await read([taskRow(2, "completed", "it asks for a decision")], {
-      list: async () => [
-        openIssue(2, ["priority:high", "lore:blocked"], "2026-08-01T00:00:00Z"),
-      ],
-    });
+    const loop = await read(
+      [taskRow(2, "completed", "it asks for a decision")],
+      {
+        list: async () => [
+          openIssue(
+            2,
+            ["priority:high", "lore:blocked"],
+            "2026-08-01T00:00:00Z",
+          ),
+        ],
+      },
+    );
 
     expect(loop.parked).toHaveLength(1);
     expect(loop.recent).toEqual([]);
