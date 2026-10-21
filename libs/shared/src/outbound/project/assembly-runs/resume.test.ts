@@ -36,6 +36,7 @@ function node(
     agentCrName: `src12345678-${nodeId}`,
     commitSha: `sha-${id}`,
     requestedBy: null,
+    billingMode: null,
     startedAt: AT,
     finishedAt: outcome === null ? null : AT,
   };
