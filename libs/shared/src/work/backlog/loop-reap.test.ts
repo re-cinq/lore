@@ -101,7 +101,9 @@ describe("reapStuckLoopTasks", () => {
 
   it("leaves a task alone when the floor has ANY run carrying its task_id, open or finished", async () => {
     const { deps: d, flipped } = deps({
-      floor: { runs: { list: async () => ({ items: [run()], nextCursor: null }) } },
+      floor: {
+        runs: { list: async () => ({ items: [run()], nextCursor: null }) },
+      },
     });
 
     await reapStuckLoopTasks(d);
@@ -114,7 +116,11 @@ describe("reapStuckLoopTasks", () => {
       startItems: { task_id: { kind: "value", ref: "task-2", by: "lore" } },
     });
     const { deps: d, flipped } = deps({
-      floor: { runs: { list: async () => ({ items: [otherTaskRun], nextCursor: null }) } },
+      floor: {
+        runs: {
+          list: async () => ({ items: [otherTaskRun], nextCursor: null }),
+        },
+      },
     });
 
     await reapStuckLoopTasks(d);
@@ -123,10 +129,11 @@ describe("reapStuckLoopTasks", () => {
   });
 
   it("labels lore:blocked and words the comment as a stop, once the per-issue count reaches the bound", async () => {
-    const { deps: d, labels, comments } = deps(
-      {},
-      { countRecentFailures: async () => DEFAULT_REAP_RETRIES - 1 },
-    );
+    const {
+      deps: d,
+      labels,
+      comments,
+    } = deps({}, { countRecentFailures: async () => DEFAULT_REAP_RETRIES - 1 });
 
     await reapStuckLoopTasks(d);
 
@@ -143,10 +150,11 @@ describe("reapStuckLoopTasks", () => {
   });
 
   it("does nothing further when another caller already won the status flip", async () => {
-    const { deps: d, events, comments } = deps(
-      {},
-      { setStatusIf: async () => false },
-    );
+    const {
+      deps: d,
+      events,
+      comments,
+    } = deps({}, { setStatusIf: async () => false });
 
     await reapStuckLoopTasks(d);
 
@@ -155,7 +163,11 @@ describe("reapStuckLoopTasks", () => {
   });
 
   it("flips the task even with no issue number, but skips the comment/label/count step", async () => {
-    const { deps: d, flipped, comments } = deps(
+    const {
+      deps: d,
+      flipped,
+      comments,
+    } = deps(
       {},
       {
         findStuckRunning: async () => [task({ issue_number: null })],

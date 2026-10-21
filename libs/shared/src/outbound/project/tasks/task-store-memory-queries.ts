@@ -215,7 +215,6 @@ export class TaskQueryStore {
       since,
     };
 
-    return this.tasks.filter((t) => isRecentMatchingFailure(t, filter))
-      .length;
+    return this.tasks.filter((t) => isRecentMatchingFailure(t, filter)).length;
   }
 }

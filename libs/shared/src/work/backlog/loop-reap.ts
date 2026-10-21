@@ -15,9 +15,7 @@ export const DEFAULT_REAP_RETRIES = 3;
 export function reapRetriesFromEnv(env: NodeJS.ProcessEnv): number {
   const parsed = Number(env.LORE_LOOP_REAP_RETRIES);
 
-  return Number.isInteger(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_REAP_RETRIES;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_REAP_RETRIES;
 }
 
 /** How long a task may sit at `running` before this sweep considers it stuck — comfortably past the floor's own 30-minute unclaimed-run timeout, so the two never race: that timeout only helps once a floor run record exists, and this sweep only ever catches the case where one never did. */
@@ -61,9 +59,7 @@ export interface LoopReapDeps {
   maxRetries: number;
 }
 
-export async function reapStuckLoopTasks(
-  deps: LoopReapDeps,
-): Promise<string> {
+export async function reapStuckLoopTasks(deps: LoopReapDeps): Promise<string> {
   const stuck = await deps.tasks.findStuckRunning(
     LOOP_LINE,
     STUCK_AFTER_MINUTES,
@@ -101,10 +97,7 @@ async function hasFloorRun(
   return floorRuns.some((run) => startValueOf(run, "task_id") === task.id);
 }
 
-async function reapOne(
-  deps: LoopReapDeps,
-  task: StuckTask,
-): Promise<boolean> {
+async function reapOne(deps: LoopReapDeps, task: StuckTask): Promise<boolean> {
   const reason = `${REASON_PREFIX} within ${STUCK_AFTER_MINUTES} minutes of being claimed — the dispatch likely crashed before asking the floor to start it`;
   const won = await deps.tasks.setStatusIf(task.id, "running", "failed", {
     failure_reason: reason,
