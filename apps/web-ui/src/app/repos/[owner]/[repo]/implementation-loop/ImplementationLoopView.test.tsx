@@ -404,7 +404,11 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     };
     const { getByRole, getByTestId } = renderView({
       awaiting_merge: [
-        ticket({ state: "completed", pr_url: "https://gh/pr/7", hold: awaitingMerge }),
+        ticket({
+          state: "completed",
+          pr_url: "https://gh/pr/7",
+          hold: awaitingMerge,
+        }),
       ],
     });
 

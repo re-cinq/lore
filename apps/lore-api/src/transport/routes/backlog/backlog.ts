@@ -231,7 +231,9 @@ function projectBacklog(state: BacklogState): BacklogBuckets {
 }
 
 /** The one task in flight, if any — a task is "in flight" by its own open status, not by whether a run claims it. */
-function currentRowOf(taskRows: readonly LoopTaskRow[]): LoopTaskRow | undefined {
+function currentRowOf(
+  taskRows: readonly LoopTaskRow[],
+): LoopTaskRow | undefined {
   return taskRows.find((t) =>
     (OPEN_TASK_STATES as readonly string[]).includes(t.status),
   );
