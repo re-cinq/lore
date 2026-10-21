@@ -1,6 +1,5 @@
 // Ticket projection: task/run/node rows read for the backlog view, folded into the pure `Ticket` shape the route hands back.
 
-import type { Pool } from "pg";
 import type { IssueRef } from "@re-cinq/lore-shared";
 import type { WireOf } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import { pickColumns } from "@re-cinq/lore-shared/lib/row.js";
@@ -11,13 +10,12 @@ import {
 import { PRIORITY_LABELS } from "@re-cinq/lore-shared";
 import { ticketHold } from "@re-cinq/lore-shared/backlog/ticket-hold.js";
 import { isSettledTask } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
+import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 import { implementationLoopBranch } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
-import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import {
   miniPipeline,
   type PipelineNode,
 } from "../../../work/assembly-line-station/mini-pipeline.js";
-import type { FloorRunReads } from "../../../work/floor/floor-backed-runs.js";
 import type { Ticket } from "./backlog-schema.js";
 
 // The implementation-loop task fields the backlog view reads, picked from the pipeline.tasks wire contract.
@@ -87,6 +85,39 @@ export function isAwaitingMerge(
     row.issue_number !== null &&
     openPrBranches.has(implementationLoopBranch(row.issue_number))
   );
+}
+
+/** A task counts as "being worked" either by its own stored status, or because its run is live on the floor right now — a ticket someone revived by hand after its task had already settled as `failed`. */
+export function isCurrentTask(
+  t: LoopTaskRow,
+  runByTask: ReadonlyMap<string, LoopRunRow>,
+): boolean {
+  return (
+    (OPEN_TASK_STATES as readonly string[]).includes(t.status) ||
+    isLiveRun(runByTask.get(t.id))
+  );
+}
+
+/** Whether a task still holds its issue's backlog slot: in flight (or revived live), or settled with its pull request still open (the driver's own rule, `taskHoldingTicket`) — a `failed`/`cancelled` task normally frees the issue to requeue, unless a by-hand run revived it. */
+export function guardsIssue(
+  t: LoopTaskRow,
+  runByTask: ReadonlyMap<string, LoopRunRow>,
+  openPrBranches: ReadonlySet<string>,
+): boolean {
+  if (["failed", "cancelled"].includes(t.status)) {
+    return isLiveRun(runByTask.get(t.id));
+  }
+
+  return (
+    !isSettledTask(t.status) ||
+    (t.issue_number !== null &&
+      openPrBranches.has(implementationLoopBranch(t.issue_number)))
+  );
+}
+
+/** The newest run on the floor for a task is actually live right now — independent of what `pipeline.tasks.status` says, which a by-hand revival of a settled task never updates (ADR-049's start-by-hand posts a floor event only). */
+function isLiveRun(run: LoopRunRow | undefined): boolean {
+  return run?.status === "running" || run?.status === "queued";
 }
 
 export function taskTicket(
@@ -223,124 +254,4 @@ export function pipelineOf(
     }));
 
   return miniPipeline(run.graph.nodes, visits);
-}
-
-interface RunContext {
-  taskRuns: LoopRunRow[];
-  nodeRows: NodeRow[];
-}
-
-const LOOP_RUNS_SQL = `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
-       FROM pipeline.assembly_runs
-      WHERE task_id = ANY($1::uuid[])
-        AND blueprint_name = 'implementation-loop'
-      ORDER BY task_id, created_at DESC`;
-
-const RUN_NODES_SQL = `SELECT assembly_run_id, node_id, iteration, outcome
-       FROM pipeline.station_runs
-      WHERE assembly_run_id = ANY($1::uuid[])
-      ORDER BY started_at`;
-
-// Each listed task's latest loop run + node rows, two batched queries; guarded because `= ANY($1)` on an empty JS array makes Postgres guess the type and 500 on a fresh repo.
-export async function fetchRunContext(
-  pool: Pool,
-  taskIds: readonly string[],
-): Promise<RunContext> {
-  if (taskIds.length === 0) {
-    return { taskRuns: [], nodeRows: [] };
-  }
-  const { rows: taskRuns } = await pool.query<LoopRunRow>(LOOP_RUNS_SQL, [
-    taskIds,
-  ]);
-
-  if (taskRuns.length === 0) {
-    return { taskRuns, nodeRows: [] };
-  }
-  const { rows: nodeRows } = await pool.query<NodeRow>(RUN_NODES_SQL, [
-    taskRuns.map((r) => r.id),
-  ]);
-
-  return { taskRuns, nodeRows };
-}
-
-/** A task's run and node visits read straight from the floor, for a task Postgres has no row for: every implementation-loop run has lived there since ADR-049, and `pipeline.assembly_runs` only holds the ones Lore's own retired engine walked. Callers try Postgres first (above) and call this only on a miss, so a floor-out-of-reach error costs one task its pipeline, not the whole page. */
-export async function floorRunContext(
-  floor: FloorRunReads,
-  repo: string,
-  taskId: string,
-): Promise<{ run: LoopRunRow; nodeRows: NodeRow[] } | null> {
-  const summary = (
-    await floor.listSummaries({ repo, taskId, blueprintName: LOOP_LINE })
-  ).at(0);
-
-  if (!summary) {
-    return null;
-  }
-  const run = await floorLoopRun(floor, summary, taskId);
-
-  return run.graph?.nodes
-    ? { run, nodeRows: await floorNodeRows(floor, run.id) }
-    : { run, nodeRows: [] };
-}
-
-async function floorLoopRun(
-  floor: FloorRunReads,
-  summary: { id: string; status: string; reason: string | null },
-  taskId: string,
-): Promise<LoopRunRow> {
-  const record = await floor.getById(summary.id);
-
-  return {
-    id: summary.id,
-    task_id: taskId,
-    status: summary.status,
-    reason: summary.reason,
-    graph: record?.graph ?? null,
-  };
-}
-
-async function floorNodeRows(
-  floor: FloorRunReads,
-  runId: string,
-): Promise<NodeRow[]> {
-  const visits = await floor.listStationRuns(runId);
-
-  return visits.map((visit) => ({
-    assembly_run_id: runId,
-    node_id: visit.nodeId,
-    iteration: visit.iteration,
-    outcome: visit.outcome,
-  }));
-}
-
-/** Every task Postgres had no run for, tried on the floor; a hit is folded into `runByTask` in place and its node rows handed back for the caller to merge in. */
-export async function fillFromFloor(
-  floor: FloorRunReads,
-  repo: string,
-  missing: readonly LoopTaskRow[],
-  runByTask: Map<string, LoopRunRow>,
-): Promise<NodeRow[]> {
-  const found = await Promise.all(
-    missing.map((t) => floorRunContext(floor, repo, t.id)),
-  );
-
-  return mergeFloorFinds(found, missing, runByTask);
-}
-
-function mergeFloorFinds(
-  found: ReadonlyArray<{ run: LoopRunRow; nodeRows: NodeRow[] } | null>,
-  missing: readonly LoopTaskRow[],
-  runByTask: Map<string, LoopRunRow>,
-): NodeRow[] {
-  const extraNodeRows: NodeRow[] = [];
-
-  found.forEach((result, at) => {
-    if (!result) {
-      return;
-    }
-    runByTask.set(missing[at].id, result.run);
-    extraNodeRows.push(...result.nodeRows);
-  });
-
-  return extraNodeRows;
 }

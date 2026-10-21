@@ -116,7 +116,7 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
   return [
     {
       heading: "Current",
-      tickets: loop.current ? [loop.current] : [],
+      tickets: loop.current,
       emptyText: "No ticket is being worked right now.",
     },
     { ...queueSection(loop), tickets: loop.next, emptyText: EMPTY_BACKLOG },

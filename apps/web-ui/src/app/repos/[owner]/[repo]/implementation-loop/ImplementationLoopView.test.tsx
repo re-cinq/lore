@@ -26,7 +26,7 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
       loop={{
         enabled: false,
         onboarding: { merged: true, pr_url: null, last_task: null },
-        current: null,
+        current: [],
         current_run_id: null,
         next: [],
         parked: [],
@@ -67,16 +67,18 @@ describe("ImplementationLoopView", () => {
 
   it("renders a mini pipeline dot per node, linked to the run", () => {
     const { getByTestId } = renderView({
-      current: ticket({
-        state: "running",
-        run_id: "run-42",
-        pipeline: [
-          { node_id: "implement", state: "success" },
-          { node_id: "validate", state: "running" },
-          { node_id: "await-pr", state: "waiting" },
-          { node_id: "push", state: "exploded" },
-        ],
-      }),
+      current: [
+        ticket({
+          state: "running",
+          run_id: "run-42",
+          pipeline: [
+            { node_id: "implement", state: "success" },
+            { node_id: "validate", state: "running" },
+            { node_id: "await-pr", state: "waiting" },
+            { node_id: "push", state: "exploded" },
+          ],
+        }),
+      ],
     });
 
     expect(getByTestId("mini-pipeline").getAttribute("href")).toBe(
@@ -99,12 +101,14 @@ describe("ImplementationLoopView", () => {
 
   it("renders worked tickets as table rows with status, ticket, stages, actions", () => {
     const { getByTestId, getByText } = renderView({
-      current: ticket({
-        state: "running",
-        run_id: "run-42",
-        created_at: "2026-08-26T06:00:00Z",
-        pr_url: "https://gh/pr/70",
-      }),
+      current: [
+        ticket({
+          state: "running",
+          run_id: "run-42",
+          created_at: "2026-08-26T06:00:00Z",
+          pr_url: "https://gh/pr/70",
+        }),
+      ],
     });
 
     expect(getByTestId("ticket-table")).toBeTruthy();
@@ -143,7 +147,7 @@ describe("ImplementationLoopView", () => {
 
   it("renders no hold on a running ticket nothing holds", () => {
     const { queryByTestId } = renderView({
-      current: ticket({ state: "running", run_id: "run-9" }),
+      current: [ticket({ state: "running", run_id: "run-9" })],
     });
 
     expect(queryByTestId("ticket-hold-7")).toBeNull();
@@ -151,7 +155,7 @@ describe("ImplementationLoopView", () => {
 
   it("badges an unknown task status in the danger tone", () => {
     const { getByTestId } = renderView({
-      current: ticket({ state: "haunted", created_at: null }),
+      current: [ticket({ state: "haunted", created_at: null })],
     });
 
     expect(getByTestId("ticket-status").className).toContain("tone_danger");
@@ -163,9 +167,20 @@ describe("ImplementationLoopView", () => {
     expect(getByText("No ticket is being worked right now.")).toBeTruthy();
   });
 
+  it("lists two current tickets together, the loop's own pick and a by-hand-revived one", () => {
+    const { getAllByTestId } = renderView({
+      current: [
+        ticket({ issue_number: 7, state: "running" }),
+        ticket({ issue_number: 158, title: "Revived ticket", state: "failed" }),
+      ],
+    });
+
+    expect(getAllByTestId("ticket-row")).toHaveLength(2);
+  });
+
   it("renders the current ticket with issue and PR links", () => {
     const { getByText } = renderView({
-      current: ticket({ pr_url: "https://gh/pr/70", state: "running" }),
+      current: [ticket({ pr_url: "https://gh/pr/70", state: "running" })],
     });
 
     const issueLink = getByText("#7 Slow queries") as HTMLAnchorElement;

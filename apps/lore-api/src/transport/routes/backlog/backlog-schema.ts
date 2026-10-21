@@ -52,7 +52,8 @@ export type Onboarding = z.infer<typeof OnboardingSchema>;
 export const ImplementationLoopSchema = z.object({
   enabled: z.boolean(),
   onboarding: OnboardingSchema,
-  current: TicketSchema.nullable(),
+  /** Every ticket being worked right now: the loop's own pick, and any ticket someone revived with "Run this station" — more than one can be true at once. */
+  current: z.array(TicketSchema),
   /** The open backlog run's id — the live run view at /assembly-runs/{id}. */
   current_run_id: z.string().nullable(),
   next: z.array(TicketSchema),

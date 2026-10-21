@@ -143,7 +143,7 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     floorGitCredentialRoute(getPool),
     reviewStartRoute(),
-    runNodeRoute(),
+    runNodeRoute(getPool),
     upgradeStateRoute(),
     upgradeRunRoute(),
     floorRunsRoute(floorRunPages),

@@ -3088,7 +3088,7 @@ export interface components {
               state: string;
             }[]
           | null;
-      } | null;
+      }[];
       current_run_id: string | null;
       next: {
         issue_number: number;
