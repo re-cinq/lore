@@ -10,14 +10,12 @@ function fakePool(rows: Row[]): any {
 }
 
 describe("PgSkillDefs", () => {
-  // specs/org-skills/spec.md#FR-009
   it("returns null when no skill of that name exists", async () => {
     const store = new PgSkillDefs(fakePool([]));
 
     expect(await store.resolve("re-cinq/lore", "nope")).toBeNull();
   });
 
-  // specs/org-skills/spec.md#FR-009
   it("returns the org row as-is when no project override exists", async () => {
     const orgRow: Row = {
       name: "tdd-loop",
