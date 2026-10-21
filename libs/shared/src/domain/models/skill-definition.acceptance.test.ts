@@ -17,9 +17,11 @@ describe("SkillDefinition model", () => {
     };
 
     const parsed = fromRow(SKILL_DEFINITION_COLUMNS, dbRow);
+
     expect(parsed.name).toBe("test-skill");
 
     const validated = SkillDefinitionSchema.parse(parsed);
+
     expect(validated.name).toBe("test-skill");
   });
 });

@@ -3,7 +3,7 @@
 | Feature | Shared organisation skills  |
 | ------- | --------------------------- |
 | Branch  | org-skills                  |
-| Status  | Draft                       |
+| Status  | In Progress                 |
 | Created | 2026-10-13                  |
 | Owner   | Platform Engineering        |
 

@@ -19,6 +19,7 @@ describe("SkillDefinitionSchema", () => {
       enabled: true,
       projectId: null,
     });
+
     expect(result.success).toBe(true);
   });
 });
