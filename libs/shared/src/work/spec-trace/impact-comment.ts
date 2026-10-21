@@ -20,13 +20,14 @@ export function buildImpactComment(report: ImpactReport): string {
   }
 
   const findings = commentFindings(report);
+  const orphaned = report.orphaned.filter(hasResolvedContent);
   const { strong, weak } = evidenceSplit(findings);
 
-  if (!findings.length && !report.orphaned.length) {
+  if (!findings.length && !orphaned.length) {
     return emptyImpactComment(report);
   }
 
-  return populatedImpactComment(report, findings, strong, weak);
+  return populatedImpactComment(report, { findings, orphaned, strong, weak });
 }
 
 /** The two fixed-text cases that short-circuit rendering entirely: no graph, or an unsupported client protocol. */
@@ -70,12 +71,17 @@ function emptyImpactComment(report: ImpactReport): string {
   ].join("\n");
 }
 
+interface CommentFindings {
+  findings: ImpactStatement[];
+  orphaned: OrphanStatement[];
+  strong: ImpactStatement[];
+  weak: ImpactStatement[];
+}
+
 /** Renders the sticky PR summary comment (find-by-marker, update-in-place); formatting lives here so it is unit-tested, not buried in workflow YAML. */
 function populatedImpactComment(
   report: ImpactReport,
-  findings: ImpactStatement[],
-  strong: ImpactStatement[],
-  weak: ImpactStatement[],
+  { findings, orphaned, strong, weak }: CommentFindings,
 ): string {
   const notes = report.examined ? docNotes(report.examined) : [];
 
@@ -86,7 +92,7 @@ function populatedImpactComment(
     ...(strong.length ? specSections(strong) : []),
     ...weakSignalLines(weak),
     ...(notes.length ? ["", notes.join(" ")] : []),
-    ...orphanWarningLines(report.orphaned),
+    ...orphanWarningLines(orphaned),
     ...commentFooterLines(report),
   ].join("\n");
 }

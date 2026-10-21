@@ -113,7 +113,7 @@ export function mergeStatements(
 ): ImpactStatement[] {
   const byXid = new Map<string, ImpactStatement & { xid: string }>();
 
-  for (const stmt of raw) {
+  for (const stmt of raw.filter(hasResolvedContent)) {
     const existing = byXid.get(stmt.xid);
 
     if (!existing) {
