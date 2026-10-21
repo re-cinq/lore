@@ -72,7 +72,7 @@ function parked({ issue, lastAttempt }: TicketHoldInput): TicketHold | null {
     message: lastAttempt?.why
       ? `The loop parked this ticket: ${lastAttempt.why}.`
       : "The loop parked this ticket; the reason is in the issue's comments.",
-    fix: `Fix what it names, then remove the ${LORE_BLOCKED_LABEL} label to re-queue it.`,
+    fix: `Fix what it names, then remove the ${LORE_BLOCKED_LABEL} label on the issue — the loop re-queues it on its own next tick, no need to run anything by hand.`,
   };
 }
 
