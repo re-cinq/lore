@@ -11677,6 +11677,7 @@
                             "enum": [
                               "text_too_long",
                               "waits_on_blockers",
+                              "awaiting_merge",
                               "two_priorities",
                               "parked",
                               "failed"
@@ -11784,6 +11785,7 @@
                           "enum": [
                             "text_too_long",
                             "waits_on_blockers",
+                            "awaiting_merge",
                             "two_priorities",
                             "parked",
                             "failed"
@@ -11884,6 +11886,7 @@
                           "enum": [
                             "text_too_long",
                             "waits_on_blockers",
+                            "awaiting_merge",
                             "two_priorities",
                             "parked",
                             "failed"
@@ -11984,6 +11987,108 @@
                           "enum": [
                             "text_too_long",
                             "waits_on_blockers",
+                            "awaiting_merge",
+                            "two_priorities",
+                            "parked",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "message", "fix"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "issue_number",
+                "issue_url",
+                "title",
+                "priority",
+                "pr_url",
+                "state",
+                "created_at",
+                "hold",
+                "run_id",
+                "pipeline"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "awaiting_merge": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "hold": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "text_too_long",
+                            "waits_on_blockers",
+                            "awaiting_merge",
                             "two_priorities",
                             "parked",
                             "failed"
@@ -12054,7 +12159,8 @@
           "current_run_id",
           "next",
           "parked",
-          "recent"
+          "recent",
+          "awaiting_merge"
         ],
         "additionalProperties": false
       },

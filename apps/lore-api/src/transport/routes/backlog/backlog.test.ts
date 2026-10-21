@@ -267,6 +267,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           pipeline: null,
         },
       ],
+      awaiting_merge: [],
     });
   });
 
@@ -332,7 +333,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     });
   });
 
-  it("keeps an addressed-but-unmerged ticket out of the queue", async () => {
+  it("keeps an addressed-but-unmerged ticket out of the queue, awaiting merge instead of recent", async () => {
     const pool = makePool();
 
     pool.query
@@ -371,8 +372,71 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     expect(JSON.parse(res.payload)).toMatchObject({
       current: null,
       next: [],
-      recent: [{ issue_number: 5, pr_url: "https://gh/pr/50" }],
+      recent: [],
+      awaiting_merge: [
+        {
+          issue_number: 5,
+          pr_url: "https://gh/pr/50",
+          hold: {
+            kind: "awaiting_merge",
+            message:
+              "The loop's pull request is open and still awaiting a merge.",
+            fix: "Review and merge the pull request to free this ticket's slot.",
+          },
+        },
+      ],
     });
+  });
+
+  it("keeps an awaiting-merge ticket visible past the recent cap", async () => {
+    const pool = makePool();
+    const olderSettled = Array.from({ length: 10 }, (_, at) => ({
+      id: `task-older-${at}`,
+      created_at: `2026-08-2${at}T00:00:00.000Z`,
+      status: "merged",
+      description: `Ticket ${100 + at}`,
+      issue_number: 100 + at,
+      issue_url: `https://gh/i/${100 + at}`,
+      pr_url: `https://gh/pr/${100 + at}`,
+    }));
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          ...olderSettled,
+          {
+            id: "task-5c",
+            created_at: "2026-08-15T00:00:00.000Z",
+            status: "completed",
+            description: "Ticket 5",
+            issue_number: 5,
+            issue_url: "https://gh/i/5",
+            pr_url: "https://gh/pr/50",
+          },
+        ],
+      });
+    pool.query.mockResolvedValue({ rows: [] } as never);
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(5, ["priority:high"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+      pulls: {
+        list: async () => [
+          { number: 50, branch: "lore/implementation-loop/issue-5" },
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+    const loop = JSON.parse(res.payload);
+
+    expect(loop.recent).toHaveLength(10);
+    expect(loop.awaiting_merge).toMatchObject([{ issue_number: 5 }]);
   });
 
   it("PUT flips the toggle under admin scope and echoes the new state", async () => {

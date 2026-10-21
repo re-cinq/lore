@@ -36,10 +36,13 @@ import {
 import {
   fetchRunContext,
   fillFromFloor,
+  isAwaitingMerge,
   LOOP_TASK_COLUMNS,
   taskTicket,
   waitingTicket,
+  type LoopRunRow,
   type LoopTaskRow,
+  type NodeRow,
 } from "./backlog-ticket.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
@@ -111,15 +114,13 @@ async function serveReadBacklog(
     .code(200);
 }
 
-type NodeRows = Parameters<typeof taskTicket>[3];
-
 interface BacklogState extends BacklogIssues {
   enabled: boolean;
   onboarding: Onboarding;
   taskRows: LoopTaskRow[];
   currentRunId: string | null;
-  runByTask: Map<string, Parameters<typeof taskTicket>[2] & object>;
-  nodeRows: NodeRows;
+  runByTask: Map<string, LoopRunRow>;
+  nodeRows: NodeRow[];
 }
 
 /** Everything the view needs, read in one place: the toggle and onboarding state, the loop's task rows, the repo's open issues, and the run each task belongs to. */
@@ -207,25 +208,33 @@ async function readRunIndex(
   return { runByTask, nodeRows: [...nodeRows, ...extraNodeRows] };
 }
 
-function projectBacklog(state: BacklogState): {
+interface BacklogBuckets {
   current: Ticket | null;
   next: Ticket[];
   parked: Ticket[];
   recent: Ticket[];
-} {
-  const { taskRows, openIssues } = state;
-  const currentRow = taskRows.find((t) =>
-    (OPEN_TASK_STATES as readonly string[]).includes(t.status),
-  );
+  awaiting_merge: Ticket[];
+}
+
+function projectBacklog(state: BacklogState): BacklogBuckets {
+  const currentRow = currentRowOf(state.taskRows);
 
   return {
     current: currentTicket(state, currentRow),
     next: nextTickets(state),
-    parked: heldBacklog(openIssues).map((issue) =>
+    parked: heldBacklog(state.openIssues).map((issue) =>
       waitingTicket(issue, "parked", state),
     ),
     recent: recentTickets(state, currentRow),
+    awaiting_merge: awaitingMergeTickets(state, currentRow),
   };
+}
+
+/** The one task in flight, if any — a task is "in flight" by its own open status, not by whether a run claims it. */
+function currentRowOf(taskRows: readonly LoopTaskRow[]): LoopTaskRow | undefined {
+  return taskRows.find((t) =>
+    (OPEN_TASK_STATES as readonly string[]).includes(t.status),
+  );
 }
 
 /** The ticket being worked right now, if any. */
@@ -233,11 +242,18 @@ function currentTicket(
   state: BacklogState,
   currentRow: LoopTaskRow | undefined,
 ): Ticket | null {
-  const { openIssues, runByTask, nodeRows } = state;
+  return currentRow ? taskTicket(currentRow, state) : null;
+}
 
-  return currentRow
-    ? taskTicket(currentRow, openIssues, runByTask.get(currentRow.id), nodeRows)
-    : null;
+/** A settled ticket whose loop branch still has an open pull request. Its own bucket, uncapped, so a ticket a human has not merged yet stays visible no matter how much other work settles behind it — `recentTickets` would otherwise push it off after `RECENT_LIMIT` newer tasks settle. */
+function awaitingMergeTickets(
+  state: BacklogState,
+  currentRow: unknown,
+): Ticket[] {
+  return settledTaskRows(state, currentRow)
+    .filter((t) => isAwaitingMerge(t, state.openPrBranches))
+    .map((t) => taskTicket(t, state))
+    .filter((t): t is Ticket => t !== null);
 }
 
 /** What is queued behind the current work. An issue a task still holds is EXCLUDED — in flight, or settled with its pull request still open, the driver's own rule (`taskHoldingTicket`) — and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
@@ -260,16 +276,25 @@ function nextTickets(state: BacklogState): Ticket[] {
     .map((issue) => waitingTicket(issue, "queued", state));
 }
 
-/** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. */
+/** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. A ticket still awaiting a merge lives in its own uncapped bucket instead (`awaitingMergeTickets`), so it is excluded here to avoid showing twice. */
 function recentTickets(state: BacklogState, currentRow: unknown): Ticket[] {
-  const { taskRows, openIssues, runByTask, nodeRows } = state;
-
-  return taskRows
-    .filter((t) => t !== currentRow)
-    .filter((t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status))
+  return settledTaskRows(state, currentRow)
+    .filter((t) => !isAwaitingMerge(t, state.openPrBranches))
     .slice(0, RECENT_LIMIT)
-    .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
+    .map((t) => taskTicket(t, state))
     .filter((t): t is Ticket => t !== null);
+}
+
+/** Every task past the open states, the current ticket excluded by identity. Shared ordering for `recentTickets` and `awaitingMergeTickets`. */
+function settledTaskRows(
+  state: BacklogState,
+  currentRow: unknown,
+): LoopTaskRow[] {
+  const settled = (t: LoopTaskRow) =>
+    t !== currentRow &&
+    !(OPEN_TASK_STATES as readonly string[]).includes(t.status);
+
+  return state.taskRows.filter(settled);
 }
 
 async function serveToggleBacklog(

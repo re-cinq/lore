@@ -53,12 +53,13 @@ describe("ImplementationLoopPage", () => {
         next: [ticket(8, null)],
         parked: [ticket(9, "run-2")],
         recent: [ticket(5, "run-1")],
+        awaiting_merge: [ticket(302, "run-3")],
       },
     } as never);
 
     render(await ImplementationLoopPage({ params }));
 
-    expect(followed[0]?.runIds).toEqual(["run-1", "run-2"]);
+    expect(followed[0]?.runIds).toEqual(["run-1", "run-2", "run-3"]);
   });
 
   it("renders the view from an ok read", async () => {
@@ -72,6 +73,7 @@ describe("ImplementationLoopPage", () => {
         next: [],
         parked: [],
         recent: [],
+        awaiting_merge: [],
       },
     } as never);
 

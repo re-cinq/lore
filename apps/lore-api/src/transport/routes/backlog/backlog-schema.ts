@@ -59,6 +59,8 @@ export const ImplementationLoopSchema = z.object({
   /** Open tickets someone queued that the picker leaves out (`lore:blocked`, or two priority labels), each with its hold. */
   parked: z.array(TicketSchema),
   recent: z.array(TicketSchema),
+  /** Settled tickets whose loop branch still has an open pull request, uncapped so a human-awaited merge never silently falls off the page. */
+  awaiting_merge: z.array(TicketSchema),
 });
 
 export const ToggleBodySchema = z.object({ enabled: z.boolean() });

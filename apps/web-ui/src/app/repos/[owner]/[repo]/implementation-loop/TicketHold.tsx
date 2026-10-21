@@ -7,6 +7,7 @@ type Hold = NonNullable<LoopTicket["hold"]>;
 const KIND_LABEL: Record<Hold["kind"], string> = {
   text_too_long: "text too long",
   waits_on_blockers: "waits on blockers",
+  awaiting_merge: "awaiting merge",
   two_priorities: "two priorities",
   parked: "parked",
   failed: "failed",

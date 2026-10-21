@@ -111,7 +111,7 @@ interface LoopSectionProps {
   notice?: string;
 }
 
-/** The stages of the backlog, in the order a ticket moves through them. Parked shows only when something is parked. */
+/** The stages of the backlog, in the order a ticket moves through them. Parked and Awaiting merge show only when they would hold a ticket. */
 function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
   return [
     {
@@ -120,15 +120,22 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
       emptyText: "No ticket is being worked right now.",
     },
     { ...queueSection(loop), tickets: loop.next, emptyText: EMPTY_BACKLOG },
-    ...(loop.parked.length > 0
-      ? [{ heading: "Parked", tickets: loop.parked, emptyText: "" }]
-      : []),
+    ...optionalStage("Parked", loop.parked),
+    ...optionalStage("Awaiting merge", loop.awaiting_merge),
     {
       heading: "Recently addressed",
       tickets: loop.recent,
       emptyText: "Nothing addressed yet.",
     },
   ];
+}
+
+/** A stage that is absent entirely rather than rendered empty. */
+function optionalStage(
+  heading: string,
+  tickets: LoopTicket[],
+): LoopSectionProps[] {
+  return tickets.length > 0 ? [{ heading, tickets, emptyText: "" }] : [];
 }
 
 /** The queue's heading, and what holds all of it. "Next up" read as about to start while the loop was off or the repo not onboarded; onboarding has its own banner, so only the switched-off loop needs the notice. */

@@ -31,6 +31,7 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
         next: [],
         parked: [],
         recent: [],
+        awaiting_merge: [],
         ...loop,
       }}
       toggle={toggle}
@@ -393,6 +394,33 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     const { queryByRole } = renderView();
 
     expect(queryByRole("heading", { name: "Parked" })).toBeNull();
+  });
+
+  it("lists an awaiting-merge ticket under its own heading with the pill and fix", () => {
+    const awaitingMerge = {
+      kind: "awaiting_merge" as const,
+      message: "The loop's pull request is open and still awaiting a merge.",
+      fix: "Review and merge the pull request to free this ticket's slot.",
+    };
+    const { getByRole, getByTestId } = renderView({
+      awaiting_merge: [
+        ticket({ state: "completed", pr_url: "https://gh/pr/7", hold: awaitingMerge }),
+      ],
+    });
+
+    expect(getByRole("heading", { name: "Awaiting merge" })).toBeTruthy();
+    expect(getByTestId("ticket-hold-kind").textContent).toEqual(
+      "awaiting merge",
+    );
+    expect(getByTestId("ticket-hold-7").textContent).toEqual(
+      "The loop's pull request is open and still awaiting a merge.Fix: Review and merge the pull request to free this ticket's slot.",
+    );
+  });
+
+  it("shows no Awaiting merge heading when nothing is awaiting merge", () => {
+    const { queryByRole } = renderView();
+
+    expect(queryByRole("heading", { name: "Awaiting merge" })).toBeNull();
   });
 
   it("heads the queue Paused and says to enable the loop while it is switched off", () => {

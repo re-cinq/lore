@@ -1,10 +1,11 @@
 // The GitHub half of the backlog view: the repo's open issues, the open blockers of the queued ones, and the open pull requests a settled task could still hold a ticket through.
 import { orderBacklog } from "@re-cinq/lore-shared";
+import type { IssueRef } from "@re-cinq/lore-shared";
 import { isSettledTask } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
 import { projectFor } from "../../../outbound/project-boot.js";
-import type { LoopTaskRow, taskTicket } from "./backlog-ticket.js";
+import type { LoopTaskRow } from "./backlog-ticket.js";
 
-type OpenIssues = Parameters<typeof taskTicket>[1];
+type OpenIssues = readonly IssueRef[];
 
 export interface BacklogIssues {
   openIssues: OpenIssues;

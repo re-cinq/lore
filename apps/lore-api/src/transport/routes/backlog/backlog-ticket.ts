@@ -10,6 +10,8 @@ import {
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { PRIORITY_LABELS } from "@re-cinq/lore-shared";
 import { ticketHold } from "@re-cinq/lore-shared/backlog/ticket-hold.js";
+import { isSettledTask } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
+import { implementationLoopBranch } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import {
   miniPipeline,
@@ -67,27 +69,62 @@ export interface NodeRow {
   outcome: string | null;
 }
 
+/** What a task row's own ticket projection reads: the repo's open issues (to find the ticket's title/priority), the run it belongs to per task id, the node visits of every such run, and which loop branches still have an open pull request. `BacklogState` satisfies this structurally, so the route passes it straight through. */
+export interface TaskTicketContext {
+  openIssues: readonly IssueRef[];
+  runByTask: ReadonlyMap<string, LoopRunRow>;
+  nodeRows: readonly NodeRow[];
+  openPrBranches: ReadonlySet<string>;
+}
+
+/** A settled task (`completed`/`merged`) whose loop branch still has an open pull request — the reason a ticket a human has not merged yet still holds its backlog slot. */
+export function isAwaitingMerge(
+  row: LoopTaskRow,
+  openPrBranches: ReadonlySet<string>,
+): boolean {
+  return (
+    isSettledTask(row.status) &&
+    row.issue_number !== null &&
+    openPrBranches.has(implementationLoopBranch(row.issue_number))
+  );
+}
+
 export function taskTicket(
   row: LoopTaskRow,
-  openIssues: readonly IssueRef[],
-  run: LoopRunRow | undefined,
-  nodeRows: readonly NodeRow[],
+  context: TaskTicketContext,
 ): Ticket | null {
   const { issue_number } = row;
 
   if (!issue_number) {
     return null;
   }
+  const { openIssues, runByTask, nodeRows, openPrBranches } = context;
   const issue = openIssues.find((i) => i.number === issue_number);
-  const lastAttempt = attemptOf(row, run);
+  const run = runByTask.get(row.id);
 
   return {
     ...ticketIssueFields(row, issue_number, issue),
     ...ticketTaskFields(row),
-    hold: ticketHold({ issue, openBlockers: [], lastAttempt, picked: true }),
+    hold: pickedHold(row, issue, run, openPrBranches),
     run_id: run?.id ?? null,
     pipeline: pipelineOf(run, nodeRows),
   };
+}
+
+/** The hold on a ticket a task already picked: its last attempt, and whether its loop branch still has an open pull request. */
+function pickedHold(
+  row: LoopTaskRow,
+  issue: IssueRef | undefined,
+  run: LoopRunRow | undefined,
+  openPrBranches: ReadonlySet<string>,
+) {
+  return ticketHold({
+    issue,
+    openBlockers: [],
+    lastAttempt: attemptOf(row, run),
+    picked: true,
+    openPr: isAwaitingMerge(row, openPrBranches),
+  });
 }
 
 /** How a task's attempt ended: the run's own reason where Postgres holds the run, otherwise what the settling hook stored on the task. */
