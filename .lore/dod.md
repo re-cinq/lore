@@ -11,10 +11,10 @@
 
 ## Facets
 
-- [ ] Add `billing_mode` column to `pipeline.llm_calls` (or `pipeline.station_runs`) via `ui-helm/migrations/`.
-- [ ] Add `billingMode` property to `StationRunStartInput`.
-- [ ] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
-- [ ] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
+- [x] Add `billing_mode` column to `pipeline.llm_calls` (or `pipeline.station_runs`) via `ui-helm/migrations/`.
+- [x] Add `billingMode` property to `StationRunStartInput`.
+- [x] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
+- [x] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
 
 ## Out of scope
 
