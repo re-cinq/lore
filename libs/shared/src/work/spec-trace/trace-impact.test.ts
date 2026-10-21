@@ -150,6 +150,38 @@ describe("buildImpactAnnotations", () => {
     ]);
   });
 
+  it("drops a statement and an orphan whose spec and text did not resolve (orphan graph node, #1077-style blank annotation)", () => {
+    const annotations = buildImpactAnnotations(
+      {
+        status: "ok",
+        testSelectors: [],
+        statements: [
+          {
+            specPath: "",
+            specTitle: "",
+            statementText: "",
+            statementAnchor: "",
+            tests: [],
+            changedFile: "src/widget.ts",
+            evidence: "coverage",
+          },
+        ],
+        orphaned: [
+          {
+            specPath: "",
+            specTitle: "",
+            statementText: "",
+            statementAnchor: "",
+            wasCoveredBy: "src/legacy.ts:10-20",
+          },
+        ],
+      },
+      [{ path: "src/widget.ts", ranges: [[5, 8]] }],
+    );
+
+    expect(annotations).toEqual([]);
+  });
+
   it("renders indirect statements as notice-level rather than warning so they appear in a quieter PR section", () => {
     const annotations = buildImpactAnnotations(
       {

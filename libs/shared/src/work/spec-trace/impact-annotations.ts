@@ -1,6 +1,9 @@
 /** Renders GitHub Checks API annotations for a trace-impact report: `warning` on each coupled statement's changed range, `notice` on each orphan's deleted range. */
 
-import type { ImpactStatement } from "./impact-statement.js";
+import {
+  hasResolvedContent,
+  type ImpactStatement,
+} from "./impact-statement.js";
 import type {
   ChangedRange,
   ImpactAnnotation,
@@ -14,9 +17,12 @@ export function buildImpactAnnotations(
   report: ImpactReport,
   changed: ChangedRange[],
 ): ImpactAnnotation[] {
+  const statements = report.statements.filter(hasResolvedContent);
+  const orphaned = report.orphaned.filter(hasResolvedContent);
+
   return [
-    ...report.statements.map((stmt) => statementAnnotation(stmt, changed)),
-    ...report.orphaned.map((orphan) => orphanAnnotation(orphan)),
+    ...statements.map((stmt) => statementAnnotation(stmt, changed)),
+    ...orphaned.map((orphan) => orphanAnnotation(orphan)),
   ];
 }
 
