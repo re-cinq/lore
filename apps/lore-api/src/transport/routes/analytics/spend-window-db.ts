@@ -1,8 +1,9 @@
 import type { Pool, QueryResultRow } from "pg";
 
 const UNDEFINED_TABLE = "42P01";
+const UNDEFINED_COLUMN = "42703";
 
-// A table that may not exist yet (migration-gated) degrades to empty rows rather than 500.
+// A table or column that may not exist yet (migration-gated) degrades to empty rows rather than 500.
 export async function optionalTableRows<T extends QueryResultRow>(
   pool: Pool,
   sql: string,
@@ -13,7 +14,9 @@ export async function optionalTableRows<T extends QueryResultRow>(
 
     return rows;
   } catch (err) {
-    if ((err as { code?: string }).code === UNDEFINED_TABLE) {
+    const code = (err as { code?: string }).code;
+
+    if (code === UNDEFINED_TABLE || code === UNDEFINED_COLUMN) {
       return [];
     }
 

@@ -126,6 +126,7 @@ const BASE_ROWS: unknown[][] = [
   [{ kind: "Code review / detection line", calls: 78, cost_usd: 37.68 }],
   [{ bucket_date: "2026-09-01", calls: 32, cost_usd: 14.24 }],
   [{ task_type: "implementation", tasks: 30, cost_usd: 222.22 }],
+  [],
   [{ cluster: null, calls: 40, cost_usd: 20 }],
   [
     {
@@ -297,7 +298,7 @@ describe("GET /api/analytics/spend-window", () => {
   it("reports the GCP half unavailable when the billing sync has never run", async () => {
     const rows = [...BASE_ROWS];
 
-    rows[12] = [{ billed_usd: 0, as_of: null, billed_through: null }];
+    rows[13] = [{ billed_usd: 0, as_of: null, billed_through: null }];
     const body = JSON.parse((await get(await serverWith(rows))).payload);
 
     expect(body.gcp).toMatchObject({
@@ -385,7 +386,7 @@ describe("GET /api/analytics/spend-window", () => {
   it("reports the billed half unavailable (not a confident zero) when the sync has never run", async () => {
     const rows = [...BASE_ROWS];
 
-    rows[8] = [
+    rows[9] = [
       {
         billed_usd: 0,
         input_tokens: 0,
@@ -433,7 +434,7 @@ describe("GET /api/analytics/spend-window", () => {
     const neverSynced: Issued[] = [];
     const rows = [...BASE_ROWS];
 
-    rows[8] = [];
+    rows[9] = [];
     await get(await serverWith(rows, {}, neverSynced));
 
     expect(
@@ -559,6 +560,25 @@ describe("GET /api/analytics/spend-window", () => {
       split: [{ mode: "api_key", calls: 42, cost_usd: 82.5 }],
       floorUnavailable: true,
     });
+  });
+
+  it("queries billing_mode from pipeline.llm_calls and surfaces the recorded split directly", async () => {
+    const billingRows = [
+      { mode: "subscription", calls: 40, cost_usd: 8 },
+      { mode: "api_key", calls: 10, cost_usd: 2 },
+    ];
+    const rows = [...BASE_ROWS];
+
+    rows[7] = billingRows;
+    const issued: Issued[] = [];
+
+    const res = await get(await serverWith(rows, {}, issued));
+    const body = JSON.parse(res.payload);
+
+    expect(issued.some(({ sql }) => sql.includes("billing_mode"))).toBe(true);
+    expect(body.llm.by_billing_mode).toContainEqual(
+      expect.objectContaining({ mode: "subscription", calls: 40, cost_usd: 8 }),
+    );
   });
 
   it("still renders cluster spend empty when the registry table is absent", async () => {

@@ -53,3 +53,9 @@ export const BY_TASK_TYPE_SQL = `SELECT t.task_type, COUNT(DISTINCT t.id)::int A
        FROM pipeline.llm_calls lc JOIN pipeline.tasks t ON t.id = lc.task_id
       WHERE lc.created_at >= $1 AND lc.created_at < $2
       GROUP BY t.task_type ORDER BY cost_usd DESC`;
+
+export const BY_BILLING_MODE_SQL = `SELECT COALESCE(billing_mode, 'unknown')::text AS mode,
+            COUNT(*)::int AS calls, SUM(cost_usd)::float8 AS cost_usd
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1 AND created_at < $2
+      GROUP BY billing_mode ORDER BY cost_usd DESC`;
