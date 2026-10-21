@@ -102,4 +102,43 @@ describe("PgTaskStore", () => {
     ]);
     expect(found).toEqual([{ id: "g1" }]);
   });
+
+  it("finds implementation-loop tasks stuck running past the age threshold", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgTaskStore(
+      fakePool(capture, [{ id: "t1", target_repo: "re-cinq/lore" }]),
+    );
+
+    const found = await store.findStuckRunning("implementation-loop", 35);
+
+    expect(capture[0].text).toContain(
+      "WHERE task_type = $1 AND status = 'running' AND updated_at < now() - ($2 || ' minutes')::interval",
+    );
+    expect(capture[0].params).toEqual(["implementation-loop", 35]);
+    expect(found).toEqual([{ id: "t1", target_repo: "re-cinq/lore" }]);
+  });
+
+  it("counts an issue's own failures matching a reason prefix since a cutoff", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgTaskStore(fakePool(capture, [{ count: "2" }]));
+    const since = new Date("2026-10-20T00:00:00.000Z");
+
+    const count = await store.countRecentFailures(
+      "re-cinq/lore",
+      2016,
+      "no floor run",
+      since,
+    );
+
+    expect(capture[0].text).toContain(
+      "WHERE target_repo = $1 AND issue_number = $2 AND status = 'failed' AND failure_reason LIKE $3 AND created_at > $4",
+    );
+    expect(capture[0].params).toEqual([
+      "re-cinq/lore",
+      2016,
+      "no floor run%",
+      since.toISOString(),
+    ]);
+    expect(count).toBe(2);
+  });
 });

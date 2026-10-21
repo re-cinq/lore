@@ -7,6 +7,7 @@ import {
   type TaskListResult,
   type FindOpenLikeInput,
   type DriftTaskRow,
+  type StuckRunningTask,
 } from "./task-store-port.js";
 import type { SeedStoreTask, StoredTaskEvent } from "./task-store-memory.js";
 
@@ -44,6 +45,44 @@ function listRowTimestamps(t: SeedStoreTask) {
   };
 }
 
+function isStuckRunning(
+  t: SeedStoreTask,
+  taskType: string,
+  cutoff: number,
+): boolean {
+  return (
+    t.task_type === taskType &&
+    t.status === "running" &&
+    new Date(t.updated_at ?? t.created_at ?? 0).getTime() < cutoff
+  );
+}
+
+interface RecentFailureFilter {
+  repo: string;
+  issueNumber: number;
+  reasonPattern: RegExp;
+  since: Date;
+}
+
+function isRecentMatchingFailure(
+  t: SeedStoreTask,
+  filter: RecentFailureFilter,
+): boolean {
+  const failureReason = String(t.failure_reason ?? "");
+
+  return (
+    t.target_repo === filter.repo &&
+    t.issue_number === filter.issueNumber &&
+    t.status === "failed" &&
+    filter.reasonPattern.test(failureReason) &&
+    createdAtMs(t) > filter.since.getTime()
+  );
+}
+
+function createdAtMs(t: SeedStoreTask): number {
+  return new Date(t.created_at ?? 0).getTime();
+}
+
 /** Translates a SQL LIKE pattern to a RegExp, including the quirk that the Pg adapter doesn't escape %/_ in the caller's prefix — they act as wildcards there too. */
 function likeToRegExp(pattern: string): RegExp {
   const source = pattern
@@ -59,6 +98,7 @@ export class TaskQueryStore {
   constructor(
     private readonly tasks: SeedStoreTask[],
     private readonly events: StoredTaskEvent[],
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   private findById(id: string): SeedStoreTask | undefined {
@@ -143,5 +183,39 @@ export class TaskQueryStore {
         created_at: t.created_at ?? "",
         issue_number: t.issue_number ?? null,
       }));
+  }
+
+  async findStuckRunning(
+    taskType: string,
+    olderThanMinutes: number,
+  ): Promise<StuckRunningTask[]> {
+    const cutoff = this.now().getTime() - olderThanMinutes * 60_000;
+
+    return this.tasks
+      .filter((t) => isStuckRunning(t, taskType, cutoff))
+      .map((t) => ({
+        id: t.id,
+        target_repo: t.target_repo ?? "",
+        issue_number: t.issue_number ?? null,
+        created_at: t.created_at ?? "",
+        updated_at: t.updated_at ?? "",
+      }));
+  }
+
+  async countRecentFailures(
+    repo: string,
+    issueNumber: number,
+    reasonPrefix: string,
+    since: Date,
+  ): Promise<number> {
+    const filter: RecentFailureFilter = {
+      repo,
+      issueNumber,
+      reasonPattern: likeToRegExp(`${reasonPrefix}%`),
+      since,
+    };
+
+    return this.tasks.filter((t) => isRecentMatchingFailure(t, filter))
+      .length;
   }
 }

@@ -9,6 +9,7 @@ import { mergeCheck } from "./merge-check/manifest.js";
 import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
+import { loopReap } from "./loop-reap/manifest.js";
 import { blockedReason } from "./blocked-reason/manifest.js";
 import { busPrune } from "./bus-prune/manifest.js";
 import { prBlockedReasonsPrune } from "./pr-blocked-reasons-prune/manifest.js";
@@ -30,6 +31,7 @@ export const STATION_NAMES = [
   "importance-decay",
   "ingest-secret-repair",
   "issue-triage-tick",
+  "loop-reap",
   "loop-tick",
   "memory-ttl",
   "merge-check",
@@ -52,6 +54,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "importance-decay": importanceDecayStation,
   "ingest-secret-repair": ingestSecretRepairStation,
   "issue-triage-tick": issueTriageTickStation,
+  "loop-reap": loopReap,
   "loop-tick": loopTickStation,
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
