@@ -157,4 +157,51 @@ describe("ticketHold", () => {
       })?.kind,
     ]).toEqual(["parked", "failed"]);
   });
+
+  it("holds a picked, settled ticket whose pull request is still open", () => {
+    const lastAttempt = { status: "completed", why: null };
+
+    expect(
+      ticketHold({
+        issue: queued,
+        openBlockers: [],
+        lastAttempt,
+        picked: true,
+        openPr: true,
+      }),
+    ).toEqual({
+      kind: "awaiting_merge",
+      message: "The loop's pull request is open and still awaiting a merge.",
+      fix: "Review and merge the pull request to free this ticket's slot.",
+    });
+  });
+
+  it("returns null for a picked ticket with no open pull request", () => {
+    const lastAttempt = { status: "completed", why: null };
+
+    expect(
+      ticketHold({
+        issue: queued,
+        openBlockers: [],
+        lastAttempt,
+        picked: true,
+        openPr: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("parks a picked ticket over its still-open pull request", () => {
+    const blocked = { ...queued, labels: ["priority:high", "lore:blocked"] };
+    const lastAttempt = { status: "completed", why: "some reason" };
+
+    expect(
+      ticketHold({
+        issue: blocked,
+        openBlockers: [],
+        lastAttempt,
+        picked: true,
+        openPr: true,
+      })?.kind,
+    ).toEqual("parked");
+  });
 });

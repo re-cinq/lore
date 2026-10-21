@@ -3074,6 +3074,7 @@ export interface components {
           kind:
             | "text_too_long"
             | "waits_on_blockers"
+            | "awaiting_merge"
             | "two_priorities"
             | "parked"
             | "failed";
@@ -3102,6 +3103,7 @@ export interface components {
           kind:
             | "text_too_long"
             | "waits_on_blockers"
+            | "awaiting_merge"
             | "two_priorities"
             | "parked"
             | "failed";
@@ -3129,6 +3131,7 @@ export interface components {
           kind:
             | "text_too_long"
             | "waits_on_blockers"
+            | "awaiting_merge"
             | "two_priorities"
             | "parked"
             | "failed";
@@ -3156,6 +3159,35 @@ export interface components {
           kind:
             | "text_too_long"
             | "waits_on_blockers"
+            | "awaiting_merge"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+      }[];
+      awaiting_merge: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+        created_at: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "awaiting_merge"
             | "two_priorities"
             | "parked"
             | "failed";

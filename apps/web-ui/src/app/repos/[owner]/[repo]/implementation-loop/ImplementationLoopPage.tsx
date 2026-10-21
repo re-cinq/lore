@@ -41,7 +41,13 @@ export default async function ImplementationLoopPage(props: LoopPageProps) {
 
 /** Every run id the page currently shows a Stages column for, so the live follower watches exactly those and nothing else. */
 function runIdsOf(loop: ImplementationLoop): string[] {
-  const tickets = [loop.current, ...loop.next, ...loop.parked, ...loop.recent];
+  const tickets = [
+    loop.current,
+    ...loop.next,
+    ...loop.parked,
+    ...loop.recent,
+    ...loop.awaiting_merge,
+  ];
   const ids = tickets
     .map((t) => t?.run_id)
     .filter((id): id is string => Boolean(id));

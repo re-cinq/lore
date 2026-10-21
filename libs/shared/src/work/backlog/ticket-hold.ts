@@ -6,6 +6,7 @@ import { ticketTextTooLong } from "./ticket-description.js";
 export const TICKET_HOLD_KINDS = [
   "text_too_long",
   "waits_on_blockers",
+  "awaiting_merge",
   "two_priorities",
   "parked",
   "failed",
@@ -37,6 +38,8 @@ export interface TicketHoldInput {
   lastAttempt?: LastAttempt;
   /** A task already took the ticket, so what would stop the picker no longer says anything about it. */
   picked?: boolean;
+  /** The ticket's loop branch still has an open pull request. */
+  openPr?: boolean;
 }
 
 /** The first thing holding a ticket, or null when nothing does. What the ticket itself must change comes before what happened to its last attempt. */
@@ -49,7 +52,7 @@ export function ticketHold(input: TicketHoldInput): TicketHold | null {
 type HoldOf = (input: TicketHoldInput) => TicketHold | null;
 
 /** What can hold a ticket a task took: only how its attempt ended. */
-const ATTEMPT_HOLDS: readonly HoldOf[] = [parked, failed];
+const ATTEMPT_HOLDS: readonly HoldOf[] = [parked, awaitingMerge, failed];
 
 const QUEUE_HOLDS: readonly HoldOf[] = [
   parked,
@@ -110,6 +113,16 @@ function waitsOnBlockers({ openBlockers }: TicketHoldInput): TicketHold | null {
     message: `Waits on ${blockers}, which ${stillOpen}.`,
     fix: "Close them, or remove the blocked-by link if it no longer applies.",
   };
+}
+
+function awaitingMerge({ openPr }: TicketHoldInput): TicketHold | null {
+  return openPr
+    ? {
+        kind: "awaiting_merge",
+        message: "The loop's pull request is open and still awaiting a merge.",
+        fix: "Review and merge the pull request to free this ticket's slot.",
+      }
+    : null;
 }
 
 function failed({ lastAttempt }: TicketHoldInput): TicketHold | null {
