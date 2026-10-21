@@ -1,22 +1,23 @@
 # Definition of Done
 
-> Record the actual billing mode per call so the split is exact rather than inferred
+> At lore-api boot, existing static skills must be migrated to the database following the seedAgentDefaults pattern, adding a required Help block to each.
 
-**Strategy: `direct`** — The write path ingestion exposes a direct seam via `ensureStationRun` and `logLlmCall`. We can assert that the generated `llm_calls` row surfaces the provided `billingMode` in the Spend API. The red bar is CI's to show ("Integration Tests" job).
+**Strategy: `direct`** — The seeding function is invoked on boot; we can write a direct acceptance test that verifies the database state. Since this environment cannot install npm dependencies to run the test locally, the red bar is CI's to show ("Integration Tests" job).
 
 ## Done when these pass
 
-- [ ] **records the billing mode at dispatch and joins it into the cost row** — When `ensureStationRun` receives a `billingMode`, `logLlmCall` propagates it to `pipeline.llm_calls` where the `/spend-window` endpoint correctly surfaces it.
-  `apps/lore-api/src/integration-tests/billing-mode-write.acceptance.test.ts`
+- [ ] **seeds the three static skills with a Help block into lore.skill_definitions** — Evaluates whether the seeding logic correctly inserts `lore-context`, `tdd-loop`, and `legacy-characterize` into `lore.skill_definitions` with the required `<!-- lore-help:begin -->` and `<!-- lore-help:end -->` blocks.
+  `apps/lore-api/src/integration-tests/skill-defaults-seed.acceptance.test.ts`
 
 ## Facets
 
-- [x] Add `billing_mode` column to `pipeline.llm_calls` (or `pipeline.station_runs`) via `ui-helm/migrations/`.
-- [x] Add `billingMode` property to `StationRunStartInput`.
-- [x] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
-- [x] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
-- [x] Fix TypeScript compilation errors: `visitToStationRun` in `floor-run-mapping.ts` missing `billingMode`, acceptance test imports using wrong relative paths, fixture objects missing `billingMode`.
+- [ ] Create `libs/shared/src/agent-defaults/skill-defaults-seed.ts` (or `libs/shared/src/outbound/project/skills/skill-defaults-seed.ts`).
+- [ ] Implement `seedSkillDefaults` to read `apps/mcp-server/agent-skills/skills/` and upsert into `lore.skill_definitions`.
+- [ ] Add Help block generation during the seed process for existing static skills.
+- [ ] Invoke `seedSkillDefaults` in `apps/lore-api/src/index.ts` during server boot.
 
 ## Out of scope
 
-- Emitting the credential from the separate `ai-agent-subsystem` repo (the ticket marks this as follow-up work).
+- Creating the `lore.skill_definitions` table and its migrations (done in #2863).
+- Exposing the HTTP endpoints for skill definitions.
+- Local MCP server sync mechanism.
