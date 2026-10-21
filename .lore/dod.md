@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Create `libs/shared/src/domain/models/skill-definition.ts`
-- [ ] Define Zod schema mapping to DB columns (name, title, description, model, content, enabled, project_id)
-- [ ] Define `SKILL_DEFINITION_COLUMNS` ColumnMap
+- [x] Create `libs/shared/src/domain/models/skill-definition.ts`
+- [x] Define Zod schema mapping to DB columns (name, title, description, model, content, enabled, project_id)
+- [x] Define `SKILL_DEFINITION_COLUMNS` ColumnMap
 
 ## Out of scope
 
