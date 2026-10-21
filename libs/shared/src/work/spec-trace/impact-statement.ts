@@ -15,6 +15,18 @@ const EVIDENCE_RANK: Record<Evidence, number> = {
 /** What the diff did to a statement's own text (doc-side lookup only); "changed" deliberately covers both edited and deleted, since the diff can't tell them apart. */
 export type ChangeKind = "added" | "changed";
 
+/** Minimal shape both {@link ImpactStatement} and `OrphanStatement` share, for {@link hasResolvedContent}. */
+interface ResolvableFinding {
+  specTitle?: string;
+  specPath: string;
+  statementText: string;
+}
+
+/** A statement with no resolvable spec or text is a broken graph edge (e.g. an orphan node a stale test anchor fabricated), not a finding — rendering it produced the blank table rows in #1077 and blank Checks-API annotations later on. */
+export function hasResolvedContent(stmt: ResolvableFinding): boolean {
+  return Boolean(stmt.specTitle || stmt.specPath || stmt.statementText);
+}
+
 /** A spec statement coupled to the diff, with the tests that cover it (selectors). */
 export interface ImpactStatement {
   specPath: string;

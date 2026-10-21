@@ -1,6 +1,9 @@
 /** Renders the sticky PR summary comment (find-by-marker, update-in-place) for a trace-impact report — the prose/narration half. */
 
-import type { ImpactStatement } from "./impact-statement.js";
+import {
+  hasResolvedContent,
+  type ImpactStatement,
+} from "./impact-statement.js";
 import type { ImpactReport, OrphanStatement } from "./impact-types.js";
 import { dedupeRows, specSections } from "./impact-comment-sections.js";
 
@@ -39,13 +42,8 @@ function suppressedComment(report: ImpactReport): string | undefined {
   return undefined;
 }
 
-/** A statement with no resolvable spec is a broken graph edge, not a finding — rendering it produced the blank table rows in #1077. */
 function commentFindings(report: ImpactReport): ImpactStatement[] {
-  return dedupeRows(
-    report.statements.filter(
-      (s) => s.specTitle || s.specPath || s.statementText,
-    ),
-  );
+  return dedupeRows(report.statements.filter(hasResolvedContent));
 }
 
 function evidenceSplit(findings: ImpactStatement[]): {

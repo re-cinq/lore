@@ -26,7 +26,7 @@ const IMPL_QUERY = `query q($repo: string, $fp: string) {
     CodeChunk.xid
     CodeChunk.start_line
     CodeChunk.end_line
-    stmts: ~Statement.implemented_by {
+    stmts: ~Statement.implemented_by @filter(has(Statement.text)) {
       ${STATEMENT_PROJECTION}
     }
   }
@@ -123,7 +123,7 @@ const COVERAGE_QUERY = `query q($repo: string, $fp: string) {
       TestChunk.file_path
       TestChunk.test_name
       TestChunk.start_line
-      stmts: ~Statement.validated_by {
+      stmts: ~Statement.validated_by @filter(has(Statement.text)) {
         ${STATEMENT_PROJECTION}
       }
     }
@@ -198,7 +198,7 @@ const ORPHAN_QUERY = `query q($repo: string, $fp: string) {
   covs(func: eq(Coverage.repo, $repo)) {
     file: Coverage.covers @filter(eq(File.path, $fp)) { File.path }
     tc: ~TestChunk.coverage {
-      stmts: ~Statement.validated_by {
+      stmts: ~Statement.validated_by @filter(has(Statement.text)) {
         Statement.xid
         Statement.text
         spec: Statement.spec { Spec.file_path Spec.title }
