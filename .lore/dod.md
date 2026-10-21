@@ -1,22 +1,20 @@
 # Definition of Done
 
-> Record the actual billing mode per call so the split is exact rather than inferred
+> Create apps/mcp-server/src/transport/skills-sync.ts that polls the skill-definitions API. It writes directories in ~/.claude/skills/ placing SKILL.md and .lore-managed inside. Wire this loop in the MCP server boot, gated by serverMode !== 'agent'.
 
-**Strategy: `direct`** — The write path ingestion exposes a direct seam via `ensureStationRun` and `logLlmCall`. We can assert that the generated `llm_calls` row surfaces the provided `billingMode` in the Spend API. The red bar is CI's to show ("Integration Tests" job).
+**Strategy: `direct`** — The seam already exists in `buildMcpServer`, which is the entry point for the MCP server boot process where the loop will be wired.
 
 ## Done when these pass
 
-- [ ] **records the billing mode at dispatch and joins it into the cost row** — When `ensureStationRun` receives a `billingMode`, `logLlmCall` propagates it to `pipeline.llm_calls` where the `/spend-window` endpoint correctly surfaces it.
-  `apps/lore-api/src/integration-tests/billing-mode-write.acceptance.test.ts`
+- [ ] **syncs enabled skills locally with a marker on boot, ignoring unmanaged directories.** — The MCP server polls the skill-definitions API on boot and writes enabled skills as `.lore-managed` directories in `~/.claude/skills/`, deleting disabled ones and leaving unmanaged ones alone.
+  `apps/mcp-server/src/transport/skills-sync.acceptance.test.ts`
 
 ## Facets
 
-- [x] Add `billing_mode` column to `pipeline.llm_calls` (or `pipeline.station_runs`) via `ui-helm/migrations/`.
-- [x] Add `billingMode` property to `StationRunStartInput`.
-- [x] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
-- [x] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
-- [x] Fix TypeScript compilation errors: `visitToStationRun` in `floor-run-mapping.ts` missing `billingMode`, acceptance test imports using wrong relative paths, fixture objects missing `billingMode`.
+- [ ] Create `skills-sync.ts` with API fetching and file writing logic.
+- [ ] Hook `skills-sync.ts` into `build-mcp-server.ts` gated by `serverMode !== 'agent'`.
 
 ## Out of scope
 
-- Emitting the credential from the separate `ai-agent-subsystem` repo (the ticket marks this as follow-up work).
+- Multi-file skills or per-repo skill overrides.
+- Changes to the HTTP gateway serving agent pods.
