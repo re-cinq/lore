@@ -4,7 +4,6 @@ import {
   SkillDefinitionSchema,
 } from "./skill-definition.js";
 
-// specs/org-skills/spec.md — Constraints: skill payload maps directly to DB storage
 describe("SkillDefinitionSchema", () => {
   it("SKILL_DEFINITION_COLUMNS maps projectId to the project_id column", () => {
     expect(SKILL_DEFINITION_COLUMNS.projectId).toBe("project_id");

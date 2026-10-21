@@ -3,7 +3,6 @@ import { fromRow } from "../../lib/row.js";
 
 describe("SkillDefinition model", () => {
   it("validates and deserializes skill definition rows. ([validated by name](libs/shared/src/domain/models/skill-definition.acceptance.test.ts#L5))", async () => {
-    // @ts-ignore - The module is intentionally missing as it's the target of the ticket
     const { SkillDefinitionSchema, SKILL_DEFINITION_COLUMNS } =
       await import("./skill-definition.js");
 
