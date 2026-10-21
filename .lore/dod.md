@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Write `skill-defs-port.ts` port and data types.
+- [x] Write `skill-defs-port.ts` port and data types.
 - [ ] Write `skill-defs.ts` domain facade for `Project`.
-- [ ] Write `skill-defs-pg.ts` DB adapter with the 2-layer SQL resolution.
+- [x] Write `skill-defs-pg.ts` DB adapter with the 2-layer SQL resolution.
 - [ ] Add `skillDefs` getter to `Project` facade in `libs/shared/src/outbound/project/lib/project.ts`.
 
 ## Out of scope
