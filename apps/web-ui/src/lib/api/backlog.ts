@@ -5,7 +5,7 @@ import type { components } from "./schema";
 
 // Implementation-loop repo surface (specs/implementation-loop FR10); types alias the generated schema, no hand-mirrored shapes.
 export type ImplementationLoop = components["schemas"]["ImplementationLoop"];
-export type LoopTicket = NonNullable<ImplementationLoop["current"]>;
+export type LoopTicket = ImplementationLoop["next"][number];
 export type ImplementationLoopToggle =
   components["schemas"]["ImplementationLoopToggle"];
 

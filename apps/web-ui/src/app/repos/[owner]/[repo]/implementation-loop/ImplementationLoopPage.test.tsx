@@ -48,7 +48,7 @@ describe("ImplementationLoopPage", () => {
       data: {
         enabled: true,
         onboarding: { merged: true, pr_url: null, last_task: null },
-        current: ticket(7, "run-1"),
+        current: [ticket(7, "run-1"), ticket(158, "run-4")],
         current_run_id: "run-1",
         next: [ticket(8, null)],
         parked: [ticket(9, "run-2")],
@@ -59,7 +59,7 @@ describe("ImplementationLoopPage", () => {
 
     render(await ImplementationLoopPage({ params }));
 
-    expect(followed[0]?.runIds).toEqual(["run-1", "run-2", "run-3"]);
+    expect(followed[0]?.runIds).toEqual(["run-1", "run-4", "run-2", "run-3"]);
   });
 
   it("renders the view from an ok read", async () => {
@@ -68,7 +68,7 @@ describe("ImplementationLoopPage", () => {
       data: {
         enabled: true,
         onboarding: { merged: true, pr_url: null, last_task: null },
-        current: null,
+        current: [],
         current_run_id: null,
         next: [],
         parked: [],

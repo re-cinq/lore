@@ -210,22 +210,24 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       enabled: true,
       onboarding: { merged: false, pr_url: null, last_task: null },
       current_run_id: "run-42",
-      current: {
-        created_at: "2026-08-26T06:00:00.000Z",
-        hold: null,
-        issue_number: 7,
-        issue_url: "https://gh/i/7",
-        title: "Ticket 7",
-        priority: "priority:high",
-        pr_url: "https://gh/pr/70",
-        state: "running",
-        run_id: "run-42",
-        pipeline: [
-          { node_id: "implement", state: "success" },
-          { node_id: "validate", state: "running" },
-          { node_id: "await-pr", state: "pending" },
-        ],
-      },
+      current: [
+        {
+          created_at: "2026-08-26T06:00:00.000Z",
+          hold: null,
+          issue_number: 7,
+          issue_url: "https://gh/i/7",
+          title: "Ticket 7",
+          priority: "priority:high",
+          pr_url: "https://gh/pr/70",
+          state: "running",
+          run_id: "run-42",
+          pipeline: [
+            { node_id: "implement", state: "success" },
+            { node_id: "validate", state: "running" },
+            { node_id: "await-pr", state: "pending" },
+          ],
+        },
+      ],
       next: [
         {
           created_at: "2026-08-03T00:00:00.000Z",
@@ -290,7 +292,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
 
     expect(JSON.parse(res.payload)).toMatchObject({
       enabled: false,
-      current: null,
+      current: [],
       next: [{ issue_number: 3 }],
       recent: [],
     });
@@ -328,7 +330,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     const res = await get(pool);
 
     expect(JSON.parse(res.payload)).toMatchObject({
-      current: { issue_number: 7 },
+      current: [{ issue_number: 7 }],
       next: [],
     });
   });
@@ -370,7 +372,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     const res = await get(pool);
 
     expect(JSON.parse(res.payload)).toMatchObject({
-      current: null,
+      current: [],
       next: [],
       recent: [],
       awaiting_merge: [
@@ -547,7 +549,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     const res = await get(pool);
 
     expect(JSON.parse(res.payload)).toMatchObject({
-      current: null,
+      current: [],
       recent: [],
     });
   });
@@ -729,13 +731,19 @@ describe("GET with tickets the loop is not working", () => {
     failure_reason: failureReason,
   });
 
-  async function read(tasks: unknown[], issues: Record<string, unknown>) {
+  async function read(
+    tasks: unknown[],
+    issues: Record<string, unknown>,
+    runs: unknown[] = [],
+  ) {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
     const pool = makePool();
 
     pool.query
       .mockResolvedValueOnce(enabledRepo)
       .mockResolvedValueOnce({ rows: tasks })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: runs })
       .mockResolvedValue({ rows: [] });
     vi.mocked(projectFor).mockResolvedValue({
       issues,
@@ -855,6 +863,36 @@ describe("GET with tickets the loop is not working", () => {
       recent: [{ issue_number: 5, state: "failed", hold }],
     });
   });
+
+  it("shows a by-hand-revived failed task under current, alongside the loop's own pick, and out of next/recent", async () => {
+    const loop = await read(
+      [taskRow(7, "running", ""), taskRow(158, "failed", "iteration_max")],
+      {
+        list: async () => [
+          openIssue(7, ["priority:high"], "2026-08-01T00:00:00Z"),
+          openIssue(158, ["priority:low"], "2026-08-02T00:00:00Z"),
+        ],
+      },
+      [
+        {
+          id: "run-158",
+          task_id: "task-158",
+          status: "running",
+          reason: null,
+          graph: null,
+        },
+      ],
+    );
+
+    expect(loop).toMatchObject({
+      current: [
+        { issue_number: 7, state: "running" },
+        { issue_number: 158, state: "failed" },
+      ],
+      next: [],
+      recent: [],
+    });
+  });
 });
 
 describe("floorRunContext", () => {
@@ -875,7 +913,7 @@ describe("floorRunContext", () => {
   }
 
   it("is null when the floor has no run for the task", async () => {
-    const { floorRunContext } = await import("./backlog-ticket.js");
+    const { floorRunContext } = await import("./backlog-run-context.js");
 
     expect(
       await floorRunContext(fakeFloor({}) as never, "re-cinq/lore", "task-1"),
@@ -883,7 +921,7 @@ describe("floorRunContext", () => {
   });
 
   it("carries the run's status and reason even with no graph yet", async () => {
-    const { floorRunContext } = await import("./backlog-ticket.js");
+    const { floorRunContext } = await import("./backlog-run-context.js");
     const floor = fakeFloor({
       summaries: [{ id: "run-9", status: "running", reason: null }],
       graph: null,
@@ -904,7 +942,7 @@ describe("floorRunContext", () => {
   });
 
   it("maps the floor's visits into the pipeline's node rows", async () => {
-    const { floorRunContext } = await import("./backlog-ticket.js");
+    const { floorRunContext } = await import("./backlog-run-context.js");
     const floor = fakeFloor({
       summaries: [{ id: "run-9", status: "failed", reason: "iteration_max" }],
       graph: { nodes: [{ id: "implement", type: "agent" }] },

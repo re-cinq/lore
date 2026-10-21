@@ -11,7 +11,6 @@ import {
   BACKLOG_LABEL_SEED,
 } from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
-import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import {
@@ -19,8 +18,6 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { openFloorLoopRun } from "@re-cinq/lore-shared/backlog/floor-loop.js";
-import { isSettledTask } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
-import { implementationLoopBranch } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -34,9 +31,9 @@ import {
   type Ticket,
 } from "./backlog-schema.js";
 import {
-  fetchRunContext,
-  fillFromFloor,
+  guardsIssue,
   isAwaitingMerge,
+  isCurrentTask,
   LOOP_TASK_COLUMNS,
   taskTicket,
   waitingTicket,
@@ -44,6 +41,7 @@ import {
   type LoopTaskRow,
   type NodeRow,
 } from "./backlog-ticket.js";
+import { fetchRunContext, fillFromFloor } from "./backlog-run-context.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
 import { readIssues, type BacklogIssues } from "./backlog-issues.js";
@@ -209,7 +207,7 @@ async function readRunIndex(
 }
 
 interface BacklogBuckets {
-  current: Ticket | null;
+  current: Ticket[];
   next: Ticket[];
   parked: Ticket[];
   recent: Ticket[];
@@ -217,59 +215,44 @@ interface BacklogBuckets {
 }
 
 function projectBacklog(state: BacklogState): BacklogBuckets {
-  const currentRow = currentRowOf(state.taskRows);
+  const currentRows = currentTaskRows(state);
+  const currentIds = new Set(currentRows.map((t) => t.id));
   const parkedIssues = heldBacklog(state.openIssues);
   const parkedIssueNumbers = new Set(parkedIssues.map((issue) => issue.number));
 
   return {
-    current: currentTicket(state, currentRow),
+    current: currentRows
+      .map((t) => taskTicket(t, state))
+      .filter((t): t is Ticket => t !== null),
     next: nextTickets(state),
     parked: parkedIssues.map((issue) => waitingTicket(issue, "parked", state)),
-    recent: recentTickets(state, currentRow, parkedIssueNumbers),
-    awaiting_merge: awaitingMergeTickets(state, currentRow),
+    recent: recentTickets(state, currentIds, parkedIssueNumbers),
+    awaiting_merge: awaitingMergeTickets(state, currentIds),
   };
 }
 
-/** The one task in flight, if any — a task is "in flight" by its own open status, not by whether a run claims it. */
-function currentRowOf(
-  taskRows: readonly LoopTaskRow[],
-): LoopTaskRow | undefined {
-  return taskRows.find((t) =>
-    (OPEN_TASK_STATES as readonly string[]).includes(t.status),
-  );
-}
-
-/** The ticket being worked right now, if any. */
-function currentTicket(
-  state: BacklogState,
-  currentRow: LoopTaskRow | undefined,
-): Ticket | null {
-  return currentRow ? taskTicket(currentRow, state) : null;
+/** Every task being worked right now — the loop's own pick, and any ticket a human revived by hand. More than one can be true at once. */
+function currentTaskRows(state: BacklogState): LoopTaskRow[] {
+  return state.taskRows.filter((t) => isCurrentTask(t, state.runByTask));
 }
 
 /** A settled ticket whose loop branch still has an open pull request. Its own bucket, uncapped, so a ticket a human has not merged yet stays visible no matter how much other work settles behind it — `recentTickets` would otherwise push it off after `RECENT_LIMIT` newer tasks settle. */
 function awaitingMergeTickets(
   state: BacklogState,
-  currentRow: unknown,
+  currentIds: ReadonlySet<string>,
 ): Ticket[] {
-  return settledTaskRows(state, currentRow)
+  return settledTaskRows(state, currentIds)
     .filter((t) => isAwaitingMerge(t, state.openPrBranches))
     .map((t) => taskTicket(t, state))
     .filter((t): t is Ticket => t !== null);
 }
 
-/** What is queued behind the current work. An issue a task still holds is EXCLUDED — in flight, or settled with its pull request still open, the driver's own rule (`taskHoldingTicket`) — and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
+/** What is queued behind the current work. An issue a task still holds is EXCLUDED, and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
 function nextTickets(state: BacklogState): Ticket[] {
-  const { taskRows, openIssues, openPrBranches } = state;
+  const { taskRows, openIssues, runByTask, openPrBranches } = state;
   const guardedIssues = new Set(
     taskRows
-      .filter((t) => !["failed", "cancelled"].includes(t.status))
-      .filter(
-        (t) =>
-          !isSettledTask(t.status) ||
-          (t.issue_number !== null &&
-            openPrBranches.has(implementationLoopBranch(t.issue_number))),
-      )
+      .filter((t) => guardsIssue(t, runByTask, openPrBranches))
       .map((t) => t.issue_number),
   );
 
@@ -278,13 +261,13 @@ function nextTickets(state: BacklogState): Ticket[] {
     .map((issue) => waitingTicket(issue, "queued", state));
 }
 
-/** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. A ticket still awaiting a merge lives in its own uncapped bucket instead (`awaitingMergeTickets`), so it is excluded here to avoid showing twice. A ticket still parked (its issue carries `lore:blocked`) is excluded too — Parked wins, so a failed task whose issue got blocked doesn't show in both buckets at once. */
+/** Settled work, newest first and capped. Any currently-worked task (the loop's pick, or a by-hand revival) is excluded by id rather than by status, so it does not appear twice. A ticket still awaiting a merge lives in its own uncapped bucket instead (`awaitingMergeTickets`), so it is excluded here to avoid showing twice. A ticket still parked (its issue carries `lore:blocked`) is excluded too — Parked wins, so a failed task whose issue got blocked doesn't show in both buckets at once. */
 function recentTickets(
   state: BacklogState,
-  currentRow: unknown,
+  currentIds: ReadonlySet<string>,
   parkedIssueNumbers: ReadonlySet<number>,
 ): Ticket[] {
-  return settledTaskRows(state, currentRow)
+  return settledTaskRows(state, currentIds)
     .filter((t) => !isAwaitingMerge(t, state.openPrBranches))
     .filter((t) => !parkedIssueNumbers.has(t.issue_number ?? -1))
     .slice(0, RECENT_LIMIT)
@@ -292,16 +275,12 @@ function recentTickets(
     .filter((t): t is Ticket => t !== null);
 }
 
-/** Every task past the open states, the current ticket excluded by identity. Shared ordering for `recentTickets` and `awaitingMergeTickets`. */
+/** Every task not currently being worked — `currentIds` already covers every open-status task and every by-hand revival, so excluding by id alone is enough. Shared ordering for `recentTickets` and `awaitingMergeTickets`. */
 function settledTaskRows(
   state: BacklogState,
-  currentRow: unknown,
+  currentIds: ReadonlySet<string>,
 ): LoopTaskRow[] {
-  const settled = (t: LoopTaskRow) =>
-    t !== currentRow &&
-    !(OPEN_TASK_STATES as readonly string[]).includes(t.status);
-
-  return state.taskRows.filter(settled);
+  return state.taskRows.filter((t) => !currentIds.has(t.id));
 }
 
 async function serveToggleBacklog(
