@@ -121,6 +121,7 @@ export function visitToStationRun(
     ...visitBagOf(visit, run),
     commitSha: null,
     requestedBy: visit.requestedBy,
+    billingMode: null,
     startedAt: new Date(visit.openedAt),
     finishedAt: visit.finishedAt ? new Date(visit.finishedAt) : null,
   };

@@ -15,6 +15,7 @@
 - [x] Add `billingMode` property to `StationRunStartInput`.
 - [x] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
 - [x] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
+- [x] Fix TypeScript compilation errors: `visitToStationRun` in `floor-run-mapping.ts` missing `billingMode`, acceptance test imports using wrong relative paths, fixture objects missing `billingMode`.
 
 ## Out of scope
 

@@ -19,6 +19,7 @@ const tableVisit: StationRunRecord = {
   input: null,
   commitSha: null,
   requestedBy: null,
+  billingMode: null,
   startedAt: new Date("2026-10-07T10:00:00Z"),
   finishedAt: null,
 };

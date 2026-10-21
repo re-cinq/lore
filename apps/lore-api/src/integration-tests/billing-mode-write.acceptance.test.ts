@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
-import { PgAssemblyRuns } from "../../../../libs/shared/src/outbound/project/assembly-runs/assembly-runs-pg.js";
-import { PgUsage } from "../../../../libs/shared/src/outbound/project/usage/usage-pg.js";
+import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { buildServer } from "../app/build-server.js";
 import type { Server } from "@hapi/hapi";
 
