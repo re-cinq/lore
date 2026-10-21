@@ -4,17 +4,16 @@ import { PgAssemblyRuns } from "../../../../libs/shared/src/outbound/project/ass
 import { PgUsage } from "../../../../libs/shared/src/outbound/project/usage/usage-pg.js";
 import { buildServer } from "../app/build-server.js";
 import type { Server } from "@hapi/hapi";
-import crypto from "crypto";
 
 const TOKEN = "test-billing-mode-token";
+const RUN_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 describe("Billing mode write path", () => {
   let pool: pg.Pool;
   let server: Server;
-  let runId: string;
+  const runId = RUN_ID;
 
   beforeAll(async () => {
-    runId = crypto.randomUUID();
     process.env.LORE_INGEST_TOKEN = TOKEN;
     pool = new pg.Pool({
       host: process.env.LORE_DB_HOST || "localhost",

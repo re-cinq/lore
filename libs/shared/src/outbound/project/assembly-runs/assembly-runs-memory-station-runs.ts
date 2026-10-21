@@ -89,10 +89,6 @@ function isSameVisit(
   );
 }
 
-function nullOr<T>(val: T | null | undefined): T | null {
-  return val ?? null;
-}
-
 /** A seed row in the port's spelling: pre-flip seeds omit the claim columns, so they read with the push-era defaults (running, no claim, no tags). */
 function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
   return {
@@ -104,6 +100,10 @@ function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
     requestedBy: nullOr(node.requestedBy),
     billingMode: nullOr(node.billingMode),
   };
+}
+
+function nullOr<T>(value: T | null | undefined): T | null {
+  return value ?? null;
 }
 
 /** In-memory station-run (node-level) rows for one InMemoryAssemblyRuns instance — the "which pod ran which node, claimed by which cluster" half of the double, split out from the assembly-run (line-level) half. */
