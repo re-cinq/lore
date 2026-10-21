@@ -26,6 +26,8 @@ export interface SeedAssemblyLineNode {
   commitSha: string | null;
   /** Optional (older test seeds); reads as null — the walk launched it. */
   requestedBy?: string | null;
+  /** Optional (pre-migration seeds); reads as null. */
+  billingMode?: string | null;
   startedAt: Date;
   finishedAt: Date | null;
 }
@@ -56,6 +58,7 @@ function newNodeRow(
     status: "running",
     requiredTags: [],
     requestedBy: input.requestedBy ?? null,
+    billingMode: input.billingMode ?? null,
     ...emptyNodeOutcome(startedAt),
   };
 }
@@ -91,11 +94,16 @@ function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
   return {
     ...node,
     status: node.status ?? "running",
-    clusterAgentId: node.clusterAgentId ?? null,
+    clusterAgentId: nullOr(node.clusterAgentId),
     requiredTags: node.requiredTags ?? [],
-    claimedAt: node.claimedAt ?? null,
-    requestedBy: node.requestedBy ?? null,
+    claimedAt: nullOr(node.claimedAt),
+    requestedBy: nullOr(node.requestedBy),
+    billingMode: nullOr(node.billingMode),
   };
+}
+
+function nullOr<T>(value: T | null | undefined): T | null {
+  return value ?? null;
 }
 
 /** In-memory station-run (node-level) rows for one InMemoryAssemblyRuns instance — the "which pod ran which node, claimed by which cluster" half of the double, split out from the assembly-run (line-level) half. */

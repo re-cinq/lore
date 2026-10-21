@@ -199,6 +199,25 @@ describe("PgUsage adapter", () => {
     });
   });
 
+  it("includes billing_mode in the llm_calls INSERT, resolved from station_runs via the carried station_run_id", async () => {
+    const { pool, calls } = fakePool([{ correlated: true }]);
+
+    await new PgUsage(pool).logLlmCall({
+      model: "claude-sonnet-4-6",
+      inputTokens: 1,
+      outputTokens: 2,
+      durationMs: 10,
+      carried: {
+        assemblyRunId: "11111111-2222-4333-8444-555555555555",
+        nodeId: "review",
+        iteration: 1,
+        stationRunId: "99999999-2222-4333-8444-555555555555",
+      },
+    });
+
+    expect(calls[0]?.text).toContain("billing_mode");
+  });
+
   it("passes a null id through the routing insert when taskId is null", async () => {
     const { pool, calls } = fakePool();
 

@@ -1,24 +1,22 @@
 # Definition of Done
 
-> re-cinq/lore's override rows for `code-review`, `code-review-recheck` and `code-review-refine` (created from the repo agents page when the model was set to Pro) carry a full copy of the prompt as it was that day, plus the config block. `resolveAgentConfig` (`libs/shared/src/outbound/project/agents/agent-defs-port.ts`) merges per field, project over org, so the copied prompt wins for ever
+> Record the actual billing mode per call so the split is exact rather than inferred
 
-**Strategy: `direct`** — The seam exists in `AgentForm` to prevent writing identical overrides, and in `seedAgentDefaults` to nullify them on boot.
-The red bar is CI's to show. The tests are run by the `web-ui` and `lore-api` jobs in the `PR Checks` workflow.
+**Strategy: `direct`** — The write path ingestion exposes a direct seam via `ensureStationRun` and `logLlmCall`. We can assert that the generated `llm_calls` row surfaces the provided `billingMode` in the Spend API. The red bar is CI's to show ("Integration Tests" job).
 
 ## Done when these pass
 
-- [ ] **AgentForm (Acceptance)** — Renders 'inherited from org' for an inherited field and sends it as null when submitting untouched.
-  `apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.acceptance.test.tsx`
-- [ ] **seedAgentDefaults (Acceptance)** — The boot job's database cleanup logic drops previously saved duplicate fields from project overrides.
-  `apps/lore-api/src/integration-tests/agent-defaults-seed.acceptance.test.ts`
+- [ ] **records the billing mode at dispatch and joins it into the cost row** — When `ensureStationRun` receives a `billingMode`, `logLlmCall` propagates it to `pipeline.llm_calls` where the `/spend-window` endpoint correctly surfaces it.
+  `apps/lore-api/src/integration-tests/billing-mode-write.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Change `AgentDefinitionRead` or `listAgents` API to expose inherited fields on the project definition.
-- [x] Make `AgentForm` use inherited field metadata to render the "inherited" notice.
-- [x] Update `agentFormValues` to emit `""` (which `parseAgentForm` maps to `null`) for inherited fields to prevent rewriting them.
-- [x] Update `seedAgentDefaults` to nullify project row fields that are identical to their org row counterparts on startup.
+- [x] Add `billing_mode` column to `pipeline.llm_calls` (or `pipeline.station_runs`) via `ui-helm/migrations/`.
+- [x] Add `billingMode` property to `StationRunStartInput`.
+- [x] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
+- [x] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
+- [x] Fix TypeScript compilation errors: `visitToStationRun` in `floor-run-mapping.ts` missing `billingMode`, acceptance test imports using wrong relative paths, fixture objects missing `billingMode`.
 
 ## Out of scope
 
-- Standalone migration scripts outside the startup sequence.
+- Emitting the credential from the separate `ai-agent-subsystem` repo (the ticket marks this as follow-up work).

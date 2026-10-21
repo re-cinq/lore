@@ -268,6 +268,7 @@ describe("visitToStationRun", () => {
       routeUrl: null,
       commitSha: null,
       requestedBy: "alice",
+      billingMode: null,
       startedAt: new Date("2026-09-30T10:05:00.000Z"),
       finishedAt: null,
     });

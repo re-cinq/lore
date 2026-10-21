@@ -383,7 +383,7 @@ pull, so recovery splits by who holds the claim:
 - Two reported-state lookups make that routing possible without a cluster: a
   station run is found by its Agent CR name, newest row first, and a CR's
   stored pod-log chunks are listed and reassembled by that same name — the key
-  a reader still holds when the Job name is known only to another cluster. ([validated by `assembly-runs.test.ts:1772`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1772), [`assembly-runs.test.ts:1797`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1797), [`pod-logs.test.ts:120`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L120), [`pod-logs.test.ts:134`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L134))
+  a reader still holds when the Job name is known only to another cluster. ([validated by `assembly-runs.test.ts:1772`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1779), [`assembly-runs.test.ts:1797`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1804), [`pod-logs.test.ts:120`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L120), [`pod-logs.test.ts:134`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L134))
 - The per-task token reclaim is a write with the same boundary: the DELETE
   goes to central when any of the task's station runs is visible from here or
   the task has no station run at all (a legacy single-CR task launched

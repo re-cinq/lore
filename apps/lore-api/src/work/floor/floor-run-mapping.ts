@@ -108,19 +108,18 @@ export function visitToStationRun(
   visit: VisitView,
   run: VisitRun,
 ): StationRunRecord {
-  const claimedAt = claimedAtOf(visit);
-
   return {
     ...visitIdentityOf(visit),
     ...podNameOf(visit, run),
     status: stationRunStatusOf(visit),
     clusterAgentId: visit.worker,
     requiredTags: visit.agentSettings?.tags ?? [],
-    claimedAt,
+    claimedAt: claimedAtOf(visit),
     ...visitVerdictOf(visit),
     ...visitBagOf(visit, run),
     commitSha: null,
     requestedBy: visit.requestedBy,
+    billingMode: null,
     startedAt: new Date(visit.openedAt),
     finishedAt: visit.finishedAt ? new Date(visit.finishedAt) : null,
   };

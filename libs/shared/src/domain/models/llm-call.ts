@@ -20,6 +20,8 @@ export const LlmCallSchema = z.object({
   durationMs: z.number(),
   status: LlmCallStatusSchema,
   error: z.string().nullable(),
+  /** Credential type that paid for this call; null for rows predating migration 0111. */
+  billingMode: z.string().nullable(),
   createdAt: z.date().nullable(),
 });
 
@@ -41,6 +43,7 @@ export const LLM_CALL_COLUMNS = {
   durationMs: "duration_ms",
   status: "status",
   error: "error",
+  billingMode: "billing_mode",
   createdAt: "created_at",
 } as const satisfies ColumnMap<LlmCall>;
 

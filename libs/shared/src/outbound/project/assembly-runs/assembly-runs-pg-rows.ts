@@ -67,6 +67,7 @@ export function toNodeRecord(row: {
   input: unknown;
   commit_sha: string | null;
   requested_by?: string | null;
+  billing_mode?: string | null;
   started_at: Date;
   finished_at: Date | null;
 }): StationRunRecord {
@@ -87,6 +88,7 @@ export function toNodeRecord(row: {
       .parse(row.input ?? null),
     commitSha: row.commit_sha,
     requestedBy: row.requested_by ?? null,
+    billingMode: row.billing_mode ?? null,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
   };
