@@ -3,6 +3,10 @@ import { type PodResources } from "@/lib/agents-form";
 
 const KNOWN_IDS = KNOWN_MODELS.map((m) => m.id);
 
+export type AgentWithInheritedFields = AgentDefinition & {
+  inherited_fields?: string[];
+};
+
 export function scopeNote(scope: {
   orgScope: boolean;
   inherited: boolean;
@@ -18,25 +22,43 @@ export function scopeNote(scope: {
   return "This is a project agent for this repo, overriding the organisation default.";
 }
 
-/** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */
 export function agentFormValues(
-  agent: AgentDefinition | null,
+  agent: AgentWithInheritedFields | null,
   { isNew }: { isNew: boolean },
 ) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
+  const promptInherited = !isNew && isPromptInherited(agent);
 
   return {
     name,
     executionMode,
     reviewRequired,
     timeoutMinutes,
-    prompt: isNew || agent?.project_id == null ? "" : (agent.prompt ?? ""),
+    prompt: resolvePrompt(agent, { isNew, promptInherited }),
     promptPlaceholder: resolvePromptPlaceholder(agent),
+    promptInherited,
     ...resolveModelFields(agent),
     inherited: resolveInherited(agent, { isNew }),
     podResources: resolvePodResources(agent),
   };
+}
+
+function isPromptInherited(agent: AgentWithInheritedFields | null): boolean {
+  return !!agent?.inherited_fields?.includes("prompt");
+}
+
+function resolvePrompt(
+  agent: AgentWithInheritedFields | null,
+  { isNew, promptInherited }: { isNew: boolean; promptInherited: boolean },
+): string {
+  const noProjectOverride = agent == null || agent.project_id == null;
+
+  if (isNew || promptInherited || noProjectOverride) {
+    return "";
+  }
+
+  return agent.prompt ?? "";
 }
 
 /** A custom model fills the free-text field and selects the custom option; a known one leaves the field empty and selects itself. */

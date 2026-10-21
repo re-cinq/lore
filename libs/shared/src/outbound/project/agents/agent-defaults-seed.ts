@@ -12,6 +12,7 @@ import {
   type ShippedFields,
 } from "../../../domain/models/agent-definition.js";
 import {
+  NULLIFY_DUPLICATE_PROJECT_FIELDS_SQL,
   SEED_INSERT_SQL,
   SEED_LOCK_SQL,
   SEED_REMEMBER_SQL,
@@ -32,10 +33,10 @@ type OrgRow = ShippedFields & {
 
 type Tx = Pick<PgPool, "query">;
 
-// One transaction under an advisory lock: replicas booting together seed once, and a failed boot leaves the previous rows.
+// Advisory lock ensures a single seeding among concurrent boots; also nullifies project fields matching the org row.
 export async function seedAgentDefaults(
   pool: PgPool,
-  defaults: ResolvedAgentDefinition[],
+  defaults: ResolvedAgentDefinition[] = [],
 ): Promise<SeedResult> {
   return runInTransaction(pool, async (tx) => {
     await tx.query(SEED_LOCK_SQL);
@@ -48,6 +49,8 @@ export async function seedAgentDefaults(
     for (const shipped of defaults) {
       await seedRow(tx, byName.get(shipped.name), shipped, result);
     }
+
+    await tx.query(NULLIFY_DUPLICATE_PROJECT_FIELDS_SQL);
 
     return result;
   });

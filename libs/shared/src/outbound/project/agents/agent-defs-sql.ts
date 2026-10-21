@@ -92,3 +92,20 @@ export const SEED_UPDATE_SQL = `UPDATE lore.agent_definitions
 
 export const SEED_REMEMBER_SQL = `UPDATE lore.agent_definitions SET shipped_default = $2::jsonb
         WHERE name = $1 AND project_id IS NULL`;
+
+// Nullifies project row fields identical to their org row so stale full-copy overrides stop shadowing the default.
+export const NULLIFY_DUPLICATE_PROJECT_FIELDS_SQL = `UPDATE lore.agent_definitions AS p
+     SET model           = CASE WHEN p.model           = o.model           THEN NULL ELSE p.model           END,
+         timeout_minutes = CASE WHEN p.timeout_minutes = o.timeout_minutes THEN NULL ELSE p.timeout_minutes END,
+         prompt          = CASE WHEN p.prompt          = o.prompt          THEN NULL ELSE p.prompt          END,
+         image           = CASE WHEN p.image           = o.image           THEN NULL ELSE p.image           END,
+         config          = CASE WHEN p.config          = o.config          THEN NULL ELSE p.config          END
+    FROM lore.agent_definitions AS o
+   WHERE o.project_id IS NULL
+     AND p.project_id IS NOT NULL
+     AND p.name = o.name
+     AND (   (p.model           IS NOT NULL AND p.model           = o.model)
+          OR (p.timeout_minutes IS NOT NULL AND p.timeout_minutes = o.timeout_minutes)
+          OR (p.prompt          IS NOT NULL AND p.prompt          = o.prompt)
+          OR (p.image           IS NOT NULL AND p.image           = o.image)
+          OR (p.config          IS NOT NULL AND p.config          = o.config))`;

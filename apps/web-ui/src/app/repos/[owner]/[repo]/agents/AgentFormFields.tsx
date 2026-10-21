@@ -160,17 +160,21 @@ interface RunLimitsFieldsProps {
   timeoutMinutes: string | number | undefined;
   prompt: string | undefined;
   promptPlaceholder: string | undefined;
+  promptInherited?: boolean;
 }
 
 /** How long a run may take and what it is told to do. Both fall back to the INHERITED value when left blank — the placeholder says so, because an empty field here means "use the org default", not "no timeout" or "no prompt". */
 export function RunLimitsFields(props: RunLimitsFieldsProps) {
-  const { timeoutMinutes, prompt, promptPlaceholder } = props;
+  const { timeoutMinutes, prompt, promptPlaceholder, promptInherited } = props;
 
   return (
     <>
       <TimeoutField timeoutMinutes={timeoutMinutes} />
 
       <label>Prompt</label>
+      {promptInherited && (
+        <span className="prompt-note">inherited from org</span>
+      )}
       <textarea
         name="prompt"
         rows={6}

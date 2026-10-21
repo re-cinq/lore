@@ -1,8 +1,10 @@
 "use client";
 import { useActionState, useState } from "react";
-import { type AgentDefinition } from "@/lib/agents-mirror";
 import { type AgentFormState } from "@/lib/agents-form";
-import { agentFormValues } from "./agent-form-values";
+import {
+  agentFormValues,
+  type AgentWithInheritedFields,
+} from "./agent-form-values";
 import {
   NameField,
   ModelField,
@@ -22,7 +24,7 @@ export type AgentFormAction = (
 /** Agent create/edit form; org editing forks to project agent (upserts via updateAgent). */
 interface AgentFormProps {
   repo: string;
-  agent: AgentDefinition | null;
+  agent: AgentWithInheritedFields | null;
   action: AgentFormAction;
   isNew: boolean;
   /** Default runner image for placeholder (shows inherited, not prefilled). */
@@ -121,6 +123,7 @@ function ExecutionFields({
         timeoutMinutes={values.timeoutMinutes}
         prompt={values.prompt}
         promptPlaceholder={values.promptPlaceholder}
+        promptInherited={values.promptInherited}
       />
 
       <PodResourceFields podResources={values.podResources} />
