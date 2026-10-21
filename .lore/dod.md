@@ -1,22 +1,23 @@
 # Definition of Done
 
-> Record the actual billing mode per call so the split is exact rather than inferred
+> The web UI MUST provide a "Skills" management page so Organization Admins can manage skills dynamically. It provides options for models, titles, and SKILL.md content.
 
-**Strategy: `direct`** — The write path ingestion exposes a direct seam via `ensureStationRun` and `logLlmCall`. We can assert that the generated `llm_calls` row surfaces the provided `billingMode` in the Spend API. The red bar is CI's to show ("Integration Tests" job).
+**Strategy: `direct`** — The test calls the new SkillsPage component directly to verify its behaviour; the red bar is CI's to show because the test runner requires a workspace install this pod cannot run.
 
 ## Done when these pass
 
-- [ ] **records the billing mode at dispatch and joins it into the cost row** — When `ensureStationRun` receives a `billingMode`, `logLlmCall` propagates it to `pipeline.llm_calls` where the `/spend-window` endpoint correctly surfaces it.
-  `apps/lore-api/src/integration-tests/billing-mode-write.acceptance.test.ts`
+- [ ] **Skills page supports listing, creating, editing, and deleting skills** — validates that the page renders the management interface and responds to CRUD interactions.
+  `apps/web-ui/src/app/skills/page.acceptance.test.tsx`
 
 ## Facets
 
-- [x] Add `billing_mode` column to `pipeline.llm_calls` (or `pipeline.station_runs`) via `ui-helm/migrations/`.
-- [x] Add `billingMode` property to `StationRunStartInput`.
-- [x] Propagate `billingMode` in `PgAssemblyRuns.ensureStationRun` to the database.
-- [x] Ensure `PgUsage.logLlmCall` records `billing_mode` in `llm_calls` at ingest time.
-- [x] Fix TypeScript compilation errors: `visitToStationRun` in `floor-run-mapping.ts` missing `billingMode`, acceptance test imports using wrong relative paths, fixture objects missing `billingMode`.
+- [ ] Scaffold SkillsPage component.
+- [ ] Implement skill list rendering using table.
+- [ ] Implement skill creation form.
+- [ ] Implement skill editing form.
+- [ ] Implement skill deletion action.
 
 ## Out of scope
 
-- Emitting the credential from the separate `ai-agent-subsystem` repo (the ticket marks this as follow-up work).
+- Per-repo and per-developer skill overrides.
+- Multi-file skills support.
