@@ -297,6 +297,111 @@ describe("InMemoryTaskStore dedup reads", () => {
       await store.driftTasksForSpec("a/b", "spec-drift", "specs/x/spec.md"),
     ).toEqual([{ status: "pending", created_at: at(1), issue_number: 7 }]);
   });
+
+  it("findStuckRunning finds only the given type, status running, and past the age threshold", async () => {
+    const now = () => new Date(T0 + 40 * 60_000);
+    const store = new InMemoryTaskStore(
+      [
+        {
+          id: "stuck",
+          target_repo: "a/b",
+          task_type: "implementation-loop",
+          status: "running",
+          issue_number: 1,
+          created_at: at(0),
+          updated_at: at(0),
+        },
+        {
+          id: "fresh",
+          target_repo: "a/b",
+          task_type: "implementation-loop",
+          status: "running",
+          issue_number: 2,
+          created_at: at(39 * 60),
+          updated_at: at(39 * 60),
+        },
+        {
+          id: "wrong-type",
+          target_repo: "a/b",
+          task_type: "onboard",
+          status: "running",
+          created_at: at(0),
+          updated_at: at(0),
+        },
+        {
+          id: "wrong-status",
+          target_repo: "a/b",
+          task_type: "implementation-loop",
+          status: "failed",
+          created_at: at(0),
+          updated_at: at(0),
+        },
+      ],
+      { now },
+    );
+
+    expect(
+      (await store.findStuckRunning("implementation-loop", 35)).map(
+        (t) => t.id,
+      ),
+    ).toEqual(["stuck"]);
+  });
+
+  it("countRecentFailures counts this issue's own reason-matching failures since the cutoff", async () => {
+    const store = new InMemoryTaskStore([
+      {
+        id: "t1",
+        target_repo: "a/b",
+        issue_number: 2016,
+        status: "failed",
+        failure_reason: "no floor run was ever created for this task",
+        created_at: at(10),
+      },
+      {
+        id: "t2",
+        target_repo: "a/b",
+        issue_number: 2016,
+        status: "failed",
+        failure_reason: "no floor run was ever created for this task",
+        created_at: at(5),
+      },
+      {
+        id: "before-cutoff",
+        target_repo: "a/b",
+        issue_number: 2016,
+        status: "failed",
+        failure_reason: "no floor run was ever created for this task",
+        created_at: at(-5),
+      },
+      {
+        id: "different-issue",
+        target_repo: "a/b",
+        issue_number: 9,
+        status: "failed",
+        failure_reason: "no floor run was ever created for this task",
+        created_at: at(10),
+      },
+      {
+        id: "different-failure-reason",
+        target_repo: "a/b",
+        issue_number: 2016,
+        status: "failed",
+        failure_reason: "the run ended failed: 403 Forbidden",
+        created_at: at(10),
+      },
+    ]);
+
+    const since = new Date(T0);
+
+    expect(
+      await store.countRecentFailures(
+        "a/b",
+        2016,
+        "no floor run was ever created",
+        since,
+      ),
+    ).toBe(2);
+  });
 });
 
 describe("InMemoryTaskStore list + events", () => {

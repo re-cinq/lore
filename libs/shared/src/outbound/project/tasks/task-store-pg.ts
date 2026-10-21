@@ -29,6 +29,7 @@ import {
   type TaskListResult,
   type FindOpenLikeInput,
   type DriftTaskRow,
+  type StuckRunningTask,
 } from "./task-store-port.js";
 
 /** TaskStorePort over pipeline.tasks; status updates via transition(). */
@@ -168,6 +169,34 @@ export class PgTaskStore implements TaskStorePort {
     );
 
     return rows as DriftTaskRow[];
+  }
+
+  async findStuckRunning(
+    taskType: string,
+    olderThanMinutes: number,
+  ): Promise<StuckRunningTask[]> {
+    const { rows } = await this.pool.query<StuckRunningTask>(
+      `SELECT id, target_repo, issue_number, created_at, updated_at FROM pipeline.tasks
+       WHERE task_type = $1 AND status = 'running' AND updated_at < now() - ($2 || ' minutes')::interval`,
+      [taskType, olderThanMinutes],
+    );
+
+    return rows as StuckRunningTask[];
+  }
+
+  async countRecentFailures(
+    repo: string,
+    issueNumber: number,
+    reasonPrefix: string,
+    since: Date,
+  ): Promise<number> {
+    const { rows } = await this.pool.query<{ count: string }>(
+      `SELECT count(*) FROM pipeline.tasks
+       WHERE target_repo = $1 AND issue_number = $2 AND status = 'failed' AND failure_reason LIKE $3 AND created_at > $4`,
+      [repo, issueNumber, `${reasonPrefix}%`, since.toISOString()],
+    );
+
+    return Number(rows[0]?.count ?? 0);
   }
 
   private async byStatus(
