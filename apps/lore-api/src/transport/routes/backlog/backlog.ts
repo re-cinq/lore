@@ -218,14 +218,14 @@ interface BacklogBuckets {
 
 function projectBacklog(state: BacklogState): BacklogBuckets {
   const currentRow = currentRowOf(state.taskRows);
+  const parkedIssues = heldBacklog(state.openIssues);
+  const parkedIssueNumbers = new Set(parkedIssues.map((issue) => issue.number));
 
   return {
     current: currentTicket(state, currentRow),
     next: nextTickets(state),
-    parked: heldBacklog(state.openIssues).map((issue) =>
-      waitingTicket(issue, "parked", state),
-    ),
-    recent: recentTickets(state, currentRow),
+    parked: parkedIssues.map((issue) => waitingTicket(issue, "parked", state)),
+    recent: recentTickets(state, currentRow, parkedIssueNumbers),
     awaiting_merge: awaitingMergeTickets(state, currentRow),
   };
 }
@@ -278,10 +278,15 @@ function nextTickets(state: BacklogState): Ticket[] {
     .map((issue) => waitingTicket(issue, "queued", state));
 }
 
-/** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. A ticket still awaiting a merge lives in its own uncapped bucket instead (`awaitingMergeTickets`), so it is excluded here to avoid showing twice. */
-function recentTickets(state: BacklogState, currentRow: unknown): Ticket[] {
+/** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. A ticket still awaiting a merge lives in its own uncapped bucket instead (`awaitingMergeTickets`), so it is excluded here to avoid showing twice. A ticket still parked (its issue carries `lore:blocked`) is excluded too — Parked wins, so a failed task whose issue got blocked doesn't show in both buckets at once. */
+function recentTickets(
+  state: BacklogState,
+  currentRow: unknown,
+  parkedIssueNumbers: ReadonlySet<number>,
+): Ticket[] {
   return settledTaskRows(state, currentRow)
     .filter((t) => !isAwaitingMerge(t, state.openPrBranches))
+    .filter((t) => !parkedIssueNumbers.has(t.issue_number ?? -1))
     .slice(0, RECENT_LIMIT)
     .map((t) => taskTicket(t, state))
     .filter((t): t is Ticket => t !== null);

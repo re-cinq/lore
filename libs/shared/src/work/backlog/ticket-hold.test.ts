@@ -55,7 +55,7 @@ describe("ticketHold", () => {
       kind: "parked",
       message:
         "The loop parked this ticket: the definition-of-done step could not express this ticket as acceptance tests: it asks for a decision.",
-      fix: "Fix what it names, then remove the lore:blocked label to re-queue it.",
+      fix: "Fix what it names, then remove the lore:blocked label on the issue — the loop re-queues it on its own next tick, no need to run anything by hand.",
     });
   });
 

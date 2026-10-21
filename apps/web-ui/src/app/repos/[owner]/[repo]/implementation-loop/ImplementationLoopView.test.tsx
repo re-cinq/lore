@@ -339,7 +339,7 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
   const parked = {
     kind: "parked" as const,
     message: "The loop parked this ticket: it asks for a decision.",
-    fix: "Fix what it names, then remove the lore:blocked label to re-queue it.",
+    fix: "Fix what it names, then remove the lore:blocked label on the issue — the loop re-queues it on its own next tick, no need to run anything by hand.",
   };
 
   it("pills the queued #7 waits on blockers with its reason and fix, and leaves #8 bare", () => {
@@ -386,7 +386,7 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     expect(getByTestId("ticket-status").textContent).toEqual("parked");
     expect(queryByTestId("ticket-hold-kind")).toBeNull();
     expect(getByTestId("ticket-hold-7").textContent).toEqual(
-      "The loop parked this ticket: it asks for a decision.Fix: Fix what it names, then remove the lore:blocked label to re-queue it.",
+      "The loop parked this ticket: it asks for a decision.Fix: Fix what it names, then remove the lore:blocked label on the issue — the loop re-queues it on its own next tick, no need to run anything by hand.",
     );
   });
 

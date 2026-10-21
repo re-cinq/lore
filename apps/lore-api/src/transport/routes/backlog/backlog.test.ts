@@ -770,11 +770,22 @@ describe("GET with tickets the loop is not working", () => {
           hold: {
             kind: "parked",
             message: `The loop parked this ticket: ${why}.`,
-            fix: "Fix what it names, then remove the lore:blocked label to re-queue it.",
+            fix: "Fix what it names, then remove the lore:blocked label on the issue — the loop re-queues it on its own next tick, no need to run anything by hand.",
           },
         },
       ],
     });
+  });
+
+  it("does not also list a parked ticket's completed task under recently addressed", async () => {
+    const loop = await read([taskRow(2, "completed", "it asks for a decision")], {
+      list: async () => [
+        openIssue(2, ["priority:high", "lore:blocked"], "2026-08-01T00:00:00Z"),
+      ],
+    });
+
+    expect(loop.parked).toHaveLength(1);
+    expect(loop.recent).toEqual([]);
   });
 
   it("holds the queued #4 on its open blocker #12 and asks GitHub about no ticket without a blocked-by link", async () => {
