@@ -27,6 +27,23 @@ export const FLOOR_RUN: RunView = {
   finishedAt: null,
 };
 
+/** A loop run a by-hand start reopened: the line a backlog ticket's task keys its status on. */
+export const FLOOR_RUN_LOOP: RunView = {
+  id: "run-1",
+  lineId: "implementation-loop",
+  lineHash: "hash-1",
+  repo: "github.com/re-cinq/otto",
+  subjectKey: "tickets",
+  startItems: {
+    repo: { kind: "git", ref: "github.com/re-cinq/otto@main", by: "lore" },
+    task_id: { kind: "value", ref: "task-158", by: "lore" },
+  },
+  createdAt: "2026-09-30T10:00:00.000Z",
+  outcome: "iteration_max",
+  reason: null,
+  finishedAt: "2026-10-19T11:15:55.000Z",
+};
+
 export const FLOOR_VISIT: VisitView = {
   id: "visit-1",
   runId: "run-1",

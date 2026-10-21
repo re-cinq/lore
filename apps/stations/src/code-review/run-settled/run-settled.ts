@@ -8,6 +8,8 @@ import {
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import { REVIEW_RERUN_HINT } from "@re-cinq/lore-shared/review/review-definitions.js";
 
+export { startValueOf } from "@re-cinq/lore-shared/floor/run-start-items.js";
+
 const REVIEWING_LINES = ["code-review", "code-review-recheck"];
 // `iteration_max` is how a run ends when its review agent failed, was retried once and failed again: the retry edge is spent, and that is a broken review like any other.
 const UNFINISHED_OUTCOMES = ["failed", "error", "iteration_max"];
@@ -17,12 +19,6 @@ export function reviewBroke(lineId: string, outcome: string): boolean {
   return (
     REVIEWING_LINES.includes(lineId) && UNFINISHED_OUTCOMES.includes(outcome)
   );
-}
-
-export function startValueOf(run: RunView, name: string): string | undefined {
-  const startItems: Partial<RunView["startItems"]> = run.startItems;
-
-  return startItems[name]?.ref;
 }
 
 export function brokenReviewCheck(
