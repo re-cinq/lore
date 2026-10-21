@@ -963,6 +963,10 @@ is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-r
   agent-startup credentials once the per-call mode is present.
   ([validated by [splits by recorded billing_mode directly instead of inferring from cluster](apps/lore-api/src/transport/routes/analytics/spend-window-billing.acceptance.test.ts#L59), [stops calling the billing source a proxy once the recorded mode is present](apps/web-ui/src/app/spend/SpendBillingSource.acceptance.test.tsx#L7), [queries billing_mode from pipeline.llm_calls and surfaces the recorded split directly](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L565)])
 
+- **FR-19h.2 — Recording billing mode at dispatch** _(added 2026-10-21)_.
+  `ensureStationRun` accepts a `billingMode` and persists it in `pipeline.station_runs.billing_mode`; `logLlmCall` joins to that row via the resolved `station_run_id` and writes the value into `pipeline.llm_calls.billing_mode`, so the per-call column the read path queries is populated by the write path.
+  ([validated by [includes billing_mode in the llm_calls INSERT, resolved from station_runs via the carried station_run_id](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L202)])
+
 - **FR-19i — What a unit of work costs** _(added 2026-09-22, #2116)_.
   `GET /api/analytics/spend-window` also answers what one ticket, one PR's
   reviews and one node visit cost over the selected window, read from

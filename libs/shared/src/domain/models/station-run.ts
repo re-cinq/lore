@@ -46,6 +46,8 @@ export const StationRunSchema = z.object({
   commitSha: z.string().nullable(),
   /** The person who ran this visit by hand (fork-rerun-from-node FR8); null when the walk launched it. */
   requestedBy: z.string().nullable(),
+  /** Credential type at dispatch (`api` | `subscription`); null for rows predating migration 0111. */
+  billingMode: z.string().nullable(),
   startedAt: z.date(),
   finishedAt: z.date().nullable(),
 });
@@ -69,6 +71,7 @@ export const STATION_RUN_COLUMNS = {
   input: "input",
   commitSha: "commit_sha",
   requestedBy: "requested_by",
+  billingMode: "billing_mode",
   startedAt: "started_at",
   finishedAt: "finished_at",
 } as const satisfies ColumnMap<StationRun>;

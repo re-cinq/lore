@@ -62,6 +62,8 @@ export interface StationRunStartInput {
   input?: StationRunInput;
   /** Who ran this visit by hand; the walk restarts at it (fork-rerun-from-node FR8). */
   requestedBy?: string;
+  /** Credential type at dispatch (`api` | `subscription`); null when unknown. Recorded once — duplicate visits keep the first value. */
+  billingMode?: string | null;
 }
 
 /** Why a visit failed; optional (only "failed" outcomes have one) — avoids a 5th positional arg on every 2-arg caller. */

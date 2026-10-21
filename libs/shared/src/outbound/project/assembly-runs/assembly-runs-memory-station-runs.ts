@@ -26,6 +26,8 @@ export interface SeedAssemblyLineNode {
   commitSha: string | null;
   /** Optional (older test seeds); reads as null — the walk launched it. */
   requestedBy?: string | null;
+  /** Optional (pre-migration seeds); reads as null. */
+  billingMode?: string | null;
   startedAt: Date;
   finishedAt: Date | null;
 }
@@ -56,6 +58,7 @@ function newNodeRow(
     status: "running",
     requiredTags: [],
     requestedBy: input.requestedBy ?? null,
+    billingMode: input.billingMode ?? null,
     ...emptyNodeOutcome(startedAt),
   };
 }
@@ -95,6 +98,7 @@ function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
     requiredTags: node.requiredTags ?? [],
     claimedAt: node.claimedAt ?? null,
     requestedBy: node.requestedBy ?? null,
+    billingMode: node.billingMode ?? null,
   };
 }
 

@@ -57,9 +57,9 @@ function correlatedResult(rows: { correlated: boolean }[]): boolean {
   return rows[0]?.correlated ?? false;
 }
 
-/** Correlates the call at write time from its Agent CR name; a null CR leaves the row uncorrelated rather than dropping it (#943, #945, #947). */
+/** Correlates the call at write time from its Agent CR name; a null CR leaves the row uncorrelated rather than dropping it (#943, #945, #947). billing_mode is joined from station_runs via the resolved station_run_id so the dispatch-time credential propagates to each cost row. */
 const LOG_CALL_SQL = `INSERT INTO pipeline.llm_calls
-         (task_id, assembly_line_id, station_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error, cache_read_tokens, cache_write_tokens)
+         (task_id, assembly_line_id, station_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error, cache_read_tokens, cache_write_tokens, billing_mode)
        -- A carried identity ($11/$12) is STATED by the producer and wins over both
        -- guesses — the CR-name lateral and the given-id fallback. Whole, on one
        -- predicate: a stated run beside an inferred station run would be a row
@@ -69,7 +69,8 @@ const LOG_CALL_SQL = `INSERT INTO pipeline.llm_calls
                    THEN COALESCE(node.assembly_run_id, al.id) ELSE $11::uuid END,
               CASE WHEN $11::uuid IS NULL
                    THEN node.station_run_id ELSE $12::uuid END,
-              $3, $4, $5, $6, $7, $8, $9, $10, $13, $14
+              $3, $4, $5, $6, $7, $8, $9, $10, $13, $14,
+              bm.billing_mode
          FROM (SELECT $1::uuid AS given, $2::text AS cr) g
          LEFT JOIN pipeline.tasks t ON t.id = g.given
          LEFT JOIN pipeline.assembly_runs al ON al.id = g.given AND t.id IS NULL
@@ -82,6 +83,14 @@ const LOG_CALL_SQL = `INSERT INTO pipeline.llm_calls
             ORDER BY n.id DESC
             LIMIT 1
          ) node ON true
+         LEFT JOIN LATERAL (
+           SELECT sr.billing_mode
+             FROM pipeline.station_runs sr
+            WHERE sr.station_run_id = (
+              CASE WHEN $11::uuid IS NULL THEN node.station_run_id ELSE $12::uuid END
+            )
+            LIMIT 1
+         ) bm ON true
        RETURNING (task_id IS NOT NULL OR assembly_line_id IS NOT NULL) AS correlated`;
 
 /** Postgres UsagePort; single INSERT into pipeline.llm_calls. */

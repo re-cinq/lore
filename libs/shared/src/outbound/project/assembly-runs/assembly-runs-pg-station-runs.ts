@@ -7,12 +7,14 @@ import type {
 } from "./assembly-runs-port.js";
 import { toNodeRecord } from "./assembly-runs-pg-rows.js";
 
-/** DO UPDATE rather than DO NOTHING, so the statement always locks and RETURNS the row — including in the concurrent-duplicate race, where DO NOTHING would return nothing and the caller could not tell a duplicate from a failure. `xmax = 0` is what distinguishes the row this call created from the one it converged on. The input is COALESCEd rather than overwritten: a re-dispatch keeps the input the first one recorded. */
+/** DO UPDATE rather than DO NOTHING, so the statement always locks and RETURNS the row — including in the concurrent-duplicate race, where DO NOTHING would return nothing and the caller could not tell a duplicate from a failure. `xmax = 0` is what distinguishes the row this call created from the one it converged on. The input and billing_mode are COALESCEd rather than overwritten: a re-dispatch keeps what the first writer recorded. */
 const ENSURE_SQL = `INSERT INTO pipeline.station_runs
-       (assembly_run_id, node_id, iteration, agent_cr_name, input, requested_by)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+       (assembly_run_id, node_id, iteration, agent_cr_name, input, requested_by, billing_mode)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
      ON CONFLICT (assembly_run_id, node_id, iteration)
-       DO UPDATE SET input = COALESCE(pipeline.station_runs.input, EXCLUDED.input)
+       DO UPDATE SET
+         input        = COALESCE(pipeline.station_runs.input, EXCLUDED.input),
+         billing_mode = COALESCE(pipeline.station_runs.billing_mode, EXCLUDED.billing_mode)
      RETURNING id, station_run_id, (xmax = 0) AS created`;
 
 export async function ensureStationRun(
@@ -44,6 +46,7 @@ function ensureParams(input: StationRunStartInput): unknown[] {
     input.agentCrName ?? null,
     jsonOrNull(input.input),
     input.requestedBy ?? null,
+    input.billingMode ?? null,
   ];
 }
 
@@ -105,7 +108,7 @@ function finishStationRunFailureFields(
 const STATION_RUN_COLUMNS = `id, station_run_id, assembly_run_id, node_id, iteration, outcome,
             status, cluster_agent_id, required_tags, claimed_at,
             failure_class, failure_detail,
-            agent_cr_name, input, commit_sha, requested_by, started_at, finished_at`;
+            agent_cr_name, input, commit_sha, requested_by, billing_mode, started_at, finished_at`;
 
 export async function listStationRuns(
   pool: PgPool,

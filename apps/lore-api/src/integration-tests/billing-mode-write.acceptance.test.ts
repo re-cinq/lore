@@ -45,7 +45,6 @@ describe("Billing mode write path", () => {
       assemblyRunId: runId,
       nodeId: "test-node",
       iteration: 1,
-      // @ts-expect-error - testing the missing feature
       billingMode: "subscription",
     });
 
