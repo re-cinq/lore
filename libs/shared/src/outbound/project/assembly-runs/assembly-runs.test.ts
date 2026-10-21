@@ -979,6 +979,7 @@ describe("PgAssemblyRuns node-transition primitives", () => {
       "abcd1234-review",
       null,
       null,
+      null,
     ]);
   });
 
@@ -1029,8 +1030,11 @@ describe("PgAssemblyRuns node-transition primitives", () => {
           node_id: "implement",
           iteration: 1,
           outcome: "success",
+          failure_class: null,
+          failure_detail: null,
           agent_cr_name: "abcd1234-implement",
           commit_sha: "sha-1",
+          billing_mode: null,
           started_at: new Date("2026-07-14T00:00:00Z"),
           finished_at: new Date("2026-07-14T00:01:00Z"),
         },
@@ -1051,10 +1055,13 @@ describe("PgAssemblyRuns node-transition primitives", () => {
         requiredTags: [],
         claimedAt: null,
         outcome: "success",
+        failureClass: null,
+        failureDetail: null,
         agentCrName: "abcd1234-implement",
         input: null,
         commitSha: "sha-1",
         requestedBy: null,
+        billingMode: null,
         startedAt: new Date("2026-07-14T00:00:00Z"),
         finishedAt: new Date("2026-07-14T00:01:00Z"),
       },
