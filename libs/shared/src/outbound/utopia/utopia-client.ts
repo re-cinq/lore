@@ -2,7 +2,7 @@
 
 import { enforceTrue } from "../../lib/enforce.js";
 import { wireBody, type PushItem } from "../../domain/utopia/statements.js";
-import type { IngestDocument } from "../../domain/utopia/memory-documents.js";
+import type { IngestDocument } from "../../domain/utopia/memory/memory-documents.js";
 
 /** `GITHUB_ORG` names the base memories and episodes with no onboarded repo are mirrored into, `<org>/memory`. */
 export type UtopiaEnv = Partial<

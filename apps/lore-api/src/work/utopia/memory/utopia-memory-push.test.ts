@@ -12,7 +12,7 @@ import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../outbound/project-boot.js", () => ({
+vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     settings: {
       rawSettings: async () => ({

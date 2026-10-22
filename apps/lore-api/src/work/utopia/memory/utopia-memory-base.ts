@@ -10,21 +10,21 @@ import {
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { IngestDocument } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import type { Pool } from "pg";
-import { projectFor } from "../../outbound/project-boot.js";
-import { utopiaSourceFor } from "../../outbound/utopia-sources.js";
-import { onboardedRepo } from "../../outbound/memory-rows.js";
+import { projectFor } from "../../../outbound/project-boot.js";
+import { utopiaSourceFor } from "../../../outbound/utopia-sources.js";
+import { onboardedRepo } from "../../../outbound/memory-rows.js";
 import {
   memorySourceFor,
   saveMemorySource,
   type MemoryBase,
   type MemoryKind,
-} from "../../outbound/utopia-memory-sources.js";
+} from "../../../outbound/utopia-memory-sources.js";
 import {
   autoSetUpRepo,
   loreSession,
   sharedPerRepo,
-} from "./utopia-auto-setup.js";
-import { repoBaseFor } from "./utopia-mirror.js";
+} from "../utopia-auto-setup.js";
+import { repoBaseFor } from "../utopia-mirror.js";
 
 /** Null on a deployment that names no org: its rows with no onboarded repo are not mirrored. */
 export function orgMemoryBase(env: UtopiaEnv = process.env): MemoryBase | null {

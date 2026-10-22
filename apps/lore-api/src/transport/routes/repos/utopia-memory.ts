@@ -9,8 +9,8 @@ import { withPool } from "../with-pool.js";
 import {
   memoryWalkDepsFor,
   mirrorMemoryBacklog,
-} from "../../../work/utopia/utopia-memory.js";
-import { orgMemoryBase } from "../../../work/utopia/utopia-memory-base.js";
+} from "../../../work/utopia/memory/utopia-memory.js";
+import { orgMemoryBase } from "../../../work/utopia/memory/utopia-memory-base.js";
 import { utopiaWalkRoute } from "./utopia-walk-route.js";
 import { enforceUtopiaConfigured } from "./utopia-setup.js";
 

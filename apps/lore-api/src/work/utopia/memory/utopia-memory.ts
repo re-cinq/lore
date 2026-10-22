@@ -16,13 +16,13 @@ import {
   saveMemoryCursor,
   type MemoryBase,
   type MemoryKind,
-} from "../../outbound/utopia-memory-sources.js";
+} from "../../../outbound/utopia-memory-sources.js";
 import {
   episodeRowsAfter,
   memoryRowsAfter,
   type CursoredDocument,
-} from "../../outbound/memory-rows.js";
-import { queuedPerRepo, walkInOrder } from "./cursor-walk.js";
+} from "../../../outbound/memory-rows.js";
+import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
 import { memorySourceOf, type MemorySource } from "./utopia-memory-base.js";
 
 export type { MemoryKind, CursoredDocument };

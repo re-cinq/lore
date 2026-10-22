@@ -34,7 +34,7 @@ import {
   memoryWalkDepsFor,
   mirrorMemoryBacklog,
   type MemoryWalkDeps,
-} from "./utopia-memory.js";
+} from "./memory/utopia-memory.js";
 import { repoMirrorDeps, type MirroredDoc } from "./utopia-mirror.js";
 
 export interface BackfillFiles {

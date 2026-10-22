@@ -14,7 +14,7 @@ import type { Pool } from "pg";
 import {
   memoriesNamed,
   type StoredMemory,
-} from "../../outbound/memory-rows.js";
+} from "../../../outbound/memory-rows.js";
 import { memoryBaseOf, pushToBase } from "./utopia-memory-base.js";
 
 /** The memory as Lore's write or delete named it: a repo's memory by repo and key, an agent's own by agent and key. */

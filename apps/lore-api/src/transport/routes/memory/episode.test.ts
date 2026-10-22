@@ -10,7 +10,7 @@ import {
 vi.mock("@re-cinq/lore-server-core/features/memory/facts.js", () => ({
   extractFactsFromEpisode: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("../../../work/utopia/utopia-memory-push.js", () => ({
+vi.mock("../../../work/utopia/memory/utopia-memory-push.js", () => ({
   mirrorEpisode: vi.fn(),
 }));
 vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({
@@ -27,7 +27,7 @@ vi.mock("@re-cinq/lore-shared", () => ({
 
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
-import { mirrorEpisode } from "../../../work/utopia/utopia-memory-push.js";
+import { mirrorEpisode } from "../../../work/utopia/memory/utopia-memory-push.js";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;

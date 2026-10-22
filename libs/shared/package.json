@@ -223,8 +223,8 @@
       "default": "./dist/domain/utopia/statements.js"
     },
     "./utopia/memory-documents.js": {
-      "types": "./dist/domain/utopia/memory-documents.d.ts",
-      "default": "./dist/domain/utopia/memory-documents.js"
+      "types": "./dist/domain/utopia/memory/memory-documents.d.ts",
+      "default": "./dist/domain/utopia/memory/memory-documents.js"
     },
     "./utopia/backfill-summary.js": {
       "types": "./dist/domain/utopia/backfill-summary.d.ts",

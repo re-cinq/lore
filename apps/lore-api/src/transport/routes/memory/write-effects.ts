@@ -6,7 +6,7 @@ import { isMemoryDbAvailable } from "@re-cinq/lore-server-core/features/memory/m
 import {
   mirrorEpisode,
   mirrorMemory,
-} from "../../../work/utopia/utopia-memory-push.js";
+} from "../../../work/utopia/memory/utopia-memory-push.js";
 import { mirrorQuietly } from "../../../work/utopia/mirror-quietly.js";
 import { extractFactsForMemory } from "../../../work/memory/fact-extraction.js";
 
