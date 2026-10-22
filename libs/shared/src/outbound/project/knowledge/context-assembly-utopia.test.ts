@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { docStatementItems } from "../../../domain/utopia/doc-statements.js";
+import { docStatementItems } from "../../../domain/utopia/docs/doc-statements.js";
 import { wireBody } from "../../../domain/utopia/statements.js";
 import type {
   SearchHit,

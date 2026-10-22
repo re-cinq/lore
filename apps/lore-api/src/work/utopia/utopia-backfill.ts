@@ -23,7 +23,7 @@ import {
   docsToMirror,
   INGEST_MANIFEST_PATH,
   type DocToMirror,
-} from "./ingested-docs.js";
+} from "./docs/ingested-docs.js";
 import {
   mirrorBranchCommits,
   type CommitHistoryDeps,
@@ -35,7 +35,8 @@ import {
   mirrorMemoryBacklog,
   type MemoryWalkDeps,
 } from "./memory/utopia-memory.js";
-import { repoMirrorDeps, type MirroredDoc } from "./utopia-mirror.js";
+import { repoMirrorDeps } from "./repo-mirror.js";
+import type { MirroredDoc } from "./docs/mirror-doc.js";
 
 export interface BackfillFiles {
   defaultBranch(): Promise<string>;

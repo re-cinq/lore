@@ -24,7 +24,7 @@ import {
   loreSession,
   sharedPerRepo,
 } from "../utopia-auto-setup.js";
-import { repoBaseFor } from "../utopia-mirror.js";
+import { repoBaseFor } from "../repo-mirror.js";
 
 /** Null on a deployment that names no org: its rows with no onboarded repo are not mirrored. */
 export function orgMemoryBase(env: UtopiaEnv = process.env): MemoryBase | null {

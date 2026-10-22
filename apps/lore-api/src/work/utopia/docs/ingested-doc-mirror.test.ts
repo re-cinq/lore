@@ -3,7 +3,7 @@ import {
   ingestedDocMirror,
   type IngestedDocMirrorDeps,
 } from "./ingested-doc-mirror.js";
-import type { MirroredDoc } from "./utopia-mirror.js";
+import type { MirroredDoc } from "./mirror-doc.js";
 
 const COMMIT = "abc123";
 

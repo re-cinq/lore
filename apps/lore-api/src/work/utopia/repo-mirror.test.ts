@@ -11,7 +11,7 @@ import {
 } from "@opentelemetry/sdk-metrics";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
-import { mirrorSource, sourceToMirror } from "./utopia-mirror.js";
+import { mirrorSource, sourceToMirror } from "./repo-mirror.js";
 
 const ENV = { UTOPIA_API_URL: "http://utopia.test" };
 const SETTINGS = {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import { backfillRepo, type BackfillFiles } from "./utopia-backfill.js";
-import { docsToMirror } from "./ingested-docs.js";
-import type { MirroredDoc } from "./utopia-mirror.js";
+import { docsToMirror } from "./docs/ingested-docs.js";
+import type { MirroredDoc } from "./docs/mirror-doc.js";
 
 const TREE = [
   "specs/a/spec.md",

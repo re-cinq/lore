@@ -4,15 +4,15 @@ import {
   docStatementItems,
   untitledTestPaths,
   type DocStatementsInput,
-} from "../../domain/utopia/doc-statements.js";
-import { mapWithLimit } from "../../lib/concurrency/map-with-limit.js";
-import { tombstone } from "../../domain/utopia/statements.js";
+} from "../../../domain/utopia/docs/doc-statements.js";
+import { mapWithLimit } from "../../../lib/concurrency/map-with-limit.js";
+import { tombstone } from "../../../domain/utopia/statements.js";
 import {
   CONCURRENCY,
   pushItems,
   type MirrorDeps,
   type MirrorOutcome,
-} from "./push-items.js";
+} from "../push-items.js";
 
 /** A document's pushes, and where a link whose label is no title reads its test file at the commit; without it such a link names no test. */
 export interface DocMirrorDeps extends MirrorDeps {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { TaggedRunResult, TestDescriptor } from "../../test-report.js";
-import { docStatementItems } from "../doc-statements.js";
+import { docStatementItems } from "../docs/doc-statements.js";
 import {
   attribute,
   fitsOneItem,

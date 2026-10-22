@@ -6,7 +6,7 @@ import {
   parseIngestPatterns,
   selectIngestFiles,
 } from "@re-cinq/lore-shared";
-import type { MirroredDoc } from "./utopia-mirror.js";
+import type { MirroredDoc } from "./mirror-doc.js";
 
 export interface DocToMirror {
   path: string;

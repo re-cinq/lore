@@ -1,14 +1,14 @@
 // The file ingest's side of the Utopia mirror: a markdown document `POST /api/ingest` stores (README.md, CLAUDE.md, docs/**, runbooks/**, teams/**) is pushed whole, and one it deletes is tombstoned. Specs and ADRs are left to the delta route, which mirrors them already.
 
-import type { LandedFiles } from "../spec-trace/ingest.js";
-import { projectFor } from "../../outbound/project-boot.js";
+import type { LandedFiles } from "../../spec-trace/ingest.js";
+import { projectFor } from "../../../outbound/project-boot.js";
 import { docsToMirror, INGEST_MANIFEST_PATH } from "./ingested-docs.js";
-import { mirrorQuietly } from "./mirror-quietly.js";
+import { mirrorQuietly } from "../mirror-quietly.js";
 import {
   mirrorDocFor,
   unmirrorDocFor,
   type MirroredDoc,
-} from "./utopia-mirror.js";
+} from "./mirror-doc.js";
 
 export interface IngestedDocMirrorDeps {
   manifest(commit: string): Promise<string | null>;

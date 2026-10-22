@@ -1,7 +1,8 @@
-// The ingest-side door to the Utopia mirror: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has every spec, ADR, other markdown document, source file and default-branch test run it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
+// What every ingest-side door to the Utopia mirror shares: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has what it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { DocMirrorDeps } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import { LORE_ONTOLOGY_VERSION } from "@re-cinq/lore-shared/lore-ontology.js";
 import {
   UtopiaMirrorSettingsSchema,
@@ -16,25 +17,9 @@ import {
   type UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import {
-  mirrorDocument,
-  tombstoneDocument,
-  type DocMirrorDeps,
-} from "@re-cinq/lore-shared/utopia/mirror-document.js";
-import {
   mirrorFailure,
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/push-items.js";
-import {
-  mirrorTestReport,
-  tombstoneTestFiles,
-} from "@re-cinq/lore-shared/utopia/mirror-test-report.js";
-import {
-  mirrorCodeFiles,
-  tombstoneCodeFiles,
-  type CodeDeltaInput,
-} from "@re-cinq/lore-shared/utopia/mirror-code.js";
-import type { MirroredDocKind } from "@re-cinq/lore-shared/utopia/doc-statements.js";
-import type { TestReportInput } from "@re-cinq/lore-shared/utopia/test-report-statements.js";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -43,22 +28,6 @@ import {
   type StoredUtopiaSource,
 } from "../../outbound/utopia-sources.js";
 import { autoSetUpRepo, autoUpgradeOntology } from "./utopia-auto-setup.js";
-
-export interface MirroredDoc {
-  path: string;
-  content: string;
-  kind: MirroredDocKind;
-  commit: string;
-}
-
-/** A test report as the delta route received it, and the commit the delta names. */
-export interface MirroredReport {
-  report: unknown;
-  commit: string;
-}
-
-/** A code delta's files as the delta route received them, and the commit the delta names. */
-export type MirroredCode = Omit<CodeDeltaInput, "repo">;
 
 /** The source the repo's documents are pushed to, or null when the deployment has no Utopia, the repo was never set up there, or the stored key belongs to another source than the one its settings name. */
 export function mirrorSource(
@@ -83,86 +52,7 @@ function namedSourceId(
   return parsed.success ? parsed.data.source_id : null;
 }
 
-export async function mirrorDocFor(
-  repo: string,
-  doc: MirroredDoc,
-): Promise<void> {
-  const deps = await mirrorDepsFor(repo);
-
-  if (deps) {
-    settled(await mirrorDocument(deps, { repo, ...doc }));
-  }
-}
-
-export async function unmirrorDocFor(
-  repo: string,
-  path: string,
-): Promise<void> {
-  const deps = await mirrorDepsFor(repo);
-
-  if (deps) {
-    settled(await tombstoneDocument(deps, { repo, path }));
-  }
-}
-
-export async function mirrorReportFor(
-  repo: string,
-  { report, commit }: MirroredReport,
-): Promise<void> {
-  const run = { repo, commit, ...reportRuns(report) };
-  const deps = run.tests.length > 0 ? await mirrorDepsFor(repo) : null;
-
-  if (deps) {
-    settled(await mirrorTestReport(deps, run));
-  }
-}
-
-export async function unmirrorTestFilesFor(
-  repo: string,
-  paths: string[],
-): Promise<void> {
-  const deps = await mirrorDepsFor(repo);
-
-  if (deps) {
-    settled(await tombstoneTestFiles(deps, paths));
-  }
-}
-
-export async function mirrorCodeFor(
-  repo: string,
-  code: MirroredCode,
-): Promise<void> {
-  const deps = await mirrorDepsFor(repo);
-
-  if (deps) {
-    settled(await mirrorCodeFiles(deps, { repo, ...code }));
-  }
-}
-
-export async function unmirrorCodeFor(
-  repo: string,
-  paths: string[],
-): Promise<void> {
-  const deps = await mirrorDepsFor(repo);
-
-  if (deps) {
-    settled(await tombstoneCodeFiles(deps, paths));
-  }
-}
-
-/** The descriptors and results of a report the route took as unknown; a report missing either list mirrors without it. */
-function reportRuns(
-  report: unknown,
-): Pick<TestReportInput, "tests" | "results"> {
-  const { tests, results } = (report ?? {}) as Record<string, unknown>;
-
-  return {
-    tests: Array.isArray(tests) ? tests : [],
-    results: Array.isArray(results) ? results : [],
-  };
-}
-
-function mirrorDepsFor(repo: string): Promise<DocMirrorDeps | null> {
+export function mirrorDepsFor(repo: string): Promise<DocMirrorDeps | null> {
   return utopiaConfigured()
     ? repoMirrorDeps(getPool(), repo)
     : Promise.resolve(null);
@@ -248,7 +138,7 @@ function ontologyUpgradable(
 }
 
 /** One failed item fails the document, so the ingest logs and counts it. */
-function settled(outcome: MirrorOutcome): void {
+export function settled(outcome: MirrorOutcome): void {
   const failure = mirrorFailure(outcome);
 
   enforceTrue(failure === null, Error, failure ?? "");

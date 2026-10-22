@@ -5,7 +5,7 @@ import {
   fitsOneItem,
   relation,
   type StatementItem,
-} from "./statements.js";
+} from "../statements.js";
 
 const SPEC = [
   "# Feature Specification: Mirror",

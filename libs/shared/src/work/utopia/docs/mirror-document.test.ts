@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { enforceTrue } from "../../lib/enforce.js";
+import { enforceTrue } from "../../../lib/enforce.js";
 import { mirrorDocument, tombstoneDocument } from "./mirror-document.js";
-import type { PushItem } from "../../domain/utopia/statements.js";
-import type { PushAction } from "../../outbound/utopia/utopia-client.js";
+import type { PushItem } from "../../../domain/utopia/statements.js";
+import type { PushAction } from "../../../outbound/utopia/utopia-client.js";
 
 const SPEC = [
   "## Chain",

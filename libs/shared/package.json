@@ -231,8 +231,8 @@
       "default": "./dist/domain/utopia/backfill-summary.js"
     },
     "./utopia/doc-statements.js": {
-      "types": "./dist/domain/utopia/doc-statements.d.ts",
-      "default": "./dist/domain/utopia/doc-statements.js"
+      "types": "./dist/domain/utopia/docs/doc-statements.d.ts",
+      "default": "./dist/domain/utopia/docs/doc-statements.js"
     },
     "./utopia/test-report-statements.js": {
       "types": "./dist/domain/utopia/coverage/test-report-statements.d.ts",
@@ -251,8 +251,8 @@
       "default": "./dist/domain/utopia/read-shapes.js"
     },
     "./utopia/mirror-document.js": {
-      "types": "./dist/work/utopia/mirror-document.d.ts",
-      "default": "./dist/work/utopia/mirror-document.js"
+      "types": "./dist/work/utopia/docs/mirror-document.d.ts",
+      "default": "./dist/work/utopia/docs/mirror-document.js"
     },
     "./utopia/push-items.js": {
       "types": "./dist/work/utopia/push-items.d.ts",

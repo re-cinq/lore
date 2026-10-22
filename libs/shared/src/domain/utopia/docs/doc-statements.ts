@@ -6,24 +6,24 @@ import {
   resolveLinkPath,
   trailingLinkHrefs,
   type SpecLinkRef,
-} from "../spec-link-parser.js";
-import type { Statement as DocStatement } from "../spec-segment.js";
-import { stripCoverageLinks } from "../spec-link-strip.js";
-import { testTitleAt } from "../spec-trace/test-declarations.js";
+} from "../../spec-link-parser.js";
+import type { Statement as DocStatement } from "../../spec-segment.js";
+import { stripCoverageLinks } from "../../spec-link-strip.js";
+import { testTitleAt } from "../../spec-trace/test-declarations.js";
 import {
   cutText,
   joinFragments,
   splitToFit,
   type Fragment,
-} from "./fragments.js";
-import { blobUrl, fileName, statementName, testName } from "./names.js";
+} from "../fragments.js";
+import { blobUrl, fileName, statementName, testName } from "../names.js";
 import {
   attribute,
   relation,
   type Entity,
   type Statement,
   type StatementItem,
-} from "./statements.js";
+} from "../statements.js";
 
 export interface DocStatementsInput {
   repo: string;
