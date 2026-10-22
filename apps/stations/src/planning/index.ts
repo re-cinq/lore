@@ -9,8 +9,6 @@ import { startSpecFindingsStation } from "./spec-findings/station.js";
 import { startSplitSectionsStation } from "./split-sections/station.js";
 import { startQaQuestionsStation } from "./qa-questions/station.js";
 import { startQaGateStation } from "./qa-gate/station.js";
-import { startFileIssuesStation } from "./file-issues/station.js";
-import { startIssueCoverageStation } from "./issue-coverage/station.js";
 
 export function startPlanningStations(): RunningStation[] {
   return [
@@ -23,7 +21,5 @@ export function startPlanningStations(): RunningStation[] {
     startQaQuestionsStation(),
     startQaGateStation(),
     startOpenSpecPrStation(),
-    startFileIssuesStation(),
-    startIssueCoverageStation(),
   ];
 }

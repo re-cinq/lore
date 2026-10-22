@@ -12,11 +12,6 @@ line:
     plan_id:
       kind: value
       subject: true
-    # The repository at its default branch. What runs after the spec PR merges
-    # reads the merged spec, and the spec branch is gone by then: a git item
-    # carrying no sha clones the branch as it stands when the visit opens.
-    base:
-      kind: git
   nodes:
     - id: analyze
       station: plan-analyze
@@ -130,22 +125,6 @@ line:
     - id: merged
       station: spec-pr-merged
       route: "{args.pr_url}"
-    # Reads the merged spec, so it clones the base branch: after the merge the
-    # spec branch may be deleted, and what it held is on the base anyway.
-    - id: decompose
-      station: feature-decompose
-      bind:
-        target: base
-    - id: issues
-      station: issues
-      bind:
-        target: base
-    # Counts the merged spec's testable statements no task names, at the commit
-    # decompose read. See the issue-coverage station.
-    - id: issue-coverage
-      station: issue-coverage
-      bind:
-        target: base
     - id: done
     - id: failed
   edges:
@@ -340,7 +319,7 @@ line:
       to: failed
       on: failed
     - from: merged
-      to: decompose
+      to: done
       on: success
     # A reviewer asked for changes on the spec PR — the same shape as the spec
     # analysis having a question: an objection to a plan a PERSON accepted,
@@ -359,48 +338,6 @@ line:
     # way.
     - from: merged
       to: done
-      on: failed
-    - from: decompose
-      to: issues
-      on: success
-    # decompose has no upstream NODE — its input is a spec a human merged. A spec it
-    # cannot break down is a question for the author, not something to re-run, so
-    # the line ends rather than looping, and as failed: no issue was filed.
-    - from: decompose
-      to: failed
-      on: changes_requested
-    - from: decompose
-      to: decompose
-      on: failed
-      iteration_max: 1
-    - from: issues
-      to: issue-coverage
-      on: success
-    # The station is the first thing to read the decomposition as DATA, so it is
-    # where a label the repo does not have, or a story with no tasks, actually
-    # shows. One correction, then the budget is exhausted and the line fails.
-    - from: issues
-      to: decompose
-      on: changes_requested
-      iteration_max: 1
-    - from: issues
-      to: failed
-      on: failed
-    - from: issue-coverage
-      to: done
-      on: success
-    # Spec statements no task names go back to decompose, and only those; the
-    # issues station then refiles what it filed before and adds the new tasks.
-    # The station itself stops asking after COVERAGE_ROUNDS handbacks and lets
-    # the run settle with the gaps listed on the story issue, because a spent
-    # budget halts the whole run: this iteration_max is the backstop it never
-    # reaches.
-    - from: issue-coverage
-      to: decompose
-      on: changes_requested
-      iteration_max: 3
-    - from: issue-coverage
-      to: failed
       on: failed
 stations:
   plan-analyze:
@@ -891,12 +828,8 @@ stations:
       # Produced only when the spec plan names a spec.
       - name: spec_path
         kind: value
-      # Emptied on every spec PR, so the decompose after its merge starts a
-      # fresh decomposition rather than a coverage round of an earlier one.
-      - name: issue_coverage
-        kind: file
   spec-pr-merged:
-    description: Waits on the spec pull request on GitHub. A merge moves on to splitting the spec into tasks, and a request for changes goes back to the plan's people.
+    description: Waits on the spec pull request on GitHub. A merge ends the plan's run, and the spec-tickets line files the spec's tickets; a request for changes goes back to the plan's people.
     kind: human
     outcomes:
       - success
@@ -908,117 +841,6 @@ stations:
       - failed
     needs: []
     produces: []
-  feature-decompose:
-    description: An AI agent breaks the merged spec into stories and tasks the implementation loop can build, without changing or questioning the spec.
-    kind: agent
-    agent_definition: feature-decompose
-    outcomes:
-      - success
-      - changes_requested
-      - failed
-    needs:
-      - name: target
-        kind: git
-        path: target
-        access: read
-      - name: plan_md
-        kind: file
-        path: plan.md
-      # The spec this run wrote, as open-spec-pr put it in the bag, so the agent
-      # reads that spec rather than searching the clone for it.
-      - name: spec_path
-        kind: value
-      # Its own last decomposition, where it writes the next one, so a round
-      # that adds tasks keeps the ids the filed issues are matched by. Absent on
-      # the first visit.
-      - name: decomposition
-        kind: file
-        path: decomposition.json
-        optional: true
-      # What issue-coverage last counted; absent before its first visit.
-      - name: issue_coverage
-        kind: file
-        path: issue-coverage.md
-        optional: true
-      # Every spec the plan created or updated: spec_path is only the first.
-      - name: spec_plan
-        kind: file
-        path: spec-plan.json
-      # The approved plan's blocks with the link each is cited by; absent without
-      # a web UI address to link to.
-      - name: plan_blocks
-        kind: file
-        path: plan-blocks.json
-        optional: true
-    produces:
-      - name: decomposition
-        kind: file
-        path: decomposition.json
-  issues:
-    description: Files the decomposition as GitHub issues, a story issue holding the plan and one task issue per task with a priority label, so the implementation loop picks them up.
-    kind: service
-    outcomes:
-      - success
-      - changes_requested
-      - failed
-    needs:
-      - name: target
-        kind: git
-        path: target
-        access: read
-      - name: decomposition
-        kind: file
-      # The decomposition names stories and tasks, not which spec they belong
-      # to: open-spec-pr put that in the bag. A plan naming no spec has none.
-      - name: spec_path
-        kind: value
-        optional: true
-      # Every spec the plan's spec PR created or updated: each task issue links
-      # the statements it implements in any of them.
-      - name: spec_plan
-        kind: file
-        optional: true
-      - name: plan_id
-        kind: value
-      - name: plan_title
-        kind: value
-        optional: true
-      # Folded into the story issue: the plan lives in Lore, not in the
-      # repository the issues are filed on.
-      - name: plan_md
-        kind: file
-        optional: true
-    produces: []
-  issue-coverage:
-    description: Counts the spec statements this plan wrote that no task issue covers, and sends only those back to the decompose agent.
-    kind: service
-    outcomes:
-      - success
-      - changes_requested
-      - failed
-    needs:
-      - name: target
-        kind: git
-        path: target
-        access: read
-      - name: decomposition
-        kind: file
-      # Only the statements this plan wrote are counted.
-      - name: plan_id
-        kind: value
-      # A plan naming no spec has nothing to count, and the run settles.
-      - name: spec_path
-        kind: value
-        optional: true
-      # Statements are counted in every spec the plan's spec PR wrote, not only
-      # spec_path's.
-      - name: spec_plan
-        kind: file
-        optional: true
-    produces:
-      # Produced on every visit that counts, so the latest one is always true.
-      - name: issue_coverage
-        kind: file
 agent_definitions:
   plan-analyze:
     settings:
@@ -1231,34 +1053,5 @@ agent_definitions:
         skills:
           - lore-context
         skills_source: ${LORE_SKILLS_URL}
-        env:
-          LORE_TEST_POLICY: none
-  feature-decompose:
-    settings:
-      # Tried beside claude-sonnet-4-6 and gemini-3-flash-preview on three of this repository's specs (2026-10-06): it named the most spec statements, at no more than Sonnet's cost.
-      model: gemini-3.1-pro-preview
-      image: ${LORE_AGENT_IMAGE}
-      timeout_minutes: 15
-      prices:
-        gemini-3.1-pro-preview:
-          input_per_million: 2
-          output_per_million: 12
-      config:
-        pod_resources:
-          requests:
-            cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 2Gi
-          limits:
-            memory: 2Gi
-            ephemeral-storage: 4Gi
-        skills:
-          - lore-context
-        skills_source: ${LORE_SKILLS_URL}
-        mcp_servers:
-          - name: lore
-            transport: http
-            url: ${LORE_MCP_URL}
-            headers_secret: lore-mcp-auth
         env:
           LORE_TEST_POLICY: none

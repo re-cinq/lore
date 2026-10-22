@@ -34,9 +34,16 @@ import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-
 import {
   decomposedSpecs,
   type DecomposedSpecs,
-} from "../file-issues/decomposed-spec.js";
-import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
-import { addedAcross, findingsIn, groundedText } from "../grounded-text.js";
+} from "../../planning/file-issues/decomposed-spec.js";
+import {
+  coverageDeps,
+  type CoverageDeps,
+} from "../../planning/coverage-deps.js";
+import {
+  addedAcross,
+  findingsIn,
+  groundedText,
+} from "../../planning/grounded-text.js";
 
 const SUCCESS: Report = { outcome: "success" };
 

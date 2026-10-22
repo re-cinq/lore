@@ -63,7 +63,6 @@ export interface FloorPlanDeps {
   /** The plan's spec branch, made when missing: the branch the run is started on, which `spec-write` pushes and the spec PR opens from. */
   specBranch(plan: PlanRef): Promise<string>;
   /** The repository's default branch, which the nodes after the spec PR merges clone. */
-  baseBranch(plan: PlanRef): Promise<string>;
   /** What GitHub says of a spec PR now, so a later pass is briefed as the amendment it is; null when the PR is gone. */
   specPrState(repo: string, prNumber: number): Promise<SpecPrState>;
   pulls: SpecReviewReads;
@@ -348,20 +347,15 @@ async function startPlanRun(
   return started.run.id;
 }
 
-/** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan, this round's brief and the user story it answers, when it names one. */
+/** What a planning run is started with: the spec branch to write on, the plan, this round's brief and the user story it answers, when it names one. */
 async function startItemsOf(
   deps: FloorPlanDeps,
   { plan, planMd, planBlocks, brief, storyIssue }: PlanRunStart,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
-  const [branch, base] = await Promise.all([
-    deps.specBranch(plan),
-    deps.baseBranch(plan),
-  ]);
+  const branch = await deps.specBranch(plan);
 
   return {
     repo: gitItem(plan.repo, branch),
-    // After the spec PR merges its branch may be gone, and what it held is on the base anyway.
-    base: gitItem(plan.repo, base),
     plan_id: valueItem(plan.id),
     plan_title: valueItem(plan.title),
     plan_md: fileItem(planMd),

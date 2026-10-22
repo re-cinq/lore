@@ -89,7 +89,7 @@ stations:
     produces: []
 `;
 
-const FEATURE_DECOMPOSE_REUSED = `
+const SPEC_TICKETS_DECOMPOSE_REUSED = `
 line:
   id: triage
   entry: decompose
@@ -109,24 +109,23 @@ line:
 stations:
   decompose:
     kind: agent
-    agent_definition: feature-decompose
+    agent_definition: spec-tickets-decompose
     outcomes:
       - success
     needs: []
     produces: []
 `;
 
-const DECOMPOSE_INPUTS_DECLARED = FEATURE_DECOMPOSE_REUSED.replace(
+const DECOMPOSE_INPUTS_DECLARED = SPEC_TICKETS_DECOMPOSE_REUSED.replace(
   "    needs: []\n    produces: []\n",
   `    needs:
-      - name: spec_plan
-        kind: file
-        path: spec-plan.json
-      - name: plan_md
-        kind: file
-        path: plan.md
       - name: spec_path
         kind: value
+      - name: merge_sha
+        kind: value
+      - name: existing_tickets
+        kind: file
+        path: existing-tickets.json
     produces:
       - name: decomposition
         kind: file
@@ -200,8 +199,8 @@ describe("pipelineProblems — the subject a line keys its runs on", () => {
 });
 
 describe("pipelineProblems — the inputs an agent's recipe reads", () => {
-  it("reports unsupplied-input naming spec_path when a line reuses feature-decompose and supplies none of its inputs", () => {
-    const found = problems(FEATURE_DECOMPOSE_REUSED);
+  it("reports unsupplied-input naming spec_path when a line reuses spec-tickets-decompose and supplies none of its inputs", () => {
+    const found = problems(SPEC_TICKETS_DECOMPOSE_REUSED);
 
     expect(found).toMatchObject([
       { line: "triage", node: "decompose", rule: "unsupplied-input" },

@@ -97,14 +97,10 @@ describe("PlanOutlineActions", () => {
     expect(buttons()).toEqual(["Validate the plan", "Approve plan"]);
   });
 
-  it("offers Reopen plan while the specs are being written, and while the spec-tasks are being filed", () => {
+  it("offers Reopen plan while the specs are being written", () => {
     outline("spec-work");
-    const writing = buttons();
 
-    cleanup();
-    outline("delivering");
-
-    expect([writing, buttons()]).toEqual([["Reopen plan"], ["Reopen plan"]]);
+    expect(buttons()).toEqual(["Reopen plan"]);
   });
 
   it("warns that reopening stops the spec writing", () => {

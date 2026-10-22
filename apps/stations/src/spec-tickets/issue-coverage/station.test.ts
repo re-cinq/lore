@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import type { CoverageDeps, RunVisit } from "../coverage-deps.js";
+import type { CoverageDeps, RunVisit } from "../../planning/coverage-deps.js";
 import { issueCoverageHandle } from "./station.js";
 
 const SPEC_PATH = "specs/live/spec.md";

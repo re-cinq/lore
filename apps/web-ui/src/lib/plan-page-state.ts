@@ -12,7 +12,6 @@ export type PlanPageState =
   | "question"
   | "answering"
   | "spec-work-failed"
-  | "delivering"
   | "delivered";
 
 interface Visit {
@@ -30,8 +29,6 @@ interface RunFacts {
 
 const APPROVED_STATES: Partial<Record<string, PlanPageState>> = {
   merged: "spec-pr-open",
-  decompose: "delivering",
-  issues: "delivering",
 };
 
 export function planPageState(
@@ -89,7 +86,7 @@ function askedBySpecAnalysis(visits: readonly Visit[]): boolean {
   );
 }
 
-// A closed run either delivered the spec-tasks or fell short; an open one is on the node that names its state.
+// A closed run either delivered the merged spec or fell short; an open one is on the node that names its state.
 function approvedState(run: RunFacts): PlanPageState {
   if (run.status === "failed" || run.status === "finished") {
     return run.outcome === "completed" ? "delivered" : "spec-work-failed";

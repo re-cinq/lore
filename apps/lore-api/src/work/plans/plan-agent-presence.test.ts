@@ -218,15 +218,13 @@ describe("PlanAgentPresence", () => {
 
     scene.runs.set("run-1", {
       run: planningRun(),
-      visits: [visit("decompose")],
+      visits: [visit("write")],
     });
     floor.say({ type: "resync" });
     await until(() => scene.calls.length === 1);
     presence.stop();
 
-    expect(scene.calls).toEqual([
-      "open p1 Planning agent (splitting into tasks)",
-    ]);
+    expect(scene.calls).toEqual(["open p1 Planning agent (writing the spec)"]);
   });
 
   it("takes off a shown agent whose run the floor no longer lists as open on resync", async () => {
