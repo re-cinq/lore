@@ -46,11 +46,7 @@ function newestTaskFor(
   return task ? { id: task.id, status: task.status ?? "pending" } : null;
 }
 
-function matchesIssue(
-  t: SeedTask,
-  repo: string,
-  issueNumber: number,
-): boolean {
+function matchesIssue(t: SeedTask, repo: string, issueNumber: number): boolean {
   return t.issue_number === issueNumber && t.target_repo === repo;
 }
 const isRunningOrQueued = (status?: string): boolean =>
@@ -317,7 +313,9 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   ): Promise<{ id: string; status: string } | null> {
     return newestTaskFor(
       this.tasks,
-      (t) => matchesIssue(t, repo, issueNumber) && t.task_type === "implementation-loop",
+      (t) =>
+        matchesIssue(t, repo, issueNumber) &&
+        t.task_type === "implementation-loop",
     );
   }
 

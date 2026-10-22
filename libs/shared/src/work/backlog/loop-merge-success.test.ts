@@ -255,7 +255,10 @@ describe("settleMergedLoopTicket", () => {
       ticked,
     } = deps({
       tasks: {
-        latestLoopTaskByIssue: async () => ({ id: "task-1", status: "running" }),
+        latestLoopTaskByIssue: async () => ({
+          id: "task-1",
+          status: "running",
+        }),
         setStatusIf: async () => false,
         recordEvent: async () => {
           throw new Error("must not record an event when the flip was lost");
