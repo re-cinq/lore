@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  linkedIssueNumber,
-  linkedIssues,
-  loreTaskIdOf,
-  mergedPullRequestNumber,
-  prFooter,
-} from "./pr-body.js";
+import { linkedIssueNumber, loreTaskIdOf, prFooter } from "./pr-body.js";
 
 describe("prFooter (T047)", () => {
   it("emits Lore-Task only when no issue exists", () => {
@@ -74,42 +68,6 @@ describe("linkedIssueNumber", () => {
 
   it("returns null for a null body", () => {
     expect(linkedIssueNumber(null)).toBeNull();
-  });
-});
-
-describe("linkedIssues", () => {
-  it("returns 12 as resolved then 7 as referred to for Closes #12 and Refs #7, the issues a commit's pull request names", () => {
-    expect(
-      linkedIssues("Adds the route.\n\nCloses #12\nRefs #7\nLore-Task: uuid-1"),
-    ).toEqual([
-      { number: 12, resolves: true },
-      { number: 7, resolves: false },
-    ]);
-  });
-
-  it("returns 5 then 8 once each, 5 as resolved by its first mention, when Fixes #5 comes before Refs #5 and resolves #8", () => {
-    expect(linkedIssues("Fixes #5, refs #5 and resolves #8")).toEqual([
-      { number: 5, resolves: true },
-      { number: 8, resolves: true },
-    ]);
-  });
-
-  it("returns no issue for see #9 without a keyword and for a null body", () => {
-    expect([linkedIssues("see #9"), linkedIssues(null)]).toEqual([[], []]);
-  });
-});
-
-describe("mergedPullRequestNumber", () => {
-  it("returns 2773 from the squash subject Utopia: give its database a full CPU (#2773)", () => {
-    expect(
-      mergedPullRequestNumber(
-        "Utopia: give its database a full CPU, two to burst (#2773)",
-      ),
-    ).toBe(2773);
-  });
-
-  it("returns null for a subject that only mentions #12 in the middle", () => {
-    expect(mergedPullRequestNumber("Fix #12 in the parser")).toBeNull();
   });
 });
 

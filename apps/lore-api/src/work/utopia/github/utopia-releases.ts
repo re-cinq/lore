@@ -4,11 +4,12 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type {
   ReleaseEntry,
   TagEntry,
-} from "@re-cinq/lore-shared/utopia/release-statements.js";
+} from "@re-cinq/lore-shared/utopia/release-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaReleasesSummary } from "@re-cinq/lore-shared/utopia/releases-summary.js";
 import { mirrorTagsAndReleases } from "@re-cinq/lore-shared/utopia/mirror-releases.js";
 import { queuedPerRepo } from "../cursor-walk.js";
+import { lazyKindDocumentDeps } from "../kind-source.js";
 import type { WalkSource } from "../walk-source.js";
 
 export interface PublishedRefs {
@@ -55,11 +56,12 @@ async function pushAll(deps: ReleaseDeps): Promise<UtopiaReleasesSummary> {
 export function releaseDepsFor(
   source: WalkSource<ReleaseDeps["published"]>,
 ): ReleaseDeps {
-  const { repo, mirror } = source;
+  const { pool, repo } = source;
+  const github = lazyKindDocumentDeps(pool, repo, "github");
 
   return {
     repo,
     published: source.files,
-    mirror: (published) => mirrorTagsAndReleases(mirror, repo, published),
+    mirror: (published) => mirrorTagsAndReleases(github, repo, published),
   };
 }

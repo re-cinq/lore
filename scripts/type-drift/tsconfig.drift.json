@@ -50,8 +50,8 @@
       "@re-cinq/lore-shared/utopia/mirror-tracker.js": [
         "../../libs/shared/src/work/utopia/github/mirror-tracker.ts"
       ],
-      "@re-cinq/lore-shared/utopia/release-statements.js": [
-        "../../libs/shared/src/domain/utopia/github/release-statements.ts"
+      "@re-cinq/lore-shared/utopia/release-text.js": [
+        "../../libs/shared/src/domain/utopia/github/release-text.ts"
       ],
       "@re-cinq/lore-shared/utopia/releases-summary.js": [
         "../../libs/shared/src/domain/utopia/github/releases-summary.ts"
@@ -59,8 +59,8 @@
       "@re-cinq/lore-shared/utopia/test-report-statements.js": [
         "../../libs/shared/src/domain/utopia/test-coverage/test-report-statements.ts"
       ],
-      "@re-cinq/lore-shared/utopia/tracker-statements.js": [
-        "../../libs/shared/src/domain/utopia/github/tracker-statements.ts"
+      "@re-cinq/lore-shared/utopia/tracker-text.js": [
+        "../../libs/shared/src/domain/utopia/github/tracker-text.ts"
       ],
       "@re-cinq/lore-shared/utopia/tracker-summary.js": [
         "../../libs/shared/src/domain/utopia/github/tracker-summary.ts"

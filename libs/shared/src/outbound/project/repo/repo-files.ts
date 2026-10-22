@@ -5,11 +5,11 @@ import type {
   GitHubPort,
   TrackerActivityOptions,
 } from "../lib/github-port.js";
-import type { TrackedEntry } from "../../../domain/utopia/github/tracker-statements.js";
+import type { TrackedEntry } from "../../../domain/utopia/github/tracker-text.js";
 import type {
   ReleaseEntry,
   TagEntry,
-} from "../../../domain/utopia/github/release-statements.js";
+} from "../../../domain/utopia/github/release-text.js";
 
 /** GitHub file access via API (no clone required); use Workspace for bulk edits. */
 export class RepoFiles {

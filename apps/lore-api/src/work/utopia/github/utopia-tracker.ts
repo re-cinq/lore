@@ -1,11 +1,12 @@
 // Mirrors a repo's issues and pull requests into its Utopia knowledge base: what GitHub updated since the cursor its settings hold, oldest update first, each pushed and the cursor moved to its update time, so a walk that stops leaves the next one where it was.
 
 import type { TrackerActivityOptions } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-statements.js";
+import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaTrackerSummary } from "@re-cinq/lore-shared/utopia/tracker-summary.js";
 import { mirrorTrackedEntry } from "@re-cinq/lore-shared/utopia/mirror-tracker.js";
 import { saveUtopiaTrackerSince } from "../../../outbound/utopia-sources.js";
+import { lazyKindDocumentDeps } from "../kind-source.js";
 import { storedCursor, type WalkSource } from "../walk-source.js";
 import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
 
@@ -50,7 +51,8 @@ async function walkTracker(deps: TrackerDeps): Promise<UtopiaTrackerSummary> {
 export function trackerDepsFor(
   source: WalkSource<TrackerDeps["tracker"]>,
 ): TrackerDeps {
-  const { pool, repo, mirror } = source;
+  const { pool, repo } = source;
+  const github = lazyKindDocumentDeps(pool, repo, "github");
 
   return {
     repo,
@@ -59,6 +61,6 @@ export function trackerDepsFor(
       read: () => storedCursor(source, "tracker_since"),
       write: (since) => saveUtopiaTrackerSince(pool, repo, since),
     },
-    mirror: (entry) => mirrorTrackedEntry(mirror, repo, entry),
+    mirror: (entry) => mirrorTrackedEntry(github, repo, entry),
   };
 }
