@@ -10,94 +10,91 @@ const script = join(
   "utopia-split-sources.sh",
 );
 
-/** A Lore and a Utopia in one server: the old source of re-cinq/lore holds d1 and d2 live and d3 deleted. */
+const NEWER_COVERAGE = { id: "src-new-cov", name: "test-coverage" };
+const BASE_SOURCES = [
+  { id: "src-old", name: "lore" },
+  NEWER_COVERAGE,
+  { id: "src-docs", name: "docs" },
+];
+
+/** A Lore and a Utopia in one server: re-cinq/lore's base holds its old source `src-old` and, made since, a newer `test-coverage` source. */
 async function stubbed(
   run,
-  { failPurge = null, utopiaStatus = null, trackerPages = [1] } = {},
+  { sources = BASE_SOURCES, utopiaStatus = null, trackerPages = [1] } = {},
 ) {
-  const live = ["d1", "d2"];
-  const deleted = ["d3"];
   const calls = [];
   let trackerWalks = 0;
   const server = createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     const route = `${req.method} ${url.pathname}`;
-    const token = req.headers.authorization;
     const answer = (status, body) => {
       res.statusCode = status;
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify(body));
     };
+    let body = "";
 
-    req.resume();
-    calls.push(`${route} ${token}`);
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      calls.push(
+        `${route} ${req.headers.authorization}${body ? ` ${body}` : ""}`,
+      );
 
-    if (utopiaStatus && url.pathname.startsWith("/api/v1/")) {
-      res.statusCode = utopiaStatus;
-      res.setHeader("location", "https://utopia.example/oauth2/start");
-      res.setHeader("content-type", "text/html");
+      if (utopiaStatus && url.pathname.startsWith("/api/v1/")) {
+        res.statusCode = utopiaStatus;
+        res.setHeader("location", "https://utopia.example/oauth2/start");
+        res.setHeader("content-type", "text/html");
 
-      return res.end("<html>sign in</html>");
-    }
-
-    if (route === "GET /api/repos") {
-      return answer(200, {
-        repos: [{ full_name: "re-cinq/lore" }, { full_name: "re-cinq/bare" }],
-        total: 2,
-      });
-    }
-
-    if (route === "GET /api/repos/re-cinq/lore") {
-      return answer(200, {
-        settings: { utopia: { kb_id: "kb-1", source_id: "src-old" } },
-      });
-    }
-
-    if (route === "GET /api/repos/re-cinq/bare") {
-      return answer(200, { settings: {} });
-    }
-
-    if (route === "GET /api/v1/kbs/kb-1/documents") {
-      const ids = url.searchParams.get("state") === "deleted" ? deleted : live;
-
-      return answer(200, {
-        docs: ids.map((id) => ({ id })),
-        total: ids.length,
-      });
-    }
-    const document = /^\/api\/v1\/documents\/(\w+)(\/purge)?$/.exec(url.pathname);
-
-    if (document && req.method === "DELETE") {
-      live.splice(live.indexOf(document[1]), 1);
-      deleted.push(document[1]);
-
-      return answer(200, { ok: true });
-    }
-
-    if (document && document[2] && req.method === "POST") {
-      if (document[1] === failPurge) {
-        return answer(500, { error: "boom" });
+        return res.end("<html>sign in</html>");
       }
-      deleted.splice(deleted.indexOf(document[1]), 1);
 
-      return answer(200, { ok: true });
-    }
+      if (route === "GET /api/repos") {
+        return answer(200, {
+          repos: [
+            { full_name: "re-cinq/lore" },
+            { full_name: "re-cinq/bare" },
+          ],
+          total: 2,
+        });
+      }
 
-    if (route === "POST /api/repos/re-cinq/lore/utopia/reset") {
-      return answer(200, { ingest_state_cleared: 2 });
-    }
+      if (route === "GET /api/repos/re-cinq/lore") {
+        return answer(200, {
+          settings: { utopia: { kb_id: "kb-1", source_id: "src-old" } },
+        });
+      }
 
-    if (route === "POST /api/repos/re-cinq/lore/utopia/tracker") {
-      const entries = trackerPages[Math.min(trackerWalks++, trackerPages.length - 1)];
+      if (route === "GET /api/repos/re-cinq/bare") {
+        return answer(200, { settings: {} });
+      }
 
-      return answer(200, { entries, failed: [] });
-    }
+      if (route === "GET /api/v1/kbs/kb-1/sources") {
+        return answer(200, { sources });
+      }
 
-    if (route === "POST /api/repos/re-cinq/lore/utopia/backfill") {
-      return answer(200, { documents: 3, failed: [] });
-    }
+      if (/^PATCH \/api\/v1\/kbs\/kb-1\/sources\/[\w-]+$/.test(route)) {
+        return answer(200, { source: {} });
+      }
 
-    return answer(404, { error: route });
+      if (route === "POST /api/repos/re-cinq/lore/utopia/reset") {
+        return answer(200, {
+          cursors_cleared: ["commits_head", "tracker_since"],
+        });
+      }
+
+      if (route === "POST /api/repos/re-cinq/lore/utopia/tracker") {
+        const entries =
+          trackerPages[Math.min(trackerWalks++, trackerPages.length - 1)];
+
+        return answer(200, { entries, failed: [] });
+      }
+
+      if (route === "POST /api/repos/re-cinq/lore/utopia/backfill") {
+        return answer(200, { documents: 3, failed: [] });
+      }
+
+      return answer(404, { error: route });
+    });
   });
 
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -110,7 +107,7 @@ async function stubbed(
   }
 }
 
-function runScript(base, args) {
+function runScript(base, args, env = {}) {
   return new Promise((resolve) => {
     const child = spawn("bash", [script, ...args], {
       env: {
@@ -119,6 +116,7 @@ function runScript(base, args) {
         LORE_ADMIN_TOKEN: "lore-admin",
         UTOPIA_API_URL: base,
         UTOPIA_SESSION_TOKEN: "utopia-session",
+        ...env,
       },
     });
     let output = "";
@@ -130,30 +128,30 @@ function runScript(base, args) {
 }
 
 const writes = (calls) =>
-  calls.filter((call) => /^(DELETE|POST) /.test(call));
+  calls.filter((call) => /^(DELETE|PATCH|POST) /.test(call));
 
-test("without --apply it counts 2 live and 1 deleted documents of re-cinq/lore's old source and changes nothing", async () => {
+test("without --apply it says it would name src-old test-coverage and set 1 other source aside, and changes nothing", async () => {
   await stubbed(async ({ base, calls }) => {
     const { status, output } = await runScript(base, []);
 
     assert.equal(status, 0);
-    assert.match(output, /re-cinq\/lore: would purge 2 live and 1 deleted documents of source src-old/);
+    assert.match(
+      output,
+      /re-cinq\/lore: would name source src-old test-coverage, setting aside 1 other source of that name/,
+    );
     assert.match(output, /re-cinq\/bare: skipped, no Utopia knowledge base/);
     assert.deepEqual(writes(calls), []);
   });
 });
 
-test("with --apply it deletes the 2 live documents, purges all 3 under the session token, then resets and backfills with the admin token", async () => {
+test("with --apply it sets src-new-cov aside, names src-old test-coverage, then resets, backfills and walks the tracker, and deletes nothing", async () => {
   await stubbed(async ({ base, calls }) => {
     const { status } = await runScript(base, ["--apply", "re-cinq/lore"]);
 
     assert.equal(status, 0);
     assert.deepEqual(writes(calls), [
-      "DELETE /api/v1/documents/d1 Bearer utopia-session",
-      "POST /api/v1/documents/d1/purge Bearer utopia-session",
-      "DELETE /api/v1/documents/d2 Bearer utopia-session",
-      "POST /api/v1/documents/d2/purge Bearer utopia-session",
-      "POST /api/v1/documents/d3/purge Bearer utopia-session",
+      'PATCH /api/v1/kbs/kb-1/sources/src-new-cov Bearer utopia-session {"name":"test-coverage-unused"}',
+      'PATCH /api/v1/kbs/kb-1/sources/src-old Bearer utopia-session {"name":"test-coverage"}',
       "POST /api/repos/re-cinq/lore/utopia/reset Bearer lore-admin",
       "POST /api/repos/re-cinq/lore/utopia/backfill Bearer lore-admin",
       "POST /api/repos/re-cinq/lore/utopia/tracker Bearer lore-admin",
@@ -161,63 +159,26 @@ test("with --apply it deletes the 2 live documents, purges all 3 under the sessi
   });
 });
 
-test("a purge Utopia refuses for d2 fails the repo, exits 1, and neither resets nor backfills it", async () => {
+test("a source already named test-coverage is left as it is, and the repo is still reset and backfilled", async () => {
   await stubbed(
     async ({ base, calls }) => {
-      const { status, output } = await runScript(base, ["--apply", "re-cinq/lore"]);
+      const { status, output } = await runScript(base, [
+        "--apply",
+        "re-cinq/lore",
+      ]);
 
-      assert.equal(status, 1);
-      assert.match(output, /purge of deleted documents failed/);
+      assert.equal(status, 0);
+      assert.match(output, /source src-old is already named test-coverage/);
+      assert.deepEqual(
+        writes(calls).filter((call) => call.startsWith("PATCH")),
+        [],
+      );
       assert.equal(
-        writes(calls).some((call) => /utopia\/(reset|backfill)/.test(call)),
-        false,
+        writes(calls).some((call) => call.includes("/utopia/backfill")),
+        true,
       );
     },
-    { failPurge: "d2" },
-  );
-});
-
-test("without UTOPIA_SESSION_TOKEN it stops before any request", async () => {
-  await stubbed(async ({ base, calls }) => {
-    const child = spawn("bash", [script], {
-      env: {
-        PATH: process.env.PATH,
-        LORE_API_URL: base,
-        LORE_ADMIN_TOKEN: "lore-admin",
-        UTOPIA_API_URL: base,
-      },
-    });
-    const status = await new Promise((resolve) => child.on("close", resolve));
-
-    assert.equal(status, 1);
-    assert.deepEqual(calls, []);
-  });
-});
-
-test("a Utopia that redirects to a sign-in says UTOPIA_API_URL is the public address, and changes nothing", async () => {
-  await stubbed(
-    async ({ base, calls }) => {
-      const { status, output } = await runScript(base, ["--apply", "re-cinq/lore"]);
-
-      assert.equal(status, 1);
-      assert.match(output, /answered 302, a redirect to a sign-in/);
-      assert.match(output, /port-forward/);
-      assert.doesNotMatch(output, /jq: parse error/);
-      assert.deepEqual(writes(calls), []);
-    },
-    { utopiaStatus: 302 },
-  );
-});
-
-test("a Utopia that refuses the session token names the status and what it said", async () => {
-  await stubbed(
-    async ({ base }) => {
-      const { status, output } = await runScript(base, []);
-
-      assert.equal(status, 1);
-      assert.match(output, /answered HTTP 401: <html>sign in<\/html>/);
-    },
-    { utopiaStatus: 401 },
+    { sources: [{ id: "src-old", name: "test-coverage" }] },
   );
 });
 
@@ -234,4 +195,46 @@ test("it walks the issues and pull requests again while a walk returns a full 20
     },
     { trackerPages: [200, 200, 37] },
   );
+});
+
+test("a Utopia that redirects to a sign-in says UTOPIA_API_URL is the public address, and changes nothing", async () => {
+  await stubbed(
+    async ({ base, calls }) => {
+      const { status, output } = await runScript(base, [
+        "--apply",
+        "re-cinq/lore",
+      ]);
+
+      assert.equal(status, 1);
+      assert.match(output, /answered 302, a redirect to a sign-in/);
+      assert.match(output, /port-forward/);
+      assert.deepEqual(writes(calls), []);
+    },
+    { utopiaStatus: 302 },
+  );
+});
+
+test("a Utopia that refuses the session token names the status and what it said, and nothing is reset", async () => {
+  await stubbed(
+    async ({ base, calls }) => {
+      const { status, output } = await runScript(base, [
+        "--apply",
+        "re-cinq/lore",
+      ]);
+
+      assert.equal(status, 1);
+      assert.match(output, /answered HTTP 401: <html>sign in<\/html>/);
+      assert.deepEqual(writes(calls), []);
+    },
+    { utopiaStatus: 401 },
+  );
+});
+
+test("without UTOPIA_SESSION_TOKEN it stops before any request", async () => {
+  await stubbed(async ({ base, calls }) => {
+    const { status } = await runScript(base, [], { UTOPIA_SESSION_TOKEN: "" });
+
+    assert.equal(status, 1);
+    assert.deepEqual(calls, []);
+  });
 });
