@@ -11,10 +11,14 @@ const script = join(
 );
 
 /** A Lore and a Utopia in one server: the old source of re-cinq/lore holds d1 and d2 live and d3 deleted. */
-async function stubbed(run, { failPurge = null, utopiaStatus = null } = {}) {
+async function stubbed(
+  run,
+  { failPurge = null, utopiaStatus = null, trackerPages = [1] } = {},
+) {
   const live = ["d1", "d2"];
   const deleted = ["d3"];
   const calls = [];
+  let trackerWalks = 0;
   const server = createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     const route = `${req.method} ${url.pathname}`;
@@ -83,6 +87,12 @@ async function stubbed(run, { failPurge = null, utopiaStatus = null } = {}) {
       return answer(200, { ingest_state_cleared: 2 });
     }
 
+    if (route === "POST /api/repos/re-cinq/lore/utopia/tracker") {
+      const entries = trackerPages[Math.min(trackerWalks++, trackerPages.length - 1)];
+
+      return answer(200, { entries, failed: [] });
+    }
+
     if (route === "POST /api/repos/re-cinq/lore/utopia/backfill") {
       return answer(200, { documents: 3, failed: [] });
     }
@@ -146,6 +156,7 @@ test("with --apply it deletes the 2 live documents, purges all 3 under the sessi
       "POST /api/v1/documents/d3/purge Bearer utopia-session",
       "POST /api/repos/re-cinq/lore/utopia/reset Bearer lore-admin",
       "POST /api/repos/re-cinq/lore/utopia/backfill Bearer lore-admin",
+      "POST /api/repos/re-cinq/lore/utopia/tracker Bearer lore-admin",
     ]);
   });
 });
@@ -207,5 +218,20 @@ test("a Utopia that refuses the session token names the status and what it said"
       assert.match(output, /answered HTTP 401: <html>sign in<\/html>/);
     },
     { utopiaStatus: 401 },
+  );
+});
+
+test("it walks the issues and pull requests again while a walk returns a full 200, and stops at the walk that returns fewer", async () => {
+  await stubbed(
+    async ({ base, calls }) => {
+      const { status } = await runScript(base, ["--apply", "re-cinq/lore"]);
+
+      assert.equal(status, 0);
+      assert.equal(
+        calls.filter((call) => call.includes("/utopia/tracker")).length,
+        3,
+      );
+    },
+    { trackerPages: [200, 200, 37] },
   );
 });
