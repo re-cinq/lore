@@ -13,8 +13,8 @@
 
 ## Facets
 
-- [ ] Export `sectionName(doc: string, slug: string): string` from `libs/shared/src/domain/utopia/names.ts`.
-- [ ] Update `libs/shared/src/domain/utopia/docs/doc-sections.ts` to import and use `sectionName` instead of generating the name inline.
+- [x] Export `sectionName(doc: string, slug: string): string` from `libs/shared/src/domain/utopia/names.ts`.
+- [x] Update `libs/shared/src/domain/utopia/docs/doc-sections.ts` to import and use `sectionName` instead of generating the name inline.
 
 ## Out of scope
 

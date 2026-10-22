@@ -4,6 +4,10 @@ export function fileName(repo: string, path: string): string {
   return `${repo}:${path}`;
 }
 
+export function sectionName(doc: string, slug: string): string {
+  return `${doc}#${slug}`;
+}
+
 export function statementName(
   repo: string,
   path: string,
