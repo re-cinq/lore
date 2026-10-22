@@ -13,7 +13,7 @@ import { errorMessage } from "@re-cinq/lore-shared/lib/error-classify.js";
 import { optionalNeedText } from "../../domain/need-text.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
-  PR_TEMPLATE_PATH,
+  findPullRequestTemplate,
   requiredSections,
   withSections,
 } from "../pr-sections.js";
@@ -35,7 +35,7 @@ export interface MarkReadyDeps {
 const productionDeps: MarkReadyDeps = {
   pulls: async (repo) => (await projectFor(repo)).pulls,
   template: async (repo) =>
-    (await projectFor(repo)).repo.read(PR_TEMPLATE_PATH),
+    findPullRequestTemplate((await projectFor(repo)).repo),
 };
 
 const BODY = "pr_body";

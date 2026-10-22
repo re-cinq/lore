@@ -43,10 +43,10 @@ function scene(
     recordPr: async (taskId, pr) => {
       recorded.push([taskId, pr]);
     },
-    template: (repo, branch) =>
-      repo === "re-cinq/app" && branch === BRANCH
+    template: (repo) =>
+      repo === "re-cinq/app"
         ? Promise.resolve(template)
-        : Promise.reject(new Error(`Not Found: ${repo}@${branch}`)),
+        : Promise.reject(new Error(`Not Found: ${repo}`)),
     pulls: (repo) =>
       repo !== "re-cinq/app"
         ? Promise.reject(new Error(`Not Found: ${repo}`))
@@ -160,7 +160,7 @@ describe("the loop-open-pr station", () => {
     });
   });
 
-  it("opens the draft with the ## headings of the branch's pull request template, so a description check passes before the prose is written", async () => {
+  it("opens the draft with the whole pull request template, the placeholder under each heading, so a description check passes before the prose is written", async () => {
     const { handle, opened } = scene(
       undefined,
       "## Why\n\ntext\n\n## Testing\n\ntext\n",
@@ -169,7 +169,7 @@ describe("the loop-open-pr station", () => {
     await handle(brief({ issue_number: "77" }), TOOLS);
 
     expect(opened[0]?.body).toEqual(
-      `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n## Why\n\n${PLACEHOLDER}\n\n## Testing\n\n${PLACEHOLDER}\n\nCloses #77\nLore-Task: task-1`,
+      `Opened by the Lore implementation loop from \`${BRANCH}\`.\n\n## Why\n\n${PLACEHOLDER}\n\ntext\n\n## Testing\n\n${PLACEHOLDER}\n\ntext\n\nCloses #77\nLore-Task: task-1`,
     );
   });
 

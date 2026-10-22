@@ -148,6 +148,28 @@ export async function branchMerged(
   repo: string,
   branch: string,
 ): Promise<boolean | undefined> {
+  const comparison = await compareWithDefault(ok, repo, branch);
+
+  return (
+    comparison &&
+    (comparison.status === "behind" || comparison.status === "identical")
+  );
+}
+
+export async function branchBehindBy(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+): Promise<number | undefined> {
+  return (await compareWithDefault(ok, repo, branch))?.behind_by;
+}
+
+/** GitHub's comparison of the branch with the default branch, or undefined when it cannot be made. */
+async function compareWithDefault(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+): Promise<{ status: string; behind_by: number } | undefined> {
   const [owner, name] = split(repo);
   const { repos } = ok.rest;
 
@@ -159,7 +181,7 @@ export async function branchMerged(
       basehead: `${base}...${branch}`,
     });
 
-    return comparison.status === "behind" || comparison.status === "identical";
+    return comparison;
   } catch {
     return undefined;
   }

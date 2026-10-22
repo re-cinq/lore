@@ -244,6 +244,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return repoContent.branchMerged(await this.octo(), repo, branch);
   }
 
+  async branchBehindBy(
+    repo: string,
+    branch: string,
+  ): Promise<number | undefined> {
+    return repoContent.branchBehindBy(await this.octo(), repo, branch);
+  }
+
   async createBranch(
     repo: string,
     branch: string,

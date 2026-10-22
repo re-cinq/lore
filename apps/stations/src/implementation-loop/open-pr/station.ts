@@ -21,7 +21,7 @@ import { pipeline } from "../../outbound/queues.js";
 import {
   draftBody,
   missingSections,
-  PR_TEMPLATE_PATH,
+  findPullRequestTemplate,
   requiredSections,
 } from "../pr-sections.js";
 
@@ -32,16 +32,16 @@ export type LoopPullOpener = PullOpener & {
 
 export interface OpenLoopPrDeps {
   pulls(repo: string): Promise<LoopPullOpener>;
-  /** The repository's pull request template on the branch, or null when it has none. */
-  template(repo: string, branch: string): Promise<string | null>;
+  /** The repository's pull request template on its default branch, or null when it has none. */
+  template(repo: string): Promise<string | null>;
   /** Writes the pull request onto the run's task, where the run page reads it: a value a station produces stays inside the floor. */
   recordPr(taskId: string, pr: PullRef): Promise<void>;
 }
 
 const productionDeps: OpenLoopPrDeps = {
   pulls: async (repo) => (await projectFor(repo)).pulls,
-  template: async (repo, branch) =>
-    (await projectFor(repo)).repo.read(PR_TEMPLATE_PATH, branch),
+  template: async (repo) =>
+    findPullRequestTemplate((await projectFor(repo)).repo),
   recordPr: (taskId, pr) =>
     pipeline().taskQueue.setColumns(taskId, {
       pr_url: pr.url,
@@ -65,7 +65,7 @@ export function openLoopPrHandle(deps: OpenLoopPrDeps): Handle {
 
     try {
       const pulls = await deps.pulls(repo);
-      const template = await deps.template(repo, branch);
+      const template = await deps.template(repo);
       const draft = draftOf(branch, ticket, template);
       const pr = await ensurePull(pulls, branch, draft, (open) =>
         completeDraft(pulls, open, draft, template),

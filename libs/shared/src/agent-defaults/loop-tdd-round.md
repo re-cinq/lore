@@ -147,7 +147,10 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   its own credentials, so a plain push authenticates; you need no token
   and must never look for one.
 - Then bring the branch up to date with its base — `git fetch origin main`
-  and merge `origin/main` in — and push again if that produced anything.
+  and `git rebase origin/main`, never a merge, so the history stays a
+  straight line — and, if that moved anything, push again with
+  `git push --force-with-lease origin HEAD` (the rebase rewrote the history,
+  so a plain push is refused; never force-push the default branch).
   A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
   workflow on a conflicted pull request, so the ticket parks on a build
   that will never start. Resolve any conflict now, favouring `origin/main`

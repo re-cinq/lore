@@ -117,25 +117,31 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks implementation-loop from dod through open-pr, tdd-round, await-ci, ready-for-review, mark-ready and await-pr to done", () => {
+  it("walks implementation-loop from sync-start through dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
     const { line } = pipelineOf("implementation-loop");
     const forward = line.edges
       .filter((edge) => edge.on === "success" && !REPAIRS.includes(edge.from))
       .map((edge) => `${edge.from}>${edge.to}`);
 
-    expect(line.entry).toBe("dod");
+    expect(line.entry).toBe("sync-start");
     expect(forward).toEqual([
+      "sync-start>dod",
+      "sync-start-rebase>dod",
       "dod>open-pr",
       "open-pr>tdd-round",
       "tdd-round>await-ci",
       "await-ci>ready-for-review",
-      "ready-for-review>mark-ready",
+      "ready-for-review>sync-final",
+      "sync-final>mark-ready",
+      "sync-final-rebase>mark-ready",
       "mark-ready>await-pr",
       "await-pr>done",
+      "sync-pr>fix-ci",
+      "sync-pr-rebase>await-pr",
     ]);
   });
 
-  it("gives the loop twelve rounds and two repairs on a red await-ci, and three fix-ci visits on a red await-pr", () => {
+  it("gives the loop twelve rounds and two repairs on a red await-ci, and three sync-pr visits on a red await-pr", () => {
     const { line } = pipelineOf("implementation-loop");
     const budgets = line.edges
       .filter((edge) => ["await-ci", "await-pr"].includes(edge.from))
@@ -148,7 +154,7 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(budgets).toEqual([
       "await-ci>tdd-round on changes_requested: 12",
       "await-ci>repair-build on failed: 2",
-      "await-pr>fix-ci on changes_requested: 3",
+      "await-pr>sync-pr on changes_requested: 3",
     ]);
   });
 
@@ -177,13 +183,54 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect(toExit).toEqual(["dod on changes_requested", "await-pr on failed"]);
     expect(retried).toEqual([
+      "sync-start:1",
+      "sync-start-rebase:1",
       "dod:1",
       "open-pr:1",
       "tdd-round:1",
       "repair-build:1",
       "ready-for-review:1",
+      "sync-final:1",
+      "sync-final-rebase:1",
       "mark-ready:1",
+      "sync-pr:1",
+      "sync-pr-rebase:1",
       "fix-ci:1",
+    ]);
+  });
+
+  it("checks the branch against main before the first agent, before the pull request leaves draft and before a red ready pull request is repaired, and rebases only a branch that is behind", () => {
+    const { line } = pipelineOf("implementation-loop");
+    const checks = line.nodes.filter(
+      (node) => node.station === "loop-sync-check",
+    );
+    const behind = edgesOn(line, "sync-start")
+      .concat(edgesOn(line, "sync-final"), edgesOn(line, "sync-pr"))
+      .filter((edge) => edge.on === "changes_requested")
+      .map((edge) => `${edge.from}>${edge.to}`);
+
+    expect(checks.map((node) => node.id)).toEqual([
+      "sync-start",
+      "sync-final",
+      "sync-pr",
+    ]);
+    expect(behind).toEqual([
+      "sync-start>sync-start-rebase",
+      "sync-final>sync-final-rebase",
+      "sync-pr>sync-pr-rebase",
+    ]);
+  });
+
+  it("sends a rebased red pull request back to await-pr, so CI judges the rebased head before any repair", () => {
+    const { line } = pipelineOf("implementation-loop");
+
+    expect(
+      edgesOn(line, "sync-pr-rebase").map(
+        (edge) => `${edge.from}>${edge.to} on ${edge.on}`,
+      ),
+    ).toEqual([
+      "sync-pr-rebase>await-pr on success",
+      "sync-pr-rebase>sync-pr-rebase on failed",
     ]);
   });
 
