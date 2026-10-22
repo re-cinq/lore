@@ -18,15 +18,16 @@ export interface UtopiaSource {
   key: string;
 }
 
-export type PushAction = "created" | "updated" | "unchanged" | "marked_missing";
+export type PushAction =
+  "created" | "updated" | "unchanged" | "marked_missing" | "duplicate";
 
 export interface PushOutcome {
   action: PushAction;
 }
 
-/** An `api` source also answers `moved` (the content came back under a new identity) and `duplicate` (another document holds the same content). */
+/** An `api` source also answers `moved`: the content came back under a new identity. Either kind of source answers `duplicate` when another document in the knowledge base holds the same content. */
 export interface DocumentPushOutcome {
-  action: PushAction | "moved" | "duplicate";
+  action: PushAction | "moved";
 }
 
 export interface KnowledgeBase {
