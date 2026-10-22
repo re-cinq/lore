@@ -79,8 +79,8 @@ const loopMergeDeps: LoopMergeDeps = {
   settle: {
     floor: floorClient,
     tasks: {
-      activeTaskByIssue: (repo, issueNumber) =>
-        pipeline().taskQueue.activeTaskByIssue(repo, issueNumber),
+      latestLoopTaskByIssue: (repo, issueNumber) =>
+        pipeline().taskQueue.latestLoopTaskByIssue(repo, issueNumber),
       setStatusIf: (id, expected, status, extra) =>
         taskStore().setStatusIf(id, expected, status, extra),
       recordEvent: (id, from, to, meta) =>

@@ -15,7 +15,7 @@ export function issueNumberFromLoopBranch(branch: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-export interface ActiveLoopTask {
+export interface LoopTask {
   id: string;
   status: string;
 }
@@ -35,18 +35,17 @@ export interface MergeSuccessFloor {
 export interface MergeSuccessDeps {
   floor(): MergeSuccessFloor;
   tasks: TaskTransitionDeps & {
-    activeTaskByIssue(
+    /** The newest loop task for the issue, any status — a `failed` (loop-reap'd) or `completed` (parked at `await-pr`) task is exactly the kind a human merging the branch by hand should be able to settle. */
+    latestLoopTaskByIssue(
       repo: string,
       issueNumber: number,
-    ): Promise<ActiveLoopTask | null>;
+    ): Promise<LoopTask | null>;
   };
   comment(repo: string, issueNumber: number, body: string): Promise<void>;
   removeLabel(repo: string, issueNumber: number, label: string): Promise<void>;
   closeIssue(repo: string, issueNumber: number): Promise<void>;
   emitTick(repo: string): Promise<void>;
 }
-
-const ALREADY_SETTLED = new Set(["merged", "completed"]);
 
 /** Settles a loop ticket's task as merged once its branch's pull request merges, regardless of what the floor run itself reported, or whether it ever closed. */
 export async function settleMergedLoopTicket(
@@ -59,13 +58,13 @@ export async function settleMergedLoopTicket(
   if (issueNumber === null) {
     return "not a loop branch";
   }
-  const task = await deps.tasks.activeTaskByIssue(repo, issueNumber);
+  const task = await deps.tasks.latestLoopTaskByIssue(repo, issueNumber);
 
   if (!task) {
-    return "no active task for this issue";
+    return "no task for this issue";
   }
 
-  if (ALREADY_SETTLED.has(task.status)) {
+  if (task.status === "merged") {
     return "task already settled";
   }
   await cancelOpenRun(deps.floor(), repo, task.id);
@@ -77,7 +76,7 @@ async function markMerged(
   deps: MergeSuccessDeps,
   repo: string,
   issueNumber: number,
-  task: ActiveLoopTask,
+  task: LoopTask,
 ): Promise<string> {
   const won = await deps.tasks.setStatusIf(task.id, task.status, "merged");
 

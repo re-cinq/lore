@@ -2,7 +2,6 @@
 import { ticketPortsOf } from "@re-cinq/lore-shared/backlog/driver-ports.js";
 import { infraDeferralsFromEnv } from "@re-cinq/lore-shared/backlog/loop-infra-deferral.js";
 import type { LoopRunClosedDeps } from "@re-cinq/lore-shared/backlog/loop-run-closed.js";
-import { isSettledTask } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { eventProxy, pipeline, taskStore } from "../../outbound/queues.js";
@@ -15,10 +14,10 @@ import {
 export const loopClosedDeps: SettleLoopDeps = {
   run: async (runId) => (await floorClient().runs.get(runId))?.run ?? null,
   visits: (runId) => floorClient().stationRuns.list({ run: runId }),
-  isTaskSettled: async (taskId) => {
+  isTaskMerged: async (taskId) => {
     const task = await taskStore().getById(taskId);
 
-    return task ? isSettledTask(task.status) : false;
+    return task?.status === "merged";
   },
   closed: closedDepsFor,
 };

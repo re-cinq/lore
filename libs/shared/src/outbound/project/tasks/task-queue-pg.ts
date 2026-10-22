@@ -259,6 +259,18 @@ export class PgTaskQueue implements TaskQueueRepository {
     return (rows.at(0) as { id: string; status: string } | undefined) ?? null;
   }
 
+  async latestLoopTaskByIssue(
+    repo: string,
+    issueNumber: number,
+  ): Promise<{ id: string; status: string } | null> {
+    const { rows } = await this.pool.query(
+      `SELECT id, status FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND task_type = 'implementation-loop' ORDER BY created_at DESC LIMIT 1`,
+      [issueNumber, repo],
+    );
+
+    return (rows.at(0) as { id: string; status: string } | undefined) ?? null;
+  }
+
   async markFeatureRequestMergedOnBranch(
     repo: string,
     branch: string,

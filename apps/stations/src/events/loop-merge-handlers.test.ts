@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LOOP_MERGE_EVENTS, loopMergeHandlers } from "./loop-merge-handlers.js";
 
-function scene(activeTask: { id: string; status: string } | null) {
+function scene(loopTask: { id: string; status: string } | null) {
   const flipped: Array<{ id: string; status: string }> = [];
   const handlers = loopMergeHandlers({
     settle: {
@@ -14,7 +14,7 @@ function scene(activeTask: { id: string; status: string } | null) {
         },
       }),
       tasks: {
-        activeTaskByIssue: async () => activeTask,
+        latestLoopTaskByIssue: async () => loopTask,
         setStatusIf: async (id, _from, status) => {
           flipped.push({ id, status });
 
@@ -41,7 +41,7 @@ describe("loopMergeHandlers", () => {
     expect([...handlers.keys()]).toEqual([...LOOP_MERGE_EVENTS]);
   });
 
-  it("settles issue 7's active task when PR 12 merges on its loop branch", async () => {
+  it("settles issue 7's loop task when PR 12 merges on its loop branch", async () => {
     const { close, flipped } = scene({ id: "task-1", status: "running" });
 
     await close({

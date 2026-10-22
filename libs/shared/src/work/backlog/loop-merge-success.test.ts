@@ -60,7 +60,7 @@ function deps(overrides: Partial<MergeSuccessDeps> = {}) {
       },
     }),
     tasks: {
-      activeTaskByIssue: async () => ({ id: "task-1", status: "running" }),
+      latestLoopTaskByIssue: async () => ({ id: "task-1", status: "running" }),
       setStatusIf: async (id, _from, status) => {
         flipped.push({ id, status });
 
@@ -187,14 +187,14 @@ describe("settleMergedLoopTicket", () => {
     expect(result).toContain("not a loop branch");
   });
 
-  it("does nothing when the issue has no active task", async () => {
+  it("does nothing when the issue has no task", async () => {
     const {
       deps: d,
       flipped,
       ticked,
     } = deps({
       tasks: {
-        activeTaskByIssue: async () => null,
+        latestLoopTaskByIssue: async () => null,
         setStatusIf: async () => true,
         recordEvent: async () => {},
       },
@@ -204,17 +204,17 @@ describe("settleMergedLoopTicket", () => {
 
     expect(flipped).toEqual([]);
     expect(ticked).toEqual([]);
-    expect(result).toContain("no active task");
+    expect(result).toContain("no task");
   });
 
-  it("does nothing when the active task already settled as merged", async () => {
+  it("does nothing when the task already settled as merged", async () => {
     const {
       deps: d,
       flipped,
       ticked,
     } = deps({
       tasks: {
-        activeTaskByIssue: async () => ({ id: "task-1", status: "merged" }),
+        latestLoopTaskByIssue: async () => ({ id: "task-1", status: "merged" }),
         setStatusIf: async () => true,
         recordEvent: async () => {},
       },
@@ -227,6 +227,27 @@ describe("settleMergedLoopTicket", () => {
     expect(result).toContain("already settled");
   });
 
+  it.each(["failed", "completed", "running"])(
+    "settles a %s task — loop-reap'd, parked at await-pr, or still in flight are exactly what a human merge resolves",
+    async (status) => {
+      const { deps: d, flipped } = deps({
+        tasks: {
+          latestLoopTaskByIssue: async () => ({ id: "task-1", status }),
+          setStatusIf: async (id, _from, to) => {
+            flipped.push({ id, status: to });
+
+            return true;
+          },
+          recordEvent: async () => {},
+        },
+      });
+
+      await settleMergedLoopTicket(d, REPO, BRANCH);
+
+      expect(flipped).toEqual([{ id: "task-1", status: "merged" }]);
+    },
+  );
+
   it("stops without side effects when another caller already won the status flip", async () => {
     const {
       deps: d,
@@ -234,7 +255,7 @@ describe("settleMergedLoopTicket", () => {
       ticked,
     } = deps({
       tasks: {
-        activeTaskByIssue: async () => ({ id: "task-1", status: "running" }),
+        latestLoopTaskByIssue: async () => ({ id: "task-1", status: "running" }),
         setStatusIf: async () => false,
         recordEvent: async () => {
           throw new Error("must not record an event when the flip was lost");

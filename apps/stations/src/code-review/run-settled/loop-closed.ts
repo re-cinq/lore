@@ -36,8 +36,8 @@ export interface FloorLoopRun {
 export interface SettleLoopDeps {
   run(runId: string): Promise<RunView | null>;
   visits(runId: string): Promise<VisitView[]>;
-  /** Whether this run's task already settled by some other means (the merge-success path settles a task the floor still thinks is in flight) — a settled task's run is left exactly as it is, since re-running the floor's own verdict over it could re-block an already-done ticket. */
-  isTaskSettled(taskId: string): Promise<boolean>;
+  /** Whether this run's task already settled as `merged` by the merge-success path (which can settle a task the floor still thinks is in flight) — re-running the floor's own verdict over it could re-block or re-park an already-done ticket. `completed`/`failed`, the two statuses `settlingTasks` itself just wrote moments before this runs on every ordinary settle, must NOT count here, or no run would ever reach `handleLoopRunClosed`. */
+  isTaskMerged(taskId: string): Promise<boolean>;
   /** The ports the settling rules write through, for one settled run. */
   closed(settled: FloorLoopRun): LoopRunClosedDeps;
 }
@@ -67,7 +67,7 @@ async function settleTicket(
   }
   const settled = closedLoopRunOf(run, await deps.visits(runId));
 
-  if (settled.run.taskId && (await deps.isTaskSettled(settled.run.taskId))) {
+  if (settled.run.taskId && (await deps.isTaskMerged(settled.run.taskId))) {
     return;
   }
 

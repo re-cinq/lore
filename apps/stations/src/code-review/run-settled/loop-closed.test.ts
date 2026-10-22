@@ -209,9 +209,9 @@ describe("settlingLoopTickets", () => {
   function scene(
     run: ReturnType<typeof loopRun> | null,
     visits = [OPENED],
-    opts: { taskSettled?: boolean } = {},
+    opts: { taskMerged?: boolean } = {},
   ) {
-    const { taskSettled = false } = opts;
+    const { taskMerged = false } = opts;
     const steps: string[] = [];
     const closed = (settled: FloorLoopRun): LoopRunClosedDeps => ({
       getTaskIssueNumber: () => Promise.resolve(7),
@@ -253,7 +253,7 @@ describe("settlingLoopTickets", () => {
       {
         run: () => Promise.resolve(run),
         visits: () => Promise.resolve(visits),
-        isTaskSettled: () => Promise.resolve(taskSettled),
+        isTaskMerged: () => Promise.resolve(taskMerged),
         closed,
       },
       () => Promise.resolve(NEXT),
@@ -332,11 +332,11 @@ describe("settlingLoopTickets", () => {
     expect(steps).toEqual([]);
   });
 
-  it("settles no ticket when its task already settled some other way", async () => {
+  it("settles no ticket when its task already merged by the merge-success path", async () => {
     const { settle, steps } = scene(
       loopRun(),
       [OPENED, planVisit("await-pr", { outcome: "failed" })],
-      { taskSettled: true },
+      { taskMerged: true },
     );
 
     await settle();
