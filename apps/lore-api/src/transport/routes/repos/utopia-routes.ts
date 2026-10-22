@@ -5,6 +5,7 @@ import { utopiaBackfillRoute } from "./utopia-backfill.js";
 import { utopiaCommitsRoute } from "./utopia-commits.js";
 import { utopiaTrackerRoute } from "./utopia-tracker.js";
 import { utopiaReleasesRoute } from "./utopia-releases.js";
+import { utopiaResetRoute } from "./utopia-reset.js";
 import { utopiaMemoryRoute, utopiaOrgMemoryRoute } from "./utopia-memory.js";
 
 /** The repo's Utopia knowledge base: set it up, fill it with what was ingested before the mirror, and walk its commits, issues, pull requests, tags, releases, memories and episodes (specs/utopia-graph-mirror). */
@@ -15,6 +16,7 @@ export function utopiaRoutes(getPool: () => Pool | null): ServerRoute[] {
     utopiaCommitsRoute(getPool),
     utopiaTrackerRoute(getPool),
     utopiaReleasesRoute(getPool),
+    utopiaResetRoute(getPool),
     utopiaMemoryRoute(getPool),
     utopiaOrgMemoryRoute(getPool),
   ];

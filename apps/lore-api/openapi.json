@@ -7413,6 +7413,71 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/utopia/reset": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_utopia_reset",
+        "summary": "POST /api/repos/{owner}/{repo}/utopia/reset",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "How many stored ingest commits were forgotten so the next test and code deltas carry everything",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtopiaResetSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/utopia/setup": {
       "post": {
         "operationId": "post_api_repos_owner_repo_utopia_setup",
@@ -18224,6 +18289,16 @@
           "unchanged",
           "failed"
         ],
+        "additionalProperties": false
+      },
+      "UtopiaResetSummary": {
+        "type": "object",
+        "properties": {
+          "ingest_state_cleared": {
+            "type": "number"
+          }
+        },
+        "required": ["ingest_state_cleared"],
         "additionalProperties": false
       },
       "UtopiaSetupResult": {

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 import {
+  clearUtopiaCursors,
   saveUtopiaCommitsHead,
   saveUtopiaMirrorSettings,
   saveUtopiaSource,
@@ -97,5 +98,35 @@ describe("lore.utopia_sources", () => {
     );
 
     expect(rows[0]).toMatchObject({ lore: true, ui: false });
+  });
+
+  it("drops the commit and tracker cursors and keeps the knowledge base, the sources, the version and every other setting, and leaves a repo with no utopia block alone", async () => {
+    await pool.query(
+      `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged, settings) VALUES
+         ('it-utopia', 'cleared', 'it-utopia/cleared', true, '{"auto_review": true, "utopia": {"kb_id": "kb-1", "source_id": "src-1", "docs_source_id": "src-docs", "ontology_version": 7, "commits_head": "c1", "tracker_since": "2026-10-16T02:00:00Z"}}'),
+         ('it-utopia', 'bare', 'it-utopia/bare', true, '{"auto_review": true}')`,
+    );
+
+    await clearUtopiaCursors(pool, "it-utopia/cleared");
+    await clearUtopiaCursors(pool, "it-utopia/bare");
+    const { rows } = await pool.query<{ full_name: string; settings: unknown }>(
+      "SELECT full_name, settings FROM lore.repos WHERE owner = 'it-utopia' AND name IN ('cleared', 'bare') ORDER BY full_name",
+    );
+
+    expect(rows).toEqual([
+      { full_name: "it-utopia/bare", settings: { auto_review: true } },
+      {
+        full_name: "it-utopia/cleared",
+        settings: {
+          auto_review: true,
+          utopia: {
+            kb_id: "kb-1",
+            source_id: "src-1",
+            docs_source_id: "src-docs",
+            ontology_version: 7,
+          },
+        },
+      },
+    ]);
   });
 });
