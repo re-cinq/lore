@@ -4,15 +4,15 @@ import { extname } from "node:path";
 import {
   codeFileItems,
   codeFileTombstones,
-} from "../../domain/utopia/code-statements.js";
-import type { StatementItem } from "../../domain/utopia/statements.js";
-import { MAX_CODE_FILE_CHARS } from "../spec-trace/project-code-file.js";
-import { extractCodeSymbols } from "../spec-trace/reference-extractor.js";
+} from "../../../domain/utopia/coverage/code-statements.js";
+import type { StatementItem } from "../../../domain/utopia/statements.js";
+import { MAX_CODE_FILE_CHARS } from "../../spec-trace/project-code-file.js";
+import { extractCodeSymbols } from "../../spec-trace/reference-extractor.js";
 import {
   pushItems,
   type MirrorDeps,
   type MirrorOutcome,
-} from "./push-items.js";
+} from "../push-items.js";
 
 export interface CodeDeltaInput {
   repo: string;

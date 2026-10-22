@@ -1,13 +1,13 @@
 // One test run as Utopia statement items: one item per test file (Repository contains SourceFile contains Test), each test with its attributes, the statements it validates or violates, and the lines it covers, each under Utopia's push limits.
 
-import { parseSpecAnchors } from "../spec-trace/spec-anchor.js";
+import { parseSpecAnchors } from "../../spec-trace/spec-anchor.js";
 import type {
   CoveredChunk,
   TaggedRunResult,
   TestDescriptor,
-} from "../test-report.js";
-import { joinFragments, splitToFit, type Fragment } from "./fragments.js";
-import { blobUrl, fileName, statementName, testName } from "./names.js";
+} from "../../test-report.js";
+import { joinFragments, splitToFit, type Fragment } from "../fragments.js";
+import { blobUrl, fileName, statementName, testName } from "../names.js";
 import {
   attribute,
   relation,
@@ -15,7 +15,7 @@ import {
   type Statement,
   type StatementItem,
   type Tombstone,
-} from "./statements.js";
+} from "../statements.js";
 
 export interface TestReportInput {
   repo: string;

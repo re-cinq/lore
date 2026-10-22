@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { mirrorCodeFiles, tombstoneCodeFiles } from "./mirror-code.js";
-import { MAX_CODE_FILE_CHARS } from "../spec-trace/project-code-file.js";
-import { relation, type PushItem } from "../../domain/utopia/statements.js";
-import type { PushAction } from "../../outbound/utopia/utopia-client.js";
+import { MAX_CODE_FILE_CHARS } from "../../spec-trace/project-code-file.js";
+import { relation, type PushItem } from "../../../domain/utopia/statements.js";
+import type { PushAction } from "../../../outbound/utopia/utopia-client.js";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 

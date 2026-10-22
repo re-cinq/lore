@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import type { TaggedRunResult, TestDescriptor } from "../test-report.js";
-import { docStatementItems } from "./doc-statements.js";
+import type { TaggedRunResult, TestDescriptor } from "../../test-report.js";
+import { docStatementItems } from "../doc-statements.js";
 import {
   attribute,
   fitsOneItem,
   relation,
   type StatementItem,
-} from "./statements.js";
+} from "../statements.js";
 import {
   testFileTombstones,
   testReportItems,

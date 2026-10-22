@@ -1,8 +1,8 @@
 // One source file as Utopia statement items: Repository contains SourceFile, the file defines each top-level definition with its lines and permalink, a definition references what it calls in the file or through a relative import, and the file imports the files it names. No text of the file is copied.
 
 import { extname, posix } from "node:path";
-import { joinFragments, splitToFit, type Fragment } from "./fragments.js";
-import { blobUrl, definitionName, fileName } from "./names.js";
+import { joinFragments, splitToFit, type Fragment } from "../fragments.js";
+import { blobUrl, definitionName, fileName } from "../names.js";
 import {
   attribute,
   relation,
@@ -10,7 +10,7 @@ import {
   type Entity,
   type StatementItem,
   type Tombstone,
-} from "./statements.js";
+} from "../statements.js";
 
 /** A top-level definition as the code ingest's parser reads it. */
 export interface CodeDefinition {

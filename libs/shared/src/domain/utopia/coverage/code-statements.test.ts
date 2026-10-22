@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { codeFileItems, codeFileTombstones } from "./code-statements.js";
-import { attribute, fitsOneItem, relation } from "./statements.js";
+import { attribute, fitsOneItem, relation } from "../statements.js";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const BLOB = `https://github.com/re-cinq/lore/blob/${COMMIT}`;

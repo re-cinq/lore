@@ -4,12 +4,12 @@ import {
   testFileTombstones,
   testReportItems,
   type TestReportInput,
-} from "../../domain/utopia/test-report-statements.js";
+} from "../../../domain/utopia/coverage/test-report-statements.js";
 import {
   pushItems,
   type MirrorDeps,
   type MirrorOutcome,
-} from "./push-items.js";
+} from "../push-items.js";
 
 export function mirrorTestReport(
   deps: MirrorDeps,
