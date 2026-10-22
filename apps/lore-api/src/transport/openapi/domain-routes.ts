@@ -44,6 +44,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/utopia/tracker",
   // The repo is the path param; every tag and published release is read from GitHub.
   "POST /api/repos/{owner}/{repo}/utopia/releases",
+  // The repo is the path param; it takes nothing else, and what it forgets is the repo's own walk cursors and stored test and code commits.
+  "POST /api/repos/{owner}/{repo}/utopia/reset",
   // The repo is the path param; where to start is the cursor each of its memory sources holds.
   "POST /api/repos/{owner}/{repo}/utopia/memory",
   // The org base is the deployment's GITHUB_ORG; where to start is the cursor each of its memory sources holds.

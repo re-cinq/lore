@@ -38,6 +38,28 @@ export async function storedCommit(
   }
 }
 
+/** Forgets the stored commits of some kinds, so the next delta of each is diffed against nothing and carries everything; how many were stored, a pre-migration cluster reading as none. */
+export async function clearStoredCommits(
+  pool: Pool,
+  repo: string,
+  kinds: string[],
+): Promise<number> {
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM pipeline.ingest_state WHERE repo = $1 AND kind = ANY($2::text[])`,
+      [repo, kinds],
+    );
+
+    return rowCount ?? 0;
+  } catch (err) {
+    if (isUndefinedTableError(err)) {
+      return 0;
+    }
+
+    throw err;
+  }
+}
+
 const ADVANCE_COMMIT_SQL = `INSERT INTO pipeline.ingest_state (repo, kind, commit_sha)
              VALUES ($1, $2, $3)
              ON CONFLICT (repo, kind) DO UPDATE
