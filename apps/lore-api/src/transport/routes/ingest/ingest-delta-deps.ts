@@ -16,22 +16,21 @@ import {
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 import {
-  mirrorCodeFor,
   mirrorDocFor,
+  unmirrorDocFor,
+  type MirroredDoc,
+} from "../../../work/utopia/docs/mirror-doc.js";
+import {
+  mirrorCodeFor,
   mirrorReportFor,
   unmirrorCodeFor,
-  unmirrorDocFor,
   unmirrorTestFilesFor,
   type MirroredCode,
-  type MirroredDoc,
   type MirroredReport,
-} from "../../../work/utopia/utopia-mirror.js";
+} from "../../../work/utopia/test-coverage/mirror-coverage.js";
 
-export type {
-  MirroredCode,
-  MirroredDoc,
-  MirroredReport,
-} from "../../../work/utopia/utopia-mirror.js";
+export type { MirroredDoc };
+export type { MirroredCode, MirroredReport };
 
 /** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
 export interface DocProjection {

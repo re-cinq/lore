@@ -3,7 +3,7 @@
 import {
   UtopiaMemorySummarySchema,
   type UtopiaMemorySummary,
-} from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+} from "@re-cinq/lore-shared/utopia/memory-summary.js";
 import type { BackfillAnswer } from "./utopia-backfill-tick.js";
 
 // A week's sweep carries 20 walks of 200 rows a kind; a base with more left finishes on the next sweep.

@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { UtopiaTrackerSummarySchema } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
-import { mirrorTracker } from "../../../work/utopia/utopia-tracker.js";
+import { UtopiaTrackerSummarySchema } from "@re-cinq/lore-shared/utopia/tracker-summary.js";
+import { mirrorTracker } from "../../../work/utopia/github/utopia-tracker.js";
 import { utopiaWalkRoute } from "./utopia-walk-route.js";
 
 /** POST /api/repos/{owner}/{repo}/utopia/tracker — the issues and pull requests GitHub updated since the stored cursor, mirrored into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR14). */

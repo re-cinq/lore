@@ -10,7 +10,7 @@ import type {
 import { z } from "zod";
 import { utopiaConfigured } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import { ingestFiles } from "../../../work/spec-trace/ingest.js";
-import { ingestedDocMirror } from "../../../work/utopia/ingested-doc-mirror.js";
+import { ingestedDocMirror } from "../../../work/utopia/docs/ingested-doc-mirror.js";
 import { reconcileOrphanChunks } from "../../../work/chunks/reconcile-orphans.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";

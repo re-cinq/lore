@@ -32,7 +32,7 @@ vi.mock("@re-cinq/lore-shared/project/knowledge/memory-search.js", () => ({
 vi.mock("../../../work/memory/fact-extraction.js", () => ({
   extractFactsForMemory: vi.fn(),
 }));
-vi.mock("../../../work/utopia/utopia-memory-push.js", () => ({
+vi.mock("../../../work/utopia/memory/utopia-memory-push.js", () => ({
   mirrorMemory: vi.fn(),
 }));
 
@@ -53,7 +53,7 @@ import {
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import { extractFactsForMemory } from "../../../work/memory/fact-extraction.js";
-import { mirrorMemory } from "../../../work/utopia/utopia-memory-push.js";
+import { mirrorMemory } from "../../../work/utopia/memory/utopia-memory-push.js";
 
 const originalEnv = { ...process.env };
 

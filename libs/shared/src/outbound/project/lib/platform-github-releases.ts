@@ -2,7 +2,7 @@ import type { Octokit } from "octokit";
 import type {
   ReleaseEntry,
   TagEntry,
-} from "../../../domain/utopia/release-statements.js";
+} from "../../../domain/utopia/github/release-statements.js";
 import { split } from "./platform-github-support.js";
 
 interface OctokitRelease {

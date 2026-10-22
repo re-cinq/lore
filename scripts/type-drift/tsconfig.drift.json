@@ -17,6 +17,54 @@
       "@re-cinq/lore-shared/http/internal-token.js": [
         "../../libs/shared/src/lib/internal-token.ts"
       ],
+      "@re-cinq/lore-shared/utopia/commit-statements.js": [
+        "../../libs/shared/src/domain/utopia/git-history/commit-statements.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/commits-summary.js": [
+        "../../libs/shared/src/domain/utopia/git-history/commits-summary.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/doc-statements.js": [
+        "../../libs/shared/src/domain/utopia/docs/doc-statements.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/memory-documents.js": [
+        "../../libs/shared/src/domain/utopia/memory/memory-documents.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/memory-summary.js": [
+        "../../libs/shared/src/domain/utopia/memory/memory-summary.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/mirror-code.js": [
+        "../../libs/shared/src/work/utopia/test-coverage/mirror-code.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/mirror-commits.js": [
+        "../../libs/shared/src/work/utopia/git-history/mirror-commits.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/mirror-document.js": [
+        "../../libs/shared/src/work/utopia/docs/mirror-document.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/mirror-releases.js": [
+        "../../libs/shared/src/work/utopia/github/mirror-releases.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/mirror-test-report.js": [
+        "../../libs/shared/src/work/utopia/test-coverage/mirror-test-report.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/mirror-tracker.js": [
+        "../../libs/shared/src/work/utopia/github/mirror-tracker.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/release-statements.js": [
+        "../../libs/shared/src/domain/utopia/github/release-statements.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/releases-summary.js": [
+        "../../libs/shared/src/domain/utopia/github/releases-summary.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/test-report-statements.js": [
+        "../../libs/shared/src/domain/utopia/test-coverage/test-report-statements.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/tracker-statements.js": [
+        "../../libs/shared/src/domain/utopia/github/tracker-statements.ts"
+      ],
+      "@re-cinq/lore-shared/utopia/tracker-summary.js": [
+        "../../libs/shared/src/domain/utopia/github/tracker-summary.ts"
+      ],
       "@re-cinq/lore-shared/*": [
         "../../libs/shared/src/*",
         "../../libs/shared/src/outbound/*",

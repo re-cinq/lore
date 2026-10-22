@@ -1,5 +1,5 @@
 import type { Octokit } from "octokit";
-import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type { TrackedEntry } from "../../../domain/utopia/github/tracker-statements.js";
 import type { TrackerActivityOptions } from "./github-port.js";
 import { split } from "./platform-github-support.js";
 
