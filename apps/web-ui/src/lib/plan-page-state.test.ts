@@ -161,11 +161,9 @@ describe("planPageState for an approved plan", () => {
     ]).toEqual(["spec-work-failed", "spec-work-failed", "spec-work-failed"]);
   });
 
-  it("is delivering while decompose or issues runs, and delivered once the run completed", () => {
-    expect([
-      planPageState("approved", run("running", [visit("decompose", null)])),
-      planPageState("approved", run("running", [visit("issues", null)])),
+  it("is delivered once the run completed", () => {
+    expect(
       planPageState("approved", run("finished", [], { outcome: "completed" })),
-    ]).toEqual(["delivering", "delivering", "delivered"]);
+    ).toBe("delivered");
   });
 });

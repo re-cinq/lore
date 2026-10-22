@@ -7,9 +7,12 @@ import { parseDecomposition } from "./decomposition-result.js";
 
 const DECOMPOSITION_INSTRUCTIONS =
   parseAgentDefaultFile(
-    "feature-decompose",
+    "spec-tickets-decompose",
     readFileSync(
-      resolve(import.meta.dirname, "../../agent-defaults/feature-decompose.md"),
+      resolve(
+        import.meta.dirname,
+        "../../agent-defaults/spec-tickets-decompose.md",
+      ),
       "utf-8",
     ),
   ).prompt ?? "";
@@ -28,7 +31,7 @@ function isBlank(value: unknown): boolean {
   return Array.isArray(value) ? value.length === 0 : !value;
 }
 
-describe("the shipped feature-decompose prompt", () => {
+describe("the shipped spec-tickets-decompose prompt", () => {
   it("documents the output contract — stories, acceptance criteria, and task dependencies", () => {
     for (const token of [
       "stories",
@@ -84,7 +87,6 @@ describe("DECOMPOSITION_EXAMPLE", () => {
         "acceptance_criteria",
         "test_plan",
         "references",
-        "plan_quotes",
       ].every((field) => DECOMPOSITION_INSTRUCTIONS.includes(`"${field}"`)),
     }).toEqual({ ownIssue: true, fields: true });
   });

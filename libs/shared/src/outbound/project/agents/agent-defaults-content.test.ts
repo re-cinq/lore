@@ -625,8 +625,8 @@ describe("the feature-planning recipe", () => {
     });
   });
 
-  it("has the feature-decompose recipe transcribe a reviewed tasks.md instead of re-deriving a breakdown", () => {
-    const prompt = promptOnOneLine("feature-decompose");
+  it("has the spec-tickets-decompose recipe transcribe a reviewed tasks.md instead of re-deriving a breakdown", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
 
     expect({
       primaryInput: prompt.includes("it is the PRIMARY input"),
@@ -765,8 +765,8 @@ describe("the planning recipes check a plan against what the platform has (issue
     });
   });
 
-  it("has feature-decompose file storyless phases as Setup and foundation / Polish stories, chain same-file tasks and name a runnable test", () => {
-    const prompt = promptOnOneLine("feature-decompose");
+  it("has spec-tickets-decompose file storyless phases as Setup and foundation / Polish stories, chain same-file tasks and name a runnable test", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
 
     expect({
       setupStory: prompt.includes('"Setup and foundation"'),
@@ -836,66 +836,55 @@ describe("the planning recipes check a plan against what the platform has (issue
     });
   });
 
-  it("has feature-decompose rewrite each task listed under Not on main from the code and drop the plan quotes naming what is gone", () => {
-    const prompt = promptOnOneLine("feature-decompose");
+  it("has spec-tickets-decompose rewrite each task listed under Not on main from the code", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
 
     expect({
       heading: prompt.includes('lists task ids under "Not on main"'),
       fromCode: prompt.includes(
         "rewrite that task from the code on the branch",
       ),
-      dropQuote: prompt.includes(
-        "drop a plan quote that names something the code lacks",
-      ),
-    }).toEqual({ heading: true, fromCode: true, dropQuote: true });
+    }).toEqual({ heading: true, fromCode: true });
   });
 
-  it("has feature-decompose read the spec its spec_path value names beside the approved plan, and take context from that plan", () => {
-    const prompt = promptOnOneLine("feature-decompose");
+  it("has spec-tickets-decompose read the spec its spec_path value names, and keep the ids of the tickets filed for it before", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
 
     expect({
-      spec: prompt.includes("The spec** this plan writes is `{spec_path}`"),
+      spec: prompt.includes("The spec** is `{spec_path}`"),
       noSearch: prompt.includes("Do not search the clone for another one"),
-      context: prompt.includes("take `context` from the approved plan too"),
-    }).toEqual({ spec: true, noSearch: true, context: true });
+      existing: prompt.includes("`{existing_tickets_path}`"),
+      neverReuse: prompt.includes("never reuse the id of a task you drop"),
+    }).toEqual({
+      spec: true,
+      noSearch: true,
+      existing: true,
+      neverReuse: true,
+    });
   });
 
-  it("has feature-decompose name each task's spec lines at the commit it read, and on a coverage round add only the statements listed", () => {
-    const prompt = promptOnOneLine("feature-decompose");
+  it("has spec-tickets-decompose name each task's spec lines at the commit it read, and on a coverage round add only the statements listed", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
 
     expect({
       lines: prompt.includes(
-        '"spec_lines": { "specs/<slug>/spec.md": [42, 57], "specs/<other>/spec.md": [12] }',
-      ),
-      otherSpecs: prompt.includes(
-        "statements in every spec `{spec_plan_path}` names count",
+        '"spec_lines": { "specs/<slug>/spec.md": [42, 57] }',
       ),
       commit: prompt.includes("git -C /workspace/target rev-parse HEAD"),
       everyStatement: prompt.includes(
         "Name every testable statement in at least one task",
       ),
       keepsIds: prompt.includes(
-        "keep every task that is still the same work, with its id",
+        "Keep a task's id when it is still the same work",
       ),
       onlyListed: prompt.includes("this round is for exactly those"),
     }).toEqual({
       lines: true,
-      otherSpecs: true,
       commit: true,
       everyStatement: true,
       keepsIds: true,
       onlyListed: true,
     });
-  });
-
-  it("has feature-decompose read every spec spec-plan.json names, cite the plan blocks, and quote the plan on every task", () => {
-    const prompt = promptOnOneLine("feature-decompose");
-
-    expect({
-      everySpec: prompt.includes("Read every spec it names"),
-      cites: prompt.includes("copied exactly as the file gives it"),
-      quotes: prompt.includes("`plan_quotes`"),
-    }).toEqual({ everySpec: true, cites: true, quotes: true });
   });
 
   it("lists remove-section in the plan-analyze op catalogue, only on a person's ask or an empty template section, never for intent or success criteria", () => {

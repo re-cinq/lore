@@ -57,7 +57,6 @@ const REWORK = {
 const SPEC_PR_TITLES: Partial<Record<PlanPageState, string>> = {
   "spec-pr-open": "Spec waiting for review",
   reopened: "Spec PR updated on the next approval",
-  delivering: "Spec merged",
   delivered: "Spec merged",
 };
 

@@ -30,14 +30,6 @@ const NODE_PHASES: Partial<Record<string, PlanRunPhase>> = {
     tone: "waiting",
     text: "The spec PR is open and waiting to be merged.",
   },
-  decompose: {
-    tone: "working",
-    text: "Breaking the spec into stories and tasks.",
-  },
-  issues: {
-    tone: "working",
-    text: "Breaking the spec into stories and tasks.",
-  },
 };
 
 const LAST_PASS_FAILED: PlanRunPhase = {
@@ -74,7 +66,7 @@ export function planRunPhase(
   }
 
   if (run.status === "finished") {
-    return { tone: "done", text: "Done: the plan's spec-tasks are filed." };
+    return { tone: "done", text: "Done: the spec is merged." };
   }
 
   return run.status === "queued"

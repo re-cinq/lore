@@ -15,7 +15,6 @@ export const AGENT_STEPS: Readonly<Record<string, string>> = {
   "qa-generate": "checking the spec",
   "qa-answer": "checking the spec",
   "qa-recheck": "checking the spec",
-  decompose: "splitting into tasks",
 };
 
 const AGENT_COLOR = "hsl(200 65% 45%)";

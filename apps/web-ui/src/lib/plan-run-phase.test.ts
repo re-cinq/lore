@@ -61,14 +61,6 @@ describe("planRunPhase", () => {
     });
   });
 
-  it("says the spec is being broken into stories and tasks during issues", () => {
-    expect(
-      running(visit("decompose", "success"), visit("issues", null)),
-    ).toMatchObject({
-      text: "Breaking the spec into stories and tasks.",
-    });
-  });
-
   it("names the reason a failed run gave", () => {
     expect(
       planRunPhase({ status: "failed", reason: "analyze timed out" }, []),
@@ -78,7 +70,7 @@ describe("planRunPhase", () => {
     });
   });
 
-  it("says a finished run filed the plan's spec-tasks", () => {
+  it("says a finished run merged the spec", () => {
     expect(
       planRunPhase(
         { status: "finished", outcome: "completed", reason: null },
@@ -86,7 +78,7 @@ describe("planRunPhase", () => {
       ),
     ).toEqual({
       tone: "done",
-      text: "Done: the plan's spec-tasks are filed.",
+      text: "Done: the spec is merged.",
     });
   });
 });

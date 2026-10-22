@@ -1,4 +1,4 @@
-// A worked `feature-decompose` result (ADR-029), the fixture parseDecomposition is held to; the prompt itself ships as libs/shared/src/agent-defaults/feature-decompose.md.
+// A worked decomposition result (ADR-029), the fixture parseDecomposition is held to; the prompt itself ships as libs/shared/src/agent-defaults/spec-tickets-decompose.md.
 
 export const DECOMPOSITION_EXAMPLE = JSON.stringify({
   stories: [

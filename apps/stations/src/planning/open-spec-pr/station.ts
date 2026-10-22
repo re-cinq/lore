@@ -43,9 +43,6 @@ export function openSpecPrHandle(deps: OpenSpecPrDeps): Handle {
       const pr = await openWithCoverage(pulls, branch, brief, tools);
       const specPlan = await tools.read("spec_plan");
 
-      // The bag never drops a key: without this, the decompose after this spec merges would read what an earlier decomposition's coverage check left and take it for a coverage round.
-      await tools.produce("issue_coverage", "");
-
       return reported(pr.url, specPathOfPlan(specPlan.toString("utf8")));
     } catch (err) {
       return { outcome: "failed", error: (err as Error).message };
@@ -124,7 +121,7 @@ const TITLE_PREFIX = "spec: ";
 // The cap the Floor's own spec-PR titles used, so a long plan title does not fill a reader's list.
 const TITLE_MAX = 70;
 
-/** The spec the plan's spec-tasks belong to rides the run's bag from here, so the stations after the merge read it rather than derive it again; a plan naming none produces none. */
+/** The spec the plan wrote rides the run's bag from here; a plan naming none produces none. */
 function reported(prUrl: string, specPath: string | undefined): Report {
   return {
     outcome: "success",

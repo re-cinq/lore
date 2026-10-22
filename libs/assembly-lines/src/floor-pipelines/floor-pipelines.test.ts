@@ -3,7 +3,6 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
 import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
-import { COVERAGE_ROUNDS } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import { SPEC_QA_ROUNDS } from "@re-cinq/lore-shared/feature-planning/spec-qa.js";
 
 interface Arg {
@@ -132,6 +131,65 @@ describe("the floor pipelines shipped in this folder", () => {
       "issue-coverage>done",
     ]);
     expect(line.args["key"]).toMatchObject({ subject: true });
+  });
+
+  it("hands spec-tickets-decompose its last decomposition, the coverage round and the tickets filed before as files its prompt names", () => {
+    const decompose =
+      pipelineOf("spec-tickets").stations["spec-tickets-decompose"];
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      decomposition: needOf(decompose, "decomposition"),
+      coverage: needOf(decompose, "issue_coverage"),
+      existing: needOf(decompose, "existing_tickets"),
+      named: [
+        prompt.includes("/workspace/decomposition.json"),
+        prompt.includes("/workspace/issue-coverage.md"),
+        prompt.includes("{existing_tickets_path}"),
+      ],
+    }).toEqual({
+      named: [true, true, true],
+      decomposition: {
+        name: "decomposition",
+        kind: "file",
+        path: "decomposition.json",
+        optional: true,
+      },
+      coverage: {
+        name: "issue_coverage",
+        kind: "file",
+        path: "issue-coverage.md",
+        optional: true,
+      },
+      existing: {
+        name: "existing_tickets",
+        kind: "file",
+        path: "existing-tickets.json",
+      },
+    });
+  });
+
+  it("runs spec-tickets-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+    const { settings } =
+      pipelineOf("spec-tickets").agent_definitions!["spec-tickets-decompose"]!;
+
+    expect({ model: settings.model, prices: settings.prices }).toEqual({
+      model: "gemini-3.1-pro-preview",
+      prices: {
+        "gemini-3.1-pro-preview": {
+          input_per_million: 2,
+          output_per_million: 12,
+        },
+      },
+    });
+  });
+
+  it("tells spec-tickets-decompose to pass repo on every lore call", () => {
+    expect(
+      promptOnOneLine("spec-tickets-decompose").includes(
+        "Pass `repo` (the owner/name your task names above) on every `lore_*` call",
+      ),
+    ).toBe(true);
   });
 
   it("walks implementation-loop from sync-start through dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
@@ -263,25 +321,19 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value beside the spec plan as an optional file", () => {
+  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url", () => {
     const { stations } = pipelineOf("feature-planning");
     const openSpecPr = stations["open-spec-pr"];
-    const issues = stations["issues"];
 
     expect({
       openSpecPrReads: needOf(openSpecPr, "spec_plan")?.kind,
       openSpecPrProduces: openSpecPr.produces,
-      issuesReads: needOf(issues, "spec_path"),
-      issuesReadsPlan: needOf(issues, "spec_plan"),
     }).toEqual({
       openSpecPrReads: "file",
       openSpecPrProduces: [
         { name: "pr_url", kind: "value" },
         { name: "spec_path", kind: "value" },
-        { name: "issue_coverage", kind: "file" },
       ],
-      issuesReads: { name: "spec_path", kind: "value", optional: true },
-      issuesReadsPlan: { name: "spec_plan", kind: "file", optional: true },
     });
   });
 
@@ -874,12 +926,9 @@ describe("the feature-planning pipeline", () => {
         "analyze",
         "assemble",
         "author",
-        "decompose",
         "done",
         "draft",
         "failed",
-        "issue-coverage",
-        "issues",
         "merged",
         "open-spec-pr",
         "plan-findings",
@@ -900,7 +949,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("ends the run failed when split-sections, assemble, qa-questions, qa-gate, spec-findings, open-spec-pr, issues or issue-coverage fails or decompose asks for changes, and done when the author walks away or the spec PR closes", () => {
+  it("ends the run failed when split-sections, assemble, qa-questions, qa-gate, spec-findings or open-spec-pr fails, and done when the author walks away or the spec PR closes", () => {
     const { line } = pipelineOf("feature-planning");
     const settledBy = (to: string) =>
       line.edges
@@ -911,9 +960,6 @@ describe("the feature-planning pipeline", () => {
     expect({ failed: settledBy("failed"), done: settledBy("done") }).toEqual({
       failed: [
         "assemble:failed",
-        "decompose:changes_requested",
-        "issue-coverage:failed",
-        "issues:failed",
         "open-spec-pr:failed",
         "qa-gate:failed",
         "qa-questions:failed",
@@ -933,7 +979,6 @@ describe("the feature-planning pipeline", () => {
 
     expect(retried).toEqual([
       "analyse-specs:1",
-      "decompose:1",
       "draft:1",
       "qa-answer:1",
       "qa-generate:1",
@@ -1191,56 +1236,6 @@ describe("the feature-planning pipeline", () => {
     );
   });
 
-  it("checks issue coverage after issues, sending decompose back at most COVERAGE_ROUNDS times", () => {
-    const { line } = pipelineOf("feature-planning");
-
-    expect({
-      fromIssues: edgesOn(line, "issues").find((edge) => edge.on === "success"),
-      fromCoverage: edgesOn(line, "issue-coverage"),
-    }).toEqual({
-      fromIssues: { from: "issues", to: "issue-coverage", on: "success" },
-      fromCoverage: [
-        { from: "issue-coverage", to: "done", on: "success" },
-        {
-          from: "issue-coverage",
-          to: "decompose",
-          on: "changes_requested",
-          iteration_max: COVERAGE_ROUNDS,
-        },
-        { from: "issue-coverage", to: "failed", on: "failed" },
-      ],
-    });
-  });
-
-  it("hands feature-decompose its last decomposition and issue coverage as optional files its prompt names", () => {
-    const decompose =
-      pipelineOf("feature-planning").stations["feature-decompose"];
-    const prompt = promptOnOneLine("feature-decompose");
-
-    expect({
-      decomposition: needOf(decompose, "decomposition"),
-      coverage: needOf(decompose, "issue_coverage"),
-      named: [
-        prompt.includes("/workspace/decomposition.json"),
-        prompt.includes("/workspace/issue-coverage.md"),
-      ],
-    }).toEqual({
-      named: [true, true],
-      decomposition: {
-        name: "decomposition",
-        kind: "file",
-        path: "decomposition.json",
-        optional: true,
-      },
-      coverage: {
-        name: "issue_coverage",
-        kind: "file",
-        path: "issue-coverage.md",
-        optional: true,
-      },
-    });
-  });
-
   it("hands spec-rework the citable plan blocks and the last coverage as optional files its prompt names", () => {
     const write = pipelineOf("feature-planning").stations["spec-rework"];
     const prompt = promptOnOneLine("spec-rework");
@@ -1366,7 +1361,6 @@ describe("the feature-planning pipeline", () => {
       "plan-validate",
       "spec-analysis",
       "spec-rework",
-      "feature-decompose",
     ];
 
     expect(
@@ -1376,63 +1370,6 @@ describe("the feature-planning pipeline", () => {
         ),
       ),
     ).toEqual(agents.map(() => true));
-  });
-
-  it("gives feature-decompose the approved plan as plan.md and the spec_path value, and names both in its prompt", () => {
-    const decompose =
-      pipelineOf("feature-planning").stations["feature-decompose"];
-    const prompt = promptOnOneLine("feature-decompose");
-
-    expect({
-      planMd: needOf(decompose, "plan_md"),
-      specPath: needOf(decompose, "spec_path"),
-      namesPlan: prompt.includes("{plan_md_path}"),
-      namesSpecPath: prompt.includes("{spec_path}"),
-    }).toEqual({
-      planMd: { name: "plan_md", kind: "file", path: "plan.md" },
-      specPath: { name: "spec_path", kind: "value" },
-      namesPlan: true,
-      namesSpecPath: true,
-    });
-  });
-
-  it("gives feature-decompose every spec the plan touched as spec-plan.json and the citable plan blocks, and names both in its prompt", () => {
-    const decompose =
-      pipelineOf("feature-planning").stations["feature-decompose"];
-    const prompt = promptOnOneLine("feature-decompose");
-
-    expect({
-      specPlan: needOf(decompose, "spec_plan"),
-      blocks: needOf(decompose, "plan_blocks"),
-      named: [
-        prompt.includes("{spec_plan_path}"),
-        prompt.includes("/workspace/plan-blocks.json"),
-      ],
-    }).toEqual({
-      specPlan: { name: "spec_plan", kind: "file", path: "spec-plan.json" },
-      blocks: {
-        name: "plan_blocks",
-        kind: "file",
-        path: "plan-blocks.json",
-        optional: true,
-      },
-      named: [true, true],
-    });
-  });
-
-  it("runs feature-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
-    const { settings } =
-      pipelineOf("feature-planning").agent_definitions!["feature-decompose"]!;
-
-    expect({ model: settings.model, prices: settings.prices }).toEqual({
-      model: "gemini-3.1-pro-preview",
-      prices: {
-        "gemini-3.1-pro-preview": {
-          input_per_million: 2,
-          output_per_million: 12,
-        },
-      },
-    });
   });
 
   it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
@@ -1462,16 +1399,6 @@ describe("the feature-planning pipeline", () => {
         },
       })),
     );
-  });
-
-  it("gives the issues station the approved plan as an optional plan_md, to fold into the story issue", () => {
-    const issues = pipelineOf("feature-planning").stations["issues"];
-
-    expect(needOf(issues, "plan_md")).toEqual({
-      name: "plan_md",
-      kind: "file",
-      optional: true,
-    });
   });
 });
 
