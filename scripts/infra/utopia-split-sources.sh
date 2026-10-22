@@ -12,7 +12,8 @@
 #      the same items cannot enter the new sources while the old ones stand;
 #   2. resets the repo (POST /utopia/reset): the commit and tracker walks start over
 #      and the stored test and code ingest commits are forgotten;
-#   3. runs the backfill, which fills `docs`, `git-history` and `github`.
+#   3. runs the backfill, which fills `docs`, `git-history` and `github`, then walks
+#      the issues and pull requests until one walk comes back short.
 # Tests and code reach `test-coverage` on the repo's next CI run (re-run its
 # lore-tests workflow to do it now).
 #
@@ -113,6 +114,29 @@ count_state() {
   old_documents "$1" "$2" "$3" | jq -r '.total'
 }
 
+# A walk of issues and pull requests reads at most this many entries, and the
+# backfill runs one: walk again until one comes back short, so a repo with more
+# than 200 starts with all of them and not 200 a week.
+tracker_page=200
+
+catch_up_tracker() {
+  local repo="$1" out entries walks=0
+  while [ "$walks" -lt 500 ]; do
+    out="$(curl -fsS -m 1800 -X POST -H "$lore_auth" "$api/repos/$repo/utopia/tracker")" || {
+      log "$repo: tracker walk failed"
+      return 1
+    }
+    walks=$((walks + 1))
+    if [ "$(jq '.failed | length' <<<"$out")" -ne 0 ]; then
+      log "$repo: tracker walk $walks: $(jq -r '.failed[0]' <<<"$out")"
+      return 1
+    fi
+    entries="$(jq -r '.entries' <<<"$out")"
+    [ "$entries" -ge "$tracker_page" ] || break
+  done
+  log "$repo: tracker caught up after $walks walks"
+}
+
 split_repo() {
   local repo="$1" record kb source live deleted purged_live purged_deleted out status
   record="$(curl -fsS -H "$lore_auth" "$api/repos/$repo")" || {
@@ -149,6 +173,7 @@ split_repo() {
     *) log "$repo: backfill HTTP $status $(head -c 300 "$out")"; rm -f "$out"; return 1 ;;
   esac
   rm -f "$out"
+  catch_up_tracker "$repo"
 }
 
 [ "${#repos[@]}" -gt 0 ] || mapfile -t repos < <(onboarded_repos)
