@@ -5,12 +5,8 @@
 -- `feature-decompose.md` default was deleted with the planning nodes that used
 -- it. The boot seed only fills rows from files that exist, so nothing removes
 -- the rows it wrote earlier. This does, for the org row and any per-repo
--- override, and tells every cluster-agent to drop the recipe it rendered from it.
+-- override. No catalog event is recorded: the cluster agents that listened for
+-- them are gone.
 
-WITH removed AS (
-  DELETE FROM lore.agent_definitions
-   WHERE name = 'feature-decompose'
-  RETURNING name, project_id
-)
-INSERT INTO lore.catalog_events (name, project_id, op)
-SELECT name, project_id, 'delete' FROM removed;
+DELETE FROM lore.agent_definitions
+ WHERE name = 'feature-decompose';
