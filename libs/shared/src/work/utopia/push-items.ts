@@ -1,7 +1,11 @@
 // The push every Utopia mirror kind shares: items pushed four at a time, counting what Utopia said of each.
 
+import { enforceTrue } from "../../lib/enforce.js";
 import type { PushItem } from "../../domain/utopia/statements.js";
-import type { PushOutcome } from "../../outbound/utopia/utopia-client.js";
+import type {
+  PushAction,
+  PushOutcome,
+} from "../../outbound/utopia/utopia-client.js";
 
 export const CONCURRENCY = 4;
 
@@ -57,14 +61,26 @@ async function pushOne(
   outcome: MirrorOutcome,
 ): Promise<void> {
   try {
-    const { action } = await deps.push(pushed);
+    const counted = landed((await deps.push(pushed)).action);
 
-    if (action !== "marked_missing") {
-      outcome[action] += 1;
+    if (counted) {
+      outcome[counted] += 1;
     }
   } catch (error) {
     outcome.failed.push(
       `${pushed.externalId}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+function landed(
+  action: PushAction,
+): "created" | "updated" | "unchanged" | null {
+  enforceTrue(
+    action !== "duplicate",
+    Error,
+    "duplicate, another document in the knowledge base holds the same content",
+  );
+
+  return action === "marked_missing" ? null : action;
 }
