@@ -28,8 +28,8 @@ import {
   mirrorBranchCommits,
   type CommitHistoryDeps,
 } from "./git-history/utopia-commits.js";
-import { mirrorTracker, type TrackerDeps } from "./utopia-tracker.js";
-import { mirrorReleases, type ReleaseDeps } from "./utopia-releases.js";
+import { mirrorTracker, type TrackerDeps } from "./github/utopia-tracker.js";
+import { mirrorReleases, type ReleaseDeps } from "./github/utopia-releases.js";
 import {
   memoryWalkDepsFor,
   mirrorMemoryBacklog,

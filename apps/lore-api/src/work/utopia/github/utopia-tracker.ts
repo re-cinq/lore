@@ -4,7 +4,7 @@ import type { TrackerActivityOptions } from "@re-cinq/lore-shared/project/lib/gi
 import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaTrackerSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
-import { queuedPerRepo, walkInOrder } from "./cursor-walk.js";
+import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
 
 export interface TrackerDeps {
   repo: string;

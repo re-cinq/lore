@@ -5,14 +5,18 @@ import {
   joinFragments,
   splitToFit,
   type Fragment,
-} from "./fragments.js";
+} from "../fragments.js";
 import {
   bodyLinks,
   trackedName,
   trackedStub,
   type TrackedKind,
 } from "./pull-request-links.js";
-import { attribute, type Statement, type StatementItem } from "./statements.js";
+import {
+  attribute,
+  type Statement,
+  type StatementItem,
+} from "../statements.js";
 
 export interface TrackedEntry {
   kind: TrackedKind;

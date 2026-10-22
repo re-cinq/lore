@@ -3,7 +3,7 @@
 import { mergedPullRequestNumber } from "../../pr-body.js";
 import { cutText, joinFragments, type Fragment } from "../fragments.js";
 import { commitName, githubPage, pullRequestName } from "../names.js";
-import { bodyLinks, trackedStub } from "../pull-request-links.js";
+import { bodyLinks, trackedStub } from "../github/pull-request-links.js";
 import {
   attribute,
   relation,

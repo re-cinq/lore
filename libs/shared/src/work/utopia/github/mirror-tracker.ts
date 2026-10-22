@@ -3,12 +3,12 @@
 import {
   trackerItems,
   type TrackedEntry,
-} from "../../domain/utopia/tracker-statements.js";
+} from "../../../domain/utopia/github/tracker-statements.js";
 import {
   pushItems,
   type MirrorDeps,
   type MirrorOutcome,
-} from "./push-items.js";
+} from "../push-items.js";
 
 export function mirrorTrackedEntry(
   deps: MirrorDeps,

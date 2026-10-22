@@ -4,7 +4,7 @@ import {
   tagItems,
   type ReleaseEntry,
 } from "./release-statements.js";
-import { attribute, relation } from "./statements.js";
+import { attribute, relation } from "../statements.js";
 
 const REPO = "re-cinq/lore";
 const SHA = "7b89df02405fcc32f6621ec030f417fea0265694";

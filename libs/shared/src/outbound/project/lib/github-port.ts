@@ -1,9 +1,9 @@
 import type { IssueComment } from "../pulls/pull-requests-port.js";
-import type { TrackedEntry } from "../../../domain/utopia/tracker-statements.js";
+import type { TrackedEntry } from "../../../domain/utopia/github/tracker-statements.js";
 import type {
   ReleaseEntry,
   TagEntry,
-} from "../../../domain/utopia/release-statements.js";
+} from "../../../domain/utopia/github/release-statements.js";
 /** GitHub port: structural subset of agent's CodePlatform. */
 
 export type IssueState = "open" | "closed";

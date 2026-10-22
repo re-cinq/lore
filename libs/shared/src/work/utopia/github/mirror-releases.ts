@@ -5,12 +5,12 @@ import {
   tagItems,
   type ReleaseEntry,
   type TagEntry,
-} from "../../domain/utopia/release-statements.js";
+} from "../../../domain/utopia/github/release-statements.js";
 import {
   pushItems,
   type MirrorDeps,
   type MirrorOutcome,
-} from "./push-items.js";
+} from "../push-items.js";
 
 export function mirrorTagsAndReleases(
   deps: MirrorDeps,

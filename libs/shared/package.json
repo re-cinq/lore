@@ -275,20 +275,20 @@
       "default": "./dist/work/utopia/git-history/mirror-commits.js"
     },
     "./utopia/tracker-statements.js": {
-      "types": "./dist/domain/utopia/tracker-statements.d.ts",
-      "default": "./dist/domain/utopia/tracker-statements.js"
+      "types": "./dist/domain/utopia/github/tracker-statements.d.ts",
+      "default": "./dist/domain/utopia/github/tracker-statements.js"
     },
     "./utopia/mirror-tracker.js": {
-      "types": "./dist/work/utopia/mirror-tracker.d.ts",
-      "default": "./dist/work/utopia/mirror-tracker.js"
+      "types": "./dist/work/utopia/github/mirror-tracker.d.ts",
+      "default": "./dist/work/utopia/github/mirror-tracker.js"
     },
     "./utopia/release-statements.js": {
-      "types": "./dist/domain/utopia/release-statements.d.ts",
-      "default": "./dist/domain/utopia/release-statements.js"
+      "types": "./dist/domain/utopia/github/release-statements.d.ts",
+      "default": "./dist/domain/utopia/github/release-statements.js"
     },
     "./utopia/mirror-releases.js": {
-      "types": "./dist/work/utopia/mirror-releases.d.ts",
-      "default": "./dist/work/utopia/mirror-releases.js"
+      "types": "./dist/work/utopia/github/mirror-releases.d.ts",
+      "default": "./dist/work/utopia/github/mirror-releases.js"
     }
   },
   "scripts": {

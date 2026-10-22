@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { trackerItems, type TrackedEntry } from "./tracker-statements.js";
-import { attribute, fitsOneItem, relation } from "./statements.js";
+import { attribute, fitsOneItem, relation } from "../statements.js";
 
 const REPO = "re-cinq/lore";
 const PULL = `${REPO}/pull/2790`;

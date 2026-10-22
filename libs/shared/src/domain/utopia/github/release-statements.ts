@@ -5,9 +5,9 @@ import {
   joinFragments,
   splitToFit,
   type Fragment,
-} from "./fragments.js";
-import { commitName, githubPage, releaseName, tagName } from "./names.js";
-import { attribute, relation, type StatementItem } from "./statements.js";
+} from "../fragments.js";
+import { commitName, githubPage, releaseName, tagName } from "../names.js";
+import { attribute, relation, type StatementItem } from "../statements.js";
 
 export interface TagEntry {
   name: string;

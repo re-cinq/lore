@@ -1,9 +1,9 @@
 // A pull request or an issue as the mirror names it, and the issues and the Lore task a pull request's body names. The commit mirror reaches them through a squash-merge's message and the tracker mirror from GitHub's own record, so both state the same statements about them.
 
-import { linkedIssues, loreTaskIdOf, type LinkedIssue } from "../pr-body.js";
-import type { Fragment } from "./fragments.js";
-import { githubPage, issueName, pullRequestName, taskName } from "./names.js";
-import { attribute, relation } from "./statements.js";
+import { linkedIssues, loreTaskIdOf, type LinkedIssue } from "../../pr-body.js";
+import type { Fragment } from "../fragments.js";
+import { githubPage, issueName, pullRequestName, taskName } from "../names.js";
+import { attribute, relation } from "../statements.js";
 
 export type TrackedKind = "pull" | "issue";
 
