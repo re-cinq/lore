@@ -3,13 +3,16 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   utopiaAutoSetupConfigured,
+  utopiaClientFrom,
   type UtopiaEnv,
   type UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
+import type { MirrorDeps } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { Pool } from "pg";
 import {
   kindSourceFor,
   saveKindSource,
+  type KindSourceKey,
   type MirrorKind,
 } from "../../outbound/utopia-kind-sources.js";
 import { loreSession, sharedPerRepo } from "./utopia-auto-setup.js";
@@ -31,6 +34,35 @@ export async function kindSourceOf(
     Error,
     `${repo} has no Utopia knowledge base and this deployment cannot set one up`,
   );
+
+  return kindSourceIn(pool, { repo, kind, kbId: kbId! }, env);
+}
+
+/** Pushes the statements of a kind to its source in the repo's knowledge base, or null when the repo has no knowledge base and the deployment cannot set one up, so there is nothing to mirror to. */
+export async function kindMirrorDeps(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+  env: UtopiaEnv = process.env,
+): Promise<MirrorDeps | null> {
+  const kbId = await repoKnowledgeBase(pool, repo, env);
+
+  if (!kbId) {
+    return null;
+  }
+  const source = await kindSourceIn(pool, { repo, kind, kbId }, env);
+
+  return {
+    push: (pushed) => utopiaClientFrom(env).pushStatements(source, pushed),
+  };
+}
+
+async function kindSourceIn(
+  pool: Pool,
+  wanted: KindSourceKey,
+  env: UtopiaEnv,
+): Promise<UtopiaSource> {
+  const { repo, kind, kbId } = wanted;
   const stored = await kindSourceFor(pool, repo, kind);
 
   if (stored?.kbId === kbId) {
@@ -38,13 +70,13 @@ export async function kindSourceOf(
   }
 
   return sharedPerRepo(creating, `${repo}:${kind}`, () =>
-    createKindSource(pool, { repo, kind, kbId: kbId! }, env),
+    createKindSource(pool, wanted, env),
   );
 }
 
 async function createKindSource(
   pool: Pool,
-  wanted: { repo: string; kind: MirrorKind; kbId: string },
+  wanted: KindSourceKey,
   env: UtopiaEnv,
 ): Promise<UtopiaSource> {
   const { repo, kind, kbId } = wanted;
