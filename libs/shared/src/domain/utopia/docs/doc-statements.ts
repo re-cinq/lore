@@ -17,6 +17,7 @@ import {
   type Fragment,
 } from "../fragments.js";
 import { blobUrl, fileName, statementName, testName } from "../names.js";
+import { sectionsOf, type SectionRef } from "./doc-sections.js";
 import {
   attribute,
   relation,
@@ -48,13 +49,6 @@ interface DocNames {
   testSources: ReadonlyMap<string, string>;
 }
 
-interface SectionRef {
-  name: string;
-  title: string;
-  line: number;
-  depth: number;
-}
-
 const DOC_KIND_WORD = { spec: "Spec", adr: "Adr", doc: "Doc" } as const;
 
 export type MirroredDocKind = keyof typeof DOC_KIND_WORD;
@@ -69,14 +63,25 @@ export function docStatementItems(input: DocStatementsInput): StatementItem[] {
       part.map((section) => sectionFragment(names.doc, section)),
     ),
   );
-  const perStatement = linksForStatements(input.content).flatMap(
-    ({ statement, testLinks }) =>
-      itemsOfStatement(names, sections, statement, testLinks),
-  );
 
-  return [...docItems, ...perStatement].map((pushed) =>
-    input.commitTime ? { ...pushed, doc_time: input.commitTime } : pushed,
+  return [...timed(docItems, input.commitTime), ...statementItems(input)];
+}
+
+/** The items of the document's statements alone: each statement's text, its tests, source files and ADRs. */
+export function statementItems(input: DocStatementsInput): StatementItem[] {
+  const names = namesOf(input);
+  const sections = sectionsOf(input.content, names.doc);
+
+  return timed(
+    linksForStatements(input.content).flatMap(({ statement, testLinks }) =>
+      itemsOfStatement(names, sections, statement, testLinks),
+    ),
+    input.commitTime,
   );
+}
+
+function timed(pushed: StatementItem[], time?: string): StatementItem[] {
+  return pushed.map((one) => (time ? { ...one, doc_time: time } : one));
 }
 
 function namesOf(input: DocStatementsInput): DocNames {
@@ -89,47 +94,6 @@ function namesOf(input: DocStatementsInput): DocNames {
     blob: blobUrl(input.repo, input.commit),
     testSources: input.testSources ?? new Map(),
   };
-}
-
-/** Every heading outside a code fence, named by its slug; a repeated heading gets -2, -3 so names stay unique within the document. */
-function sectionsOf(content: string, doc: string): SectionRef[] {
-  const seen = new Map<string, number>();
-  const sections: SectionRef[] = [];
-  let inFence = false;
-
-  content.split(/\r?\n/).forEach((line, index) => {
-    inFence = /^\s*```/.test(line) ? !inFence : inFence;
-    const heading = inFence ? null : /^(#{1,6})\s+(\S.*)$/.exec(line);
-
-    if (heading) {
-      const title = heading[2].trim();
-      const slug = uniqueSlug(slugOf(title), seen);
-
-      sections.push({
-        name: `${doc}#${slug}`,
-        title,
-        line: index + 1,
-        depth: heading[1].length,
-      });
-    }
-  });
-
-  return sections;
-}
-
-function uniqueSlug(slug: string, seen: Map<string, number>): string {
-  const count = (seen.get(slug) ?? 0) + 1;
-
-  seen.set(slug, count);
-
-  return count === 1 ? slug : `${slug}-${count}`;
-}
-
-function slugOf(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 /** What every part of a split doc item repeats: the repository, the document and its attributes, its title being its first top-level heading. */

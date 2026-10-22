@@ -7,7 +7,10 @@ import {
   type UtopiaEnv,
   type UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
-import type { MirrorDeps } from "@re-cinq/lore-shared/utopia/push-items.js";
+import type {
+  DocumentMirrorDeps,
+  MirrorDeps,
+} from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { Pool } from "pg";
 import {
   kindSourceFor,
@@ -45,16 +48,40 @@ export async function kindMirrorDeps(
   kind: MirrorKind,
   env: UtopiaEnv = process.env,
 ): Promise<MirrorDeps | null> {
+  const source = await kindSourceIfBase(pool, repo, kind, env);
+
+  return (
+    source && {
+      push: (pushed) => utopiaClientFrom(env).pushStatements(source, pushed),
+    }
+  );
+}
+
+/** {@link kindMirrorDeps} for a kind whose source takes whole text documents. */
+export async function kindDocumentDeps(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+  env: UtopiaEnv = process.env,
+): Promise<DocumentMirrorDeps | null> {
+  const source = await kindSourceIfBase(pool, repo, kind, env);
+
+  return (
+    source && {
+      push: (document) => utopiaClientFrom(env).pushDocument(source, document),
+    }
+  );
+}
+
+async function kindSourceIfBase(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+  env: UtopiaEnv,
+): Promise<UtopiaSource | null> {
   const kbId = await repoKnowledgeBase(pool, repo, env);
 
-  if (!kbId) {
-    return null;
-  }
-  const source = await kindSourceIn(pool, { repo, kind, kbId }, env);
-
-  return {
-    push: (pushed) => utopiaClientFrom(env).pushStatements(source, pushed),
-  };
+  return kbId ? kindSourceIn(pool, { repo, kind, kbId }, env) : null;
 }
 
 async function kindSourceIn(

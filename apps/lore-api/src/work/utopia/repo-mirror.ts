@@ -2,7 +2,6 @@
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { DocMirrorDeps } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import { LORE_ONTOLOGY_VERSION } from "@re-cinq/lore-shared/lore-ontology.js";
 import {
   UtopiaMirrorSettingsSchema,
@@ -18,9 +17,9 @@ import {
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import {
   mirrorFailure,
+  type MirrorDeps,
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/push-items.js";
-import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
@@ -52,24 +51,17 @@ function namedSourceId(
   return parsed.success ? parsed.data.source_id : null;
 }
 
-export function mirrorDepsFor(repo: string): Promise<DocMirrorDeps | null> {
-  return utopiaConfigured()
-    ? repoMirrorDeps(getPool(), repo)
-    : Promise.resolve(null);
-}
-
-/** Pushes to the repo's source and reads its test files from GitHub, or null when it has none to mirror to (see {@link sourceToMirror}). */
+/** Pushes to the repo's source, or null when it has none to mirror to (see {@link sourceToMirror}). */
 export async function repoMirrorDeps(
   pool: Pool,
   repo: string,
-): Promise<DocMirrorDeps | null> {
-  const { settings, repo: files } = await projectFor(repo);
+): Promise<MirrorDeps | null> {
+  const { settings } = await projectFor(repo);
   const source = await sourceToMirror(pool, repo, await settings.rawSettings());
 
   return (
     source && {
       push: (pushed) => utopiaClient().pushStatements(source, pushed),
-      readTest: (path, commit) => files.read(path, commit),
     }
   );
 }
