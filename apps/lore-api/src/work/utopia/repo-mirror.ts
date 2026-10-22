@@ -106,6 +106,17 @@ export async function repoBaseFor(
     : null;
 }
 
+/** The id of the knowledge base a repo's mirrors push to, the repo set up first where the deployment may; null when it has none. */
+export async function repoKnowledgeBase(
+  pool: Pool,
+  repo: string,
+  env: UtopiaEnv = process.env,
+): Promise<string | null> {
+  const settings = await (await projectFor(repo)).settings.rawSettings();
+
+  return (await repoBaseFor(pool, repo, settings, env))?.kbId ?? null;
+}
+
 /** Without a write token the push goes ahead on the old ontology, its new attributes landing unbound; a failed upgrade is logged and counted as a failed mirror, and the push goes ahead all the same. */
 async function upgradeOntologyQuietly(
   pool: Pool,

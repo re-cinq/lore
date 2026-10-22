@@ -10,7 +10,6 @@ import {
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { IngestDocument } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import type { Pool } from "pg";
-import { projectFor } from "../../../outbound/project-boot.js";
 import { utopiaSourceFor } from "../../../outbound/utopia-sources.js";
 import { onboardedRepo } from "../../../outbound/memory-rows.js";
 import {
@@ -24,7 +23,7 @@ import {
   loreSession,
   sharedPerRepo,
 } from "../utopia-auto-setup.js";
-import { repoBaseFor } from "../repo-mirror.js";
+import { repoKnowledgeBase } from "../repo-mirror.js";
 
 /** Null on a deployment that names no org: its rows with no onboarded repo are not mirrored. */
 export function orgMemoryBase(env: UtopiaEnv = process.env): MemoryBase | null {
@@ -116,16 +115,6 @@ function knowledgeBaseOf(
   return base.repo
     ? repoKnowledgeBase(pool, base.name, env)
     : orgKnowledgeBase(pool, base.name, env);
-}
-
-async function repoKnowledgeBase(
-  pool: Pool,
-  repo: string,
-  env: UtopiaEnv,
-): Promise<string | null> {
-  const settings = await (await projectFor(repo)).settings.rawSettings();
-
-  return (await repoBaseFor(pool, repo, settings, env))?.kbId ?? null;
 }
 
 async function orgKnowledgeBase(
