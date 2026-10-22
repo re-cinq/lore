@@ -206,7 +206,12 @@ describe("floorInfraFailures", () => {
 });
 
 describe("settlingLoopTickets", () => {
-  function scene(run: ReturnType<typeof loopRun> | null, visits = [OPENED]) {
+  function scene(
+    run: ReturnType<typeof loopRun> | null,
+    visits = [OPENED],
+    opts: { taskSettled?: boolean } = {},
+  ) {
+    const { taskSettled = false } = opts;
     const steps: string[] = [];
     const closed = (settled: FloorLoopRun): LoopRunClosedDeps => ({
       getTaskIssueNumber: () => Promise.resolve(7),
@@ -248,6 +253,7 @@ describe("settlingLoopTickets", () => {
       {
         run: () => Promise.resolve(run),
         visits: () => Promise.resolve(visits),
+        isTaskSettled: () => Promise.resolve(taskSettled),
         closed,
       },
       () => Promise.resolve(NEXT),
@@ -323,6 +329,18 @@ describe("settlingLoopTickets", () => {
     const { settle, steps } = scene(loopRun());
 
     expect(await settle("code-review")).toEqual(NEXT);
+    expect(steps).toEqual([]);
+  });
+
+  it("settles no ticket when its task already settled some other way", async () => {
+    const { settle, steps } = scene(
+      loopRun(),
+      [OPENED, planVisit("await-pr", { outcome: "failed" })],
+      { taskSettled: true },
+    );
+
+    await settle();
+
     expect(steps).toEqual([]);
   });
 
