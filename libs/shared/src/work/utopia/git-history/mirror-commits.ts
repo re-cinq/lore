@@ -1,19 +1,19 @@
-// Mirrors one default-branch commit into the repo's Utopia knowledge base: its items pushed four at a time as a document's are.
+// Mirrors one default-branch commit into the repo's Utopia knowledge base as the standard text of the commit, pushed to the `git-history` source.
 
 import {
-  commitItems,
+  commitDocument,
   type MirroredCommit,
-} from "../../../domain/utopia/git-history/commit-statements.js";
+} from "../../../domain/utopia/git-history/commit-text.js";
 import {
-  pushItems,
-  type MirrorDeps,
+  pushDocuments,
+  type DocumentMirrorDeps,
   type MirrorOutcome,
 } from "../push-items.js";
 
 export function mirrorCommit(
-  deps: MirrorDeps,
+  deps: DocumentMirrorDeps,
   repo: string,
   commit: MirroredCommit,
 ): Promise<MirrorOutcome> {
-  return pushItems(deps, commitItems(repo, commit));
+  return pushDocuments(deps, [commitDocument(repo, commit)]);
 }

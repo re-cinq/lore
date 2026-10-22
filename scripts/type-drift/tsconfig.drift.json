@@ -17,8 +17,8 @@
       "@re-cinq/lore-shared/http/internal-token.js": [
         "../../libs/shared/src/lib/internal-token.ts"
       ],
-      "@re-cinq/lore-shared/utopia/commit-statements.js": [
-        "../../libs/shared/src/domain/utopia/git-history/commit-statements.ts"
+      "@re-cinq/lore-shared/utopia/commit-text.js": [
+        "../../libs/shared/src/domain/utopia/git-history/commit-text.ts"
       ],
       "@re-cinq/lore-shared/utopia/commits-summary.js": [
         "../../libs/shared/src/domain/utopia/git-history/commits-summary.ts"

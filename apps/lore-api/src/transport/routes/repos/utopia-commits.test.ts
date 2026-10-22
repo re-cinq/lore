@@ -88,9 +88,19 @@ const SRC_1 = { kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" };
 const poolHolding = (sources: (typeof SRC_1)[]) => {
   const pool = makePool();
 
-  pool.query.mockImplementation(async (sql: string) => {
+  pool.query.mockImplementation(async (sql: string, params: string[]) => {
     if (/jsonb_set/.test(sql)) {
       cursorWrites.push(sql);
+    }
+
+    if (/FROM lore\.utopia_kind_sources/.test(sql)) {
+      return {
+        rows: sources.map(() => ({
+          id: `src-${params[1]}`,
+          key: `utp_${params[1]}`,
+          kbId: "kb-1",
+        })),
+      };
     }
 
     return {
@@ -126,7 +136,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/commits", () => {
     };
   });
 
-  it("walks main above the stored cursor c0, pushes commit c1 through the stored src-1 key, moves the cursor to c1 and answers the walk", async () => {
+  it("walks main above the stored cursor c0, pushes commit c1 as text to the git-history source, moves the cursor to c1 and answers the walk", async () => {
     const res = await commits(poolHolding([SRC_1]));
 
     expect({
@@ -147,7 +157,9 @@ describe("POST /api/repos/{owner}/{repo}/utopia/commits", () => {
         unchanged: 0,
         failed: [],
       },
-      pushes: ["POST /api/v1/sources/src-1/statements Bearer utp_k"],
+      pushes: [
+        "POST /api/v1/sources/src-git-history/ingest Bearer utp_git-history",
+      ],
       githubReads: ["history main above c0"],
       cursorWrites: 1,
     });
