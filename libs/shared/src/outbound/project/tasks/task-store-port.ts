@@ -52,6 +52,12 @@ export type DriftTaskRow = Pick<PipelineTask, "status"> & {
   issue_number: number | null;
 };
 
+/** A `running` task past its age threshold — just enough to ask the floor for its run and, failing that, reap it. */
+export type StuckRunningTask = Pick<
+  PipelineTask,
+  "id" | "target_repo" | "created_at" | "updated_at"
+> & { issue_number: number | null };
+
 export interface TaskTransitionMeta {
   agentId?: string;
 }
@@ -82,6 +88,18 @@ export interface TaskStorePort {
     taskType: string,
     specPath: string,
   ): Promise<DriftTaskRow[]>;
+  /** Tasks of one type stuck at `running` for longer than `olderThanMinutes` since they were last touched — nothing moves a task off `running` except a settled-run event from the floor, so one that never arrives leaves no other trace. */
+  findStuckRunning(
+    taskType: string,
+    olderThanMinutes: number,
+  ): Promise<StuckRunningTask[]>;
+  /** How many of this issue's own tasks already failed with a reason starting with `reasonPrefix` since `since` — the bounded-retry count a reap sweep uses to stop retrying and park instead. */
+  countRecentFailures(
+    repo: string,
+    issueNumber: number,
+    reasonPrefix: string,
+    since: Date,
+  ): Promise<number>;
   // writes
   create(input: CreateTaskInput): Promise<CreatedTask>;
   retry(id: string): Promise<RetriedTask>;

@@ -17,6 +17,7 @@ import type {
   TaskListResult,
   FindOpenLikeInput,
   DriftTaskRow,
+  StuckRunningTask,
 } from "./task-store-port.js";
 import { TaskTransitionStore } from "./task-store-memory-transitions.js";
 import { TaskQueryStore } from "./task-store-memory-queries.js";
@@ -36,6 +37,7 @@ export interface SeedStoreTask {
   context_bundle?: Record<string, unknown> | null;
   context_refs?: { fact_ids: string[]; memory_ids: string[] } | null;
   issue_number?: number | null;
+  failure_reason?: string | null;
   [key: string]: unknown;
 }
 
@@ -102,7 +104,7 @@ export class InMemoryTaskStore implements TaskStorePort {
       this.events,
       this.now,
     );
-    this.queries = new TaskQueryStore(this.tasks, this.events);
+    this.queries = new TaskQueryStore(this.tasks, this.events, this.now);
   }
 
   pending(repo: string): Promise<PipelineTask[]> {
@@ -288,6 +290,27 @@ export class InMemoryTaskStore implements TaskStorePort {
     specPath: string,
   ): Promise<DriftTaskRow[]> {
     return this.queries.driftTasksForSpec(repo, taskType, specPath);
+  }
+
+  findStuckRunning(
+    taskType: string,
+    olderThanMinutes: number,
+  ): Promise<StuckRunningTask[]> {
+    return this.queries.findStuckRunning(taskType, olderThanMinutes);
+  }
+
+  countRecentFailures(
+    repo: string,
+    issueNumber: number,
+    reasonPrefix: string,
+    since: Date,
+  ): Promise<number> {
+    return this.queries.countRecentFailures(
+      repo,
+      issueNumber,
+      reasonPrefix,
+      since,
+    );
   }
 
   private findById(id: string): SeedStoreTask | undefined {

@@ -20,6 +20,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "resume implementation-loop runs parked at await-pr once the PR is green and thread-clean",
   },
   {
+    name: "loop_reap",
+    schedule: "*/15 * * * *",
+    note: "fail an implementation-loop task stuck running with no floor run at all — a dispatch that crashed before ever asking the floor (specs/implementation-loop FR18)",
+  },
+  {
     name: "telemetry_prune",
     schedule: "43 3 * * *",
     note: "14-day reap of agent_run_events + pod_log_chunks; the ADR-037 window existed with no caller until pod_log_chunks needed one too",
