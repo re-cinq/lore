@@ -99,7 +99,7 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets and spec-upkeep", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -113,8 +113,25 @@ describe("the floor pipelines shipped in this folder", () => {
       "lore-run-settled",
       "merge",
       "onboard",
+      "spec-tickets",
       "spec-upkeep",
     ]);
+  });
+
+  it("walks spec-tickets from load-tickets through decompose and issues to issue-coverage and done, keyed on the run key", () => {
+    const { line } = pipelineOf("spec-tickets");
+    const forward = line.edges
+      .filter((edge) => edge.on === "success")
+      .map((edge) => `${edge.from}>${edge.to}`);
+
+    expect(line.entry).toBe("load-tickets");
+    expect(forward).toEqual([
+      "load-tickets>decompose",
+      "decompose>issues",
+      "issues>issue-coverage",
+      "issue-coverage>done",
+    ]);
+    expect(line.args["key"]).toMatchObject({ subject: true });
   });
 
   it("walks implementation-loop from sync-start through dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {

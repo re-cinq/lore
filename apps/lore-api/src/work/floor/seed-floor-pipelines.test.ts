@@ -158,7 +158,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   const edgeTarget = (line: LineBody, from: string, outcome: string) =>
     line.edges.find((edge) => edge.from === from && edge.on === outcome)?.to;
 
-  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard and spec-upkeep", () => {
+  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "code-review",
       "code-review-recheck",
@@ -170,6 +170,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       "lore-run-settled",
       "merge",
       "onboard",
+      "spec-tickets",
       "spec-upkeep",
     ]);
   });

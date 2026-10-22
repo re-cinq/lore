@@ -31,6 +31,7 @@ layers:
       - implementation-loop
       - spec-upkeep
       - issue-triage
+      - spec-tickets
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the code-review lines, one
     # folder each. They claim their own work from the floor's queue, so nothing
@@ -102,6 +103,15 @@ layers:
       - outbound
       - onboard
       - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the spec-tickets line, one
+    # folder each. `planning` is reached for the issue filing and the coverage
+    # count they share with the feature-planning line.
+    spec-tickets:
+      - outbound
+      - planning
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     transport:
       - events
