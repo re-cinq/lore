@@ -32,6 +32,23 @@ export interface SeedTask {
 
 const ms = (ts: string | undefined): number =>
   ts ? new Date(ts).getTime() : 0;
+
+/** The newest task matching `filter`, with its id and status — the shared shape `activeTaskByIssue` and `latestLoopTaskByIssue` both answer. */
+function newestTaskFor(
+  tasks: SeedTask[],
+  filter: (t: SeedTask) => boolean,
+): { id: string; status: string } | null {
+  const task = tasks
+    .filter(filter)
+    .sort((a, b) => ms(b.created_at) - ms(a.created_at))
+    .at(0);
+
+  return task ? { id: task.id, status: task.status ?? "pending" } : null;
+}
+
+function matchesIssue(t: SeedTask, repo: string, issueNumber: number): boolean {
+  return t.issue_number === issueNumber && t.target_repo === repo;
+}
 const isRunningOrQueued = (status?: string): boolean =>
   status === "running" || status === "queued";
 const orEmpty = (value: string | null | undefined): string => value ?? "";
@@ -280,19 +297,26 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     repo: string,
     issueNumber: number,
   ): Promise<{ id: string; status: string } | null> {
-    const task = this.tasks
-      .filter(
-        (t) =>
-          t.issue_number === issueNumber &&
-          t.target_repo === repo &&
-          t.status !== "failed" &&
-          t.status !== "cancelled" &&
-          t.status !== "retried",
-      )
-      .sort((a, b) => ms(b.created_at) - ms(a.created_at))
-      .at(0);
+    return newestTaskFor(
+      this.tasks,
+      (t) =>
+        matchesIssue(t, repo, issueNumber) &&
+        t.status !== "failed" &&
+        t.status !== "cancelled" &&
+        t.status !== "retried",
+    );
+  }
 
-    return task ? { id: task.id, status: task.status ?? "pending" } : null;
+  async latestLoopTaskByIssue(
+    repo: string,
+    issueNumber: number,
+  ): Promise<{ id: string; status: string } | null> {
+    return newestTaskFor(
+      this.tasks,
+      (t) =>
+        matchesIssue(t, repo, issueNumber) &&
+        t.task_type === "implementation-loop",
+    );
   }
 
   async markFeatureRequestMergedOnBranch(

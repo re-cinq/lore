@@ -14,6 +14,11 @@ import {
 export const loopClosedDeps: SettleLoopDeps = {
   run: async (runId) => (await floorClient().runs.get(runId))?.run ?? null,
   visits: (runId) => floorClient().stationRuns.list({ run: runId }),
+  isTaskMerged: async (taskId) => {
+    const task = await taskStore().getById(taskId);
+
+    return task?.status === "merged";
+  },
   closed: closedDepsFor,
 };
 

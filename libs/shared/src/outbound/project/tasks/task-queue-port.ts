@@ -161,6 +161,12 @@ export interface TaskQueueRepository {
     issueNumber: number,
   ): Promise<{ id: string; status: string } | null>;
 
+  /** The newest `implementation-loop` task for a repo + issue, any status, or null — unlike {@link activeTaskByIssue}, a `failed` (loop-reap'd) or `completed` (parked at `await-pr`) task still answers: both are tickets a human merging the branch by hand should be able to settle (FR19). */
+  latestLoopTaskByIssue(
+    repo: string,
+    issueNumber: number,
+  ): Promise<{ id: string; status: string } | null>;
+
   /** Flip merged: feature-request tasks on a branch still in pr-created/review → merged. */
   markFeatureRequestMergedOnBranch(repo: string, branch: string): Promise<void>;
 }

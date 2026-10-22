@@ -8,6 +8,7 @@ import {
   type LoopRunsFloor,
 } from "./floor-loop.js";
 import { LORE_BLOCKED_LABEL } from "./labels.js";
+import type { TaskTransitionDeps } from "./task-transition-deps.js";
 
 /** Default when the env var is unset or not a positive integer — mirrors `loop-infra-deferral.ts`'s `DEFAULT_INFRA_DEFERRALS`. */
 export const DEFAULT_REAP_RETRIES = 3;
@@ -30,7 +31,7 @@ export type StuckTask = StuckRunningTask;
 
 export interface LoopReapDeps {
   floor: LoopRunsFloor;
-  tasks: {
+  tasks: TaskTransitionDeps & {
     findStuckRunning(
       taskType: string,
       olderThanMinutes: number,
@@ -41,18 +42,6 @@ export interface LoopReapDeps {
       reasonPrefix: string,
       since: Date,
     ): Promise<number>;
-    setStatusIf(
-      id: string,
-      expectedStatus: string,
-      status: string,
-      extra?: Record<string, unknown>,
-    ): Promise<boolean>;
-    recordEvent(
-      id: string,
-      fromStatus: string | null,
-      toStatus: string | null,
-      meta?: Record<string, unknown>,
-    ): Promise<void>;
   };
   comment(repo: string, issueNumber: number, body: string): Promise<void>;
   addLabel(repo: string, issueNumber: number, label: string): Promise<void>;

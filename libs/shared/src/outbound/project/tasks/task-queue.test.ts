@@ -274,6 +274,49 @@ describe("activeTaskByIssue", () => {
   });
 });
 
+describe("latestLoopTaskByIssue", () => {
+  it("InMemory returns a failed implementation-loop task — unlike activeTaskByIssue, failed still answers", async () => {
+    const q = new InMemoryTaskQueue([
+      {
+        id: "t1",
+        status: "failed",
+        target_repo: "a/b",
+        issue_number: 85,
+        task_type: "implementation-loop",
+      },
+    ]);
+
+    expect(await q.latestLoopTaskByIssue("a/b", 85)).toEqual({
+      id: "t1",
+      status: "failed",
+    });
+  });
+
+  it("InMemory leaves out a task of another type for the same issue", async () => {
+    const q = new InMemoryTaskQueue([
+      {
+        id: "t1",
+        status: "running",
+        target_repo: "a/b",
+        issue_number: 85,
+        task_type: "onboard",
+      },
+    ]);
+
+    expect(await q.latestLoopTaskByIssue("a/b", 85)).toBeNull();
+  });
+
+  it("PgTaskQueue SQL reads the newest implementation-loop task's id and status, any status", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).latestLoopTaskByIssue("a/b", 85);
+    expect(calls[0].text).toMatch(
+      /^SELECT id, status FROM pipeline\.tasks .*task_type = 'implementation-loop' ORDER BY created_at DESC LIMIT 1$/,
+    );
+    expect(calls[0].params).toEqual([85, "a/b"]);
+  });
+});
+
 describe("setColumns", () => {
   it("PgTaskQueue writes only the given allow-listed columns, without status or updated_at", async () => {
     const { pool, calls } = fakePgPool([{ rows: [] }]);

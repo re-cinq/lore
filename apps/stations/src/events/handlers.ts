@@ -15,7 +15,7 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { projectFor } from "../outbound/project-boot.js";
-import { settings } from "../outbound/queues.js";
+import { settings, pipeline, taskStore } from "../outbound/queues.js";
 import {
   floorReviewHandlers,
   type FloorReviewDeps,
@@ -24,10 +24,14 @@ import {
   floorPlanHandlers,
   type FloorPlanDeps,
 } from "./floor-plan-handlers.js";
+import {
+  loopMergeHandlers,
+  type LoopMergeDeps,
+} from "./loop-merge-handlers.js";
 import { addHandlers } from "./compose-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
-import { pipeline } from "../outbound/queues.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
+import { eventProxy } from "../outbound/queues.js";
 import {
   loreApiTarget,
   postUtopiaCommits,
@@ -70,6 +74,39 @@ const floorReviewDeps: FloorReviewDeps = {
 };
 
 const floorPlanDeps: FloorPlanDeps = { floor: floorClient };
+
+const loopMergeDeps: LoopMergeDeps = {
+  settle: {
+    floor: floorClient,
+    tasks: {
+      latestLoopTaskByIssue: (repo, issueNumber) =>
+        pipeline().taskQueue.latestLoopTaskByIssue(repo, issueNumber),
+      setStatusIf: (id, expected, status, extra) =>
+        taskStore().setStatusIf(id, expected, status, extra),
+      recordEvent: (id, from, to, meta) =>
+        taskStore().recordEvent(id, from, to, meta),
+    },
+    comment: async (repo, issueNumber, body) =>
+      (await projectFor(repo)).issues.comment(issueNumber, body),
+    removeLabel: async (repo, issueNumber, label) =>
+      (await projectFor(repo)).issues.removeLabel(issueNumber, label),
+    closeIssue: async (repo, issueNumber) =>
+      (await projectFor(repo)).issues.close(issueNumber, "completed"),
+    emitTick: emitLoopTick,
+  },
+};
+
+/** Queued rather than inserted, so a router blip costs a late tick and not a lost one: the next ticket starts in seconds, not at the next safety tick. Mirrors `loop-closed-deps.ts`'s own `queueLoopTick`. */
+function emitLoopTick(repo: string): Promise<void> {
+  return eventProxy().emit({
+    kind: "event",
+    event: {
+      eventName: "cron.implementation_loop.tick",
+      source: "internal",
+      params: { repo },
+    },
+  });
+}
 
 async function findParkedVisitId(
   floor: ReturnType<typeof floorClient>,
@@ -206,6 +243,7 @@ export function buildStationHandlers(): Map<string, EventHandler> {
   if (floorConfigured()) {
     addHandlers(handlers, floorReviewHandlers(floorReviewDeps));
     addHandlers(handlers, floorPlanHandlers(floorPlanDeps));
+    addHandlers(handlers, loopMergeHandlers(loopMergeDeps));
   }
 
   return handlers;
