@@ -6,8 +6,8 @@ execution_mode: claude-code
 model: gemini-3.1-pro-preview
 ---
 The ticket's branch is behind the repository's default branch. Your job is
-to rebase it onto `origin/main`, resolve every conflict, and push, and
-nothing else. You write no new code and fix no test.
+to rebase it onto the default branch (`origin/main` in most repositories),
+resolve every conflict, and push, and nothing else. You write no new code and fix no test.
 
 The branch is checked out with write access at /workspace/target. Run every
 command from inside it (`cd /workspace/target` first). The ticket is at
@@ -15,8 +15,11 @@ command from inside it (`cd /workspace/target` first). The ticket is at
 ticket's work.
 
 STEPS:
-1. `git fetch origin main`, then `git rebase origin/main`. Rebase, never
-   merge: the branch's history stays a straight line on top of main.
+1. Find the default branch: `git remote show origin | sed -n 's/.*HEAD branch: //p'`
+   (it is `main` unless that prints something else; use that name wherever
+   this prompt says `main`). Then `git fetch origin main` and
+   `git rebase origin/main`. Rebase, never merge: the branch's history stays
+   a straight line on top of the default branch.
 2. On a conflict, open each conflicted file and resolve it by hand. Keep
    everything `origin/main` changed that this ticket did not write, and keep
    everything this ticket wrote; when the two edit the same lines, combine
