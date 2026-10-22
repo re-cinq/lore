@@ -1,6 +1,10 @@
 // Mirrors every spec, ADR and other markdown document on a repo's default branch into its Utopia knowledge base, for documents ingested before the mirror existed. The branch's commits above the stored cursor follow them, then the issues and pull requests updated since theirs, then the tags and releases, then the repo's memories and episodes.
 
-import { mirrorDocument } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import {
+  mirrorDocument,
+  type DocTargets,
+} from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import type { UtopiaBackfillSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -28,6 +32,7 @@ import {
   mirrorMemoryBacklog,
   type MemoryWalkDeps,
 } from "./memory/utopia-memory.js";
+import { docTargetsFor } from "./docs/mirror-doc.js";
 import { repoMirrorDeps } from "./repo-mirror.js";
 
 export interface BackfillDeps extends DocBackfillDeps {
@@ -77,10 +82,28 @@ export async function backfillDepsFor(
 
   return {
     files,
-    mirror: (doc) => mirrorDocument(mirror, { repo, ...doc }),
+    mirror: docMirrorFor(pool, repo),
     history: commitHistoryDepsFor(walks),
     tracker: trackerDepsFor(walks),
     releases: releaseDepsFor(walks),
     memory: memoryWalkDepsFor(pool, { name: repo, repo: true }),
+  };
+}
+
+/** The documents' sources are had on the first document, so a walk of commits or issues creates none. */
+function docMirrorFor(pool: Pool, repo: string): BackfillDeps["mirror"] {
+  let targets: Promise<DocTargets | null> | undefined;
+
+  return async (doc) => {
+    targets ??= docTargetsFor(pool, repo);
+    const held = await targets;
+
+    enforceTrue(
+      held,
+      Error,
+      `${repo} has no Utopia knowledge base to mirror to`,
+    );
+
+    return mirrorDocument(held!, { repo, ...doc });
   };
 }

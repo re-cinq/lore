@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { tombstone } from "../../domain/utopia/statements.js";
-import type { PushAction } from "../../outbound/utopia/utopia-client.js";
-import { mirrorFailure, pushItems } from "./push-items.js";
+import type {
+  DocumentPushOutcome,
+  PushAction,
+} from "../../outbound/utopia/utopia-client.js";
+import {
+  combineOutcomes,
+  mirrorFailure,
+  pushDocuments,
+  pushItems,
+} from "./push-items.js";
 
 const answering = (actions: Record<string, PushAction>) => ({
   push: async ({ externalId }: { externalId: string }) => ({
@@ -72,5 +80,51 @@ describe("mirrorFailure", () => {
         failed: ["a: boom", "b: bang"],
       }),
     ).toEqual("2 of 5 items failed: a: boom");
+  });
+});
+
+describe("pushDocuments", () => {
+  it("counts doc:a created, doc:b moved as updated and doc:c unchanged and names doc:d under failed when Utopia answers duplicate", async () => {
+    const answers: Record<string, DocumentPushOutcome["action"]> = {
+      "doc:a": "created",
+      "doc:b": "moved",
+      "doc:c": "unchanged",
+      "doc:d": "duplicate",
+      "doc:e": "marked_missing",
+    };
+    const outcome = await pushDocuments(
+      { push: async ({ external_id }) => ({ action: answers[external_id] }) },
+      Object.keys(answers).map((external_id) => ({
+        external_id,
+        filename: external_id,
+      })),
+    );
+
+    expect(outcome).toEqual({
+      items: 5,
+      created: 1,
+      updated: 1,
+      unchanged: 1,
+      failed: [
+        "doc:d: duplicate, another document in the knowledge base holds the same content",
+      ],
+    });
+  });
+});
+
+describe("combineOutcomes", () => {
+  it("adds 2 + 1 items and keeps the failed of both in order", () => {
+    expect(
+      combineOutcomes(
+        { items: 2, created: 1, updated: 0, unchanged: 0, failed: ["a: x"] },
+        { items: 1, created: 0, updated: 1, unchanged: 0, failed: ["b: y"] },
+      ),
+    ).toEqual({
+      items: 3,
+      created: 1,
+      updated: 1,
+      unchanged: 0,
+      failed: ["a: x", "b: y"],
+    });
   });
 });

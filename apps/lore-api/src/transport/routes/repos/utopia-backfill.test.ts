@@ -75,9 +75,19 @@ const SRC_1 = { kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" };
 const poolHolding = (sources: (typeof SRC_1)[]) => {
   const pool = makePool();
 
-  pool.query.mockImplementation(async (sql: string) => {
+  pool.query.mockImplementation(async (sql: string, params: string[]) => {
     if (/FROM (memory\.|lore\.utopia_memory_sources)/.test(sql)) {
       return { rows: [] };
+    }
+
+    if (/FROM lore\.utopia_kind_sources/.test(sql)) {
+      return {
+        rows: sources.map(() => ({
+          id: `src-${params[1]}`,
+          key: `utp_${params[1]}`,
+          kbId: "kb-1",
+        })),
+      };
     }
 
     return {
@@ -121,10 +131,14 @@ describe("POST /api/repos/{owner}/{repo}/utopia/backfill", () => {
     };
   });
 
-  it("mirrors the spec and the ADR at main-head through the stored src-1 key and answers 2 documents and 4 created items, a doc and a statement each", async () => {
+  it("mirrors the spec and the ADR at main-head, each as a text document in the docs source and a statement in the test-coverage source, and answers 2 documents and 4 created items", async () => {
     const res = await backfill(poolHolding([SRC_1]));
 
-    expect({ status: res.statusCode, body: res.result, pushes }).toEqual({
+    expect({
+      status: res.statusCode,
+      body: res.result,
+      pushes: [...pushes].sort(),
+    }).toEqual({
       status: 200,
       body: {
         commit: "main-head",
@@ -165,9 +179,12 @@ describe("POST /api/repos/{owner}/{repo}/utopia/backfill", () => {
           episodes: NOTHING_WALKED,
         },
       },
-      pushes: Array(4).fill(
-        "POST /api/v1/sources/src-1/statements Bearer utp_k",
-      ),
+      pushes: [
+        "POST /api/v1/sources/src-docs/ingest Bearer utp_docs",
+        "POST /api/v1/sources/src-docs/ingest Bearer utp_docs",
+        "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
+        "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
+      ],
     });
   });
 
