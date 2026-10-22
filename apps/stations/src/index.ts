@@ -30,6 +30,7 @@ import { startMergeStations } from "./merge/index.js";
 import { startDigestStations } from "./digest/index.js";
 import { startOnboardStations } from "./onboard/index.js";
 import { startSpecUpkeepStations } from "./spec-upkeep/index.js";
+import { startSpecTicketsStations } from "./spec-tickets/index.js";
 import { startImplementationLoopStations } from "./implementation-loop/index.js";
 import { startIssueTriageStations } from "./issue-triage/index.js";
 import {
@@ -102,6 +103,7 @@ function startFloorStations() {
         ...startSpecUpkeepStations(),
         ...startImplementationLoopStations(),
         ...startIssueTriageStations(),
+        ...startSpecTicketsStations(),
       ]
     : [];
 }

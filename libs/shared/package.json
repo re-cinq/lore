@@ -42,6 +42,10 @@
       "types": "./dist/work/spec-upkeep/*.d.ts",
       "default": "./dist/work/spec-upkeep/*.js"
     },
+    "./spec-tickets/*.js": {
+      "types": "./dist/work/spec-tickets/*.d.ts",
+      "default": "./dist/work/spec-tickets/*.js"
+    },
     "./scheduler/*.js": {
       "types": "./dist/work/scheduler/*.d.ts",
       "default": "./dist/work/scheduler/*.js"

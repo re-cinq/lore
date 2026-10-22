@@ -28,6 +28,10 @@ import {
   loopMergeHandlers,
   type LoopMergeDeps,
 } from "./loop-merge-handlers.js";
+import {
+  floorSpecTicketsHandlers,
+  type FloorSpecTicketsDeps,
+} from "./floor-spec-tickets-handlers.js";
 import { addHandlers } from "./compose-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
@@ -49,6 +53,12 @@ import {
   gitItem,
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
+import type { PullFileChange } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import {
+  type ChangedFile,
+  runKeysOf,
+  SPEC_TICKETS_LINE,
+} from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { relocateOnTeamChange } from "./team-changed.js";
@@ -107,6 +117,37 @@ function emitLoopTick(repo: string): Promise<void> {
     },
   });
 }
+
+async function changedFilesOf(
+  pulls: { listFileChanges(number: number): Promise<PullFileChange[]> },
+  prNumber: number,
+): Promise<ChangedFile[]> {
+  const changes = await pulls.listFileChanges(prNumber);
+
+  return changes.map(({ filename, patch }) => ({ path: filename, patch }));
+}
+
+const floorSpecTicketsDeps: FloorSpecTicketsDeps = {
+  tickets: async (repo) => {
+    const { pulls, repo: files } = await projectFor(repo);
+
+    return {
+      floor: floorClient(),
+      defaultBranch: () => files.defaultBranch(),
+      changedFiles: (_repo, prNumber) => changedFilesOf(pulls, prNumber),
+      readSpec: (_repo, path, ref) => files.read(path, ref),
+      openRunKeys: async (name) => {
+        const open = await floorClient().runs.list({
+          repo: floorRepoOf(name),
+          line: SPEC_TICKETS_LINE,
+          open: true,
+        });
+
+        return runKeysOf(open.items);
+      },
+    };
+  },
+};
 
 async function findParkedVisitId(
   floor: ReturnType<typeof floorClient>,
@@ -244,6 +285,7 @@ export function buildStationHandlers(): Map<string, EventHandler> {
     addHandlers(handlers, floorReviewHandlers(floorReviewDeps));
     addHandlers(handlers, floorPlanHandlers(floorPlanDeps));
     addHandlers(handlers, loopMergeHandlers(loopMergeDeps));
+    addHandlers(handlers, floorSpecTicketsHandlers(floorSpecTicketsDeps));
   }
 
   return handlers;

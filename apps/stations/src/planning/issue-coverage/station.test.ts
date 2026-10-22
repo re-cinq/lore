@@ -202,6 +202,22 @@ describe("issueCoverageHandle", () => {
     }).toEqual({ report: { outcome: "success" }, namesFr2: true });
   });
 
+  it("fails the same way on a spec-tickets run, which names the spec and no plan", async () => {
+    const { handle, tools } = scene(
+      decomposition([]),
+      [handback(), handback(), handback()],
+      [],
+    );
+
+    const report = await handle(brief(NEEDS), tools);
+
+    expect(report).toEqual({
+      outcome: "failed",
+      error:
+        "the story issue lists 0 of the 2 statements no task names; rerun issues to rewrite it",
+    });
+  });
+
   it("fails naming story coverage 0 of 1 filed when the spent run would settle but the story's comments lost FR1", async () => {
     const { handle, tools } = scene(
       decomposition([]),

@@ -1,0 +1,201 @@
+# The tickets of a merged spec (specs/spec-tickets). Every time a pull request
+# merges a specs/<name>/spec.md into the default branch, Lore starts one run per
+# spec: it lists the tickets an earlier run filed for that spec, an agent splits
+# the spec into stories and tasks (keeping the ids of tasks that are still the
+# same work), one station files the story issue and a task issue per task or
+# rewrites the ones it filed before, and one counts the testable statements no
+# task names. The implementation loop picks the task issues up from there.
+#
+# Started by the stations service's github.pull_request.closed handler, keyed on
+# the repository, the spec and the merge commit.
+line:
+  id: spec-tickets
+  entry: load-tickets
+  exit: done
+  # A step that broke ends the run here, as failed, so the run list stops
+  # reporting a broken run as done.
+  fail: failed
+  args:
+    # The repository at its default branch, where the merged spec is.
+    target:
+      kind: git
+    spec_path:
+      kind: value
+    merge_sha:
+      kind: value
+    # One run per merged revision of a spec; a redelivered merge joins the open one.
+    key:
+      kind: value
+      subject: true
+  nodes:
+    - id: load-tickets
+      station: spec-tickets-load
+    - id: decompose
+      station: spec-tickets-decompose
+    - id: issues
+      station: spec-tickets-issues
+    # The node id is the one the coverage station counts its handbacks by.
+    - id: issue-coverage
+      station: spec-tickets-coverage
+    - id: done
+    - id: failed
+  edges:
+    - from: load-tickets
+      to: decompose
+      on: success
+    - from: load-tickets
+      to: failed
+      on: failed
+    - from: decompose
+      to: issues
+      on: success
+    # A spec it cannot break down is a question for its author, not something to
+    # re-run: the line ends as failed, and no issue was filed.
+    - from: decompose
+      to: failed
+      on: changes_requested
+    - from: decompose
+      to: decompose
+      on: failed
+      iteration_max: 1
+    - from: issues
+      to: issue-coverage
+      on: success
+    # The issues station is the first to read the decomposition as data, so it is
+    # where a label the repository does not have shows. One correction.
+    - from: issues
+      to: decompose
+      on: changes_requested
+      iteration_max: 1
+    - from: issues
+      to: failed
+      on: failed
+    - from: issue-coverage
+      to: done
+      on: success
+    # Statements no task names go back to decompose, and only those.
+    - from: issue-coverage
+      to: decompose
+      on: changes_requested
+      iteration_max: 3
+    - from: issue-coverage
+      to: failed
+      on: failed
+stations:
+  spec-tickets-load:
+    description: Lists the tickets an earlier run filed for this spec, so the agent keeps the ids of tasks that are still the same work and the issues are rewritten rather than filed again.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: spec_path
+        kind: value
+    produces:
+      - name: existing_tickets
+        kind: file
+        path: existing-tickets.json
+  spec-tickets-decompose:
+    description: An AI agent breaks the merged spec into stories and tasks the implementation loop can build, keeping the ids of tickets filed for it before, without changing or questioning the spec.
+    kind: agent
+    agent_definition: spec-tickets-decompose
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: spec_path
+        kind: value
+      - name: merge_sha
+        kind: value
+      - name: existing_tickets
+        kind: file
+        path: existing-tickets.json
+      # Its own last decomposition, where it writes the next one. Absent on the
+      # first visit.
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+        optional: true
+      # What the coverage station last counted; absent before its first visit.
+      - name: issue_coverage
+        kind: file
+        path: issue-coverage.md
+        optional: true
+    produces:
+      - name: decomposition
+        kind: file
+        path: decomposition.json
+  spec-tickets-issues:
+    description: Files the decomposition as GitHub issues, a story issue and one task issue per task with a priority label, or rewrites the ones an earlier run of this spec filed.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+      - name: spec_path
+        kind: value
+    produces: []
+  spec-tickets-coverage:
+    description: Counts the testable statements of the spec that no task issue covers, and sends only those back to the decompose agent.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: decomposition
+        kind: file
+      - name: spec_path
+        kind: value
+    produces:
+      - name: issue_coverage
+        kind: file
+agent_definitions:
+  spec-tickets-decompose:
+    settings:
+      model: gemini-3.1-pro-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        env:
+          LORE_TEST_POLICY: none

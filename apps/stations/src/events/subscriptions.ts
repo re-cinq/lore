@@ -8,6 +8,7 @@ import {
   type FloorEnv,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { FLOOR_PLAN_EVENTS } from "./floor-plan-handlers.js";
+import { FLOOR_SPEC_TICKETS_EVENTS } from "./floor-spec-tickets-handlers.js";
 import { FLOOR_REVIEW_EVENTS } from "./floor-review-handlers.js";
 import { LOOP_MERGE_EVENTS } from "./loop-merge-handlers.js";
 import { REPO_EVENTS } from "./repo-handlers.js";
@@ -35,6 +36,11 @@ export function stationSubscriptions(
 /** A deployment with no floor starts no review and has no plan run to answer, so it claims none of the events that would. */
 function floorEvents(env: FloorEnv): readonly string[] {
   return floorConfigured(env)
-    ? [...FLOOR_REVIEW_EVENTS, ...FLOOR_PLAN_EVENTS, ...LOOP_MERGE_EVENTS]
+    ? [
+        ...FLOOR_REVIEW_EVENTS,
+        ...FLOOR_PLAN_EVENTS,
+        ...LOOP_MERGE_EVENTS,
+        ...FLOOR_SPEC_TICKETS_EVENTS,
+      ]
     : [];
 }
