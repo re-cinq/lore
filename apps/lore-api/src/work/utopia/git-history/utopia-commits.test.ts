@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { CommitDetail } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-statements.js";
+import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import {
   MAX_COMMITS_PER_RUN,

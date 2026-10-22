@@ -290,9 +290,9 @@
       "types": "./dist/work/utopia/test-coverage/mirror-code.d.ts",
       "default": "./dist/work/utopia/test-coverage/mirror-code.js"
     },
-    "./utopia/commit-statements.js": {
-      "types": "./dist/domain/utopia/git-history/commit-statements.d.ts",
-      "default": "./dist/domain/utopia/git-history/commit-statements.js"
+    "./utopia/commit-text.js": {
+      "types": "./dist/domain/utopia/git-history/commit-text.d.ts",
+      "default": "./dist/domain/utopia/git-history/commit-text.js"
     },
     "./utopia/mirror-commits.js": {
       "types": "./dist/work/utopia/git-history/mirror-commits.d.ts",

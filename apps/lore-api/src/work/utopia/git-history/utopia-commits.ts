@@ -1,15 +1,16 @@
-// Mirrors a repo's default-branch commits into its Utopia knowledge base: the newest commits above the cursor its settings hold, pushed oldest-first through the mirror an ingest uses with the cursor moved past each, so a walk that stops leaves the next one where it was. A push to the branch runs a walk, so new commits arrive as they land.
+// Mirrors a repo's default-branch commits into its Utopia knowledge base: the newest commits above the cursor its settings hold, pushed oldest-first as text documents to the repo's `git-history` source with the cursor moved past each, so a walk that stops leaves the next one where it was. A push to the branch runs a walk, so new commits arrive as they land.
 
 import type {
   BranchHistoryOptions,
   CommitDetail,
 } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-statements.js";
+import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/commits-summary.js";
 import { mirrorCommit } from "@re-cinq/lore-shared/utopia/mirror-commits.js";
 import { saveUtopiaCommitsHead } from "../../../outbound/utopia-sources.js";
 import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
+import { lazyKindDocumentDeps } from "../kind-source.js";
 import { storedCursor, type WalkSource } from "../walk-source.js";
 
 export interface CommitHistoryDeps {
@@ -60,7 +61,8 @@ async function walkBranch(
 export function commitHistoryDepsFor(
   source: WalkSource<CommitHistoryDeps["history"]>,
 ): CommitHistoryDeps {
-  const { pool, repo, mirror } = source;
+  const { pool, repo } = source;
+  const history = lazyKindDocumentDeps(pool, repo, "git-history");
 
   return {
     repo,
@@ -69,6 +71,6 @@ export function commitHistoryDepsFor(
       read: () => storedCursor(source, "commits_head"),
       write: (sha) => saveUtopiaCommitsHead(pool, repo, sha),
     },
-    mirror: (commit) => mirrorCommit(mirror, repo, commit),
+    mirror: (commit) => mirrorCommit(history, repo, commit),
   };
 }

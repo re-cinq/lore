@@ -22,7 +22,7 @@ vi.mock("../../outbound/project-boot.js", () => ({
   }),
 }));
 
-import { kindSourceOf } from "./kind-source.js";
+import { kindSourceOf, lazyKindDocumentDeps } from "./kind-source.js";
 
 const seen: string[] = [];
 const bodies: unknown[] = [];
@@ -227,5 +227,37 @@ describe("kindSourceOf", () => {
         "re-cinq/lore has no Utopia knowledge base and this deployment cannot set one up",
       ),
     );
+  });
+});
+
+describe("lazyKindDocumentDeps", () => {
+  it("calls Utopia and stores nothing until its first push", () => {
+    const pool = poolHolding({});
+
+    lazyKindDocumentDeps(asPool(pool), "re-cinq/lore", "git-history", env);
+
+    expect({ seen, writes: kindSourceWrites(pool) }).toEqual({
+      seen: [],
+      writes: [],
+    });
+  });
+
+  it("creates the git-history api source once and posts both documents to it under its key", async () => {
+    const pool = poolHolding({});
+    const deps = lazyKindDocumentDeps(
+      asPool(pool),
+      "re-cinq/lore",
+      "git-history",
+      env,
+    );
+
+    await deps.push({ external_id: "commit:a", filename: "commit-a" });
+    await deps.push({ external_id: "commit:b", filename: "commit-b" });
+
+    expect(seen).toEqual([
+      "POST /api/v1/kbs/kb-1/sources Bearer utp_pat_lore",
+      "POST /api/v1/sources/src-new/ingest Bearer utp_new",
+      "POST /api/v1/sources/src-new/ingest Bearer utp_new",
+    ]);
   });
 });

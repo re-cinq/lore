@@ -73,6 +73,31 @@ export async function kindDocumentDeps(
   );
 }
 
+/** {@link kindDocumentDeps}, had on the first push, so a walk that finds nothing to push makes no source. */
+export function lazyKindDocumentDeps(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+  env: UtopiaEnv = process.env,
+): DocumentMirrorDeps {
+  let held: Promise<DocumentMirrorDeps | null> | undefined;
+
+  return {
+    push: async (document) => {
+      held ??= kindDocumentDeps(pool, repo, kind, env);
+      const deps = await held;
+
+      enforceTrue(
+        deps,
+        Error,
+        `${repo} has no Utopia knowledge base to mirror its ${kind} to`,
+      );
+
+      return deps!.push(document);
+    },
+  };
+}
+
 async function kindSourceIfBase(
   pool: Pool,
   repo: string,
