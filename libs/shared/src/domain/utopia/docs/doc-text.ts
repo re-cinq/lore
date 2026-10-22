@@ -22,3 +22,10 @@ export function docDocument(
 export function docTombstone(path: string): IngestDocument {
   return { external_id: `doc:${path}`, filename: path, deleted: true };
 }
+
+const LOCATION_HEADER = /^File: [^\n]*\nRepository: [^\n]*\nKind: [^\n]*\n\n/;
+
+/** A chunk of a pushed document without the lines that say where the file lives, which only the first chunk carries. */
+export function withoutLocation(chunk: string): string {
+  return chunk.replace(LOCATION_HEADER, "");
+}

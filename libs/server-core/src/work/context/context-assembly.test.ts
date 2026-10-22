@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { loadTemplates, assembleContext } from "./context-assembly.js";
 import { join } from "node:path";
-import { docStatementItems } from "@re-cinq/lore-shared/utopia/doc-statements.js";
-import { wireBody } from "@re-cinq/lore-shared/utopia/statements.js";
+import { docDocument } from "@re-cinq/lore-shared/utopia/doc-text.js";
 import type { SearchHit } from "@re-cinq/lore-shared/utopia/read-shapes.js";
 import type { UtopiaReads } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 
@@ -491,44 +490,32 @@ describe("assembleContext — backend", () => {
 });
 
 describe("assembleContext — the Utopia arm", () => {
-  const STATEMENTS = "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533";
+  const DOCS = "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533";
   const ADR = "adrs/ADR-052-code-to-spec-graph-mirrored-in-utopia.md";
   const SPEC = "specs/utopia-graph-mirror/spec.md";
   const pushed = [
-    ...docStatementItems({
+    docDocument({
       repo: "re-cinq/lore",
       path: ADR,
-      commit: "fb53a29",
       kind: "adr",
       content:
         "# ADR-052: Code-to-spec graph mirrored in Utopia\n\nEvery spec and ADR is pushed to Utopia.\n\nA failed mirror is logged, never an ingest failure.\n",
     }),
-    ...docStatementItems({
+    docDocument({
       repo: "re-cinq/lore",
       path: SPEC,
-      commit: "fb53a29",
       kind: "spec",
       content: "# Utopia graph mirror\n\nA 404 reads as no document.\n",
     }),
   ];
-  const chunkTexts = new Map(
-    pushed.map((statementsItem) => [
-      statementsItem.externalId,
-      JSON.stringify(wireBody(statementsItem), null, 2),
-    ]),
-  );
-  const hits: SearchHit[] = [
-    `stmt:${ADR}#0001`,
-    `stmt:${SPEC}#0000`,
-    `stmt:${ADR}#0000`,
-  ].map((externalId, rank) => ({
+  const hits: SearchHit[] = pushed.map((document, rank) => ({
     chunkId: `chunk-${rank}`,
     documentId: `document-${rank}`,
     seq: 0,
-    text: chunkTexts.get(externalId) ?? "",
-    filename: externalId,
-    sourceId: STATEMENTS,
-    externalId,
+    text: document.content ?? "",
+    filename: document.external_id,
+    sourceId: DOCS,
+    externalId: document.external_id,
     score: 0.03 - rank * 0.001,
     bm25Rank: rank + 1,
     vectorRank: rank + 1,
@@ -550,10 +537,10 @@ describe("assembleContext — the Utopia arm", () => {
     repo: "re-cinq/lore",
     backend: "utopia" as const,
     utopiaReads: reads,
-    utopiaMirror: { kbId: "kb-1", statementsSourceId: STATEMENTS },
+    utopiaMirror: { kbId: "kb-1", docsSourceId: DOCS },
   };
 
-  it("returns the ADR under Architecture Decisions with its statement texts when search answers its stmt chunks", async () => {
+  it("returns the ADR under Architecture Decisions with its text when search answers its docs chunk", async () => {
     const queries: string[] = [];
     const result = await assembleContext(
       untouchedPool(queries),
@@ -568,7 +555,7 @@ describe("assembleContext — the Utopia arm", () => {
       queries: queries.length,
       adr: decisions.includes(`source="${ADR}" type="adr"`),
       texts: decisions.includes(
-        "Every spec and ADR is pushed to Utopia.\nA failed mirror is logged, never an ingest failure.",
+        "Every spec and ADR is pushed to Utopia.\n\nA failed mirror is logged, never an ingest failure.",
       ),
       code: result.text.includes("code: no Utopia reader yet"),
     }).toEqual({ queries: 0, adr: true, texts: true, code: true });

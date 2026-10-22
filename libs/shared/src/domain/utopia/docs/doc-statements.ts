@@ -1,4 +1,4 @@
-// One spec, ADR or other markdown document as Utopia statement items: a doc item (Repository contains Document contains Sections, with the document's title and each heading's text) and one item per statement (its text, Section contains Statement, validated_by Tests, implemented_by SourceFiles, decided_by Adrs), each under Utopia's push limits.
+// The statements of one spec, ADR or other markdown document as Utopia statement items, one per statement (its text, Section contains Statement, validated_by Tests, implemented_by SourceFiles, decided_by Adrs), each under Utopia's push limits. The document itself travels as text (doc-text.ts).
 
 import {
   linksForStatements,
@@ -53,20 +53,6 @@ const DOC_KIND_WORD = { spec: "Spec", adr: "Adr", doc: "Doc" } as const;
 
 export type MirroredDocKind = keyof typeof DOC_KIND_WORD;
 
-export function docStatementItems(input: DocStatementsInput): StatementItem[] {
-  const names = namesOf(input);
-  const sections = sectionsOf(input.content, names.doc);
-  const head = docHead(names, sections);
-  const docItems = splitToFit(`doc:${input.path}`, sections, (part) =>
-    joinFragments(
-      head,
-      part.map((section) => sectionFragment(names.doc, section)),
-    ),
-  );
-
-  return [...timed(docItems, input.commitTime), ...statementItems(input)];
-}
-
 /** The items of the document's statements alone: each statement's text, its tests, source files and ADRs. */
 export function statementItems(input: DocStatementsInput): StatementItem[] {
   const names = namesOf(input);
@@ -93,37 +79,6 @@ function namesOf(input: DocStatementsInput): DocNames {
     kindWord: DOC_KIND_WORD[input.kind],
     blob: blobUrl(input.repo, input.commit),
     testSources: input.testSources ?? new Map(),
-  };
-}
-
-/** What every part of a split doc item repeats: the repository, the document and its attributes, its title being its first top-level heading. */
-function docHead(names: DocNames, sections: SectionRef[]): Fragment {
-  const top = sections.find((section) => section.depth === 1);
-
-  return {
-    e: [
-      [names.repo, "Repository", true],
-      [names.doc, names.kindWord, true],
-    ],
-    s: [
-      relation(names.repo, "contains", names.doc),
-      attribute(names.doc, "path", names.path),
-      attribute(names.doc, "commit", names.commit),
-      attribute(names.doc, "permalink", `${names.blob}/${names.path}`),
-      ...(top ? [attribute(names.doc, "title", top.title)] : []),
-    ],
-  };
-}
-
-function sectionFragment(doc: string, section: SectionRef): Fragment {
-  return {
-    e: [[section.name, "Section", true]],
-    s: [
-      relation(doc, "contains", section.name),
-      attribute(section.name, "title", section.title),
-      attribute(section.name, "text", section.title),
-      attribute(section.name, "line_start", String(section.line)),
-    ],
   };
 }
 

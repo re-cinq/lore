@@ -261,3 +261,29 @@ describe("lazyKindDocumentDeps", () => {
     ]);
   });
 });
+
+describe("kindSourceOf settings", () => {
+  const settingWrites = (pool: ReturnType<typeof makePool>) =>
+    pool.query.mock.calls
+      .filter(([sql]) => /jsonb_set/.test(sql))
+      .map(([, params]) => params);
+
+  it("records src-new as re-cinq/lore's docs_source_id when it creates the docs source", async () => {
+    const pool = poolHolding({});
+
+    await kindSourceOf(asPool(pool), "re-cinq/lore", "docs", env);
+
+    expect(settingWrites(pool)).toEqual([
+      ["src-new", "re-cinq/lore", "docs_source_id"],
+    ]);
+  });
+
+  it("records no setting when it creates the git-history source or answers a stored docs source", async () => {
+    const pool = poolHolding({ kindSources: [STORED_DOCS] });
+
+    await kindSourceOf(asPool(pool), "re-cinq/lore", "git-history", env);
+    await kindSourceOf(asPool(pool), "re-cinq/lore", "docs", env);
+
+    expect(settingWrites(pool)).toEqual([]);
+  });
+});

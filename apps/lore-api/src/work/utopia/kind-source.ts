@@ -18,6 +18,7 @@ import {
   type KindSourceKey,
   type MirrorKind,
 } from "../../outbound/utopia-kind-sources.js";
+import { saveUtopiaDocsSourceId } from "../../outbound/utopia-sources.js";
 import { loreSession, sharedPerRepo } from "./utopia-auto-setup.js";
 import { repoKnowledgeBase } from "./repo-mirror.js";
 
@@ -141,6 +142,10 @@ async function createKindSource(
   const source = await newSource(loreSession(env), kbId, kind);
 
   await saveKindSource(pool, wanted, source);
+
+  if (kind === "docs") {
+    await saveUtopiaDocsSourceId(pool, repo, source.id);
+  }
 
   return source;
 }

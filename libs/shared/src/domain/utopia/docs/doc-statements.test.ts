@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { docStatementItems, untitledTestPaths } from "./doc-statements.js";
+import { statementItems, untitledTestPaths } from "./doc-statements.js";
 import {
   attribute,
   fitsOneItem,
@@ -30,7 +30,7 @@ const DOC = "re-cinq/lore:specs/mirror/spec.md";
 const BLOB = `https://github.com/re-cinq/lore/blob/${COMMIT}`;
 
 const build = (content: string, commitTime?: string) =>
-  docStatementItems({
+  statementItems({
     repo: "re-cinq/lore",
     path: "specs/mirror/spec.md",
     content,
@@ -39,52 +39,9 @@ const build = (content: string, commitTime?: string) =>
     kind: "spec",
   });
 
-describe("docStatementItems", () => {
-  it("builds one doc item with the repository, the Spec document and its three sections, duplicate headings deduped as chain and chain-2", () => {
-    const [doc] = build(SPEC, "2026-10-15T10:00:00Z");
-
-    expect(doc).toEqual({
-      externalId: "doc:specs/mirror/spec.md",
-      doc_time: "2026-10-15T10:00:00Z",
-      e: [
-        ["re-cinq/lore", "Repository", true],
-        [DOC, "Spec", true],
-        [`${DOC}#feature-specification-mirror`, "Section", true],
-        [`${DOC}#chain`, "Section", true],
-        [`${DOC}#chain-2`, "Section", true],
-      ],
-      s: [
-        relation("re-cinq/lore", "contains", DOC),
-        attribute(DOC, "path", "specs/mirror/spec.md"),
-        attribute(DOC, "commit", COMMIT),
-        attribute(DOC, "permalink", `${BLOB}/specs/mirror/spec.md`),
-        attribute(DOC, "title", "Feature Specification: Mirror"),
-        relation(DOC, "contains", `${DOC}#feature-specification-mirror`),
-        attribute(
-          `${DOC}#feature-specification-mirror`,
-          "title",
-          "Feature Specification: Mirror",
-        ),
-        attribute(
-          `${DOC}#feature-specification-mirror`,
-          "text",
-          "Feature Specification: Mirror",
-        ),
-        attribute(`${DOC}#feature-specification-mirror`, "line_start", "1"),
-        relation(DOC, "contains", `${DOC}#chain`),
-        attribute(`${DOC}#chain`, "title", "Chain"),
-        attribute(`${DOC}#chain`, "text", "Chain"),
-        attribute(`${DOC}#chain`, "line_start", "7"),
-        relation(DOC, "contains", `${DOC}#chain-2`),
-        attribute(`${DOC}#chain-2`, "title", "Chain"),
-        attribute(`${DOC}#chain-2`, "text", "Chain"),
-        attribute(`${DOC}#chain-2`, "line_start", "12"),
-      ],
-    });
-  });
-
+describe("statementItems", () => {
   it("builds a statement item with two validated_by tests, titles taken after validated by, and one implemented_by source file", () => {
-    const [, fr1] = build(SPEC, "2026-10-15T10:00:00Z");
+    const [fr1] = build(SPEC, "2026-10-15T10:00:00Z");
     const test1 =
       "re-cinq/lore:libs/shared/src/work/utopia/mirror-document.test.ts::pushes the doc item";
     const test2 =
@@ -144,7 +101,7 @@ describe("docStatementItems", () => {
   });
 
   it("links a statement to an ADR with decided_by and treats the ADR as no code link", () => {
-    const [, , fr2] = build(SPEC);
+    const [, fr2] = build(SPEC);
     const adr =
       "re-cinq/lore:adrs/ADR-052-code-to-spec-graph-mirrored-in-utopia.md";
     const stmt = `${DOC}#s0001`;
@@ -172,7 +129,7 @@ describe("docStatementItems", () => {
 
   it("files the sentence under the second chain section as chain-2 and omits doc_time for an undated commit", () => {
     const pushed = build(SPEC);
-    const sentence = pushed[3];
+    const sentence = pushed[2];
 
     expect({
       count: pushed.length,
@@ -180,27 +137,15 @@ describe("docStatementItems", () => {
       section: sentence.e[0],
       statement: sentence.s[0],
     }).toEqual({
-      count: 4,
+      count: 3,
       dated: 0,
       section: [`${DOC}#chain-2`, "Section", true],
       statement: relation(`${DOC}#chain-2`, "contains", `${DOC}#s0002`),
     });
   });
 
-  it("types an ADR's document as Adr", () => {
-    const [doc] = docStatementItems({
-      repo: "re-cinq/lore",
-      path: "adrs/ADR-052.md",
-      content: "# ADR-052\n\nDecided.\n",
-      commit: COMMIT,
-      kind: "adr",
-    });
-
-    expect(doc.e[1]).toEqual(["re-cinq/lore:adrs/ADR-052.md", "Adr", true]);
-  });
-
-  it("types a README's document as Doc and files its first sentence under its Usage section", () => {
-    const [doc, statement] = docStatementItems({
+  it("files a README's first sentence under its Usage section", () => {
+    const [statement] = statementItems({
       repo: "re-cinq/lore",
       path: "README.md",
       content: "# Lore\n\n## Usage\n\n- Run install.sh once per machine.\n",
@@ -208,18 +153,17 @@ describe("docStatementItems", () => {
       kind: "doc",
     });
 
-    expect({ document: doc.e[1], statement: statement?.s[0] }).toEqual({
-      document: ["re-cinq/lore:README.md", "Doc", true],
-      statement: relation(
+    expect(statement.s[0]).toEqual(
+      relation(
         "re-cinq/lore:README.md#usage",
         "contains",
         "re-cinq/lore:README.md#s0000",
       ),
-    });
+    );
   });
 
   it("files a statement written before any heading under the Adr document, never a second Document of the same name", () => {
-    const [, statement] = docStatementItems({
+    const [statement] = statementItems({
       repo: "re-cinq/lore",
       path: "adrs/ADR-052.md",
       content: "- D1 — Decided before any heading.\n\n# ADR-052\n",
@@ -238,7 +182,7 @@ describe("docStatementItems", () => {
       (_, i) => `[validated by case ${i}](src/a.test.ts#L${i + 1})`,
     );
     const pushed = build(`## Many\n\n- FR1 — Linked. (${links.join(", ")})\n`);
-    const parts = pushed.slice(1);
+    const parts = pushed;
     const testsOf = (part: StatementItem) =>
       part.e.filter(([, kind]) => kind === "Test").length;
 
@@ -264,31 +208,16 @@ describe("docStatementItems", () => {
   });
 
   it("gives the statement the text FR1 — Spaced words. with its coverage links stripped and its runs of spaces collapsed", () => {
-    const [, fr1] = build(
+    const [fr1] = build(
       "## Words\n\n- FR1 —   Spaced \t words.  ([validated by a](src/a.test.ts#L1), [b](src/b.ts))\n",
     );
 
     expect(textsOf(fr1)).toEqual(["FR1 — Spaced words."]);
   });
 
-  it("titles nothing for a document with no top-level heading, while its section still carries its heading as text", () => {
-    const [doc] = build("## Only a section\n\nWords.\n");
-    const section = `${DOC}#only-a-section`;
-
-    expect(doc.s.filter(([, , phrase]) => phrase !== "line_start")).toEqual([
-      relation("re-cinq/lore", "contains", DOC),
-      attribute(DOC, "path", "specs/mirror/spec.md"),
-      attribute(DOC, "commit", COMMIT),
-      attribute(DOC, "permalink", `${BLOB}/specs/mirror/spec.md`),
-      relation(DOC, "contains", section),
-      attribute(section, "title", "Only a section"),
-      attribute(section, "text", "Only a section"),
-    ]);
-  });
-
   it("cuts a 5,003-character statement to its first 4,000 characters and an ellipsis", () => {
     const words = "words ".repeat(834).trim();
-    const [, statement] = build(`## Long\n\n${words}\n`);
+    const [statement] = build(`## Long\n\n${words}\n`);
 
     expect(textsOf(statement)).toEqual([`${words.slice(0, 4000)}…`]);
   });
@@ -300,12 +229,7 @@ describe("docStatementItems", () => {
     );
     const pushed = build(`## Many\n\n- FR1 — Linked. (${links.join(", ")})\n`);
 
-    expect(pushed.slice(1).map(textsOf)).toEqual([
-      ["FR1 — Linked."],
-      [],
-      [],
-      [],
-    ]);
+    expect(pushed.map(textsOf)).toEqual([["FR1 — Linked."], [], [], []]);
   });
 });
 
@@ -329,7 +253,7 @@ const LEGACY_SPEC = [
   "",
 ].join("\n");
 const buildLegacy = (testSources: ReadonlyMap<string, string>) =>
-  docStatementItems({
+  statementItems({
     repo: "re-cinq/lore",
     path: "specs/mirror/spec.md",
     content: LEGACY_SPEC,
@@ -338,9 +262,9 @@ const buildLegacy = (testSources: ReadonlyMap<string, string>) =>
     testSources,
   });
 
-describe("docStatementItems test titles", () => {
+describe("statementItems test titles", () => {
   it("names the test behind a context-freshness.test.ts:21 label by the title declared at its #L6 anchor, and a backticked title without its backticks", () => {
-    const [, fr1] = buildLegacy(new Map([[FRESHNESS, FRESHNESS_SOURCE]]));
+    const [fr1] = buildLegacy(new Map([[FRESHNESS, FRESHNESS_SOURCE]]));
 
     expect(fr1.e).toEqual([
       [`${DOC}#freshness`, "Section", true],
@@ -355,7 +279,7 @@ describe("docStatementItems test titles", () => {
   });
 
   it("links no test for an empty label or a gone.test.ts:9 label whose source was not read", () => {
-    const [, fr1] = buildLegacy(new Map());
+    const [fr1] = buildLegacy(new Map());
 
     expect(fr1.e).toEqual([
       [`${DOC}#freshness`, "Section", true],

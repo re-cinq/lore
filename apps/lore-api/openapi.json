@@ -14599,6 +14599,9 @@
                       },
                       "tracker_since": {
                         "type": "string"
+                      },
+                      "docs_source_id": {
+                        "type": "string"
                       }
                     },
                     "required": ["kb_id", "source_id"],
@@ -15006,6 +15009,9 @@
                               "type": "string"
                             },
                             "tracker_since": {
+                              "type": "string"
+                            },
+                            "docs_source_id": {
                               "type": "string"
                             }
                           },

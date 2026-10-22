@@ -82,10 +82,19 @@ export function saveUtopiaTrackerSince(
   return saveUtopiaCursor(pool, repo, "tracker_since", since);
 }
 
+/** The id of the repo's `docs` source, which context assembly reads documents from; it is no secret, unlike the source's key. */
+export function saveUtopiaDocsSourceId(
+  pool: Pool,
+  repo: string,
+  sourceId: string,
+): Promise<void> {
+  return saveUtopiaCursor(pool, repo, "docs_source_id", sourceId);
+}
+
 async function saveUtopiaCursor(
   pool: Pool,
   repo: string,
-  key: "commits_head" | "tracker_since",
+  key: "commits_head" | "tracker_since" | "docs_source_id",
   value: string,
 ): Promise<void> {
   await pool.query(

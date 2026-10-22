@@ -1,11 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  docPathOf,
   parseSearchPage,
-  parseStatementsChunk,
   parseStoredDocument,
-  pushedPathOf,
-  statementTexts,
 } from "./read-shapes.js";
 
 const fixture = (name: string) =>
@@ -66,48 +64,16 @@ describe("parseStoredDocument", () => {
   });
 });
 
-describe("pushedPathOf", () => {
-  it("returns stmt with path specs/utopia-graph-mirror/spec.md and ordinal 3 for stmt:specs/utopia-graph-mirror/spec.md#0003.2", () => {
-    expect(
-      pushedPathOf("stmt:specs/utopia-graph-mirror/spec.md#0003.2"),
-    ).toEqual({
-      kind: "stmt",
-      path: "specs/utopia-graph-mirror/spec.md",
-      ordinal: 3,
-    });
+describe("docPathOf", () => {
+  it("returns the ADR path for doc:adrs/ADR-052-x.md", () => {
+    expect(docPathOf("doc:adrs/ADR-052-x.md")).toBe("adrs/ADR-052-x.md");
   });
 
-  it("returns doc and the ADR path for doc:adrs/ADR-052-x.md", () => {
-    expect(pushedPathOf("doc:adrs/ADR-052-x.md")).toEqual({
-      kind: "doc",
-      path: "adrs/ADR-052-x.md",
-    });
-  });
-
-  it("returns null for an external id of no known kind", () => {
+  it("returns null for stmt:, commit: and page: ids, which are no pushed document of a file", () => {
     expect([
-      pushedPathOf("page:wiki/home.md"),
-      pushedPathOf("stmt:specs/utopia-graph-mirror/spec.md"),
-    ]).toEqual([null, null]);
-  });
-});
-
-describe("parseStatementsChunk", () => {
-  it("reads the statement texts out of a pretty-printed statements chunk", () => {
-    const chunk = parseStatementsChunk(fixture("statements-chunk.json"));
-
-    expect({
-      externalId: chunk?.externalId,
-      texts: chunk && statementTexts(chunk),
-    }).toEqual({
-      externalId: "stmt:specs/utopia-graph-mirror/spec.md#0003",
-      texts: ["A 404 reads as no document.", "A 422 is not retried."],
-    });
-  });
-
-  it("returns null for a chunk cut mid-item", () => {
-    expect(parseStatementsChunk('{\n  "external_id": "stmt:specs/x')).toBe(
-      null,
-    );
+      docPathOf("stmt:specs/utopia-graph-mirror/spec.md#0003"),
+      docPathOf("commit:7b89df02"),
+      docPathOf("page:wiki/home.md"),
+    ]).toEqual([null, null, null]);
   });
 });
