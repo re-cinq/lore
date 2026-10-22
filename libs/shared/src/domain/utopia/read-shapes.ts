@@ -1,7 +1,6 @@
-// What Utopia answers when Lore reads its mirror back: a scored search page, a pushed document by its external id, and the statements item a chunk of a statements source holds. The shapes are Utopia v0.1.0-re.7's: `ScoredChunk` (retrieval.rs) flattening `SourcedChunk` and `ChunkView` (utopia-core models.rs) on `POST /kbs/{id}/search`, and the `by_external_id` answer of documents_routes.rs; the fixtures beside this module copy them.
+// What Utopia answers when Lore reads its mirror back: a scored search page, and a pushed document by its external id. The shapes are Utopia v0.1.0-re.7's: `ScoredChunk` (retrieval.rs) flattening `SourcedChunk` and `ChunkView` (utopia-core models.rs) on `POST /kbs/{id}/search`, and the `by_external_id` answer of documents_routes.rs; the fixtures beside this module copy them.
 
 import { z } from "zod";
-import type { Entity, Statement } from "./statements.js";
 
 const scoredChunkSchema = z.object({
   id: z.string(),
@@ -106,83 +105,9 @@ export function parseStoredDocument(json: unknown): StoredDocument {
   };
 }
 
-export type PushedKind = "doc" | "stmt" | "test" | "code";
+const DOC_ID = /^doc:(.+)$/;
 
-export interface PushedPath {
-  kind: PushedKind;
-  path: string;
-  /** A statement's ordinal within its document. */
-  ordinal?: number;
-}
-
-const STATEMENT_ID = /^stmt:(.+)#(\d+)(?:\.\d+)?$/;
-
-const FILE_ID = /^(doc|test|code):(.+?)(?:\.\d+)?$/;
-
-/** The file an external id Lore pushed names, its split suffix (`.2`) dropped; null for an id no Lore push makes. */
-export function pushedPathOf(externalId: string): PushedPath | null {
-  const statement = STATEMENT_ID.exec(externalId);
-
-  if (statement) {
-    return { kind: "stmt", path: statement[1], ordinal: Number(statement[2]) };
-  }
-  const file = FILE_ID.exec(externalId);
-
-  return file ? { kind: file[1] as PushedKind, path: file[2] } : null;
-}
-
-const ENTITY_MARK = z.custom<true>((mark) => mark === true);
-
-const statementsChunkSchema = z.object({
-  external_id: z.string(),
-  e: z.array(z.tuple([z.string(), z.string(), ENTITY_MARK])),
-  s: z.array(
-    z.tuple([
-      z.null(),
-      z.string(),
-      z.string(),
-      z.string().nullable(),
-      z.string().nullable(),
-      z.record(z.string(), z.union([z.string(), z.number()])),
-      z.null(),
-      z.null(),
-    ]),
-  ),
-});
-
-export interface StatementsChunk {
-  externalId: string;
-  e: Entity[];
-  s: Statement[];
-}
-
-/** The statements item a chunk holds, or null when the chunk is not one whole item (a long item is cut across chunks). */
-export function parseStatementsChunk(text: string): StatementsChunk | null {
-  const parsed = statementsChunkSchema.safeParse(jsonOrNull(text));
-
-  return parsed.success
-    ? {
-        externalId: parsed.data.external_id,
-        e: parsed.data.e,
-        s: parsed.data.s,
-      }
-    : null;
-}
-
-function jsonOrNull(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // A chunk cut mid-item is not JSON, and that is an answer, not a failure.
-    return null;
-  }
-}
-
-/** The words of an item's `text` attributes, in pushed order. */
-export function statementTexts(
-  statementsItem: Pick<StatementsChunk, "s">,
-): string[] {
-  return statementsItem.s.flatMap(([, , phrase, , value]) =>
-    phrase === "text" && value !== null ? [value] : [],
-  );
+/** The file a `doc:<path>` external id Lore pushed names; null for any other id. */
+export function docPathOf(externalId: string): string | null {
+  return DOC_ID.exec(externalId)?.[1] ?? null;
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { readFileSync } from "node:fs";
 import pg from "pg";
 import {
   kindSourceFor,
@@ -25,6 +26,7 @@ describe("lore.utopia_kind_sources", () => {
     await pool?.query(
       "DELETE FROM lore.utopia_kind_sources WHERE repo LIKE 'it-kinds/%'",
     );
+    await pool?.query("DELETE FROM lore.repos WHERE owner = 'it-kinds'");
     await pool?.end();
   });
 
@@ -95,5 +97,49 @@ describe("lore.utopia_kind_sources", () => {
     );
 
     expect(rows[0]).toMatchObject({ lore: true, ui: false });
+  });
+
+  it("names the docs source in the settings of a repo set up before, leaves other settings and a repo with no utopia block alone, and does so again unchanged", async () => {
+    await pool.query(
+      `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged, settings) VALUES
+         ('it-kinds', 'set', 'it-kinds/set', true, '{"auto_review": true, "utopia": {"kb_id": "kb-1", "source_id": "src-1"}}'),
+         ('it-kinds', 'bare', 'it-kinds/bare', true, '{"auto_review": true}')`,
+    );
+
+    for (const repo of ["it-kinds/Set", "it-kinds/bare"]) {
+      await saveKindSource(
+        pool,
+        { repo, kind: "docs", kbId: "kb-1" },
+        { id: "src-docs", key: "utp_d" },
+      );
+    }
+    const migration = readFileSync(
+      new URL(
+        "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0115_utopia_docs_source_id.sql",
+        import.meta.url,
+      ),
+      "utf-8",
+    );
+
+    await pool.query(migration);
+    await pool.query(migration);
+    const { rows } = await pool.query<{ full_name: string; settings: unknown }>(
+      "SELECT full_name, settings FROM lore.repos WHERE owner = 'it-kinds' ORDER BY full_name",
+    );
+
+    expect(rows).toEqual([
+      { full_name: "it-kinds/bare", settings: { auto_review: true } },
+      {
+        full_name: "it-kinds/set",
+        settings: {
+          auto_review: true,
+          utopia: {
+            kb_id: "kb-1",
+            source_id: "src-1",
+            docs_source_id: "src-docs",
+          },
+        },
+      },
+    ]);
   });
 });

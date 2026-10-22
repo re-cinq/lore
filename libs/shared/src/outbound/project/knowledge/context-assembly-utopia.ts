@@ -1,15 +1,12 @@
-// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the statements the document mirror pushed (specs, ADRs and every other markdown document), one item per document, every other section still saying it has no Utopia reader.
+// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the whole documents pushed to the repo's `docs` source (specs, ADRs and every other markdown document), one item per document, every other section still saying it has no Utopia reader.
 
 import { classifyFile } from "../../../domain/content-classify.js";
 import { noUtopiaReader } from "../../../domain/knowledge-backend.js";
+import { withoutLocation } from "../../../domain/utopia/docs/doc-text.js";
 import {
-  parseStatementsChunk,
-  pushedPathOf,
-  statementTexts,
+  docPathOf,
   type SearchHit,
-  type PushedPath,
   type SearchPage,
-  type StatementsChunk,
 } from "../../../domain/utopia/read-shapes.js";
 import type { UtopiaReads } from "../../utopia/utopia-reads.js";
 import type { SourceItem } from "./context-assembly-format.js";
@@ -17,10 +14,10 @@ import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
 import type { SectionReader } from "./context-assembly-types.js";
 
-/** Where a repository's mirror lives: its knowledge base and the source its statements were pushed to (`settings.utopia`). */
+/** Where a repository's mirror lives: its knowledge base and the `docs` source its documents were pushed to (`settings.utopia`). */
 export interface UtopiaMirror {
   kbId: string;
-  statementsSourceId: string;
+  docsSourceId: string;
 }
 
 /** What the Utopia arm reads with; absent when the deployment has no reader or the repository no mirror. */
@@ -59,7 +56,7 @@ export function utopiaSectionReader(
     if (!section) {
       return { sources: [mkItem(noUtopiaReader(source))], status: "ok" };
     }
-    const filter = { statementsSourceId: arm.statementsSourceId, ...section };
+    const filter = { docsSourceId: arm.docsSourceId, ...section };
     const sources = await sectionDocuments(
       page,
       (hits) => utopiaDocuments(hits, filter),
@@ -101,7 +98,7 @@ async function sectionDocuments(
 }
 
 interface DocumentFilter {
-  statementsSourceId: string;
+  docsSourceId: string;
   types: ReadonlySet<string>;
   limit: number;
 }
@@ -110,10 +107,10 @@ interface DocumentHits {
   path: string;
   contentType: string;
   score: number;
-  parts: { ordinal: number; score: number; texts: string[] }[];
+  chunks: { seq: number; text: string }[];
 }
 
-/** The documents the hits name, one item each in the rank of its best hit, scored so the best is 1 as Lore's are: the statements source's doc and statement chunks only, every statement of a document that matched, in the order they stand in it, its title first. */
+/** The documents the hits name, one item each in the rank of its best hit, scored so the best is 1 as Lore's are: the docs source's chunks only, every chunk of a document that matched, in the order they stand in it. */
 export function utopiaDocuments(
   hits: SearchHit[],
   filter: DocumentFilter,
@@ -134,99 +131,44 @@ function addHit(
   hit: SearchHit,
   filter: DocumentFilter,
 ): void {
-  const kept = keptHit(hit, filter);
+  const kept = keptDocument(hit, filter);
 
   if (!kept) {
     return;
   }
   const found = byPath.get(kept.path) ?? {
-    path: kept.path,
-    contentType: kept.contentType,
+    ...kept,
     score: hit.score,
-    parts: [],
+    chunks: [],
   };
 
   byPath.set(kept.path, found);
-  found.parts.push(kept);
+  found.chunks.push({ seq: hit.seq, text: withoutLocation(hit.text) });
 }
 
-interface KeptHit {
-  path: string;
-  contentType: string;
-  ordinal: number;
-  score: number;
-  texts: string[];
-}
+/** The file and content type of a hit the section keeps: a `doc:<path>` document of the docs source, of a file the section's content types cover. */
+function keptDocument(
+  hit: SearchHit,
+  filter: DocumentFilter,
+): { path: string; contentType: string } | null {
+  const path = docPathIn(hit, filter.docsSourceId);
+  const contentType = path ? classifyFile(path) : null;
 
-/** A hit the section keeps: a doc or statement item of the statements source, of a file the section's content types cover. */
-function keptHit(hit: SearchHit, filter: DocumentFilter): KeptHit | null {
-  const pushed = pushedItemOf(hit, filter.statementsSourceId);
-  const contentType = pushed ? classifyFile(pushed.path) : null;
-
-  return pushed && contentType && filter.types.has(contentType)
-    ? {
-        path: pushed.path,
-        contentType,
-        ordinal: pushed.ordinal ?? -1,
-        score: hit.score,
-        texts: partTexts(pushed.kind, parseStatementsChunk(hit.text)),
-      }
+  return path && contentType && filter.types.has(contentType)
+    ? { path, contentType }
     : null;
 }
 
-type PushedItem = PushedPath & { kind: "doc" | "stmt" };
-
-function pushedItemOf(
-  hit: SearchHit,
-  statementsSourceId: string,
-): PushedItem | null {
-  const pushed =
-    hit.sourceId === statementsSourceId && hit.externalId
-      ? pushedPathOf(hit.externalId)
-      : null;
-
-  return isDocOrStatement(pushed) ? pushed : null;
-}
-
-function isDocOrStatement(pushed: PushedPath | null): pushed is PushedItem {
-  return pushed?.kind === "doc" || pushed?.kind === "stmt";
-}
-
-/** A doc item gives the document's title; a statement item its text. A chunk cut mid-item gives nothing, and its document still counts. */
-function partTexts(
-  kind: "doc" | "stmt",
-  chunk: StatementsChunk | null,
-): string[] {
-  if (!chunk) {
-    return [];
-  }
-
-  return kind === "doc" ? documentTitles(chunk) : statementTexts(chunk);
-}
-
-const DOCUMENT_KIND_WORDS: ReadonlySet<string> = new Set([
-  "Spec",
-  "Adr",
-  "Doc",
-]);
-
-function documentTitles(chunk: StatementsChunk): string[] {
-  const documentEntities = chunk.e.filter(([, kindWord]) =>
-    DOCUMENT_KIND_WORDS.has(kindWord),
-  );
-  const documents = new Set(documentEntities.map(([name]) => name));
-
-  return chunk.s.flatMap(([, subject, phrase, , value]) =>
-    phrase === "title" && documents.has(subject) && value !== null
-      ? [value]
-      : [],
-  );
+function docPathIn(hit: SearchHit, docsSourceId: string): string | null {
+  return hit.sourceId === docsSourceId && hit.externalId
+    ? docPathOf(hit.externalId)
+    : null;
 }
 
 function toItem(document: DocumentHits): SourceItem {
-  const texts = [...document.parts]
-    .sort((a, b) => a.ordinal - b.ordinal)
-    .flatMap((part) => part.texts);
+  const texts = [...document.chunks]
+    .sort((a, b) => a.seq - b.seq)
+    .map((chunk) => chunk.text.trim());
 
   return mkItem([...new Set(texts)].join("\n"), {
     source_path: document.path,

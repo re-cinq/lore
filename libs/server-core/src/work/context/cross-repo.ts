@@ -48,18 +48,20 @@ function contextSettingsOf(
   settings: RepoSettingsRow["settings"],
 ): RepoContextSettings {
   const backend = KnowledgeBackendSchema.safeParse(settings?.context_backend);
-  const mirror = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
+  const utopiaMirror = utopiaMirrorOf(settings?.utopia);
 
   return {
     crossRepo: settings?.cross_repo === true,
     ...(backend.success ? { contextBackend: backend.data } : {}),
-    ...(mirror.success
-      ? {
-          utopiaMirror: {
-            kbId: mirror.data.kb_id,
-            statementsSourceId: mirror.data.source_id,
-          },
-        }
-      : {}),
+    ...(utopiaMirror ? { utopiaMirror } : {}),
   };
+}
+
+/** The mirror to read when the settings name the knowledge base and the docs source; none before the first document is pushed. */
+function utopiaMirrorOf(utopia: unknown): UtopiaMirror | null {
+  const mirror = UtopiaMirrorSettingsSchema.safeParse(utopia);
+
+  return mirror.success && mirror.data.docs_source_id
+    ? { kbId: mirror.data.kb_id, docsSourceId: mirror.data.docs_source_id }
+    : null;
 }

@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { docStatementItems } from "../../../domain/utopia/docs/doc-statements.js";
-import { wireBody } from "../../../domain/utopia/statements.js";
+import { docDocument } from "../../../domain/utopia/docs/doc-text.js";
 import type {
   SearchHit,
   SearchPage,
@@ -11,54 +10,32 @@ import {
   utopiaSectionReader,
 } from "./context-assembly-utopia.js";
 
-const STATEMENTS = "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533";
+const DOCS = "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533";
 const SPEC = "specs/utopia-graph-mirror/spec.md";
+const EVALS_SPEC = "specs/context-evals/spec.md";
 
-function pushedChunks(
+function firstChunk(
   path: string,
   kind: "spec" | "adr" | "doc",
-  content: string,
-): Map<string, string> {
-  return new Map(
-    docStatementItems({
-      repo: "re-cinq/lore",
-      path,
-      content,
-      commit: "fb53a29",
-      kind,
-    }).map((pushed) => [
-      pushed.externalId,
-      JSON.stringify(wireBody(pushed), null, 2),
-    ]),
-  );
+  file: string,
+): string {
+  return docDocument({ repo: "re-cinq/lore", path, content: file, kind })
+    .content as string;
 }
-
-const specChunks = pushedChunks(
-  SPEC,
-  "spec",
-  "# Utopia graph mirror\n\n## Reads\n\nA 404 reads as no document.\n\nA search page carries its hits in rank order.\n\nThe second page starts at offset 50.\n\nA hit past offset 100 is refused.\n",
-);
-
-const EVALS_SPEC = "specs/context-evals/spec.md";
-const evalsChunks = pushedChunks(
-  EVALS_SPEC,
-  "spec",
-  "# Context evals\n\nA question is written from each document.\n",
-);
 
 function hit(
   externalId: string,
-  chunks: Map<string, string>,
+  text: string,
   score: number,
-  sourceId = STATEMENTS,
+  options: { seq?: number; sourceId?: string } = {},
 ): SearchHit {
   return {
-    chunkId: `chunk-${externalId}`,
+    chunkId: `chunk-${externalId}-${options.seq ?? 0}`,
     documentId: `document-${externalId}`,
-    seq: 0,
-    text: chunks.get(externalId) ?? "",
+    seq: options.seq ?? 0,
+    text,
     filename: externalId,
-    sourceId,
+    sourceId: options.sourceId ?? DOCS,
     externalId,
     score,
     bm25Rank: 1,
@@ -67,23 +44,35 @@ function hit(
 }
 
 const REPO_FILTER = {
-  statementsSourceId: STATEMENTS,
+  docsSourceId: DOCS,
   types: new Set(["spec", "doc"]),
   limit: 5,
 };
 
+const specFirst = firstChunk(
+  SPEC,
+  "spec",
+  "# Utopia graph mirror\n\nA 404 reads as no document.",
+);
+
 describe("utopiaDocuments", () => {
-  it("groups three stmt chunks of one spec into one item in ordinal order", () => {
+  it("joins three chunks of one spec into one item in the order they stand in the file, the location lines of the first dropped", () => {
     const hits = [
-      hit(`stmt:${SPEC}#0002`, specChunks, 0.032),
-      hit(`stmt:${SPEC}#0000`, specChunks, 0.03),
-      hit(`stmt:${SPEC}#0001`, specChunks, 0.029),
+      hit(`doc:${SPEC}`, "The second page starts at offset 50.", 0.032, {
+        seq: 2,
+      }),
+      hit(`doc:${SPEC}`, specFirst, 0.03, { seq: 0 }),
+      hit(
+        `doc:${SPEC}`,
+        "A search page carries its hits in rank order.",
+        0.029,
+        { seq: 1 },
+      ),
     ];
 
-    expect(utopiaDocuments(hits, REPO_FILTER)).toEqual([
+    expect(utopiaDocuments(hits, REPO_FILTER)).toMatchObject([
       {
-        text: "A 404 reads as no document.\nA search page carries its hits in rank order.\nThe second page starts at offset 50.",
-        tokens: 28,
+        text: "# Utopia graph mirror\n\nA 404 reads as no document.\nA search page carries its hits in rank order.\nThe second page starts at offset 50.",
         source_path: SPEC,
         content_type: "spec",
         score: 1,
@@ -91,23 +80,14 @@ describe("utopiaDocuments", () => {
     ]);
   });
 
-  it("keeps all four statements of a spec that matched, in the order they stand in it, however weakly the last matched", () => {
-    const hits = [
-      hit(`stmt:${SPEC}#0003`, specChunks, 0.032),
-      hit(`stmt:${SPEC}#0001`, specChunks, 0.031),
-      hit(`stmt:${SPEC}#0000`, specChunks, 0.03),
-      hit(`stmt:${SPEC}#0002`, specChunks, 0.016),
-    ];
-
-    expect(utopiaDocuments(hits, REPO_FILTER)[0]?.text).toEqual(
-      "A 404 reads as no document.\nA search page carries its hits in rank order.\nThe second page starts at offset 50.\nA hit past offset 100 is refused.",
-    );
-  });
-
   it("scores the spec whose best hit is 0.032 at 1 and the one whose best is 0.016 at 0.5", () => {
     const hits = [
-      hit(`stmt:${SPEC}#0000`, specChunks, 0.032),
-      hit(`stmt:${EVALS_SPEC}#0000`, evalsChunks, 0.016),
+      hit(`doc:${SPEC}`, specFirst, 0.032),
+      hit(
+        `doc:${EVALS_SPEC}`,
+        firstChunk(EVALS_SPEC, "spec", "# Context evals"),
+        0.016,
+      ),
     ];
 
     expect(
@@ -121,21 +101,18 @@ describe("utopiaDocuments", () => {
     ]);
   });
 
-  it("renders README.md's doc and statement chunks as one doc item, its title Lore before its statement", () => {
-    const readmeChunks = pushedChunks(
-      "README.md",
-      "doc",
-      "# Lore\n\n## Usage\n\n- Run install.sh once per machine.\n",
-    );
+  it("renders README.md's chunk as one doc item whose text starts at the file", () => {
     const hits = [
-      hit("stmt:README.md#0000", readmeChunks, 0.032),
-      hit("doc:README.md", readmeChunks, 0.03),
+      hit(
+        "doc:README.md",
+        firstChunk("README.md", "doc", "# Lore\n\nRun install.sh once."),
+        0.032,
+      ),
     ];
 
-    expect(utopiaDocuments(hits, REPO_FILTER)).toEqual([
+    expect(utopiaDocuments(hits, REPO_FILTER)).toMatchObject([
       {
-        text: "Lore\nRun install.sh once per machine.",
-        tokens: 10,
+        text: "# Lore\n\nRun install.sh once.",
         source_path: "README.md",
         content_type: "doc",
         score: 1,
@@ -143,21 +120,18 @@ describe("utopiaDocuments", () => {
     ]);
   });
 
-  it("drops hits from another source_id", () => {
+  it("drops hits from another source_id and items of the docs source that are no doc: document", () => {
     const hits = [
-      hit(`stmt:${SPEC}#0000`, specChunks, 0.032, "a-test-runs-source"),
-      hit(`doc:${SPEC}`, specChunks, 0.03),
+      hit(`doc:${SPEC}`, specFirst, 0.032, { sourceId: "a-test-runs-source" }),
+      hit(`stmt:${SPEC}#0000`, '{"external_id":"stmt:x"}', 0.03),
+      hit(`doc:${EVALS_SPEC}`, firstChunk(EVALS_SPEC, "spec", "Kept."), 0.02),
     ];
 
-    expect(utopiaDocuments(hits, REPO_FILTER)).toEqual([
-      {
-        text: "Utopia graph mirror",
-        tokens: 5,
-        source_path: SPEC,
-        content_type: "spec",
-        score: 1,
-      },
-    ]);
+    expect(
+      utopiaDocuments(hits, REPO_FILTER).map(
+        (document) => document.source_path,
+      ),
+    ).toEqual([EVALS_SPEC]);
   });
 });
 
@@ -180,17 +154,13 @@ function searchOver(
 }
 
 const ADR = "adrs/ADR-052-code-to-spec-graph-mirrored-in-utopia.md";
-const adrChunks = pushedChunks(
-  ADR,
-  "adr",
-  "# ADR-052: Code-to-spec graph mirrored in Utopia\n\nEvery spec and ADR is pushed to Utopia.\n",
-);
-
 const SPEC_THEN_ADR = [
-  ...Array.from({ length: 50 }, () =>
-    hit(`stmt:${SPEC}#0000`, specChunks, 0.03),
+  ...Array.from({ length: 50 }, () => hit(`doc:${SPEC}`, specFirst, 0.03)),
+  hit(
+    `doc:${ADR}`,
+    firstChunk(ADR, "adr", "# ADR-052: Code-to-spec graph mirrored in Utopia"),
+    0.01,
   ),
-  hit(`stmt:${ADR}#0000`, adrChunks, 0.01),
 ];
 
 describe("utopiaSectionReader", () => {
@@ -200,7 +170,7 @@ describe("utopiaSectionReader", () => {
       {
         reads: searchOver(SPEC_THEN_ADR, windows),
         kbId: "kb-1",
-        statementsSourceId: STATEMENTS,
+        docsSourceId: DOCS,
       },
       "how are ADRs mirrored",
     );
@@ -239,7 +209,7 @@ describe("utopiaSectionReader", () => {
       {
         reads: searchOver(SPEC_THEN_ADR, windows),
         kbId: "kb-1",
-        statementsSourceId: STATEMENTS,
+        docsSourceId: DOCS,
       },
       "chunk search",
     );

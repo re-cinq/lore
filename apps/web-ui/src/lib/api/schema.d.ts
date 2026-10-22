@@ -3914,6 +3914,7 @@ export interface components {
               ontology_version?: number;
               commits_head?: string;
               tracker_since?: string;
+              docs_source_id?: string;
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
@@ -4033,6 +4034,7 @@ export interface components {
                 ontology_version?: number;
                 commits_head?: string;
                 tracker_since?: string;
+                docs_source_id?: string;
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";

@@ -254,6 +254,10 @@
       "types": "./dist/domain/utopia/backfill-summary.d.ts",
       "default": "./dist/domain/utopia/backfill-summary.js"
     },
+    "./utopia/doc-text.js": {
+      "types": "./dist/domain/utopia/docs/doc-text.d.ts",
+      "default": "./dist/domain/utopia/docs/doc-text.js"
+    },
     "./utopia/doc-statements.js": {
       "types": "./dist/domain/utopia/docs/doc-statements.d.ts",
       "default": "./dist/domain/utopia/docs/doc-statements.js"

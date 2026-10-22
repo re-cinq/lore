@@ -23,6 +23,9 @@
       "@re-cinq/lore-shared/utopia/commits-summary.js": [
         "../../libs/shared/src/domain/utopia/git-history/commits-summary.ts"
       ],
+      "@re-cinq/lore-shared/utopia/doc-text.js": [
+        "../../libs/shared/src/domain/utopia/docs/doc-text.ts"
+      ],
       "@re-cinq/lore-shared/utopia/doc-statements.js": [
         "../../libs/shared/src/domain/utopia/docs/doc-statements.ts"
       ],

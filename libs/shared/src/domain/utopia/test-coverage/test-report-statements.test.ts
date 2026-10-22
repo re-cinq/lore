@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { TaggedRunResult, TestDescriptor } from "../../test-report.js";
-import { docStatementItems } from "../docs/doc-statements.js";
+import { statementItems } from "../docs/doc-statements.js";
 import {
   attribute,
   fitsOneItem,
@@ -210,7 +210,7 @@ describe("testReportItems", () => {
       "- FR1 — Rounds are counted. ([validated by counts rounds](../../src/a.test.ts#L4))",
       "",
     ].join("\n");
-    const doc = docStatementItems({
+    const doc = statementItems({
       repo: "re-cinq/lore",
       path: "specs/a/spec.md",
       content: spec,

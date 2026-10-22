@@ -6,11 +6,16 @@ const poolWith = (settings: unknown) =>
   ({ query: async () => ({ rows: [{ settings }] }) }) as unknown as Pool;
 
 describe("repoContextSettings", () => {
-  it("returns the Utopia mirror kb-1 / src-1 when settings.utopia names both", async () => {
+  it("returns the Utopia mirror kb-1 / src-docs when settings.utopia names the knowledge base and the docs source", async () => {
     const settings = await repoContextSettings(
       poolWith({
         context_backend: "both",
-        utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 3 },
+        utopia: {
+          kb_id: "kb-1",
+          source_id: "src-1",
+          docs_source_id: "src-docs",
+          ontology_version: 3,
+        },
       }),
       "re-cinq/lore",
     );
@@ -18,13 +23,13 @@ describe("repoContextSettings", () => {
     expect(settings).toEqual({
       crossRepo: false,
       contextBackend: "both",
-      utopiaMirror: { kbId: "kb-1", statementsSourceId: "src-1" },
+      utopiaMirror: { kbId: "kb-1", docsSourceId: "src-docs" },
     });
   });
 
-  it("returns no Utopia mirror when settings.utopia lacks a source id", async () => {
+  it("returns no Utopia mirror when settings.utopia names no docs source yet", async () => {
     const settings = await repoContextSettings(
-      poolWith({ utopia: { kb_id: "kb-1" } }),
+      poolWith({ utopia: { kb_id: "kb-1", source_id: "src-1" } }),
       "re-cinq/lore",
     );
 

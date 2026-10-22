@@ -38,6 +38,8 @@ export const UtopiaMirrorSettingsSchema = z.object({
   commits_head: z.string().optional(),
   /** The update time of the newest issue or pull request the tracker mirror pushed; the next walk asks from it. */
   tracker_since: z.string().optional(),
+  /** The id of the repo's `docs` Utopia source, which context assembly reads documents from. */
+  docs_source_id: z.string().optional(),
 });
 
 export type UtopiaMirrorSettings = z.infer<typeof UtopiaMirrorSettingsSchema>;
