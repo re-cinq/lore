@@ -936,3 +936,40 @@ describe("the loop's recipes on a repository whose toolchain the pod lacks", () 
     });
   });
 });
+
+describe("the loop's branch sync", () => {
+  it("tells loop-sync to rebase onto origin/main, push with a lease, never merge, abort an unfinished rebase and never run CI's checks in the pod", () => {
+    const prompt = promptOf("loop-sync").replace(/\s+/g, " ");
+
+    expect({
+      rebases: prompt.includes("git rebase origin/main"),
+      leases: prompt.includes("git push --force-with-lease origin HEAD"),
+      neverMerges: prompt.includes("Rebase, never merge"),
+      aborts: prompt.includes("git rebase --abort"),
+      noChecks: prompt.includes(
+        "Do NOT run the linter, a typecheck, a build, or the test suite in this pod",
+      ),
+    }).toEqual({
+      rebases: true,
+      leases: true,
+      neverMerges: true,
+      aborts: true,
+      noChecks: true,
+    });
+  });
+
+  it("tells every agent that delivers a branch to rebase it onto main with a lease and never to merge main in", () => {
+    for (const name of [
+      "loop-dod",
+      "loop-tdd-round",
+      "loop-fix-ci",
+      "loop-pr-ready",
+    ]) {
+      const prompt = promptOf(name).replace(/\s+/g, " ");
+
+      expect(prompt, name).toContain("git rebase origin/main");
+      expect(prompt, name).toContain("git push --force-with-lease origin HEAD");
+      expect(prompt, name).not.toContain("merge `origin/main` in");
+    }
+  });
+});

@@ -78,6 +78,13 @@ export class RepoFiles {
     );
   }
 
+  branchBehindBy(branch: string): Promise<number | undefined> {
+    return (
+      this.github.branchBehindBy?.(this.repo, branch) ??
+      Promise.resolve(undefined)
+    );
+  }
+
   createBranch(branch: string, base?: string): Promise<void> {
     return this.github.createBranch(this.repo, branch, base);
   }

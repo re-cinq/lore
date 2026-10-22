@@ -13,7 +13,7 @@
 # plan run side by side and beside the backlog's ticket (FR15).
 line:
   id: implementation-loop
-  entry: dod
+  entry: sync-start
   exit: done
   args:
     repo:
@@ -26,6 +26,20 @@ line:
     ticket:
       kind: file
   nodes:
+    # The branch is put on current main by Lore, not left to a prompt: a
+    # service check compares it with the default branch, and only a branch that
+    # is behind gets a pod, which rebases it and resolves the conflicts. The same
+    # pair guards the three places a branch can fall behind: before the first
+    # agent, before the pull request leaves draft, and when a ready pull request
+    # turns red or conflicted.
+    - id: sync-start
+      station: loop-sync-check
+      bind:
+        target: repo
+    - id: sync-start-rebase
+      station: loop-sync
+      bind:
+        target: repo
     - id: dod
       station: loop-dod
       bind:
@@ -51,17 +65,52 @@ line:
       station: loop-ready-for-review
       bind:
         target: repo
+    - id: sync-final
+      station: loop-sync-check
+      bind:
+        target: repo
+    - id: sync-final-rebase
+      station: loop-sync
+      bind:
+        target: repo
     - id: mark-ready
       station: loop-mark-ready
     - id: await-pr
       station: loop-await-pr
       route: "{args.pr_url}"
+    - id: sync-pr
+      station: loop-sync-check
+      bind:
+        target: repo
+    - id: sync-pr-rebase
+      station: loop-sync
+      bind:
+        target: repo
     - id: fix-ci
       station: loop-fix-ci
       bind:
         target: repo
     - id: done
   edges:
+    - from: sync-start
+      to: dod
+      on: success
+    - from: sync-start
+      to: sync-start-rebase
+      on: changes_requested
+    - from: sync-start
+      to: sync-start
+      on: failed
+      iteration_max: 1
+    - from: sync-start-rebase
+      to: dod
+      on: success
+    # A conflict nobody can settle by reading it: the run ends rather than
+    # building on a branch that is not on main.
+    - from: sync-start-rebase
+      to: sync-start-rebase
+      on: failed
+      iteration_max: 1
     - from: dod
       to: open-pr
       on: success
@@ -130,15 +179,34 @@ line:
       on: failed
       iteration_max: 1
     - from: ready-for-review
-      to: mark-ready
+      to: sync-final
       on: success
     # It wrote less than it was asked for; what it did write still goes on
     # the pull request, and a person reads the rest there.
     - from: ready-for-review
-      to: mark-ready
+      to: sync-final
       on: changes_requested
     - from: ready-for-review
       to: ready-for-review
+      on: failed
+      iteration_max: 1
+    - from: sync-final
+      to: mark-ready
+      on: success
+    - from: sync-final
+      to: sync-final-rebase
+      on: changes_requested
+    - from: sync-final
+      to: sync-final
+      on: failed
+      iteration_max: 1
+    # The pull request is still a draft, and the wait after mark-ready is
+    # where CI judges the rebased head, so it goes straight on.
+    - from: sync-final-rebase
+      to: mark-ready
+      on: success
+    - from: sync-final-rebase
+      to: sync-final-rebase
       on: failed
       iteration_max: 1
     - from: mark-ready
@@ -151,11 +219,33 @@ line:
     - from: await-pr
       to: done
       on: success
-    # Red CI is the one blocking condition this line can act on.
+    # Red CI is the one blocking condition this line can act on. A conflicted
+    # pull request gets no CI at all, so the branch is put on main first.
     - from: await-pr
-      to: fix-ci
+      to: sync-pr
       on: changes_requested
       iteration_max: 3
+    - from: sync-pr
+      to: fix-ci
+      on: success
+      iteration_max: 3
+    - from: sync-pr
+      to: sync-pr-rebase
+      on: changes_requested
+      iteration_max: 3
+    - from: sync-pr
+      to: sync-pr
+      on: failed
+      iteration_max: 1
+    # The push is a new head: the wait reads CI on it and sends the branch back
+    # for a repair only if that is red too.
+    - from: sync-pr-rebase
+      to: await-pr
+      on: success
+    - from: sync-pr-rebase
+      to: sync-pr-rebase
+      on: failed
+      iteration_max: 1
     # Unresolved threads the review round-trip did not clear: a human
     # conversation, not a build and not a failure of the machine, so the run
     # ends here with the pull request open for the people in it.
@@ -173,6 +263,38 @@ line:
       on: failed
       iteration_max: 1
 stations:
+  loop-sync-check:
+    description: Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a branch behind it goes to the sync round.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+    produces: []
+  loop-sync:
+    description: An AI agent rebases the branch onto the default branch, resolves the conflicts and force-pushes with a lease, changing nothing else.
+    kind: agent
+    agent_definition: loop-sync
+    conversation: new
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+    produces:
+      - name: sync_summary
+        kind: value
   loop-dod:
     description: An AI agent defines done for the ticket as acceptance tests that fail today, writing no production code. It ends the run if the ticket is unclear or already resolved.
     kind: agent
@@ -394,6 +516,32 @@ stations:
       - name: ci_blocked
         kind: value
 agent_definitions:
+  loop-sync:
+    settings:
+      model: gemini-3.1-pro-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 20
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 2Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
   loop-dod:
     settings:
       model: gemini-3.1-pro-preview

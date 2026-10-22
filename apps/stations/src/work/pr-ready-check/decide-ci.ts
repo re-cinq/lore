@@ -103,7 +103,7 @@ const NO_JUDGEABLE_COMMIT = "no-judgeable-commit";
 
 /** What the round is told about a branch GitHub will not build. */
 const CONFLICT_SUMMARY =
-  "GitHub runs no workflow on a conflicted pull request, so this branch has no build and never will until it merges its base cleanly. Bring it up to date with the base branch and push.";
+  "GitHub runs no workflow on a conflicted pull request, so this branch has no build and never will until it sits cleanly on its base. Rebase it onto the base branch and push with --force-with-lease.";
 
 /** A pull request GitHub will not build, told to the round while the branch is still moving. An unchanged sha means the round it was handed to cleared nothing, and twelve more would clear nothing either — the same guard `ci_red_unchanged` gives a red build. */
 function conflictVerdict(

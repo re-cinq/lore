@@ -154,6 +154,8 @@ export interface GitHubPort {
   branchExists?(repo: string, branch: string): Promise<boolean>;
   /** True when the branch head is already an ancestor of the base branch — every commit is on main, a resumed run can push nothing new. `undefined` when the adapter cannot say. */
   branchMerged?(repo: string, branch: string): Promise<boolean | undefined>;
+  /** How many commits of the default branch the branch lacks. `undefined` when the adapter cannot say. */
+  branchBehindBy?(repo: string, branch: string): Promise<number | undefined>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */
