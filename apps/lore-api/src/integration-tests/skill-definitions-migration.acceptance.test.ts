@@ -20,7 +20,7 @@ describe("lore.skill_definitions table structure", () => {
     }
   });
 
-  it("creates lore.skill_definitions with the correct columns ([validated by this](specs/org-skills/spec.md#L15))", async () => {
+  it("creates lore.skill_definitions with the correct columns ([validated by this](specs/org-skills/spec.md#L20))", async () => {
     const res = await pool.query(`
       SELECT column_name
       FROM information_schema.columns 
