@@ -11,7 +11,7 @@ const script = join(
 );
 
 /** A Lore and a Utopia in one server: the old source of re-cinq/lore holds d1 and d2 live and d3 deleted. */
-async function stubbed(run, { failPurge = null } = {}) {
+async function stubbed(run, { failPurge = null, utopiaStatus = null } = {}) {
   const live = ["d1", "d2"];
   const deleted = ["d3"];
   const calls = [];
@@ -27,6 +27,14 @@ async function stubbed(run, { failPurge = null } = {}) {
 
     req.resume();
     calls.push(`${route} ${token}`);
+
+    if (utopiaStatus && url.pathname.startsWith("/api/v1/")) {
+      res.statusCode = utopiaStatus;
+      res.setHeader("location", "https://utopia.example/oauth2/start");
+      res.setHeader("content-type", "text/html");
+
+      return res.end("<html>sign in</html>");
+    }
 
     if (route === "GET /api/repos") {
       return answer(200, {
@@ -173,4 +181,31 @@ test("without UTOPIA_SESSION_TOKEN it stops before any request", async () => {
     assert.equal(status, 1);
     assert.deepEqual(calls, []);
   });
+});
+
+test("a Utopia that redirects to a sign-in says UTOPIA_API_URL is the public address, and changes nothing", async () => {
+  await stubbed(
+    async ({ base, calls }) => {
+      const { status, output } = await runScript(base, ["--apply", "re-cinq/lore"]);
+
+      assert.equal(status, 1);
+      assert.match(output, /answered 302, a redirect to a sign-in/);
+      assert.match(output, /port-forward/);
+      assert.doesNotMatch(output, /jq: parse error/);
+      assert.deepEqual(writes(calls), []);
+    },
+    { utopiaStatus: 302 },
+  );
+});
+
+test("a Utopia that refuses the session token names the status and what it said", async () => {
+  await stubbed(
+    async ({ base }) => {
+      const { status, output } = await runScript(base, []);
+
+      assert.equal(status, 1);
+      assert.match(output, /answered HTTP 401: <html>sign in<\/html>/);
+    },
+    { utopiaStatus: 401 },
+  );
 });

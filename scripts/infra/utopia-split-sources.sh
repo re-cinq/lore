@@ -60,11 +60,33 @@ onboarded_repos() {
   done
 }
 
+# One call to Utopia: the body on a 2xx, else why not. A 3xx is the sign-in gate
+# in front of the public address, which no token gets through.
+utopia_call() {
+  local method="$1" url="$2" out status
+  out="$(mktemp)"
+  status="$(curl -sS -m 120 -o "$out" -w '%{http_code}' -X "$method" -H "$utopia_auth" "$url")" || status="000"
+  case "$status" in
+    2??) cat "$out" ;;
+    3??)
+      log "Utopia answered $status, a redirect to a sign-in: UTOPIA_API_URL is the public address behind the gate; point it at a port-forward to the utopia service (kubectl -n utopia port-forward svc/utopia 1516:80)" >&2
+      rm -f "$out"
+      return 1
+      ;;
+    *)
+      log "Utopia $method $url answered HTTP $status: $(head -c 200 "$out")" >&2
+      rm -f "$out"
+      return 1
+      ;;
+  esac
+  rm -f "$out"
+}
+
 # One page of the old source's documents: live ones, or with state=deleted the
 # tombstones that still hold their content.
 old_documents() {
   local kb="$1" source="$2" state="$3"
-  curl -fsS -H "$utopia_auth" \
+  utopia_call GET \
     "$utopia/kbs/$kb/documents?source=$source&limit=$page_size&offset=0${state:+&state=$state}"
 }
 
@@ -78,8 +100,8 @@ purge_state() {
     [ -n "$ids" ] || break
     local before=$purged
     while read -r id; do
-      [ -n "$state" ] || curl -fsS -X DELETE -H "$utopia_auth" "$utopia/documents/$id" >/dev/null || continue
-      curl -fsS -X POST -H "$utopia_auth" "$utopia/documents/$id/purge" >/dev/null || continue
+      [ -n "$state" ] || utopia_call DELETE "$utopia/documents/$id" >/dev/null || continue
+      utopia_call POST "$utopia/documents/$id/purge" >/dev/null || continue
       purged=$((purged + 1))
     done <<<"$ids"
     [ "$purged" -gt "$before" ] || return 1
