@@ -7,7 +7,7 @@ import type {
 import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
-import { queuedPerRepo, walkInOrder } from "./cursor-walk.js";
+import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
 
 export interface CommitHistoryDeps {
   /** The walks of one repo run one after the other in this process: a second push during a walk waits for it, then finds what landed since. */

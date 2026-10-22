@@ -1,16 +1,16 @@
 // One commit of the default branch as a Utopia statement item: Repository contains Commit, the commit's words, author and time, the parents it follows, and the pull request it merges with the issues and the Lore task that pull request names. The files it changed are not named: each would be an entity Utopia resolves against the whole base. Which files a commit changed is read from the repository.
 
-import { mergedPullRequestNumber } from "../pr-body.js";
-import { cutText, joinFragments, type Fragment } from "./fragments.js";
-import { commitName, githubPage, pullRequestName } from "./names.js";
-import { bodyLinks, trackedStub } from "./pull-request-links.js";
+import { mergedPullRequestNumber } from "../../pr-body.js";
+import { cutText, joinFragments, type Fragment } from "../fragments.js";
+import { commitName, githubPage, pullRequestName } from "../names.js";
+import { bodyLinks, trackedStub } from "../pull-request-links.js";
 import {
   attribute,
   relation,
   type Entity,
   type Statement,
   type StatementItem,
-} from "./statements.js";
+} from "../statements.js";
 
 export interface MirroredCommit {
   sha: string;

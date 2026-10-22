@@ -267,12 +267,12 @@
       "default": "./dist/work/utopia/mirror-code.js"
     },
     "./utopia/commit-statements.js": {
-      "types": "./dist/domain/utopia/commit-statements.d.ts",
-      "default": "./dist/domain/utopia/commit-statements.js"
+      "types": "./dist/domain/utopia/git-history/commit-statements.d.ts",
+      "default": "./dist/domain/utopia/git-history/commit-statements.js"
     },
     "./utopia/mirror-commits.js": {
-      "types": "./dist/work/utopia/mirror-commits.d.ts",
-      "default": "./dist/work/utopia/mirror-commits.js"
+      "types": "./dist/work/utopia/git-history/mirror-commits.d.ts",
+      "default": "./dist/work/utopia/git-history/mirror-commits.js"
     },
     "./utopia/tracker-statements.js": {
       "types": "./dist/domain/utopia/tracker-statements.d.ts",

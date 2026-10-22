@@ -27,7 +27,7 @@ import {
 import {
   mirrorBranchCommits,
   type CommitHistoryDeps,
-} from "./utopia-commits.js";
+} from "./git-history/utopia-commits.js";
 import { mirrorTracker, type TrackerDeps } from "./utopia-tracker.js";
 import { mirrorReleases, type ReleaseDeps } from "./utopia-releases.js";
 import {

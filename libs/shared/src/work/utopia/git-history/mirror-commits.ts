@@ -3,12 +3,12 @@
 import {
   commitItems,
   type MirroredCommit,
-} from "../../domain/utopia/commit-statements.js";
+} from "../../../domain/utopia/git-history/commit-statements.js";
 import {
   pushItems,
   type MirrorDeps,
   type MirrorOutcome,
-} from "./push-items.js";
+} from "../push-items.js";
 
 export function mirrorCommit(
   deps: MirrorDeps,

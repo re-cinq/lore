@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { commitItems } from "./commit-statements.js";
-import { attribute, relation } from "./statements.js";
+import { attribute, relation } from "../statements.js";
 
 const SHA = "7b89df02405fcc32f6621ec030f417fea0265694";
 const PARENT = "c36ee3e92ea3ad481b85612e36172c13af3bdea7";

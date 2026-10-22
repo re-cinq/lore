@@ -14,7 +14,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { withPool } from "../with-pool.js";
-import { mirrorBranchCommits } from "../../../work/utopia/utopia-commits.js";
+import { mirrorBranchCommits } from "../../../work/utopia/git-history/utopia-commits.js";
 import { heldBackfillDeps } from "./utopia-backfill.js";
 
 const UtopiaCommitsBody = z
