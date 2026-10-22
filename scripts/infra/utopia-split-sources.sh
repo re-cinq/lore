@@ -3,24 +3,26 @@
 # source per kind (specs/utopia-graph-mirror FR19, ADR-052 amendment 2026-10-22).
 #
 #   LORE_API_URL=https://lore.example LORE_ADMIN_TOKEN=... \
-#   UTOPIA_API_URL=https://utopia.example UTOPIA_SESSION_TOKEN=... \
+#   UTOPIA_API_URL=http://127.0.0.1:1516 UTOPIA_SESSION_TOKEN=... \
 #     ./scripts/infra/utopia-split-sources.sh [--apply] [owner/repo ...]
 #
-# Without --apply it only counts what it would purge. With --apply, per repo:
-#   1. deletes and purges every document of the repo's old `lore` source, live or
-#      already deleted: Utopia holds one document with a given content per base, so
-#      the same items cannot enter the new sources while the old ones stand;
-#   2. resets the repo (POST /utopia/reset): the commit and tracker walks start over
-#      and the stored test and code ingest commits are forgotten;
+# Run it once migration 0116 is live: from then on a repo's `test-coverage` source
+# IS its old `lore` source, which already holds the statement, test and code items,
+# so nothing is purged (a delete and a purge cost Utopia seconds each, a pass over
+# the whole base's facts per document). Without --apply it only says what it would
+# do. With --apply, per repo, one at a time:
+#   1. names the old `lore` source `test-coverage`, first setting aside as
+#      `test-coverage-unused` any other source of that name (the one a push made
+#      before 0116, which keeps what it holds and is no longer pushed to);
+#   2. resets the repo (POST /utopia/reset): the commit and tracker walks start over;
 #   3. runs the backfill, which fills `docs`, `git-history` and `github`, then walks
 #      the issues and pull requests until one walk comes back short.
-# Tests and code reach `test-coverage` on the repo's next CI run (re-run its
-# lore-tests workflow to do it now).
+# Nothing is deleted. The issue, commit, pull request, tag, release and document
+# items the old source holds stay in it, no longer pushed to.
 #
-# UTOPIA_SESSION_TOKEN is a knowledge-base admin's session token: Utopia's delete
-# and purge routes refuse a personal access token. Purging cannot be undone.
-# Repos are done one at a time, and a repo whose purge failed is not backfilled.
-# Exit 1 when any repo failed.
+# UTOPIA_SESSION_TOKEN is the `utopia_token` session JWT of a knowledge-base editor:
+# Utopia's source routes refuse a personal access token. Repos are done one at a
+# time; a repo that failed is reported and the run exits 1.
 set -euo pipefail
 
 log() { echo "[lore] $*"; }
@@ -31,7 +33,7 @@ command -v jq >/dev/null || die "jq not found"
 [ -n "${LORE_API_URL:-}" ] || die "LORE_API_URL is not set"
 [ -n "${LORE_ADMIN_TOKEN:-}" ] || die "LORE_ADMIN_TOKEN (an admin-scope token) is not set"
 [ -n "${UTOPIA_API_URL:-}" ] || die "UTOPIA_API_URL is not set"
-[ -n "${UTOPIA_SESSION_TOKEN:-}" ] || die "UTOPIA_SESSION_TOKEN (a knowledge-base admin's session token) is not set"
+[ -n "${UTOPIA_SESSION_TOKEN:-}" ] || die "UTOPIA_SESSION_TOKEN (a knowledge-base editor's session token) is not set"
 
 apply=0
 repos=()
@@ -47,7 +49,6 @@ api="${LORE_API_URL%/}/api"
 utopia="${UTOPIA_API_URL%/}/api/v1"
 lore_auth="Authorization: Bearer $LORE_ADMIN_TOKEN"
 utopia_auth="Authorization: Bearer $UTOPIA_SESSION_TOKEN"
-page_size=200
 
 onboarded_repos() {
   local offset=0 page total
@@ -64,9 +65,11 @@ onboarded_repos() {
 # One call to Utopia: the body on a 2xx, else why not. A 3xx is the sign-in gate
 # in front of the public address, which no token gets through.
 utopia_call() {
-  local method="$1" url="$2" out status
+  local method="$1" url="$2" json="${3:-}" out status
+  local args=(-sS -m 120 -X "$method" -H "$utopia_auth")
+  [ -z "$json" ] || args+=(-H 'Content-Type: application/json' --data "$json")
   out="$(mktemp)"
-  status="$(curl -sS -m 120 -o "$out" -w '%{http_code}' -X "$method" -H "$utopia_auth" "$url")" || status="000"
+  status="$(curl "${args[@]}" -o "$out" -w '%{http_code}' "$url")" || status="000"
   case "$status" in
     2??) cat "$out" ;;
     3??)
@@ -83,35 +86,26 @@ utopia_call() {
   rm -f "$out"
 }
 
-# One page of the old source's documents: live ones, or with state=deleted the
-# tombstones that still hold their content.
-old_documents() {
-  local kb="$1" source="$2" state="$3"
-  utopia_call GET \
-    "$utopia/kbs/$kb/documents?source=$source&limit=$page_size&offset=0${state:+&state=$state}"
-}
-
-# Deletes (a live document only) and purges every document the listing returns,
-# until it returns none or none of a page could be purged. Prints the count purged.
-purge_state() {
-  local kb="$1" source="$2" state="$3" purged=0 page ids id
-  while :; do
-    page="$(old_documents "$kb" "$source" "$state")" || return 1
-    ids="$(jq -r '.docs[].id' <<<"$page")"
-    [ -n "$ids" ] || break
-    local before=$purged
-    while read -r id; do
-      [ -n "$state" ] || utopia_call DELETE "$utopia/documents/$id" >/dev/null || continue
-      utopia_call POST "$utopia/documents/$id/purge" >/dev/null || continue
-      purged=$((purged + 1))
-    done <<<"$ids"
-    [ "$purged" -gt "$before" ] || return 1
+# Names the old source `test-coverage`. A source already called that, other than
+# the old one, is set aside first, so the base never holds two of one name.
+name_test_coverage() {
+  local repo="$1" kb="$2" old="$3" sources aside id
+  sources="$(utopia_call GET "$utopia/kbs/$kb/sources")" || return 1
+  if [ "$(jq -r --arg old "$old" '[(.sources // .)[] | select(.id == $old) | .name][0] // ""' <<<"$sources")" = "test-coverage" ]; then
+    log "$repo: source $old is already named test-coverage"
+    return 0
+  fi
+  aside="$(jq -r --arg old "$old" '(.sources // .)[] | select(.name == "test-coverage" and .id != $old) | .id' <<<"$sources")"
+  if [ "$apply" -eq 0 ]; then
+    log "$repo: would name source $old test-coverage${aside:+, setting aside $(wc -w <<<"$aside" | tr -d ' ') other source of that name}"
+    return 0
+  fi
+  for id in $aside; do
+    utopia_call PATCH "$utopia/kbs/$kb/sources/$id" '{"name":"test-coverage-unused"}' >/dev/null || return 1
+    log "$repo: set aside source $id as test-coverage-unused"
   done
-  echo "$purged"
-}
-
-count_state() {
-  old_documents "$1" "$2" "$3" | jq -r '.total'
+  utopia_call PATCH "$utopia/kbs/$kb/sources/$old" '{"name":"test-coverage"}' >/dev/null || return 1
+  log "$repo: named source $old test-coverage"
 }
 
 # A walk of issues and pull requests reads at most this many entries, and the
@@ -138,7 +132,7 @@ catch_up_tracker() {
 }
 
 split_repo() {
-  local repo="$1" record kb source live deleted purged_live purged_deleted out status
+  local repo="$1" record kb source out status
   record="$(curl -fsS -H "$lore_auth" "$api/repos/$repo")" || {
     log "$repo: could not read it from Lore"
     return 1
@@ -149,20 +143,15 @@ split_repo() {
     log "$repo: skipped, no Utopia knowledge base"
     return 0
   fi
-  live="$(count_state "$kb" "$source" "")" || { log "$repo: could not list the old source"; return 1; }
-  deleted="$(count_state "$kb" "$source" deleted)" || { log "$repo: could not list the old source"; return 1; }
-  if [ "$apply" -eq 0 ]; then
-    log "$repo: would purge $live live and $deleted deleted documents of source $source, reset and backfill"
+  name_test_coverage "$repo" "$kb" "$source" || return 1
+  [ "$apply" -eq 1 ] || {
+    log "$repo: would reset the walk cursors and backfill"
     return 0
-  fi
-  log "$repo: purging $live live and $deleted deleted documents of source $source"
-  purged_live="$(purge_state "$kb" "$source" "")" || { log "$repo: purge of live documents failed"; return 1; }
-  purged_deleted="$(purge_state "$kb" "$source" deleted)" || { log "$repo: purge of deleted documents failed"; return 1; }
-  log "$repo: purged $purged_live + $purged_deleted"
+  }
   out="$(mktemp)"
   status="$(curl -sS -m 120 -o "$out" -w '%{http_code}' -X POST -H "$lore_auth" "$api/repos/$repo/utopia/reset")" || status="000"
   [ "$status" = "200" ] || { log "$repo: reset HTTP $status $(head -c 300 "$out")"; rm -f "$out"; return 1; }
-  log "$repo: reset, $(jq -r '.ingest_state_cleared' "$out") stored ingest commits forgotten"
+  log "$repo: reset, cursors dropped: $(jq -r '.cursors_cleared | join(", ")' "$out")"
   status="$(curl -sS -m 1800 -o "$out" -w '%{http_code}' -X POST -H "$lore_auth" "$api/repos/$repo/utopia/backfill")" || status="000"
   case "$status" in
     200)
@@ -177,11 +166,11 @@ split_repo() {
 }
 
 [ "${#repos[@]}" -gt 0 ] || mapfile -t repos < <(onboarded_repos)
-[ "$apply" -eq 1 ] || log "Dry run: pass --apply to purge"
+[ "$apply" -eq 1 ] || log "Dry run: pass --apply to rename, reset and backfill"
 problems=0
 for repo in "${repos[@]}"; do
   [ -z "$repo" ] || split_repo "$repo" || problems=1
 done
 
 [ "$problems" -eq 0 ] || die "some repos were not moved"
-log "Done. Tests and code reach test-coverage on each repo's next CI run."
+log "Done."

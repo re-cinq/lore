@@ -82,16 +82,20 @@ export function saveUtopiaTrackerSince(
   return saveUtopiaCursor(pool, repo, "tracker_since", since);
 }
 
-/** Starts the commit and tracker walks over from the beginning: both cursors dropped, the rest of the `utopia` settings block kept. */
+const WALK_CURSORS = ["commits_head", "tracker_since"];
+
+/** Starts the commit and tracker walks over from the beginning: both cursors dropped, the rest of the `utopia` settings block kept. Answers the keys it dropped. */
 export async function clearUtopiaCursors(
   pool: Pool,
   repo: string,
-): Promise<void> {
+): Promise<string[]> {
   await pool.query(
     `UPDATE lore.repos SET settings = settings #- '{utopia,commits_head}' #- '{utopia,tracker_since}'
       WHERE full_name = $1 AND jsonb_typeof(settings -> 'utopia') = 'object'`,
     [repo],
   );
+
+  return WALK_CURSORS;
 }
 
 /** The id of the repo's `docs` source, which context assembly reads documents from; it is no secret, unlike the source's key. */

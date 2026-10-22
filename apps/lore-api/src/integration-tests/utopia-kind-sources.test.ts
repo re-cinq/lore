@@ -24,6 +24,9 @@ describe("lore.utopia_kind_sources", () => {
 
   afterAll(async () => {
     await pool?.query(
+      "DELETE FROM lore.utopia_sources WHERE repo LIKE 'it-kinds/%'",
+    );
+    await pool?.query(
       "DELETE FROM lore.utopia_kind_sources WHERE repo LIKE 'it-kinds/%'",
     );
     await pool?.query("DELETE FROM lore.repos WHERE owner = 'it-kinds'");
@@ -139,6 +142,66 @@ describe("lore.utopia_kind_sources", () => {
             docs_source_id: "src-docs",
           },
         },
+      },
+    ]);
+  });
+
+  it("makes the old lore source the test-coverage source of every repo set up under it, replacing a newer test-coverage source and leaving its docs source alone, and again changes nothing", async () => {
+    await pool.query(
+      `INSERT INTO lore.utopia_sources (repo, kb_id, source_id, source_key) VALUES
+         ('it-kinds/old', 'kb-1', 'src-old', 'utp_old'),
+         ('it-kinds/newer', 'kb-2', 'src-lore', 'utp_lore')`,
+    );
+    await saveKindSource(
+      pool,
+      { repo: "it-kinds/newer", kind: "test-coverage", kbId: "kb-2" },
+      { id: "src-new-cov", key: "utp_new_cov" },
+    );
+    await saveKindSource(
+      pool,
+      { repo: "it-kinds/newer", kind: "docs", kbId: "kb-2" },
+      { id: "src-docs", key: "utp_docs" },
+    );
+    const migration = readFileSync(
+      new URL(
+        "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0116_utopia_test_coverage_is_the_lore_source.sql",
+        import.meta.url,
+      ),
+      "utf-8",
+    );
+
+    await pool.query(migration);
+    await pool.query(migration);
+    const { rows } = await pool.query(
+      `SELECT repo, kind, kb_id AS "kbId", source_id AS id, source_key AS key
+         FROM lore.utopia_kind_sources WHERE repo LIKE 'it-kinds/%' ORDER BY repo, kind`,
+    );
+
+    expect(
+      rows.filter((row) =>
+        ["it-kinds/old", "it-kinds/newer"].includes(row.repo),
+      ),
+    ).toEqual([
+      {
+        repo: "it-kinds/newer",
+        kind: "docs",
+        kbId: "kb-2",
+        id: "src-docs",
+        key: "utp_docs",
+      },
+      {
+        repo: "it-kinds/newer",
+        kind: "test-coverage",
+        kbId: "kb-2",
+        id: "src-lore",
+        key: "utp_lore",
+      },
+      {
+        repo: "it-kinds/old",
+        kind: "test-coverage",
+        kbId: "kb-1",
+        id: "src-old",
+        key: "utp_old",
       },
     ]);
   });

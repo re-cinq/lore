@@ -9,7 +9,7 @@ import {
 
 const originalEnv = { ...process.env };
 
-const poolHolding = (repos: string[], deletedPointers = 2) => {
+const poolHolding = (repos: string[]) => {
   const pool = makePool();
 
   pool.query.mockImplementation(async (sql: string, params: string[]) => {
@@ -19,12 +19,7 @@ const poolHolding = (repos: string[], deletedPointers = 2) => {
       };
     }
 
-    return {
-      rows: [],
-      rowCount: /DELETE FROM pipeline\.ingest_state/.test(sql)
-        ? deletedPointers
-        : 1,
-    };
+    return { rows: [], rowCount: 1 };
   });
 
   return pool;
@@ -52,7 +47,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/reset", () => {
     process.env = { ...originalEnv };
   });
 
-  it("drops re-cinq/lore's commit and tracker cursors and its code and test-report ingest pointers, and answers the 2 pointers it deleted", async () => {
+  it("drops re-cinq/lore's commit and tracker cursors and answers both, touching no ingest pointer", async () => {
     const pool = poolHolding(["re-cinq/lore"]);
     const res = await reset(pool);
 
@@ -60,12 +55,12 @@ describe("POST /api/repos/{owner}/{repo}/utopia/reset", () => {
       status: res.statusCode,
       body: res.result,
       cursors: writes(pool, /#- '\{utopia,commits_head\}'/),
-      pointers: writes(pool, /DELETE FROM pipeline\.ingest_state/),
+      pointers: writes(pool, /ingest_state/),
     }).toEqual({
       status: 200,
-      body: { ingest_state_cleared: 2 },
+      body: { cursors_cleared: ["commits_head", "tracker_since"] },
       cursors: [["re-cinq/lore"]],
-      pointers: [["re-cinq/lore", ["code", "test-report"]]],
+      pointers: [],
     });
   });
 

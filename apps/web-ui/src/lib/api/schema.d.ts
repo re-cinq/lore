@@ -4883,7 +4883,7 @@ export interface components {
       failed: string[];
     };
     UtopiaResetSummary: {
-      ingest_state_cleared: number;
+      cursors_cleared: string[];
     };
     UtopiaSetupResult: {
       kb_id: string;
@@ -8538,7 +8538,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description How many stored ingest commits were forgotten so the next test and code deltas carry everything */
+      /** @description The walk cursors that were dropped */
       200: {
         headers: {
           [name: string]: unknown;

@@ -7426,7 +7426,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "How many stored ingest commits were forgotten so the next test and code deltas carry everything",
+            "description": "The walk cursors that were dropped",
             "content": {
               "application/json": {
                 "schema": {
@@ -18294,11 +18294,14 @@
       "UtopiaResetSummary": {
         "type": "object",
         "properties": {
-          "ingest_state_cleared": {
-            "type": "number"
+          "cursors_cleared": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
-        "required": ["ingest_state_cleared"],
+        "required": ["cursors_cleared"],
         "additionalProperties": false
       },
       "UtopiaSetupResult": {
