@@ -5,7 +5,7 @@ import type {
   CommitDetail,
 } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-statements.js";
-import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { queuedPerRepo, walkInOrder } from "./cursor-walk.js";
 

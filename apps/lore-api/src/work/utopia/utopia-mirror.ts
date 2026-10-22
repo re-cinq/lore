@@ -19,8 +19,11 @@ import {
   mirrorDocument,
   tombstoneDocument,
   type DocMirrorDeps,
-  type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import {
+  mirrorFailure,
+  type MirrorOutcome,
+} from "@re-cinq/lore-shared/utopia/push-items.js";
 import {
   mirrorTestReport,
   tombstoneTestFiles,
@@ -249,13 +252,4 @@ function settled(outcome: MirrorOutcome): void {
   const failure = mirrorFailure(outcome);
 
   enforceTrue(failure === null, Error, failure ?? "");
-}
-
-/** Why a document did not land whole, named by its first failed item; null when every item landed. */
-export function mirrorFailure(outcome: MirrorOutcome): string | null {
-  const { failed } = outcome;
-
-  return failed.length === 0
-    ? null
-    : `${failed.length} of ${outcome.items} items failed: ${failed[0]}`;
 }

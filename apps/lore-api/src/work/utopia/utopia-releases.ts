@@ -5,7 +5,7 @@ import type {
   ReleaseEntry,
   TagEntry,
 } from "@re-cinq/lore-shared/utopia/release-statements.js";
-import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaReleasesSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { queuedPerRepo } from "./cursor-walk.js";
 

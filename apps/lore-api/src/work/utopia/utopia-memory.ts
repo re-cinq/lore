@@ -7,7 +7,7 @@ import {
   type DocumentPushOutcome,
   type UtopiaEnv,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
-import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type {
   UtopiaMemorySummary,
   UtopiaTrackerSummary,

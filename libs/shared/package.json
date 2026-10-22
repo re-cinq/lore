@@ -254,6 +254,10 @@
       "types": "./dist/work/utopia/mirror-document.d.ts",
       "default": "./dist/work/utopia/mirror-document.js"
     },
+    "./utopia/push-items.js": {
+      "types": "./dist/work/utopia/push-items.d.ts",
+      "default": "./dist/work/utopia/push-items.js"
+    },
     "./utopia/mirror-test-report.js": {
       "types": "./dist/work/utopia/mirror-test-report.d.ts",
       "default": "./dist/work/utopia/mirror-test-report.js"

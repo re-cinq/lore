@@ -10,7 +10,7 @@ import {
   pushItems,
   type MirrorDeps,
   type MirrorOutcome,
-} from "./mirror-document.js";
+} from "./push-items.js";
 
 export function mirrorTagsAndReleases(
   deps: MirrorDeps,

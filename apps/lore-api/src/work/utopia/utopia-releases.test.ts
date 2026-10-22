@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/mirror-document.js";
+import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import { mirrorReleases, type ReleaseDeps } from "./utopia-releases.js";
 
 const RELEASE = {

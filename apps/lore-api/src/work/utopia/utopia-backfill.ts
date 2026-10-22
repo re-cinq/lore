@@ -2,11 +2,12 @@
 
 import { errorMessage, mapWithLimit } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { mirrorDocument } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import {
-  mirrorDocument,
+  mirrorFailure,
   type MirrorDeps,
   type MirrorOutcome,
-} from "@re-cinq/lore-shared/utopia/mirror-document.js";
+} from "@re-cinq/lore-shared/utopia/push-items.js";
 import { mirrorCommit } from "@re-cinq/lore-shared/utopia/mirror-commits.js";
 import { mirrorTrackedEntry } from "@re-cinq/lore-shared/utopia/mirror-tracker.js";
 import { mirrorTagsAndReleases } from "@re-cinq/lore-shared/utopia/mirror-releases.js";
@@ -34,11 +35,7 @@ import {
   mirrorMemoryBacklog,
   type MemoryWalkDeps,
 } from "./utopia-memory.js";
-import {
-  mirrorFailure,
-  repoMirrorDeps,
-  type MirroredDoc,
-} from "./utopia-mirror.js";
+import { repoMirrorDeps, type MirroredDoc } from "./utopia-mirror.js";
 
 export interface BackfillFiles {
   defaultBranch(): Promise<string>;

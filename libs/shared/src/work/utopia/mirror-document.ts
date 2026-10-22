@@ -6,25 +6,17 @@ import {
   type DocStatementsInput,
 } from "../../domain/utopia/doc-statements.js";
 import { mapWithLimit } from "../../lib/concurrency/map-with-limit.js";
-import { tombstone, type PushItem } from "../../domain/utopia/statements.js";
-import type { PushOutcome } from "../../outbound/utopia/utopia-client.js";
-
-export interface MirrorDeps {
-  push(pushed: PushItem): Promise<PushOutcome>;
-}
+import { tombstone } from "../../domain/utopia/statements.js";
+import {
+  CONCURRENCY,
+  pushItems,
+  type MirrorDeps,
+  type MirrorOutcome,
+} from "./push-items.js";
 
 /** A document's pushes, and where a link whose label is no title reads its test file at the commit; without it such a link names no test. */
 export interface DocMirrorDeps extends MirrorDeps {
   readTest?(path: string, commit: string): Promise<string | null>;
-}
-
-export interface MirrorOutcome {
-  items: number;
-  created: number;
-  updated: number;
-  unchanged: number;
-  /** `<external id>: <message>` for every push that threw; the rest still landed. */
-  failed: string[];
 }
 
 export interface TombstoneInput {
@@ -33,8 +25,6 @@ export interface TombstoneInput {
   /** The statement ordinals the document was last pushed with; unknown ordinals leave their items standing. */
   ordinals?: number[];
 }
-
-const CONCURRENCY = 4;
 
 export async function mirrorDocument(
   deps: DocMirrorDeps,
@@ -82,46 +72,4 @@ export function tombstoneDocument(
       tombstone(externalId),
     ),
   );
-}
-
-/** Pushes the items four at a time, counting what Utopia said of each; an item whose push threw is named under `failed` and the rest still land. */
-export async function pushItems(
-  deps: MirrorDeps,
-  queue: PushItem[],
-): Promise<MirrorOutcome> {
-  const outcome: MirrorOutcome = {
-    items: queue.length,
-    created: 0,
-    updated: 0,
-    unchanged: 0,
-    failed: [],
-  };
-  const pending = [...queue];
-  const worker = async () => {
-    for (let next = pending.shift(); next; next = pending.shift()) {
-      await pushOne(deps, next, outcome);
-    }
-  };
-
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-
-  return outcome;
-}
-
-async function pushOne(
-  deps: MirrorDeps,
-  pushed: PushItem,
-  outcome: MirrorOutcome,
-): Promise<void> {
-  try {
-    const { action } = await deps.push(pushed);
-
-    if (action !== "marked_missing") {
-      outcome[action] += 1;
-    }
-  } catch (error) {
-    outcome.failed.push(
-      `${pushed.externalId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
 }
