@@ -80,9 +80,19 @@ const SRC_1 = { kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" };
 const poolHolding = (sources: (typeof SRC_1)[]) => {
   const pool = makePool();
 
-  pool.query.mockImplementation(async (sql: string) => {
+  pool.query.mockImplementation(async (sql: string, params: string[]) => {
     if (/jsonb_set/.test(sql)) {
       cursorWrites.push(sql);
+    }
+
+    if (/FROM lore\.utopia_kind_sources/.test(sql)) {
+      return {
+        rows: sources.map(() => ({
+          id: `src-${params[1]}`,
+          key: `utp_${params[1]}`,
+          kbId: "kb-1",
+        })),
+      };
     }
 
     return {
@@ -117,7 +127,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/releases", () => {
     };
   });
 
-  it("pushes the tag v1.2.0 and its release through the stored src-1 key and answers one of each", async () => {
+  it("pushes the tag v1.2.0 and its release as text to the github source and answers one of each", async () => {
     const res = await releases(poolHolding([SRC_1]));
 
     expect({
@@ -137,7 +147,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/releases", () => {
         failed: [],
       },
       pushes: Array(2).fill(
-        "POST /api/v1/sources/src-1/statements Bearer utp_k",
+        "POST /api/v1/sources/src-github/ingest Bearer utp_github",
       ),
       githubReads: ["releases", "tags"],
       cursorWrites: 0,

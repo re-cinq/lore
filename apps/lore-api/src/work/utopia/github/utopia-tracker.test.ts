@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { TrackerActivityOptions } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-statements.js";
+import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import { mirrorBranchCommits } from "../git-history/utopia-commits.js";
 import { mirrorTracker, type TrackerDeps } from "./utopia-tracker.js";

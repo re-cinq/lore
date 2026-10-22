@@ -1,24 +1,24 @@
-// Mirrors a repo's tags and published releases into its Utopia knowledge base: every item pushed four at a time as a document's are.
+// Mirrors a repo's tags and published releases into its Utopia knowledge base as their text, pushed to the `github` source.
 
 import {
-  releaseItems,
-  tagItems,
+  releaseDocument,
+  tagDocument,
   type ReleaseEntry,
   type TagEntry,
-} from "../../../domain/utopia/github/release-statements.js";
+} from "../../../domain/utopia/github/release-text.js";
 import {
-  pushItems,
-  type MirrorDeps,
+  pushDocuments,
+  type DocumentMirrorDeps,
   type MirrorOutcome,
 } from "../push-items.js";
 
 export function mirrorTagsAndReleases(
-  deps: MirrorDeps,
+  deps: DocumentMirrorDeps,
   repo: string,
   published: { tags: TagEntry[]; releases: ReleaseEntry[] },
 ): Promise<MirrorOutcome> {
-  return pushItems(deps, [
-    ...published.tags.flatMap((tag) => tagItems(repo, tag)),
-    ...published.releases.flatMap((release) => releaseItems(repo, release)),
+  return pushDocuments(deps, [
+    ...published.tags.map((tag) => tagDocument(repo, tag)),
+    ...published.releases.map((release) => releaseDocument(repo, release)),
   ]);
 }

@@ -1,19 +1,19 @@
-// Mirrors one issue or pull request into the repo's Utopia knowledge base: its items pushed four at a time as a document's are.
+// Mirrors one issue or pull request into the repo's Utopia knowledge base as its text, pushed to the `github` source.
 
 import {
-  trackerItems,
+  trackerDocument,
   type TrackedEntry,
-} from "../../../domain/utopia/github/tracker-statements.js";
+} from "../../../domain/utopia/github/tracker-text.js";
 import {
-  pushItems,
-  type MirrorDeps,
+  pushDocuments,
+  type DocumentMirrorDeps,
   type MirrorOutcome,
 } from "../push-items.js";
 
 export function mirrorTrackedEntry(
-  deps: MirrorDeps,
+  deps: DocumentMirrorDeps,
   repo: string,
   entry: TrackedEntry,
 ): Promise<MirrorOutcome> {
-  return pushItems(deps, trackerItems(repo, entry));
+  return pushDocuments(deps, [trackerDocument(repo, entry)]);
 }

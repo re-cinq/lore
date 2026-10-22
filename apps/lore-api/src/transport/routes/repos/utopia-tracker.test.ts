@@ -86,9 +86,19 @@ const SRC_1 = { kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" };
 const poolHolding = (sources: (typeof SRC_1)[]) => {
   const pool = makePool();
 
-  pool.query.mockImplementation(async (sql: string) => {
+  pool.query.mockImplementation(async (sql: string, params: string[]) => {
     if (/jsonb_set/.test(sql)) {
       cursorWrites.push(sql);
+    }
+
+    if (/FROM lore\.utopia_kind_sources/.test(sql)) {
+      return {
+        rows: sources.map(() => ({
+          id: `src-${params[1]}`,
+          key: `utp_${params[1]}`,
+          kbId: "kb-1",
+        })),
+      };
     }
 
     return {
@@ -123,7 +133,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
     };
   });
 
-  it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 through the stored src-1 key, moves the cursor to its update time and answers the walk", async () => {
+  it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 as text to the github source, moves the cursor to its update time and answers the walk", async () => {
     const res = await tracker(poolHolding([SRC_1]));
 
     expect({
@@ -143,7 +153,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
         unchanged: 0,
         failed: [],
       },
-      pushes: ["POST /api/v1/sources/src-1/statements Bearer utp_k"],
+      pushes: ["POST /api/v1/sources/src-github/ingest Bearer utp_github"],
       githubReads: ["tracker since 2026-10-16T00:00:00Z"],
       cursorWrites: 1,
     });

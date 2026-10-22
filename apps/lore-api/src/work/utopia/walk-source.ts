@@ -1,13 +1,11 @@
-// What a cursor walk reads and writes through: the repo's GitHub reads, its settings, where the cursors are saved, and its source.
+// What a cursor walk reads and writes through: the repo's GitHub reads, its settings and where the cursors are saved.
 
 import { UtopiaMirrorSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
-import type { MirrorDeps } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { Pool } from "pg";
 
 export interface WalkSource<Reads> {
   pool: Pool;
   repo: string;
-  mirror: MirrorDeps;
   files: Reads;
   settings: { rawSettings(): Promise<Record<string, unknown> | null> };
 }

@@ -10,14 +10,12 @@ import {
 import { recordUtopiaMirrorFailure } from "@re-cinq/lore-shared/otel/metrics.js";
 import {
   utopiaAutoSetupConfigured,
-  utopiaClient,
   utopiaConfigured,
   type UtopiaEnv,
   type UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import {
   mirrorFailure,
-  type MirrorDeps,
   type MirrorOutcome,
 } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { Pool } from "pg";
@@ -49,21 +47,6 @@ function namedSourceId(
   const parsed = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
 
   return parsed.success ? parsed.data.source_id : null;
-}
-
-/** Pushes to the repo's source, or null when it has none to mirror to (see {@link sourceToMirror}). */
-export async function repoMirrorDeps(
-  pool: Pool,
-  repo: string,
-): Promise<MirrorDeps | null> {
-  const { settings } = await projectFor(repo);
-  const source = await sourceToMirror(pool, repo, await settings.rawSettings());
-
-  return (
-    source && {
-      push: (pushed) => utopiaClient().pushStatements(source, pushed),
-    }
-  );
 }
 
 /** The source the repo was set up with, its ontology upgraded first where the base holds an older one, else a fresh setup where the deployment may run one itself, else null. A failed setup throws, so the ingest logs and counts it as a failed mirror. */

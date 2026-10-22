@@ -8,11 +8,11 @@ import type {
 } from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { buildOctokit } from "./platform-github-auth.js";
-import type { TrackedEntry } from "../../../domain/utopia/github/tracker-statements.js";
+import type { TrackedEntry } from "../../../domain/utopia/github/tracker-text.js";
 import type {
   ReleaseEntry,
   TagEntry,
-} from "../../../domain/utopia/github/release-statements.js";
+} from "../../../domain/utopia/github/release-text.js";
 import type {
   GitHubPort,
   IssueRef,

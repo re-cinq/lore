@@ -33,7 +33,7 @@ import {
   type MemoryWalkDeps,
 } from "./memory/utopia-memory.js";
 import { docTargetsFor } from "./docs/mirror-doc.js";
-import { repoMirrorDeps } from "./repo-mirror.js";
+import { repoKnowledgeBase } from "./repo-mirror.js";
 
 export interface BackfillDeps extends DocBackfillDeps {
   /** The default branch's commits above the stored cursor, pushed after the documents (FR12). */
@@ -67,18 +67,16 @@ export async function backfillRepo(
   };
 }
 
-/** GitHub reads and the mirror for the repo's source, set up first where the deployment may; null when the repo has no source and the deployment cannot set one up. */
+/** GitHub reads and the mirrors to the repo's sources, the repo set up first where the deployment may; null when the repo has no knowledge base and the deployment cannot set one up. */
 export async function backfillDepsFor(
   pool: Pool,
   repo: string,
 ): Promise<BackfillDeps | null> {
-  const mirror = await repoMirrorDeps(pool, repo);
-
-  if (!mirror) {
+  if (!(await repoKnowledgeBase(pool, repo))) {
     return null;
   }
   const { repo: files, settings } = await projectFor(repo);
-  const walks = { pool, repo, mirror, files, settings };
+  const walks = { pool, repo, files, settings };
 
   return {
     files,
