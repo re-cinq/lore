@@ -53,7 +53,9 @@ import {
   gitItem,
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
+import type { PullFileChange } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
+  type ChangedFile,
   runKeysOf,
   SPEC_TICKETS_LINE,
 } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
@@ -116,6 +118,15 @@ function emitLoopTick(repo: string): Promise<void> {
   });
 }
 
+async function changedFilesOf(
+  pulls: { listFileChanges(number: number): Promise<PullFileChange[]> },
+  prNumber: number,
+): Promise<ChangedFile[]> {
+  const changes = await pulls.listFileChanges(prNumber);
+
+  return changes.map(({ filename, patch }) => ({ path: filename, patch }));
+}
+
 const floorSpecTicketsDeps: FloorSpecTicketsDeps = {
   tickets: async (repo) => {
     const { pulls, repo: files } = await projectFor(repo);
@@ -123,7 +134,7 @@ const floorSpecTicketsDeps: FloorSpecTicketsDeps = {
     return {
       floor: floorClient(),
       defaultBranch: () => files.defaultBranch(),
-      changedFiles: (_repo, prNumber) => pulls.listFiles(prNumber),
+      changedFiles: (_repo, prNumber) => changedFilesOf(pulls, prNumber),
       readSpec: (_repo, path, ref) => files.read(path, ref),
       openRunKeys: async (name) => {
         const open = await floorClient().runs.list({

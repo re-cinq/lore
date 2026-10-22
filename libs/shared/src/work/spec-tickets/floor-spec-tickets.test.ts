@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { recordedPlanFloor } from "../../outbound/floor/recorded-plan-floor.js";
 import {
   mergedSpecPaths,
+  onlyLinksChanged,
   specFilingKey,
   specTicketsKey,
   startSpecTicketRuns,
@@ -27,7 +28,10 @@ function scene(
   const deps: SpecTicketsDeps = {
     floor: recorded.floor,
     defaultBranch: () => Promise.resolve("main"),
-    changedFiles: () => Promise.resolve(Object.keys(specs)),
+    changedFiles: () =>
+      Promise.resolve(
+        Object.keys(specs).map((path) => ({ path, patch: null })),
+      ),
     readSpec: (_repo, path) => Promise.resolve(specs[path] ?? null),
     openRunKeys: () => Promise.resolve([]),
     ...overrides,
@@ -41,14 +45,42 @@ function scene(
 describe("mergedSpecPaths", () => {
   it("keeps only specs/<name>/spec.md and drops plan, tasks and nested files", () => {
     expect(
-      mergedSpecPaths([
-        "specs/a/spec.md",
-        "specs/a/plan.md",
-        "specs/a/contracts/spec.md",
-        "docs/spec.md",
-        "specs/b/spec.md",
-      ]),
+      mergedSpecPaths(
+        [
+          "specs/a/spec.md",
+          "specs/a/plan.md",
+          "specs/a/contracts/spec.md",
+          "docs/spec.md",
+          "specs/b/spec.md",
+        ].map((path) => ({ path, patch: null })),
+      ),
     ).toEqual(["specs/a/spec.md", "specs/b/spec.md"]);
+  });
+});
+
+const RELINKED_PATCH = [
+  "@@ -7,1 +7,1 @@",
+  "-- **FR1**: It works. ([validated by works](a.test.ts#L10))",
+  "+- **FR1**: It works. ([validated by works](a.test.ts#L12))",
+].join("\n");
+
+const REWORDED_PATCH = [
+  "@@ -7,1 +7,1 @@",
+  "-- **FR1**: It works. ([validated by works](a.test.ts#L10))",
+  "+- **FR1**: It works always. ([validated by works](a.test.ts#L10))",
+].join("\n");
+
+describe("onlyLinksChanged", () => {
+  it("is true when a patch only moves a validated-by link to another line", () => {
+    expect(onlyLinksChanged(RELINKED_PATCH)).toBe(true);
+  });
+
+  it("is false when a patch rewords the statement beside its link", () => {
+    expect(onlyLinksChanged(REWORDED_PATCH)).toBe(false);
+  });
+
+  it("is false for a patch GitHub left out, since nothing says the change is links only", () => {
+    expect(onlyLinksChanged(null)).toBe(false);
   });
 });
 
@@ -115,16 +147,32 @@ describe("startSpecTicketRuns", () => {
     expect(started()).toEqual([]);
   });
 
-  it("skips a rejected spec, a retired one and one the merge deleted", async () => {
+  it("skips a rejected spec, a retired one, a shipped one and one the merge deleted", async () => {
     const { deps, started } = scene({
       "specs/rejected/spec.md": "| Status | Rejected |",
       "specs/retired/spec.md": "| Status | Retired |",
+      "specs/shipped/spec.md": "| Status | Shipped |",
       "specs/deleted/spec.md": null,
     });
 
     const summary = await startSpecTicketRuns(MERGE, deps);
 
-    expect(summary).toBe("spec tickets: started 0, skipped 3");
+    expect(summary).toBe("spec tickets: started 0, skipped 4");
+    expect(started()).toEqual([]);
+  });
+
+  it("skips a spec whose only change in the pull request is its test links", async () => {
+    const { deps, started } = scene(
+      { "specs/a/spec.md": IN_PROGRESS },
+      {
+        changedFiles: () =>
+          Promise.resolve([{ path: "specs/a/spec.md", patch: RELINKED_PATCH }]),
+      },
+    );
+
+    const summary = await startSpecTicketRuns(MERGE, deps);
+
+    expect(summary).toBe("spec tickets: started 0, skipped 0");
     expect(started()).toEqual([]);
   });
 

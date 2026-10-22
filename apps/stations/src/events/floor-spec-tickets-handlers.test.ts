@@ -37,7 +37,11 @@ describe("floorSpecTicketsHandlers", () => {
         Promise.resolve({
           floor: recorded.floor,
           defaultBranch: () => Promise.resolve("main"),
-          changedFiles: () => Promise.resolve(["specs/a/spec.md", "README.md"]),
+          changedFiles: () =>
+            Promise.resolve([
+              { path: "specs/a/spec.md", patch: null },
+              { path: "README.md", patch: null },
+            ]),
           readSpec: () => Promise.resolve("| Status | In Progress |"),
           openRunKeys: () => Promise.resolve([]),
         }),

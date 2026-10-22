@@ -29,6 +29,7 @@ import {
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { specFilingKey } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
 import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import {
   decomposedSpecs,
@@ -192,7 +193,7 @@ async function filedInFull(
   brief: Brief,
   missing: readonly string[],
 ): Promise<Report> {
-  const planId = brief.needs.plan_id;
+  const planId = filingKeyOf(brief.needs);
   const filed = planId
     ? await deps.filedCoverage(parseGitRef(brief.needs.target).repo, planId)
     : null;
@@ -205,6 +206,14 @@ async function filedInFull(
     outcome: "failed",
     error: `the story issue lists ${filed.length} of the ${missing.length} statements no task names; rerun issues to rewrite it`,
   };
+}
+
+/** The key the story was filed under: the plan id, or on the spec-tickets line the spec's own. */
+function filingKeyOf(needs: Record<string, string>): string | undefined {
+  return (
+    needs.plan_id ||
+    (needs.spec_path ? specFilingKey(needs.spec_path) : undefined)
+  );
 }
 
 export function startIssueCoverageStation(): RunningStation {
