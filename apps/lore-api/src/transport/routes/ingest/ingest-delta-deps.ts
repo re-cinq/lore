@@ -27,7 +27,7 @@ import {
   unmirrorTestFilesFor,
   type MirroredCode,
   type MirroredReport,
-} from "../../../work/utopia/coverage/mirror-coverage.js";
+} from "../../../work/utopia/test-coverage/mirror-coverage.js";
 
 export type { MirroredDoc };
 export type { MirroredCode, MirroredReport };

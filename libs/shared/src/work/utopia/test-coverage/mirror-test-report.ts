@@ -4,7 +4,7 @@ import {
   testFileTombstones,
   testReportItems,
   type TestReportInput,
-} from "../../../domain/utopia/coverage/test-report-statements.js";
+} from "../../../domain/utopia/test-coverage/test-report-statements.js";
 import {
   pushItems,
   type MirrorDeps,

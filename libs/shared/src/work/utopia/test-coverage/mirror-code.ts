@@ -4,7 +4,7 @@ import { extname } from "node:path";
 import {
   codeFileItems,
   codeFileTombstones,
-} from "../../../domain/utopia/coverage/code-statements.js";
+} from "../../../domain/utopia/test-coverage/code-statements.js";
 import type { StatementItem } from "../../../domain/utopia/statements.js";
 import { MAX_CODE_FILE_CHARS } from "../../spec-trace/project-code-file.js";
 import { extractCodeSymbols } from "../../spec-trace/reference-extractor.js";

@@ -255,8 +255,8 @@
       "default": "./dist/domain/utopia/docs/doc-statements.js"
     },
     "./utopia/test-report-statements.js": {
-      "types": "./dist/domain/utopia/coverage/test-report-statements.d.ts",
-      "default": "./dist/domain/utopia/coverage/test-report-statements.js"
+      "types": "./dist/domain/utopia/test-coverage/test-report-statements.d.ts",
+      "default": "./dist/domain/utopia/test-coverage/test-report-statements.js"
     },
     "./utopia/utopia-client.js": {
       "types": "./dist/outbound/utopia/utopia-client.d.ts",
@@ -279,12 +279,12 @@
       "default": "./dist/work/utopia/push-items.js"
     },
     "./utopia/mirror-test-report.js": {
-      "types": "./dist/work/utopia/coverage/mirror-test-report.d.ts",
-      "default": "./dist/work/utopia/coverage/mirror-test-report.js"
+      "types": "./dist/work/utopia/test-coverage/mirror-test-report.d.ts",
+      "default": "./dist/work/utopia/test-coverage/mirror-test-report.js"
     },
     "./utopia/mirror-code.js": {
-      "types": "./dist/work/utopia/coverage/mirror-code.d.ts",
-      "default": "./dist/work/utopia/coverage/mirror-code.js"
+      "types": "./dist/work/utopia/test-coverage/mirror-code.d.ts",
+      "default": "./dist/work/utopia/test-coverage/mirror-code.js"
     },
     "./utopia/commit-statements.js": {
       "types": "./dist/domain/utopia/git-history/commit-statements.d.ts",
