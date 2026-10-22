@@ -6,8 +6,11 @@ import type {
 } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
-import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/commits-summary.js";
+import { mirrorCommit } from "@re-cinq/lore-shared/utopia/mirror-commits.js";
+import { saveUtopiaCommitsHead } from "../../../outbound/utopia-sources.js";
 import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
+import { storedCursor, type WalkSource } from "../walk-source.js";
 
 export interface CommitHistoryDeps {
   /** The walks of one repo run one after the other in this process: a second push during a walk waits for it, then finds what landed since. */
@@ -52,4 +55,20 @@ async function walkBranch(
   });
 
   return { branch, from, ...tally, commits: landed };
+}
+
+export function commitHistoryDepsFor(
+  source: WalkSource<CommitHistoryDeps["history"]>,
+): CommitHistoryDeps {
+  const { pool, repo, mirror } = source;
+
+  return {
+    repo,
+    history: source.files,
+    cursor: {
+      read: () => storedCursor(source, "commits_head"),
+      write: (sha) => saveUtopiaCommitsHead(pool, repo, sha),
+    },
+    mirror: (commit) => mirrorCommit(mirror, repo, commit),
+  };
 }

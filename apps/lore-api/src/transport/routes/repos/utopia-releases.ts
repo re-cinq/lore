@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { UtopiaReleasesSummarySchema } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+import { UtopiaReleasesSummarySchema } from "@re-cinq/lore-shared/utopia/releases-summary.js";
 import { mirrorReleases } from "../../../work/utopia/github/utopia-releases.js";
 import { utopiaWalkRoute } from "./utopia-walk-route.js";
 

@@ -6,8 +6,10 @@ import type {
   TagEntry,
 } from "@re-cinq/lore-shared/utopia/release-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
-import type { UtopiaReleasesSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+import type { UtopiaReleasesSummary } from "@re-cinq/lore-shared/utopia/releases-summary.js";
+import { mirrorTagsAndReleases } from "@re-cinq/lore-shared/utopia/mirror-releases.js";
 import { queuedPerRepo } from "../cursor-walk.js";
+import type { WalkSource } from "../walk-source.js";
 
 export interface PublishedRefs {
   tags: TagEntry[];
@@ -48,4 +50,16 @@ async function pushAll(deps: ReleaseDeps): Promise<UtopiaReleasesSummary> {
 
     return { ...read, created: 0, updated: 0, unchanged: 0, failed };
   }
+}
+
+export function releaseDepsFor(
+  source: WalkSource<ReleaseDeps["published"]>,
+): ReleaseDeps {
+  const { repo, mirror } = source;
+
+  return {
+    repo,
+    published: source.files,
+    mirror: (published) => mirrorTagsAndReleases(mirror, repo, published),
+  };
 }

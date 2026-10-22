@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { UtopiaMemorySummarySchema } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+import { UtopiaMemorySummarySchema } from "@re-cinq/lore-shared/utopia/memory-summary.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { withPool } from "../with-pool.js";

@@ -226,6 +226,26 @@
       "types": "./dist/domain/utopia/memory/memory-documents.d.ts",
       "default": "./dist/domain/utopia/memory/memory-documents.js"
     },
+    "./utopia/walk-summary.js": {
+      "types": "./dist/domain/utopia/walk-summary.d.ts",
+      "default": "./dist/domain/utopia/walk-summary.js"
+    },
+    "./utopia/commits-summary.js": {
+      "types": "./dist/domain/utopia/git-history/commits-summary.d.ts",
+      "default": "./dist/domain/utopia/git-history/commits-summary.js"
+    },
+    "./utopia/tracker-summary.js": {
+      "types": "./dist/domain/utopia/github/tracker-summary.d.ts",
+      "default": "./dist/domain/utopia/github/tracker-summary.js"
+    },
+    "./utopia/releases-summary.js": {
+      "types": "./dist/domain/utopia/github/releases-summary.d.ts",
+      "default": "./dist/domain/utopia/github/releases-summary.js"
+    },
+    "./utopia/memory-summary.js": {
+      "types": "./dist/domain/utopia/memory/memory-summary.d.ts",
+      "default": "./dist/domain/utopia/memory/memory-summary.js"
+    },
     "./utopia/backfill-summary.js": {
       "types": "./dist/domain/utopia/backfill-summary.d.ts",
       "default": "./dist/domain/utopia/backfill-summary.js"

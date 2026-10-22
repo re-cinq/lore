@@ -8,10 +8,8 @@ import {
   type UtopiaEnv,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
-import type {
-  UtopiaMemorySummary,
-  UtopiaTrackerSummary,
-} from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+import type { UtopiaMemorySummary } from "@re-cinq/lore-shared/utopia/memory-summary.js";
+import type { UtopiaTrackerSummary } from "@re-cinq/lore-shared/utopia/tracker-summary.js";
 import {
   saveMemoryCursor,
   type MemoryBase,

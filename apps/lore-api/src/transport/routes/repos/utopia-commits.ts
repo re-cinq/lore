@@ -9,7 +9,7 @@ import { z } from "zod";
 import {
   UtopiaCommitsSummarySchema,
   type UtopiaCommitsSummary,
-} from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+} from "@re-cinq/lore-shared/utopia/commits-summary.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { bearerScope } from "../../http/bearer-scope.js";

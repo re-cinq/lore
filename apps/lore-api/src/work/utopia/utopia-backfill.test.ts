@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
-import { backfillRepo, type BackfillFiles } from "./utopia-backfill.js";
+import { backfillRepo } from "./utopia-backfill.js";
+import type { BackfillFiles } from "./docs/backfill-docs.js";
 import { docsToMirror } from "./docs/ingested-docs.js";
 import type { MirroredDoc } from "./docs/mirror-doc.js";
 

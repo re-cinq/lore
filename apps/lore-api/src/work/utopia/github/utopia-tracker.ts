@@ -3,7 +3,10 @@
 import type { TrackerActivityOptions } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-statements.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
-import type { UtopiaTrackerSummary } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+import type { UtopiaTrackerSummary } from "@re-cinq/lore-shared/utopia/tracker-summary.js";
+import { mirrorTrackedEntry } from "@re-cinq/lore-shared/utopia/mirror-tracker.js";
+import { saveUtopiaTrackerSince } from "../../../outbound/utopia-sources.js";
+import { storedCursor, type WalkSource } from "../walk-source.js";
 import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
 
 export interface TrackerDeps {
@@ -42,4 +45,20 @@ async function walkTracker(deps: TrackerDeps): Promise<UtopiaTrackerSummary> {
   });
 
   return { from, ...tally, entries: landed };
+}
+
+export function trackerDepsFor(
+  source: WalkSource<TrackerDeps["tracker"]>,
+): TrackerDeps {
+  const { pool, repo, mirror } = source;
+
+  return {
+    repo,
+    tracker: source.files,
+    cursor: {
+      read: () => storedCursor(source, "tracker_since"),
+      write: (since) => saveUtopiaTrackerSince(pool, repo, since),
+    },
+    mirror: (entry) => mirrorTrackedEntry(mirror, repo, entry),
+  };
 }

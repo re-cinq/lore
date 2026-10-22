@@ -3,12 +3,16 @@
 import type { z } from "zod";
 import {
   UtopiaCommitsSummarySchema,
-  UtopiaReleasesSummarySchema,
-  UtopiaTrackerSummarySchema,
   type UtopiaCommitsSummary,
+} from "@re-cinq/lore-shared/utopia/commits-summary.js";
+import {
+  UtopiaReleasesSummarySchema,
   type UtopiaReleasesSummary,
+} from "@re-cinq/lore-shared/utopia/releases-summary.js";
+import {
+  UtopiaTrackerSummarySchema,
   type UtopiaTrackerSummary,
-} from "@re-cinq/lore-shared/utopia/backfill-summary.js";
+} from "@re-cinq/lore-shared/utopia/tracker-summary.js";
 import type { BackfillAnswer } from "./utopia-backfill-tick.js";
 
 const SKIPPED: Readonly<Partial<Record<number, string>>> = {
