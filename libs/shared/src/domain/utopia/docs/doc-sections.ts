@@ -1,5 +1,7 @@
 // The headings of a markdown document as the sections a statement sits under.
 
+import { sectionName } from "../names.js";
+
 export interface SectionRef {
   name: string;
   title: string;
@@ -22,7 +24,7 @@ export function sectionsOf(content: string, doc: string): SectionRef[] {
       const slug = uniqueSlug(slugOf(title), seen);
 
       sections.push({
-        name: `${doc}#${slug}`,
+        name: sectionName(doc, slug),
         title,
         line: index + 1,
         depth: heading[1].length,
