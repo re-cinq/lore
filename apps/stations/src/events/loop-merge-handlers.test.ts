@@ -69,7 +69,11 @@ describe("loopMergeHandlers", () => {
   it("does nothing for a branch that is not a loop ticket's", async () => {
     const { close, flipped } = scene({ id: "task-1", status: "running" });
 
-    await close({ repo: "acme/widgets", branch: "feature/widgets", merged: true });
+    await close({
+      repo: "acme/widgets",
+      branch: "feature/widgets",
+      merged: true,
+    });
 
     expect(flipped).toEqual([]);
   });

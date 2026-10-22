@@ -16,7 +16,9 @@ export const LOOP_MERGE_EVENTS: readonly string[] = [PR_CLOSED];
 export function loopMergeHandlers(
   deps: LoopMergeDeps,
 ): Map<string, EventHandler> {
-  return new Map<string, EventHandler>([[PR_CLOSED, onPullRequestClosed(deps)]]);
+  return new Map<string, EventHandler>([
+    [PR_CLOSED, onPullRequestClosed(deps)],
+  ]);
 }
 
 function onPullRequestClosed(deps: LoopMergeDeps): EventHandler {

@@ -24,7 +24,10 @@ import {
   floorPlanHandlers,
   type FloorPlanDeps,
 } from "./floor-plan-handlers.js";
-import { loopMergeHandlers, type LoopMergeDeps } from "./loop-merge-handlers.js";
+import {
+  loopMergeHandlers,
+  type LoopMergeDeps,
+} from "./loop-merge-handlers.js";
 import { addHandlers } from "./compose-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";

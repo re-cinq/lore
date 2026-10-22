@@ -39,8 +39,11 @@ function deps(overrides: Partial<MergeSuccessDeps> = {}) {
   const cancelled: Array<{ runId: string; reason: string }> = [];
   const flipped: Array<{ id: string; status: string }> = [];
   const events: Array<{ id: string; from: string; to: string }> = [];
-  const labelsRemoved: Array<{ repo: string; issueNumber: number; label: string }> =
-    [];
+  const labelsRemoved: Array<{
+    repo: string;
+    issueNumber: number;
+    label: string;
+  }> = [];
   const comments: Array<{ repo: string; issueNumber: number; body: string }> =
     [];
   const closed: Array<{ repo: string; issueNumber: number }> = [];
@@ -82,7 +85,16 @@ function deps(overrides: Partial<MergeSuccessDeps> = {}) {
     ...overrides,
   };
 
-  return { deps: base, cancelled, flipped, events, labelsRemoved, comments, closed, ticked };
+  return {
+    deps: base,
+    cancelled,
+    flipped,
+    events,
+    labelsRemoved,
+    comments,
+    closed,
+    ticked,
+  };
 }
 
 const REPO = "acme/widgets";
@@ -90,23 +102,37 @@ const BRANCH = "lore/implementation-loop/issue-7";
 
 describe("settleMergedLoopTicket", () => {
   it("marks the active task merged, clears the block, comments, closes the issue and re-arms the loop", async () => {
-    const { deps: d, flipped, events, labelsRemoved, comments, closed, ticked } =
-      deps();
+    const {
+      deps: d,
+      flipped,
+      events,
+      labelsRemoved,
+      comments,
+      closed,
+      ticked,
+    } = deps();
 
     const result = await settleMergedLoopTicket(d, REPO, BRANCH);
 
-    expect({ flipped, events, labelsRemoved, comments, closed, ticked }).toEqual(
-      {
-        flipped: [{ id: "task-1", status: "merged" }],
-        events: [{ id: "task-1", from: "running", to: "merged" }],
-        labelsRemoved: [{ repo: REPO, issueNumber: 7, label: LORE_BLOCKED_LABEL }],
-        comments: [
-          { repo: REPO, issueNumber: 7, body: expect.stringContaining("merged") },
-        ],
-        closed: [{ repo: REPO, issueNumber: 7 }],
-        ticked: [REPO],
-      },
-    );
+    expect({
+      flipped,
+      events,
+      labelsRemoved,
+      comments,
+      closed,
+      ticked,
+    }).toEqual({
+      flipped: [{ id: "task-1", status: "merged" }],
+      events: [{ id: "task-1", from: "running", to: "merged" }],
+      labelsRemoved: [
+        { repo: REPO, issueNumber: 7, label: LORE_BLOCKED_LABEL },
+      ],
+      comments: [
+        { repo: REPO, issueNumber: 7, body: expect.stringContaining("merged") },
+      ],
+      closed: [{ repo: REPO, issueNumber: 7 }],
+      ticked: [REPO],
+    });
     expect(result).toContain("merged");
   });
 
@@ -162,7 +188,11 @@ describe("settleMergedLoopTicket", () => {
   });
 
   it("does nothing when the issue has no active task", async () => {
-    const { deps: d, flipped, ticked } = deps({
+    const {
+      deps: d,
+      flipped,
+      ticked,
+    } = deps({
       tasks: {
         activeTaskByIssue: async () => null,
         setStatusIf: async () => true,
@@ -178,7 +208,11 @@ describe("settleMergedLoopTicket", () => {
   });
 
   it("does nothing when the active task already settled as merged", async () => {
-    const { deps: d, flipped, ticked } = deps({
+    const {
+      deps: d,
+      flipped,
+      ticked,
+    } = deps({
       tasks: {
         activeTaskByIssue: async () => ({ id: "task-1", status: "merged" }),
         setStatusIf: async () => true,
@@ -194,7 +228,11 @@ describe("settleMergedLoopTicket", () => {
   });
 
   it("stops without side effects when another caller already won the status flip", async () => {
-    const { deps: d, events, ticked } = deps({
+    const {
+      deps: d,
+      events,
+      ticked,
+    } = deps({
       tasks: {
         activeTaskByIssue: async () => ({ id: "task-1", status: "running" }),
         setStatusIf: async () => false,
