@@ -4081,7 +4081,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The auto-merge loop: Lore's own pull requests by whether auto-merge is armed and what blocks them, and the ones merged this week",
+            "description": "The auto-merge loop: every open pull request code review passed, by the loop's run on it and what blocks it, and the ones it worked that merged this week",
             "content": {
               "application/json": {
                 "schema": {
@@ -5996,7 +5996,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Switch one of the repository's loops on or off. Switching auto merge on needs the lore-reviewer App, a protecting branch rule and the two-key approval PR (x-lore-approval-pr), and answers 403 naming what is missing.",
+            "description": "Switch one of the repository's loops on or off. The auto-merge loop also takes its one setting, min_age_hours: how long a pull request must have been open before the loop merges it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6063,6 +6063,11 @@
                 "properties": {
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "min_age_hours": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": ["enabled"],
@@ -15910,9 +15915,13 @@
                   "auto_merge": {
                     "type": "object",
                     "properties": {
-                      "approver": {
-                        "type": "string",
-                        "enum": ["none", "lore-reviewer"]
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "min_age_hours": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "additionalProperties": {}
@@ -16318,9 +16327,13 @@
                         "auto_merge": {
                           "type": "object",
                           "properties": {
-                            "approver": {
-                              "type": "string",
-                              "enum": ["none", "lore-reviewer"]
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "min_age_hours": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
                             }
                           },
                           "additionalProperties": {}
@@ -16500,6 +16513,11 @@
                 },
                 "enabled": {
                   "type": "boolean"
+                },
+                "min_age_hours": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 }
               },
               "required": ["key", "label", "description", "enabled"],

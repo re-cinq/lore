@@ -1,116 +1,125 @@
 import { describe, expect, it } from "vitest";
-import { mergeQueues } from "./merge-queues.js";
+import type { FloorRunRow } from "../../../work/floor/floor-run-rows.js";
+import { mergeQueues, type MergeQueuesInput } from "./merge-queues.js";
 
-const LORE = "lore[bot]";
+const NOW = Date.parse("2026-10-23T12:00:00Z");
+const url = (n: number) => `https://github.com/acme/widgets/pull/${n}`;
 
-const pull = (number: number, over: Record<string, unknown> = {}) => ({
-  number,
-  title: `Change ${number}`,
-  url: `https://github.com/acme/widgets/pull/${number}`,
-  author: LORE,
+const pull = (n: number, createdAt = "2026-10-20T12:00:00Z") => ({
+  number: n,
+  title: `Change ${n}`,
+  url: url(n),
+  createdAt,
+});
+
+const run = (n: number, over: Partial<FloorRunRow> = {}): FloorRunRow =>
+  ({
+    id: `run-${n}`,
+    pr_url: url(n),
+    status: "running",
+    outcome: null,
+    reason: null,
+    created_at: "2026-10-23T10:00:00Z",
+    pipeline: [{ node_id: "fix-pr", state: "running" }],
+    ...over,
+  }) as FloorRunRow;
+
+const input = (over: Partial<MergeQueuesInput>): MergeQueuesInput => ({
+  open: [],
+  reviewed: new Set(),
+  runs: [],
+  merged: [],
+  blocks: [],
+  minAgeHours: 24,
+  now: NOW,
   ...over,
 });
 
-const block = (
-  prNumber: number,
-  reason: string,
-  detail: string | null = null,
-) => ({
-  prNumber,
-  reason,
-  detail,
-  since: "2026-10-23T08:00:00Z",
-});
+const keys = (
+  rows: { pr_number: number; state: string; blocked: string | null }[],
+) => rows.map((r) => [r.pr_number, r.state, r.blocked]);
 
 describe("mergeQueues", () => {
-  it("sorts Lore's open #1..#4 by arming and blocked reason, and leaves out a person's pull request", () => {
-    const queues = mergeQueues({
-      open: [
-        pull(1, { autoMerge: true }),
-        pull(2, { autoMerge: true }),
-        pull(3),
-        pull(4, { autoMerge: true }),
-        pull(5, { author: "someone", autoMerge: true }),
-      ],
-      merged: [],
-      blocks: [block(1, "waiting_on_ci"), block(4, "needs_code_owner")],
-      appLogin: LORE,
-    });
-
-    expect({
-      current: queues.current.map((r) => [r.pr_number, r.state, r.blocked]),
-      awaiting: queues.awaiting_merge.map((r) => [r.pr_number, r.state]),
-      backlog: queues.backlog.map((r) => [r.pr_number, r.state]),
-      parked: queues.parked.map((r) => [r.pr_number, r.state, r.blocked]),
-    }).toEqual({
-      current: [[1, "armed", "Waiting for CI"]],
-      awaiting: [[2, "armed"]],
-      backlog: [[3, "open"]],
-      parked: [[4, "blocked", "Needs a code owner's approval"]],
-    });
-  });
-
-  it("parks an unarmed pull request held by a conflict, naming the branch", () => {
-    const queues = mergeQueues({
-      open: [pull(6)],
-      merged: [],
-      blocks: [block(6, "merge_conflict", "main")],
-      appLogin: LORE,
-    });
-
-    expect(queues.parked.map((r) => [r.pr_number, r.blocked])).toEqual([
-      [6, "Conflicts with main"],
-    ]);
-  });
-
-  it("lists Lore's merged pull requests newest first under recent, ten at most", () => {
-    const merged = Array.from({ length: 12 }, (_, i) =>
-      pull(100 + i, {
-        mergedAt: `2026-10-${String(1 + i).padStart(2, "0")}T00:00:00Z`,
+  it("puts reviewed #1 with no run in the backlog, #2 being fixed under current, and leaves out unreviewed #3", () => {
+    const queues = mergeQueues(
+      input({
+        open: [pull(1), pull(2), pull(3)],
+        reviewed: new Set([1, 2]),
+        runs: [run(2)],
       }),
     );
-    const queues = mergeQueues({
-      open: [],
-      merged,
-      blocks: [],
-      appLogin: LORE,
-    });
 
     expect({
-      count: queues.recent.length,
-      first: [queues.recent[0].pr_number, queues.recent[0].state],
-    }).toEqual({ count: 10, first: [111, "merged"] });
+      backlog: keys(queues.backlog),
+      current: keys(queues.current),
+    }).toEqual({
+      backlog: [[1, "reviewed", null]],
+      current: [[2, "running", null]],
+    });
   });
 
-  it("lists nothing when Lore's App login is unknown, so a stranger's pull request never reads as Lore's", () => {
-    const queues = mergeQueues({
-      open: [pull(1, { author: undefined, autoMerge: true })],
-      merged: [],
-      blocks: [],
-      appLogin: undefined,
-    });
+  it("shows #4, waiting at its gate and opened 2 hours ago, as awaiting merge with the time it may merge", () => {
+    const queues = mergeQueues(
+      input({
+        open: [pull(4, "2026-10-23T10:00:00Z")],
+        runs: [
+          run(4, { pipeline: [{ node_id: "await-merge", state: "waiting" }] }),
+        ],
+      }),
+    );
 
-    expect([queues.current, queues.backlog, queues.awaiting_merge]).toEqual([
-      [],
-      [],
-      [],
+    expect(keys(queues.awaiting_merge)).toEqual([
+      [4, "waiting", "merges after 2026-10-24 10:00 UTC"],
     ]);
   });
 
-  it("keeps unarmed #8 waiting for its approval in the backlog until Lore's review arms it, and parks armed #9 still needing a code owner", () => {
-    const queues = mergeQueues({
-      open: [pull(8), pull(9, { autoMerge: true })],
-      merged: [],
-      blocks: [block(8, "needs_approval"), block(9, "needs_code_owner")],
-      appLogin: LORE,
-    });
+  it("shows #5 whose run approved it as armed, and parks #6 whose run failed and #7 armed but needing a code owner", () => {
+    const queues = mergeQueues(
+      input({
+        open: [pull(5), pull(6), pull(7)],
+        runs: [
+          run(5, { status: "completed", outcome: "success" }),
+          run(6, {
+            status: "failed",
+            outcome: "failed",
+            reason: "needs the lore-reviewer App",
+          }),
+          run(7, { status: "completed", outcome: "success" }),
+        ],
+        blocks: [{ prNumber: 7, reason: "needs_code_owner", detail: null }],
+      }),
+    );
 
     expect({
-      backlog: queues.backlog.map((r) => [r.pr_number, r.state, r.blocked]),
-      parked: queues.parked.map((r) => [r.pr_number, r.state]),
+      awaiting: keys(queues.awaiting_merge),
+      parked: keys(queues.parked),
     }).toEqual({
-      backlog: [[8, "open", "Needs one approval"]],
-      parked: [[9, "blocked"]],
+      awaiting: [[5, "armed", null]],
+      parked: [
+        [6, "blocked", "needs the lore-reviewer App"],
+        [7, "blocked", "Needs a code owner's approval"],
+      ],
     });
+  });
+
+  it("lists under recent only merged pull requests the loop worked, newest first", () => {
+    const queues = mergeQueues(
+      input({
+        merged: [
+          { ...pull(8), mergedAt: "2026-10-22T09:00:00Z" },
+          { ...pull(9), mergedAt: "2026-10-23T09:00:00Z" },
+          { ...pull(10), mergedAt: "2026-10-23T11:00:00Z" },
+        ],
+        runs: [
+          run(8, { status: "completed", outcome: "success" }),
+          run(9, { status: "completed", outcome: "success" }),
+        ],
+      }),
+    );
+
+    expect(queues.recent.map((r) => [r.pr_number, r.state])).toEqual([
+      [9, "merged"],
+      [8, "merged"],
+    ]);
   });
 });

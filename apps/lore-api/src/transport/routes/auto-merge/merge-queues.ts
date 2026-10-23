@@ -1,18 +1,20 @@
-// The auto-merge loop in the shared loop sections (specs/protected-branch-merge): Lore's own pull requests by whether GitHub's auto-merge is armed and what the stored blocked reason says. Pure, what the route read is handed in.
+// The auto-merge loop in the shared loop sections (specs/protected-branch-merge): every pull request the loop works or will work, by its run. Pure, what the route read is handed in.
 import { z } from "zod";
 import { labelForReason } from "@re-cinq/lore-shared/blocked-reason.js";
+import type { FloorRunRow } from "../../../work/floor/floor-run-rows.js";
+import { isOpenStatus } from "../../../work/floor/floor-run-query.js";
 import { loopRowFields, loopSectionsSchema } from "../loops/loop-sections.js";
 
 export const MergeRowSchema = z.object({
   pr_number: z.number(),
   pr_url: z.string().nullable(),
-  /** `state`: `armed` (GitHub merges it once the branch rule is met), `blocked` (a person must act), `open` (not armed yet), or `merged`. */
+  /** `state`: `reviewed` (waiting for the loop), the run's status while it works, `armed` (approved, GitHub merging), `waiting` (only its minimum age is left), `blocked` (a person must act), or `merged`. */
   ...loopRowFields,
-  /** What holds the pull request, in words: the stored blocked reason's label. */
+  /** What holds the pull request, in words: when it may merge, a stored blocked reason, or why the loop left it. */
   blocked: z.string().nullable(),
 });
 
-/** Auto merge in the shared loop sections: Current, armed while CI or Lore's review still runs; Backlog, open and not armed yet; Parked, blocked on a person (an approval, a code owner, a conflict, a base behind, a PR it waits for, GitHub refusing); Awaiting merge, armed with nothing left to wait for; Recently addressed, Lore's pull requests merged in the last week. */
+/** Auto merge in the shared loop sections: Current, a run is working it; Backlog, code review passed and no run yet; Parked, the run left it for a person or a blocked reason waits on one; Awaiting merge, approved and armed, or only its minimum age is left; Recently addressed, pull requests the loop worked that merged this week. */
 export const AutoMergeSchema = loopSectionsSchema(MergeRowSchema);
 
 export type MergeRow = z.infer<typeof MergeRowSchema>;
@@ -22,8 +24,7 @@ export interface MergePull {
   number: number;
   title: string;
   url: string;
-  author?: string;
-  autoMerge?: boolean;
+  createdAt?: string;
   mergedAt?: string;
 }
 
@@ -31,90 +32,163 @@ export interface StoredBlock {
   prNumber: number;
   reason: string;
   detail: string | null;
-  since: string | null;
 }
 
-/** The reasons that wait on a machine, not a person: a pull request held by one is still moving. */
-const MOVING: ReadonlySet<string> = new Set([
-  "waiting_on_ci",
-  "review_in_flight",
-]);
-
-const RECENT_LIMIT = 10;
-
-export function mergeQueues(input: {
+export interface MergeQueuesInput {
   open: readonly MergePull[];
+  /** Open pull requests whose code review passed: the loop's backlog. */
+  reviewed: ReadonlySet<number>;
+  /** The loop's newest runs, any status. */
+  runs: readonly FloorRunRow[];
   merged: readonly MergePull[];
   blocks: readonly StoredBlock[];
-  appLogin: string | undefined;
-}): AutoMerge {
-  const { open, merged, blocks, appLogin } = input;
-  const lores = (pull: MergePull) =>
-    appLogin !== undefined && pull.author === appLogin;
-  const rows = open.filter(lores).map((pull) => openRow(pull, blocks));
-
-  return { ...openBuckets(rows), recent: recentRows(merged.filter(lores)) };
+  minAgeHours: number;
+  now: number;
 }
 
-/** An open pull request by its state: armed and still moving, not armed yet, blocked on a person, or armed with nothing left to wait for. */
-function openBuckets(rows: readonly MergeRow[]) {
-  const armed = rows.filter((r) => r.state === "armed");
+const HOUR_MS = 60 * 60 * 1000;
+const RECENT_LIMIT = 10;
 
-  return {
-    current: armed.filter((r) => r.blocked !== null),
-    backlog: rows.filter((r) => r.state === "open"),
-    parked: rows.filter((r) => r.state === "blocked"),
-    awaiting_merge: armed.filter((r) => r.blocked === null),
-  };
-}
-
-function openRow(pull: MergePull, blocks: readonly StoredBlock[]): MergeRow {
-  const block = blocks.find((b) => b.prNumber === pull.number);
-
-  return {
-    ...pullFields(pull),
-    state: openState(pull, block),
-    blocked: block ? labelForReason(block.reason, block.detail) : null,
-    created_at: block?.since ?? null,
-  };
-}
-
-/** Before Lore's review arms it, a pull request is supposed to lack its approval: that wait is the backlog, not a person's job. */
-const AWAITING_ARM: ReadonlySet<string> = new Set([
-  ...MOVING,
-  "needs_approval",
+/** The reasons a person must act on; the others are waits the loop handles. */
+const ON_A_PERSON: ReadonlySet<string> = new Set([
   "needs_code_owner",
+  "merge_conflict",
+  "blocked_by_pr",
+  "github_refused",
+  "required_check_missing",
 ]);
 
-/** Blocked on a person when the stored reason is not a wait the pull request is expected to be in; otherwise armed or not. */
-function openState(pull: MergePull, block: StoredBlock | undefined): string {
-  const expected = pull.autoMerge ? MOVING : AWAITING_ARM;
+export function mergeQueues(input: MergeQueuesInput): AutoMerge {
+  const rows = input.open.map((pull) => openRow(pull, input));
 
-  if (block && !expected.has(block.reason)) {
-    return "blocked";
-  }
-
-  return pull.autoMerge ? "armed" : "open";
+  return {
+    current: inState(rows, (state) => isOpenStatus(state)),
+    backlog: inState(rows, (state) => state === "reviewed"),
+    parked: inState(rows, (state) => state === "blocked"),
+    awaiting_merge: inState(
+      rows,
+      (state) => state === "armed" || state === "waiting",
+    ),
+    recent: recentRows(input),
+  };
 }
 
-function recentRows(merged: readonly MergePull[]): MergeRow[] {
-  return [...merged]
+function inState(
+  rows: readonly (MergeRow | null)[],
+  wanted: (state: string) => boolean,
+): MergeRow[] {
+  return rows.filter(
+    (row): row is MergeRow => row !== null && wanted(row.state),
+  );
+}
+
+/** An open pull request by its newest run: none yet, still working, waiting out its age, armed, or left for a person. Null when the loop has no business with it. */
+function openRow(pull: MergePull, input: MergeQueuesInput): MergeRow | null {
+  const run = newestRunFor(pull.url, input.runs);
+  const block = input.blocks.find((b) => b.prNumber === pull.number);
+
+  if (!run) {
+    return input.reviewed.has(pull.number)
+      ? row(pull, { state: "reviewed", blocked: null })
+      : null;
+  }
+
+  if (isOpenStatus(run.status)) {
+    return openRunRow(pull, run, input);
+  }
+
+  return settledRunRow(pull, run, block);
+}
+
+/** A run waiting at its gate with only the minimum age left reads as awaiting merge, with when it may merge. */
+function openRunRow(
+  pull: MergePull,
+  run: FloorRunRow,
+  input: MergeQueuesInput,
+): MergeRow {
+  const mergesAt = mergeTime(pull, input);
+  const atGate = run.pipeline.some(
+    (node) => node.node_id === "await-merge" && node.state === "waiting",
+  );
+  const young = mergesAt !== null && mergesAt > input.now;
+
+  return row(pull, {
+    state: atGate && young ? "waiting" : run.status,
+    blocked: atGate && young ? `merges after ${isoMinute(mergesAt)}` : null,
+    run,
+  });
+}
+
+function settledRunRow(
+  pull: MergePull,
+  run: FloorRunRow,
+  block: StoredBlock | undefined,
+): MergeRow {
+  const personBlock =
+    block && ON_A_PERSON.has(block.reason)
+      ? labelForReason(block.reason, block.detail)
+      : null;
+
+  if (run.outcome === "success" && !personBlock) {
+    return row(pull, { state: "armed", blocked: null, run });
+  }
+
+  return row(pull, {
+    state: "blocked",
+    blocked: personBlock ?? run.reason ?? "the loop could not finish it",
+    run,
+  });
+}
+
+function recentRows(input: MergeQueuesInput): MergeRow[] {
+  const worked = new Set(input.runs.map((run) => run.pr_url));
+
+  return input.merged
+    .filter((pull) => worked.has(pull.url))
     .sort((a, b) => (b.mergedAt ?? "").localeCompare(a.mergedAt ?? ""))
     .slice(0, RECENT_LIMIT)
     .map((pull) => ({
-      ...pullFields(pull),
-      state: "merged",
-      blocked: null,
+      ...row(pull, {
+        state: "merged",
+        blocked: null,
+        run: newestRunFor(pull.url, input.runs),
+      }),
       created_at: pull.mergedAt ?? null,
     }));
 }
 
-function pullFields(pull: MergePull) {
+function newestRunFor(
+  url: string,
+  runs: readonly FloorRunRow[],
+): FloorRunRow | undefined {
+  return runs
+    .filter((run) => run.pr_url === url)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .at(0);
+}
+
+function mergeTime(pull: MergePull, input: MergeQueuesInput): number | null {
+  return pull.createdAt
+    ? Date.parse(pull.createdAt) + input.minAgeHours * HOUR_MS
+    : null;
+}
+
+function isoMinute(time: number): string {
+  return `${new Date(time).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+function row(
+  pull: MergePull,
+  fields: { state: string; blocked: string | null; run?: FloorRunRow },
+): MergeRow {
   return {
     pr_number: pull.number,
     pr_url: pull.url,
     title: pull.title,
-    run_id: null,
-    pipeline: null,
+    state: fields.state,
+    blocked: fields.blocked,
+    run_id: fields.run?.id ?? null,
+    pipeline: fields.run?.pipeline ?? null,
+    created_at: fields.run?.created_at ?? pull.createdAt ?? null,
   };
 }

@@ -46,7 +46,7 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
     readLoopsRoute(getPool),
     switchLoopRoute(getPool),
     codeReviewRoute(floorRunPages),
-    autoMergeRoute(getPool),
+    autoMergeRoute(getPool, floorRunPages),
   ];
 }
 
