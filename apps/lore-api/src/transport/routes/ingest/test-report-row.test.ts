@@ -7,6 +7,7 @@ describe("saveTestReportRow", () => {
     const pool = {
       query: async (sql: string, params: unknown[]) => {
         issued.push({ sql, params });
+
         return { rows: [] };
       },
     } as never;
@@ -20,6 +21,7 @@ describe("saveTestReportRow", () => {
     });
 
     const upsert = issued.find((q) => q.sql.includes("pipeline.test_reports"));
+
     expect(upsert).toBeDefined();
     expect(upsert?.params).toContain("feature/foo");
   });
