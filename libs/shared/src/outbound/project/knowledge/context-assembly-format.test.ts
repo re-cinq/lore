@@ -217,4 +217,29 @@ describe("serializeContext", () => {
     );
     expect(out.trim().endsWith("</context>")).toBe(true);
   });
+
+  // specs/context-assembly/spec.md#FR-5.3
+  it("omits a section whose documents array is empty", () => {
+    const out = serializeContext(
+      { query: "q", template: "default", budget: 1000 },
+      [
+        {
+          header: "Empty Section",
+          source: "adrs",
+          priority: 1,
+          truncated: false,
+          documents: [],
+        },
+        {
+          header: "Non-empty Section",
+          source: "repo",
+          priority: 2,
+          truncated: false,
+          documents: [source({ source_path: "x.md" })],
+        },
+      ],
+    );
+    expect(out).not.toContain("Empty Section");
+    expect(out).toContain("Non-empty Section");
+  });
 });
