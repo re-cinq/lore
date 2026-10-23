@@ -94,4 +94,34 @@ describe("ChangelogView", () => {
 
     expect(screen.queryByRole("link", { name: "Older weeks" })).toBe(null);
   });
+
+  it("shows the By person switch Off, linking to by=person, on a plain list", () => {
+    view("list");
+    const toggle = screen.getByRole("switch", { name: "By person" });
+
+    expect({
+      checked: toggle.getAttribute("aria-checked"),
+      text: toggle.textContent,
+      href: toggle.getAttribute("href"),
+    }).toEqual({
+      checked: "false",
+      text: "Off",
+      href: "/repos/re-cinq/lore/changelog?by=person",
+    });
+  });
+
+  it("shows the By person switch On, linking back to the plain list, when grouped", () => {
+    view("person");
+    const toggle = screen.getByRole("switch", { name: "By person" });
+
+    expect({
+      checked: toggle.getAttribute("aria-checked"),
+      text: toggle.textContent,
+      href: toggle.getAttribute("href"),
+    }).toEqual({
+      checked: "true",
+      text: "On",
+      href: "/repos/re-cinq/lore/changelog",
+    });
+  });
 });
