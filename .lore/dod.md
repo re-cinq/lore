@@ -2,7 +2,7 @@
 
 > Create default.yaml defining all sources with balanced priorities. Target file: `apps/mcp-server/templates/default.yaml`
 
-**Strategy: `direct`** — The seam exists via the context assembly's template loader, allowing us to load the templates directory and verify the default template's contents.
+**Strategy: `direct`** — The seam exists via the context assembly's template loader, allowing us to load the templates directory and verify the default template's contents. The red bar is CI's to show; tests are run by the `lore-tests.yml` CI job (`pr-checks.yml` or `test-integration.yml`).
 
 ## Done when these pass
 
