@@ -73,11 +73,11 @@ function trendLine(weekly) {
 }
 
 function costliestLine(byLine) {
-  const [line] = Object.entries(byLine).sort(
-    ([, a], [, b]) => (b.costUsd ?? -1) - (a.costUsd ?? -1),
+  const [line, tally] = Object.entries(byLine).sort(
+    ([, a], [, b]) => b.costUsd - a.costUsd,
   )[0] ?? ["—"];
 
-  return line;
+  return (tally?.costUsd ?? 0) > 0 ? line : "—";
 }
 
 function weeklyTables(weekly, withDb) {

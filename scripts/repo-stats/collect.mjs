@@ -189,6 +189,9 @@ export async function blockedSpans(repos, since) {
     "-o",
     "jsonpath={.items[0].metadata.name}",
   ]);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) {
+    throw new Error(`${since} is not a YYYY-MM-DD date`);
+  }
   const names = repos
     .map((repo) => `'${enforceRepoName(repo).toLowerCase()}'`)
     .join(", ");
