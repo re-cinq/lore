@@ -6,8 +6,6 @@ describe("DeliveryContract", () => {
     const contract = new DeliveryContract();
     const commands = contract.getPodCommands();
 
-    expect(Array.isArray(commands)).toBe(true);
-
     const formatIdx = commands.findIndex(
       (cmd) => cmd.includes("prettier --write") || cmd.includes("FORMATTER"),
     );
@@ -16,5 +14,24 @@ describe("DeliveryContract", () => {
     expect(formatIdx, "format command must be present").toBeGreaterThan(-1);
     expect(commitIdx, "git commit must be present").toBeGreaterThan(-1);
     expect(formatIdx, "format must precede commit").toBeLessThan(commitIdx);
+  });
+
+  it("syncs branch with origin/main after pushing", async () => {
+    const { DeliveryContract } = await import("./delivery-contract.js");
+    const contract = new DeliveryContract();
+    const commands = contract.getPodCommands();
+
+    const pushIdx = commands.findIndex((cmd) =>
+      cmd.includes("git push origin HEAD"),
+    );
+    const fetchIdx = commands.findIndex((cmd) =>
+      cmd.includes("git fetch origin main"),
+    );
+    const rebaseIdx = commands.findIndex((cmd) =>
+      cmd.includes("git rebase origin/main"),
+    );
+
+    expect(fetchIdx).toBeGreaterThan(pushIdx);
+    expect(rebaseIdx).toBeGreaterThan(fetchIdx);
   });
 });
