@@ -14,7 +14,7 @@
 
 ## Facets
 
-- [ ] Implement `DeliveryContract` that enforces formatting
+- [x] Implement `DeliveryContract` that enforces formatting
 - [ ] Implement `DeliveryContract` that enforces branch syncing and disallows typechecking
 
 ## Out of scope
