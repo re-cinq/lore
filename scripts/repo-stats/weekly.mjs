@@ -19,11 +19,13 @@ export function isoWeekKey(instant) {
   const thursday = new Date(
     Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()),
   );
+
   thursday.setUTCDate(thursday.getUTCDate() + 3 - mondayIndex(thursday));
   const firstThursday = Date.UTC(thursday.getUTCFullYear(), 0, 4);
   const firstWeekMonday =
     firstThursday - mondayIndex(new Date(firstThursday)) * DAY_MS;
-  const week = 1 + Math.floor((thursday.getTime() - firstWeekMonday) / (7 * DAY_MS));
+  const week =
+    1 + Math.floor((thursday.getTime() - firstWeekMonday) / (7 * DAY_MS));
 
   return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
@@ -73,7 +75,8 @@ const isFailedRun = (run) =>
   run.status === "failed" || FAILED_OUTCOMES.has(run.outcome);
 const loreReviews = (pull) =>
   pull.reviews.filter((review) => LORE_LOGIN.test(review.author ?? ""));
-const closedUnmerged = (pull) => pull.closedAt !== null && pull.mergedAt === null;
+const closedUnmerged = (pull) =>
+  pull.closedAt !== null && pull.mergedAt === null;
 
 function fixedAfterReview(pull) {
   const findings = loreReviews(pull).filter((review) =>
@@ -214,6 +217,7 @@ function failureReasons(runs) {
   for (const run of runs.filter(isFailedRun)) {
     const reason = run.reason ?? run.outcome ?? "no reason recorded";
     const key = `${run.blueprint_name}\u0000${reason}`;
+
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
