@@ -1,12 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
-import {
-  loadTemplates,
-  getTemplate,
-} from "@re-cinq/lore-shared/outbound/project/knowledge/context-assembly-templates.js";
+import { existsSync, readFileSync } from "node:fs";
+import { parse as parseYaml } from "yaml";
 
-// specs/context-assembly/spec.md#FR-3.3
 describe("default template file", () => {
   const templateDir = join(import.meta.dirname, "..", "templates");
 
@@ -15,9 +11,8 @@ describe("default template file", () => {
   });
 
   it("includes a facts section source", () => {
-    loadTemplates(templateDir);
-    const template = getTemplate("default");
-    const sources = template.sections.map((s) => s.source as string);
-    expect(sources).toContain("facts");
+    const raw = readFileSync(join(templateDir, "default.yaml"), "utf-8");
+    const template = parseYaml(raw) as { sections: { source: string }[] };
+    expect(template.sections.map((s) => s.source)).toContain("facts");
   });
 });
