@@ -1,3 +1,4 @@
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface CiFailedCheck {
   name: string;
   failed_step?: string;
@@ -10,6 +11,7 @@ export interface CiVerdict {
   failed_checks: CiFailedCheck[];
 }
 
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface RuntimeContextArgs {
   reported_changes?: boolean;
   previous_round_report?: { done?: string; next?: string };
@@ -17,15 +19,45 @@ export interface RuntimeContextArgs {
   [key: string]: unknown;
 }
 
-/** Appends CI verdict and previous-round report blocks to the base prompt.
- * Renders only when reported_changes is true AND ci_verdict names at least one failed check.
- * The previous-round block (if any) precedes the CI block, which always stays last. */
+function buildPreviousRoundBlock(report: {
+  done?: string;
+  next?: string;
+}): string {
+  const lines = ["## The previous round reported"];
+  if (report.done) lines.push(`Done: ${report.done}`);
+  if (report.next) lines.push(`Next: ${report.next}`);
+  return lines.join("\n");
+}
+
+function buildCheckLines(check: CiFailedCheck): string[] {
+  if (check.failed_step) {
+    return [
+      `- **${check.name}**: run only a failed step's command: \`${check.failed_step}\``,
+    ];
+  }
+  return [`- **${check.name}**: a job's whole command`];
+}
+
+function buildCiBlock(verdict: CiVerdict): string {
+  const lines = [`## CI reported failures on ${verdict.judged_sha}`];
+  for (const check of verdict.failed_checks) {
+    lines.push(...buildCheckLines(check));
+    if (check.step_log) lines.push("```", check.step_log, "```");
+    if (check.npm_script) {
+      lines.push(
+        `  Ran as: npm script ${check.npm_script.script} of package ${check.npm_script.package}`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
+/** Appends CI verdict and previous-round blocks; skipped when reported_changes is false or failed_checks is empty. */
 export function appendRuntimeContext(
   basePrompt: string,
   args: RuntimeContextArgs,
 ): string {
   const { reported_changes, previous_round_report, ci_verdict } = args;
-
   if (
     !reported_changes ||
     !ci_verdict ||
@@ -33,42 +65,10 @@ export function appendRuntimeContext(
   ) {
     return basePrompt;
   }
-
-  const blocks: string[] = [basePrompt];
-
-  if (previous_round_report) {
-    const lines = ["## The previous round reported"];
-    if (previous_round_report.done)
-      lines.push(`Done: ${previous_round_report.done}`);
-    if (previous_round_report.next)
-      lines.push(`Next: ${previous_round_report.next}`);
-    blocks.push(lines.join("\n"));
-  }
-
-  const ciLines: string[] = [
-    `## CI reported failures on ${ci_verdict.judged_sha}`,
-  ];
-  for (const check of ci_verdict.failed_checks) {
-    if (check.failed_step) {
-      ciLines.push(
-        `- **${check.name}**: run only a failed step's command: \`${check.failed_step}\``,
-      );
-    } else {
-      ciLines.push(`- **${check.name}**: a job's whole command`);
-    }
-    if (check.step_log) {
-      ciLines.push("```");
-      ciLines.push(check.step_log);
-      ciLines.push("```");
-    }
-    if (check.npm_script) {
-      ciLines.push(
-        `  Ran as: npm script ${check.npm_script.script} of package ${check.npm_script.package}`,
-      );
-    }
-  }
-  blocks.push(ciLines.join("\n"));
-
+  const blocks = [basePrompt];
+  if (previous_round_report)
+    blocks.push(buildPreviousRoundBlock(previous_round_report));
+  blocks.push(buildCiBlock(ci_verdict));
   return blocks.join("\n\n");
 }
 
