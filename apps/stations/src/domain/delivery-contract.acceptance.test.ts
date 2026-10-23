@@ -24,6 +24,7 @@ describe("DeliveryContract", () => {
     const contract = new DeliveryContract();
 
     const commands = contract.getPodCommands();
+
     expect(commands.some((cmd: string) => cmd.includes("git commit"))).toBe(
       true,
     );
