@@ -29,13 +29,11 @@ async function digestRun(
           repo: "re-cinq/lore",
           since: "2026-09-24T07:00:00Z",
           sections: ["implemented"],
-          group_by: "person",
         },
         {
           repo: "re-cinq/otto",
           since: "2026-09-24T07:00:00Z",
           sections: ["implemented"],
-          group_by: "person",
         },
       ]),
       digest_draft: DRAFT,

@@ -8,8 +8,7 @@ describe("resolveDigestSettings", () => {
       time: "09:00",
       days: [1, 2, 3, 4, 5],
       timezone: "Europe/Berlin",
-      sections: ["implemented", "roadmap", "summary", "morale"],
-      group_by: "person",
+      sections: ["implemented", "roadmap", "summary"],
       voice: "",
     });
   });

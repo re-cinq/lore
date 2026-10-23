@@ -1,9 +1,9 @@
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import type { PullRef } from "../../outbound/project/pulls/pull-requests-port.js";
 
-/** An issue a merged PR closes is one change, not two (specs/daily-digest FR4): the PR line stays, the issue line goes. */
+/** An issue a PR closes is one change, not two (specs/daily-digest FR4): the PR line stays, the issue line goes. */
 
-export interface Implemented {
+export interface Changes {
   prs: PullRef[];
   issues: IssueRef[];
 }
@@ -23,10 +23,7 @@ export function referencedIssueNumbers(pr: {
   return [...new Set([...fromBody, ...fromTitle].map((m) => Number(m[1])))];
 }
 
-export function dedupeImplemented(
-  prs: PullRef[],
-  issues: IssueRef[],
-): Implemented {
+export function dedupeChanges(prs: PullRef[], issues: IssueRef[]): Changes {
   const claimed = new Set(prs.flatMap(referencedIssueNumbers));
 
   return { prs, issues: issues.filter((issue) => !claimed.has(issue.number)) };

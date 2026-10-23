@@ -8,7 +8,6 @@ const REPOS = encodeDigestRepos([
     repo: "re-cinq/lore",
     since: "2026-09-30T07:00:00.000Z",
     sections: ["implemented"],
-    group_by: "area",
   },
 ]);
 
@@ -48,6 +47,7 @@ function scene(over: Partial<DigestCollectDeps> = {}) {
         ],
         closed: [],
         open: [],
+        openPrs: [],
       }),
     namesFor: () => Promise.resolve({}),
     ...over,
@@ -63,18 +63,17 @@ const brief = (needs: Record<string, string>) => ({
 });
 
 describe("the digest-collect station", () => {
-  it("produces digest_draft naming re-cinq/lore and its merged pull request 7", async () => {
+  it("produces digest_draft linking re-cinq/lore's merged pull request 7", async () => {
     const { handle, tools, produced } = scene();
     const report = await handle(brief(NEEDS), tools);
 
     expect(report).toEqual({ outcome: "success" });
-    expect(produced.digest_draft).toContain("re-cinq/lore");
     expect(produced.digest_draft).toContain(
       "https://github.com/re-cinq/lore/pull/7",
     );
   });
 
-  it("still produces a draft, with the repo's section saying so, when GitHub cannot be read for re-cinq/lore", async () => {
+  it("still produces a draft, with a line saying so, when GitHub cannot be read for re-cinq/lore", async () => {
     const { handle, tools, produced } = scene({
       collect: () => Promise.reject(new Error("GitHub API 502")),
     });

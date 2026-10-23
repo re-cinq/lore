@@ -185,5 +185,5 @@ function voiceOf(repos: DueRepo[]): string {
 }
 
 function digestRepoOf({ repo, since, settings: s }: DueRepo): DigestRepo {
-  return { repo, since, sections: s.sections, group_by: s.group_by };
+  return { repo, since, sections: s.sections };
 }

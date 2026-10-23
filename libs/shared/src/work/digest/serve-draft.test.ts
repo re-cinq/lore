@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "../../outbound/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryDigestPosts } from "../../outbound/project/digest-posts/digest-posts-memory.js";
 import { encodeDigestRepos } from "./codec.js";
-import { APPENDIX_MARKER, INTRO_MARKER, ASIDE_MARKER } from "./render.js";
+import { APPENDIX_MARKER, INTRO_MARKER } from "./render.js";
+import { openIssue } from "./fixtures.js";
 import { digestDraftOf, type RepoCollector } from "./serve-draft.js";
 
 const runs = () => new InMemoryAssemblyRuns();
@@ -14,7 +15,7 @@ const digestArgs = (repos: string[]) => ({
     repos.map((repo) => ({
       repo,
       since: "2026-09-24T07:00:00Z",
-      sections: ["implemented", "roadmap", "summary", "morale"],
+      sections: ["implemented", "roadmap", "summary"],
       group_by: "person",
     })),
   ),
@@ -35,6 +36,7 @@ const collectOne: RepoCollector = async (entry) => ({
   ],
   closed: [],
   open: [],
+  openPrs: [],
 });
 
 function deps(
@@ -90,7 +92,7 @@ describe("digestDraftOf", () => {
     );
   });
 
-  it("renders a failed repo read as its own section", async () => {
+  it("renders a failed repo read as its own line", async () => {
     const assemblyRuns = runs();
     const id = await assemblyRuns.start({
       blueprintName: "daily-digest",
@@ -144,7 +146,7 @@ describe("digestDraftOf", () => {
     expect(draft).toContain("*alice*");
   });
 
-  it("puts an aside marker after each section and names the voice when the run has one", async () => {
+  it("names the voice in the appendix when the run has one", async () => {
     const assemblyRuns = runs();
     const id = await assemblyRuns.start({
       blueprintName: "daily-digest",
@@ -155,26 +157,53 @@ describe("digestDraftOf", () => {
       },
     });
 
-    const draft =
-      (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
-
-    expect({
-      asides: draft.split("\n").filter((line) => line === ASIDE_MARKER).length,
-      voice: draft.includes("Voice: Michael Scott from The Office"),
-    }).toEqual({ asides: 2, voice: true });
+    expect(await digestDraftOf(id, deps(assemblyRuns, collectOne))).toContain(
+      "Voice: Michael Scott from The Office",
+    );
   });
 
-  it("puts no aside marker in a run without a voice", async () => {
+  it("writes alice once with the PRs she merged in both repos", async () => {
     const assemblyRuns = runs();
     const id = await assemblyRuns.start({
       blueprintName: "daily-digest",
       repo: "re-cinq/lore",
-      args: digestArgs(["re-cinq/lore"]),
+      args: digestArgs(["re-cinq/lore", "re-cinq/otto"]),
+    });
+
+    const draft =
+      (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
+
+    expect(
+      draft.split("\n").filter((line) => line.startsWith("*alice*")),
+    ).toEqual([
+      "*alice* — did: <https://gh/re-cinq/lore/pr/1|Merged in re-cinq/lore> (#1), <https://gh/re-cinq/otto/pr/1|Merged in re-cinq/otto> (#1)",
+    ]);
+  });
+
+  it("leaves out the next list of a repo that did not enable the roadmap", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: {
+        ...digestArgs([]),
+        digest_repos: encodeDigestRepos([
+          {
+            repo: "re-cinq/lore",
+            since: "2026-09-24T07:00:00Z",
+            sections: ["implemented"],
+          },
+        ]),
+      },
+    });
+    const withOpenWork: RepoCollector = async (entry) => ({
+      ...(await collectOne(entry)),
+      open: [openIssue({ assignees: ["alice"] })],
     });
 
     expect(
-      await digestDraftOf(id, deps(assemblyRuns, collectOne)),
-    ).not.toContain(ASIDE_MARKER);
+      await digestDraftOf(id, deps(assemblyRuns, withOpenWork)),
+    ).not.toContain("next:");
   });
 
   it("returns null for a run that is not a digest run", async () => {
@@ -188,7 +217,7 @@ describe("digestDraftOf", () => {
     expect(await digestDraftOf(id, deps(assemblyRuns, collectOne))).toBe(null);
   });
 
-  it("puts the intro marker and the appendix around the sections", async () => {
+  it("puts the intro marker and the appendix around the people lines", async () => {
     const assemblyRuns = runs();
     const id = await assemblyRuns.start({
       blueprintName: "daily-digest",
@@ -199,10 +228,8 @@ describe("digestDraftOf", () => {
     const draft =
       (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
 
-    expect(draft.indexOf(INTRO_MARKER)).toBeLessThan(
-      draft.indexOf("*re-cinq/lore*"),
-    );
-    expect(draft.indexOf("*re-cinq/lore*")).toBeLessThan(
+    expect(draft.indexOf(INTRO_MARKER)).toBeLessThan(draft.indexOf("*alice*"));
+    expect(draft.indexOf("*alice*")).toBeLessThan(
       draft.indexOf(APPENDIX_MARKER),
     );
   });

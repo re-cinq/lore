@@ -3916,9 +3916,7 @@ export interface components {
               time?: string;
               days?: number[];
               timezone?: string;
-              sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
-              /** @enum {string} */
-              group_by?: "person" | "area";
+              sections?: ("implemented" | "roadmap" | "summary")[];
               voice?: string;
             } | null;
             dispatch_label?: string;
@@ -4036,9 +4034,7 @@ export interface components {
                 time?: string;
                 days?: number[];
                 timezone?: string;
-                sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
-                /** @enum {string} */
-                group_by?: "person" | "area";
+                sections?: ("implemented" | "roadmap" | "summary")[];
                 voice?: string;
               } | null;
               dispatch_label?: string;

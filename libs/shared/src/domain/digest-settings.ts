@@ -1,7 +1,6 @@
 /** DEPENDENCY-FREE: the web-ui reaches these shapes only through the generated OpenAPI types, and models/digest-settings.ts asserts at compile time that its schema infers exactly these. */
 
-export type DigestSection = "implemented" | "roadmap" | "summary" | "morale";
-export type DigestGroupBy = "person" | "area";
+export type DigestSection = "implemented" | "roadmap" | "summary";
 
 /** The `digest` block of `lore.repos.settings`; JSONB storage, so keys stay snake_case. */
 export interface DigestSettings {
@@ -13,8 +12,7 @@ export interface DigestSettings {
   /** IANA timezone the time and days are read in. */
   timezone?: string;
   sections?: DigestSection[];
-  group_by?: DigestGroupBy;
-  /** Who the agent writes the intro, ending and section asides as (e.g. "Michael Scott from The Office"); empty = a plain friendly tone and no asides. */
+  /** Who the agent writes the intro as (e.g. "Michael Scott from The Office"); empty = a plain friendly tone. */
   voice?: string;
 }
 
@@ -24,7 +22,6 @@ export interface ResolvedDigestSettings {
   days: number[];
   timezone: string;
   sections: DigestSection[];
-  group_by: DigestGroupBy;
   voice: string;
 }
 
@@ -33,8 +30,7 @@ export const DIGEST_DEFAULTS: ResolvedDigestSettings = {
   time: "09:00",
   days: [1, 2, 3, 4, 5],
   timezone: "Europe/Berlin",
-  sections: ["implemented", "roadmap", "summary", "morale"],
-  group_by: "person",
+  sections: ["implemented", "roadmap", "summary"],
   voice: "",
 };
 

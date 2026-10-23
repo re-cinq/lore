@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { enforceTrue } from "../../lib/enforce.js";
-import {
-  DigestGroupBySchema,
-  DigestSectionSchema,
-} from "../../domain/models/digest-settings.js";
+import { DigestSectionSchema } from "../../domain/models/digest-settings.js";
 
 /** The one module that wraps and unwraps `args.digest_repos`, the line-args string carrying which repos a channel's digest run covers and since when (specs/daily-digest FR10). */
 
@@ -12,7 +9,6 @@ export const DigestRepoSchema = z.object({
   /** ISO timestamp the implemented window starts at. */
   since: z.string().min(1),
   sections: z.array(DigestSectionSchema),
-  group_by: DigestGroupBySchema,
 });
 
 export type DigestRepo = z.infer<typeof DigestRepoSchema>;

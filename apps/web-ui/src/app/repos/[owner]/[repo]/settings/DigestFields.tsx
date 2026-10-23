@@ -41,7 +41,7 @@ function DigestBody({ digest, slackChannelSet }: DigestFieldsProps) {
         days={current.days}
         timezone={current.timezone}
       />
-      <ContentFields sections={current.sections} groupBy={current.group_by} />
+      <SectionBoxes chosen={current.sections} />
       <VoiceField voice={current.voice} />
     </>
   );
@@ -128,30 +128,6 @@ function TimezoneSelect({ timezone }: { timezone: string }) {
   );
 }
 
-interface ContentFieldsProps {
-  sections: DigestBlock["sections"];
-  groupBy: DigestBlock["group_by"];
-}
-
-function ContentFields({ sections, groupBy }: ContentFieldsProps) {
-  return (
-    <>
-      <SectionBoxes chosen={sections ?? []} />
-      <div className={styles.field}>
-        <label htmlFor="digest_group_by">Group by</label>
-        <select
-          id="digest_group_by"
-          name="digest_group_by"
-          defaultValue={groupBy}
-        >
-          <option value="person">Person (author or assignee)</option>
-          <option value="area">Area (area:* labels)</option>
-        </select>
-      </div>
-    </>
-  );
-}
-
 function SectionBoxes({ chosen }: { chosen: string[] }) {
   return (
     <fieldset className={styles.choices}>
@@ -171,7 +147,7 @@ function SectionBoxes({ chosen }: { chosen: string[] }) {
   );
 }
 
-/** Who the agent writes the intro, the ending and a one-line aside after each section as; empty keeps a plain tone and no asides (FR13). */
+/** Who the agent writes the opening line as; empty keeps a plain tone (FR13). */
 function VoiceField({ voice }: { voice: DigestBlock["voice"] }) {
   return (
     <div className={styles.field}>

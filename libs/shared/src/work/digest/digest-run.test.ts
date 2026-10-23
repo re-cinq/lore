@@ -7,7 +7,6 @@ const REPOS = encodeDigestRepos([
     repo: "re-cinq/lore",
     since: "2026-10-01T07:00:00.000Z",
     sections: ["implemented", "roadmap"],
-    group_by: "person",
   },
 ]);
 

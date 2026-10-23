@@ -6,13 +6,17 @@ export type DigestBlock = NonNullable<
   NonNullable<components["schemas"]["Repo"]["settings"]>["digest"]
 >;
 export type DigestSection = NonNullable<DigestBlock["sections"]>[number];
-export type DigestGroupBy = NonNullable<DigestBlock["group_by"]>;
 
 export const DIGEST_SECTIONS: Array<{ value: DigestSection; label: string }> = [
-  { value: "implemented", label: "Implemented (merged PRs, closed issues)" },
-  { value: "roadmap", label: "Roadmap (open issues per assignee)" },
-  { value: "summary", label: "Intro paragraph (written by the agent)" },
-  { value: "morale", label: "Closing line (written by the agent)" },
+  {
+    value: "implemented",
+    label: "What each person did (merged PRs, closed issues)",
+  },
+  {
+    value: "roadmap",
+    label: "What each person does next (open PRs, assigned issues)",
+  },
+  { value: "summary", label: "Opening line (written by the agent)" },
 ];
 
 /** JS weekday numbers, Monday first as people read a week. */
@@ -33,7 +37,6 @@ export const DIGEST_DEFAULTS: Required<DigestBlock> = {
   days: WEEKDAYS.map((day) => day.value).filter((day) => day >= 1 && day <= 5),
   timezone: "Europe/Berlin",
   sections: DIGEST_SECTIONS.map((section) => section.value),
-  group_by: "person",
   voice: "",
 };
 
@@ -46,7 +49,6 @@ export function parseDigestBlock(formData: FormData): Required<DigestBlock> {
     days: weekdaysOf(formData.getAll("digest_days")),
     timezone: textOf(formData, "digest_timezone") || DIGEST_DEFAULTS.timezone,
     sections: sectionsOf(formData.getAll("digest_sections")),
-    group_by: formData.get("digest_group_by") === "area" ? "area" : "person",
     voice: textOf(formData, "digest_voice").slice(0, 200),
   };
 }

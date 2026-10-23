@@ -1,22 +1,26 @@
-// The refine pod's input file, built when the pod asks for it (specs/daily-digest FR9): GitHub is read for every repo of the channel, the sections are rendered around the intro/ending markers, and the draft is kept on the run so a retrying init downloads the same one and the run page shows what the agent read.
+// The refine pod's input file, built when the pod asks for it (specs/daily-digest FR9): GitHub is read for every repo of the channel, one line per person is rendered under the intro marker, and the draft is kept on the run so a retrying init downloads the same one and the run page shows what the agent read.
 
 import type { AssemblyRunRecord } from "../../outbound/project/assembly-runs/assembly-runs-port.js";
 import type { DigestTexts } from "../../outbound/project/digest-posts/digest-posts-port.js";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import type { PullRef } from "../../outbound/project/pulls/pull-requests-port.js";
-import { resolveDigestSettings } from "../../domain/digest-settings.js";
 import type { DigestRepo } from "./codec.js";
-import { dedupeImplemented } from "./dedupe.js";
-import { groupImplemented, groupRoadmap } from "./group.js";
-import { renderDigestDraft, renderRepoSection } from "./render.js";
+import { dedupeChanges } from "./dedupe.js";
+import { groupPeople, type RepoWork } from "./group.js";
+import {
+  renderDigestDraft,
+  renderPeople,
+  renderRepoFailure,
+} from "./render.js";
 import { RECENT_TEXTS_LIMIT } from "./contract.js";
 import { digestRunOf, type DigestRun } from "./digest-run.js";
 
-/** What one repo's GitHub reads answer for its window. */
+/** What one repo's GitHub reads answer: merged and closed in its window, and everything open. */
 export interface RepoChanges {
   merged: PullRef[];
   closed: IssueRef[];
   open: IssueRef[];
+  openPrs: PullRef[];
 }
 
 export type RepoCollector = (entry: DigestRepo) => Promise<RepoChanges>;
@@ -26,11 +30,11 @@ export interface DraftDeps {
   mergeArgs(runId: string, patch: Record<string, unknown>): Promise<void>;
   recentTexts(channelId: string, limit: number): Promise<DigestTexts[]>;
   collect: RepoCollector;
-  /** Slack display names of the GitHub logins a repo's section groups by (FR12); a login left out keeps its GitHub name. */
+  /** Slack display names of a repo's GitHub logins (FR12); a login left out keeps its GitHub name. */
   namesFor(repo: string, logins: string[]): Promise<Record<string, string>>;
 }
 
-type SectionDeps = Pick<DraftDeps, "collect" | "namesFor">;
+type RepoDeps = Pick<DraftDeps, "collect" | "namesFor">;
 
 /** The draft for a run: the stored one when the pod already asked once, else collected now and stored; null for a run that is not a digest run. */
 export async function digestDraftOf(
@@ -59,83 +63,65 @@ export async function collectDraft(
   digest: DigestRun,
   deps: Pick<DraftDeps, "recentTexts" | "collect" | "namesFor">,
 ): Promise<string> {
-  const [sections, recent] = await Promise.all([
-    sectionsOf(digest, deps),
+  const [reads, recent] = await Promise.all([
+    Promise.all(digest.repos.map((entry) => readRepo(entry, deps))),
     deps.recentTexts(digest.channel, RECENT_TEXTS_LIMIT),
   ]);
 
   return renderDigestDraft({
     header: { weekKey: digest.weekKey, date: digest.date },
-    sections,
+    lines: linesOf(reads),
     wantsIntro: digest.repos.some((r) => r.sections.includes("summary")),
-    wantsEnding: digest.repos.some((r) => r.sections.includes("morale")),
-    recent,
+    recentIntros: recent.map((texts) => texts.intro).filter(Boolean),
     voice: digest.voice,
   });
 }
 
-/** Every repo's section; a voice gets an aside after each (FR13). */
-function sectionsOf(digest: DigestRun, deps: SectionDeps): Promise<string[]> {
-  const asides = digest.voice !== "";
+/** One line per person across every repo read, then one per repo that could not be read. */
+function linesOf(reads: RepoRead[]): string[] {
+  const people = groupPeople(reads.flatMap((read) => read.work ?? []));
+  const names = Object.assign({}, ...reads.map((read) => read.names));
 
-  return Promise.all(
-    digest.repos.map((entry) => repoSection({ entry, asides }, deps)),
-  );
+  return [
+    ...renderPeople(people, names),
+    ...reads.flatMap((read) => read.failure ?? []),
+  ];
 }
 
-export interface SectionRequest {
-  entry: DigestRepo;
-  asides: boolean;
+interface RepoRead {
+  work?: RepoWork;
+  names: Record<string, string>;
+  /** The line saying the repo could not be read, so one broken repo never hides the others (FR6). */
+  failure?: string;
 }
 
-/** One repo's section; a repo whose read fails renders as a section saying so, so one broken repo never hides the others (FR6). */
-export async function repoSection(
-  { entry, asides }: SectionRequest,
-  deps: SectionDeps,
-): Promise<string> {
-  const base = { repo: entry.repo, settings: sectionSettings(entry) };
-
+/** A failed name lookup leaves the repo's people under their GitHub logins rather than failing the read. */
+async function readRepo(entry: DigestRepo, deps: RepoDeps): Promise<RepoRead> {
   try {
-    const lists = groupedLists(await deps.collect(entry), entry);
-    const names = await peopleNames(entry, lists, deps);
+    const work = workOf(await deps.collect(entry), entry);
+    const logins = groupPeople([work]).map((person) => person.login);
+    const names = await deps.namesFor(entry.repo, logins).catch(() => ({}));
 
-    return renderRepoSection({ ...base, names, asides, ...lists });
+    return { work, names };
   } catch (err) {
-    return renderRepoSection({ ...base, error: (err as Error).message });
+    return {
+      names: {},
+      failure: renderRepoFailure(entry.repo, (err as Error).message),
+    };
   }
 }
 
-function sectionSettings(entry: DigestRepo) {
-  return resolveDigestSettings({
-    sections: entry.sections,
-    group_by: entry.group_by,
-  });
-}
+/** A list the repo did not enable is empty. */
+function workOf(
+  { merged, closed, open, openPrs }: RepoChanges,
+  { sections }: DigestRepo,
+): RepoWork {
+  const none = { prs: [], issues: [] };
 
-/** The two lists of one repo, deduped and grouped the way the repo asked. */
-function groupedLists(
-  { merged, closed, open }: RepoChanges,
-  entry: DigestRepo,
-) {
   return {
-    implemented: groupImplemented(
-      dedupeImplemented(merged, closed),
-      entry.group_by,
-    ),
-    roadmap: groupRoadmap(open, entry.group_by),
+    did: sections.includes("implemented")
+      ? dedupeChanges(merged, closed)
+      : none,
+    next: sections.includes("roadmap") ? dedupeChanges(openPrs, open) : none,
   };
-}
-
-/** Only a person-grouped section has people to name; a failed lookup leaves every group under its GitHub login rather than failing the section. */
-async function peopleNames(
-  entry: DigestRepo,
-  lists: ReturnType<typeof groupedLists>,
-  deps: SectionDeps,
-): Promise<Record<string, string>> {
-  if (entry.group_by !== "person") {
-    return {};
-  }
-  const logins = [...lists.implemented, ...lists.roadmap].map((g) => g.key);
-
-  return deps.namesFor(entry.repo, logins).catch(() => ({}));
 }
