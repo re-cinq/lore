@@ -1380,8 +1380,7 @@ export interface paths {
     };
     /** GET /api/repos/{owner}/{repo}/implementation-loop */
     get: operations["get_api_repos_owner_repo_implementation-loop"];
-    /** PUT /api/repos/{owner}/{repo}/implementation-loop */
-    put: operations["put_api_repos_owner_repo_implementation-loop"];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -1503,6 +1502,40 @@ export interface paths {
     /** GET /api/repos/{owner}/{repo}/labels */
     get: operations["get_api_repos_owner_repo_labels"];
     put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/loops": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/loops */
+    get: operations["get_api_repos_owner_repo_loops"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/loops/{key}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/repos/{owner}/{repo}/loops/{key} */
+    put: operations["put_api_repos_owner_repo_loops_key"];
     post?: never;
     delete?: never;
     options?: never;
@@ -3220,11 +3253,6 @@ export interface components {
           | null;
       }[];
     };
-    ImplementationLoopToggle: {
-      /** @constant */
-      ok: true;
-      enabled: boolean;
-    };
     IncidentRecorded: {
       /** @constant */
       ok: true;
@@ -3525,6 +3553,13 @@ export interface components {
             | "unknown_channel"
             | "rate_limited";
         };
+    LoopSwitch: {
+      /** @constant */
+      ok: true;
+      /** @enum {string} */
+      key: "implementation" | "triage";
+      enabled: boolean;
+    };
     MemoryAuditPage: {
       entries: {
         id: string;
@@ -3902,6 +3937,11 @@ export interface components {
             } & {
               [key: string]: unknown;
             };
+            issue_triage?: {
+              enabled?: boolean;
+            } & {
+              [key: string]: unknown;
+            };
             auto_merge?: {
               /** @enum {string} */
               approver?: "none" | "lore-reviewer";
@@ -4020,6 +4060,11 @@ export interface components {
               } & {
                 [key: string]: unknown;
               };
+              issue_triage?: {
+                enabled?: boolean;
+              } & {
+                [key: string]: unknown;
+              };
               auto_merge?: {
                 /** @enum {string} */
                 approver?: "none" | "lore-reviewer";
@@ -4064,6 +4109,15 @@ export interface components {
       total: number;
       limit: number;
       offset: number;
+    };
+    RepoLoops: {
+      loops: {
+        /** @enum {string} */
+        key: "implementation" | "triage";
+        label: string;
+        description: string;
+        enabled: boolean;
+      }[];
     };
     RepoOnboarded: {
       onboarded: boolean;
@@ -7488,41 +7542,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "put_api_repos_owner_repo_implementation-loop": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          enabled: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description Enable or disable the repo's backlog loop. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ImplementationLoopToggle"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   post_api_repos_owner_repo_ingest: {
     parameters: {
       query?: never;
@@ -7827,6 +7846,71 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_loops: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every loop the repository can switch, in display order, with its name and whether it is on. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoLoops"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  put_api_repos_owner_repo_loops_key: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Switch one of the repository's loops on or off. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoopSwitch"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

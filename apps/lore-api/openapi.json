@@ -5006,83 +5006,6 @@
             }
           }
         ]
-      },
-      "put": {
-        "operationId": "put_api_repos_owner_repo_implementation-loop",
-        "summary": "PUT /api/repos/{owner}/{repo}/implementation-loop",
-        "tags": ["Repositories"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Enable or disable the repo's backlog loop.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImplementationLoopToggle"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "admin",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "enabled": {
-                    "type": "boolean"
-                  }
-                },
-                "required": ["enabled"],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
       }
     },
     "/api/repos/{owner}/{repo}/ingest": {
@@ -5816,6 +5739,155 @@
             }
           }
         ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/loops": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_loops",
+        "summary": "GET /api/repos/{owner}/{repo}/loops",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every loop the repository can switch, in display order, with its name and whether it is on.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoLoops"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/loops/{key}": {
+      "put": {
+        "operationId": "put_api_repos_owner_repo_loops_key",
+        "summary": "PUT /api/repos/{owner}/{repo}/loops/{key}",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Switch one of the repository's loops on or off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopSwitch"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["enabled"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/repos/{owner}/{repo}/onboarded": {
@@ -12225,20 +12297,6 @@
         ],
         "additionalProperties": false
       },
-      "ImplementationLoopToggle": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "const": true
-          },
-          "enabled": {
-            "type": "boolean"
-          }
-        },
-        "required": ["ok", "enabled"],
-        "additionalProperties": false
-      },
       "IncidentRecorded": {
         "type": "object",
         "properties": {
@@ -13271,6 +13329,24 @@
             "additionalProperties": false
           }
         ]
+      },
+      "LoopSwitch": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "key": {
+            "type": "string",
+            "enum": ["implementation", "triage"]
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok", "key", "enabled"],
+        "additionalProperties": false
       },
       "MemoryAuditPage": {
         "type": "object",
@@ -14563,6 +14639,15 @@
                     },
                     "additionalProperties": {}
                   },
+                  "issue_triage": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
                   "auto_merge": {
                     "type": "object",
                     "properties": {
@@ -14965,6 +15050,15 @@
                           },
                           "additionalProperties": {}
                         },
+                        "issue_triage": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": {}
+                        },
                         "auto_merge": {
                           "type": "object",
                           "properties": {
@@ -15131,6 +15225,36 @@
           }
         },
         "required": ["repos", "total", "limit", "offset"],
+        "additionalProperties": false
+      },
+      "RepoLoops": {
+        "type": "object",
+        "properties": {
+          "loops": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": ["implementation", "triage"]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["key", "label", "description", "enabled"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["loops"],
         "additionalProperties": false
       },
       "RepoOnboarded": {

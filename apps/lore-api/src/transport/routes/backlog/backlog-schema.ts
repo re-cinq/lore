@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import { TICKET_HOLD_KINDS } from "@re-cinq/lore-shared/backlog/ticket-hold.js";
-import { OkTrue } from "../../http/ok-schema.js";
 import { PipelineNodeSchema } from "../../../work/assembly-line-station/mini-pipeline.js";
 
 /** Why the loop is not working a ticket and what its reader does about it, worded once by the shared `ticketHold`. */
@@ -62,13 +61,6 @@ export const ImplementationLoopSchema = z.object({
   recent: z.array(TicketSchema),
   /** Settled tickets whose loop branch still has an open pull request, uncapped so a human-awaited merge never silently falls off the page. */
   awaiting_merge: z.array(TicketSchema),
-});
-
-export const ToggleBodySchema = z.object({ enabled: z.boolean() });
-
-export const ToggleResultSchema = z.object({
-  ok: OkTrue,
-  enabled: z.boolean(),
 });
 
 export type Ticket = z.infer<typeof TicketSchema>;

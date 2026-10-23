@@ -5,28 +5,18 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import {
-  heldBacklog,
-  orderBacklog,
-  BACKLOG_LABEL_SEED,
-} from "@re-cinq/lore-shared";
+import { heldBacklog, orderBacklog } from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import {
   floorClient,
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { openFloorLoopRun } from "@re-cinq/lore-shared/backlog/floor-loop.js";
-import { projectFor } from "../../../outbound/project-boot.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { zodValidate } from "../../http/zod-validate.js";
 import {
   ImplementationLoopSchema,
-  ToggleBodySchema,
-  ToggleResultSchema,
   type Onboarding,
   type Ticket,
 } from "./backlog-schema.js";
@@ -48,7 +38,7 @@ import { readIssues, type BacklogIssues } from "./backlog-issues.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
-// The backlog loop's repo surface (FR10): GET returns toggle/current/queue/recent, PUT flips the toggle. Deliberately not behind the two-key ceremony — the loop never merges, so no CODEOWNER ceremony (FR7).
+// The backlog loop's repo surface (FR10): GET returns the switch state, current, queue and recent tickets. The switch itself is flipped at PUT /api/repos/{owner}/{repo}/loops/implementation (routes/loops).
 
 const PATH = "/api/repos/{owner}/{repo}/implementation-loop";
 
@@ -60,7 +50,7 @@ const RECENT_LIMIT = 10;
 export function implementationLoopRoutes(
   getPool: () => Pool | null,
 ): ServerRoute[] {
-  return [readBacklogRoute(getPool), writeBacklogRoute(getPool)];
+  return [readBacklogRoute(getPool)];
 }
 
 function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
@@ -73,25 +63,6 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
         "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
     }),
     handler: withPool(getPool, serveReadBacklog),
-  };
-}
-
-function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "PUT",
-    path: PATH,
-    options: zodResponse(
-      {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(ToggleBodySchema) },
-      },
-      ToggleResultSchema,
-      {
-        name: "ImplementationLoopToggle",
-        description: "Enable or disable the repo's backlog loop.",
-      },
-    ),
-    handler: withPool(getPool, serveToggleBacklog),
   };
 }
 
@@ -281,55 +252,4 @@ function settledTaskRows(
   currentIds: ReadonlySet<string>,
 ): LoopTaskRow[] {
   return state.taskRows.filter((t) => !currentIds.has(t.id));
-}
-
-async function serveToggleBacklog(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const repo = repoOf(request.params);
-  const { enabled } = request.payload as { enabled: boolean };
-
-  await setLoopEnabled(pool, repo, { enabled });
-
-  if (enabled) {
-    await seedBacklogLabels(repo);
-  }
-
-  return h.response({ ok: true as const, enabled }).code(200);
-}
-
-/** Flips the loop's `enabled` flag. The UPDATE merges rather than replaces at BOTH levels — the repo's other settings and the loop's own other keys must survive a toggle. */
-async function setLoopEnabled(
-  pool: Pool,
-  repo: string,
-  { enabled }: { enabled: boolean },
-): Promise<void> {
-  const { rows } = await pool.query<{ full_name: string }>(
-    "SELECT full_name FROM lore.repos WHERE full_name = $1",
-    [repo],
-  );
-
-  enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
-  await pool.query(
-    `UPDATE lore.repos
-            SET settings = COALESCE(settings, '{}'::jsonb)
-              || jsonb_build_object('implementation_loop',
-                   COALESCE(settings->'implementation_loop', '{}'::jsonb)
-                     || jsonb_build_object('enabled', $2::boolean))
-          WHERE full_name = $1`,
-    [repo, enabled],
-  );
-}
-
-/** Seeds the loop's label taxonomy (FR1/FR7) for repos onboarded before the feature existed. Create-or-ignore, and swallowed: the settings write has already committed, so a code-host hiccup must not report the toggle as failed. */
-async function seedBacklogLabels(repo: string): Promise<void> {
-  try {
-    await (await projectFor(repo)).issues.createLabels(BACKLOG_LABEL_SEED);
-  } catch (err) {
-    console.warn(
-      `[implementation-loop] label seeding for ${repo} failed: ${String(err)}`,
-    );
-  }
 }
