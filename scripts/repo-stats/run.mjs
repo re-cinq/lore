@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { loreApi } from "../context-evals/lore-api.mjs";
 import { blockedSpans, collectRepo } from "./collect.mjs";
+import { patientApi } from "./patient-api.mjs";
 import { renderReport } from "./report.mjs";
 import {
   blockers,
@@ -36,15 +37,16 @@ const loreEnv = (env) => ({
 });
 
 export async function buildReport({ env, repos, weekCount, withDb, now }) {
-  const api = loreApi({ env });
+  const api = patientApi(loreApi({ env }));
   const weeks = windowWeeks(now, weekCount);
   const since = weeks[0].from;
-  const [collected, spans] = await Promise.all([
-    Promise.all(
-      repos.map((repo) => collectRepo({ api, repo, since, weekCount })),
-    ),
-    withDb ? blockedSpans(repos, since) : [],
-  ]);
+  const spans = withDb ? await blockedSpans(repos, since) : [];
+  const collected = [];
+
+  // One repository at a time: a floor page takes seconds, and three repositories paging at once time lore-api out.
+  for (const repo of repos) {
+    collected.push(await collectRepo({ api, repo, since, weekCount }));
+  }
   const raws = collected.map((raw) => ({
     ...raw,
     blocked: spans.filter((span) => span.repo === raw.repo.toLowerCase()),

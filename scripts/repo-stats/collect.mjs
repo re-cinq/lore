@@ -6,6 +6,29 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const BIG_OUTPUT = { maxBuffer: 256 * 1024 * 1024 };
 const PAGE = 100;
+// Lore's own engine pages no further than its newest 100 runs, so they are read a line at a time: these are the lines it ran before the floor took over (git history of libs/assembly-lines), and any it ran that is not here is still found in its newest page.
+const OLD_ENGINE_LINES = [
+  "code-review",
+  "code-review-recheck",
+  "code-review-reply",
+  "comment-triage",
+  "daily-digest",
+  "escalation",
+  "feature-decompose",
+  "feature-finalize",
+  "feature-planning",
+  "gap-detect",
+  "gap-fill",
+  "general",
+  "implementation",
+  "implementation-loop",
+  "ingest",
+  "merge",
+  "onboard",
+  "spec-coverage-backfill",
+  "spec-coverage-validate",
+  "spec-drift",
+];
 const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
 const DB_CONTEXT =
   process.env.LORE_DB_CONTEXT ??
@@ -83,7 +106,7 @@ async function commits(repo, since) {
       "--paginate",
       `repos/${repo}/commits?since=${since}T00:00:00Z&per_page=${PAGE}`,
       "--jq",
-      ".[] | {date: .commit.committer.date, author: .author.login, message: .commit.message}",
+      ".[] | {date: .commit.committer.date, author: .author.login, name: .commit.author.name, message: .commit.message, parents: (.parents | length)}",
     ],
     BIG_OUTPUT,
   );
@@ -95,34 +118,56 @@ async function commits(repo, since) {
     .map((line) => JSON.parse(line));
 }
 
-/** The floor's runs newest first, paged back until a page reaches before the window, then the runs Lore's own engine walked before the floor took over. */
-async function runs(api, repo, since) {
-  const repoQuery = `repo=${encodeURIComponent(repo)}&limit=${PAGE}`;
-  const inWindow = (row) => row.created_at >= since;
-  const floor = [];
+const inWindowOf = (since) => (row) => row.created_at >= since;
+
+/** The floor's runs newest first, paged back until a page reaches before the window. */
+async function floorRuns(api, repo, since) {
+  const inWindow = inWindowOf(since);
+  const found = [];
   let cursor = null;
 
   do {
     const page = await api.get(
-      `/api/floor-runs?${repoQuery}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      `/api/floor-runs?repo=${encodeURIComponent(repo)}&limit=${PAGE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
     );
 
-    floor.push(...page.runs);
+    found.push(...page.runs);
     cursor = page.runs.every(inWindow) ? page.next_cursor : null;
   } while (cursor);
 
-  const { runs: walked } = await api.get(
-    `/api/assembly-runs?${repoQuery}&engine=lore`,
-  );
+  return found.filter(inWindow);
+}
 
-  if (walked.length === PAGE && walked.every(inWindow)) {
-    console.error(
-      `[lore] ${repo}: the newest ${PAGE} old-engine runs all fall in the window; older ones are missing`,
+/** The runs Lore's own engine walked before the floor took over, a line at a time; a line whose newest 100 all fall in the window is reported, since its older runs are out of reach. */
+async function oldEngineRuns(api, repo, since) {
+  const inWindow = inWindowOf(since);
+  const ofLine = (line) =>
+    api.get(
+      `/api/assembly-runs?repo=${encodeURIComponent(repo)}&engine=lore&limit=${PAGE}${line ? `&blueprint=${line}` : ""}`,
     );
+  const { runs: newest } = await ofLine(null);
+  const lines = [
+    ...new Set([
+      ...OLD_ENGINE_LINES,
+      ...newest.map((run) => run.blueprint_name),
+    ]),
+  ];
+  const pages = await Promise.all(lines.map(ofLine));
+
+  for (const [index, { runs }] of pages.entries()) {
+    if (runs.length === PAGE && runs.every(inWindow)) {
+      console.error(
+        `[lore] ${repo}: the newest ${PAGE} old-engine ${lines[index]} runs all fall in the window; older ones are missing`,
+      );
+    }
   }
 
-  return [...floor, ...walked].filter(inWindow);
+  return pages.flatMap(({ runs }) => runs).filter(inWindow);
 }
+
+/** The name GitHub gives the repository, the case Lore stored it in: Lore's own engine finds `re-cinq/Otto` and not `re-cinq/otto`. */
+const canonicalName = async (repo) =>
+  (await gh(["api", `repos/${enforceRepoName(repo)}`])).full_name;
 
 async function changelog(api, repo, weekCount) {
   const { weeks } = await api.get(
@@ -177,22 +222,23 @@ export async function blockedSpans(repos, since) {
 }
 
 export async function collectRepo({ api, repo, since, weekCount }) {
-  enforceRepoName(repo);
-  const [pullRows, commitRows, runRows, changelogRows] = await Promise.all([
-    pulls(repo, since),
-    commits(repo, since),
-    runs(api, repo, since),
-    changelog(api, repo, weekCount),
-  ]);
+  const name = await canonicalName(repo);
+  const [pullRows, commitRows, floorRows, oldEngineRows, changelogRows] =
+    await Promise.all([
+      pulls(name, since),
+      commits(name, since),
+      floorRuns(api, name, since),
+      oldEngineRuns(api, name, since),
+      changelog(api, name, weekCount),
+    ]);
+  const runRows = [...floorRows, ...oldEngineRows];
 
   if (runRows.length === 0) {
-    console.error(
-      `[lore] ${repo}: no runs found; Lore may know it by another case of its name`,
-    );
+    console.error(`[lore] ${repo}: no Lore runs found in the window`);
   }
 
   return {
-    repo,
+    repo: name,
     pulls: pullRows,
     commits: commitRows,
     runs: runRows,

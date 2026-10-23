@@ -192,6 +192,27 @@ test("weeklyStats counts a commit with a Lore-Task trailer as Lore's", () => {
   assert.deepEqual(week.commits, { lore: 2, human: 2, loreShare: 0.5 });
 });
 
+test("weeklyStats counts a Floor Agent commit as Lore's and leaves merge and bot commits out", () => {
+  const commit = (over) => ({
+    date: "2026-10-20T09:00:00Z",
+    author: null,
+    name: "Floor Agent",
+    message: "Add",
+    parents: 1,
+    ...over,
+  });
+  const week = thisWeek({
+    commits: [
+      commit({}),
+      commit({ author: "gedaiu", name: "Szabo Bogdan", parents: 2 }),
+      commit({ author: "dependabot[bot]", name: "dependabot[bot]" }),
+      commit({ author: "saadahmed95", name: "Saad" }),
+    ],
+  });
+
+  assert.deepEqual(week.commits, { lore: 1, human: 1, loreShare: 0.5 });
+});
+
 test("weeklyStats splits the hours a PR was blocked across the week boundary", () => {
   const weeks = weeklyStats(
     raw({

@@ -4,6 +4,8 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const LORE_LOGIN = /^lore-agent/;
 const LORE_TRAILER = /^Lore-Task:/m;
+const FLOOR_AGENT = "Floor Agent";
+const BOT_LOGIN = /\[bot\]$/;
 const FAILED_OUTCOMES = new Set(["error", "failed", "cancelled"]);
 // A request for changes and a comment both carry findings; an approval asks for nothing.
 const FINDING_STATES = new Set(["CHANGES_REQUESTED", "COMMENTED"]);
@@ -76,8 +78,15 @@ export function median(values) {
 }
 
 const kindOf = (pull) => authorKind(pull.author, pull.isBot);
+// The floor's agents commit as "Floor Agent", an author GitHub links to no account.
 const isLoreCommit = (commit) =>
-  LORE_LOGIN.test(commit.author ?? "") || LORE_TRAILER.test(commit.message);
+  LORE_LOGIN.test(commit.author ?? "") ||
+  commit.name === FLOOR_AGENT ||
+  LORE_TRAILER.test(commit.message);
+// A merge commit records who pressed the button, not who wrote the change.
+const isWorkCommit = (commit) =>
+  (commit.parents ?? 1) === 1 &&
+  (isLoreCommit(commit) || !BOT_LOGIN.test(commit.author ?? ""));
 const isFailedRun = (run) =>
   run.status === "failed" || FAILED_OUTCOMES.has(run.outcome);
 const loreReviews = (pull) =>
@@ -168,12 +177,13 @@ function runStats(runs) {
 }
 
 function commitStats(commits) {
-  const lore = commits.filter(isLoreCommit).length;
+  const work = commits.filter(isWorkCommit);
+  const lore = work.filter(isLoreCommit).length;
 
   return {
     lore,
-    human: commits.length - lore,
-    loreShare: share(lore, commits.length),
+    human: work.length - lore,
+    loreShare: share(lore, work.length),
   };
 }
 
