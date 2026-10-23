@@ -6,6 +6,7 @@ let assembleContext: ToolHandler;
 
 beforeEach(() => {
   const handlers = toolHandlers(registerContextTools, "full");
+
   assembleContext = handlers["lore_assemble_context"];
   process.env.LORE_API_URL = "https://lore.example";
   process.env.LORE_INGEST_TOKEN = "test-token";
@@ -45,6 +46,7 @@ describe("lore_assemble_context audit logging", () => {
     });
 
     const logs = logSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+
     expect(logs).toMatch(/query: auth flow[\s\S]*template: review/);
     expect(logs).toMatch(/sources hit:.*conventions/i);
     expect(logs).toMatch(/tokens:.*550/i);

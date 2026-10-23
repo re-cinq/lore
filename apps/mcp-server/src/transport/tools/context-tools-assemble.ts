@@ -26,7 +26,6 @@ interface AssembleContextExtraArgs {
   backend?: KnowledgeBackend;
 }
 
-// eslint-disable-next-line re-lint/no-row-types-outside-models
 interface AssembleContextArgs extends AssembleContextExtraArgs {
   query: string;
   template: string;
@@ -104,11 +103,15 @@ async function assembleContext(args: AssembleContextArgs) {
     { query, template, repo },
     buildAssembleExtras(args),
   );
+
   if (proxied.ok) {
     const { text, trace } = parseAssembleBody(proxied.body);
+
     logAssembleAudit(query, template, trace);
+
     return interpretProxiedContext({ ok: true, body: text });
   }
+
   return interpretProxiedContext(proxied);
 }
 
@@ -180,6 +183,7 @@ function parseAssembleBody(body: string): {
 } {
   try {
     const parsed = JSON.parse(body) as { text?: string; trace?: AssembleTrace };
+
     return { text: parsed.text ?? "", trace: parsed.trace };
   } catch {
     return { text: body };
@@ -194,6 +198,7 @@ function logAssembleAudit(
   const sections = trace?.sections ?? [];
   const sources = sections.map((s) => s.source).join(", ") || "none";
   const tokens = sections.reduce((sum, s) => sum + s.returnedTokens, 0);
+
   console.error(
     `[lore] lore_assemble_context: query: ${query}, template: ${template}, sources hit: ${sources}, tokens: ${tokens}`,
   );

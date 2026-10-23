@@ -6,6 +6,7 @@ let assembleContext: ToolHandler;
 
 beforeEach(() => {
   const handlers = toolHandlers(registerContextTools, "full");
+
   assembleContext = handlers["lore_assemble_context"];
   process.env.LORE_API_URL = "https://lore.example";
   process.env.LORE_INGEST_TOKEN = "test-token";
@@ -51,6 +52,7 @@ describe("T011: Expose assembly as an MCP Tool", () => {
         },
       }),
     }));
+
     vi.stubGlobal("fetch", fetchMock);
 
     const logSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -62,6 +64,7 @@ describe("T011: Expose assembly as an MCP Tool", () => {
     });
 
     const logs = logSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+
     expect(logs).toMatch(
       /query: auth middleware[\s\S]*template: implementation/,
     );
