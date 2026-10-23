@@ -27,6 +27,7 @@ import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { startCodeReviewStations } from "./code-review/index.js";
 import { startPlanningStations } from "./planning/index.js";
 import { startMergeStations } from "./merge/index.js";
+import { startAutoMergeStations } from "./auto-merge/station.js";
 import { startDigestStations } from "./digest/index.js";
 import { startChangelogStations } from "./changelog/index.js";
 import { startOnboardStations } from "./onboard/index.js";
@@ -99,6 +100,7 @@ function startFloorStations() {
         ...startCodeReviewStations(),
         ...startPlanningStations(),
         ...startMergeStations(),
+        ...startAutoMergeStations(),
         ...startDigestStations(),
         ...startChangelogStations(),
         ...startOnboardStations(),

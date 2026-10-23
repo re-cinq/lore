@@ -12,7 +12,7 @@ export function split(repo: string): [string, string] {
 interface OctokitPull {
   number: number;
   title: string;
-  head: { ref: string; sha?: string };
+  head: { ref: string; sha?: string; repo?: { full_name?: string } | null };
   base?: { ref: string };
   node_id?: string;
   state: string;
@@ -54,12 +54,13 @@ function optionalFieldsOf(
     ...whenPresent("baseBranch", pr.base?.ref),
     ...whenPresent("mergedAt", pr.merged_at),
     ...whenPresent("createdAt", pr.created_at),
+    ...whenPresent("headRepo", pr.head.repo?.full_name),
     ...whenPresent("body", pr.body),
   };
 }
 
 type OptionalPullField =
-  "mergedAt" | "createdAt" | "body" | "nodeId" | "baseBranch";
+  "mergedAt" | "createdAt" | "headRepo" | "body" | "nodeId" | "baseBranch";
 
 /** GitHub answers an absent value as null; the ref carries the field only when there is one. */
 function whenPresent(

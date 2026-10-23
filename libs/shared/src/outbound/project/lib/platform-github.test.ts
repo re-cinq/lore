@@ -264,7 +264,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
   ) => ({
     number,
     title: `PR ${number}`,
-    head: { ref: `b${number}` },
+    head: { ref: `b${number}`, repo: { full_name: "someone/lore" } },
     state: "closed",
     html_url: `https://gh/pr/${number}`,
     updated_at: updatedAt,
@@ -293,6 +293,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
         state: "merged",
         mergedAt: "2026-09-25T08:00:00Z",
         createdAt: "2026-09-20T07:00:00Z",
+        headRepo: "someone/lore",
         body: "Closes #3",
         author: "alice",
       }),
