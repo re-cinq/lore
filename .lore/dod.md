@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **never slices mid-word or mid-sentence, defaulting to nearest prior paragraph boundary** — ensures truncation prefers a paragraph boundary rather than a hard character slice
+- [x] **never slices mid-word or mid-sentence, defaulting to nearest prior paragraph boundary** — ensures truncation prefers a paragraph boundary rather than a hard character slice
   `libs/shared/src/outbound/project/knowledge/context-assembly-truncate.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Remove the 50% maxChars threshold that causes `truncateText` to fall back to a hard slice
+- [x] Remove the 50% maxChars threshold that causes `truncateText` to fall back to a hard slice
 
 ## Out of scope
 
