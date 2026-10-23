@@ -2,12 +2,7 @@
 
 import { loreTaskIdOf } from "@re-cinq/lore-shared";
 import type { BlockedReason } from "@re-cinq/lore-shared/blocked-reason.js";
-import {
-  CODEOWNERS_PATHS,
-  ownersOfPath,
-  parseCodeowners,
-  type CodeownersRow,
-} from "@re-cinq/lore-shared/codeowners.js";
+import { codeownersOf, ownedPaths } from "@re-cinq/lore-shared/codeowners.js";
 import type { Audit } from "@re-cinq/lore-shared/project/audit/audit.js";
 import type { AppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import type { PrBlockedReasonsPort } from "@re-cinq/lore-shared/project/pr-blocked-reasons/pr-blocked-reasons-port.js";
@@ -164,22 +159,9 @@ async function mergeReview(
   ]);
 
   return {
-    sensitivePaths: files.filter(
-      (path) => ownersOfPath(path, codeowners).length > 0,
-    ),
+    sensitivePaths: ownedPaths(files, codeowners),
     approvedBy: approvers(reviews),
   };
-}
-
-/** GitHub reads only the first CODEOWNERS present; with none, no path has an owner. */
-async function codeownersOf(
-  repo: BlockedReasonProject["repo"],
-): Promise<CodeownersRow[]> {
-  const texts = await Promise.all(
-    CODEOWNERS_PATHS.map((path) => repo.read(path)),
-  );
-
-  return parseCodeowners(texts.find((text) => text !== null) ?? "");
 }
 
 function pullNumbersIn(params: ReasonEvent["params"]): number[] {

@@ -56,3 +56,22 @@ function patternMatchesPath(pattern: string, path: string): boolean {
 
   return minimatch(path, anchored ? scoped : `**/${scoped}`, { dot: true });
 }
+
+/** A repository's CODEOWNERS rows: GitHub reads only the first CODEOWNERS present, and with none no path has an owner. `read` answers a file's text, or null where it is absent. */
+export async function codeownersOf(repo: {
+  read(path: string): Promise<string | null>;
+}): Promise<CodeownersRow[]> {
+  const texts = await Promise.all(
+    CODEOWNERS_PATHS.map((path) => repo.read(path)),
+  );
+
+  return parseCodeowners(texts.find((text) => text !== null) ?? "");
+}
+
+/** The paths among `files` a CODEOWNERS row gives an owner: the ones a code owner must approve. */
+export function ownedPaths(
+  files: readonly string[],
+  codeowners: CodeownersRow[],
+): string[] {
+  return files.filter((path) => ownersOfPath(path, codeowners).length > 0);
+}

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { ownersOfPath, parseCodeowners } from "./codeowners.js";
+import {
+  codeownersOf,
+  ownedPaths,
+  ownersOfPath,
+  parseCodeowners,
+} from "./codeowners.js";
 
 const owners = (text: string, paths: string[]) =>
   Object.fromEntries(
@@ -54,5 +59,31 @@ describe("ownersOfPath", () => {
       "docs/adrs/ADR-003.md": ["@writer"],
       "apps/docs/adrs/ADR-004.md": [],
     });
+  });
+});
+
+describe("codeownersOf", () => {
+  it("reads the first CODEOWNERS present, .github/ before the root, and none when there is none", async () => {
+    const files: Record<string, string> = {
+      ".github/CODEOWNERS": "/.github/ @re-cinq/platform",
+      CODEOWNERS: "* @someone",
+    };
+    const read = async (path: string) => files[path] ?? null;
+
+    expect([
+      await codeownersOf({ read }),
+      await codeownersOf({ read: async () => null }),
+    ]).toEqual([[{ pattern: "/.github/", owners: ["@re-cinq/platform"] }], []]);
+  });
+});
+
+describe("ownedPaths", () => {
+  it("keeps .github/workflows/ci.yml, which /.github/ owns, and drops src/a.ts", () => {
+    expect(
+      ownedPaths(
+        [".github/workflows/ci.yml", "src/a.ts"],
+        [{ pattern: "/.github/", owners: ["@re-cinq/platform"] }],
+      ),
+    ).toEqual([".github/workflows/ci.yml"]);
   });
 });
