@@ -19,39 +19,6 @@ export interface RuntimeContextArgs {
   [key: string]: unknown;
 }
 
-function buildPreviousRoundBlock(report: {
-  done?: string;
-  next?: string;
-}): string {
-  const lines = ["## The previous round reported"];
-  if (report.done) lines.push(`Done: ${report.done}`);
-  if (report.next) lines.push(`Next: ${report.next}`);
-  return lines.join("\n");
-}
-
-function buildCheckLines(check: CiFailedCheck): string[] {
-  if (check.failed_step) {
-    return [
-      `- **${check.name}**: run only a failed step's command: \`${check.failed_step}\``,
-    ];
-  }
-  return [`- **${check.name}**: a job's whole command`];
-}
-
-function buildCiBlock(verdict: CiVerdict): string {
-  const lines = [`## CI reported failures on ${verdict.judged_sha}`];
-  for (const check of verdict.failed_checks) {
-    lines.push(...buildCheckLines(check));
-    if (check.step_log) lines.push("```", check.step_log, "```");
-    if (check.npm_script) {
-      lines.push(
-        `  Ran as: npm script ${check.npm_script.script} of package ${check.npm_script.package}`,
-      );
-    }
-  }
-  return lines.join("\n");
-}
-
 /** Appends CI verdict and previous-round blocks; skipped when reported_changes is false or failed_checks is empty. */
 export function appendRuntimeContext(
   basePrompt: string,
@@ -70,6 +37,39 @@ export function appendRuntimeContext(
     blocks.push(buildPreviousRoundBlock(previous_round_report));
   blocks.push(buildCiBlock(ci_verdict));
   return blocks.join("\n\n");
+}
+
+function buildPreviousRoundBlock(report: {
+  done?: string;
+  next?: string;
+}): string {
+  const lines = ["## The previous round reported"];
+  if (report.done) lines.push(`Done: ${report.done}`);
+  if (report.next) lines.push(`Next: ${report.next}`);
+  return lines.join("\n");
+}
+
+function buildCiBlock(verdict: CiVerdict): string {
+  const lines = [`## CI reported failures on ${verdict.judged_sha}`];
+  for (const check of verdict.failed_checks) {
+    lines.push(...buildCheckLines(check));
+    if (check.step_log) lines.push("```", check.step_log, "```");
+    if (check.npm_script) {
+      lines.push(
+        `  Ran as: npm script ${check.npm_script.script} of package ${check.npm_script.package}`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
+function buildCheckLines(check: CiFailedCheck): string[] {
+  if (check.failed_step) {
+    return [
+      `- **${check.name}**: run only a failed step's command: \`${check.failed_step}\``,
+    ];
+  }
+  return [`- **${check.name}**: a job's whole command`];
 }
 
 /** What every agent run is told about its own context: fills the recipe's `{context}` slot with an instruction (not the fetched context itself — that needed a central-only credential, so every run now opens cold and identically regardless of cluster). */

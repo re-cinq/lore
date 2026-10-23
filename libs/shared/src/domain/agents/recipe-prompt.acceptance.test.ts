@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as recipePrompt from "./recipe-prompt.js";
 
-// The behaviour is currently absent; we assert the intended API
 const appendRuntimeContext = (recipePrompt as any).appendRuntimeContext as (
   basePrompt: string,
   args: {
@@ -21,8 +20,8 @@ const appendRuntimeContext = (recipePrompt as any).appendRuntimeContext as (
 ) => string;
 
 describe("appendRuntimeContext", () => {
-  it("Statement 275: appends it to the prompt as a block of its own, which stays last. Statement 278: tells the next pod to run only a failed step's command when the report names one, and a job's whole command only when it names a bare check. ([validated by appending failed step vs bare check](specs/implementation-loop/spec.md#L275), [validated by formatting bare jobs](specs/implementation-loop/spec.md#L278))", () => {
-    const resultWithStep = appendRuntimeContext("Base prompt", {
+  it("Statement 275: appends it to the prompt as a block of its own, which stays last. ([validated by appending failed step vs bare check](specs/implementation-loop/spec.md#L275))", () => {
+    const result = appendRuntimeContext("Base prompt", {
       reported_changes: true,
       ci_verdict: {
         judged_sha: "abc1234",
@@ -34,18 +33,20 @@ describe("appendRuntimeContext", () => {
         ],
       },
     });
-    expect(resultWithStep).toContain("Base prompt");
-    expect(resultWithStep).toContain("run only a failed step's command");
-    expect(resultWithStep).toContain("npm run test:coverage");
+    expect(result).toContain("Base prompt");
+    expect(result).toContain("run only a failed step's command");
+    expect(result).toContain("npm run test:coverage");
+  });
 
-    const resultBare = appendRuntimeContext("Base prompt", {
+  it("Statement 278: tells the next pod to run only a failed step's command when the report names one, and a job's whole command only when it names a bare check. ([validated by formatting bare jobs](specs/implementation-loop/spec.md#L278))", () => {
+    const result = appendRuntimeContext("Base prompt", {
       reported_changes: true,
       ci_verdict: {
         judged_sha: "abc1234",
         failed_checks: [{ name: "lint" }],
       },
     });
-    expect(resultBare).toContain("a job's whole command");
+    expect(result).toContain("a job's whole command");
   });
 
   it("Statement 277: appends them to the next agent prompt as ## The previous round reported, before the CI verdict, which stays last. ([validated by appending previous round report before CI verdict](specs/implementation-loop/spec.md#L277))", () => {
