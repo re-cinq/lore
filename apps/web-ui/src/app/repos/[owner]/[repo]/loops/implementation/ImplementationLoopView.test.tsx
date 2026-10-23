@@ -19,7 +19,6 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
 });
 
 function renderView(loop: Partial<ImplementationLoop> = {}) {
-  const toggle = vi.fn(async () => {});
   const retryOnboarding = vi.fn(async () => {});
   const rendered = render(
     <ImplementationLoopView
@@ -34,27 +33,28 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
         awaiting_merge: [],
         ...loop,
       }}
-      toggle={toggle}
       retryOnboarding={retryOnboarding}
     />,
   );
 
-  return { ...rendered, toggle, retryOnboarding };
+  return { ...rendered, retryOnboarding };
 }
 
 describe("ImplementationLoopView", () => {
   it("explains how to queue a ticket and how the loop works", () => {
     const { getAllByText } = renderView();
 
+    const said = (pattern: RegExp) => getAllByText(pattern).length > 0;
+
     expect(
-      getAllByText(/Label an open issue with exactly one of/).length,
-    ).toBeGreaterThan(0);
-    expect(getAllByText(/priority:high/).length).toBeGreaterThan(0);
-    expect(getAllByText(/lore:blocked/).length).toBeGreaterThan(0);
-    expect(getAllByText(/never merges/).length).toBeGreaterThan(0);
-    expect(
-      getAllByText(/remove the label to re-queue/i).length,
-    ).toBeGreaterThan(0);
+      [
+        /Label an open issue with exactly one of/,
+        /priority:high/,
+        /lore:blocked/,
+        /never merges/,
+        /remove the label to re-queue/i,
+      ].every(said),
+    ).toBe(true);
   });
 
   it("explains that a ticket blocked by an open issue waits unlabelled until its last blocker closes", () => {
@@ -81,16 +81,20 @@ describe("ImplementationLoopView", () => {
       ],
     });
 
-    expect(getByTestId("mini-pipeline").getAttribute("href")).toBe(
-      "/assembly-runs/run-42",
-    );
-    expect(getByTestId("mini-node-implement").className).toContain("success");
-    expect(getByTestId("mini-node-validate").className).toContain("running");
-    expect(getByTestId("mini-node-await-pr").className).toContain("waiting");
-    expect(getByTestId("mini-node-implement").getAttribute("title")).toBe(
-      "implement: success",
-    );
-    expect(getByTestId("mini-node-push").className).toContain("failed");
+    const toneOf = (node: string) =>
+      getByTestId(`mini-node-${node}`).className.match(
+        /success|running|waiting|failed/,
+      )?.[0];
+
+    expect({
+      href: getByTestId("mini-pipeline").getAttribute("href"),
+      title: getByTestId("mini-node-implement").getAttribute("title"),
+      tones: ["implement", "validate", "await-pr", "push"].map(toneOf),
+    }).toEqual({
+      href: "/assembly-runs/run-42",
+      title: "implement: success",
+      tones: ["success", "running", "waiting", "failed"],
+    });
   });
 
   it("renders no mini pipeline for a queued ticket with no run", () => {
@@ -111,18 +115,21 @@ describe("ImplementationLoopView", () => {
       ],
     });
 
-    expect(getByTestId("ticket-table")).toBeTruthy();
-    expect(getByTestId("ticket-status").textContent).toBe("running");
-    expect(getByTestId("ticket-status").className).toContain("tone_info");
-    expect(getByTestId("ticket-time").getAttribute("title")).toBe(
-      "2026-08-26T06:00:00Z",
-    );
-    expect((getByText("Run") as HTMLAnchorElement).getAttribute("href")).toBe(
-      "/assembly-runs/run-42",
-    );
-    expect((getByText("PR") as HTMLAnchorElement).getAttribute("href")).toBe(
-      "https://gh/pr/70",
-    );
+    expect({
+      table: Boolean(getByTestId("ticket-table")),
+      status: getByTestId("ticket-status").textContent,
+      tone: getByTestId("ticket-status").className.includes("tone_info"),
+      time: getByTestId("ticket-time").getAttribute("title"),
+      run: getByText("Run").getAttribute("href"),
+      pr: getByText("PR").getAttribute("href"),
+    }).toEqual({
+      table: true,
+      status: "running",
+      tone: true,
+      time: "2026-08-26T06:00:00Z",
+      run: "/assembly-runs/run-42",
+      pr: "https://gh/pr/70",
+    });
   });
 
   it("shows why the failed #7 failed and how to fix it on its row", () => {
@@ -193,7 +200,7 @@ describe("ImplementationLoopView", () => {
   });
 
   it("renders the queue in order even while the loop is disabled", () => {
-    const { getByText, container } = renderView({
+    const { container } = renderView({
       next: [
         ticket(),
         ticket({
@@ -204,7 +211,6 @@ describe("ImplementationLoopView", () => {
       ],
     });
 
-    expect(getByText("Enable loop")).toBeTruthy();
     const rows = Array.from(container.querySelectorAll("a")).map(
       (a) => a.textContent,
     );
@@ -216,14 +222,6 @@ describe("ImplementationLoopView", () => {
     const { getByText } = renderView();
 
     expect(getByText(/Label an issue priority:high/)).toBeTruthy();
-  });
-
-  it("flips the toggle through the bound action", () => {
-    const { getByText, toggle } = renderView({ enabled: true });
-
-    fireEvent.click(getByText("Disable loop"));
-
-    expect(toggle).toHaveBeenCalledWith({ enabled: false });
   });
 
   it("lists recently addressed tickets with their state", () => {
@@ -247,11 +245,15 @@ describe("timeAgo", () => {
   it("renders seconds, minutes, hours, and days at the right unit", async () => {
     const { timeAgo } = await import("./ImplementationLoopView");
 
-    expect(timeAgo("2026-08-26T09:59:30Z", now)).toBe("just now");
-    expect(timeAgo("2026-08-26T09:57:00Z", now)).toBe("3 minutes ago");
-    expect(timeAgo("2026-08-26T09:00:00Z", now)).toBe("1 hour ago");
-    expect(timeAgo("2026-08-24T10:00:00Z", now)).toBe("2 days ago");
-    expect(timeAgo(null, now)).toBe("");
+    expect(
+      [
+        "2026-08-26T09:59:30Z",
+        "2026-08-26T09:57:00Z",
+        "2026-08-26T09:00:00Z",
+        "2026-08-24T10:00:00Z",
+        null,
+      ].map((iso) => timeAgo(iso, now)),
+    ).toEqual(["just now", "3 minutes ago", "1 hour ago", "2 days ago", ""]);
   });
 });
 
@@ -397,12 +399,17 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
       parked: [ticket({ state: "parked", hold: parked })],
     });
 
-    expect(getByRole("heading", { name: "Parked" })).toBeTruthy();
-    expect(getByTestId("ticket-status").textContent).toEqual("parked");
-    expect(queryByTestId("ticket-hold-kind")).toBeNull();
-    expect(getByTestId("ticket-hold-7").textContent).toEqual(
-      "The loop parked this ticket: it asks for a decision.Fix: Fix what it names, then remove the lore:blocked label on the issue — the loop re-queues it on its own next tick, no need to run anything by hand.",
-    );
+    expect({
+      heading: getByRole("heading", { name: "Parked" }).textContent,
+      status: getByTestId("ticket-status").textContent,
+      kindPill: queryByTestId("ticket-hold-kind"),
+      hold: getByTestId("ticket-hold-7").textContent,
+    }).toEqual({
+      heading: "Parked",
+      status: "parked",
+      kindPill: null,
+      hold: "The loop parked this ticket: it asks for a decision.Fix: Fix what it names, then remove the lore:blocked label on the issue — the loop re-queues it on its own next tick, no need to run anything by hand.",
+    });
   });
 
   it("shows no Parked heading when nothing is parked", () => {
@@ -442,7 +449,7 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     expect(queryByRole("heading", { name: "Awaiting merge" })).toBeNull();
   });
 
-  it("heads the queue Paused and says to enable the loop while it is switched off", () => {
+  it("heads the queue Paused and says to switch the loop on while it is off", () => {
     const { getByRole, getByTestId, queryByRole } = renderView({
       enabled: false,
       next: [ticket()],
@@ -453,7 +460,7 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     ).toBeTruthy();
     expect(queryByRole("heading", { name: "Next up" })).toBeNull();
     expect(getByTestId("section-notice").textContent).toEqual(
-      "Nothing is picked until the loop is enabled. Use Enable loop above.",
+      "Nothing is picked until the loop is switched on above.",
     );
   });
 

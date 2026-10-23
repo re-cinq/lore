@@ -4,8 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { getImplementationLoop, setImplementationLoopEnabled } =
-  await import("./backlog");
+const { getImplementationLoop } = await import("./backlog");
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -31,17 +30,5 @@ describe("getImplementationLoop", () => {
     expect(String(call()[0])).toBe(
       "http://api:3000/api/repos/re-cinq/lore/implementation-loop",
     );
-  });
-});
-
-describe("setImplementationLoopEnabled", () => {
-  it("PUTs the enabled flag to the same path", async () => {
-    await setImplementationLoopEnabled("re-cinq/lore", { enabled: true });
-
-    expect(String(call()[0])).toBe(
-      "http://api:3000/api/repos/re-cinq/lore/implementation-loop",
-    );
-    expect(call()[1]).toMatchObject({ method: "PUT" });
-    expect(JSON.parse(call()[1].body as string)).toEqual({ enabled: true });
   });
 });

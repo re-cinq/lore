@@ -2,7 +2,6 @@
 
 import { Alert } from "@/components/Alert";
 import MiniPipeline from "@/components/MiniPipeline";
-import PendingActionButton from "@/components/PendingActionButton";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
 import Panel, { PanelTable } from "@/components/Panel";
 import styles from "./ImplementationLoopView.module.scss";
@@ -36,18 +35,16 @@ const EMPTY_BACKLOG =
 
 interface LoopViewProps {
   loop: ImplementationLoop;
-  toggle: (next: { enabled: boolean }) => Promise<void>;
   /** Queues the repo's onboarding again, through the same guard the /onboard page uses. */
   retryOnboarding: () => Promise<void>;
 }
 
-/** Pure view (DDAU): data down as `loop`, toggle and retry up via bound server actions. */
+/** Pure view (DDAU): data down as `loop`, retry up via a bound server action. The loop's switch sits above it on the Loops tab. */
 export default function ImplementationLoopView(props: LoopViewProps) {
-  const { loop, toggle, retryOnboarding } = props;
+  const { loop, retryOnboarding } = props;
 
   return (
     <div>
-      <LoopHeader enabled={loop.enabled} toggle={toggle} />
       <OnboardingBanner loop={loop} retry={retryOnboarding} />
       <LoopExplainer />
 
@@ -56,29 +53,6 @@ export default function ImplementationLoopView(props: LoopViewProps) {
           <LoopSection key={stage.heading} {...stage} />
         ))}
       </div>
-    </div>
-  );
-}
-
-interface LoopHeaderProps {
-  enabled: boolean;
-  toggle: (next: { enabled: boolean }) => Promise<void>;
-}
-
-/** What the loop is, and the one control that runs it. The button is disabled until the toggle's server action resolves, so a double click cannot send two conflicting toggles. */
-function LoopHeader({ enabled, toggle }: LoopHeaderProps) {
-  return (
-    <div className={styles.header}>
-      <p className="meta">
-        The implementation loop works this repo&apos;s backlog one ticket at a
-        time.
-      </p>
-      <PendingActionButton
-        action={() => toggle({ enabled: !enabled })}
-        text={enabled ? "Disable loop" : "Enable loop"}
-        pendingText={enabled ? "Disabling…" : "Enabling…"}
-        className=""
-      />
     </div>
   );
 }
@@ -145,8 +119,7 @@ function queueSection(
   if (!loop.enabled) {
     return {
       heading: "Paused: the loop is switched off",
-      notice:
-        "Nothing is picked until the loop is enabled. Use Enable loop above.",
+      notice: "Nothing is picked until the loop is switched on above.",
     };
   }
 
