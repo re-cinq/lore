@@ -1,4 +1,3 @@
-// spec: specs/context-assembly/spec.md#NFR-2
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { toolHandlers, type ToolHandler } from "./tool-test-helpers.js";
 import { registerContextTools } from "./context-tools.js";
@@ -46,8 +45,7 @@ describe("lore_assemble_context audit logging", () => {
     });
 
     const logs = logSpy.mock.calls.map((call) => call.join(" ")).join("\n");
-    expect(logs).toContain("query: auth flow");
-    expect(logs).toContain("template: review");
+    expect(logs).toMatch(/query: auth flow[\s\S]*template: review/);
     expect(logs).toMatch(/sources hit:.*conventions/i);
     expect(logs).toMatch(/tokens:.*550/i);
   });
