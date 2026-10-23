@@ -121,8 +121,14 @@ describe("enabledTriageRepos", () => {
     expect(
       enabledTriageRepos([
         { full_name: "acme/widgets", settings: null },
-        { full_name: "acme/gadgets", settings: { issue_triage: { enabled: false } } },
-        { full_name: "acme/gizmos", settings: { issue_triage: { enabled: true } } },
+        {
+          full_name: "acme/gadgets",
+          settings: { issue_triage: { enabled: false } },
+        },
+        {
+          full_name: "acme/gizmos",
+          settings: { issue_triage: { enabled: true } },
+        },
       ]),
     ).toEqual(["acme/widgets", "acme/gizmos"]);
   });
