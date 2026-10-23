@@ -5,7 +5,7 @@ import {
 } from "../../outbound/project/assembly-runs/subject-keys.js";
 import type { EventHandler } from "../../outbound/project/events/drain-loop.js";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
-import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
+import { implementationLoopEnabled } from "../../domain/loops/implementation-loop-enabled.js";
 import { decideBranchResume, type OpenPr } from "./resume-branch.js";
 import { orderBacklog } from "./select-next-issue.js";
 import { taskHoldingTicket } from "./ticket-holder.js";

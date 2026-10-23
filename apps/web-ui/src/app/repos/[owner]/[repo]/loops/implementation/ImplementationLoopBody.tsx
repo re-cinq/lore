@@ -3,28 +3,22 @@ import {
   getImplementationLoop,
   type ImplementationLoop,
 } from "@/lib/api/backlog";
+import type { ApiResult } from "@/lib/api/result";
 import ImplementationLoopView from "./ImplementationLoopView";
 import LoopRunsFollower from "./LoopRunsFollower";
-import {
-  retryOnboardingAction,
-  toggleImplementationLoopAction,
-} from "./actions";
+import { retryOnboardingAction } from "../actions";
 
-interface LoopPageProps {
-  params: Promise<{ owner: string; repo: string }>;
-}
-
-export default async function ImplementationLoopPage(props: LoopPageProps) {
-  const { owner, repo } = await props.params;
-  const fullName = `${owner}/${repo}`;
+/** The implementation loop's page under its switch: the read, the live follower, and the pure view. */
+export default async function ImplementationLoopBody({
+  fullName,
+}: {
+  fullName: string;
+}) {
   const result = await getImplementationLoop(fullName);
 
   // API failure must not masquerade as disabled loop with empty backlog.
   if (result.status !== "ok") {
-    const reason =
-      result.status === "error" ? result.message : "Lore API unconfigured";
-
-    return <LoadFailure reason={reason} />;
+    return <LoadFailure result={result} />;
   }
 
   return (
@@ -32,7 +26,6 @@ export default async function ImplementationLoopPage(props: LoopPageProps) {
       <LoopRunsFollower runIds={runIdsOf(result.data)} />
       <ImplementationLoopView
         loop={result.data}
-        toggle={toggleImplementationLoopAction.bind(null, fullName)}
         retryOnboarding={retryOnboardingAction.bind(null, fullName)}
       />
     </>
@@ -56,7 +49,14 @@ function runIdsOf(loop: ImplementationLoop): string[] {
 }
 
 /** Names the connection rather than the symptom, because an unreachable API and an empty backlog look the same on the page. */
-function LoadFailure({ reason }: { reason: string }) {
+function LoadFailure({
+  result,
+}: {
+  result: Exclude<ApiResult<ImplementationLoop>, { status: "ok" }>;
+}) {
+  const reason =
+    result.status === "error" ? result.message : "Lore API unconfigured";
+
   return (
     <Alert variant="secondary">
       Could not load the backlog state ({reason}) — check the Lore API

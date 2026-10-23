@@ -6,7 +6,11 @@ import {
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { settings } from "../../outbound/queues.js";
-import { issueTriageTick, type IssueTriageIssue } from "./issue-triage-tick.js";
+import {
+  enabledTriageRepos,
+  issueTriageTick,
+  type IssueTriageIssue,
+} from "./issue-triage-tick.js";
 
 export const NO_FLOOR =
   "no external floor configured: the Floor walks issue-triage";
@@ -24,7 +28,7 @@ export async function runIssueTriageTick(
 
   return issueTriageTick(params, {
     repos: async () =>
-      (await settings().onboardedRepos()).map((r) => r.full_name),
+      enabledTriageRepos(await settings().onboardedRepoSettings()),
     needsTriageIssues: fetchNeedsTriageIssues,
     runningCount: countRunning,
     defaultBranch: async (repo) =>

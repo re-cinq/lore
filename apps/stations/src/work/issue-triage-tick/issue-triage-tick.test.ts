@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  enabledTriageRepos,
   issueTriageTick,
   type IssueTriageTickDeps,
 } from "./issue-triage-tick.js";
@@ -112,5 +113,23 @@ describe("the issue-triage-tick sweep on the external floor", () => {
         ref: "https://github.com/acme/widgets/issues/1",
       }),
     });
+  });
+});
+
+describe("enabledTriageRepos", () => {
+  it("keeps a repo with no issue_triage block and drops one switched off", () => {
+    expect(
+      enabledTriageRepos([
+        { full_name: "acme/widgets", settings: null },
+        {
+          full_name: "acme/gadgets",
+          settings: { issue_triage: { enabled: false } },
+        },
+        {
+          full_name: "acme/gizmos",
+          settings: { issue_triage: { enabled: true } },
+        },
+      ]),
+    ).toEqual(["acme/widgets", "acme/gizmos"]);
   });
 });

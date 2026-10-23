@@ -170,6 +170,10 @@
       "types": "./dist/domain/models/*.d.ts",
       "default": "./dist/domain/models/*.js"
     },
+    "./loops/*.js": {
+      "types": "./dist/domain/loops/*.d.ts",
+      "default": "./dist/domain/loops/*.js"
+    },
     "./task-types/*.js": {
       "types": "./dist/domain/task-types/*.d.ts",
       "default": "./dist/domain/task-types/*.js"

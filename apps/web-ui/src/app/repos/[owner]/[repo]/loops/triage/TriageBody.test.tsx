@@ -5,18 +5,18 @@ import { render, screen } from "@testing-library/react";
 vi.mock("@/lib/api/triage", () => ({ getTriageIssues: vi.fn() }));
 
 import { getTriageIssues } from "@/lib/api/triage";
-import TriagePage from "./TriagePage";
+import TriageBody from "./TriageBody";
 
-const params = Promise.resolve({ owner: "re-cinq", repo: "lore" });
+const fullName = "re-cinq/lore";
 
-describe("TriagePage", () => {
+describe("TriageBody", () => {
   it("renders the issues of re-cinq/lore read through the triage client", async () => {
     vi.mocked(getTriageIssues).mockResolvedValue({
       status: "ok",
       data: [{ title: "Crash on save", triage_label: "triage: diagnosed" }],
     });
 
-    render(await TriagePage({ params }));
+    render(await TriageBody({ fullName }));
 
     expect(getTriageIssues).toHaveBeenCalledWith("re-cinq/lore");
     expect(screen.getByText("Crash on save")).toBeTruthy();
@@ -28,7 +28,7 @@ describe("TriagePage", () => {
       message: "HTTP 502",
     });
 
-    render(await TriagePage({ params }));
+    render(await TriageBody({ fullName }));
 
     expect(
       screen.getByText(/Could not load triage issues \(HTTP 502\)/),

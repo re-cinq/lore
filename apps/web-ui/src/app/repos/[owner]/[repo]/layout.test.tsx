@@ -26,7 +26,7 @@ vi.mock("./TabNav", () => ({
 }));
 
 describe("RepoLayout", () => {
-  it("renders Triage tab alongside Backlog", async () => {
+  it("renders one Loops tab where Backlog and Triage were", async () => {
     const params = Promise.resolve({ owner: "re-cinq", repo: "lore" });
     const jsx = await RepoLayout({ children: <div>child</div>, params });
 
@@ -34,7 +34,8 @@ describe("RepoLayout", () => {
 
     const links = screen.getAllByRole("link").map((l) => l.textContent);
 
-    expect(links).toContain("Backlog");
-    expect(links).toContain("Triage");
+    expect(links).toContain("Loops");
+    expect(links).not.toContain("Backlog");
+    expect(links).not.toContain("Triage");
   });
 });

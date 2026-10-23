@@ -6,23 +6,9 @@ import type { components } from "./schema";
 // Implementation-loop repo surface (specs/implementation-loop FR10); types alias the generated schema, no hand-mirrored shapes.
 export type ImplementationLoop = components["schemas"]["ImplementationLoop"];
 export type LoopTicket = ImplementationLoop["next"][number];
-export type ImplementationLoopToggle =
-  components["schemas"]["ImplementationLoopToggle"];
-
-const path = (repo: string) => `/api/repos/${repo}/implementation-loop`;
 
 export function getImplementationLoop(
   repo: string,
 ): Promise<ApiResult<ImplementationLoop>> {
-  return apiFetch("lore-api", path(repo));
-}
-
-export function setImplementationLoopEnabled(
-  repo: string,
-  { enabled }: { enabled: boolean },
-): Promise<ApiResult<ImplementationLoopToggle>> {
-  return apiFetch("lore-api", path(repo), {
-    method: "PUT",
-    body: { enabled },
-  });
+  return apiFetch("lore-api", `/api/repos/${repo}/implementation-loop`);
 }

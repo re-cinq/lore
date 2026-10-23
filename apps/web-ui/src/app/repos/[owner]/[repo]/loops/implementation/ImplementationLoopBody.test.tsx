@@ -2,14 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 
-vi.mock("@/lib/api/backlog", () => ({
-  getImplementationLoop: vi.fn(),
-  setImplementationLoopEnabled: vi.fn(),
-}));
-vi.mock("./actions", () => ({
-  toggleImplementationLoopAction: vi.fn(),
-  retryOnboardingAction: vi.fn(),
-}));
+vi.mock("@/lib/api/backlog", () => ({ getImplementationLoop: vi.fn() }));
+vi.mock("../actions", () => ({ retryOnboardingAction: vi.fn() }));
 const followed: Array<{ runIds: readonly string[] }> = [];
 
 vi.mock("./LoopRunsFollower", () => ({
@@ -21,9 +15,9 @@ vi.mock("./LoopRunsFollower", () => ({
 }));
 
 import { getImplementationLoop } from "@/lib/api/backlog";
-import ImplementationLoopPage from "./ImplementationLoopPage";
+import ImplementationLoopBody from "./ImplementationLoopBody";
 
-const params = Promise.resolve({ owner: "re-cinq", repo: "lore" });
+const fullName = "re-cinq/lore";
 const ticket = (issueNumber: number, runId: string | null) => ({
   issue_number: issueNumber,
   issue_url: `https://gh/i/${issueNumber}`,
@@ -37,7 +31,7 @@ const ticket = (issueNumber: number, runId: string | null) => ({
   pipeline: null,
 });
 
-describe("ImplementationLoopPage", () => {
+describe("ImplementationLoopBody", () => {
   beforeEach(() => {
     followed.length = 0;
   });
@@ -57,7 +51,7 @@ describe("ImplementationLoopPage", () => {
       },
     } as never);
 
-    render(await ImplementationLoopPage({ params }));
+    render(await ImplementationLoopBody({ fullName }));
 
     expect(followed[0]?.runIds).toEqual(["run-1", "run-4", "run-2", "run-3"]);
   });
@@ -77,9 +71,9 @@ describe("ImplementationLoopPage", () => {
       },
     } as never);
 
-    const { getByText } = render(await ImplementationLoopPage({ params }));
+    const { getByText } = render(await ImplementationLoopBody({ fullName }));
 
-    expect(getByText("Disable loop")).toBeTruthy();
+    expect(getByText("Next up")).toBeTruthy();
   });
 
   it("says what happened on an API failure instead of a disabled-empty page", async () => {
@@ -88,7 +82,7 @@ describe("ImplementationLoopPage", () => {
       message: "boom",
     } as never);
 
-    const { getByText } = render(await ImplementationLoopPage({ params }));
+    const { getByText } = render(await ImplementationLoopBody({ fullName }));
 
     expect(getByText(/Could not load the backlog state/)).toBeTruthy();
     expect(getByText(/boom/)).toBeTruthy();

@@ -6,7 +6,19 @@ import {
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 
+import type { OnboardedRepoSettings } from "@re-cinq/lore-shared/project/settings/settings-port.js";
+import { issueTriageEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
+
 type Floor = ReturnType<typeof floorClient>;
+
+/** The onboarded repositories whose triage loop is switched on (specs/issue-triage FR33): the sweep looks at no other. */
+export function enabledTriageRepos(
+  rows: readonly OnboardedRepoSettings[],
+): string[] {
+  return rows
+    .filter((row) => issueTriageEnabled(row.settings))
+    .map((row) => row.full_name);
+}
 
 const ISSUE_TRIAGE_LINE = "issue-triage";
 

@@ -1,5 +1,5 @@
 // How an Issue someone asked Lore to implement gets implemented: it joins the repository's backlog, where the implementation loop picks it up. There is no task to create for it (the `implementation` and `general` task types are gone, #2328 and #2329); the priority label is the whole opt-in.
-import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
+import { implementationLoopEnabled } from "../../domain/loops/implementation-loop-enabled.js";
 import { DEFAULT_PRIORITY, PRIORITY_LABELS } from "./labels.js";
 
 export interface QueueTicketDeps {

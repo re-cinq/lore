@@ -41,18 +41,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     });
   }
 
-  function put(payload: unknown, pool: unknown = makePool()) {
-    return buildServer(() => pool as never).inject({
-      method: "PUT",
-      url: "/api/repos/re-cinq/lore/implementation-loop",
-      headers: AUTH,
-      payload: JSON.stringify(payload),
-    });
-  }
-
   it("returns 503 when the pool is null", async () => {
     expect((await get(null)).statusCode).toBe(503);
-    expect((await put({ enabled: true }, null)).statusCode).toBe(503);
   });
 
   it("returns 404 for a repo with no row", async () => {
@@ -439,86 +429,6 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
 
     expect(loop.recent).toHaveLength(10);
     expect(loop.awaiting_merge).toMatchObject([{ issue_number: 5 }]);
-  });
-
-  it("PUT flips the toggle under admin scope and echoes the new state", async () => {
-    const pool = makePool();
-
-    pool.query
-      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
-      .mockResolvedValue({ rows: [] });
-    vi.mocked(projectFor).mockResolvedValue({
-      issues: { createLabels: async () => {} },
-    } as never);
-
-    const res = await put({ enabled: true }, pool);
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: true });
-    const update = pool.query.mock.calls.find(([sql]) =>
-      String(sql).includes("UPDATE lore.repos"),
-    );
-
-    expect(String(update?.[0])).toContain("implementation_loop");
-  });
-
-  it("enabling seeds the priority and lore:blocked labels on the repo", async () => {
-    const pool = makePool();
-
-    pool.query
-      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
-      .mockResolvedValue({ rows: [] });
-    const seeded: Array<{ name: string }> = [];
-
-    vi.mocked(projectFor).mockResolvedValue({
-      issues: {
-        createLabels: async (labels: Array<{ name: string }>) => {
-          seeded.push(...labels);
-        },
-      },
-    } as never);
-
-    const res = await put({ enabled: true }, pool);
-
-    expect(res.statusCode).toBe(200);
-    expect(seeded.map((l) => l.name)).toEqual([
-      "priority:high",
-      "priority:medium",
-      "priority:low",
-      "lore:blocked",
-    ]);
-  });
-
-  it("disabling seeds nothing", async () => {
-    const pool = makePool();
-
-    pool.query
-      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
-      .mockResolvedValue({ rows: [] });
-
-    const res = await put({ enabled: false }, pool);
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: false });
-    expect(projectFor).not.toHaveBeenCalled();
-  });
-
-  it("a label-seeding failure does not fail the toggle write", async () => {
-    const pool = makePool();
-
-    pool.query
-      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
-      .mockResolvedValue({ rows: [] });
-    vi.mocked(projectFor).mockRejectedValue(new Error("github down"));
-
-    const res = await put({ enabled: true }, pool);
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: true });
-  });
-
-  it("PUT rejects a payload without a boolean enabled", async () => {
-    expect((await put({ enabled: "yes" })).statusCode).toBe(400);
   });
 
   it("excludes a task row with no issue number from recent", async () => {

@@ -9,6 +9,8 @@ import {
 export interface RepoEventDeps {
   /** The ports a labelled Issue of this repository is dispatched through. */
   labelDispatch(repo: string): Promise<LabelDispatchDeps>;
+  /** Whether the repository's triage loop is switched on (FR33); a label on a repository that switched it off starts nothing. */
+  triageEnabled(repo: string): Promise<boolean>;
   /** Starts an issue-triage floor run for the given issue (FR7). */
   startIssueTriage(
     repo: string,
@@ -80,7 +82,7 @@ function issueLabeled(deps: RepoEventDeps): EventHandler {
     const { repo, label, issue } = params as unknown as LabeledIssueParams;
 
     if ((TRIAGE_TRIGGER_LABELS as readonly string[]).includes(label)) {
-      await deps.startIssueTriage(repo, issue.number, issue.html_url ?? "");
+      await startTriageIfEnabled(deps, repo, issue);
 
       return;
     }
@@ -98,6 +100,21 @@ function issueLabeled(deps: RepoEventDeps): EventHandler {
 
     await dispatchLabeledIssue(await deps.labelDispatch(repo), labeled);
   };
+}
+
+async function startTriageIfEnabled(
+  deps: RepoEventDeps,
+  repo: string,
+  issue: LabeledIssueParams["issue"],
+): Promise<void> {
+  if (!(await deps.triageEnabled(repo))) {
+    console.log(
+      `[stations] issue triage is switched off for ${repo}: #${issue.number} not started`,
+    );
+
+    return;
+  }
+  await deps.startIssueTriage(repo, issue.number, issue.html_url ?? "");
 }
 
 function issueComment(deps: RepoEventDeps): EventHandler {
