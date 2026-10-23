@@ -218,7 +218,6 @@ describe("serializeContext", () => {
     expect(out.trim().endsWith("</context>")).toBe(true);
   });
 
-  // specs/context-assembly/spec.md#FR-5.3
   it("omits a section whose documents array is empty", () => {
     const out = serializeContext(
       { query: "q", template: "default", budget: 1000 },
