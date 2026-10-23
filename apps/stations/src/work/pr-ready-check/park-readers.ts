@@ -8,7 +8,7 @@ import {
   loreCheckName,
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { decidePrReady } from "./decide-ready.js";
+import { decidePrReady, type PrReadyInput } from "./decide-ready.js";
 import {
   decideCiReady,
   redFeedback,
@@ -21,7 +21,7 @@ import {
   type PrReadyCheckDeps,
 } from "./sweep-contract.js";
 
-/** The end-of-line wait: CI plus review threads. All four reads run together — they are independent, and this job sweeps every parked run on a tick. */
+/** The end-of-line wait: the branch against main, CI and the review threads. Every read runs together — they are independent, and this job sweeps every parked run on a tick. */
 export async function prReportForRun(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
@@ -33,50 +33,69 @@ export async function prReportForRun(
   }
   const evidence = await prEvidence(run, deps, judged);
 
-  return parkedReport(
-    decidePrReady({
-      ci: ciConclusionOf(evidence.checks),
-      threads: evidence.threads,
-      openReviewRunCount: evidence.openReviewRunCount,
-      hasCiHistory: evidence.hasCiHistory,
-      mergeable: evidence.mergeable,
-      behindBy: evidence.behindBy,
-    }),
-    (reason) =>
-      reason === "ci_red" ? redFeedback(evidence.checks, judged.headSha) : {},
+  return parkedReport(decidePrReady(evidence), (reason) =>
+    reason === "ci_red" ? redFeedback(evidence.checks, judged.headSha) : {},
   );
 }
 
-/** The six independent reads a settled pull request is judged on, together — this job sweeps every parked run on a tick. */
+/** The six independent reads a settled pull request is judged on, as the verdict takes them, with the checks explained. */
 async function prEvidence(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
   judged: { prNumber: number; headSha: string },
+): Promise<PrReadyInput & { checks: CheckRun[] }> {
+  const read = await readPrFacts(run, deps, judged);
+  const checks = await explainedChecks(
+    run.repo,
+    withoutOwnCheck(read.checks),
+    deps,
+  );
+
+  return { ...read, checks, ci: ciConclusionOf(checks) };
+}
+
+async function readPrFacts(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+  judged: { prNumber: number; headSha: string },
 ) {
-  const [
-    checks,
-    threads,
-    openReviewRunCount,
-    hasCiHistory,
-    mergeable,
-    behindBy,
-  ] = await Promise.all([
-    deps.listChecks(run.repo, judged.headSha),
-    deps.listReviewThreads(run.repo, judged.prNumber),
-    deps.countOpenReviewRuns(run.repo, judged.prNumber),
-    deps.hasCiHistory(run.repo),
-    deps.prMergeable(run.repo, judged.prNumber),
-    deps.prBehindBy(run.repo, judged.prNumber),
+  const [build, branch] = await Promise.all([
+    readBuild(run, deps, judged),
+    readBranch(run, deps, judged.prNumber),
   ]);
 
-  return {
-    checks: await explainedChecks(run.repo, withoutOwnCheck(checks), deps),
-    threads,
-    openReviewRunCount,
-    hasCiHistory,
-    mergeable,
-    behindBy,
-  };
+  return { ...build, ...branch };
+}
+
+async function readBuild(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+  { prNumber, headSha }: { prNumber: number; headSha: string },
+) {
+  const [checks, threads, openReviewRunCount, hasCiHistory] = await Promise.all(
+    [
+      deps.listChecks(run.repo, headSha),
+      deps.listReviewThreads(run.repo, prNumber),
+      deps.countOpenReviewRuns(run.repo, prNumber),
+      deps.hasCiHistory(run.repo),
+    ],
+  );
+
+  return { checks, threads, openReviewRunCount, hasCiHistory };
+}
+
+/** Where the branch stands against main: what sends it to the sync before CI is read. */
+async function readBranch(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+  prNumber: number,
+) {
+  const [mergeable, behindBy] = await Promise.all([
+    deps.prMergeable(run.repo, prNumber),
+    deps.prBehindBy(run.repo, prNumber),
+  ]);
+
+  return { mergeable, behindBy };
 }
 
 /** A verdict as the parked node hears it: ready, blocked with its reason and what the fix needs, or nothing while the pull request is still moving. */

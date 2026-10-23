@@ -65,8 +65,27 @@ export async function mergeReportForRun(
 async function mergeInput(
   repo: string,
   deps: MergeWaitDeps,
-  { prNumber, headSha }: { prNumber: number; headSha: string },
+  pr: { prNumber: number; headSha: string },
 ): Promise<MergeReadyInput> {
+  const read = await readMergeFacts(repo, deps, pr);
+
+  return {
+    mergeable: read.facts.mergeable,
+    ci: ciConclusionOf(externalCheckRuns(read.checks)),
+    hasCiHistory: read.hasCiHistory,
+    unresolvedThreads: openThreads(read.threads).length,
+    openReviewRuns: read.openReviewRuns,
+    review: loreReviewVerdict(read.checks),
+    ageHours: ageHours(read.facts.createdAt, deps.now()),
+    minAgeHours: read.minAgeHours,
+  };
+}
+
+async function readMergeFacts(
+  repo: string,
+  deps: MergeWaitDeps,
+  { prNumber, headSha }: { prNumber: number; headSha: string },
+) {
   const [checks, threads, openReviewRuns, hasCiHistory, facts, minAgeHours] =
     await Promise.all([
       deps.listChecks(repo, headSha),
@@ -77,16 +96,7 @@ async function mergeInput(
       deps.minAgeHours(repo),
     ]);
 
-  return {
-    mergeable: facts.mergeable,
-    ci: ciConclusionOf(externalCheckRuns(checks)),
-    hasCiHistory,
-    unresolvedThreads: openThreads(threads).length,
-    openReviewRuns,
-    review: loreReviewVerdict(checks),
-    ageHours: ageHours(facts.createdAt, deps.now()),
-    minAgeHours,
-  };
+  return { checks, threads, openReviewRuns, hasCiHistory, facts, minAgeHours };
 }
 
 function openThreads(threads: readonly ReviewThread[]): ReviewThread[] {

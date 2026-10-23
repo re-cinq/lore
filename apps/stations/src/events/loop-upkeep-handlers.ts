@@ -1,8 +1,8 @@
 // A loop pull request's events, turned into the loop's own upkeep (specs/external-floor FR12.19): a push to the default branch and a finished check suite each ask whether the pull request is behind, conflicted or red, and judge the open run's parked wait now, or start the line again at sync-pr for a pull request whose run has settled. The retry and dead-lettering are the bus's.
-import type { FloorClient } from "@re-cinq/floor-client";
 import {
   LOOP_LINE,
   type LoopFloor,
+  type LoopRunsFloor,
 } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import { issueNumberFromLoopBranch } from "@re-cinq/lore-shared/backlog/loop-merge-success.js";
 import {
@@ -37,7 +37,7 @@ export interface UpkeepProject {
 }
 
 export interface LoopUpkeepDeps {
-  floor(): LoopFloor & { runs: Pick<FloorClient["runs"], "list"> };
+  floor(): LoopFloor & LoopRunsFloor;
   project(repo: string): Promise<UpkeepProject>;
   /** The newest loop task of the ticket: what the run carries as `task_id`. */
   latestLoopTaskByIssue(
@@ -62,6 +62,7 @@ export function loopUpkeepHandlers(
   ]);
 }
 
+/** One event's repository, with its loop switched on. */
 interface Scope {
   repo: string;
   project: UpkeepProject;
@@ -74,14 +75,15 @@ function onPush(deps: LoopUpkeepDeps): EventHandler {
     const { repo, branch } = params as { repo?: string; branch?: string };
     const scope = repo && branch ? await scopeOf(deps, repo) : null;
 
-    if (!scope || branch !== (await scope.project.repo.defaultBranch())) {
+    if (!scope || branch !== (await defaultBranchOf(scope))) {
       return;
     }
-    const pulls = (await scope.project.pulls.list()).filter(
+    const { pulls } = scope.project;
+    const concerned = (await pulls.list()).filter(
       (pull) => isLoopPull(pull) && (pull.baseBranch ?? branch) === branch,
     );
 
-    await upkeepEach(scope, pulls);
+    await upkeepEach(scope, concerned);
   };
 }
 
@@ -95,22 +97,32 @@ function onCheckSuite(deps: LoopUpkeepDeps): EventHandler {
     const scope =
       repo && Array.isArray(numbers) ? await scopeOf(deps, repo) : null;
 
-    if (!scope) {
-      return;
+    if (scope) {
+      await upkeepEach(scope, await loopPulls(scope, numbers as unknown[]));
     }
-    const pulls = await Promise.all(
-      (numbers as unknown[])
-        .filter((n): n is number => typeof n === "number")
-        .map((n) => scope.project.pulls.get(n)),
-    );
-
-    await upkeepEach(
-      scope,
-      pulls.filter(
-        (pull): pull is PullRef => pull !== null && isLoopPull(pull),
-      ),
-    );
   };
+}
+
+async function loopPulls(
+  { project }: Scope,
+  numbers: readonly unknown[],
+): Promise<PullRef[]> {
+  const { pulls } = project;
+  const read = await Promise.all(
+    numbers
+      .filter((n): n is number => typeof n === "number")
+      .map((n) => pulls.get(n)),
+  );
+
+  return read.filter(
+    (pull): pull is PullRef => pull !== null && isLoopPull(pull),
+  );
+}
+
+function defaultBranchOf({ project }: Scope): Promise<string> {
+  const { repo } = project;
+
+  return repo.defaultBranch();
 }
 
 /** Nothing for a repository whose implementation loop is off: its pull requests are nobody's to rebase. */
@@ -119,8 +131,9 @@ async function scopeOf(
   repo: string,
 ): Promise<Scope | null> {
   const project = await deps.project(repo);
+  const { settings } = project;
 
-  return implementationLoopEnabled(await project.settings.rawSettings())
+  return implementationLoopEnabled(await settings.rawSettings())
     ? { repo, project, deps }
     : null;
 }
@@ -129,47 +142,46 @@ async function upkeepEach(scope: Scope, pulls: PullRef[]): Promise<void> {
   if (pulls.length === 0) {
     return;
   }
-  const { items: openRuns } = await scope.deps.floor().runs.list({
+  const { runs } = scope.deps.floor();
+  const { items: openRuns } = await runs.list({
     repo: floorRepoOf(scope.repo),
     line: LOOP_LINE,
     open: true,
   });
   const outcomes = await Promise.all(
     pulls.map(async (pull) => {
-      const open = openRunOnBranch(openRuns, pull.branch) !== undefined;
+      const outcome = openRunOnBranch(openRuns, pull.branch)
+        ? await judgeOpenRun(scope, pull)
+        : await upkeepSettled(scope, pull);
 
-      return `#${pull.number} ${await upkeep(scope, pull, open)}`;
+      return `#${pull.number} ${outcome}`;
     }),
   );
 
   console.log(`[stations] loop-upkeep: ${scope.repo}: ${outcomes.join("; ")}`);
 }
 
-async function upkeep(
-  scope: Scope,
-  pull: PullRef,
-  openRun: boolean,
-): Promise<string> {
-  const facts = openRun ? null : await factsOf(scope.project, pull);
-  const decision = decideUpkeep({ openRun, facts: facts ?? ON_MAIN });
+/** A run is working the branch: its parked wait hears the verdict now rather than at the next tick. */
+function judgeOpenRun(scope: Scope, pull: PullRef): Promise<string> {
+  return scope.deps.judgeParked(scope.repo, pull.number);
+}
 
-  if (decision === "judge_parked") {
-    return scope.deps.judgeParked(scope.repo, pull.number);
-  }
+/** No run is working the branch: the pull request is read, and one is started only when it needs a rebase or a fix. */
+async function upkeepSettled(scope: Scope, pull: PullRef): Promise<string> {
+  const facts = await factsOf(scope.project, pull);
+  const decision = decideUpkeep({ openRun: false, facts });
 
   return decision === "start" ? startFor(scope, pull) : "on main and green";
 }
 
-const ON_MAIN: UpkeepFacts = { behindBy: 0, mergeable: true, ci: "none" };
-
 async function factsOf(
-  project: UpkeepProject,
+  { repo, pulls }: UpkeepProject,
   pull: PullRef,
 ): Promise<UpkeepFacts> {
   const [behindBy, fresh, ci] = await Promise.all([
-    project.repo.branchBehindBy(pull.branch),
-    project.pulls.get(pull.number),
-    project.pulls.ciConclusion(pull.headSha ?? pull.branch),
+    repo.branchBehindBy(pull.branch),
+    pulls.get(pull.number),
+    pulls.ciConclusion(pull.headSha ?? pull.branch),
   ]);
 
   return { behindBy, mergeable: fresh?.mergeable ?? null, ci };
@@ -178,8 +190,9 @@ async function factsOf(
 /** The ticket's text and task ride along as on any loop run; a pull request whose ticket or task cannot be found is left for the next event. */
 async function startFor(scope: Scope, pull: PullRef): Promise<string> {
   const issueNumber = issueNumberFromLoopBranch(pull.branch);
+  const { issues } = scope.project;
   const [issue, task] = await Promise.all([
-    issueNumber === null ? null : scope.project.issues.get(issueNumber),
+    issueNumber === null ? null : issues.get(issueNumber),
     issueNumber === null
       ? null
       : scope.deps.latestLoopTaskByIssue(scope.repo, issueNumber),
