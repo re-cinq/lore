@@ -205,6 +205,27 @@ describe("postReply", () => {
     });
   });
 
+  it("replies under comment 7 of review 12 in its own thread when the auto-merge fix answers threads of any review", async () => {
+    const { poster, recorded } = fakePoster({
+      reviewComments: [...REVIEW_99, reviewComment({ id: 7, review_id: 12 })],
+    });
+
+    await postReply(
+      deliveryOf(poster, {
+        reviewId: "any",
+        replyOutput: outputOf([{ comment_id: 7, reply: "Also fixed." }]),
+      }),
+    );
+
+    expect(recorded.replies).toEqual([
+      {
+        prNumber: 412,
+        commentId: 7,
+        body: stampedThreadReply("Also fixed.", VISIT, 7),
+      },
+    ]);
+  });
+
   it("moves the reply to comment 88 into the comment on the pull request when GitHub refuses it, and leaves T1 open", async () => {
     const { poster, recorded } = fakePoster({ refusedCommentIds: [88] });
 

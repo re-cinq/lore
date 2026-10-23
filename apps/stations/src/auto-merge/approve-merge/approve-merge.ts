@@ -115,7 +115,7 @@ async function armAndApprove(
     await project.audit.write(auditRow("auto_merge_armed", prNumber));
   }
   await approver.approve(prNumber, APPROVAL_BODY);
-  await project.audit.write(auditRow("auto_merge_approved", prNumber));
+  await project.audit.write(auditRow(approvalEvent(approver), prNumber));
 
   return { outcome: "success", state: "armed" };
 }
@@ -135,8 +135,21 @@ async function mergeUnprotected(
   return { outcome: "success", state: "merged" };
 }
 
+/** lore-reviewer's approval is the row the merged-without-a-click KPI counts (`pipeline.v_auto_merge_kpis`); Lore's own App approves only a person's pull request. */
+function approvalEvent(approver: Approver): AuditEvent {
+  return approver.login === undefined
+    ? "lore_reviewer_approved"
+    : "auto_merge_approved";
+}
+
+type AuditEvent =
+  | "auto_merge_armed"
+  | "auto_merge_approved"
+  | "lore_reviewer_approved"
+  | "auto_merge_merged";
+
 function auditRow(
-  eventType: "auto_merge_armed" | "auto_merge_approved" | "auto_merge_merged",
+  eventType: AuditEvent,
   prNumber: number,
 ): Omit<AuditLogEntry, "repo"> {
   return { event_type: eventType, payload: { prNumber } };

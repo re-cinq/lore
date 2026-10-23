@@ -120,6 +120,14 @@ describe("approveAndMerge", () => {
     ]);
   });
 
+  it("audits lore-reviewer's approval of Lore's own PR as lore_reviewer_approved, the row the merged-without-a-click KPI counts", async () => {
+    const { project, approver, steps } = scene({ author: LORE });
+
+    await approveAndMerge(project, approver(), 7);
+
+    expect(steps).toContain("audit:lore_reviewer_approved");
+  });
+
   it("answers success for a PR that merged meanwhile, and fails one that was closed", async () => {
     const merged = scene({ state: "merged" });
     const closed = scene({ state: "closed" });

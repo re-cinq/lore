@@ -186,7 +186,7 @@ describe("loop rows", () => {
     });
   });
 
-  it("draws an auto-merge row as Lore's pull request, its blocked reason beside the title", () => {
+  it("draws an auto-merge row as its pull request, its blocked reason beside the title", () => {
     const MERGE = loop("merge", "Auto merge");
     const [row] = mergeSections(MERGE, {
       ...empty,
