@@ -84,6 +84,7 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
     ],
     hasCiHistory: async () => true,
     prMergeable: async () => true,
+    prBehindBy: async () => 0,
     listChecks: async () => [
       { name: "test", status: "completed", conclusion: "success" },
     ],

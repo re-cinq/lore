@@ -218,10 +218,10 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("gives the loop twelve rounds and two repairs on a red await-ci, and three sync-pr visits on a red await-pr", () => {
+  it("gives the loop twelve rounds and two repairs on a red await-ci, six sync-pr visits on a blocked await-pr and three fix-ci visits", () => {
     const { line } = pipelineOf("implementation-loop");
     const budgets = line.edges
-      .filter((edge) => ["await-ci", "await-pr"].includes(edge.from))
+      .filter((edge) => ["await-ci", "await-pr", "sync-pr"].includes(edge.from))
       .filter((edge) => edge.iteration_max !== undefined)
       .map(
         (edge) =>
@@ -231,7 +231,10 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(budgets).toEqual([
       "await-ci>tdd-round on changes_requested: 12",
       "await-ci>repair-build on failed: 2",
-      "await-pr>sync-pr on changes_requested: 3",
+      "await-pr>sync-pr on changes_requested: 6",
+      "sync-pr>fix-ci on success: 3",
+      "sync-pr>sync-pr-rebase on changes_requested: 6",
+      "sync-pr>sync-pr on failed: 1",
     ]);
   });
 
@@ -766,36 +769,27 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks auto-merge from await-merge to approve, through fix-pr and fix-replies back to the wait at most 3 times, and ends a fix that moved nothing", () => {
-    const { line } = pipelineOf("auto-merge");
-
-    expect(line.edges.filter((edge) => edge.from === "await-merge")).toEqual([
-      { from: "await-merge", to: "approve", on: "success" },
-      {
-        from: "await-merge",
-        to: "fix-pr",
-        on: "changes_requested",
-        iteration_max: 3,
-      },
-      { from: "await-merge", to: "done", on: "failed" },
-    ]);
-  });
-
-  it("keys an auto-merge run on its pr_url and gives the auto-merge-fix agent write access to the pull request's branch, on Gemini Pro", () => {
-    const {
-      line,
-      stations,
-      agent_definitions: agents,
-    } = pipelineOf("auto-merge");
+  it("walks auto-merge from await-merge straight to approve, with no fix station in the line", () => {
+    const { line, stations } = pipelineOf("auto-merge");
 
     expect({
-      subject: line.args.pr_url,
-      target: needOf(stations["auto-merge-fix"], "target"),
-      model: agents?.["auto-merge-fix"]?.settings.model,
-    }).toMatchObject({
+      edges: line.edges.filter((edge) => edge.from === "await-merge"),
+      stations: Object.keys(stations),
+    }).toEqual({
+      edges: [
+        { from: "await-merge", to: "approve", on: "success" },
+        { from: "await-merge", to: "done", on: "failed" },
+      ],
+      stations: ["auto-merge-await", "auto-merge-approve"],
+    });
+  });
+
+  it("keys an auto-merge run on its pr_url and defines no agent", () => {
+    const { line, agent_definitions: agents } = pipelineOf("auto-merge");
+
+    expect({ subject: line.args.pr_url, agents }).toEqual({
       subject: { kind: "value", subject: true },
-      target: { kind: "git", access: "write" },
-      model: "gemini-3.1-pro-preview",
+      agents: undefined,
     });
   });
 

@@ -53,6 +53,8 @@ export interface FloorCiWaitDeps {
   /** The verdict for a run parked on `await-merge`. */
   judgeMerge: Judge;
   prState(repo: string, prNumber: number): Promise<PullRef["state"] | null>;
+  /** Narrows the sweep to the waits it answers for; absent, every parked wait is judged. A pull request's event judges only its own run's wait. */
+  only?(wait: { repo: string; prNumber: number }): boolean;
 }
 
 interface CiWait {
@@ -66,7 +68,10 @@ interface CiWait {
 type Settled = "resumed" | "blocked" | "waiting" | "closed";
 
 export async function floorCiWaitSweep(deps: FloorCiWaitDeps): Promise<string> {
-  const waits = await parkedCiWaits(deps.floor);
+  const waits = (await parkedCiWaits(deps.floor)).filter(
+    (wait) =>
+      deps.only?.({ repo: wait.run.repo, prNumber: wait.prNumber }) ?? true,
+  );
   const tally = { resumed: 0, blocked: 0, waiting: 0, closed: 0, errors: 0 };
 
   for (const wait of waits) {
@@ -215,12 +220,11 @@ async function producedOf(
 ): Promise<Record<string, string>> {
   const values = feedbackValuesOf(judged);
   const feedback = feedbackOf(values);
-  const review = reviewFeedbackOf(judged);
 
-  if (!feedback && !review) {
+  if (!feedback) {
     return values;
   }
-  const brief = roundBriefOf({ feedback, handoff, review });
+  const brief = roundBriefOf({ feedback, handoff });
   const stored = await floor.blobs.put(
     new TextEncoder().encode(brief),
     "text/markdown",
@@ -243,13 +247,6 @@ function feedbackValuesOf(judged: ParkedReport): FeedbackValues {
       typeof judged.args[name] === "string" ? [[name, judged.args[name]]] : [],
     ),
   );
-}
-
-/** What review left open, when the verdict carries it. */
-function reviewFeedbackOf(judged: ParkedReport): string | null {
-  const text = judged.args.review_feedback;
-
-  return typeof text === "string" && text.length > 0 ? text : null;
 }
 
 function feedbackOf(values: FeedbackValues): CiFeedback | null {

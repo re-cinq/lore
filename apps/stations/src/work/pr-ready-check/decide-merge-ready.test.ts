@@ -8,8 +8,6 @@ const READY: MergeReadyInput = {
   mergeable: true,
   ci: "success",
   hasCiHistory: true,
-  judgedSha: "abc",
-  lastRedSha: null,
   unresolvedThreads: 0,
   openReviewRuns: 0,
   review: "approved",
@@ -32,19 +30,13 @@ describe("decideMergeReady", () => {
     ]).toEqual([{ kind: "wait", reason: "too_young" }, { kind: "ready" }]);
   });
 
-  it("sends a conflict and red CI to the fix, and fails red CI on the same sha the last fix left", () => {
+  it("waits on a conflict and on red CI, fixing neither", () => {
     expect([
       verdict({ mergeable: false, ci: "failure" }),
       verdict({ ci: "failure" }),
-      verdict({ ci: "failure", lastRedSha: "abc" }),
     ]).toEqual([
-      {
-        kind: "blocked",
-        reason: "pr_conflicting",
-        outcome: "changes_requested",
-      },
-      { kind: "blocked", reason: "ci_red", outcome: "changes_requested" },
-      { kind: "blocked", reason: "ci_red_unchanged", outcome: "failed" },
+      { kind: "wait", reason: "pr_conflicting" },
+      { kind: "wait", reason: "ci_red" },
     ]);
   });
 
@@ -60,21 +52,17 @@ describe("decideMergeReady", () => {
     ]);
   });
 
-  it("sends 2 open threads to the fix, but waits while a reply run is already answering them", () => {
+  it("waits on 2 open threads, naming a reply run that is already answering them", () => {
     expect([
       verdict({ unresolvedThreads: 2 }),
       verdict({ unresolvedThreads: 2, openReviewRuns: 1 }),
     ]).toEqual([
-      {
-        kind: "blocked",
-        reason: "unresolved_threads",
-        outcome: "changes_requested",
-      },
+      { kind: "wait", reason: "unresolved_threads" },
       { kind: "wait", reason: "address_in_flight" },
     ]);
   });
 
-  it("waits for a review on the new head, and sends changes the review asked for with no open thread to the fix", () => {
+  it("waits for a review on the new head, and on changes the review asked for with no open thread", () => {
     expect([
       verdict({ review: "none" }),
       verdict({ review: "changes_requested", openReviewRuns: 1 }),
@@ -82,11 +70,7 @@ describe("decideMergeReady", () => {
     ]).toEqual([
       { kind: "wait", reason: "review_pending" },
       { kind: "wait", reason: "review_pending" },
-      {
-        kind: "blocked",
-        reason: "review_changes_requested",
-        outcome: "changes_requested",
-      },
+      { kind: "wait", reason: "review_changes_requested" },
     ]);
   });
 });

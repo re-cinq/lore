@@ -29,6 +29,11 @@ import {
   type LoopMergeDeps,
 } from "./loop-merge-handlers.js";
 import {
+  loopUpkeepHandlers,
+  type LoopUpkeepDeps,
+} from "./loop-upkeep-handlers.js";
+import { judgeFloorPullRequest } from "../work/pr-ready-check/pr-ready-check.js";
+import {
   floorSpecTicketsHandlers,
   type FloorSpecTicketsDeps,
 } from "./floor-spec-tickets-handlers.js";
@@ -102,6 +107,23 @@ const loopMergeDeps: LoopMergeDeps = {
       (await projectFor(repo)).issues.close(issueNumber, "completed"),
     emitTick: emitLoopTick,
   },
+};
+
+const loopUpkeepDeps: LoopUpkeepDeps = {
+  floor: floorClient,
+  project: async (repo) => {
+    const project = await projectFor(repo);
+
+    return {
+      pulls: project.pulls,
+      repo: project.repo,
+      issues: project.issues,
+      settings: project.settings,
+    };
+  },
+  latestLoopTaskByIssue: (repo, issueNumber) =>
+    pipeline().taskQueue.latestLoopTaskByIssue(repo, issueNumber),
+  judgeParked: judgeFloorPullRequest,
 };
 
 /** Queued rather than inserted, so a router blip costs a late tick and not a lost one: the next ticket starts in seconds, not at the next safety tick. Mirrors `loop-closed-deps.ts`'s own `queueLoopTick`. */
@@ -271,8 +293,9 @@ export function buildStationHandlers(): Map<string, EventHandler> {
     eventTriggerNames(mod.manifest).map((eventName) => ({ mod, eventName })),
   );
 
+  // Composed like every other registration: two sweeps may answer one event, each its own half.
   for (const { mod, eventName } of sweepBindings) {
-    handlers.set(eventName, runSweepFor(mod, eventName));
+    addHandlers(handlers, new Map([[eventName, runSweepFor(mod, eventName)]]));
   }
 
   addHandlers(handlers, repoEventHandlers(repoEventDeps));
@@ -281,6 +304,7 @@ export function buildStationHandlers(): Map<string, EventHandler> {
     addHandlers(handlers, floorReviewHandlers(floorReviewDeps));
     addHandlers(handlers, floorPlanHandlers(floorPlanDeps));
     addHandlers(handlers, loopMergeHandlers(loopMergeDeps));
+    addHandlers(handlers, loopUpkeepHandlers(loopUpkeepDeps));
     addHandlers(handlers, floorSpecTicketsHandlers(floorSpecTicketsDeps));
   }
 

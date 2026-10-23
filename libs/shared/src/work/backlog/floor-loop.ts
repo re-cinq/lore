@@ -77,6 +77,8 @@ export interface LoopRunStart {
   backlog?: string;
   /** The pull request the branch already has, a start item so the run page shows it before its open-pr node finds it again. */
   openPr?: OpenPr | null;
+  /** The node the run starts at; left out, the line's entry. An upkeep run of a settled pull request starts at `sync-pr`. */
+  entry?: string;
 }
 
 export async function startLoopRun(
@@ -91,6 +93,7 @@ export async function startLoopRun(
   await startLine(floor.lines, LOOP_LINE, {
     repo: floorRepoOf(start.repo),
     startItems: loopStartItems(start, stored.hash),
+    ...(start.entry ? { entry: start.entry } : {}),
   });
 }
 

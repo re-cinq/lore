@@ -31,8 +31,8 @@ export interface ReplyDelivery {
   visitId: string;
   iteration: number;
   replyOutput: string;
-  /** The submitted review being answered; a thread reply is posted only under a comment of that review. `any` answers threads of every review: the auto-merge loop's fix works on whatever is still open. */
-  reviewId: number | null | "any";
+  /** The submitted review being answered; a thread reply is posted only under a comment of that review. */
+  reviewId: number | null;
 }
 
 export type ReplyPostOutcome = "posted" | "already_posted";
@@ -83,9 +83,7 @@ export async function postReply(
   const { reviewComments, onPr } = await commentsOnPr(poster, prNumber);
   const { targets, stray } = threadTargets(
     parseThreadReplies(delivery.replyOutput),
-    delivery.reviewId === "any"
-      ? reviewComments
-      : inlineCommentsOf(reviewComments, delivery.reviewId),
+    inlineCommentsOf(reviewComments, delivery.reviewId),
   );
   const threads = await postThreadReplies(delivery, targets, onPr);
 

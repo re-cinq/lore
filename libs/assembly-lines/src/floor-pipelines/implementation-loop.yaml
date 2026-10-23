@@ -219,12 +219,14 @@ line:
     - from: await-pr
       to: done
       on: success
-    # Red CI is the one blocking condition this line can act on. A conflicted
-    # pull request gets no CI at all, so the branch is put on main first.
+    # Red CI, a conflict and a branch behind main are the blocking conditions
+    # this line acts on. A conflicted pull request gets no CI at all, so the
+    # branch is put on main first; a rebase alone is cheap and a long-lived pull
+    # request falls behind many times, so the sync has twice the fix's budget.
     - from: await-pr
       to: sync-pr
       on: changes_requested
-      iteration_max: 3
+      iteration_max: 6
     - from: sync-pr
       to: fix-ci
       on: success
@@ -232,7 +234,7 @@ line:
     - from: sync-pr
       to: sync-pr-rebase
       on: changes_requested
-      iteration_max: 3
+      iteration_max: 6
     - from: sync-pr
       to: sync-pr
       on: failed
@@ -470,7 +472,7 @@ stations:
         optional: true
     produces: []
   loop-await-pr:
-    description: Waits on the pull request until CI is green and no review thread is open. Red CI goes to a fix, while open threads end the run for people to settle.
+    description: Waits on the pull request until it is on current main, CI is green and no review thread is open. A branch behind or in conflict goes to the sync, red CI to a fix, while open threads end the run for people to settle.
     kind: human
     outcomes:
       - success

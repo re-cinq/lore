@@ -20,7 +20,7 @@ const run = (n: number, over: Partial<FloorRunRow> = {}): FloorRunRow =>
     outcome: null,
     reason: null,
     created_at: "2026-10-23T10:00:00Z",
-    pipeline: [{ node_id: "fix-pr", state: "running" }],
+    pipeline: [{ node_id: "await-merge", state: "waiting" }],
     ...over,
   }) as FloorRunRow;
 

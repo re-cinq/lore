@@ -8,7 +8,8 @@ import {
   parkedHumanNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { floorCiWaitSweep } from "./floor-ci-wait.js";
+import { floorCiWaitSweep, type FloorCiWaitDeps } from "./floor-ci-wait.js";
+import { prReads, sweepRepoCache } from "./sweep-reads.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
 import { mergeReads, mergeReportForRun } from "./merge-readers.js";
 import {
@@ -67,6 +68,38 @@ const OPEN_RUN_STATUS = ["queued", "running"] as const;
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
+  const { deps, projectOf } = await sweepDeps();
+  const summaries = [
+    await prReadyCheckSweep(deps),
+    ...(await floorSummary(deps, projectOf)),
+  ];
+
+  return summaries.join("; ");
+}
+
+/** Judges the parked wait of the one loop run working the pull request, now, on the pull request's own event; the tick remains the backstop. */
+export async function judgeFloorPullRequest(
+  repo: string,
+  prNumber: number,
+): Promise<string> {
+  const { deps, projectOf } = await sweepDeps();
+  const summaries = await floorSummary(
+    deps,
+    projectOf,
+    (wait) => wait.repo === repo && wait.prNumber === prNumber,
+  );
+
+  return summaries.join("; ");
+}
+
+type SweepProjectOf = (
+  repo: string,
+) => Promise<Pick<Project, "pulls" | "settings" | "repo">>;
+
+async function sweepDeps(): Promise<{
+  deps: PrReadyCheckDeps;
+  projectOf: SweepProjectOf;
+}> {
   const { projectFor } = await import("../../outbound/project-boot.js");
   const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
   const deps: PrReadyCheckDeps = {
@@ -74,12 +107,8 @@ export async function prReadyCheckJob(): Promise<string> {
     ...prReads(projectOf),
     hasCiHistory,
   };
-  const summaries = [
-    await prReadyCheckSweep(deps),
-    ...(await floorSummary(deps, projectOf)),
-  ];
 
-  return summaries.join("; ");
+  return { deps, projectOf };
 }
 
 /** The run reads and the report, bound to this process's queues. */
@@ -109,73 +138,32 @@ async function runSideDeps(): Promise<
 /** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */
 async function floorSummary(
   deps: PrReadyCheckDeps,
-  projectOf: (repo: string) => Promise<Pick<Project, "pulls" | "settings">>,
+  projectOf: SweepProjectOf,
+  only?: FloorCiWaitDeps["only"],
 ): Promise<string[]> {
   const floor = floorIfConfigured();
 
   if (!floor) {
     return [];
   }
+  const judges = floorJudges(deps, projectOf);
 
   return [
-    await floorCiWaitSweep({
-      floor,
-      judge: (run) => ciReportForRun(run, deps),
-      judgePr: (run) => prReportForRun(run, deps),
-      judgeMerge: (run) =>
-        mergeReportForRun(run, { ...deps, ...mergeReads(projectOf) }),
-      prState: async (repo, prNumber) =>
-        (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
-    }),
+    await floorCiWaitSweep({ floor, ...judges, ...(only ? { only } : {}) }),
   ];
 }
 
-/** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
-function sweepRepoCache<
-  P extends {
-    pulls: { ciConclusion(ref: string): Promise<string> };
-    repo: { defaultBranch(): Promise<string> };
-  },
->(
-  projectFor: (repo: string) => Promise<P>,
-): {
-  projectOf: (repo: string) => Promise<P>;
-  hasCiHistory: (repo: string) => Promise<boolean>;
-} {
-  const projectOf = perRepo(projectFor);
-
-  return { projectOf, hasCiHistory: perRepo(ciHistoryProbe(projectOf)) };
-}
-
-/** Memoizes a per-repo read for the length of one sweep. The PROMISE is cached, not its value, so two PRs of the same repo asked concurrently still make one call. */
-function perRepo<T>(
-  read: (repo: string) => Promise<T>,
-): (repo: string) => Promise<T> {
-  const cache = new Map<string, Promise<T>>();
-
-  return (repo: string) => {
-    const cached = cache.get(repo) ?? read(repo);
-
-    cache.set(repo, cached);
-
-    return cached;
-  };
-}
-
-// "This repo runs CI at all" — decided off the DEFAULT BRANCH, so a PR that has simply not started its checks yet is not mistaken for a repo that has no CI to wait for.
-function ciHistoryProbe<
-  P extends {
-    pulls: { ciConclusion(ref: string): Promise<string> };
-    repo: { defaultBranch(): Promise<string> };
-  },
->(projectOf: (repo: string) => Promise<P>) {
-  return async (repo: string) => {
-    const project = await projectOf(repo);
-
-    return (
-      (await project.pulls.ciConclusion(await project.repo.defaultBranch())) !==
-      "none"
-    );
+function floorJudges(
+  deps: PrReadyCheckDeps,
+  projectOf: SweepProjectOf,
+): Omit<FloorCiWaitDeps, "floor" | "only"> {
+  return {
+    judge: (run) => ciReportForRun(run, deps),
+    judgePr: (run) => prReportForRun(run, deps),
+    judgeMerge: (run) =>
+      mergeReportForRun(run, { ...deps, ...mergeReads(projectOf) }),
+    prState: async (repo, prNumber) =>
+      (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
   };
 }
 
@@ -226,34 +214,6 @@ export function openReviewRunCounter(
     ]);
 
     return local.length + floor;
-  };
-}
-
-/** The sweep's reads that go to the pull request itself. */
-type PrReads = Pick<
-  PrReadyCheckDeps,
-  | "listPrCommits"
-  | "listChecks"
-  | "failedJob"
-  | "listReviewThreads"
-  | "prMergeable"
->;
-
-/** The PR-side reads, all through one per-sweep repo cache. */
-function prReads(
-  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
-): PrReads {
-  return {
-    listPrCommits: async (repo, number) =>
-      (await projectOf(repo)).pulls.listCommits(number),
-    listChecks: async (repo, ref) =>
-      (await projectOf(repo)).pulls.listChecks(ref),
-    failedJob: async (repo, jobId) =>
-      (await projectOf(repo)).pulls.failedJob(jobId),
-    prMergeable: async (repo, number) =>
-      (await (await projectOf(repo)).pulls.get(number))?.mergeable ?? null,
-    listReviewThreads: async (repo, number) =>
-      (await projectOf(repo)).pulls.listReviewThreads(number),
   };
 }
 

@@ -11,6 +11,7 @@ import { FLOOR_PLAN_EVENTS } from "./floor-plan-handlers.js";
 import { FLOOR_SPEC_TICKETS_EVENTS } from "./floor-spec-tickets-handlers.js";
 import { FLOOR_REVIEW_EVENTS } from "./floor-review-handlers.js";
 import { LOOP_MERGE_EVENTS } from "./loop-merge-handlers.js";
+import { LOOP_UPKEEP_EVENTS } from "./loop-upkeep-handlers.js";
 import { REPO_EVENTS } from "./repo-handlers.js";
 
 // One subscriber per ROLE not per replica — two stations pods share one backlog, same as two Floors.
@@ -40,6 +41,7 @@ function floorEvents(env: FloorEnv): readonly string[] {
         ...FLOOR_REVIEW_EVENTS,
         ...FLOOR_PLAN_EVENTS,
         ...LOOP_MERGE_EVENTS,
+        ...LOOP_UPKEEP_EVENTS,
         ...FLOOR_SPEC_TICKETS_EVENTS,
       ]
     : [];
