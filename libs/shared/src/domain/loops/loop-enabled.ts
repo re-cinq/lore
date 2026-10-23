@@ -13,6 +13,17 @@ export function issueTriageEnabled(rawSettings: unknown): boolean {
   return block?.enabled !== false;
 }
 
+/** The spec upkeep loop's `spec_upkeep.enabled` switch: on unless the repository switched it off, so a repository keeps the weekly upkeep it had before the switch existed. */
+export function specUpkeepEnabled(rawSettings: unknown): boolean {
+  const block = (
+    parsedSettings(rawSettings) as {
+      spec_upkeep?: { enabled?: unknown };
+    } | null
+  )?.spec_upkeep;
+
+  return block?.enabled !== false;
+}
+
 /** The auto-merge loop's switch, `auto_merge.enabled` (specs/protected-branch-merge); off by omission. */
 export function autoMergeEnabled(rawSettings: unknown): boolean {
   return autoMergeBlock(rawSettings)?.enabled === true;
@@ -45,6 +56,7 @@ const ENABLED_BY_KEY: Record<LoopKey, (rawSettings: unknown) => boolean> = {
   review: autoReviewEnabled,
   merge: autoMergeEnabled,
   triage: issueTriageEnabled,
+  upkeep: specUpkeepEnabled,
 };
 
 /** Whether the named loop is switched on for a repository, read from its raw `lore.repos.settings`. */

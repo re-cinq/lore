@@ -59,6 +59,11 @@ export const RepoSettingsSchema = z
       .passthrough()
       .optional(),
     auto_merge: AutoMergeSettingsSchema.optional(),
+    // The spec upkeep loop's switch; on when the block is absent.
+    spec_upkeep: z
+      .object({ enabled: z.boolean().optional() })
+      .passthrough()
+      .optional(),
     cross_repo: z.boolean().optional(),
     cross_repo_repos: z.array(z.string()).optional(),
     slack_channel_id: z.string().optional(),

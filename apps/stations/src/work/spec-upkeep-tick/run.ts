@@ -3,7 +3,10 @@ import {
   floorClient,
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { specUpkeepTick } from "@re-cinq/lore-shared/spec-upkeep/floor-spec-upkeep.js";
+import {
+  enabledUpkeepRepos,
+  specUpkeepTick,
+} from "@re-cinq/lore-shared/spec-upkeep/floor-spec-upkeep.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { settings } from "../../outbound/queues.js";
 
@@ -20,7 +23,7 @@ export async function runSpecUpkeepTick(
   return specUpkeepTick(params, {
     floor: floorClient(),
     repos: async () =>
-      (await settings().onboardedRepos()).map((repo) => repo.full_name).sort(),
+      enabledUpkeepRepos(await settings().onboardedRepoSettings()),
     openPrBranches: async (repo) =>
       (await (await projectFor(repo)).pulls.list()).map((pr) => pr.branch),
     now: () => new Date(),

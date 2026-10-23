@@ -7,6 +7,7 @@ import {
   valueItem,
 } from "../../outbound/floor/floor-items.js";
 import { startLine } from "../review/floor-line-start.js";
+import { specUpkeepEnabled } from "../../domain/loops/loop-enabled.js";
 
 export const SPEC_UPKEEP_LINE = "spec-upkeep";
 
@@ -14,16 +15,27 @@ export const SPEC_UPKEEP_LINE = "spec-upkeep";
 export const MAX_DRIFTED_SPECS = 3;
 export const MAX_UNLINKED_STATEMENTS = 25;
 
-const BRANCH_PREFIX = "lore/spec-upkeep/";
+/** Every upkeep pull request's branch starts with it, which is how the Loops tab finds them. */
+export const UPKEEP_BRANCH_PREFIX = "lore/spec-upkeep/";
 const DAY_LENGTH = "2026-10-05".length;
 
 /** One branch per run day. The branch is cut only once a detector found something, so a repository with nothing to fix is left with no empty branch. */
 export function upkeepBranch(now: Date): string {
-  return `${BRANCH_PREFIX}${dayOf(now)}`;
+  return `${UPKEEP_BRANCH_PREFIX}${dayOf(now)}`;
 }
 
 function dayOf(now: Date): string {
   return now.toISOString().slice(0, DAY_LENGTH);
+}
+
+/** The onboarded repositories whose spec upkeep loop is on, sorted. */
+export function enabledUpkeepRepos(
+  rows: readonly { full_name: string; settings: unknown }[],
+): string[] {
+  return rows
+    .filter((row) => specUpkeepEnabled(row.settings))
+    .map((row) => row.full_name)
+    .sort();
 }
 
 export interface UpkeepTickDeps {
@@ -59,7 +71,7 @@ async function startFor(repo: string, deps: UpkeepTickDeps): Promise<Started> {
   try {
     const open = await deps.openPrBranches(repo);
 
-    if (open.some((branch) => branch.startsWith(BRANCH_PREFIX))) {
+    if (open.some((branch) => branch.startsWith(UPKEEP_BRANCH_PREFIX))) {
       return "skipped";
     }
     await startRun(repo, deps);

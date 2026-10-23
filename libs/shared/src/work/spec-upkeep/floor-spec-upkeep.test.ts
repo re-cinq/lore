@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { recordedPlanFloor } from "../../outbound/floor/recorded-plan-floor.js";
 import {
+  enabledUpkeepRepos,
   specUpkeepTick,
   upkeepBranch,
   type UpkeepTickDeps,
@@ -21,6 +22,18 @@ function scene(openBranches: Record<string, string[]> = {}) {
 
   return { deps, started };
 }
+
+describe("enabledUpkeepRepos", () => {
+  it("keeps acme/a with no spec_upkeep block and acme/c switched on, drops acme/b switched off, sorted", () => {
+    expect(
+      enabledUpkeepRepos([
+        { full_name: "acme/c", settings: { spec_upkeep: { enabled: true } } },
+        { full_name: "acme/b", settings: { spec_upkeep: { enabled: false } } },
+        { full_name: "acme/a", settings: {} },
+      ]),
+    ).toEqual(["acme/a", "acme/c"]);
+  });
+});
 
 describe("upkeepBranch", () => {
   it("names the branch lore/spec-upkeep/2026-10-05 for a run on 5 October 2026", () => {
