@@ -88,7 +88,6 @@ describe("runNodeByHand", () => {
   it("routes a retry of a node fed by CI (repair-build) through await-ci so CI re-judges the branch", async () => {
     const { floor, requests } = scene([POSTED]);
 
-    // We ask to run repair-build
     const answer = await runNodeByHand(floor, ask("repair-build"), NO_WAIT);
 
     expect({ answer, posts: posts(requests) }).toEqual({
@@ -98,7 +97,7 @@ describe("runNodeByHand", () => {
           method: "POST",
           path: "/events",
           body: {
-            name: "node.await-ci.start", // The test asserts it routes to await-ci
+            name: "node.await-ci.start",
             payload: { runId: "run-1", requestedBy: "gedaiu" },
           },
         },
