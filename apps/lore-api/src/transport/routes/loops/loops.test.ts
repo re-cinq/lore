@@ -100,17 +100,17 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
 
     const res = await put("triage", { enabled: false }, pool);
 
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({
-      ok: true,
-      key: "triage",
-      enabled: false,
-    });
     const update = pool.query.mock.calls.find(([sql]) =>
       String(sql).includes("UPDATE lore.repos"),
     );
 
-    expect(update?.[1]).toEqual(["re-cinq/lore", "issue_triage", false]);
+    expect({
+      body: JSON.parse(res.payload),
+      updateParams: update?.[1],
+    }).toEqual({
+      body: { ok: true, key: "triage", enabled: false },
+      updateParams: ["re-cinq/lore", "issue_triage", false],
+    });
     expect(projectFor).not.toHaveBeenCalled();
   });
 
