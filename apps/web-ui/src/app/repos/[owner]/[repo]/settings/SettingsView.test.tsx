@@ -68,6 +68,21 @@ describe("SettingsView (general only)", () => {
     );
   });
 
+  it("shows the auto-merge minimum age under Run policy, 24 hours when unset and 6 once saved", () => {
+    const field = (settings: RepoSettingsShape) => {
+      const input = renderView(settings).container.querySelector(
+        'input[name="auto_merge_min_age_hours"]',
+      ) as HTMLInputElement;
+
+      return [input.closest("section")?.id, input.value];
+    };
+
+    expect([field({}), field({ auto_merge: { min_age_hours: 6 } })]).toEqual([
+      ["set-policy", "24"],
+      ["set-policy", "6"],
+    ]);
+  });
+
   it("links the sub-navigation to the four section cards", () => {
     const { container } = renderView();
     const hrefs = Array.from(

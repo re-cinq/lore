@@ -17,14 +17,6 @@ const SWITCH_SQL: Record<LoopKey, string> = {
   triage: blockSwitchSql("issue_triage"),
 };
 
-/** The auto-merge loop's one setting, merged into its block like the switch. */
-const MIN_AGE_SQL = `UPDATE lore.repos
-          SET settings = COALESCE(settings, '{}'::jsonb)
-            || jsonb_build_object('auto_merge',
-                 COALESCE(settings->'auto_merge', '{}'::jsonb)
-                   || jsonb_build_object('min_age_hours', $2::int))
-        WHERE full_name = $1`;
-
 /** Merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. */
 function blockSwitchSql(block: string): string {
   return `UPDATE lore.repos
@@ -39,31 +31,15 @@ function blockSwitchSql(block: string): string {
 export async function switchLoop(
   pool: Pool,
   repo: string,
-  key: LoopKey,
-  { enabled, minAgeHours }: { enabled: boolean; minAgeHours?: number },
+  { key, enabled }: { key: LoopKey; enabled: boolean },
 ): Promise<void> {
   await pool.query(SWITCH_SQL[key], [repo, enabled]);
-
-  if (key === "merge") {
-    await afterMergeSwitch(pool, repo, { enabled, minAgeHours });
-  }
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);
   }
-}
 
-/** Auto merge keeps its one setting beside the switch, and Off takes back what the loop armed. */
-async function afterMergeSwitch(
-  pool: Pool,
-  repo: string,
-  { enabled, minAgeHours }: { enabled: boolean; minAgeHours?: number },
-): Promise<void> {
-  if (minAgeHours !== undefined) {
-    await pool.query(MIN_AGE_SQL, [repo, minAgeHours]);
-  }
-
-  if (!enabled) {
+  if (key === "merge" && !enabled) {
     await disarmAutoMerge(repo);
   }
 }

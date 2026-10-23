@@ -146,6 +146,7 @@ function textFieldDefaults(settings: RepoSettingsShape) {
 function selectFieldDefaults(settings: RepoSettingsShape) {
   return {
     trustLevel: settings.trust?.level ?? "implementation",
+    minAgeHours: settings.auto_merge?.min_age_hours ?? DEFAULT_MIN_AGE_HOURS,
   };
 }
 
@@ -171,13 +172,17 @@ function TextField({ label, name, value, placeholder }: TextFieldProps) {
   );
 }
 
+/** What the auto-merge loop waits when the repository saved no minimum age (lore-shared `autoMergeMinAgeHours`). */
+const DEFAULT_MIN_AGE_HOURS = 24;
+
 interface RunPolicyFieldsProps {
   trustLevel: string;
+  minAgeHours: number;
 }
 
-/** Trust level decides which task types this repo accepts at all. The loops' switches (code review, auto merge, …) live on the Loops tab. */
+/** Trust level decides which task types this repo accepts at all; the minimum age is how long the auto-merge loop waits. The loops' switches (code review, auto merge, …) live on the Loops tab. */
 function RunPolicyFields(props: RunPolicyFieldsProps) {
-  const { trustLevel } = props;
+  const { trustLevel, minAgeHours } = props;
 
   return (
     <SettingsCard
@@ -187,7 +192,30 @@ function RunPolicyFields(props: RunPolicyFieldsProps) {
       headingLevel={3}
     >
       <TrustLevelField trustLevel={trustLevel} />
+      <MinAgeField minAgeHours={minAgeHours} />
     </SettingsCard>
+  );
+}
+
+/** The auto-merge loop's one setting: how long a pull request stays open before the loop merges it. Its on/off switch is on the Loops tab. */
+function MinAgeField({ minAgeHours }: { minAgeHours: number }) {
+  return (
+    <div className={styles.field}>
+      <label htmlFor="setting-auto_merge_min_age_hours">
+        Auto merge: hours a pull request stays open before it merges
+      </label>
+      <input
+        id="setting-auto_merge_min_age_hours"
+        name="auto_merge_min_age_hours"
+        type="number"
+        min={0}
+        step={1}
+        defaultValue={minAgeHours}
+      />
+      <span className={styles.hint}>
+        Switch the auto-merge loop on or off on the Loops tab.
+      </span>
+    </div>
   );
 }
 

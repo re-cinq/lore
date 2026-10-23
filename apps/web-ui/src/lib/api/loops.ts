@@ -15,10 +15,9 @@ export function getRepoLoops(repo: string): Promise<ApiResult<RepoLoops>> {
   return apiFetch("lore-api", path(repo));
 }
 
-/** What a switch asks for; the auto-merge loop also takes its one setting, the hours a pull request must have been open before it merges. */
+/** What a switch asks for. */
 export interface SwitchRequest {
   enabled: boolean;
-  min_age_hours?: number;
 }
 
 export function setLoopEnabled(
