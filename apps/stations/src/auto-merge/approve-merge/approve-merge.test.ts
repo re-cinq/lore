@@ -4,6 +4,7 @@ import {
   approveAndMerge,
   NEEDS_CODE_OWNER,
   NEEDS_REVIEWER,
+  LOOP_OFF,
   type Approver,
   type MergeProject,
 } from "./approve-merge.js";
@@ -16,6 +17,7 @@ function scene(opts: {
   sensitive?: string[];
   state?: "open" | "closed" | "merged";
   autoMerge?: boolean;
+  loopOn?: boolean;
 }) {
   const steps: string[] = [];
   const project: MergeProject = {
@@ -38,6 +40,7 @@ function scene(opts: {
       },
     },
     sensitivePaths: async () => opts.sensitive ?? [],
+    loopOn: async () => opts.loopOn ?? true,
     audit: {
       write: async (row) => {
         steps.push(`audit:${row.event_type}`);
@@ -118,6 +121,30 @@ describe("approveAndMerge", () => {
       { outcome: "failed", reason: NEEDS_REVIEWER },
       { outcome: "success", state: "armed" },
     ]);
+  });
+
+  it("merges Lore's own PR on a branch with no approval rule without approving it, when only Lore's App is there", async () => {
+    const { project, approver, steps } = scene({
+      author: LORE,
+      requiredApprovals: 0,
+    });
+
+    expect({
+      step: await approveAndMerge(project, approver(LORE), 7),
+      steps,
+    }).toEqual({
+      step: { outcome: "success", state: "merged" },
+      steps: ["merge:7:squash", "audit:auto_merge_merged"],
+    });
+  });
+
+  it("approves and merges nothing once the loop was switched off while the run waited", async () => {
+    const { project, approver, steps } = scene({ loopOn: false });
+
+    expect({
+      step: await approveAndMerge(project, approver(LORE), 7),
+      steps,
+    }).toEqual({ step: { outcome: "failed", reason: LOOP_OFF }, steps: [] });
   });
 
   it("audits lore-reviewer's approval of Lore's own PR as lore_reviewer_approved, the row the merged-without-a-click KPI counts", async () => {

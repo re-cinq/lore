@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { autoMergeTick, type AutoMergeTickDeps } from "./auto-merge-tick.js";
+import {
+  autoMergeTick,
+  headKey,
+  type AutoMergeTickDeps,
+} from "./auto-merge-tick.js";
 
 const REPO = "acme/widgets";
 
@@ -61,6 +65,21 @@ describe("autoMergeTick", () => {
     await autoMergeTick(deps);
 
     expect(started).toEqual([]);
+  });
+
+  it("leaves #6, whose head def a settled run already worked, and starts #7, pushed to since its run", async () => {
+    const { deps, started } = scene({
+      pulls: [pull(6, { headSha: "def" }), pull(7, { headSha: "new" })],
+      passed: [6, 7],
+      worked: [
+        headKey(`https://github.com/${REPO}/pull/6`, "def"),
+        headKey(`https://github.com/${REPO}/pull/7`, "old"),
+      ],
+    });
+
+    await autoMergeTick(deps);
+
+    expect(started).toEqual([7]);
   });
 
   it("starts at most 3 runs per repo in one tick", async () => {

@@ -13,7 +13,7 @@ import type {
   ReviewComment,
   ReviewThread,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { redFeedback } from "./decide-ci.js";
+import { redFeedback, type CiFeedbackArgs } from "./decide-ci.js";
 import {
   decideMergeReady,
   type MergeReadyInput,
@@ -156,12 +156,28 @@ async function feedbackOf(
   run: LoopRunSlice,
   evidence: Evidence,
 ): Promise<Record<string, unknown>> {
+  if (evidence.input.mergeable === false) {
+    return { ...conflictFeedback(evidence.headSha) };
+  }
+
   if (evidence.input.ci === "failure") {
     return { ...redFeedback(evidence.ci, evidence.headSha) };
   }
   const review = await reviewFeedback(deps, run, evidence);
 
   return review ? { review_feedback: review } : {};
+}
+
+export const CONFLICT_SUMMARY =
+  "GitHub reports the branch conflicts with its base, so no CI ran on it. Merge the base branch in, settle every conflict and push.";
+
+/** A conflicting pull request gets no CI at all; the fix still has to be told what to do. */
+function conflictFeedback(headSha: string): CiFeedbackArgs {
+  return {
+    ci_feedback_sha: headSha,
+    ci_failed_checks: "merge conflict with the base branch",
+    ci_failure_summary: CONFLICT_SUMMARY,
+  };
 }
 
 async function reviewFeedback(

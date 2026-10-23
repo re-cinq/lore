@@ -17,14 +17,17 @@ describe("SaveResultBanner", () => {
     expect(screen.getByText("Settings saved.")).toBeInTheDocument();
   });
 
-  it("shows what the save path said is missing when it refused", () => {
+  it("shows lore-api's reason when it refused the save", () => {
     render(
       <SaveResultBanner
-        state={{ saved: false, error: "Missing rule: requires 1 approval" }}
+        state={{
+          saved: false,
+          error: "context_backend must be lore, utopia or both",
+        }}
       />,
     );
     expect(
-      screen.getByText(/Missing rule: requires 1 approval/),
+      screen.getByText(/context_backend must be lore, utopia or both/),
     ).toBeInTheDocument();
   });
 });

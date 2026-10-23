@@ -3,6 +3,7 @@ import { defineStation } from "@re-cinq/floor-station";
 import type { Handle, Report, RunningStation } from "@re-cinq/floor-station";
 import { codeownersOf, ownedPaths } from "@re-cinq/lore-shared/codeowners.js";
 import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { autoMergeEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import { loreReviewerGitHub } from "@re-cinq/lore-shared/project/github-installations/lore-reviewer.js";
 import { projectFor } from "../outbound/project-boot.js";
@@ -68,6 +69,8 @@ const productionDeps: ApproveMergeDeps = {
 
         return ownedPaths(files, codeowners);
       },
+      loopOn: async () =>
+        autoMergeEnabled(await project.settings.rawSettings()),
     };
   },
   approver: async (repo) => {

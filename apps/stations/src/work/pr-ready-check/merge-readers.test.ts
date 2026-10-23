@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { mergeReportForRun, type MergeWaitDeps } from "./merge-readers.js";
+import {
+  CONFLICT_SUMMARY,
+  mergeReportForRun,
+  type MergeWaitDeps,
+} from "./merge-readers.js";
 import type { LoopRunSlice } from "./sweep-contract.js";
 
 const RUN: LoopRunSlice = {
@@ -99,6 +103,28 @@ describe("mergeReportForRun", () => {
         reason: "unresolved_threads",
         review_feedback:
           "inline comment 9 on src/a.ts:3 (gedaiu):\nRename this.",
+      },
+    });
+  });
+
+  it("sends #42, which conflicts with its base, to the fix with the conflict named as what failed on abc", async () => {
+    const report = await mergeReportForRun(
+      RUN,
+      deps({
+        pullFacts: async () => ({
+          createdAt: "2026-10-22T06:00:00Z",
+          mergeable: false,
+        }),
+      }),
+    );
+
+    expect(report).toEqual({
+      outcome: "changes_requested",
+      args: {
+        reason: "pr_conflicting",
+        ci_feedback_sha: "abc",
+        ci_failed_checks: "merge conflict with the base branch",
+        ci_failure_summary: CONFLICT_SUMMARY,
       },
     });
   });

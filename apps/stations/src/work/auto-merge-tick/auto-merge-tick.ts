@@ -11,7 +11,7 @@ export interface AutoMergeTickDeps {
   openPulls(repo: string): Promise<PullRef[]>;
   /** Lore's review stands approved on the pull request's head. */
   reviewPassed(repo: string, pull: PullRef): Promise<boolean>;
-  /** The pull request URLs an auto-merge run is already open for. */
+  /** The pull request URLs an auto-merge run is open for, and the `headKey` of every head commit a run was started on, settled or not. */
   workedPulls(repo: string): Promise<ReadonlySet<string>>;
   start(repo: string, pull: PullRef): Promise<void>;
 }
@@ -35,7 +35,7 @@ async function startForRepo(
     deps.workedPulls(repo),
   ]);
   const candidates = pulls.filter(
-    (pull) => mergeCandidate(pull, repo) && !worked.has(pull.url),
+    (pull) => mergeCandidate(pull, repo) && !alreadyWorked(pull, worked),
   );
   const passed = await reviewed(deps, repo, candidates);
   const due = passed.slice(0, STARTS_PER_REPO);
@@ -45,6 +45,15 @@ async function startForRepo(
   }
 
   return due.length;
+}
+
+/** A run is working the pull request, or one already settled on this head: an armed or parked pull request is taken again only once someone pushes to it. */
+function alreadyWorked(pull: PullRef, worked: ReadonlySet<string>): boolean {
+  return worked.has(pull.url) || worked.has(headKey(pull.url, pull.headSha));
+}
+
+export function headKey(url: string, headSha: string | undefined): string {
+  return `${url}@${headSha ?? ""}`;
 }
 
 async function reviewed(

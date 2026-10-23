@@ -94,7 +94,8 @@ function useMinAge(props: {
   const [note, setNote] = useState<string | null>(null);
 
   async function commit() {
-    const hours = Number(value);
+    // Number("") is 0: a cleared field must not save zero hours.
+    const hours = value.trim() === "" ? Number.NaN : Number(value);
 
     if (!Number.isInteger(hours) || hours < 0 || hours === props.hours) {
       setValue(String(props.hours));

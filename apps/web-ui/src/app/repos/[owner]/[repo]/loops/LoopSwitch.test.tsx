@@ -144,4 +144,22 @@ describe("LoopSwitch", () => {
       shown: "24",
     });
   });
+
+  it("saves nothing and shows 24 again when the hours field is cleared", async () => {
+    const write = vi.fn(async () => null);
+    const { getByRole } = render(
+      <LoopSwitch {...triageSwitch} minAgeHours={24} toggle={write} enabled />,
+    );
+    const field = getByRole("spinbutton");
+
+    fireEvent.change(field, { target: { value: "" } });
+    await act(async () => {
+      fireEvent.blur(field);
+    });
+
+    expect({
+      writes: write.mock.calls,
+      shown: (field as HTMLInputElement).value,
+    }).toEqual({ writes: [], shown: "24" });
+  });
 });

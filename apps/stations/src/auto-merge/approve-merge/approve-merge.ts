@@ -29,6 +29,8 @@ export interface MergeProject {
   };
   /** The changed files a CODEOWNERS row gives an owner. */
   sensitivePaths(prNumber: number): Promise<string[]>;
+  /** The repository's auto-merge switch, read again at the last step: it may have been switched off while the run waited. */
+  loopOn(): Promise<boolean>;
   audit: { write(entry: Omit<AuditLogEntry, "repo">): Promise<void> };
 }
 
@@ -53,15 +55,28 @@ export async function approveAndMerge(
     return settledStep(pull?.state);
   }
 
+  if (!(await project.loopOn())) {
+    return { outcome: "failed", reason: LOOP_OFF };
+  }
   const usable = approverFor(approver, pull.author);
 
-  if (!usable) {
-    return { outcome: "failed", reason: NEEDS_REVIEWER };
-  }
-
   return (await approvalRequired(project, pull.baseBranch))
-    ? armAndApprove(project, usable, { prNumber, pull })
+    ? approveProtected(project, usable, { prNumber, pull })
     : mergeUnprotected(project, usable, prNumber);
+}
+
+export const LOOP_OFF =
+  "the auto-merge loop was switched off before the pull request was approved";
+
+/** A branch rule that asks for an approval needs one GitHub counts; Lore's own App cannot give it on a pull request it opened. */
+async function approveProtected(
+  project: MergeProject,
+  approver: Approver | null,
+  target: { prNumber: number; pull: Pick<PullRef, "nodeId" | "autoMerge"> },
+): Promise<MergeStep> {
+  return approver
+    ? armAndApprove(project, approver, target)
+    : { outcome: "failed", reason: NEEDS_REVIEWER };
 }
 
 function settledStep(state: string | undefined): MergeStep {
@@ -120,15 +135,16 @@ async function armAndApprove(
   return { outcome: "success", state: "armed" };
 }
 
+/** No rule asks for an approval, so none is needed to merge: Lore approves where it can, for the record, and merges. */
 async function mergeUnprotected(
   project: MergeProject,
-  approver: Approver,
+  approver: Approver | null,
   prNumber: number,
 ): Promise<MergeStep> {
   if ((await project.sensitivePaths(prNumber)).length > 0) {
     return { outcome: "failed", reason: NEEDS_CODE_OWNER };
   }
-  await approver.approve(prNumber, APPROVAL_BODY);
+  await approver?.approve(prNumber, APPROVAL_BODY);
   await project.pulls.merge(prNumber, SQUASH);
   await project.audit.write(auditRow("auto_merge_merged", prNumber));
 

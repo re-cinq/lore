@@ -94,29 +94,42 @@ function openRow(pull: MergePull, input: MergeQueuesInput): MergeRow | null {
   }
 
   if (isOpenStatus(run.status)) {
-    return openRunRow(pull, run, input);
+    return openRunRow(pull, { run, block }, input);
   }
 
   return settledRunRow(pull, run, block);
 }
 
-/** A run waiting at its gate with only the minimum age left reads as awaiting merge, with when it may merge. */
+/** A run waiting at its gate with only the minimum age left reads as awaiting merge, with when it may merge; one still held by a stored reason (CI, review, a conflict) is still being worked, and says why. */
 function openRunRow(
   pull: MergePull,
-  run: FloorRunRow,
+  { run, block }: { run: FloorRunRow; block: StoredBlock | undefined },
   input: MergeQueuesInput,
 ): MergeRow {
   const mergesAt = mergeTime(pull, input);
-  const atGate = run.pipeline.some(
+
+  const young = mergesAt !== null && mergesAt > input.now;
+  const onlyAgeLeft = !block && atGate(run) && young;
+
+  if (onlyAgeLeft) {
+    return row(pull, {
+      state: "waiting",
+      blocked: `merges after ${isoMinute(mergesAt)}`,
+      run,
+    });
+  }
+
+  return row(pull, { state: run.status, blocked: blockLabel(block), run });
+}
+
+function atGate(run: FloorRunRow): boolean {
+  return run.pipeline.some(
     (node) => node.node_id === "await-merge" && node.state === "waiting",
   );
-  const young = mergesAt !== null && mergesAt > input.now;
+}
 
-  return row(pull, {
-    state: atGate && young ? "waiting" : run.status,
-    blocked: atGate && young ? `merges after ${isoMinute(mergesAt)}` : null,
-    run,
-  });
+function blockLabel(block: StoredBlock | undefined): string | null {
+  return block ? labelForReason(block.reason, block.detail) : null;
 }
 
 function settledRunRow(

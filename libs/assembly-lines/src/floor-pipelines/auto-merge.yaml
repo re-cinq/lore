@@ -14,6 +14,10 @@ line:
     pr_url:
       kind: value
       subject: true
+    # The head commit the run was started for: the loop takes a pull request
+    # again only once its head moved past every run that worked it.
+    head_sha:
+      kind: value
   nodes:
     - id: await-merge
       station: auto-merge-await
@@ -71,7 +75,9 @@ stations:
       - success
       - changes_requested
       - failed
-    needs: []
+    needs:
+      - name: head_sha
+        kind: value
     # Written only when the pull request is sent to a fix: the red build, the
     # review left open, and both as one file for the agent.
     produces:

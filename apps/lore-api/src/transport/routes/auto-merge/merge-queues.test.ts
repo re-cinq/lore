@@ -73,6 +73,26 @@ describe("mergeQueues", () => {
     ]);
   });
 
+  it("keeps #8, opened 2 hours ago and waiting at its gate for CI, under current with its blocked reason", () => {
+    const queues = mergeQueues(
+      input({
+        open: [pull(8, "2026-10-23T10:00:00Z")],
+        runs: [
+          run(8, { pipeline: [{ node_id: "await-merge", state: "waiting" }] }),
+        ],
+        blocks: [{ prNumber: 8, reason: "waiting_on_ci", detail: null }],
+      }),
+    );
+
+    expect({
+      current: keys(queues.current),
+      awaiting: keys(queues.awaiting_merge),
+    }).toEqual({
+      current: [[8, "running", "Waiting for CI"]],
+      awaiting: [],
+    });
+  });
+
   it("shows #5 whose run approved it as armed, and parks #6 whose run failed and #7 armed but needing a code owner", () => {
     const queues = mergeQueues(
       input({
