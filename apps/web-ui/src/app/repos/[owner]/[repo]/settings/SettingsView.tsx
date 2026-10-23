@@ -5,7 +5,6 @@ import SettingsHelp from "./SettingsHelp";
 import { SubmitButton } from "@/components/SubmitButton";
 import { type SettingsNavItem } from "@/components/SettingsLayout";
 import { SettingsCard } from "@/components/SettingsCard";
-import Switch from "@/components/Switch";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
 
@@ -147,7 +146,6 @@ function textFieldDefaults(settings: RepoSettingsShape) {
 function selectFieldDefaults(settings: RepoSettingsShape) {
   return {
     trustLevel: settings.trust?.level ?? "implementation",
-    autoReview: Boolean(settings.auto_review),
     autoMergeApprover: settings.auto_merge?.approver ?? "none",
   };
 }
@@ -176,13 +174,12 @@ function TextField({ label, name, value, placeholder }: TextFieldProps) {
 
 interface RunPolicyFieldsProps {
   trustLevel: string;
-  autoReview: boolean;
   autoMergeApprover: string;
 }
 
-/** Not more text boxes: trust level decides which task types this repo accepts at all, and auto-review decides whether a PR is reviewed without anyone asking. */
+/** Not more text boxes: trust level decides which task types this repo accepts at all, and the approver decides whether Lore may arm a merge. The code-review switch lives on the Loops tab. */
 function RunPolicyFields(props: RunPolicyFieldsProps) {
-  const { trustLevel, autoReview, autoMergeApprover } = props;
+  const { trustLevel, autoMergeApprover } = props;
 
   return (
     <SettingsCard
@@ -192,7 +189,6 @@ function RunPolicyFields(props: RunPolicyFieldsProps) {
       headingLevel={3}
     >
       <TrustLevelField trustLevel={trustLevel} />
-      <AutoReviewField autoReview={autoReview} />
       <input
         type="hidden"
         name="auto_merge_approver_saved"
@@ -218,19 +214,6 @@ function TrustLevelField({ trustLevel }: { trustLevel: string }) {
         <option value="full">Full (all task types)</option>
       </select>
     </div>
-  );
-}
-
-/** A switch posting "yes" when on, the value the server action reads. */
-function AutoReviewField({ autoReview }: { autoReview: boolean }) {
-  return (
-    <Switch
-      name="auto_review"
-      value="yes"
-      defaultChecked={autoReview}
-      label="Auto-review PRs"
-      detail="Every open pull request gets a review from the code-review line."
-    />
   );
 }
 

@@ -16,6 +16,8 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { switchLoop } from "./loop-switch.js";
+import { codeReviewRoute } from "../code-review/code-review.js";
+import { floorRunPages } from "../floor/floor-runs.js";
 import {
   LoopKeySchema,
   LoopSwitchBodySchema,
@@ -34,8 +36,13 @@ const SwitchParams = z.object({
 
 const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 
+/** The Loops tab's routes: the loops and their switches, and the pages of the loops that have no other home. */
 export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
-  return [readLoopsRoute(getPool), switchLoopRoute(getPool)];
+  return [
+    readLoopsRoute(getPool),
+    switchLoopRoute(getPool),
+    codeReviewRoute(floorRunPages),
+  ];
 }
 
 function readLoopsRoute(getPool: () => Pool | null): ServerRoute {

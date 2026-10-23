@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { AssemblyRunSummary } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { floorRunFilters, matchesFloorQuery } from "./floor-run-query.js";
+import {
+  floorPageFilter,
+  floorRunFilters,
+  matchesFloorQuery,
+} from "./floor-run-query.js";
 
 const RUN: AssemblyRunSummary = {
   id: "run-1",
@@ -109,5 +113,19 @@ describe("matchesFloorQuery", () => {
         createdAfter: new Date("2026-09-30T11:00:00.000Z"),
       }),
     ).toBe(false);
+  });
+});
+
+describe("floorPageFilter", () => {
+  it("narrows a page to the code-review runs of github.com/re-cinq/lore, open ones for status running", () => {
+    expect({
+      line: floorPageFilter({ repo: "re-cinq/lore", line: "code-review" }),
+      open: floorPageFilter({ line: "code-review", status: "running" }),
+      every: floorPageFilter({}),
+    }).toEqual({
+      line: { repo: "github.com/re-cinq/lore", line: "code-review" },
+      open: { line: "code-review", open: true },
+      every: { since: new Date(0).toISOString() },
+    });
   });
 });

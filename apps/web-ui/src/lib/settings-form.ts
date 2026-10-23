@@ -4,7 +4,6 @@ export function parseSettingsForm(formData: FormData) {
   const selectedRepos = formData.getAll("cross_repo_repos") as string[];
   const updates: Record<string, unknown> = {
     task_types: commaList(formData, "task_types"),
-    auto_review: formData.get("auto_review") === "yes",
     cross_repo: selectedRepos.length > 0,
     cross_repo_repos: selectedRepos,
     slack_channel_id: optionalText(formData, "slack_channel_id"),

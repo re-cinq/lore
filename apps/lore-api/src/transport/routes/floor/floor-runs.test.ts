@@ -34,6 +34,19 @@ describe("GET /api/floor-runs", () => {
     });
   });
 
+  it("asks for the code-review runs of re-cinq/lore when the query names a line", async () => {
+    const asked: unknown[] = [];
+    const server = serve(async (query) => {
+      asked.push(query);
+
+      return { runs: [], next_cursor: null };
+    });
+
+    await server.inject("/api/floor-runs?repo=re-cinq/lore&line=code-review");
+
+    expect(asked).toEqual([{ repo: "re-cinq/lore", line: "code-review" }]);
+  });
+
   it("asks for the running runs of re-cinq/lore and refuses 400 a repo that is not owner/name", async () => {
     const asked: unknown[] = [];
     const server = serve(async (query) => {

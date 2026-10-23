@@ -8,6 +8,12 @@ export const LOOP_KINDS = [
       "Works the repository's priority-labelled tickets one at a time and opens a pull request for each.",
   },
   {
+    key: "review",
+    label: "Code review",
+    description:
+      "Reviews every pull request when it opens and again on every push, and answers a request for changes from a trusted reviewer.",
+  },
+  {
     key: "triage",
     label: "Issue triage",
     description:

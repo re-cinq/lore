@@ -1,0 +1,169 @@
+// The code-review loop's queues, composed from the repository's open pull requests and the review family's floor runs (specs/auto-review-loop FR-L1). Pure: what the route reads is handed in.
+import { z } from "zod";
+import { PipelineNodeSchema } from "../../../work/assembly-line-station/mini-pipeline.js";
+import type { FloorRunRow } from "../../../work/floor/floor-run-rows.js";
+import { isOpenStatus } from "../../../work/floor/floor-run-query.js";
+
+/** The review family, each line under the word the page uses for it. */
+export const REVIEW_LINES: Readonly<Record<string, string>> = {
+  "code-review": "review",
+  "code-review-recheck": "re-check",
+  "code-review-reply": "reply",
+};
+
+export const ReviewRowSchema = z.object({
+  pr_number: z.number().nullable(),
+  pr_url: z.string().nullable(),
+  title: z.string(),
+  /** The code-review gate skips a draft, so the page says why it is unreviewed. */
+  draft: z.boolean(),
+  /** review | re-check | reply, null for a pull request no run touched. */
+  line: z.string().nullable(),
+  /** The run's status while it is open, its outcome once settled, `unreviewed` for a pull request without a run. */
+  state: z.string(),
+  run_id: z.string().nullable(),
+  pipeline: z.array(PipelineNodeSchema).nullable(),
+  created_at: z.string().nullable(),
+});
+
+export const CodeReviewSchema = z.object({
+  /** Pull requests a review run is working right now. */
+  current: z.array(ReviewRowSchema),
+  /** The other open pull requests, each with its newest settled run when it has one. */
+  open_pulls: z.array(ReviewRowSchema),
+  /** The newest settled runs, whatever became of their pull requests. */
+  recent: z.array(ReviewRowSchema),
+});
+
+export type ReviewRow = z.infer<typeof ReviewRowSchema>;
+export type CodeReview = z.infer<typeof CodeReviewSchema>;
+
+export interface ReviewPull {
+  number: number;
+  title: string;
+  url: string;
+  draft?: boolean;
+}
+
+const RECENT_LIMIT = 10;
+
+export function reviewQueues(
+  pulls: readonly ReviewPull[],
+  runs: readonly FloorRunRow[],
+): CodeReview {
+  const newestFirst = [...runs].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  );
+  const open = newestFirst.filter((run) => isOpenStatus(run.status));
+  const settled = newestFirst.filter((run) => !isOpenStatus(run.status));
+  const current = onePerPull(open).map((run) => runRow(run, pulls));
+  const working = new Set(current.map((row) => row.pr_url));
+
+  return {
+    current,
+    open_pulls: pulls
+      .filter((pull) => !working.has(pull.url))
+      .map((pull) => pullRow(pull, settled)),
+    recent: recentRows(settled, working, pulls),
+  };
+}
+
+function recentRows(
+  settled: readonly FloorRunRow[],
+  working: ReadonlySet<string | null>,
+  pulls: readonly ReviewPull[],
+): ReviewRow[] {
+  return onePerPull(settled)
+    .filter((run) => !working.has(run.pr_url))
+    .slice(0, RECENT_LIMIT)
+    .map((run) => runRow(run, pulls));
+}
+
+/** The newest run per pull request; a run with no pull request keeps its own row. */
+function onePerPull(runs: readonly FloorRunRow[]): FloorRunRow[] {
+  const seen = new Set<string>();
+
+  return runs.filter((run) => {
+    if (run.pr_url === null) {
+      return true;
+    }
+    const first = !seen.has(run.pr_url);
+
+    seen.add(run.pr_url);
+
+    return first;
+  });
+}
+
+function runRow(run: FloorRunRow, pulls: readonly ReviewPull[]): ReviewRow {
+  const pull = pulls.find((p) => p.url === run.pr_url);
+
+  return {
+    ...pullIdentity(pull, run),
+    line: REVIEW_LINES[run.blueprint_name] ?? run.blueprint_name,
+    state: runState(run),
+    run_id: run.id,
+    pipeline: run.pipeline,
+    created_at: run.created_at,
+  };
+}
+
+/** The run's status while it is open, its outcome once settled. */
+function runState(run: FloorRunRow): string {
+  if (isOpenStatus(run.status)) {
+    return run.status;
+  }
+
+  return run.outcome ?? run.status;
+}
+
+function pullIdentity(
+  pull: ReviewPull | undefined,
+  run: FloorRunRow,
+): Pick<ReviewRow, "pr_number" | "pr_url" | "title" | "draft"> {
+  if (pull) {
+    return {
+      pr_number: pull.number,
+      pr_url: pull.url,
+      title: pull.title,
+      draft: pull.draft ?? false,
+    };
+  }
+
+  return {
+    pr_number: run.args_pr_number,
+    pr_url: run.pr_url,
+    title: titleFromRun(run),
+    draft: false,
+  };
+}
+
+function pullRow(pull: ReviewPull, settled: readonly FloorRunRow[]): ReviewRow {
+  const newest = settled.find((run) => run.pr_url === pull.url);
+
+  if (newest) {
+    return runRow(newest, [pull]);
+  }
+
+  return {
+    ...pullIdentity(pull, NO_RUN),
+    line: null,
+    state: pull.draft ? "draft" : "unreviewed",
+    run_id: null,
+    pipeline: null,
+    created_at: null,
+  };
+}
+
+const NO_RUN = { args_pr_number: null, pr_url: null } as FloorRunRow;
+
+/** A settled run whose pull request is gone from the open list still names it. */
+function titleFromRun(run: FloorRunRow): string {
+  const number = run.args_pr_number ?? numberInUrl(run.pr_url);
+
+  return number ? `Pull request #${number}` : "Pull request";
+}
+
+function numberInUrl(url: string | null): string | undefined {
+  return url?.split("/").pop();
+}

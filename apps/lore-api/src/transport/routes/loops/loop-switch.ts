@@ -5,13 +5,27 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 
-/** The `lore.repos.settings` block each loop's `enabled` lives in. */
-const SETTINGS_BLOCK: Record<LoopKey, string> = {
-  implementation: "implementation_loop",
-  triage: "issue_triage",
+/** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, or a top-level boolean. */
+const SWITCH_SQL: Record<LoopKey, string> = {
+  implementation: blockSwitchSql("implementation_loop"),
+  review: `UPDATE lore.repos
+              SET settings = COALESCE(settings, '{}'::jsonb)
+                || jsonb_build_object('auto_review', $2::boolean)
+            WHERE full_name = $1`,
+  triage: blockSwitchSql("issue_triage"),
 };
 
-/** Flips one loop's `enabled` flag. The UPDATE merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. Switching the implementation loop on also seeds its labels. */
+/** Merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. */
+function blockSwitchSql(block: string): string {
+  return `UPDATE lore.repos
+            SET settings = COALESCE(settings, '{}'::jsonb)
+              || jsonb_build_object('${block}',
+                   COALESCE(settings->'${block}', '{}'::jsonb)
+                     || jsonb_build_object('enabled', $2::boolean))
+          WHERE full_name = $1`;
+}
+
+/** Flips one loop's switch. Switching the implementation loop on also seeds its labels. */
 export async function switchLoop(
   pool: Pool,
   repo: string,
@@ -19,15 +33,7 @@ export async function switchLoop(
   { enabled }: { enabled: boolean },
 ): Promise<void> {
   await enforceRepoRow(pool, repo);
-  await pool.query(
-    `UPDATE lore.repos
-            SET settings = COALESCE(settings, '{}'::jsonb)
-              || jsonb_build_object($2::text,
-                   COALESCE(settings->$2::text, '{}'::jsonb)
-                     || jsonb_build_object('enabled', $3::boolean))
-          WHERE full_name = $1`,
-    [repo, SETTINGS_BLOCK[key], enabled],
-  );
+  await pool.query(SWITCH_SQL[key], [repo, enabled]);
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);

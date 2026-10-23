@@ -62,37 +62,36 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     expect((await put("triage", { enabled: false })).statusCode).toBe(404);
   });
 
-  it("GET lists implementation off and triage on for a repo with empty settings", async () => {
+  it("GET lists implementation and review off and triage on for a repo with empty settings", async () => {
     const res = await get(poolWithRepo({}));
 
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({
-      loops: [
-        expect.objectContaining({
-          key: "implementation",
-          label: "Implementation loop",
-          enabled: false,
-        }),
-        expect.objectContaining({
-          key: "triage",
-          label: "Issue triage",
-          enabled: true,
-        }),
-      ],
-    });
+    expect(
+      JSON.parse(res.payload).loops.map(
+        (l: { key: string; label: string; enabled: boolean }) => [
+          l.key,
+          l.label,
+          l.enabled,
+        ],
+      ),
+    ).toEqual([
+      ["implementation", "Implementation loop", false],
+      ["review", "Code review", false],
+      ["triage", "Issue triage", true],
+    ]);
   });
 
-  it("GET reads each switch from its own settings block", async () => {
+  it("GET reads each switch from its own settings key", async () => {
     const res = await get(
       poolWithRepo({
         implementation_loop: { enabled: true },
+        auto_review: true,
         issue_triage: { enabled: false },
       }),
     );
 
     expect(
       JSON.parse(res.payload).loops.map((l: { enabled: boolean }) => l.enabled),
-    ).toEqual([true, false]);
+    ).toEqual([true, true, false]);
   });
 
   it("PUT triage off writes issue_triage.enabled under admin scope and echoes the state", async () => {
@@ -109,7 +108,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       updateParams: update?.[1],
     }).toEqual({
       body: { ok: true, key: "triage", enabled: false },
-      updateParams: ["re-cinq/lore", "issue_triage", false],
+      updateParams: ["re-cinq/lore", false],
     });
     expect(projectFor).not.toHaveBeenCalled();
   });
@@ -137,13 +136,34 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       seeded: seeded.map((l) => l.name),
     }).toEqual({
       body: { ok: true, key: "implementation", enabled: true },
-      updateParams: ["re-cinq/lore", "implementation_loop", true],
+      updateParams: ["re-cinq/lore", true],
       seeded: [
         "priority:high",
         "priority:medium",
         "priority:low",
         "lore:blocked",
       ],
+    });
+  });
+
+  it("PUT review on writes the top-level auto_review flag", async () => {
+    const pool = poolWithRepo();
+
+    const res = await put("review", { enabled: true }, pool);
+    const update = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("UPDATE lore.repos"),
+    );
+
+    expect({
+      body: JSON.parse(res.payload),
+      sql: /jsonb_build_object\('auto_review', \$2::boolean\)/.test(
+        String(update?.[0]),
+      ),
+      updateParams: update?.[1],
+    }).toEqual({
+      body: { ok: true, key: "review", enabled: true },
+      sql: true,
+      updateParams: ["re-cinq/lore", true],
     });
   });
 
@@ -163,7 +183,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
   });
 
   it("PUT rejects a key no loop has and a payload without a boolean enabled", async () => {
-    expect((await put("review", { enabled: true })).statusCode).toBe(400);
+    expect((await put("merge", { enabled: true })).statusCode).toBe(400);
     expect((await put("triage", { enabled: "yes" })).statusCode).toBe(400);
   });
 });

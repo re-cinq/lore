@@ -1,34 +1,12 @@
 "use client";
 
-import { Alert } from "@/components/Alert";
 import MiniPipeline from "@/components/MiniPipeline";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
-import Panel, { PanelTable } from "@/components/Panel";
+import Panel from "@/components/Panel";
+import LoopTable, { ActionsCell, StatusCell } from "../LoopTable";
 import styles from "./ImplementationLoopView.module.scss";
 import OnboardingBanner from "./OnboardingBanner";
 import TicketTitleCell from "./TicketTitleCell";
-
-/** GitLab-pipelines-style status tones, keyed on the ticket's task status. */
-const STATUS_TONE: Record<string, "success" | "danger" | "info" | "neutral"> = {
-  completed: "success",
-  merged: "success",
-  running: "info",
-  "pr-created": "info",
-  review: "info",
-  pending: "neutral",
-  queued: "neutral",
-  failed: "danger",
-  parked: "danger",
-  cancelled: "neutral",
-};
-
-const TIME_AGO_UNITS: Array<[number, string]> = [
-  [60 * 60 * 24 * 365, "year"],
-  [60 * 60 * 24 * 30, "month"],
-  [60 * 60 * 24, "day"],
-  [60 * 60, "hour"],
-  [60, "minute"],
-];
 
 const EMPTY_BACKLOG =
   "The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it.";
@@ -147,136 +125,44 @@ function LoopSection(props: LoopSectionProps) {
   );
 }
 
-interface TicketTableProps {
+function TicketTable({
+  tickets,
+  emptyText,
+}: {
   tickets: LoopTicket[];
   emptyText: string;
-}
-
-function TicketTable({ tickets, emptyText }: TicketTableProps) {
-  if (tickets.length === 0) {
-    return <Alert variant="secondary">{emptyText}</Alert>;
-  }
-
+}) {
   return (
-    <PanelTable>
-      <table className={styles.ticketTable} data-testid="ticket-table">
-        <TicketTableHead />
-        <tbody>
-          {tickets.map((ticket, i) => (
-            <TicketRow key={`${ticket.issue_number}-${i}`} ticket={ticket} />
-          ))}
-        </tbody>
-      </table>
-    </PanelTable>
-  );
-}
-
-function TicketTableHead() {
-  return (
-    <thead>
-      <tr>
-        <th className={styles.statusCol}>Status</th>
-        <th>Ticket</th>
-        <th>Stages</th>
-        <th className={styles.actionsCol}>Actions</th>
-      </tr>
-    </thead>
+    <LoopTable
+      subject="Ticket"
+      emptyText={emptyText}
+      testId="ticket-table"
+      rows={tickets.map((ticket, i) => (
+        <TicketRow key={`${ticket.issue_number}-${i}`} ticket={ticket} />
+      ))}
+    />
   );
 }
 
 function TicketRow({ ticket }: { ticket: LoopTicket }) {
   return (
     <tr data-testid="ticket-row">
-      <TicketStatusCell ticket={ticket} />
+      <StatusCell
+        state={ticket.state}
+        since={ticket.created_at}
+        testId="ticket-status"
+      />
       <TicketTitleCell ticket={ticket} />
       <td>
         {ticket.pipeline && ticket.run_id && (
           <MiniPipeline runId={ticket.run_id} pipeline={ticket.pipeline} />
         )}
       </td>
-      <TicketActionsCell ticket={ticket} />
+      <ActionsCell runId={ticket.run_id} external={pullLink(ticket)} />
     </tr>
   );
 }
 
-function TicketStatusCell({ ticket }: { ticket: LoopTicket }) {
-  const tone = STATUS_TONE[ticket.state] ?? "danger";
-
-  return (
-    <td>
-      <span
-        className={`${styles.statusBadge} ${styles[`tone_${tone}`]}`}
-        data-testid="ticket-status"
-      >
-        {ticket.state}
-      </span>
-      <TicketTime ticket={ticket} />
-    </td>
-  );
-}
-
-/** When the ticket entered its current state. Absent on a ticket the loop has not touched yet. */
-function TicketTime({ ticket }: { ticket: LoopTicket }) {
-  if (!ticket.created_at) {
-    return null;
-  }
-
-  return (
-    <span
-      className={styles.timeAgo}
-      title={ticket.created_at}
-      data-testid="ticket-time"
-    >
-      {timeAgo(ticket.created_at)}
-    </span>
-  );
-}
-
-/** Relative time for the Status column; exported for its test. */
-export function timeAgo(iso: string | null, now: Date = new Date()): string {
-  if (!iso) {
-    return "";
-  }
-  const seconds = Math.max(
-    0,
-    Math.floor((now.getTime() - new Date(iso).getTime()) / 1000),
-  );
-
-  if (seconds < 60) {
-    return "just now";
-  }
-  const match = TIME_AGO_UNITS.find(([span]) => seconds >= span);
-
-  return match ? formatTimeAgo(seconds, match[0], match[1]) : "";
-}
-
-function formatTimeAgo(seconds: number, span: number, unit: string): string {
-  const n = Math.floor(seconds / span);
-
-  return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
-}
-
-function TicketActionsCell({ ticket }: { ticket: LoopTicket }) {
-  return (
-    <td className={styles.actionsCol}>
-      {ticket.run_id && (
-        <a href={`/assembly-runs/${ticket.run_id}`} className="button">
-          Run
-        </a>
-      )}
-      <TicketPrLink ticket={ticket} />
-    </td>
-  );
-}
-
-function TicketPrLink({ ticket }: { ticket: LoopTicket }) {
-  if (!ticket.pr_url) {
-    return null;
-  }
-
-  return (
-    <a href={ticket.pr_url} target="_blank" rel="noreferrer" className="button">
-      PR
-    </a>
-  );
+function pullLink(ticket: LoopTicket) {
+  return ticket.pr_url ? { href: ticket.pr_url, text: "PR" } : null;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { autoReviewEnabled } from "./code-review-decisions.js";
+import { autoReviewEnabled } from "./auto-review-enabled.js";
 
 describe("autoReviewEnabled", () => {
   it("returns true when auto_review is the boolean true", () => {

@@ -5,6 +5,7 @@
   margin-bottom: var(--space-5);
 }
 
+/* Each state names its text colour, its background and its decoration, so the global a:hover (accent, underline) never lands on a pill. */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -14,15 +15,28 @@
   border-radius: var(--radius-pill);
   font-size: var(--fs-sm);
   color: var(--text-muted);
+  background: transparent;
   text-decoration: none;
 
   &:hover {
+    color: var(--text);
     background: var(--bg-hover);
+    border-color: var(--border-hover);
+    text-decoration: none;
   }
 
-  &[aria-current="page"] {
+  &[aria-current="page"],
+  &[aria-current="page"]:hover {
     color: var(--text);
     border-color: var(--text);
     font-weight: var(--fw-medium);
   }
+
+  &:has(.pending) {
+    cursor: progress;
+  }
+}
+
+.pending {
+  margin-left: 0;
 }

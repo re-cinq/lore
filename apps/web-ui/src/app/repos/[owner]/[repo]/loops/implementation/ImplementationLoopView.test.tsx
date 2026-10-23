@@ -119,7 +119,7 @@ describe("ImplementationLoopView", () => {
       table: Boolean(getByTestId("ticket-table")),
       status: getByTestId("ticket-status").textContent,
       tone: getByTestId("ticket-status").className.includes("tone_info"),
-      time: getByTestId("ticket-time").getAttribute("title"),
+      time: getByTestId("row-time").getAttribute("title"),
       run: getByText("Run").getAttribute("href"),
       pr: getByText("PR").getAttribute("href"),
     }).toEqual({
@@ -236,24 +236,6 @@ describe("ImplementationLoopView", () => {
     });
 
     expect(getByText("completed")).toBeTruthy();
-  });
-});
-
-describe("timeAgo", () => {
-  const now = new Date("2026-08-26T10:00:00Z");
-
-  it("renders seconds, minutes, hours, and days at the right unit", async () => {
-    const { timeAgo } = await import("./ImplementationLoopView");
-
-    expect(
-      [
-        "2026-08-26T09:59:30Z",
-        "2026-08-26T09:57:00Z",
-        "2026-08-26T09:00:00Z",
-        "2026-08-24T10:00:00Z",
-        null,
-      ].map((iso) => timeAgo(iso, now)),
-    ).toEqual(["just now", "3 minutes ago", "1 hour ago", "2 days ago", ""]);
   });
 });
 
