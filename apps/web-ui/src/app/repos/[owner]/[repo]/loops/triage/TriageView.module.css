@@ -1,6 +1,0 @@
-/* One card per triage label, stacked with the repo overview's rhythm. */
-.groups {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}

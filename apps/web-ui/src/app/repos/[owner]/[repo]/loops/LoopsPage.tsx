@@ -1,16 +1,12 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/Alert";
-import {
-  getRepoLoops,
-  type LoopKey,
-  type RepoLoop,
-  type RepoLoops,
-} from "@/lib/api/loops";
+import { getRepoLoops, type RepoLoop, type RepoLoops } from "@/lib/api/loops";
 import type { ApiResult } from "@/lib/api/result";
-import ImplementationLoopBody from "./implementation/ImplementationLoopBody";
-import ReviewBody from "./review/ReviewBody";
-import TriageBody from "./triage/TriageBody";
+import LoopBoard from "./board/LoopBoard";
+import ImplementationExplainer from "./implementation/ImplementationExplainer";
+import ReviewExplainer from "./review/ReviewExplainer";
+import TriageExplainer from "./triage/TriageExplainer";
 import LoopBodyLoading from "./LoopBodyLoading";
 import LoopPicker, { ALL_LOOPS } from "./LoopPicker";
 import LoopSwitch from "./LoopSwitch";
@@ -22,7 +18,7 @@ interface LoopsPageProps {
   searchParams: Promise<{ loop?: string }>;
 }
 
-/** The Loops tab: All and every loop of the repository as pills with their state, then each chosen loop's switch and its own page (specs/implementation-loop FR9, specs/issue-triage FR27). */
+/** The Loops tab: All and every loop of the repository as pills with their state, the shown loops' switches, then one board of shared sections holding their rows (specs/implementation-loop FR9, specs/issue-triage FR27). */
 export default async function LoopsPage(props: LoopsPageProps) {
   const [{ owner, repo }, { loop }] = await Promise.all([
     props.params,
@@ -63,28 +59,54 @@ function LoopsView({ loops, requested, shown, fullName }: LoopsViewProps) {
         selected={requested}
         base={`/repos/${fullName}/loops`}
       />
-      {shown.map((loop) => (
-        <LoopSection key={loop.key} loop={loop} fullName={fullName} />
+      <Switches loops={shown} fullName={fullName} />
+      {shown.length === 1 && <LoopExplainer loopKey={shown[0].key} />}
+      <Suspense
+        key={requested}
+        fallback={<LoopBodyLoading label={boardLabel(shown)} />}
+      >
+        <LoopBoard loops={shown} fullName={fullName} />
+      </Suspense>
+    </div>
+  );
+}
+
+/** One switch per shown loop, each flipping its own loop. */
+function Switches({
+  loops,
+  fullName,
+}: {
+  loops: readonly RepoLoop[];
+  fullName: string;
+}) {
+  return (
+    <div className={styles.switches}>
+      {loops.map(({ key, ...loop }) => (
+        <LoopSwitch
+          key={key}
+          {...loop}
+          toggle={switchLoopAction.bind(null, fullName, key)}
+        />
       ))}
     </div>
   );
 }
 
-/** One loop: its switch at once, its lists as soon as they are read, a skeleton until then. */
-function LoopSection({ loop, fullName }: { loop: RepoLoop; fullName: string }) {
-  return (
-    <section className={styles.section} aria-label={loop.label}>
-      <LoopSwitch
-        label={loop.label}
-        description={loop.description}
-        enabled={loop.enabled}
-        toggle={switchLoopAction.bind(null, fullName, loop.key)}
-      />
-      <Suspense fallback={<LoopBodyLoading label={loop.label} />}>
-        <LoopBody loopKey={loop.key} fullName={fullName} />
-      </Suspense>
-    </section>
-  );
+function boardLabel(shown: readonly RepoLoop[]): string {
+  return shown.length === 1 ? shown[0].label : "the loops";
+}
+
+/** How one loop shown alone takes up work, said under its switch. */
+function LoopExplainer({ loopKey }: { loopKey: RepoLoop["key"] }) {
+  if (loopKey === "review") {
+    return <ReviewExplainer />;
+  }
+
+  if (loopKey === "triage") {
+    return <TriageExplainer />;
+  }
+
+  return <ImplementationExplainer />;
 }
 
 /** Names the connection rather than the symptom: an unreachable API and a repository with no loops would otherwise look the same. */
@@ -117,22 +139,4 @@ function shownLoops(loops: readonly RepoLoop[], requested: string): RepoLoop[] {
   }
 
   return [found];
-}
-
-function LoopBody({
-  loopKey,
-  fullName,
-}: {
-  loopKey: LoopKey;
-  fullName: string;
-}) {
-  if (loopKey === "triage") {
-    return <TriageBody fullName={fullName} />;
-  }
-
-  if (loopKey === "review") {
-    return <ReviewBody fullName={fullName} />;
-  }
-
-  return <ImplementationLoopBody fullName={fullName} />;
 }

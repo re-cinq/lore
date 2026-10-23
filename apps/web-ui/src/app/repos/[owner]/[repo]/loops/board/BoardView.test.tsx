@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
-import ImplementationLoopView from "./ImplementationLoopView";
+import { describe, it, expect } from "vitest";
+import { render } from "@testing-library/react";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
+import type { RepoLoop } from "@/lib/api/loops";
+import {
+  implementationNotice,
+  implementationSections,
+  loopBoard,
+} from "./board";
+import BoardView from "./BoardView";
 
 const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
   issue_number: 7,
@@ -18,53 +24,36 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
   ...over,
 });
 
-function renderView(loop: Partial<ImplementationLoop> = {}) {
-  const retryOnboarding = vi.fn(async () => {});
-  const rendered = render(
-    <ImplementationLoopView
-      loop={{
-        enabled: false,
-        onboarding: { merged: true, pr_url: null, last_task: null },
-        current: [],
-        current_run_id: null,
-        next: [],
-        parked: [],
-        recent: [],
-        awaiting_merge: [],
-        ...loop,
-      }}
-      retryOnboarding={retryOnboarding}
-    />,
-  );
+function renderView(over: Partial<ImplementationLoop> = {}) {
+  const backlog: ImplementationLoop = {
+    enabled: false,
+    onboarding: { merged: true, pr_url: null, last_task: null },
+    current: [],
+    current_run_id: null,
+    next: [],
+    parked: [],
+    recent: [],
+    awaiting_merge: [],
+    ...over,
+  };
+  const loop: RepoLoop = {
+    key: "implementation",
+    label: "Implementation loop",
+    description: "",
+    enabled: backlog.enabled,
+  };
+  const board = loopBoard([
+    {
+      loop,
+      sections: implementationSections(loop, backlog),
+      backlogNotice: implementationNotice(loop, backlog),
+    },
+  ]);
 
-  return { ...rendered, retryOnboarding };
+  return render(<BoardView board={board} subject="Ticket" showLoop={false} />);
 }
 
-describe("ImplementationLoopView", () => {
-  it("explains how to queue a ticket and how the loop works", () => {
-    const { getAllByText } = renderView();
-
-    const said = (pattern: RegExp) => getAllByText(pattern).length > 0;
-
-    expect(
-      [
-        /Label an open issue with exactly one of/,
-        /priority:high/,
-        /lore:blocked/,
-        /never merges/,
-        /remove the label to re-queue/i,
-      ].every(said),
-    ).toBe(true);
-  });
-
-  it("explains that a ticket blocked by an open issue waits unlabelled until its last blocker closes", () => {
-    const { getAllByText } = renderView();
-
-    expect(
-      getAllByText(/waits instead: it gets no label/).length,
-    ).toBeGreaterThan(0);
-  });
-
+describe("BoardView for the implementation loop", () => {
   it("renders a mini pipeline dot per node, linked to the run", () => {
     const { getByTestId } = renderView({
       current: [
@@ -116,9 +105,9 @@ describe("ImplementationLoopView", () => {
     });
 
     expect({
-      table: Boolean(getByTestId("ticket-table")),
-      status: getByTestId("ticket-status").textContent,
-      tone: getByTestId("ticket-status").className.includes("tone_info"),
+      table: Boolean(getByTestId("board-table")),
+      status: getByTestId("row-status").textContent,
+      tone: getByTestId("row-status").className.includes("tone_info"),
       time: getByTestId("row-time").getAttribute("title"),
       run: getByText("Run").getAttribute("href"),
       pr: getByText("PR").getAttribute("href"),
@@ -147,7 +136,7 @@ describe("ImplementationLoopView", () => {
       ],
     });
 
-    expect(getByTestId("ticket-hold-7").textContent).toEqual(
+    expect(getByTestId("row-hold-#7").textContent).toEqual(
       "The last attempt failed: the run ended failed: 403.Fix: Check the Lore GitHub App's repository permissions.",
     );
   });
@@ -157,7 +146,7 @@ describe("ImplementationLoopView", () => {
       current: [ticket({ state: "running", run_id: "run-9" })],
     });
 
-    expect(queryByTestId("ticket-hold-7")).toBeNull();
+    expect(queryByTestId("row-hold-#7")).toBeNull();
   });
 
   it("badges an unknown task status in the danger tone", () => {
@@ -165,13 +154,13 @@ describe("ImplementationLoopView", () => {
       current: [ticket({ state: "haunted", created_at: null })],
     });
 
-    expect(getByTestId("ticket-status").className).toContain("tone_danger");
+    expect(getByTestId("row-status").className).toContain("tone_danger");
   });
 
   it("says plainly when no ticket is in flight instead of an empty container", () => {
     const { getByText } = renderView();
 
-    expect(getByText("No ticket is being worked right now.")).toBeTruthy();
+    expect(getByText("Nothing is being worked right now.")).toBeTruthy();
   });
 
   it("lists two current tickets together, the loop's own pick and a by-hand-revived one", () => {
@@ -182,7 +171,7 @@ describe("ImplementationLoopView", () => {
       ],
     });
 
-    expect(getAllByTestId("ticket-row")).toHaveLength(2);
+    expect(getAllByTestId("board-row")).toHaveLength(2);
   });
 
   it("renders the current ticket with issue and PR links", () => {
@@ -239,97 +228,7 @@ describe("ImplementationLoopView", () => {
   });
 });
 
-describe("ImplementationLoopView when the repo is not onboarded", () => {
-  it("says the loop picks nothing, shows why onboarding failed, and offers to retry it", () => {
-    const { getByText, getByRole, retryOnboarding } = renderView({
-      enabled: true,
-      onboarding: {
-        merged: false,
-        pr_url: null,
-        last_task: {
-          id: "d5602eb8",
-          status: "failed",
-          failure_reason: "Git Repository is empty.",
-          in_flight: false,
-        },
-      },
-    });
-
-    expect(getByText(/won't pick tickets/)).toBeTruthy();
-    expect(getByText(/Git Repository is empty\./)).toBeTruthy();
-    fireEvent.click(getByRole("button", { name: "Retry onboarding" }));
-    expect(retryOnboarding).toHaveBeenCalledTimes(1);
-  });
-
-  it("links to the open onboarding PR instead of offering a retry while one waits to merge", () => {
-    const { getByRole, queryByRole } = renderView({
-      enabled: true,
-      onboarding: {
-        merged: false,
-        pr_url: "https://github.com/re-cinq/Otto/pull/216",
-        last_task: {
-          id: "t2",
-          status: "pr-created",
-          failure_reason: null,
-          in_flight: true,
-        },
-      },
-    });
-
-    expect(
-      getByRole("link", { name: "Merge the onboarding PR" }).getAttribute(
-        "href",
-      ),
-    ).toBe("https://github.com/re-cinq/Otto/pull/216");
-    expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
-  });
-
-  it("links to the running onboarding task instead of offering a retry", () => {
-    const { getByRole, queryByRole } = renderView({
-      enabled: true,
-      onboarding: {
-        merged: false,
-        pr_url: null,
-        last_task: {
-          id: "t3",
-          status: "running",
-          failure_reason: null,
-          in_flight: true,
-        },
-      },
-    });
-
-    expect(
-      getByRole("link", { name: "Onboarding is running" }).getAttribute("href"),
-    ).toBe("/assembly-runs/t3");
-    expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
-  });
-
-  it("offers to onboard a repo that was never onboarded, without calling it a failure", () => {
-    const { getByRole, queryByText, retryOnboarding } = renderView({
-      enabled: true,
-      onboarding: { merged: false, pr_url: null, last_task: null },
-    });
-
-    expect(queryByText(/Onboarding failed/)).toBeNull();
-    fireEvent.click(getByRole("button", { name: "Onboard this repo" }));
-    expect(retryOnboarding).toHaveBeenCalledTimes(1);
-  });
-
-  it("heads the queue Waiting for onboarding instead of Next up, so it does not read as about to start", () => {
-    const { getByRole, queryByRole } = renderView({
-      enabled: true,
-      onboarding: { merged: false, pr_url: null, last_task: null },
-    });
-
-    expect(
-      getByRole("heading", { name: "Waiting for onboarding" }),
-    ).toBeTruthy();
-    expect(queryByRole("heading", { name: "Next up" })).toBeNull();
-  });
-});
-
-describe("ImplementationLoopView with tickets the loop is not working", () => {
+describe("BoardView with tickets the loop is not working", () => {
   const blockers = {
     kind: "waits_on_blockers" as const,
     message: "Waits on #12, which is still open.",
@@ -350,12 +249,12 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     });
 
     expect(
-      getAllByTestId("ticket-hold-kind").map((pill) => pill.textContent),
+      getAllByTestId("row-hold-kind").map((pill) => pill.textContent),
     ).toEqual(["waits on blockers"]);
-    expect(getByTestId("ticket-hold-7").textContent).toEqual(
+    expect(getByTestId("row-hold-#7").textContent).toEqual(
       "Waits on #12, which is still open.Fix: Close them, or remove the blocked-by link if it no longer applies.",
     );
-    expect(queryByTestId("ticket-hold-8")).toBeNull();
+    expect(queryByTestId("row-hold-#8")).toBeNull();
   });
 
   it("words the text_too_long pill as text too long", () => {
@@ -371,9 +270,7 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
       ],
     });
 
-    expect(getByTestId("ticket-hold-kind").textContent).toEqual(
-      "text too long",
-    );
+    expect(getByTestId("row-hold-kind").textContent).toEqual("text too long");
   });
 
   it("lists the parked #7 under a Parked heading, badged parked once, with its reason and fix", () => {
@@ -383,9 +280,9 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
 
     expect({
       heading: getByRole("heading", { name: "Parked" }).textContent,
-      status: getByTestId("ticket-status").textContent,
-      kindPill: queryByTestId("ticket-hold-kind"),
-      hold: getByTestId("ticket-hold-7").textContent,
+      status: getByTestId("row-status").textContent,
+      kindPill: queryByTestId("row-hold-kind"),
+      hold: getByTestId("row-hold-#7").textContent,
     }).toEqual({
       heading: "Parked",
       status: "parked",
@@ -417,10 +314,8 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     });
 
     expect(getByRole("heading", { name: "Awaiting merge" })).toBeTruthy();
-    expect(getByTestId("ticket-hold-kind").textContent).toEqual(
-      "awaiting merge",
-    );
-    expect(getByTestId("ticket-hold-7").textContent).toEqual(
+    expect(getByTestId("row-hold-kind").textContent).toEqual("awaiting merge");
+    expect(getByTestId("row-hold-#7").textContent).toEqual(
       "The loop's pull request is open and still awaiting a merge.Fix: Review and merge the pull request to free this ticket's slot.",
     );
   });
@@ -431,25 +326,83 @@ describe("ImplementationLoopView with tickets the loop is not working", () => {
     expect(queryByRole("heading", { name: "Awaiting merge" })).toBeNull();
   });
 
-  it("heads the queue Paused and says to switch the loop on while it is off", () => {
-    const { getByRole, getByTestId, queryByRole } = renderView({
+  it("says above the Backlog that the loop is paused while it is switched off, and still lists its queue", () => {
+    const { getByRole, getByTestId, getAllByTestId } = renderView({
       enabled: false,
       next: [ticket()],
     });
 
-    expect(
-      getByRole("heading", { name: "Paused: the loop is switched off" }),
-    ).toBeTruthy();
-    expect(queryByRole("heading", { name: "Next up" })).toBeNull();
-    expect(getByTestId("section-notice").textContent).toEqual(
-      "Nothing is picked until the loop is switched on above.",
-    );
+    expect({
+      heading: getByRole("heading", { name: "Backlog" }).textContent,
+      notice: getByTestId("section-notice").textContent,
+      rows: getAllByTestId("board-row").length,
+    }).toEqual({
+      heading: "Backlog",
+      notice:
+        "Paused: Implementation loop is switched off. Nothing in its backlog is picked until it is switched on above.",
+      rows: 1,
+    });
   });
 
-  it("heads the queue Next up with no notice while the loop is on", () => {
+  it("heads the queue Backlog with no notice while the loop is on", () => {
     const { getByRole, queryByTestId } = renderView({ enabled: true });
 
-    expect(getByRole("heading", { name: "Next up" })).toBeTruthy();
+    expect(getByRole("heading", { name: "Backlog" })).toBeTruthy();
     expect(queryByTestId("section-notice")).toBeNull();
+  });
+
+  it("says above the Backlog that the loop waits for onboarding, so it does not read as about to start", () => {
+    const { getByRole, getByTestId } = renderView({
+      enabled: true,
+      onboarding: { merged: false, pr_url: null, last_task: null },
+    });
+
+    expect({
+      heading: getByRole("heading", { name: "Backlog" }).textContent,
+      notice: getByTestId("section-notice").textContent,
+    }).toEqual({
+      heading: "Backlog",
+      notice:
+        "Waiting for onboarding: Implementation loop picks nothing until the repository's onboarding pull request merges.",
+    });
+  });
+});
+
+describe("BoardView for every loop", () => {
+  it("names each row's loop beside its title when more than one loop is shown", () => {
+    const review: RepoLoop = {
+      key: "review",
+      label: "Code review",
+      description: "",
+      enabled: true,
+    };
+    const implementation: RepoLoop = {
+      ...review,
+      key: "implementation",
+      label: "Implementation loop",
+    };
+    const board = loopBoard([
+      {
+        loop: implementation,
+        sections: implementationSections(implementation, {
+          enabled: true,
+          onboarding: { merged: true, pr_url: null, last_task: null },
+          current: [ticket({ state: "running" })],
+          current_run_id: null,
+          next: [],
+          parked: [],
+          recent: [],
+          awaiting_merge: [],
+        }),
+      },
+    ]);
+    const { getByText } = render(
+      <BoardView board={board} subject="Work" showLoop />,
+    );
+
+    expect([
+      getByText("Implementation loop").textContent,
+      getByText("Work").tagName,
+    ]).toEqual(["Implementation loop", "TH"]);
   });
 });

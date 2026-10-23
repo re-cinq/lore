@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { getTriageIssues } = await import("./triage");
+const { getIssueTriage } = await import("./triage");
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -20,9 +20,9 @@ afterEach(() => {
   delete process.env.LORE_ADMIN_TOKEN;
 });
 
-describe("getTriageIssues", () => {
+describe("getIssueTriage", () => {
   it("reads /api/repos/re-cinq/lore/triage from lore-api", async () => {
-    await getTriageIssues("re-cinq/lore");
+    await getIssueTriage("re-cinq/lore");
 
     expect(String(fetchMock.mock.calls[0][0])).toBe(
       "http://api:3000/api/repos/re-cinq/lore/triage",
