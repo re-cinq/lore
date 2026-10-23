@@ -47,7 +47,7 @@ describe("parseSearchPage", () => {
 });
 
 describe("parseStoredDocument", () => {
-  it("reads stmt:specs/utopia-graph-mirror/spec.md#0003 at version 2 with its content and no missing_since", () => {
+  it("reads stmt:specs/utopia-graph-mirror/spec.md#0003 at version 2 with its content from a response without missing_since", () => {
     expect(
       parseStoredDocument(JSON.parse(fixture("stored-document.json"))),
     ).toEqual({
@@ -56,7 +56,6 @@ describe("parseStoredDocument", () => {
       filename: "stmt:specs/utopia-graph-mirror/spec.md#0003",
       status: "ready",
       docTime: "2026-10-15T10:00:00Z",
-      missingSince: null,
       version: 2,
       content:
         '{\n  "external_id": "stmt:specs/utopia-graph-mirror/spec.md#0003"\n}',
