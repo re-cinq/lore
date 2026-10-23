@@ -46,7 +46,7 @@ function triageScene(over: Partial<TriageRepoEventDeps> = {}) {
     mirrorCommits: () => Promise.resolve("0 commits"),
     mirrorTracker: () => Promise.resolve("0 entries"),
     mirrorReleases: () => Promise.resolve("0 tags"),
-    triageEnabled: () => Promise.resolve(true),
+    triageEnabled: async () => true,
     startIssueTriage: (repo, issueNumber, issueUrl) => {
       callOrder.push("startIssueTriage");
       started.push({ repo, issueNumber, issueUrl });
@@ -123,7 +123,7 @@ function scene() {
 
       return Promise.resolve("1 tag");
     },
-    triageEnabled: () => Promise.resolve(true),
+    triageEnabled: async () => true,
     startIssueTriage: () => Promise.resolve("run-1"),
     findParkedTriageVisit: () => Promise.resolve(null),
     reportTriageGate: () => Promise.resolve(),
@@ -258,7 +258,7 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
 
   it("triage: needs-triage on a repo whose triage loop is switched off starts nothing", async () => {
     const { fire, started } = triageScene({
-      triageEnabled: () => Promise.resolve(false),
+      triageEnabled: async () => false,
     });
 
     await fire("github.issues.labeled", {

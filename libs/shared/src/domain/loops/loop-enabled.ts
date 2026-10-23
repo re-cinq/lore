@@ -1,4 +1,4 @@
-import { implementationLoopEnabled } from "../../work/backlog/implementation-loop-enabled.js";
+import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 import type { LoopKey } from "./loop-kinds.js";
 
 /** The issue-triage loop's `issue_triage.enabled` switch (specs/issue-triage FR33): on unless the repository switched it off, so a repository onboarded before the switch existed keeps being triaged. */
@@ -24,6 +24,7 @@ function parsedSettings(raw: unknown): unknown {
   if (typeof raw !== "string") {
     return raw;
   }
+
   try {
     return JSON.parse(raw);
   } catch {
