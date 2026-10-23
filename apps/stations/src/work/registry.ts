@@ -19,11 +19,13 @@ import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { consolidationStation } from "./consolidation/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { issueTriageTickStation } from "./issue-triage-tick/manifest.js";
+import { autoMergeTickStation } from "./auto-merge-tick/manifest.js";
 import { utopiaBackfillTickStation } from "./utopia-backfill-tick/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
   "anthropic-cost-sync",
+  "auto-merge-tick",
   "blocked-reason",
   "bus-prune",
   "changelog-tick",
@@ -48,6 +50,7 @@ export type StationName = (typeof STATION_NAMES)[number];
 
 export const STATIONS: Record<StationName, StationModule> = {
   "anthropic-cost-sync": anthropicCostSync,
+  "auto-merge-tick": autoMergeTickStation,
   "blocked-reason": blockedReason,
   "bus-prune": busPrune,
   "changelog-tick": changelogTickStation,

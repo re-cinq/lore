@@ -48,20 +48,18 @@ describe("setLoopEnabled", () => {
     });
   });
 
-  it("names the approval PR in x-lore-approval-pr when switching auto merge on", async () => {
+  it("sends the auto-merge loop's minimum age of 6 hours in the switch's body", async () => {
     await setLoopEnabled("re-cinq/lore", "merge", {
       enabled: true,
-      approvalPr: "re-cinq/lore#123",
+      min_age_hours: 6,
     });
 
     expect({
       url: String(call()[0]),
-      header: (call()[1].headers as Record<string, string>)[
-        "x-lore-approval-pr"
-      ],
+      body: JSON.parse(call()[1].body as string),
     }).toEqual({
       url: "http://api:3000/api/repos/re-cinq/lore/loops/merge",
-      header: "re-cinq/lore#123",
+      body: { enabled: true, min_age_hours: 6 },
     });
   });
 });

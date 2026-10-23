@@ -52,6 +52,10 @@ export interface PullRef {
   mergeable?: boolean | null;
   /** ISO merge time; present on a merged PR read from octokit, absent on open PRs and legacy doubles. */
   mergedAt?: string;
+  /** ISO time the PR was opened: the auto-merge loop's minimum age counts from it. Absent on legacy doubles. */
+  createdAt?: string;
+  /** `owner/name` of the repository the head branch lives in: another repository's name marks a fork, whose branch Lore cannot push to. Absent on legacy doubles. */
+  headRepo?: string;
   /** GraphQL Node ID of the pull request, used for mutations like enablePullRequestAutoMerge. */
   nodeId?: string;
   /** The branch the PR merges into: its branch rule decides whether auto-merge may be armed. Absent on legacy doubles. */

@@ -53,19 +53,19 @@ an approval with no checks configured is `approved`. ([validated by `github-clie
 
 Three new reads are added to `libs/shared/src/outbound/project/lib/platform-github.ts`:
 
-- `getBranchRule(repo, branch)` — reads the branch's rulesets and classic branch protection: required approval count, Code Owners review required flag, and required check names. Used to decide where Lore may arm native auto-merge and to validate `auto_merge.approver = lore-reviewer` prerequisites before persisting.
+- `getBranchRule(repo, branch)` — reads the branch's rulesets and classic branch protection: required approval count, Code Owners review required flag, and required check names. Used by the auto-merge loop to decide whether to arm native auto-merge (a rule that asks for an approval) or merge itself (one that asks for none).
 - `getMergeability(repo, prNumber)` — reads GitHub's mergeability field on a PR. Eventually consistent: GitHub computes it asynchronously after push; callers must treat a null as "not yet computed" rather than "not mergeable".
 - `getChangedFiles(repo, prNumber)` — reads the PR's file list for CODEOWNERS matching, used by the blocked-reason station to classify a PR as routine or sensitive.
 
 Three new writes are added to the same adapter:
 
 - `enablePullRequestAutoMerge(prId, mergeMethod)` — GraphQL `enablePullRequestAutoMerge` mutation. Arms GitHub's native auto-merge on the PR; always called with `mergeMethod: SQUASH`. Only callable on a PR where the branch rule requires an approval and the PR is not yet mergeable (GitHub refuses otherwise).
-- `disablePullRequestAutoMerge(prId)` — GraphQL mutation. Called on every open Lore-authored PR when `auto_merge.approver` is changed to `none`.
+- `disablePullRequestAutoMerge(prId)` — GraphQL mutation. Called on every open PR the auto-merge loop armed (Lore-authored, or one the loop ran for) when the loop is switched off.
 - `updateIssueComment(commentId, body)` — REST `PATCH /repos/{o}/{r}/issues/comments/{id}`. Edits an existing comment in place; used by the blocked-reason station to maintain the `<!-- lore:blocked-reason -->` idempotent comment on the PR and on the backlog issue.
 
 ### lore-reviewer App credentials
 
-lore-reviewer's App id and private key live in Google Cloud Secret Manager. ESO mirrors them into the `lore-stations` namespace following the ADR-046 pattern. The four-place procedure applies: (1) `local.secret_names` in `secrets.tf`; (2) an `ExternalSecret` resource per consuming namespace in `external-secrets.tf`; (3) the REQUIRED list in `scripts/infra/seed-secrets.sh`; (4) the chart's `secretKeyRef` in the stations subchart. The `terraform apply` must land before the chart change merges — a `secretKeyRef` referencing an ExternalSecret that does not yet exist leaves the Pod unable to start (the Kubernetes `CreateContainerConfigError` condition) and `helm --wait` hanging. No long-lived credential is held in the process; the App authenticates with a short-lived installation token minted from the private key on each call. See [specs/protected-branch-merge/plan.md](../protected-branch-merge/plan.md) for the full org-admin runbook.
+lore-reviewer's App id and private key live in Google Cloud Secret Manager. ESO mirrors them into the `lore-stations` namespace following the ADR-046 pattern. The four-place procedure applies: (1) `local.secret_names` in `secrets.tf`; (2) an `ExternalSecret` resource per consuming namespace in `external-secrets.tf`; (3) the OPTIONAL list in `scripts/infra/seed-secrets.sh`, behind `enable_lore_reviewer`; (4) the chart's `secretKeyRef` in the stations subchart. The `terraform apply` must land before the chart change merges — a `secretKeyRef` referencing an ExternalSecret that does not yet exist leaves the Pod unable to start (the Kubernetes `CreateContainerConfigError` condition) and `helm --wait` hanging. No long-lived credential is held in the process; the App authenticates with a short-lived installation token minted from the private key on each call. See [specs/protected-branch-merge/plan.md](../protected-branch-merge/plan.md) for the full org-admin runbook.
 
 ### Repo detection
 

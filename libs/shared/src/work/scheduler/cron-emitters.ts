@@ -55,6 +55,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "one weekly-changelog run on the external floor per onboarded repo for the ISO week (UTC) that just ended; its row in lore.changelog_weeks is what the repo's Changelog tab reads (specs/repo-changelog)",
   },
   {
+    name: "auto_merge",
+    schedule: "*/5 * * * *",
+    note: "starts one auto-merge floor run per open pull request code review has passed, in each repo whose auto-merge loop is on, three per repo per tick (specs/protected-branch-merge)",
+  },
+  {
     name: "issue_triage",
     schedule: "*/2 * * * *",
     note: "batch sweep that starts one issue-triage floor run per qualifying triage: needs-triage issue per repo, oldest first, up to the per-repo concurrency cap (specs/issue-triage FR9)",

@@ -1,4 +1,4 @@
-// The repository's loops (specs/implementation-loop FR9, specs/issue-triage FR33, specs/protected-branch-merge): GET lists every loop with its switch state for the Loops tab's pill row, PUT flips one. Only switching auto merge on goes through the two-key ceremony, the same gate as the settings save.
+// The repository's loops (specs/implementation-loop FR9, specs/issue-triage FR33, specs/protected-branch-merge): GET lists every loop with its switch state for the Loops tab's pill row, PUT flips one.
 import type { Pool } from "pg";
 import type {
   Request,
@@ -10,13 +10,15 @@ import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { LOOP_KINDS } from "@re-cinq/lore-shared/loops/loop-kinds.js";
-import { loopEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
+import {
+  autoMergeMinAgeHours,
+  loopEnabled,
+} from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { enforceRepoRow, switchLoop } from "./loop-switch.js";
-import { approverGate } from "../repos/auto-merge-gate.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
 import { autoMergeRoute } from "../auto-merge/auto-merge.js";
 import { floorRunPages } from "../floor/floor-runs.js";
@@ -44,7 +46,7 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
     readLoopsRoute(getPool),
     switchLoopRoute(getPool),
     codeReviewRoute(floorRunPages),
-    autoMergeRoute(getPool),
+    autoMergeRoute(getPool, floorRunPages),
   ];
 }
 
@@ -74,8 +76,8 @@ const SWITCH_OPTIONS = zodResponse(
   {
     name: "LoopSwitch",
     description:
-      "Switch one of the repository's loops on or off. Switching auto merge on needs the lore-reviewer App, a protecting branch rule and the two-key approval PR (x-lore-approval-pr), and answers 403 naming what is missing.",
-    errors: [400, 403, 404],
+      "Switch one of the repository's loops on or off. The auto-merge loop also takes its one setting, min_age_hours: how long a pull request must have been open before the loop merges it.",
+    errors: [400, 404],
   },
 );
 
@@ -109,6 +111,9 @@ export function repoLoops(settings: unknown): RepoLoop[] {
   return LOOP_KINDS.map((kind) => ({
     ...kind,
     enabled: loopEnabled(kind.key, settings),
+    ...(kind.key === "merge"
+      ? { min_age_hours: autoMergeMinAgeHours(settings) }
+      : {}),
   }));
 }
 
@@ -118,30 +123,13 @@ async function serveSwitchLoop(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const { key } = request.params as z.infer<typeof SwitchParams>;
-  const { enabled } = request.payload as z.infer<typeof LoopSwitchBodySchema>;
+  const { enabled, min_age_hours } = request.payload as z.infer<
+    typeof LoopSwitchBodySchema
+  >;
   const repo = repoOf(request.params);
 
   await enforceRepoRow(pool, repo);
-  const gate = await approverGate(
-    request,
-    repo,
-    approverAsked({ key, enabled }),
-  );
-
-  if (!gate.ok) {
-    return h.response(gate.body).code(gate.code);
-  }
-  await switchLoop(pool, repo, key, { enabled });
+  await switchLoop(pool, repo, key, { enabled, minAgeHours: min_age_hours });
 
   return h.response({ ok: true as const, key, enabled }).code(200);
-}
-
-/** The approver a switch asks for: only switching auto merge on names one. */
-function approverAsked(asked: {
-  key: string;
-  enabled: boolean;
-}): string | undefined {
-  const { key, enabled } = asked;
-
-  return key === "merge" && enabled ? "lore-reviewer" : undefined;
 }

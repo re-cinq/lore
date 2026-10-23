@@ -4244,8 +4244,8 @@ export interface components {
               [key: string]: unknown;
             };
             auto_merge?: {
-              /** @enum {string} */
-              approver?: "none" | "lore-reviewer";
+              enabled?: boolean;
+              min_age_hours?: number;
             } & {
               [key: string]: unknown;
             };
@@ -4366,8 +4366,8 @@ export interface components {
                 [key: string]: unknown;
               };
               auto_merge?: {
-                /** @enum {string} */
-                approver?: "none" | "lore-reviewer";
+                enabled?: boolean;
+                min_age_hours?: number;
               } & {
                 [key: string]: unknown;
               };
@@ -4416,6 +4416,7 @@ export interface components {
         label: string;
         description: string;
         enabled: boolean;
+        min_age_hours?: number;
       }[];
     };
     RepoOnboarded: {
@@ -7420,7 +7421,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The auto-merge loop: Lore's own pull requests by whether auto-merge is armed and what blocks them, and the ones merged this week */
+      /** @description The auto-merge loop: every open pull request code review passed, by the loop's run on it and what blocks it, and the ones it worked that merged this week */
       200: {
         headers: {
           [name: string]: unknown;
@@ -8272,11 +8273,12 @@ export interface operations {
       content: {
         "application/json": {
           enabled: boolean;
+          min_age_hours?: number;
         };
       };
     };
     responses: {
-      /** @description Switch one of the repository's loops on or off. Switching auto merge on needs the lore-reviewer App, a protecting branch rule and the two-key approval PR (x-lore-approval-pr), and answers 403 naming what is missing. */
+      /** @description Switch one of the repository's loops on or off. The auto-merge loop also takes its one setting, min_age_hours: how long a pull request must have been open before the loop merges it. */
       200: {
         headers: {
           [name: string]: unknown;

@@ -2,12 +2,7 @@
 
 import { loreTaskIdOf } from "@re-cinq/lore-shared";
 import type { BlockedReason } from "@re-cinq/lore-shared/blocked-reason.js";
-import {
-  CODEOWNERS_PATHS,
-  ownersOfPath,
-  parseCodeowners,
-  type CodeownersRow,
-} from "@re-cinq/lore-shared/codeowners.js";
+import { codeownersOf, ownedPaths } from "@re-cinq/lore-shared/codeowners.js";
 import type { Audit } from "@re-cinq/lore-shared/project/audit/audit.js";
 import type { AppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import type { PrBlockedReasonsPort } from "@re-cinq/lore-shared/project/pr-blocked-reasons/pr-blocked-reasons-port.js";
@@ -48,6 +43,8 @@ export interface BlockedReasonProject {
   audit: Pick<Audit, "write" | "recorded">;
   /** The backlog issue of a task; null when the task is unknown or has none. */
   taskIssue(taskId: string): Promise<number | null>;
+  /** The repository's auto-merge loop is on: then every open PR is the loop's to work, whoever opened it. */
+  autoMergeOn(): Promise<boolean>;
 }
 
 export interface BlockedReasonDeps {
@@ -77,7 +74,7 @@ export async function runBlockedReason(
     return closePulls({ repo, login, deps }, event.params);
   }
   const project = await deps.project(repo);
-  const pulls = await lorePulls(event, project.pulls, login);
+  const pulls = await watchedPulls(event, project, login);
   const scope = { repo, project, reasons: deps.reasons };
   const outcomes = await Promise.all(pulls.map((pr) => refresh(scope, pr)));
 
@@ -164,22 +161,9 @@ async function mergeReview(
   ]);
 
   return {
-    sensitivePaths: files.filter(
-      (path) => ownersOfPath(path, codeowners).length > 0,
-    ),
+    sensitivePaths: ownedPaths(files, codeowners),
     approvedBy: approvers(reviews),
   };
-}
-
-/** GitHub reads only the first CODEOWNERS present; with none, no path has an owner. */
-async function codeownersOf(
-  repo: BlockedReasonProject["repo"],
-): Promise<CodeownersRow[]> {
-  const texts = await Promise.all(
-    CODEOWNERS_PATHS.map((path) => repo.read(path)),
-  );
-
-  return parseCodeowners(texts.find((text) => text !== null) ?? "");
 }
 
 function pullNumbersIn(params: ReasonEvent["params"]): number[] {
@@ -190,10 +174,10 @@ function pullNumbersIn(params: ReasonEvent["params"]): number[] {
   );
 }
 
-/** The open, non-draft PRs this event concerns that Lore's App opened: a push concerns every open PR based on the pushed branch. */
-async function lorePulls(
+/** The open, non-draft PRs this event concerns that Lore's App opened, or any author's where the auto-merge loop is on: a push concerns every open PR based on the pushed branch. */
+async function watchedPulls(
   event: ReasonEvent,
-  pulls: ReasonPulls,
+  { pulls, autoMergeOn }: Pick<BlockedReasonProject, "pulls" | "autoMergeOn">,
   login: string,
 ): Promise<PullRef[]> {
   const concerned =
@@ -203,9 +187,11 @@ async function lorePulls(
         )
       : await Promise.all(pullNumbersIn(event.params).map((n) => pulls.get(n)));
 
+  const everyAuthor = await autoMergeOn();
+
   return concerned
     .filter((pr): pr is PullRef => pr !== null)
-    .filter((pr) => pr.author === login && awaitsMerge(pr));
+    .filter((pr) => (everyAuthor || pr.author === login) && awaitsMerge(pr));
 }
 
 /** A draft is still being written, not waiting to merge: the loop pushes to it many times, and a reason on it would only be noise. */

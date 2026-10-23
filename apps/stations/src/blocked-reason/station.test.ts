@@ -34,7 +34,11 @@ const pr = (number: number, fields: Partial<PullRef> = {}): PullRef => ({
   ...fields,
 });
 
-function world(pulls: PullRef[], appLogin: AppLogin = async () => LORE) {
+function world(
+  pulls: PullRef[],
+  appLogin: AppLogin = async () => LORE,
+  autoMergeOn = async () => false,
+) {
   const ci = new Map<string, CiConclusion>();
   const audit = new InMemoryAudit();
   const reasons = new InMemoryPrBlockedReasons();
@@ -64,6 +68,7 @@ function world(pulls: PullRef[], appLogin: AppLogin = async () => LORE) {
       issues: thread,
       audit: new Audit(repo, audit),
       taskIssue: async (taskId) => (taskId === TASK_ID ? 42 : null),
+      autoMergeOn,
     }),
   };
 
@@ -168,6 +173,22 @@ describe("runBlockedReason", () => {
       rows: w.reasons.rows.size,
       comments: w.thread.comments,
     }).toEqual({ summary: "no Lore PR to read", rows: 0, comments: [] });
+  });
+
+  it("records waiting_on_ci for alice's PR 8 when the repo's auto-merge loop is on", async () => {
+    const { deps, ci, reasons } = world(
+      [pr(8, { author: "alice" })],
+      async () => LORE,
+      async () => true,
+    );
+
+    ci.set("sha8", "pending");
+    await runBlockedReason(prEvent("synchronize", 8), deps);
+
+    expect(await reasons.current(REPO, 8)).toEqual({
+      reason: "waiting_on_ci",
+      detail: null,
+    });
   });
 
   it("does nothing when Lore runs on a plain token with no App login", async () => {

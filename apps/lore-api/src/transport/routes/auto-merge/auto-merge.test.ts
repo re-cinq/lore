@@ -1,93 +1,115 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import Hapi from "@hapi/hapi";
+import { describe, it, expect, afterEach, vi } from "vitest";
 
 vi.mock("../../../outbound/project-boot.js", () => ({ projectFor: vi.fn() }));
-vi.mock(
-  "@re-cinq/lore-shared/project/github-installations/lore-app-login.js",
-  () => ({ loreAppLogin: async () => "lore[bot]" }),
-);
 
-import { buildServer } from "../../../app/build-server.js";
 import { projectFor } from "../../../outbound/project-boot.js";
-import {
-  makePool,
-  useRateLimitSafeClock,
-  AUTH,
-  LEGACY_TOKEN,
-} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { autoMergeRoute } from "./auto-merge.js";
+import type { FloorRunPageOf } from "../floor/floor-runs.js";
 
-const originalEnv = { ...process.env };
+const PR = (n: number) => `https://github.com/re-cinq/lore/pull/${n}`;
+
+function serve(pool: unknown, pageOf: FloorRunPageOf) {
+  const server = Hapi.server();
+
+  server.auth.scheme("stub", () => ({
+    authenticate: (_r, h) => h.authenticated({ credentials: {} }),
+  }));
+  server.auth.strategy("bearer-scope", "stub");
+  server.auth.default("bearer-scope");
+  server.route(autoMergeRoute(() => pool as never, pageOf));
+
+  return server;
+}
 
 describe("GET /api/repos/{owner}/{repo}/auto-merge", () => {
-  useRateLimitSafeClock();
-  beforeEach(() => {
-    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
-  });
-  afterEach(() => {
-    process.env = { ...originalEnv };
-    vi.clearAllMocks();
-  });
+  afterEach(() => vi.clearAllMocks());
 
-  function get(pool: unknown) {
-    return buildServer(() => pool as never).inject({
-      method: "GET",
-      url: "/api/repos/re-cinq/lore/auto-merge",
-      headers: AUTH,
-    });
-  }
-
-  it("parks Lore's #7 on its stored code-owner block and lists Lore's merged #6 under recent", async () => {
+  it("puts a person's #7 whose review passed in the backlog, reads the loop's runs, and parks #8 its run left on a code owner", async () => {
     const pool = makePool();
+    const asked: unknown[] = [];
 
     pool.query.mockResolvedValue({
-      rows: [
-        {
-          pr_number: "7",
-          reason: "needs_code_owner",
-          detail: null,
-          since: new Date("2026-10-23T08:00:00Z"),
-        },
-      ],
+      rows: [{ pr_number: "8", reason: "needs_code_owner", detail: null }],
     });
     vi.mocked(projectFor).mockResolvedValue({
-      settings: { record: async () => ({ fullName: "re-cinq/lore" }) },
+      settings: {
+        record: async () => ({ fullName: "re-cinq/lore" }),
+        rawSettings: async () => ({ auto_merge: { enabled: true } }),
+      },
       pulls: {
         list: async () => [
           {
             number: 7,
             title: "Fix",
-            url: "https://gh/pr/7",
+            url: PR(7),
             state: "open",
-            author: "lore[bot]",
-            autoMerge: true,
+            author: "gedaiu",
+            headSha: "s7",
+          },
+          {
+            number: 8,
+            title: "Docs",
+            url: PR(8),
+            state: "open",
+            author: "gedaiu",
+            headSha: "s8",
+          },
+          {
+            number: 9,
+            title: "WIP",
+            url: PR(9),
+            state: "open",
+            draft: true,
+            headSha: "s9",
           },
         ],
-        listMergedSince: async () => [
+        listMergedSince: async () => [],
+        listChecks: async () => [
           {
-            number: 6,
-            title: "Done",
-            url: "https://gh/pr/6",
-            state: "merged",
-            author: "lore[bot]",
-            mergedAt: "2026-10-22T10:00:00Z",
+            id: 1,
+            name: "lore/code-review",
+            status: "completed",
+            conclusion: "success",
           },
         ],
       },
     } as never);
 
-    const res = await get(pool);
+    const res = await serve(pool, async (query) => {
+      asked.push(query);
+
+      return {
+        runs: [
+          {
+            id: "run-8",
+            pr_url: PR(8),
+            status: "completed",
+            outcome: "success",
+            reason: null,
+            created_at: "2026-10-23T10:00:00Z",
+            pipeline: [],
+          },
+        ] as never,
+        next_cursor: null,
+      };
+    }).inject("/api/repos/re-cinq/lore/auto-merge");
     const body = JSON.parse(res.payload);
 
     expect({
       status: res.statusCode,
+      asked,
+      backlog: body.backlog.map((r: { pr_number: number }) => r.pr_number),
       parked: body.parked.map((r: { pr_number: number; blocked: string }) => [
         r.pr_number,
         r.blocked,
       ]),
-      recent: body.recent.map((r: { pr_number: number }) => r.pr_number),
     }).toEqual({
       status: 200,
-      parked: [[7, "Needs a code owner's approval"]],
-      recent: [6],
+      asked: [{ repo: "re-cinq/lore", line: "auto-merge", limit: 50 }],
+      backlog: [7],
+      parked: [[8, "Needs a code owner's approval"]],
     });
   });
 
@@ -99,7 +121,10 @@ describe("GET /api/repos/{owner}/{repo}/auto-merge", () => {
       pulls: { list, listMergedSince: list },
     } as never);
 
-    const res = await get(makePool());
+    const res = await serve(makePool(), async () => ({
+      runs: [],
+      next_cursor: null,
+    })).inject("/api/repos/re-cinq/lore/auto-merge");
 
     expect({ status: res.statusCode, read: list.mock.calls.length }).toEqual({
       status: 404,

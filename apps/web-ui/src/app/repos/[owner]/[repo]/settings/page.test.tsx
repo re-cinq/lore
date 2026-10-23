@@ -43,7 +43,7 @@ describe("saveSettings action", () => {
   it("surfaces the server's refusal message in state.error", async () => {
     putRepoSettings.mockResolvedValue({
       status: "error",
-      message: "Missing rule: requires 1 approval",
+      message: "context_backend must be lore, utopia or both",
     });
 
     const action = await saveSettingsAction();
@@ -56,7 +56,7 @@ describe("saveSettings action", () => {
 
     expect(state).toEqual({
       saved: false,
-      error: "Missing rule: requires 1 approval",
+      error: "context_backend must be lore, utopia or both",
     });
   });
 

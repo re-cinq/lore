@@ -15,20 +15,19 @@ export function getRepoLoops(repo: string): Promise<ApiResult<RepoLoops>> {
   return apiFetch("lore-api", path(repo));
 }
 
-/** What a switch asks for; switching auto merge on also names the two-key approval PR (`owner/repo#n`). */
+/** What a switch asks for; the auto-merge loop also takes its one setting, the hours a pull request must have been open before it merges. */
 export interface SwitchRequest {
   enabled: boolean;
-  approvalPr?: string;
+  min_age_hours?: number;
 }
 
 export function setLoopEnabled(
   repo: string,
   key: LoopKey,
-  { enabled, approvalPr }: SwitchRequest,
+  request: SwitchRequest,
 ): Promise<ApiResult<LoopSwitch>> {
   return apiFetch("lore-api", `${path(repo)}/${key}`, {
     method: "PUT",
-    body: { enabled },
-    ...(approvalPr ? { headers: { "x-lore-approval-pr": approvalPr } } : {}),
+    body: request,
   });
 }

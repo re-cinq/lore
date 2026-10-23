@@ -158,8 +158,9 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   const edgeTarget = (line: LineBody, from: string, outcome: string) =>
     line.edges.find((edge) => edge.from === from && edge.on === outcome)?.to;
 
-  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
+  it("declare the lines auto-merge, code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
+      "auto-merge",
       "code-review",
       "code-review-recheck",
       "code-review-reply",

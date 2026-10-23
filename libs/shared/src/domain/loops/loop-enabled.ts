@@ -13,15 +13,31 @@ export function issueTriageEnabled(rawSettings: unknown): boolean {
   return block?.enabled !== false;
 }
 
-/** The auto-merge loop's switch: on when `auto_merge.approver` is `lore-reviewer` (specs/protected-branch-merge), off by omission. */
+/** The auto-merge loop's switch, `auto_merge.enabled` (specs/protected-branch-merge); off by omission. */
 export function autoMergeEnabled(rawSettings: unknown): boolean {
-  const block = (
+  return autoMergeBlock(rawSettings)?.enabled === true;
+}
+
+/** How long a pull request must have been open before the auto-merge loop merges it. */
+export const DEFAULT_MIN_AGE_HOURS = 24;
+
+/** `auto_merge.min_age_hours`, or 24 when it is absent or not a whole number of hours of zero or more. */
+export function autoMergeMinAgeHours(rawSettings: unknown): number {
+  const hours = autoMergeBlock(rawSettings)?.min_age_hours;
+
+  return Number.isInteger(hours) && (hours as number) >= 0
+    ? (hours as number)
+    : DEFAULT_MIN_AGE_HOURS;
+}
+
+function autoMergeBlock(
+  rawSettings: unknown,
+): { enabled?: unknown; min_age_hours?: unknown } | undefined {
+  return (
     parsedSettings(rawSettings) as {
-      auto_merge?: { approver?: unknown };
+      auto_merge?: { enabled?: unknown; min_age_hours?: unknown };
     } | null
   )?.auto_merge;
-
-  return block?.approver === "lore-reviewer";
 }
 
 const ENABLED_BY_KEY: Record<LoopKey, (rawSettings: unknown) => boolean> = {

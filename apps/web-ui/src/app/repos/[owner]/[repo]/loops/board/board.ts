@@ -78,7 +78,7 @@ const BACKLOG_HINT: Record<string, string> = {
     "Label an issue priority:high, priority:medium, or priority:low to queue it.",
   review: "Every open pull request no review has looked at waits here.",
   merge:
-    "Lore's own pull requests wait here until Lore's review approves them and auto-merge is armed.",
+    "Every open pull request Lore's review approved waits here until the auto-merge loop takes it.",
   triage: "Label an issue triage: needs-triage to have it triaged.",
 };
 
@@ -147,17 +147,8 @@ export function pausedNotice(loop: RepoLoop): string | undefined {
     return undefined;
   }
 
-  return (
-    OFF_NOTICE[loop.key] ??
-    `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`
-  );
+  return `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
 }
-
-/** A loop whose work goes on while it is off, said as it is. */
-const OFF_NOTICE: Partial<Record<RepoLoop["key"], string>> = {
-  merge:
-    "Auto merge is switched off: lore-reviewer approves nothing, so each of Lore's pull requests waits for a person's approval before GitHub merges it.",
-};
 
 /** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
 export function implementationNotice(loop: RepoLoop): string | undefined {

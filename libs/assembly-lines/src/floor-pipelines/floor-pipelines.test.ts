@@ -98,10 +98,11 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
+  it("ships exactly the pipelines auto-merge, code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
+      "auto-merge",
       "code-review",
       "code-review-recheck",
       "code-review-reply",
@@ -749,6 +750,39 @@ describe("the floor pipelines shipped in this folder", () => {
       { from: "memory-feedback", to: "trust", on: "always" },
       { from: "trust", to: "done", on: "always" },
     ]);
+  });
+
+  it("walks auto-merge from await-merge to approve, through fix-pr and fix-replies back to the wait at most 3 times, and ends a fix that moved nothing", () => {
+    const { line } = pipelineOf("auto-merge");
+
+    expect(line.edges.filter((edge) => edge.from === "await-merge")).toEqual([
+      { from: "await-merge", to: "approve", on: "success" },
+      {
+        from: "await-merge",
+        to: "fix-pr",
+        on: "changes_requested",
+        iteration_max: 3,
+      },
+      { from: "await-merge", to: "done", on: "failed" },
+    ]);
+  });
+
+  it("keys an auto-merge run on its pr_url and gives the auto-merge-fix agent write access to the pull request's branch, on Gemini Pro", () => {
+    const {
+      line,
+      stations,
+      agent_definitions: agents,
+    } = pipelineOf("auto-merge");
+
+    expect({
+      subject: line.args.pr_url,
+      target: needOf(stations["auto-merge-fix"], "target"),
+      model: agents?.["auto-merge-fix"]?.settings.model,
+    }).toMatchObject({
+      subject: { kind: "value", subject: true },
+      target: { kind: "git", access: "write" },
+      model: "gemini-3.1-pro-preview",
+    });
   });
 
   it("keys a merge run on its task_id and hands every merge station that one value", () => {

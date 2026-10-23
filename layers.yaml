@@ -33,6 +33,7 @@ layers:
       - spec-upkeep
       - issue-triage
       - spec-tickets
+      - auto-merge
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the code-review lines, one
     # folder each. They claim their own work from the floor's queue, so nothing
@@ -52,6 +53,13 @@ layers:
       - outbound
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the auto-merge line: the
+    # fix's replies (through code-review's post-reply) and the approval.
+    auto-merge:
+      - outbound
+      - code-review
+      - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the merge line: one handle
     # around the step logic beside it, registered once per step. `work` is

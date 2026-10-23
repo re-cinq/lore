@@ -17,13 +17,16 @@ export const FLOOR_CI_WAIT_LINES: readonly string[] = [
   "onboard",
   "implementation-loop",
   "spec-upkeep",
+  "auto-merge",
 ];
 
 /** The per-push wait: CI alone decides. */
 const CI_NODE = "await-ci";
 /** The end-of-line wait: CI and review threads decide. */
 const PR_NODE = "await-pr";
-const WAIT_NODES: readonly string[] = [CI_NODE, PR_NODE];
+/** The auto-merge loop's wait: CI, threads, Lore's review and the pull request's age decide. */
+const MERGE_NODE = "await-merge";
+const WAIT_NODES: readonly string[] = [CI_NODE, PR_NODE, MERGE_NODE];
 const PULL_NUMBER = /\/pull\/(\d+)\/?$/;
 const CLOSED_REASON = "the pull request was closed without merging";
 
@@ -47,6 +50,8 @@ export interface FloorCiWaitDeps {
   judge: Judge;
   /** The verdict for a run parked on `await-pr`: CI and the review threads. */
   judgePr: Judge;
+  /** The verdict for a run parked on `await-merge`. */
+  judgeMerge: Judge;
   prState(repo: string, prNumber: number): Promise<PullRef["state"] | null>;
 }
 
@@ -94,7 +99,7 @@ async function parkedCiWaits(floor: CiWaitFloor): Promise<CiWait[]> {
 
 function ciWaitOf(run: RunView, visits: VisitView[]): CiWait | null {
   const newest = visits.findLast((visit) => WAIT_NODES.includes(visit.nodeId));
-  const prNumber = prNumberOf(visits);
+  const prNumber = prNumberOf(visits) ?? startPrNumberOf(run);
 
   if (newest?.report !== null || prNumber === null) {
     return null;
@@ -123,6 +128,15 @@ function sliceOf(run: RunView, args: Record<string, unknown>): LoopRunSlice {
 
 function prNumberOf(visits: VisitView[]): number | null {
   const url = producedLast(visits, "pr_url");
+  const digits = url ? PULL_NUMBER.exec(url)?.[1] : undefined;
+
+  return digits ? Number(digits) : null;
+}
+
+/** A line started on a pull request names it in its start items rather than producing it. */
+function startPrNumberOf(run: RunView): number | null {
+  const url = (run.startItems as Partial<Record<string, { ref?: string }>>)
+    .pr_url?.ref;
   const digits = url ? PULL_NUMBER.exec(url)?.[1] : undefined;
 
   return digits ? Number(digits) : null;
@@ -172,7 +186,7 @@ async function verdictOf(
   deps: FloorCiWaitDeps,
   wait: CiWait,
 ): Promise<Report | null> {
-  const judge = wait.nodeId === PR_NODE ? deps.judgePr : deps.judge;
+  const judge = judgeFor(deps, wait.nodeId);
   const judged = await judge(wait.run);
 
   if (!judged) {
@@ -185,6 +199,14 @@ async function verdictOf(
     : { outcome: judged.outcome };
 }
 
+function judgeFor(deps: FloorCiWaitDeps, nodeId: string): Judge {
+  if (nodeId === MERGE_NODE) {
+    return deps.judgeMerge;
+  }
+
+  return nodeId === PR_NODE ? deps.judgePr : deps.judge;
+}
+
 /** The feedback values a wait station declares, and the round brief stored as a file; the reason stays with the outcome that routes on it. A verdict that names no failed check produces nothing. */
 async function producedOf(
   floor: CiWaitFloor,
@@ -193,11 +215,12 @@ async function producedOf(
 ): Promise<Record<string, string>> {
   const values = feedbackValuesOf(judged);
   const feedback = feedbackOf(values);
+  const review = reviewFeedbackOf(judged);
 
-  if (!feedback) {
+  if (!feedback && !review) {
     return values;
   }
-  const brief = roundBriefOf({ feedback, handoff });
+  const brief = roundBriefOf({ feedback, handoff, review });
   const stored = await floor.blobs.put(
     new TextEncoder().encode(brief),
     "text/markdown",
@@ -220,6 +243,13 @@ function feedbackValuesOf(judged: ParkedReport): FeedbackValues {
       typeof judged.args[name] === "string" ? [[name, judged.args[name]]] : [],
     ),
   );
+}
+
+/** What review left open, when the verdict carries it. */
+function reviewFeedbackOf(judged: ParkedReport): string | null {
+  const text = judged.args.review_feedback;
+
+  return typeof text === "string" && text.length > 0 ? text : null;
 }
 
 function feedbackOf(values: FeedbackValues): CiFeedback | null {

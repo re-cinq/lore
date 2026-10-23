@@ -22,10 +22,11 @@ export const TrustSettingsSchema = z
   })
   .passthrough();
 
-/** Who approves Lore's PRs on a protected branch (specs/protected-branch-merge); absent reads as none. */
+/** The auto-merge loop (specs/protected-branch-merge): whether it runs, and how long a pull request must have been open before the loop merges it; absent reads as off and 24 hours. */
 export const AutoMergeSettingsSchema = z
   .object({
-    approver: z.enum(["none", "lore-reviewer"]).optional(),
+    enabled: z.boolean().optional(),
+    min_age_hours: z.number().int().min(0).optional(),
   })
   .passthrough();
 

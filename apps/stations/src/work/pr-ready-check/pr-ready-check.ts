@@ -10,6 +10,7 @@ import {
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { floorCiWaitSweep } from "./floor-ci-wait.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
+import { mergeReads, mergeReportForRun } from "./merge-readers.js";
 import {
   CI_WAIT_BLUEPRINTS,
   LOOP_BLUEPRINT,
@@ -108,7 +109,7 @@ async function runSideDeps(): Promise<
 /** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */
 async function floorSummary(
   deps: PrReadyCheckDeps,
-  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls" | "settings">>,
 ): Promise<string[]> {
   const floor = floorIfConfigured();
 
@@ -121,6 +122,8 @@ async function floorSummary(
       floor,
       judge: (run) => ciReportForRun(run, deps),
       judgePr: (run) => prReportForRun(run, deps),
+      judgeMerge: (run) =>
+        mergeReportForRun(run, { ...deps, ...mergeReads(projectOf) }),
       prState: async (repo, prNumber) =>
         (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
     }),
