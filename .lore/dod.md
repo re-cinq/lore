@@ -6,7 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **derives and writes graph edges from code imports and package dependencies** — verifies `depends-on`, `uses`, `exports`, and `extends` edges are derived across repos, deterministic on re-ingest, and independent of `auto_ingest_graph`.
+- [ ] **Acceptance suite in `derive-code-graph.acceptance.test.ts`** — verifies `depends-on`, `uses`, `exports`, and `extends` edges are derived across repos, deterministic on re-ingest, and independent of `auto_ingest_graph`. Seven tests:
+  - emits a depends-on edge from the consumer to the library
+  - returns the importing file for a used symbol
+  - returns a none sentinel for an export with no importers
+  - lists each public export of the entry module in an exports edge set
+  - per-repo import set contains used symbols and omits unused ones
+  - emits an extends edge from the subclass to its base type
+  - re-ingesting an unchanged repo produces an identical edge set
   `apps/lore-api/src/work/spec-trace/derive-code-graph.acceptance.test.ts`
 
 ## Facets
