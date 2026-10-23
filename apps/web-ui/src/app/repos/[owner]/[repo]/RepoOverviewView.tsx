@@ -134,9 +134,7 @@ function RecentTasks({ owner, repo, recentTasks }: RecentTasksProps) {
       className={styles.mainPanel}
     >
       {recentTasks.length === 0 ? (
-        <Alert variant="secondary">
-          No tasks yet. <Link href={runs}>Create one</Link>
-        </Alert>
+        <Alert variant="secondary">No tasks yet.</Alert>
       ) : (
         <TaskList tasks={recentTasks} />
       )}

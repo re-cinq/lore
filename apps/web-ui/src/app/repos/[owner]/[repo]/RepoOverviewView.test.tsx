@@ -157,11 +157,12 @@ describe("RepoOverviewView", () => {
     expect(screen.getByText(`${"x".repeat(60)}...`)).toBeInTheDocument();
   });
 
-  it("shows the empty-tasks state with a create link when there are no tasks", () => {
+  it("shows No tasks yet and links All runs to the run list filtered to re-cinq/lore when there are no tasks", () => {
     render(<RepoOverviewView {...baseProps} recentTasks={[]} />);
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("No tasks yet.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Create one" })).toHaveAttribute(
+    expect(screen.queryByRole("link", { name: "Create one" })).toBeNull();
+    expect(screen.getByRole("link", { name: "All runs →" })).toHaveAttribute(
       "href",
       "/assembly-runs?repo=re-cinq/lore",
     );
