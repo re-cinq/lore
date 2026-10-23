@@ -12,31 +12,33 @@ export interface RepoFilterProps {
 }
 
 /** Narrows the run list to one repository, keeping the status filter and going back to the newest page. */
-export default function RepoFilter({
-  repos,
-  activeRepo,
-  activeStatus,
-}: RepoFilterProps) {
+export default function RepoFilter(props: RepoFilterProps) {
   const router = useRouter();
+  const pickRepo = (repo: string) =>
+    router.push(runsHref({ repo, status: props.activeStatus }));
 
   return (
     <label className={`task-form ${styles.repoFilter}`}>
       Repository
       <select
-        value={activeRepo ?? ""}
-        onChange={(event) =>
-          router.push(
-            runsHref({ repo: event.target.value, status: activeStatus }),
-          )
-        }
+        value={props.activeRepo ?? ""}
+        onChange={(event) => pickRepo(event.target.value)}
       >
-        <option value="">All repos</option>
-        {repos.map((repo) => (
-          <option key={repo} value={repo}>
-            {repo}
-          </option>
-        ))}
+        <RepoOptions repos={props.repos} />
       </select>
     </label>
+  );
+}
+
+function RepoOptions({ repos }: Pick<RepoFilterProps, "repos">) {
+  return (
+    <>
+      <option value="">All repos</option>
+      {repos.map((repo) => (
+        <option key={repo} value={repo}>
+          {repo}
+        </option>
+      ))}
+    </>
   );
 }

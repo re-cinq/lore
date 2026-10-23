@@ -11,7 +11,10 @@ import RepoFilter from "./RepoFilter";
 describe("RepoFilter", () => {
   it("navigates to /assembly-runs?repo=re-cinq/lore&status=running when re-cinq/lore is picked at status running", () => {
     render(
-      <RepoFilter repos={["re-cinq/floor", "re-cinq/lore"]} activeStatus="running" />,
+      <RepoFilter
+        repos={["re-cinq/floor", "re-cinq/lore"]}
+        activeStatus="running"
+      />,
     );
 
     fireEvent.change(screen.getByRole("combobox", { name: "Repository" }), {

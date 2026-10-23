@@ -40,14 +40,7 @@ export default function AssemblyRunListView(props: AssemblyRunListViewProps) {
   return (
     <div className={styles.page}>
       <RunListHeader connection={props.connection} />
-      <div className={styles.filters}>
-        <RepoFilter
-          repos={props.repos ?? []}
-          activeRepo={activeRepo}
-          activeStatus={activeStatus}
-        />
-        <StatusFilterBar activeRepo={activeRepo} activeStatus={activeStatus} />
-      </div>
+      <Filters {...props} />
       <AssemblyRunsTable runs={props.runs} showStages />
       <PageLinks
         activeRepo={activeRepo}
@@ -55,6 +48,26 @@ export default function AssemblyRunListView(props: AssemblyRunListViewProps) {
         cursor={props.cursor}
         nextCursor={props.nextCursor}
       />
+    </div>
+  );
+}
+
+function Filters(
+  props: Pick<
+    AssemblyRunListViewProps,
+    "repos" | "activeRepo" | "activeStatus"
+  >,
+) {
+  const { activeRepo, activeStatus } = props;
+
+  return (
+    <div className={styles.filters}>
+      <RepoFilter
+        repos={props.repos ?? []}
+        activeRepo={activeRepo}
+        activeStatus={activeStatus}
+      />
+      <StatusFilterBar activeRepo={activeRepo} activeStatus={activeStatus} />
     </div>
   );
 }
