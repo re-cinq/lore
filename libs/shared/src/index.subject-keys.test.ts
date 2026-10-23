@@ -8,9 +8,16 @@ import {
 
 describe("shared index subject-key re-exports (FR6.51)", () => {
   it("subject_key formatting functions exported from shared index are callable", () => {
-    expect(planSubject("abc")).toBe("plan:abc");
-    expect(detectSubject("drift", "my/repo")).toBe("detect:drift:my/repo");
-    expect(reviewSubject(99)).toBe("review:pr-99");
-    expect(ingestSubject("specs", "sha1")).toBe("ingest:specs:sha1");
+    expect({
+      plan: planSubject("abc"),
+      detect: detectSubject("drift", "my/repo"),
+      review: reviewSubject(99),
+      ingest: ingestSubject("specs", "sha1"),
+    }).toEqual({
+      plan: "plan:abc",
+      detect: "detect:drift:my/repo",
+      review: "review:pr-99",
+      ingest: "ingest:specs:sha1",
+    });
   });
 });
