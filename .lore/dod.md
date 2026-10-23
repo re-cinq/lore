@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Log the audit string into `console.error` after executing the proxy request.
+- [x] Log the audit string into `console.error` after executing the proxy request.
 
 ## Out of scope
 
