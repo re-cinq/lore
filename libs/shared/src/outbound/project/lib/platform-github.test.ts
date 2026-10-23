@@ -269,6 +269,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     html_url: `https://gh/pr/${number}`,
     updated_at: updatedAt,
     merged_at: mergedAt,
+    created_at: "2026-09-20T07:00:00Z",
     body: `Closes #${number}`,
     user: { login: "alice" },
   });
@@ -291,6 +292,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
         number: 3,
         state: "merged",
         mergedAt: "2026-09-25T08:00:00Z",
+        createdAt: "2026-09-20T07:00:00Z",
         body: "Closes #3",
         author: "alice",
       }),

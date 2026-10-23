@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { issueTriageEnabled, loopEnabled } from "./loop-enabled.js";
+import {
+  autoMergeMinAgeHours,
+  issueTriageEnabled,
+  loopEnabled,
+} from "./loop-enabled.js";
 import { isLoopKey, LOOP_KEYS, loopKind } from "./loop-kinds.js";
 
 describe("issueTriageEnabled", () => {
@@ -35,12 +39,20 @@ describe("loopEnabled", () => {
     expect(loopEnabled("review", { auto_review: true })).toBe(true);
   });
 
-  it("answers merge on only when auto_merge.approver is lore-reviewer", () => {
+  it("answers merge on only when auto_merge.enabled is the boolean true", () => {
     expect(
-      ["lore-reviewer", "none", undefined].map((approver) =>
-        loopEnabled("merge", { auto_merge: { approver } }),
+      [true, false, "yes", undefined].map((enabled) =>
+        loopEnabled("merge", { auto_merge: { enabled } }),
       ),
-    ).toEqual([true, false, false]);
+    ).toEqual([true, false, false, false]);
+  });
+
+  it("reads the minimum age as auto_merge.min_age_hours, 24 when absent, negative or fractional", () => {
+    expect(
+      [6, 0, undefined, -1, 1.5].map((min_age_hours) =>
+        autoMergeMinAgeHours({ auto_merge: { min_age_hours } }),
+      ),
+    ).toEqual([6, 0, 24, 24, 24]);
   });
 
   it("answers triage from issue_triage.enabled, on by default", () => {

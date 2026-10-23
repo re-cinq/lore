@@ -1,17 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAudit } from "@re-cinq/lore-shared/project/audit/audit-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import {
-  disarmLorePulls,
-  missingPrerequisites,
-  ruleGaps,
-} from "./auto-merge-approver.js";
-
-const protectedRule = {
-  requiredApprovals: 1,
-  codeOwnersReview: true,
-  requiredChecks: ["build"],
-};
+import { disarmLorePulls } from "./auto-merge-approver.js";
 
 const pull = (number: number, fields: Partial<PullRef>): PullRef => ({
   repo: "re-cinq/lore",
@@ -25,62 +15,6 @@ const pull = (number: number, fields: Partial<PullRef>): PullRef => ({
   ...fields,
 });
 
-describe("ruleGaps", () => {
-  it("returns nothing for one approval, Code Owners review and a build check", () => {
-    expect(ruleGaps(protectedRule)).toEqual([]);
-  });
-
-  it("names all three gaps for an unprotected branch", () => {
-    expect(
-      ruleGaps({
-        requiredApprovals: 0,
-        codeOwnersReview: false,
-        requiredChecks: [],
-      }),
-    ).toEqual([
-      "ruleset requiring one approval",
-      "review from Code Owners",
-      "the required CI checks",
-    ]);
-  });
-});
-
-describe("missingPrerequisites", () => {
-  it("reads the rule of the default branch develop", async () => {
-    const branches: string[] = [];
-
-    const missing = await missingPrerequisites({
-      appInstalled: true,
-      defaultBranch: async () => "develop",
-      getBranchRule: async (branch) => {
-        branches.push(branch);
-
-        return protectedRule;
-      },
-    });
-
-    expect({ missing, branches }).toEqual({
-      missing: [],
-      branches: ["develop"],
-    });
-  });
-
-  it("names the installation and ruleset access when the App is absent and the rule read fails", async () => {
-    const missing = await missingPrerequisites({
-      appInstalled: false,
-      defaultBranch: async () => "main",
-      getBranchRule: async () => {
-        throw new Error("403");
-      },
-    });
-
-    expect(missing).toEqual([
-      "App installation",
-      "ruleset access on the default branch",
-    ]);
-  });
-});
-
 describe("disarmLorePulls", () => {
   const appLogin = "lore-agent[bot]";
 
@@ -91,6 +25,7 @@ describe("disarmLorePulls", () => {
     const failed = await disarmLorePulls({
       appLogin,
       audit,
+      loopPulls: new Set(),
       pulls: {
         list: async () => [
           pull(1, { author: appLogin, autoMerge: true }),
@@ -118,6 +53,7 @@ describe("disarmLorePulls", () => {
     const failed = await disarmLorePulls({
       appLogin,
       audit,
+      loopPulls: new Set(),
       pulls: {
         list: async () => [pull(4, { author: appLogin, autoMerge: true })],
         cancelAutoMerge: async () => {
@@ -137,6 +73,7 @@ describe("disarmLorePulls", () => {
 
     await disarmLorePulls({
       appLogin: undefined,
+      loopPulls: new Set(),
       audit: new InMemoryAudit(),
       pulls: {
         list: async () => [pull(5, { author: "", autoMerge: true })],
@@ -147,5 +84,26 @@ describe("disarmLorePulls", () => {
     });
 
     expect(disarmed).toEqual([]);
+  });
+
+  it("disarms a person's armed PR 6 the loop worked, and leaves their PR 7 the loop never touched", async () => {
+    const disarmed: string[] = [];
+
+    await disarmLorePulls({
+      appLogin,
+      audit: new InMemoryAudit(),
+      loopPulls: new Set([6]),
+      pulls: {
+        list: async () => [
+          pull(6, { author: "gedaiu", autoMerge: true }),
+          pull(7, { author: "gedaiu", autoMerge: true }),
+        ],
+        cancelAutoMerge: async (nodeId) => {
+          disarmed.push(nodeId);
+        },
+      },
+    });
+
+    expect(disarmed).toEqual(["PR_6"]);
   });
 });

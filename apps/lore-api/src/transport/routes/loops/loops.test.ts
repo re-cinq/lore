@@ -91,7 +91,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       poolWithRepo({
         implementation_loop: { enabled: true },
         auto_review: true,
-        auto_merge: { approver: "lore-reviewer" },
+        auto_merge: { enabled: true, min_age_hours: 6 },
         issue_triage: { enabled: false },
       }),
     );
@@ -194,44 +194,44 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     expect((await put("triage", { enabled: "yes" })).statusCode).toBe(400);
   });
 
-  it("PUT merge on refuses 403 naming what is missing, and writes nothing, on a repo without the App and a protecting branch rule", async () => {
+  it("PUT merge on with min_age_hours 6 writes auto_merge.enabled and the minimum age, with no approval asked", async () => {
     const pool = poolWithRepo();
 
-    vi.mocked(projectFor).mockResolvedValue({
-      repo: { defaultBranch: async () => "main" },
-      pulls: {
-        getBranchRule: async () => ({
-          requiredApprovals: 0,
-          codeOwnersReview: false,
-          requiredChecks: [],
-        }),
-      },
-    } as never);
-
-    const res = await put("merge", { enabled: true }, pool);
-    const body = JSON.parse(res.payload);
+    const res = await put("merge", { enabled: true, min_age_hours: 6 }, pool);
+    const updates = pool.query.mock.calls.filter(([sql]) =>
+      String(sql).includes("UPDATE lore.repos"),
+    );
 
     expect({
       status: res.statusCode,
-      code: body.code,
-      missing: body.missing,
-      wrote: pool.query.mock.calls.some(([sql]) =>
-        String(sql).includes("UPDATE lore.repos"),
-      ),
+      switched: /'auto_merge'/.test(String(updates[0]?.[0])),
+      params: updates.map(([, params]) => params),
     }).toEqual({
-      status: 403,
-      code: "missing_prerequisites",
-      missing: [
-        "App installation",
-        "ruleset requiring one approval",
-        "review from Code Owners",
-        "the required CI checks",
+      status: 200,
+      switched: true,
+      params: [
+        ["re-cinq/lore", true],
+        ["re-cinq/lore", 6],
       ],
-      wrote: false,
     });
   });
 
-  it("PUT merge off writes approver none and takes back the auto-merge Lore armed on its own open pull request", async () => {
+  it("GET answers the merge loop's minimum age, 24 when unset, and none on the other loops", async () => {
+    const res = await get(poolWithRepo({}));
+    const loops = JSON.parse(res.payload).loops as Array<{
+      key: string;
+      min_age_hours?: number;
+    }>;
+
+    expect(loops.map((l) => [l.key, l.min_age_hours])).toEqual([
+      ["implementation", undefined],
+      ["review", undefined],
+      ["merge", 24],
+      ["triage", undefined],
+    ]);
+  });
+
+  it("PUT merge off writes auto_merge.enabled false and takes back the auto-merge Lore armed on its own open pull request", async () => {
     const pool = poolWithRepo();
     const cancelled: string[] = [];
 
@@ -256,7 +256,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
 
     expect({
       body: JSON.parse(res.payload),
-      sql: /'approver'/.test(String(update?.[0])),
+      sql: /'auto_merge'/.test(String(update?.[0])),
       params: update?.[1],
       cancelled,
     }).toEqual({
@@ -267,7 +267,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     });
   });
 
-  it("PUT merge on for a repo with no row answers 404 without asking GitHub about its branch rule", async () => {
+  it("PUT merge on for a repo with no row answers 404 without asking GitHub anything", async () => {
     const res = await put("merge", { enabled: true });
 
     expect({

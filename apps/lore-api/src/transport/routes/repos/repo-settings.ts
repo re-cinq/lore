@@ -15,7 +15,6 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
-import { approverGate, disarmAutoMerge } from "./auto-merge-gate.js";
 import { AutoMergeSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
 import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 
@@ -57,15 +56,6 @@ async function serveRepoSettings(
 
   enforceBodyInvariants(body);
 
-  const gate = await approverGate(request, repo, approverFrom(body));
-
-  if (!gate.ok) {
-    return h.response(gate.body).code(gate.code);
-  }
-
-  if (approverFrom(body) === "none") {
-    await disarmAutoMerge(repo);
-  }
   await applyRepoUpdates(pool, repo, body);
   await handleTeamChange(pool, repo, body.team, existingTeam);
 
@@ -84,11 +74,6 @@ async function handleTeamChange(
   }
 }
 
-function approverFrom(body: RepoSettingsBody): string | undefined {
-  return (body.settings?.auto_merge as { approver?: string } | undefined)
-    ?.approver;
-}
-
 function enforceBodyInvariants(body: RepoSettingsBody): void {
   enforceNoDarkFactory(body);
   enforceDigestValid(
@@ -99,7 +84,7 @@ function enforceBodyInvariants(body: RepoSettingsBody): void {
   enforceTrue(
     autoMerge.safeParse(body.settings?.auto_merge).success,
     apiError(400),
-    "auto_merge.approver must be none or lore-reviewer",
+    "auto_merge.enabled must be a boolean and auto_merge.min_age_hours a whole number of hours, 0 or more",
   );
   const contextBackend = KnowledgeBackendSchema.optional();
 

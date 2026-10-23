@@ -6,22 +6,24 @@ import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { disarmAutoMerge } from "../repos/auto-merge-gate.js";
 
-/** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, a top-level boolean, or (auto merge) the approver it names. */
+/** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, or a top-level boolean. */
 const SWITCH_SQL: Record<LoopKey, string> = {
   implementation: blockSwitchSql("implementation_loop"),
   review: `UPDATE lore.repos
               SET settings = COALESCE(settings, '{}'::jsonb)
                 || jsonb_build_object('auto_review', $2::boolean)
             WHERE full_name = $1`,
-  merge: `UPDATE lore.repos
-             SET settings = COALESCE(settings, '{}'::jsonb)
-               || jsonb_build_object('auto_merge',
-                    COALESCE(settings->'auto_merge', '{}'::jsonb)
-                      || jsonb_build_object('approver',
-                           CASE WHEN $2::boolean THEN 'lore-reviewer' ELSE 'none' END))
-           WHERE full_name = $1`,
+  merge: blockSwitchSql("auto_merge"),
   triage: blockSwitchSql("issue_triage"),
 };
+
+/** The auto-merge loop's one setting, merged into its block like the switch. */
+const MIN_AGE_SQL = `UPDATE lore.repos
+          SET settings = COALESCE(settings, '{}'::jsonb)
+            || jsonb_build_object('auto_merge',
+                 COALESCE(settings->'auto_merge', '{}'::jsonb)
+                   || jsonb_build_object('min_age_hours', $2::int))
+        WHERE full_name = $1`;
 
 /** Merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. */
 function blockSwitchSql(block: string): string {
@@ -38,9 +40,13 @@ export async function switchLoop(
   pool: Pool,
   repo: string,
   key: LoopKey,
-  { enabled }: { enabled: boolean },
+  { enabled, minAgeHours }: { enabled: boolean; minAgeHours?: number },
 ): Promise<void> {
   await pool.query(SWITCH_SQL[key], [repo, enabled]);
+
+  if (key === "merge" && minAgeHours !== undefined) {
+    await pool.query(MIN_AGE_SQL, [repo, minAgeHours]);
+  }
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);

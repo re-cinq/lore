@@ -17,6 +17,7 @@ interface OctokitPull {
   node_id?: string;
   state: string;
   merged_at?: string | null;
+  created_at?: string;
   html_url: string;
   labels?: Array<{ name: string }>;
   user?: { login?: string } | null;
@@ -52,11 +53,13 @@ function optionalFieldsOf(
     ...whenPresent("nodeId", pr.node_id),
     ...whenPresent("baseBranch", pr.base?.ref),
     ...whenPresent("mergedAt", pr.merged_at),
+    ...whenPresent("createdAt", pr.created_at),
     ...whenPresent("body", pr.body),
   };
 }
 
-type OptionalPullField = "mergedAt" | "body" | "nodeId" | "baseBranch";
+type OptionalPullField =
+  "mergedAt" | "createdAt" | "body" | "nodeId" | "baseBranch";
 
 /** GitHub answers an absent value as null; the ref carries the field only when there is one. */
 function whenPresent(
