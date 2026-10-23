@@ -17,7 +17,7 @@ export interface ChangelogPageWeek extends WeekBounds {
   weekKey: string;
   /** The week still in progress. */
   current: boolean;
-  /** Null for a week no introduction was written for yet. */
+  /** Null for a week no introduction was written for, stored empty included. */
   intro: string | null;
   changes: ChangelogChange[];
 }
@@ -68,7 +68,7 @@ function pageWeek(
     weekKey,
     ...isoWeekBounds(weekKey),
     current: weekKey === known.current,
-    intro: known.stored?.intro ?? null,
+    intro: known.stored?.intro || null,
     changes: known.stored?.changes ?? known.live.get(weekKey) ?? [],
   };
 }

@@ -114,4 +114,16 @@ describe("changelogPage", () => {
       (await changelogPage({ before: "2020-W10", limit: 2 }, all)).next,
     ).toBe(null);
   });
+
+  it("answers no next page when the only week is stored empty, with no introduction", async () => {
+    const { all } = deps({
+      stored: () => Promise.resolve([{ ...storedW42, intro: "", changes: [] }]),
+    });
+    const page = await changelogPage({ before: "2026-W43", limit: 1 }, all);
+
+    expect({ intro: page.weeks[0]?.intro, next: page.next }).toEqual({
+      intro: null,
+      next: null,
+    });
+  });
 });
