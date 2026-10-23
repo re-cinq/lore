@@ -5,6 +5,7 @@ import { getRepoLoops, type RepoLoop, type RepoLoops } from "@/lib/api/loops";
 import type { ApiResult } from "@/lib/api/result";
 import LoopBoard from "./board/LoopBoard";
 import ImplementationExplainer from "./implementation/ImplementationExplainer";
+import MergeExplainer from "./merge/MergeExplainer";
 import ReviewExplainer from "./review/ReviewExplainer";
 import TriageExplainer from "./triage/TriageExplainer";
 import LoopBodyLoading from "./LoopBodyLoading";
@@ -85,6 +86,7 @@ function Switches({
         <LoopSwitch
           key={key}
           {...loop}
+          twoKey={key === "merge"}
           toggle={switchLoopAction.bind(null, fullName, key)}
         />
       ))}
@@ -104,6 +106,10 @@ function LoopExplainer({ loopKey }: { loopKey: RepoLoop["key"] }) {
 
   if (loopKey === "triage") {
     return <TriageExplainer />;
+  }
+
+  if (loopKey === "merge") {
+    return <MergeExplainer />;
   }
 
   return <ImplementationExplainer />;

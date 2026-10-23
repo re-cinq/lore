@@ -75,23 +75,4 @@ describe("saveSettings action", () => {
       error: "Lore API is not configured",
     });
   });
-
-  it("sends auto_merge approver lore-reviewer to putRepoSettings", async () => {
-    putRepoSettings.mockResolvedValue({ status: "ok", data: { ok: true } });
-
-    const action = await saveSettingsAction();
-    const formData = new FormData();
-
-    formData.set("full_name", "re-cinq/lore");
-    formData.set("auto_merge_approver", "lore-reviewer");
-
-    await action({ saved: false }, formData);
-
-    expect(putRepoSettings).toHaveBeenCalledWith("re-cinq/lore", {
-      team: null,
-      settings: expect.objectContaining({
-        auto_merge: { approver: "lore-reviewer" },
-      }),
-    });
-  });
 });

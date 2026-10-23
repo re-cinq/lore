@@ -60,6 +60,13 @@
 }
 
 .failed {
+  max-width: 24rem;
+  text-align: right;
   font-size: var(--fs-xs);
   color: var(--danger);
+}
+
+.approval {
+  width: 16rem;
+  font-size: var(--fs-sm);
 }

@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { act, fireEvent, render } from "@testing-library/react";
 import LoopSwitch from "./LoopSwitch";
 
-const toggle = vi.fn(async () => {});
+const toggle = vi.fn(async () => null);
 
 const triageSwitch = {
   label: "Issue triage",
@@ -40,7 +40,7 @@ describe("LoopSwitch", () => {
   });
 
   it("shows On the moment Off is clicked, while the write and the refresh are still on their way", async () => {
-    const write = vi.fn(() => new Promise<void>(() => {}));
+    const write = vi.fn(() => new Promise<string | null>(() => {}));
     const { getByRole } = render(
       <LoopSwitch {...triageSwitch} toggle={write} enabled={false} />,
     );
@@ -58,9 +58,9 @@ describe("LoopSwitch", () => {
     }).toEqual({ label: "On", disabled: true, writes: [[{ enabled: true }]] });
   });
 
-  it("falls back to Off and says the switch failed when the write is refused", async () => {
-    const refused = vi.fn(async () => {
-      throw new Error("403");
+  it("falls back to Off and says the switch failed when the write cannot be sent", async () => {
+    const refused = vi.fn(async (): Promise<string | null> => {
+      throw new Error("network");
     });
     const { getByRole } = render(
       <LoopSwitch {...triageSwitch} toggle={refused} enabled={false} />,
@@ -74,5 +74,58 @@ describe("LoopSwitch", () => {
       label: getByRole("button").textContent,
       alert: getByRole("alert").textContent,
     }).toEqual({ label: "Off", alert: "Could not switch it; try again." });
+  });
+
+  it("falls back to Off and shows lore-api's reason when it refuses the switch", async () => {
+    const refused = vi.fn(
+      async () => "Cannot enable lore-reviewer. Missing: App installation",
+    );
+    const { getByRole } = render(
+      <LoopSwitch {...triageSwitch} toggle={refused} enabled={false} />,
+    );
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /Off/ }));
+    });
+
+    expect({
+      label: getByRole("button").textContent,
+      alert: getByRole("alert").textContent,
+    }).toEqual({
+      label: "Off",
+      alert: "Cannot enable lore-reviewer. Missing: App installation",
+    });
+  });
+
+  it("asks a two-key loop that is off for its approval PR and sends it with the switch", async () => {
+    const write = vi.fn(async () => null);
+    const { getByRole } = render(
+      <LoopSwitch
+        {...triageSwitch}
+        label="Auto merge"
+        twoKey
+        toggle={write}
+        enabled={false}
+      />,
+    );
+
+    fireEvent.change(getByRole("textbox", { name: "Approval pull request" }), {
+      target: { value: "re-cinq/lore#123" },
+    });
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /Off/ }));
+    });
+
+    expect(write.mock.calls).toEqual([
+      [{ enabled: true, approvalPr: "re-cinq/lore#123" }],
+    ]);
+  });
+
+  it("asks a two-key loop that is on for nothing before switching it off", () => {
+    const { queryByRole } = render(
+      <LoopSwitch {...triageSwitch} label="Auto merge" twoKey enabled />,
+    );
+
+    expect(queryByRole("textbox")).toBeNull();
   });
 });

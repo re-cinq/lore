@@ -17,6 +17,8 @@ export interface FetchOptions {
   body?: unknown;
   /** Seconds. Omitted → uncached, which is what a poll or a write needs. */
   revalidate?: number;
+  /** Extra request headers, e.g. the two-key approval PR a gated write names. */
+  headers?: Record<string, string>;
 }
 
 /** Never throws: transport failure is a result, not an exception, so the caller decides whether it is fatal (see `enforceOk`). */
@@ -48,6 +50,7 @@ function buildRequestInit(token: string, options: FetchOptions): RequestInit {
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
+      ...options.headers,
     },
     ...(options.body === undefined
       ? {}

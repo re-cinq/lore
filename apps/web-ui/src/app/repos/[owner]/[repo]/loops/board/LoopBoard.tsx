@@ -16,6 +16,7 @@ interface LoopBoardProps {
 const SUBJECT: Record<string, string> = {
   implementation: "Ticket",
   review: "Pull request",
+  merge: "Pull request",
   triage: "Issue",
 };
 

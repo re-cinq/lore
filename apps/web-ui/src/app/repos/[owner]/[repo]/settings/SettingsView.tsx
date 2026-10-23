@@ -146,7 +146,6 @@ function textFieldDefaults(settings: RepoSettingsShape) {
 function selectFieldDefaults(settings: RepoSettingsShape) {
   return {
     trustLevel: settings.trust?.level ?? "implementation",
-    autoMergeApprover: settings.auto_merge?.approver ?? "none",
   };
 }
 
@@ -174,12 +173,11 @@ function TextField({ label, name, value, placeholder }: TextFieldProps) {
 
 interface RunPolicyFieldsProps {
   trustLevel: string;
-  autoMergeApprover: string;
 }
 
-/** Not more text boxes: trust level decides which task types this repo accepts at all, and the approver decides whether Lore may arm a merge. The code-review switch lives on the Loops tab. */
+/** Trust level decides which task types this repo accepts at all. The loops' switches (code review, auto merge, …) live on the Loops tab. */
 function RunPolicyFields(props: RunPolicyFieldsProps) {
-  const { trustLevel, autoMergeApprover } = props;
+  const { trustLevel } = props;
 
   return (
     <SettingsCard
@@ -189,12 +187,6 @@ function RunPolicyFields(props: RunPolicyFieldsProps) {
       headingLevel={3}
     >
       <TrustLevelField trustLevel={trustLevel} />
-      <input
-        type="hidden"
-        name="auto_merge_approver_saved"
-        value={autoMergeApprover}
-      />
-      <AutoMergeApproverField autoMergeApprover={autoMergeApprover} />
     </SettingsCard>
   );
 }
@@ -214,36 +206,6 @@ function TrustLevelField({ trustLevel }: { trustLevel: string }) {
         <option value="full">Full (all task types)</option>
       </select>
     </div>
-  );
-}
-
-const INSTALL_URL = "https://github.com/apps/lore-reviewer/installations/new";
-
-function AutoMergeApproverField(props: { autoMergeApprover: string }) {
-  return (
-    <div className={styles.field}>
-      <label htmlFor="setting-auto_merge_approver">Auto-merge Approver</label>
-      <select
-        id="setting-auto_merge_approver"
-        name="auto_merge_approver"
-        defaultValue={props.autoMergeApprover}
-      >
-        <option value="none">none</option>
-        <option value="lore-reviewer">lore-reviewer</option>
-      </select>
-      <ReviewerInstallHint />
-    </div>
-  );
-}
-
-function ReviewerInstallHint() {
-  return (
-    <span className={styles.hint}>
-      Requires the second App to be installed on the repository.{" "}
-      <a href={INSTALL_URL} target="_blank" rel="noopener noreferrer">
-        Install lore-reviewer
-      </a>
-    </span>
   );
 }
 
