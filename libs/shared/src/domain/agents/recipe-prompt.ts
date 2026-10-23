@@ -25,6 +25,7 @@ export function appendRuntimeContext(
   args: RuntimeContextArgs,
 ): string {
   const { reported_changes, previous_round_report, ci_verdict } = args;
+
   if (
     !reported_changes ||
     !ci_verdict ||
@@ -33,9 +34,12 @@ export function appendRuntimeContext(
     return basePrompt;
   }
   const blocks = [basePrompt];
-  if (previous_round_report)
+
+  if (previous_round_report) {
     blocks.push(buildPreviousRoundBlock(previous_round_report));
+  }
   blocks.push(buildCiBlock(ci_verdict));
+
   return blocks.join("\n\n");
 }
 
@@ -44,22 +48,35 @@ function buildPreviousRoundBlock(report: {
   next?: string;
 }): string {
   const lines = ["## The previous round reported"];
-  if (report.done) lines.push(`Done: ${report.done}`);
-  if (report.next) lines.push(`Next: ${report.next}`);
+
+  if (report.done) {
+    lines.push(`Done: ${report.done}`);
+  }
+
+  if (report.next) {
+    lines.push(`Next: ${report.next}`);
+  }
+
   return lines.join("\n");
 }
 
 function buildCiBlock(verdict: CiVerdict): string {
   const lines = [`## CI reported failures on ${verdict.judged_sha}`];
+
   for (const check of verdict.failed_checks) {
     lines.push(...buildCheckLines(check));
-    if (check.step_log) lines.push("```", check.step_log, "```");
+
+    if (check.step_log) {
+      lines.push("```", check.step_log, "```");
+    }
+
     if (check.npm_script) {
       lines.push(
         `  Ran as: npm script ${check.npm_script.script} of package ${check.npm_script.package}`,
       );
     }
   }
+
   return lines.join("\n");
 }
 
@@ -69,6 +86,7 @@ function buildCheckLines(check: CiFailedCheck): string[] {
       `- **${check.name}**: run only a failed step's command: \`${check.failed_step}\``,
     ];
   }
+
   return [`- **${check.name}**: a job's whole command`];
 }
 

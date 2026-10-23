@@ -33,6 +33,7 @@ describe("appendRuntimeContext", () => {
         ],
       },
     });
+
     expect(result).toContain("Base prompt");
     expect(result).toContain("run only a failed step's command");
     expect(result).toContain("npm run test:coverage");
@@ -46,6 +47,7 @@ describe("appendRuntimeContext", () => {
         failed_checks: [{ name: "lint" }],
       },
     });
+
     expect(result).toContain("a job's whole command");
   });
 
@@ -76,6 +78,7 @@ describe("appendRuntimeContext", () => {
         failed_checks: [{ name: "lint" }],
       },
     });
+
     expect(noChangesResult).toBe("Base prompt");
 
     const noChecksResult = appendRuntimeContext("Base prompt", {
@@ -85,6 +88,7 @@ describe("appendRuntimeContext", () => {
         failed_checks: [],
       },
     });
+
     expect(noChecksResult).toBe("Base prompt");
   });
 });
