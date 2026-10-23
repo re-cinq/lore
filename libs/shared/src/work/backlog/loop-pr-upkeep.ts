@@ -67,8 +67,8 @@ export function openRunOnBranch(
 }
 
 function branchOf(run: RunView): string | undefined {
-  const ref = (run.startItems as Partial<Record<string, { ref?: string }>>)
-    .repo?.ref;
+  const ref = (run.startItems as Partial<Record<string, { ref?: string }>>).repo
+    ?.ref;
 
   return ref ? parseGitRef(ref).branch : undefined;
 }

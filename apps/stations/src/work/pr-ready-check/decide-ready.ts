@@ -56,7 +56,9 @@ function syncVerdict(
   return (input.behindBy ?? 0) > 0 ? blocked("pr_behind") : null;
 }
 
-function blocked(reason: "pr_conflicting" | "pr_behind" | "ci_red"): PrReadyVerdict {
+function blocked(
+  reason: "pr_conflicting" | "pr_behind" | "ci_red",
+): PrReadyVerdict {
   return { kind: "blocked", reason, outcome: "changes_requested" };
 }
 

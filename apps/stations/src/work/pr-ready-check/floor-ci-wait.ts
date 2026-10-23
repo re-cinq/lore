@@ -53,6 +53,8 @@ export interface FloorCiWaitDeps {
   /** The verdict for a run parked on `await-merge`. */
   judgeMerge: Judge;
   prState(repo: string, prNumber: number): Promise<PullRef["state"] | null>;
+  /** Narrows the sweep to the waits it answers for; absent, every parked wait is judged. A pull request's event judges only its own run's wait. */
+  only?(wait: { repo: string; prNumber: number }): boolean;
 }
 
 interface CiWait {
@@ -66,7 +68,10 @@ interface CiWait {
 type Settled = "resumed" | "blocked" | "waiting" | "closed";
 
 export async function floorCiWaitSweep(deps: FloorCiWaitDeps): Promise<string> {
-  const waits = await parkedCiWaits(deps.floor);
+  const waits = (await parkedCiWaits(deps.floor)).filter(
+    (wait) =>
+      deps.only?.({ repo: wait.run.repo, prNumber: wait.prNumber }) ?? true,
+  );
   const tally = { resumed: 0, blocked: 0, waiting: 0, closed: 0, errors: 0 };
 
   for (const wait of waits) {

@@ -8,7 +8,7 @@ import {
   parkedHumanNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { floorCiWaitSweep } from "./floor-ci-wait.js";
+import { floorCiWaitSweep, type FloorCiWaitDeps } from "./floor-ci-wait.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
 import { mergeReads, mergeReportForRun } from "./merge-readers.js";
 import {
@@ -67,6 +67,38 @@ const OPEN_RUN_STATUS = ["queued", "running"] as const;
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
+  const { deps, projectOf } = await sweepDeps();
+  const summaries = [
+    await prReadyCheckSweep(deps),
+    ...(await floorSummary(deps, projectOf)),
+  ];
+
+  return summaries.join("; ");
+}
+
+/** Judges the parked wait of the one loop run working the pull request, now, on the pull request's own event; the tick remains the backstop. */
+export async function judgeFloorPullRequest(
+  repo: string,
+  prNumber: number,
+): Promise<string> {
+  const { deps, projectOf } = await sweepDeps();
+  const summaries = await floorSummary(
+    deps,
+    projectOf,
+    (wait) => wait.repo === repo && wait.prNumber === prNumber,
+  );
+
+  return summaries.join("; ");
+}
+
+type SweepProjectOf = (
+  repo: string,
+) => Promise<Pick<Project, "pulls" | "settings" | "repo">>;
+
+async function sweepDeps(): Promise<{
+  deps: PrReadyCheckDeps;
+  projectOf: SweepProjectOf;
+}> {
   const { projectFor } = await import("../../outbound/project-boot.js");
   const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
   const deps: PrReadyCheckDeps = {
@@ -74,12 +106,8 @@ export async function prReadyCheckJob(): Promise<string> {
     ...prReads(projectOf),
     hasCiHistory,
   };
-  const summaries = [
-    await prReadyCheckSweep(deps),
-    ...(await floorSummary(deps, projectOf)),
-  ];
 
-  return summaries.join("; ");
+  return { deps, projectOf };
 }
 
 /** The run reads and the report, bound to this process's queues. */
@@ -109,7 +137,8 @@ async function runSideDeps(): Promise<
 /** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */
 async function floorSummary(
   deps: PrReadyCheckDeps,
-  projectOf: (repo: string) => Promise<Pick<Project, "pulls" | "settings">>,
+  projectOf: SweepProjectOf,
+  only?: FloorCiWaitDeps["only"],
 ): Promise<string[]> {
   const floor = floorIfConfigured();
 
@@ -126,6 +155,7 @@ async function floorSummary(
         mergeReportForRun(run, { ...deps, ...mergeReads(projectOf) }),
       prState: async (repo, prNumber) =>
         (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
+      ...(only ? { only } : {}),
     }),
   ];
 }
@@ -253,7 +283,8 @@ function prReads(
       (await projectOf(repo)).pulls.failedJob(jobId),
     prMergeable: async (repo, number) =>
       (await (await projectOf(repo)).pulls.get(number))?.mergeable ?? null,
-    prBehindBy: async (repo, number) => behindMain(await projectOf(repo), number),
+    prBehindBy: async (repo, number) =>
+      behindMain(await projectOf(repo), number),
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
   };

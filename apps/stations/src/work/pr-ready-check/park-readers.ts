@@ -53,15 +53,21 @@ async function prEvidence(
   deps: PrReadyCheckDeps,
   judged: { prNumber: number; headSha: string },
 ) {
-  const [checks, threads, openReviewRunCount, hasCiHistory, mergeable, behindBy] =
-    await Promise.all([
-      deps.listChecks(run.repo, judged.headSha),
-      deps.listReviewThreads(run.repo, judged.prNumber),
-      deps.countOpenReviewRuns(run.repo, judged.prNumber),
-      deps.hasCiHistory(run.repo),
-      deps.prMergeable(run.repo, judged.prNumber),
-      deps.prBehindBy(run.repo, judged.prNumber),
-    ]);
+  const [
+    checks,
+    threads,
+    openReviewRunCount,
+    hasCiHistory,
+    mergeable,
+    behindBy,
+  ] = await Promise.all([
+    deps.listChecks(run.repo, judged.headSha),
+    deps.listReviewThreads(run.repo, judged.prNumber),
+    deps.countOpenReviewRuns(run.repo, judged.prNumber),
+    deps.hasCiHistory(run.repo),
+    deps.prMergeable(run.repo, judged.prNumber),
+    deps.prBehindBy(run.repo, judged.prNumber),
+  ]);
 
   return {
     checks: await explainedChecks(run.repo, withoutOwnCheck(checks), deps),
