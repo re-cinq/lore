@@ -19,6 +19,7 @@ import { enforceRepoRow, switchLoop } from "./loop-switch.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
 import { autoMergeRoute } from "../auto-merge/auto-merge.js";
 import { specUpkeepRoute } from "../spec-upkeep/spec-upkeep.js";
+import { dailyDigestRoute } from "../daily-digest/daily-digest.js";
 import { floorRunPages } from "../floor/floor-runs.js";
 import {
   LoopKeySchema,
@@ -46,6 +47,7 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
     codeReviewRoute(floorRunPages),
     autoMergeRoute(getPool, floorRunPages),
     specUpkeepRoute(floorRunPages),
+    dailyDigestRoute(getPool),
   ];
 }
 

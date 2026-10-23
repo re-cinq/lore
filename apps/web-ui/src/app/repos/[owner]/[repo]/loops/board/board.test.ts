@@ -9,6 +9,8 @@ import {
   reviewSections,
   triageSections,
   upkeepSections,
+  digestSections,
+  boardSubject,
   type LoopRead,
 } from "./board";
 
@@ -260,5 +262,40 @@ describe("loop rows", () => {
     ).toBe(
       "Paused: Spec upkeep is switched off. It starts no run until it is switched on above.",
     );
+  });
+
+  it("draws a digest post as its day linked to its run, with no pull request", () => {
+    const DIGEST = loop("digest", "Daily digest");
+    const [post] = digestSections(DIGEST, {
+      ...empty,
+      recent: [
+        {
+          ref: "2026-10-22",
+          title: "Daily digest",
+          state: "posted",
+          run_id: "run-1",
+          pipeline: null,
+          created_at: "2026-10-22T07:00:00Z",
+        },
+      ],
+    }).recent;
+
+    expect([post.ref, post.state, post.runId, post.prUrl]).toEqual([
+      "2026-10-22",
+      "posted",
+      "run-1",
+      null,
+    ]);
+  });
+
+  it("heads the subject column Run for spec upkeep alone, Post for the digest alone, and Work for both", () => {
+    const upkeep = loop("upkeep", "Spec upkeep");
+    const digest = loop("digest", "Daily digest");
+
+    expect([
+      boardSubject([upkeep]),
+      boardSubject([digest]),
+      boardSubject([upkeep, digest]),
+    ]).toEqual(["Run", "Post", "Work"]);
   });
 });

@@ -17,7 +17,7 @@ function form(fields: Record<string, string | string[]>): FormData {
 }
 
 describe("parseDigestBlock", () => {
-  it("returns the enabled block with the chosen days and sections", () => {
+  it("returns the block with the chosen days and sections and no enabled key, which the Loops tab owns", () => {
     expect(
       parseDigestBlock(
         form({
@@ -30,7 +30,6 @@ describe("parseDigestBlock", () => {
         }),
       ),
     ).toEqual({
-      enabled: true,
       time: "17:30",
       days: [1, 3, 5],
       timezone: "Europe/Bucharest",
@@ -39,9 +38,8 @@ describe("parseDigestBlock", () => {
     });
   });
 
-  it("returns the defaults with enabled false and no sections for an empty form", () => {
+  it("returns the defaults with no sections for an empty form", () => {
     expect(parseDigestBlock(form({}))).toEqual({
-      enabled: false,
       time: "09:00",
       days: [],
       timezone: "Europe/Berlin",
@@ -66,9 +64,8 @@ describe("parseDigestBlock", () => {
     });
   });
 
-  it("is sent whole inside the settings patch, so the server's shallow merge keeps it consistent", () => {
+  it("is sent inside the settings patch without enabled, which lore-api merges key by key so the switch stays as it was", () => {
     expect(parseSettingsForm(form({ digest_enabled: "yes" })).digest).toEqual({
-      enabled: true,
       time: "09:00",
       days: [],
       timezone: "Europe/Berlin",

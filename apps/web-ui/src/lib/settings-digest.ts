@@ -1,4 +1,4 @@
-// The daily-digest block of the settings form (specs/daily-digest FR10). Always the WHOLE block: the settings route merges shallowly, so a partial block would drop every field it leaves out.
+// The daily-digest block of the settings form (specs/daily-digest FR10): every field of the card, without the on/off switch the Loops tab owns.
 
 import type { components } from "@/lib/api/schema";
 
@@ -42,9 +42,11 @@ export const DIGEST_DEFAULTS: Required<DigestBlock> = {
 
 const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export function parseDigestBlock(formData: FormData): Required<DigestBlock> {
+/** Everything on the Settings page's digest card. `enabled` is the Loops tab's switch, so the form never sends it, and lore-api merges the block key by key. */
+export function parseDigestBlock(
+  formData: FormData,
+): Omit<Required<DigestBlock>, "enabled"> {
   return {
-    enabled: formData.get("digest_enabled") === "yes",
     time: timeOf(formData),
     days: weekdaysOf(formData.getAll("digest_days")),
     timezone: textOf(formData, "digest_timezone") || DIGEST_DEFAULTS.timezone,

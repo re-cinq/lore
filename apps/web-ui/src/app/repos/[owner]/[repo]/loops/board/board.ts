@@ -6,6 +6,7 @@ import type { CodeReview, ReviewRow } from "@/lib/api/code-review";
 import type { RepoLoop } from "@/lib/api/loops";
 import type { IssueTriage, TriageRow } from "@/lib/api/triage";
 import type { SpecUpkeep, UpkeepRow } from "@/lib/api/spec-upkeep";
+import type { DailyDigest, DigestRow } from "@/lib/api/daily-digest";
 
 export const SECTION_KEYS = [
   "current",
@@ -82,7 +83,23 @@ const BACKLOG_HINT: Record<string, string> = {
     "Every open pull request Lore's review approved waits here until the auto-merge loop takes it.",
   triage: "Label an issue triage: needs-triage to have it triaged.",
   upkeep: "Spec upkeep has no backlog: it runs every Monday.",
+  digest: "The daily digest has no backlog: it posts on its schedule.",
 };
+
+/** What one loop's rows are, for the subject column's header; typed by key, so a new loop cannot go without one. */
+const SUBJECT: Record<RepoLoop["key"], string> = {
+  implementation: "Ticket",
+  review: "Pull request",
+  merge: "Pull request",
+  triage: "Issue",
+  upkeep: "Run",
+  digest: "Post",
+};
+
+/** The subject column's header: what the one shown loop works on, or Work when several share the board. */
+export function boardSubject(loops: readonly RepoLoop[]): string {
+  return loops.length === 1 ? SUBJECT[loops[0].key] : "Work";
+}
 
 export function loopBoard(reads: readonly LoopRead[]): Board {
   const sections = SECTION_KEYS.map((key) => boardSection(key, reads)).filter(
@@ -155,7 +172,7 @@ export function pausedNotice(loop: RepoLoop): string | undefined {
 }
 
 /** Loops that run on a schedule rather than take work from a backlog. */
-const NO_BACKLOG: ReadonlySet<string> = new Set(["upkeep"]);
+const NO_BACKLOG: ReadonlySet<string> = new Set(["upkeep", "digest"]);
 
 /** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
 export function implementationNotice(loop: RepoLoop): string | undefined {
@@ -257,6 +274,25 @@ export function upkeepSections(
     pipeline: row.pipeline,
     prUrl: row.url,
     tag: row.blocked,
+    hold: null,
+  }));
+}
+
+export function digestSections(
+  loop: RepoLoop,
+  digest: DailyDigest,
+): LoopSections {
+  return mapSections(digest, (row: DigestRow) => ({
+    loop,
+    ref: row.ref,
+    title: row.title,
+    url: null,
+    state: row.state,
+    since: row.created_at,
+    runId: row.run_id,
+    pipeline: row.pipeline,
+    prUrl: null,
+    tag: null,
     hold: null,
   }));
 }

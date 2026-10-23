@@ -9,6 +9,7 @@ import MergeExplainer from "./merge/MergeExplainer";
 import ReviewExplainer from "./review/ReviewExplainer";
 import TriageExplainer from "./triage/TriageExplainer";
 import UpkeepExplainer from "./upkeep/UpkeepExplainer";
+import DigestExplainer from "./digest/DigestExplainer";
 import LoopBodyLoading from "./LoopBodyLoading";
 import LoopPicker, { ALL_LOOPS } from "./LoopPicker";
 import LoopSwitch from "./LoopSwitch";
@@ -104,6 +105,7 @@ const EXPLAINERS: Record<RepoLoop["key"], () => React.JSX.Element> = {
   merge: MergeExplainer,
   triage: TriageExplainer,
   upkeep: UpkeepExplainer,
+  digest: DigestExplainer,
 };
 
 /** How one loop shown alone takes up work, said under its switch. */

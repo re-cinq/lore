@@ -4923,6 +4923,68 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/daily-digest": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_daily-digest",
+        "summary": "GET /api/repos/{owner}/{repo}/daily-digest",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The daily digest: the posts that went out for the repository this week, in the shared loop sections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyDigest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/events/{id}/payload": {
       "get": {
         "operationId": "get_api_repos_owner_repo_events_id_payload",
@@ -11779,6 +11841,294 @@
         "required": ["ok"],
         "additionalProperties": false
       },
+      "DailyDigest": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "backlog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "parked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "awaiting_merge": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "current",
+          "backlog",
+          "parked",
+          "awaiting_merge",
+          "recent"
+        ],
+        "additionalProperties": false
+      },
       "DocumentEval": {
         "anyOf": [
           {
@@ -14660,7 +15010,14 @@
           },
           "key": {
             "type": "string",
-            "enum": ["implementation", "review", "merge", "triage", "upkeep"]
+            "enum": [
+              "implementation",
+              "review",
+              "merge",
+              "triage",
+              "upkeep",
+              "digest"
+            ]
           },
           "enabled": {
             "type": "boolean"
@@ -16583,7 +16940,8 @@
                     "review",
                     "merge",
                     "triage",
-                    "upkeep"
+                    "upkeep",
+                    "digest"
                   ]
                 },
                 "label": {

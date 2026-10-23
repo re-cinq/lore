@@ -11,7 +11,7 @@ const checked = (container: HTMLElement, name: string): string[] =>
     .map((box) => box.value);
 
 describe("DigestFields", () => {
-  it("renders the digest section prefilled from the stored block", () => {
+  it("renders the digest section prefilled from the stored block, with no on/off switch, which lives on the Loops tab", () => {
     const { container } = render(
       <DigestFields
         digest={{
@@ -26,7 +26,8 @@ describe("DigestFields", () => {
     );
 
     expect({
-      enabled: checked(container, "digest_enabled"),
+      switches: container.querySelectorAll('input[name="digest_enabled"]')
+        .length,
       time: container.querySelector<HTMLInputElement>(
         'input[name="digest_time"]',
       )?.value,
@@ -36,7 +37,7 @@ describe("DigestFields", () => {
       )?.value,
       sections: checked(container, "digest_sections"),
     }).toEqual({
-      enabled: ["yes"],
+      switches: 0,
       time: "17:30",
       days: ["1", "5"],
       timezone: "Europe/Bucharest",
@@ -50,7 +51,6 @@ describe("DigestFields", () => {
     );
 
     expect({
-      enabled: checked(container, "digest_enabled"),
       time: container.querySelector<HTMLInputElement>(
         'input[name="digest_time"]',
       )?.value,
@@ -60,7 +60,6 @@ describe("DigestFields", () => {
       )?.value,
       sections: checked(container, "digest_sections"),
     }).toEqual({
-      enabled: [],
       time: "09:00",
       days: ["1", "2", "3", "4", "5"],
       timezone: "Europe/Berlin",
