@@ -8,6 +8,7 @@ import {
   mergeSections,
   reviewSections,
   triageSections,
+  upkeepSections,
   type LoopRead,
 } from "./board";
 
@@ -210,5 +211,54 @@ describe("loop rows", () => {
       "Needs a code owner's approval",
       "https://github.com/acme/widgets/pull/4",
     ]);
+  });
+
+  it("draws an upkeep run as its day with why it stopped, and its open pull request as #40 linked to itself", () => {
+    const UPKEEP = loop("upkeep", "Spec upkeep");
+    const sections = upkeepSections(UPKEEP, {
+      ...empty,
+      parked: [
+        {
+          ref: "2026-10-19",
+          url: null,
+          title: "Spec upkeep",
+          state: "failed",
+          blocked: "ci stayed red",
+          run_id: "run-1",
+          pipeline: [],
+          created_at: "2026-10-19T10:00:00Z",
+        },
+      ],
+      awaiting_merge: [
+        {
+          ref: "#40",
+          url: "https://github.com/acme/widgets/pull/40",
+          title: "Spec upkeep",
+          state: "open",
+          blocked: null,
+          run_id: null,
+          pipeline: null,
+          created_at: null,
+        },
+      ],
+    });
+    const [run] = sections.parked;
+    const [pull] = sections.awaiting_merge;
+
+    expect([
+      [run.ref, run.tag, run.runId],
+      [pull.ref, pull.prUrl],
+    ]).toEqual([
+      ["2026-10-19", "ci stayed red", "run-1"],
+      ["#40", "https://github.com/acme/widgets/pull/40"],
+    ]);
+  });
+
+  it("says a switched-off spec upkeep starts no run, rather than that nothing in its backlog is picked", () => {
+    expect(
+      pausedNotice({ ...loop("upkeep", "Spec upkeep"), enabled: false }),
+    ).toBe(
+      "Paused: Spec upkeep is switched off. It starts no run until it is switched on above.",
+    );
   });
 });

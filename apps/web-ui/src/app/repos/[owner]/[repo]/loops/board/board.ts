@@ -5,6 +5,7 @@ import type { AutoMerge, MergeRow } from "@/lib/api/auto-merge";
 import type { CodeReview, ReviewRow } from "@/lib/api/code-review";
 import type { RepoLoop } from "@/lib/api/loops";
 import type { IssueTriage, TriageRow } from "@/lib/api/triage";
+import type { SpecUpkeep, UpkeepRow } from "@/lib/api/spec-upkeep";
 
 export const SECTION_KEYS = [
   "current",
@@ -80,6 +81,7 @@ const BACKLOG_HINT: Record<string, string> = {
   merge:
     "Every open pull request Lore's review approved waits here until the auto-merge loop takes it.",
   triage: "Label an issue triage: needs-triage to have it triaged.",
+  upkeep: "Spec upkeep has no backlog: it runs every Monday.",
 };
 
 export function loopBoard(reads: readonly LoopRead[]): Board {
@@ -147,8 +149,13 @@ export function pausedNotice(loop: RepoLoop): string | undefined {
     return undefined;
   }
 
-  return `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
+  return NO_BACKLOG.has(loop.key)
+    ? `Paused: ${loop.label} is switched off. It starts no run until it is switched on above.`
+    : `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
 }
+
+/** Loops that run on a schedule rather than take work from a backlog. */
+const NO_BACKLOG: ReadonlySet<string> = new Set(["upkeep"]);
 
 /** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
 export function implementationNotice(loop: RepoLoop): string | undefined {
@@ -231,6 +238,25 @@ export function triageSections(
     pipeline: row.pipeline,
     prUrl: null,
     tag: null,
+    hold: null,
+  }));
+}
+
+export function upkeepSections(
+  loop: RepoLoop,
+  upkeep: SpecUpkeep,
+): LoopSections {
+  return mapSections(upkeep, (row: UpkeepRow) => ({
+    loop,
+    ref: row.ref,
+    title: row.title,
+    url: row.url,
+    state: row.state,
+    since: row.created_at,
+    runId: row.run_id,
+    pipeline: row.pipeline,
+    prUrl: row.url,
+    tag: row.blocked,
     hold: null,
   }));
 }

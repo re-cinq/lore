@@ -1,4 +1,4 @@
-// The loops a repository can switch on and off, in the order the Loops tab shows them. A loop added later (code review, auto merge, spec upkeep) joins this tuple and `loopEnabled`, nothing else.
+// The loops a repository can switch on and off, in the order the Loops tab shows them. A loop added later joins this tuple and `loopEnabled`, nothing else.
 
 export const LOOP_KINDS = [
   {
@@ -17,13 +17,19 @@ export const LOOP_KINDS = [
     key: "merge",
     label: "Auto merge",
     description:
-      "Lore arms GitHub's auto-merge on its own pull requests that pass review; while this is on, lore-reviewer also approves them, so GitHub merges once the branch rule is met. While it is off, a person's approval is what merges them.",
+      "Takes every open pull request Lore's review passed, fixes red CI, conflicts and open review threads, and approves and merges it once it is green and has been open long enough.",
   },
   {
     key: "triage",
     label: "Issue triage",
     description:
       "Reads every issue labelled triage: needs-triage and labels, reproduces, decomposes or closes it.",
+  },
+  {
+    key: "upkeep",
+    label: "Spec upkeep",
+    description:
+      "Every Monday, finds spec statements that drifted from the code or have no test link, fixes them in one pull request and sees its CI through.",
   },
 ] as const;
 

@@ -6945,6 +6945,68 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/spec-upkeep": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_spec-upkeep",
+        "summary": "GET /api/repos/{owner}/{repo}/spec-upkeep",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The spec upkeep loop: its weekly runs and the pull requests they opened, in the shared loop sections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecUpkeep"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/tasks": {
       "post": {
         "operationId": "post_api_repos_owner_repo_tasks",
@@ -14598,7 +14660,7 @@
           },
           "key": {
             "type": "string",
-            "enum": ["implementation", "review", "merge", "triage"]
+            "enum": ["implementation", "review", "merge", "triage", "upkeep"]
           },
           "enabled": {
             "type": "boolean"
@@ -15921,6 +15983,15 @@
                     },
                     "additionalProperties": {}
                   },
+                  "spec_upkeep": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
                   "cross_repo": {
                     "type": "boolean"
                   },
@@ -16333,6 +16404,15 @@
                           },
                           "additionalProperties": {}
                         },
+                        "spec_upkeep": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": {}
+                        },
                         "cross_repo": {
                           "type": "boolean"
                         },
@@ -16498,7 +16578,13 @@
               "properties": {
                 "key": {
                   "type": "string",
-                  "enum": ["implementation", "review", "merge", "triage"]
+                  "enum": [
+                    "implementation",
+                    "review",
+                    "merge",
+                    "triage",
+                    "upkeep"
+                  ]
                 },
                 "label": {
                   "type": "string"
@@ -17656,6 +17742,334 @@
           }
         },
         "required": ["specs"],
+        "additionalProperties": false
+      },
+      "SpecUpkeep": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "backlog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "parked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "awaiting_merge": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "current",
+          "backlog",
+          "parked",
+          "awaiting_merge",
+          "recent"
+        ],
         "additionalProperties": false
       },
       "SpendWindow": {

@@ -55,6 +55,14 @@ describe("loopEnabled", () => {
     ).toEqual([6, 0, 24, 24, 24]);
   });
 
+  it("answers upkeep from spec_upkeep.enabled, on by default so a repository keeps its weekly upkeep", () => {
+    expect(
+      [undefined, true, false].map((enabled) =>
+        loopEnabled("upkeep", { spec_upkeep: { enabled } }),
+      ),
+    ).toEqual([true, true, false]);
+  });
+
   it("answers triage from issue_triage.enabled, on by default", () => {
     expect(loopEnabled("triage", {})).toBe(true);
     expect(loopEnabled("triage", { issue_triage: { enabled: false } })).toBe(
@@ -64,14 +72,20 @@ describe("loopEnabled", () => {
 });
 
 describe("loop kinds", () => {
-  it("lists implementation, review, merge then triage with their full names", () => {
-    expect(LOOP_KEYS).toEqual(["implementation", "review", "merge", "triage"]);
-    expect(loopKind("triage")).toMatchObject({ label: "Issue triage" });
+  it("lists implementation, review, merge, triage then upkeep with their full names", () => {
+    expect(LOOP_KEYS).toEqual([
+      "implementation",
+      "review",
+      "merge",
+      "triage",
+      "upkeep",
+    ]);
+    expect(loopKind("upkeep")).toMatchObject({ label: "Spec upkeep" });
   });
 
   it("isLoopKey rejects a key no loop has", () => {
     expect(isLoopKey("triage")).toBe(true);
-    expect(isLoopKey("upkeep")).toBe(false);
+    expect(isLoopKey("digest")).toBe(false);
     expect(isLoopKey(undefined)).toBe(false);
   });
 });
