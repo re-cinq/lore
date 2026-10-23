@@ -55,7 +55,31 @@ function scene(input: SceneInput = {}) {
     pulls: {
       list: async () => pulls,
       get: async (number) => pulls.find((p) => p.number === number) ?? null,
-      ciConclusion: async () => input.ci ?? "success",
+      listCommits: async () => [
+        { sha: "abc", message: "feat", parents: [] } as never,
+        {
+          sha: "def",
+          message: "style: prettier [skip ci]",
+          parents: [],
+        } as never,
+      ],
+      listChecks: async (ref) =>
+        ref === "abc"
+          ? [
+              {
+                id: 1,
+                name: "build",
+                status: "completed",
+                conclusion: input.ci ?? "success",
+              },
+              {
+                id: 2,
+                name: "lore/code-review",
+                status: "completed",
+                conclusion: "failure",
+              },
+            ]
+          : [],
     },
     repo: {
       defaultBranch: async () => "main",
@@ -143,7 +167,25 @@ describe("loopUpkeepHandlers", () => {
     expect({ starts: starts(), judged }).toEqual({ starts: [], judged: [12] });
   });
 
-  it("starts an upkeep run when a check suite finishes red on settled pull request 12, and none for a person's pull request 13", async () => {
+  it("starts nothing for pull request 12 whose only red check is Lore's own lore/code-review", async () => {
+    const { suite, starts } = scene({ ci: "success" });
+
+    await suite([12]);
+
+    expect(starts()).toEqual([]);
+  });
+
+  it("finds settled pull request 12 by its head abc when the suite names no pull request", async () => {
+    const { suite, starts } = scene({ ci: "failure" });
+
+    await suite([]);
+
+    expect(starts()).toEqual([
+      ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+    ]);
+  });
+
+  it("starts an upkeep run when the build is red on the judged commit abc, under a skip-ci commit, of settled pull request 12, and none for a person's pull request 13", async () => {
     const { suite, starts } = scene({
       ci: "failure",
       pulls: [pull(), pull({ number: 13, branch: "feature/export" })],

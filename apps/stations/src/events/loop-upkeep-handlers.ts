@@ -13,11 +13,18 @@ import {
   type UpkeepFacts,
 } from "@re-cinq/lore-shared/backlog/loop-pr-upkeep.js";
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
+import {
+  ciConclusionOf,
+  ciJudgedSha,
+  externalCheckRuns,
+} from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import { implementationLoopEnabled } from "@re-cinq/lore-shared/loops/implementation-loop-enabled.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type {
+  CheckRun,
   CiConclusion,
+  PullCommit,
   PullRef,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
@@ -26,7 +33,8 @@ export interface UpkeepProject {
   pulls: {
     list(): Promise<PullRef[]>;
     get(number: number): Promise<PullRef | null>;
-    ciConclusion(ref: string): Promise<CiConclusion>;
+    listCommits(number: number): Promise<PullCommit[]>;
+    listChecks(ref: string): Promise<CheckRun[]>;
   };
   repo: {
     defaultBranch(): Promise<string>;
@@ -90,29 +98,32 @@ function onPush(deps: LoopUpkeepDeps): EventHandler {
 /** A check suite finished on the pull request's head: its build may be red. */
 function onCheckSuite(deps: LoopUpkeepDeps): EventHandler {
   return async (params) => {
-    const { repo, pr_numbers: numbers } = params as {
+    const { repo, head_sha: headSha } = params as {
       repo?: string;
-      pr_numbers?: unknown;
+      head_sha?: string;
     };
-    const scope =
-      repo && Array.isArray(numbers) ? await scopeOf(deps, repo) : null;
+    const scope = repo && headSha ? await scopeOf(deps, repo) : null;
 
     if (scope) {
-      await upkeepEach(scope, await loopPulls(scope, numbers as unknown[]));
+      await upkeepEach(scope, await loopPulls(scope, params, headSha ?? ""));
     }
   };
 }
 
+/** The suite's pull requests by number, or, when GitHub delivered the suite with none named, the open pull requests on its head. */
 async function loopPulls(
   { project }: Scope,
-  numbers: readonly unknown[],
+  params: Readonly<Record<string, unknown>>,
+  headSha: string,
 ): Promise<PullRef[]> {
   const { pulls } = project;
-  const read = await Promise.all(
-    numbers
-      .filter((n): n is number => typeof n === "number")
-      .map((n) => pulls.get(n)),
-  );
+  const numbers = Array.isArray(params.pr_numbers)
+    ? params.pr_numbers.filter((n): n is number => typeof n === "number")
+    : [];
+  const read =
+    numbers.length > 0
+      ? await Promise.all(numbers.map((n) => pulls.get(n)))
+      : (await pulls.list()).filter((pull) => pull.headSha === headSha);
 
   return read.filter(
     (pull): pull is PullRef => pull !== null && isLoopPull(pull),
@@ -181,10 +192,22 @@ async function factsOf(
   const [behindBy, fresh, ci] = await Promise.all([
     repo.branchBehindBy(pull.branch),
     pulls.get(pull.number),
-    pulls.ciConclusion(pull.headSha ?? pull.branch),
+    buildOf(pulls, pull.number),
   ]);
 
   return { behindBy, mergeable: fresh?.mergeable ?? null, ci };
+}
+
+/** The repository's own checks on the commit CI judged, as the loop's waits read them: Lore's checks left out, and a `[skip ci]` commit on top never mistaken for a build that did not start. */
+async function buildOf(
+  pulls: UpkeepProject["pulls"],
+  prNumber: number,
+): Promise<CiConclusion> {
+  const judged = ciJudgedSha(await pulls.listCommits(prNumber));
+
+  return judged
+    ? ciConclusionOf(externalCheckRuns(await pulls.listChecks(judged)))
+    : "none";
 }
 
 /** The ticket's text and task ride along as on any loop run; a pull request whose ticket or task cannot be found is left for the next event. */
