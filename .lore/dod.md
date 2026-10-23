@@ -15,10 +15,10 @@
 
 ## Facets
 
-- [ ] Export `appendRuntimeContext` in `recipe-prompt.ts`
-- [ ] Render the previous round report when `previous_round_report` is provided
-- [ ] Render the CI verdict and check details when `ci_verdict` and `reported_changes` are provided
-- [ ] Format failed steps versus bare jobs appropriately
+- [x] Export `appendRuntimeContext` in `recipe-prompt.ts`
+- [x] Render the previous round report when `previous_round_report` is provided
+- [x] Render the CI verdict and check details when `ci_verdict` and `reported_changes` are provided
+- [x] Format failed steps versus bare jobs appropriately
 
 ## Out of scope
 
