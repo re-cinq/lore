@@ -5,13 +5,20 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 
-/** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, or a top-level boolean. */
+/** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, a top-level boolean, or (auto merge) the approver it names. */
 const SWITCH_SQL: Record<LoopKey, string> = {
   implementation: blockSwitchSql("implementation_loop"),
   review: `UPDATE lore.repos
               SET settings = COALESCE(settings, '{}'::jsonb)
                 || jsonb_build_object('auto_review', $2::boolean)
             WHERE full_name = $1`,
+  merge: `UPDATE lore.repos
+             SET settings = COALESCE(settings, '{}'::jsonb)
+               || jsonb_build_object('auto_merge',
+                    COALESCE(settings->'auto_merge', '{}'::jsonb)
+                      || jsonb_build_object('approver',
+                           CASE WHEN $2::boolean THEN 'lore-reviewer' ELSE 'none' END))
+           WHERE full_name = $1`,
   triage: blockSwitchSql("issue_triage"),
 };
 

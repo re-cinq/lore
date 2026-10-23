@@ -16,6 +16,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { switchLoop } from "./loop-switch.js";
+import { approverGate, disarmAutoMerge } from "../repos/auto-merge-gate.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
 import { floorRunPages } from "../floor/floor-runs.js";
 import {
@@ -70,8 +71,9 @@ const SWITCH_OPTIONS = zodResponse(
   LoopSwitchResultSchema,
   {
     name: "LoopSwitch",
-    description: "Switch one of the repository's loops on or off.",
-    errors: [400, 404],
+    description:
+      "Switch one of the repository's loops on or off. Switching auto merge on needs the lore-reviewer App, a protecting branch rule and the two-key approval PR (x-lore-approval-pr), and answers 403 naming what is missing.",
+    errors: [400, 403, 404],
   },
 );
 
@@ -115,8 +117,31 @@ async function serveSwitchLoop(
 ): Promise<ResponseObject> {
   const { key } = request.params as z.infer<typeof SwitchParams>;
   const { enabled } = request.payload as z.infer<typeof LoopSwitchBodySchema>;
+  const repo = repoOf(request.params);
+  const gate = await approverGate(
+    request,
+    repo,
+    approverAsked({ key, enabled }),
+  );
 
-  await switchLoop(pool, repoOf(request.params), key, { enabled });
+  if (!gate.ok) {
+    return h.response(gate.body).code(gate.code);
+  }
+  await switchLoop(pool, repo, key, { enabled });
+
+  if (key === "merge" && !enabled) {
+    await disarmAutoMerge(repo);
+  }
 
   return h.response({ ok: true as const, key, enabled }).code(200);
+}
+
+/** The approver a switch asks for: only switching auto merge on names one. */
+function approverAsked(asked: {
+  key: string;
+  enabled: boolean;
+}): string | undefined {
+  const { key, enabled } = asked;
+
+  return key === "merge" && enabled ? "lore-reviewer" : undefined;
 }
