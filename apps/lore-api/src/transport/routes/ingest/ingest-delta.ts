@@ -144,6 +144,7 @@ async function overlayDeltaResult(
     ...(ctx.body.report as object),
     overlayBranch: ctx.overlayBranch,
   });
+
   return {
     kind: ctx.body.kind,
     commit: ctx.body.commit,
@@ -158,6 +159,7 @@ async function overlayDeltaResult(
 async function saveOverlayReport(pool: Pool, ctx: OverlayDeltaCtx) {
   const r = ctx.body.report as
     { tests?: unknown; outcomes?: unknown } | undefined;
+
   await saveTestReportRow(pool, {
     repo: ctx.repo,
     commit: ctx.body.commit,

@@ -16,6 +16,7 @@ async function serverWith(queries: { sql: string; params: unknown[] }[]) {
   const pool = {
     query: async (sql: string, params: unknown[]) => {
       queries.push({ sql, params });
+
       return { rows: [{ id: "1" }] };
     },
   } as never;
@@ -57,6 +58,7 @@ describe("Test report ingest (acceptance)", () => {
     expect(res.statusCode).toBe(200);
 
     const upsert = queries.find((q) => q.sql.includes("pipeline.test_reports"));
+
     expect(upsert).toBeDefined();
     expect(upsert?.params).toContain("feature/foo");
   });
@@ -82,6 +84,7 @@ describe("Test report ingest (acceptance)", () => {
     expect(res.statusCode).toBe(200);
 
     const upsert = queries.find((q) => q.sql.includes("pipeline.test_reports"));
+
     expect(upsert).toBeUndefined();
   });
 });
