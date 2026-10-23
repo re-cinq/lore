@@ -11,6 +11,7 @@ export function collectDeps(): DigestCollectDeps {
   return {
     recentTexts: (channel, limit) =>
       pipeline().digestPosts.recentTexts(channel, limit),
+    uiUrl: process.env.LORE_UI_URL,
     ...digestDraftSources({
       project: projectFor,
       slackUsersSetting: () => settings().orgSetting("slack_users"),

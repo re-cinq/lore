@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  renderChangelogLinks,
   renderDigestDraft,
   renderPeople,
   renderRepoFailure,
@@ -153,5 +154,32 @@ describe("renderThreadParent", () => {
     expect(
       renderThreadParent("2026-W39", ["re-cinq/lore", "re-cinq/otto"]),
     ).toBe("Week 39 · re-cinq/lore, re-cinq/otto");
+  });
+});
+
+describe("renderChangelogLinks", () => {
+  it("links lore and otto to their Changelog tabs on https://lore.example/", () => {
+    expect(
+      renderChangelogLinks("https://lore.example/", [
+        "re-cinq/lore",
+        "re-cinq/otto",
+      ]),
+    ).toBe(
+      "Full list: <https://lore.example/repos/re-cinq/lore/changelog|lore> · <https://lore.example/repos/re-cinq/otto/changelog|otto>",
+    );
+  });
+
+  it("puts the footer under the people lines in the same paragraph", () => {
+    const text = renderDigestDraft({
+      header: { weekKey: "2026-W43", date: "2026-10-23" },
+      lines: ["*alice* — did: a"],
+      footer: "Full list: x",
+      wantsIntro: false,
+      recentIntros: [],
+    });
+
+    expect(text.split(`\n\n${APPENDIX_MARKER}`)[0]).toBe(
+      "*Daily digest · 2026-10-23*\n*alice* — did: a\nFull list: x",
+    );
   });
 });

@@ -19,6 +19,8 @@ The file `{digest_draft_path}` is the whole message, in Slack mrkdwn:
   a Slack link followed by its number, a list cut at three titles with
   `+N more`; a person may have only `did:` or only `next:`;
 - possibly a line `_could not read <repo>: <reason>_`;
+- possibly a last line `Full list: <link|repo> · …`, linking each repository's
+  changelog;
 - after `<!-- lore-digest:appendix -->`, notes for you only, never shipped: an
   optional `Voice:` line naming who you write as, and the intros this channel
   already received.
@@ -36,8 +38,8 @@ message exactly as it should appear in Slack:
    plain and friendly. If the marker is absent, write no intro.
 2. The intro must differ in wording, angle and opening words from every intro
    in the appendix.
-3. Keep the title line, every person, their name, their order and every
-   `could not read` line exactly as they are.
+3. Keep the title line, every person, their name, their order, every
+   `could not read` line and the `Full list:` line exactly as they are.
 4. Rewrite each `did:` and `next:` list as one short plain phrase of at most
    15 words saying what the work is about, followed by the numbers of the
    items it covers in brackets, and the `+N more` when the draft has one.

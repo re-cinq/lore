@@ -14,7 +14,7 @@ import { collectDeps } from "../deps.js";
 
 export type DigestCollectDeps = Pick<
   DraftDeps,
-  "recentTexts" | "collect" | "namesFor"
+  "recentTexts" | "collect" | "namesFor" | "uiUrl"
 >;
 
 export const NOT_A_DIGEST =

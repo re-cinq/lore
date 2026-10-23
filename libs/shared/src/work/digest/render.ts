@@ -49,10 +49,22 @@ export function renderRepoFailure(repo: string, error: string): string {
   return `_could not read ${repo}: ${error}_`;
 }
 
+/** `Full list: <…/repos/re-cinq/lore/changelog|lore> · …`, a link to the Changelog tab of each repo the digest covers (specs/repo-changelog FR6). */
+export function renderChangelogLinks(uiUrl: string, repos: string[]): string {
+  const base = uiUrl.replace(/\/+$/, "");
+  const links = repos.map(
+    (repo) => `<${base}/repos/${repo}/changelog|${repo.split("/").at(-1)}>`,
+  );
+
+  return `Full list: ${links.join(" · ")}`;
+}
+
 export interface DigestDraftInput {
   header: { weekKey: string; date: string };
   /** One line per person, then one per repo that could not be read. */
   lines: string[];
+  /** The changelog links, under the lines in the same paragraph. */
+  footer?: string;
   wantsIntro: boolean;
   recentIntros: string[];
   /** Who the agent writes the intro as; empty for a plain friendly tone. */
@@ -66,6 +78,7 @@ export function renderDigestDraft(input: DigestDraftInput): string {
     [
       `*Daily digest · ${header.date}*`,
       ...(lines.length > 0 ? lines : [NOTHING]),
+      ...(input.footer ? [input.footer] : []),
     ].join("\n"),
     renderAppendix(input.recentIntros, input.voice ?? ""),
   ];

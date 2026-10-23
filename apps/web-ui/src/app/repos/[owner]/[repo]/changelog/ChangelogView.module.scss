@@ -1,0 +1,54 @@
+// One section per week; the toggle and the older-weeks link sit on the page's edges.
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-5);
+  font-size: var(--fs-sm);
+}
+
+.week {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-lg);
+}
+
+.current {
+  margin-left: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: normal;
+}
+
+.intro {
+  max-width: 60rem;
+  margin: 0 0 var(--space-4);
+}
+
+.note {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+}
+
+.person {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--fs-md);
+}
+
+.changes {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.meta {
+  color: var(--text-muted);
+}
+
+.older {
+  display: flex;
+  justify-content: center;
+}
