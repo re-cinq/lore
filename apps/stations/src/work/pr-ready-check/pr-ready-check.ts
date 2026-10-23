@@ -10,6 +10,8 @@ import {
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { floorCiWaitSweep } from "./floor-ci-wait.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
+import { mergeReportForRun, type MergeWaitReads } from "./merge-readers.js";
+import { autoMergeMinAgeHours } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import {
   CI_WAIT_BLUEPRINTS,
   LOOP_BLUEPRINT,
@@ -108,7 +110,7 @@ async function runSideDeps(): Promise<
 /** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */
 async function floorSummary(
   deps: PrReadyCheckDeps,
-  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls" | "settings">>,
 ): Promise<string[]> {
   const floor = floorIfConfigured();
 
@@ -121,10 +123,42 @@ async function floorSummary(
       floor,
       judge: (run) => ciReportForRun(run, deps),
       judgePr: (run) => prReportForRun(run, deps),
+      judgeMerge: (run) =>
+        mergeReportForRun(run, { ...deps, ...mergeReads(projectOf) }),
       prState: async (repo, prNumber) =>
         (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
     }),
   ];
+}
+
+/** The reads only the auto-merge wait makes, through the same per-sweep repo cache. */
+function mergeReads(
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls" | "settings">>,
+): MergeWaitReads {
+  return {
+    pullFacts: async (repo, number) => {
+      const pull = await (await projectOf(repo)).pulls.get(number);
+
+      return {
+        createdAt: pull?.createdAt ?? null,
+        mergeable: pull?.mergeable ?? null,
+      };
+    },
+    listReviewComments: async (repo, number) =>
+      (await projectOf(repo)).pulls.listComments(number),
+    latestReviewBody: async (repo, number) => {
+      const reviews = await (await projectOf(repo)).pulls.listReviews(number);
+
+      return (
+        reviews.findLast((review) => review.body.trim() !== "")?.body ?? null
+      );
+    },
+    minAgeHours: async (repo) =>
+      autoMergeMinAgeHours(
+        await (await projectOf(repo)).settings.rawSettings(),
+      ),
+    now: () => Date.now(),
+  };
 }
 
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */

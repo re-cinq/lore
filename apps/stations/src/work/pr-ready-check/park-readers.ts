@@ -135,10 +135,10 @@ function withoutOwnCheck(checks: CheckRun[]): CheckRun[] {
 }
 
 /** The shared explainer, bound to this sweep's job reader. */
-function explainedChecks(
+export function explainedChecks(
   repo: string,
   checks: CheckRun[],
-  deps: PrReadyCheckDeps,
+  deps: Pick<PrReadyCheckDeps, "failedJob">,
 ): Promise<CheckRun[]> {
   return explainFailedChecks(checks, (jobId) => deps.failedJob(repo, jobId));
 }
@@ -165,7 +165,7 @@ function lastReportedSha(args: Record<string, unknown>): string | null {
 }
 
 // The PR this run is parked on, and the commit to judge it by — or null when there is nothing to judge. A run with no `pr_number` never got that far; a PR with no judgeable commit has nothing CI was ever going to check.
-async function judgeable(
+export async function judgeable(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
 ): Promise<{ prNumber: number; headSha: string } | null> {
