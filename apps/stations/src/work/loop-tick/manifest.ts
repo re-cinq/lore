@@ -1,4 +1,4 @@
-import type { SweepStationModule } from "../lib/station.js";
+import { triggerParams, type SweepStationModule } from "../lib/station.js";
 
 /** The implementation loop's backlog tick, taken from the bus where the external floor walks the loop (specs/external-floor FR13). The Floor's own handler for the same event stands down under the same condition, so one engine picks a repository's next ticket, never both. */
 export const loopTickStation: SweepStationModule = {
@@ -12,5 +12,5 @@ export const loopTickStation: SweepStationModule = {
     ],
   },
   run: async (ctx) =>
-    (await import("./run.js")).runLoopTick(ctx.event?.params ?? {}),
+    (await import("./run.js")).runLoopTick(triggerParams(ctx)),
 };

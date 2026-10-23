@@ -67,9 +67,14 @@ data just asks the data.
 A service station is named, not authored: the name is the URL, and the registry
 entry is the whole declaration.
 
-- The named station runs and reports one summary line — the same
-  `(): Promise<string>` these jobs always had, which the Floor's scheduler
+- The named station runs and reports one summary line — a
+  `(params) => Promise<string>`, which the Floor's scheduler
   writes into the `pipeline.job_runs` row it already opens. ([validated by runs the named station and returns the summary it reported](apps/stations/src/transport/routes/stations.test.ts#L30))
+- A JSON object body is the run's params, read by a sweep exactly as it reads
+  an event's (`triggerParams`), so an operator can ask by hand what a tick
+  asks on a schedule, such as `{ "repo": "re-cinq/lore", "weeks": 8 }` to the
+  changelog tick; no body is no params (amendment 2026-10-23: the route used to
+  drop the body, so every manual trigger ran with none). ([validated by hands the JSON body {repo: re-cinq/lore, weeks: 8} to the station as its params](apps/stations/src/transport/routes/stations.test.ts#L131), [hands empty params to the station when the request has no body](apps/stations/src/transport/routes/stations.test.ts#L154), [reads an event's params](apps/stations/src/work/lib/station.test.ts#L19), [reads an HTTP request's params](apps/stations/src/work/lib/station.test.ts#L33), [answers empty params for a trigger that carries none](apps/stations/src/work/lib/station.test.ts#L39))
 - A name nothing answers to is refused with the registry's contents, rather than
   failing somewhere inside an undefined call. ([validated by refuses a name no station answers to, rather than 500-ing on undefined](apps/stations/src/transport/routes/stations.test.ts#L40))
 - Running a station requires the same token every other service-to-service call

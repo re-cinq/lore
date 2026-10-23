@@ -1,4 +1,4 @@
-import type { SweepStationModule } from "../lib/station.js";
+import { triggerParams, type SweepStationModule } from "../lib/station.js";
 
 /** The weekly spec upkeep's tick (specs/external-floor FR14). Where no floor is configured the Floor's spec-drift and spec-coverage-backfill lines still run on their own ticks, and this one starts nothing. */
 export const specUpkeepTickStation: SweepStationModule = {
@@ -12,5 +12,5 @@ export const specUpkeepTickStation: SweepStationModule = {
     ],
   },
   run: async (ctx) =>
-    (await import("./run.js")).runSpecUpkeepTick(ctx.event?.params ?? {}),
+    (await import("./run.js")).runSpecUpkeepTick(triggerParams(ctx)),
 };

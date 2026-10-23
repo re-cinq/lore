@@ -1,4 +1,4 @@
-import type { SweepStationModule } from "../lib/station.js";
+import { triggerParams, type SweepStationModule } from "../lib/station.js";
 
 export const issueTriageTickStation: SweepStationModule = {
   manifest: {
@@ -11,5 +11,5 @@ export const issueTriageTickStation: SweepStationModule = {
     ],
   },
   run: async (ctx) =>
-    (await import("./run.js")).runIssueTriageTick(ctx.event?.params ?? {}),
+    (await import("./run.js")).runIssueTriageTick(triggerParams(ctx)),
 };

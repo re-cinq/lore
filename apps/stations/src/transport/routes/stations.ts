@@ -39,7 +39,9 @@ function runStationHandler(
     running.add(name);
 
     try {
-      return h.response({ job: name, summary: await station() }).code(200);
+      const summary = await station(bodyParams(request.payload));
+
+      return h.response({ job: name, summary }).code(200);
     } catch (err) {
       request.log(["error", "station"], errorMessage(err));
       throw Boom.internal();
@@ -69,4 +71,13 @@ function availableStation(
   );
 
   return station;
+}
+
+/** A JSON object body is the run's params; no body, or any other shape, is none. */
+function bodyParams(payload: unknown): Readonly<Record<string, unknown>> {
+  return payload !== null &&
+    typeof payload === "object" &&
+    !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)
+    : {};
 }

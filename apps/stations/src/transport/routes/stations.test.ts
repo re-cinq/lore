@@ -127,4 +127,45 @@ describe("POST /api/stations/{name}", () => {
       bodyContainsSecret: JSON.stringify(res.result ?? {}).includes("secret"),
     }).toEqual({ status: 500, bodyContainsSecret: false });
   });
+
+  it("hands the JSON body {repo: re-cinq/lore, weeks: 8} to the station as its params", async () => {
+    const seen: unknown[] = [];
+
+    registry = new Map([
+      [
+        "changelog-tick",
+        async (params) => {
+          seen.push(params);
+
+          return "started";
+        },
+      ],
+    ]);
+    await app.inject({
+      method: "POST",
+      url: "/api/stations/changelog-tick",
+      headers: auth,
+      payload: { repo: "re-cinq/lore", weeks: 8 },
+    });
+
+    expect(seen).toEqual([{ repo: "re-cinq/lore", weeks: 8 }]);
+  });
+
+  it("hands empty params to the station when the request has no body", async () => {
+    const seen: unknown[] = [];
+
+    registry = new Map([
+      [
+        "memory-ttl",
+        async (params) => {
+          seen.push(params);
+
+          return "ok";
+        },
+      ],
+    ]);
+    await run("memory-ttl");
+
+    expect(seen).toEqual([{}]);
+  });
 });

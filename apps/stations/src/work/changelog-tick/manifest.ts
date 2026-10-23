@@ -1,4 +1,4 @@
-import type { SweepStationModule } from "../lib/station.js";
+import { triggerParams, type SweepStationModule } from "../lib/station.js";
 
 /** The weekly changelog's tick (specs/repo-changelog): Mondays for the week that just ended, or by hand with `weeks` to backfill. */
 export const changelogTickStation: SweepStationModule = {
@@ -12,5 +12,5 @@ export const changelogTickStation: SweepStationModule = {
     ],
   },
   run: async (ctx) =>
-    (await import("./run.js")).runChangelogTick(ctx.event?.params ?? {}),
+    (await import("./run.js")).runChangelogTick(triggerParams(ctx)),
 };
