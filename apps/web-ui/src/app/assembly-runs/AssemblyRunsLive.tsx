@@ -1,7 +1,7 @@
 "use client";
 
 // The run list's container: owns the live channel and the page's reducer, and hands the pure view its runs. A gap in the channel is closed by reloading the page the person is on.
-import { useReducer, useRef, type Dispatch, type ReactNode } from "react";
+import { useReducer, useRef, type Dispatch } from "react";
 import type { FloorRunsPage } from "@/lib/api/floor-runs";
 import { floorRunOf } from "@/lib/assembly-run-rows";
 import type { ChannelState } from "@/lib/live-socket/connection-machine";
@@ -19,10 +19,10 @@ interface AssemblyRunsLiveProps {
   activeStatus?: string;
   cursor?: string;
   initial: FloorRunsPage;
-  /** `owner/name` of the one repository the list is scoped to. */
+  /** `owner/name` of the one repository the list is filtered to. */
   repo?: string;
-  basePath?: string;
-  heading?: ReactNode;
+  /** `owner/name` of every onboarded repository, offered by the repository filter. */
+  repos?: string[];
 }
 
 export default function AssemblyRunsLive(props: AssemblyRunsLiveProps) {
@@ -40,8 +40,8 @@ export default function AssemblyRunsLive(props: AssemblyRunsLiveProps) {
     <AssemblyRunListView
       activeStatus={activeStatus}
       cursor={cursor}
-      basePath={props.basePath}
-      heading={props.heading}
+      activeRepo={repo}
+      repos={props.repos}
       {...state}
     />
   );

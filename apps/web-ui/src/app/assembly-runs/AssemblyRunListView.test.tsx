@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { render, screen } from "@testing-library/react";
 import type { AssemblyRun } from "@/lib/assembly-run-rows";
 import AssemblyRunListView from "./AssemblyRunListView";
@@ -103,11 +105,11 @@ describe("AssemblyRunListView paging and columns", () => {
   });
 });
 
-describe("AssemblyRunListView under another base path", () => {
-  it("points the Running filter, Newest and Older links under the repository's tab", () => {
+describe("AssemblyRunListView filtered to a repository", () => {
+  it("keeps repo re-cinq/lore in the Running filter, Newest and Older links", () => {
     render(
       <AssemblyRunListView
-        basePath="/repos/re-cinq/lore/tasks"
+        activeRepo="re-cinq/lore"
         activeStatus="failed"
         cursor="page-2"
         nextCursor="page-3"
@@ -122,9 +124,29 @@ describe("AssemblyRunListView under another base path", () => {
       newest: screen.getByRole("link", { name: "Newest" }).getAttribute("href"),
       older: screen.getByRole("link", { name: "Older" }).getAttribute("href"),
     }).toEqual({
-      running: "/repos/re-cinq/lore/tasks?status=running",
-      newest: "/repos/re-cinq/lore/tasks?status=failed",
-      older: "/repos/re-cinq/lore/tasks?status=failed&cursor=page-3",
+      running: "/assembly-runs?repo=re-cinq%2Flore&status=running",
+      newest: "/assembly-runs?repo=re-cinq%2Flore&status=failed",
+      older: "/assembly-runs?repo=re-cinq%2Flore&status=failed&cursor=page-3",
+    });
+  });
+
+  it("offers All repos and each onboarded repo, re-cinq/lore selected", () => {
+    render(
+      <AssemblyRunListView
+        activeRepo="re-cinq/lore"
+        repos={["re-cinq/floor", "re-cinq/lore"]}
+        runs={[]}
+      />,
+    );
+
+    const select = screen.getByRole("combobox", { name: "Repository" });
+
+    expect({
+      options: [...select.querySelectorAll("option")].map((o) => o.textContent),
+      selected: (select as HTMLSelectElement).value,
+    }).toEqual({
+      options: ["All repos", "re-cinq/floor", "re-cinq/lore"],
+      selected: "re-cinq/lore",
     });
   });
 });

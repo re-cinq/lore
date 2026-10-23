@@ -44,7 +44,6 @@ async function readHeader(fullName: string) {
 function repoTabs(base: string) {
   return [
     { href: base, label: "Overview" },
-    { href: `${base}/tasks`, label: "Assembly Runs" },
     { href: `${base}/context`, label: "Context" },
     { href: `${base}/assembled`, label: "Assembled" },
     { href: `${base}/specs`, label: "Specs" },
