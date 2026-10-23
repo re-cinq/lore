@@ -1,18 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { Brief, Tools } from "@re-cinq/floor-station";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type {
-  CreateReviewInput,
-  MergeMethod,
-} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
-import {
-  approverOf,
-  postReviewHandle,
-  type AutoMergeApprover,
-  type ReviewProject,
-} from "./station.js";
+import { postReviewHandle, type ReviewProject } from "./station.js";
 
 const prUrl = "https://github.com/re-cinq/lore/pull/412";
 
@@ -45,20 +36,17 @@ const toolsReading = (output: string): Tools => ({
 
 interface FakeOverrides {
   requiredApprovals?: number;
-  approver?: AutoMergeApprover;
 }
 
 function fakeProject(
   refusal?: string,
   model?: string,
-  { requiredApprovals = 0, approver = "none" }: FakeOverrides = {},
+  { requiredApprovals = 0 }: FakeOverrides = {},
 ) {
   const reviews: CreateReviewInput[] = [];
   const comments: string[] = [];
   const checks: CheckRunInput[] = [];
   const repos: string[] = [];
-  const autoMergeCalls: Array<{ nodeId: string; method: MergeMethod }> = [];
-  const auditRows: Array<Omit<AuditLogEntry, "repo">> = [];
   const ruleReads: string[] = [];
   const steps: string[] = [];
 
@@ -77,12 +65,7 @@ function fakeProject(
       get: async () => ({
         headSha: "livesha",
         baseBranch: "main",
-        nodeId: "PR_kw_test",
       }),
-      enableAutoMerge: async (nodeId: string, method: MergeMethod) => {
-        autoMergeCalls.push({ nodeId, method });
-        steps.push("arm");
-      },
       getBranchRule: async (branch: string) => {
         ruleReads.push(branch);
 
@@ -111,12 +94,6 @@ function fakeProject(
     upsertCheckRun: async (input: CheckRunInput) => {
       checks.push(input);
     },
-    autoMergeApprover: async () => approver,
-    audit: {
-      write: async (row) => {
-        auditRows.push(row);
-      },
-    },
   };
   const deps = {
     project: async (repo: string) => {
@@ -133,8 +110,6 @@ function fakeProject(
     comments,
     checks,
     repos,
-    autoMergeCalls,
-    auditRows,
     ruleReads,
     steps,
   };
@@ -262,45 +237,8 @@ describe("postReviewHandle", () => {
   });
 });
 
-describe("approverOf", () => {
-  it("returns lore-reviewer when auto_merge.approver is lore-reviewer", () => {
-    expect(
-      approverOf({ digest: 7, auto_merge: { approver: "lore-reviewer" } }),
-    ).toBe("lore-reviewer");
-  });
-
-  it("returns none when the repo has no settings row", () => {
-    expect(approverOf(null)).toBe("none");
-  });
-
-  it("returns none when auto_merge.approver is the unknown value admin", () => {
-    expect(approverOf({ auto_merge: { approver: "admin" } })).toBe("none");
-  });
-});
-
 describe("Feature Specification: Lore merges on protected repos, and every PR knows what blocks it", () => {
-  describe("Lore passes `mergeMethod: SQUASH` to `enablePullRequestAutoMerge`, the method the automerge label workflow already uses, so the switch changes nothing about history or CI.", () => {
-    it("given a branch requiring approval, when review completes, then it calls enableAutoMerge with SQUASH and writes an audit row", async () => {
-      const { deps, autoMergeCalls, auditRows } = fakeProject(
-        undefined,
-        undefined,
-        { requiredApprovals: 1 },
-      );
-
-      await postReviewHandle(deps)(
-        brief(),
-        toolsReading("REVIEW_RESULT:APPROVED"),
-      );
-
-      expect(autoMergeCalls).toMatchObject([
-        { nodeId: "PR_kw_test", method: "squash" },
-      ]);
-      expect(auditRows).toContainEqual({
-        event_type: "auto_merge_armed",
-        payload: { prNumber: 412, headSha: "livesha", approver: "none" },
-      });
-    });
-
+  describe("Code review posts its verdict and never arms auto-merge: the auto-merge loop gives the approval that counts and arms the merge.", () => {
     it("reads the branch rule of the base branch main", async () => {
       const { deps, ruleReads } = fakeProject();
 
@@ -311,13 +249,10 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
 
       expect(ruleReads).toEqual(["main"]);
     });
-  });
 
-  describe("Lore never merges. It approves as lore-reviewer and arms GitHub's native auto-merge; GitHub performs the merge and enforces the branch rule. No pod holds merge authority.", () => {
-    it("given approver is lore-reviewer, when review approves, then it submits APPROVE and writes lore_reviewer_approved audit row", async () => {
-      const { deps, reviews, auditRows } = fakeProject(undefined, undefined, {
+    it("given a branch requiring approval, when review approves, then it posts a comment review and arms nothing", async () => {
+      const { deps, reviews, steps } = fakeProject(undefined, undefined, {
         requiredApprovals: 1,
-        approver: "lore-reviewer",
       });
 
       await postReviewHandle(deps)(
@@ -325,35 +260,15 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
         toolsReading("REVIEW_RESULT:APPROVED"),
       );
 
-      expect(reviews).toMatchObject([{ event: "APPROVE" }]);
-      expect(auditRows).toContainEqual(
-        expect.objectContaining({
-          event_type: "lore_reviewer_approved",
-          payload: expect.objectContaining({ approver: "lore-reviewer" }),
-        }),
-      );
+      expect({ events: reviews.map((r) => r.event), steps }).toEqual({
+        events: ["COMMENT"],
+        steps: ["review:COMMENT"],
+      });
     });
 
-    it("given approver is none, when review approves, then it arms but does not approve", async () => {
-      const { deps, reviews, autoMergeCalls } = fakeProject(
-        undefined,
-        undefined,
-        { requiredApprovals: 1, approver: "none" },
-      );
-
-      await postReviewHandle(deps)(
-        brief(),
-        toolsReading("REVIEW_RESULT:APPROVED"),
-      );
-
-      expect(autoMergeCalls).toHaveLength(1);
-      expect(reviews.some((r) => r.event === "APPROVE")).toBe(false);
-    });
-
-    it("given approver is none on an unprotected branch, when review approves, then it submits APPROVE", async () => {
+    it("given an unprotected branch, when review approves, then it submits APPROVE", async () => {
       const { deps, reviews } = fakeProject(undefined, undefined, {
         requiredApprovals: 0,
-        approver: "none",
       });
 
       await postReviewHandle(deps)(
@@ -364,62 +279,10 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
       expect(reviews).toMatchObject([{ event: "APPROVE" }]);
     });
 
-    it("given a branch requiring approval, when review requests changes, then it does not arm auto-merge", async () => {
-      const { deps, autoMergeCalls, auditRows } = fakeProject(
-        undefined,
-        undefined,
-        { requiredApprovals: 1 },
-      );
-
-      await postReviewHandle(deps)(
-        brief(),
-        toolsReading(changesRequestedOutput),
-      );
-
-      expect({ autoMergeCalls, auditRows }).toEqual({
-        autoMergeCalls: [],
-        auditRows: [],
-      });
-    });
-  });
-
-  describe("Native auto-merge is armed only where the branch rule requires an approval, never on an unprotected branch, and always before lore-reviewer approves, because GitHub refuses to arm a PR that can already merge.", () => {
-    it("given an unprotected branch, when review completes, then it does not arm auto-merge", async () => {
-      const { deps, autoMergeCalls } = fakeProject(undefined, undefined, {
-        requiredApprovals: 0,
-      });
-
-      await postReviewHandle(deps)(
-        brief(),
-        toolsReading("REVIEW_RESULT:APPROVED"),
-      );
-
-      expect(autoMergeCalls).toHaveLength(0);
-    });
-
-    it("given approver is lore-reviewer, arms auto-merge before submitting APPROVE", async () => {
-      const { deps, steps } = fakeProject(undefined, undefined, {
+    it("given a re-run on the same PR state, when review completes, then it posts the review once", async () => {
+      const { deps, reviews } = fakeProject(undefined, undefined, {
         requiredApprovals: 1,
-        approver: "lore-reviewer",
       });
-
-      await postReviewHandle(deps)(
-        brief(),
-        toolsReading("REVIEW_RESULT:APPROVED"),
-      );
-
-      expect(steps).toEqual(["arm", "review:APPROVE"]);
-    });
-  });
-
-  describe("The review line runs again on every push, so approving, arming and commenting each carry an idempotency key and happen once per PR state.", () => {
-    it("given a re-run on the same PR state, when review completes, then it does not re-arm or re-approve", async () => {
-      const { deps, autoMergeCalls, reviews } = fakeProject(
-        undefined,
-        undefined,
-        { requiredApprovals: 1, approver: "lore-reviewer" },
-      );
-
       const handle = postReviewHandle(deps);
 
       await handle(
@@ -431,7 +294,6 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
         toolsReading("REVIEW_RESULT:APPROVED"),
       );
 
-      expect(autoMergeCalls).toHaveLength(1);
       expect(reviews).toHaveLength(1);
     });
   });

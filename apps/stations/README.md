@@ -31,16 +31,16 @@ folder each under `src/code-review/`, `src/planning/`, `src/merge/`,
 `src/onboard/`, `src/implementation-loop/`, `src/spec-upkeep/` and `src/digest/`,
 written with `@re-cinq/floor-station`.
 
-| Station | Form | Trigger / runtime |
-| --- | --- | --- |
-| `merge-check` | sweep | cron `*/1 * * * *` + http |
-| `pr-ready-check` | sweep | cron + http |
-| `loop-tick`, `spec-upkeep-tick`, `digest-tick` | sweep | cron (start runs on the external floor) |
-| `bus-prune`, `telemetry-prune`, `pr-blocked-reasons-prune` | sweep | cron |
-| `memory-ttl` | sweep | cron hourly (courier CronJob) + http |
-| `importance-decay` | sweep | cron 05:00 (courier CronJob) + http |
-| `consolidation` | sweep | cron 05:30 (courier CronJob) + http |
-| `anthropic-cost-sync`, `gcp-cost-sync` | sweep | cron (courier CronJob) + http |
+| Station                                                    | Form  | Trigger / runtime                       |
+| ---------------------------------------------------------- | ----- | --------------------------------------- |
+| `merge-check`                                              | sweep | cron `*/1 * * * *` + http               |
+| `pr-ready-check`                                           | sweep | cron + http                             |
+| `loop-tick`, `spec-upkeep-tick`, `digest-tick`             | sweep | cron (start runs on the external floor) |
+| `bus-prune`, `telemetry-prune`, `pr-blocked-reasons-prune` | sweep | cron                                    |
+| `memory-ttl`                                               | sweep | cron hourly (courier CronJob) + http    |
+| `importance-decay`                                         | sweep | cron 05:00 (courier CronJob) + http     |
+| `consolidation`                                            | sweep | cron 05:30 (courier CronJob) + http     |
+| `anthropic-cost-sync`, `gcp-cost-sync`                     | sweep | cron (courier CronJob) + http           |
 
 The node stations the old walk dispatched (`detect`, `ingest`, `validate`,
 `retrospective`, `feature-review`, `pr-review`, `ci-check`), the
@@ -73,10 +73,10 @@ Shipped as the `lore-stations` Service (port 8080) in the **`lore-stations`**
 namespace, subchart `stations-helm` of the `lore-platform` umbrella chart
 (single replica — the 409 latch is per-process).
 
-| Env var | Purpose |
-| --- | --- |
-| `PORT` | HTTP port (default 8080) |
-| `LORE_DB_HOST` / `_PORT` / `_NAME` / `_USER` / `_PASSWORD` | Postgres pool |
-| `LORE_INGEST_TOKEN` | bearer the routes require — the Floor presents the same secret (`lore-agent-internal-token`) |
-| `GITHUB_APP_ID` / `_PRIVATE_KEY` / `_INSTALLATION_ID` | GitHub App — merge-check merges PRs, comments, reads CI |
-| `ANTHROPIC_API_KEY` | optional — auto-curation's Haiku lesson; absent, the step is skipped |
+| Env var                                                    | Purpose                                                                                      |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `PORT`                                                     | HTTP port (default 8080)                                                                     |
+| `LORE_DB_HOST` / `_PORT` / `_NAME` / `_USER` / `_PASSWORD` | Postgres pool                                                                                |
+| `LORE_INGEST_TOKEN`                                        | bearer the routes require — the Floor presents the same secret (`lore-agent-internal-token`) |
+| `GITHUB_APP_ID` / `_PRIVATE_KEY` / `_INSTALLATION_ID`      | GitHub App — merge-check merges PRs, comments, reads CI                                      |
+| `ANTHROPIC_API_KEY`                                        | optional — auto-curation's Haiku lesson; absent, the step is skipped                         |
