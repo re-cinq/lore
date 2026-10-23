@@ -4,19 +4,17 @@ import { render, screen } from "@testing-library/react";
 
 vi.mock("@/lib/api/loops", () => ({ getRepoLoops: vi.fn() }));
 vi.mock("./actions", () => ({ switchLoopAction: vi.fn() }));
-vi.mock("./implementation/ImplementationLoopBody", () => ({
-  default: ({ fullName }: { fullName: string }) => (
-    <div data-testid="implementation-body">{fullName}</div>
-  ),
-}));
-vi.mock("./review/ReviewBody", () => ({
-  default: ({ fullName }: { fullName: string }) => (
-    <div data-testid="review-body">{fullName}</div>
-  ),
-}));
-vi.mock("./triage/TriageBody", () => ({
-  default: ({ fullName }: { fullName: string }) => (
-    <div data-testid="triage-body">{fullName}</div>
+vi.mock("./board/LoopBoard", () => ({
+  default: ({
+    loops,
+    fullName,
+  }: {
+    loops: { key: string }[];
+    fullName: string;
+  }) => (
+    <div data-testid="board">
+      {fullName}: {loops.map((l) => l.key).join(",")}
+    </div>
   ),
 }));
 
@@ -57,64 +55,64 @@ describe("LoopsPage", () => {
     } as never);
   });
 
-  it("opens on All when the query names none: every loop's switch and body, in registry order", async () => {
+  it("opens on All when the query names none: every loop's switch, then one board of every loop", async () => {
     render(await page());
 
     expect({
-      sections: screen
-        .getAllByRole("region")
-        .map((section) => section.getAttribute("aria-label")),
-      bodies: ["implementation-body", "review-body", "triage-body"].map(
-        (id) => screen.getByTestId(id).textContent,
-      ),
+      switches: screen
+        .getAllByRole("heading", { level: 2 })
+        .map((h) => h.textContent),
+      board: screen.getByTestId("board").textContent,
       current: screen
         .getByRole("link", { current: "page" })
         .getAttribute("href"),
       pills: screen.getAllByRole("link").length,
     }).toEqual({
-      sections: ["Implementation loop", "Code review", "Issue triage"],
-      bodies: ["re-cinq/lore", "re-cinq/lore", "re-cinq/lore"],
+      switches: ["Implementation loop", "Code review", "Issue triage"],
+      board: "re-cinq/lore: implementation,review,triage",
       current: "/repos/re-cinq/lore/loops?loop=all",
       pills: 4,
     });
   });
 
-  it("?loop=implementation shows only the implementation loop's switch, off, and its body", async () => {
+  it("?loop=implementation shows only the implementation loop's switch, off, its explainer, and the board of that loop", async () => {
     render(await page("implementation"));
 
     expect({
-      sections: screen.getAllByRole("region").length,
+      switches: screen.getAllByRole("heading", { level: 2 }).length,
       button: screen.getByRole("button", { name: /Off/ }).title,
-      body: screen.getByTestId("implementation-body").textContent,
+      explainer: Boolean(screen.getByText(/the label is the whole opt-in/)),
+      board: screen.getByTestId("board").textContent,
     }).toEqual({
-      sections: 1,
+      switches: 1,
       button: "Switch Implementation loop on",
-      body: "re-cinq/lore",
+      explainer: true,
+      board: "re-cinq/lore: implementation",
     });
   });
 
-  it("?loop=triage shows the triage switch, on, and the triage body", async () => {
+  it("?loop=triage shows the triage switch, on, and the board of triage alone", async () => {
     render(await page("triage"));
 
     expect({
       heading: screen.getByRole("heading", { name: "Issue triage" })
         .textContent,
       button: screen.getByRole("button", { name: /On/ }).textContent,
-      body: screen.getByTestId("triage-body").textContent,
+      board: screen.getByTestId("board").textContent,
     }).toEqual({
       heading: "Issue triage",
       button: "On",
-      body: "re-cinq/lore",
+      board: "re-cinq/lore: triage",
     });
   });
 
-  it("?loop=review shows the code-review switch and body", async () => {
+  it("?loop=review shows the code-review switch and the board of code review alone", async () => {
     render(await page("review"));
 
     expect({
       heading: screen.getByRole("heading", { name: "Code review" }).textContent,
-      body: screen.getByTestId("review-body").textContent,
-    }).toEqual({ heading: "Code review", body: "re-cinq/lore" });
+      board: screen.getByTestId("board").textContent,
+    }).toEqual({ heading: "Code review", board: "re-cinq/lore: review" });
   });
 
   it("a loop the repository does not have is a 404", async () => {

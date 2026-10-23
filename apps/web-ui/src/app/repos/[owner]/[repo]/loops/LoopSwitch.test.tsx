@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import LoopSwitch from "./LoopSwitch";
 
 const toggle = vi.fn(async () => {});
@@ -37,5 +37,42 @@ describe("LoopSwitch", () => {
     fireEvent.click(getByRole("button", { name: /Off/ }));
 
     expect(toggle).toHaveBeenCalledWith({ enabled: true });
+  });
+
+  it("shows On the moment Off is clicked, while the write and the refresh are still on their way", async () => {
+    const write = vi.fn(() => new Promise<void>(() => {}));
+    const { getByRole } = render(
+      <LoopSwitch {...triageSwitch} toggle={write} enabled={false} />,
+    );
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /Off/ }));
+    });
+
+    const button = getByRole("button", { name: /On/ });
+
+    expect({
+      label: button.textContent,
+      disabled: (button as HTMLButtonElement).disabled,
+      writes: write.mock.calls,
+    }).toEqual({ label: "On", disabled: true, writes: [[{ enabled: true }]] });
+  });
+
+  it("falls back to Off and says the switch failed when the write is refused", async () => {
+    const refused = vi.fn(async () => {
+      throw new Error("403");
+    });
+    const { getByRole } = render(
+      <LoopSwitch {...triageSwitch} toggle={refused} enabled={false} />,
+    );
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /Off/ }));
+    });
+
+    expect({
+      label: getByRole("button").textContent,
+      alert: getByRole("alert").textContent,
+    }).toEqual({ label: "Off", alert: "Could not switch it; try again." });
   });
 });

@@ -12,9 +12,10 @@ vi.mock(
   }),
 );
 
+import Hapi from "@hapi/hapi";
 import { buildServer } from "../../../app/build-server.js";
+import { triageRoute } from "./triage.js";
 import { projectFor } from "../../../outbound/project-boot.js";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   makePool,
   useRateLimitSafeClock,
@@ -34,9 +35,7 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
     vi.clearAllMocks();
   });
 
-  it("returns issue 42 with its triage label and a link to its open issue-triage run", async () => {
-    const pool = makePool();
-
+  it("returns issue 42 under current with its open issue-triage run and stages, and #43 needs-triage in the backlog", async () => {
     vi.mocked(projectFor).mockResolvedValue({
       settings: { record: async () => ({ fullName: "re-cinq/lore" }) },
       issues: {
@@ -45,44 +44,67 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
             number: 42,
             title: "A triage issue",
             state: "open",
-            labels: ["triage: needs-triage"],
+            labels: ["triage: diagnosed"],
             url: "https://gh/i/42",
+          },
+          {
+            number: 43,
+            title: "Another",
+            state: "open",
+            labels: ["triage: needs-triage"],
+            url: "https://gh/i/43",
           },
         ],
       },
     } as never);
+    const asked: string[] = [];
+    const server = Hapi.server();
 
-    vi.mocked(floorClient).mockReturnValue({
-      runs: {
-        list: async () => ({
-          items: [
-            {
-              id: "run-42",
-              status: "running",
-              pipeline: "issue-triage",
-              startItems: {
-                issue_number: { kind: "value", ref: "42", by: "lore" },
-              },
-            },
-          ],
-        }),
-      },
-    } as never);
+    server.auth.scheme("stub", () => ({
+      authenticate: (_r, h) => h.authenticated({ credentials: {} }),
+    }));
+    server.auth.strategy("bearer-scope", "stub");
+    server.auth.default("bearer-scope");
+    server.route(
+      triageRoute(async (repo) => {
+        asked.push(repo);
 
-    const res = await buildServer(() => pool as never).inject({
-      method: "GET",
-      url: "/api/repos/re-cinq/lore/triage",
-      headers: AUTH,
+        return [
+          {
+            id: "run-42",
+            issueNumber: "42",
+            pipeline: [{ node_id: "verify", state: "running" }],
+          },
+        ];
+      }),
+    );
+
+    const res = await server.inject("/api/repos/re-cinq/lore/triage");
+    const body = JSON.parse(res.payload);
+
+    expect({
+      status: res.statusCode,
+      asked,
+      current: body.current,
+      backlog: body.backlog.map(
+        (r: { issue_number: number }) => r.issue_number,
+      ),
+    }).toEqual({
+      status: 200,
+      asked: ["re-cinq/lore"],
+      current: [
+        {
+          issue_number: 42,
+          issue_url: "https://gh/i/42",
+          title: "A triage issue",
+          state: "diagnosed",
+          run_id: "run-42",
+          pipeline: [{ node_id: "verify", state: "running" }],
+          created_at: null,
+        },
+      ],
+      backlog: [43],
     });
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual([
-      {
-        title: "A triage issue",
-        triage_label: "triage: needs-triage",
-        active_run_link: "/assembly-runs/run-42",
-      },
-    ]);
   });
 
   it("returns 404 without reading issues for a repo that is not onboarded", async () => {

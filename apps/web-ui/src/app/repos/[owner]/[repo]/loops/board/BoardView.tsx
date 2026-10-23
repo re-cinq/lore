@@ -1,0 +1,102 @@
+import { Alert } from "@/components/Alert";
+import MiniPipeline from "@/components/MiniPipeline";
+import Panel from "@/components/Panel";
+import LoopTable, { ActionsCell, StatusCell } from "../LoopTable";
+import type { Board, BoardRow, BoardSection } from "./board";
+import RowSubjectCell from "./RowSubjectCell";
+import styles from "./BoardView.module.scss";
+
+interface BoardViewProps {
+  board: Board;
+  /** The subject column's heading: Ticket, Pull request, Issue, or Work for every loop. */
+  subject: string;
+  /** Name each row's loop: on when the board shows more than one. */
+  showLoop: boolean;
+}
+
+/** Pure view (DDAU) of the board: a loop that could not be read, then one panel per shared section. */
+export default function BoardView({
+  board,
+  subject,
+  showLoop,
+}: BoardViewProps) {
+  return (
+    <div className={styles.sections}>
+      <Failures failures={board.failures} />
+      {board.sections.map((section) => (
+        <SectionPanel
+          key={section.key}
+          section={section}
+          subject={subject}
+          showLoop={showLoop}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Failures({ failures }: { failures: readonly string[] }) {
+  return failures.map((failure) => (
+    <Alert key={failure} variant="secondary">
+      {failure}
+    </Alert>
+  ));
+}
+
+interface SectionPanelProps {
+  section: BoardSection;
+  subject: string;
+  showLoop: boolean;
+}
+
+function SectionPanel({ section, subject, showLoop }: SectionPanelProps) {
+  return (
+    <Panel title={section.heading}>
+      <SectionNotices notices={section.notices} />
+      <LoopTable
+        subject={subject}
+        emptyText={section.emptyText}
+        testId="board-table"
+        rows={section.rows.map((row, i) => (
+          <BoardRowView
+            key={`${row.loop.key}-${row.ref}-${i}`}
+            row={row}
+            showLoop={showLoop}
+          />
+        ))}
+      />
+    </Panel>
+  );
+}
+
+/** What holds every row of a section alike, said once above them. */
+function SectionNotices({ notices }: { notices: readonly string[] }) {
+  return notices.map((notice) => (
+    <p
+      key={notice}
+      className={`meta ${styles.sectionNotice}`}
+      data-testid="section-notice"
+    >
+      {notice}
+    </p>
+  ));
+}
+
+function BoardRowView({ row, showLoop }: { row: BoardRow; showLoop: boolean }) {
+  return (
+    <tr data-testid="board-row">
+      <StatusCell state={row.state} since={row.since} />
+      <RowSubjectCell row={row} showLoop={showLoop} />
+      <td>
+        {row.pipeline && row.runId && (
+          <MiniPipeline runId={row.runId} pipeline={row.pipeline} />
+        )}
+      </td>
+      <ActionsCell runId={row.runId} external={pullLink(row)} />
+    </tr>
+  );
+}
+
+function pullLink(row: BoardRow) {
+  return row.prUrl ? { href: row.prUrl, text: "PR" } : null;
+}

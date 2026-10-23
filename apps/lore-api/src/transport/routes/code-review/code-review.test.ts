@@ -56,9 +56,11 @@ describe("GET /api/repos/{owner}/{repo}/code-review", () => {
       status: 200,
       body: {
         current: [],
-        open_pulls: [
+        backlog: [
           expect.objectContaining({ pr_number: 7, state: "unreviewed" }),
         ],
+        parked: [],
+        awaiting_merge: [],
         recent: [],
       },
       asked: ["code-review", "code-review-recheck", "code-review-reply"].map(

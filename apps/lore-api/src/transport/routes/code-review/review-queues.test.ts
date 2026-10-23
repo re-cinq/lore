@@ -43,7 +43,7 @@ function run(
 }
 
 describe("reviewQueues", () => {
-  it("puts #7 with a running review under current and the other open pull requests after it", () => {
+  it("puts #7 with a running review under current and the unreviewed #8 and draft #9 in the backlog", () => {
     const queues = reviewQueues(
       [PULL(7), PULL(8), DRAFT(9)],
       [run({ id: "r1", pr: 7, status: "running", outcome: null })],
@@ -51,11 +51,11 @@ describe("reviewQueues", () => {
 
     expect({
       current: queues.current.map((r) => [r.pr_number, r.line, r.state]),
-      open: queues.open_pulls.map((r) => [r.pr_number, r.state, r.draft]),
+      backlog: queues.backlog.map((r) => [r.pr_number, r.state, r.draft]),
       recent: queues.recent,
     }).toEqual({
       current: [[7, "review", "running"]],
-      open: [
+      backlog: [
         [8, "unreviewed", false],
         [9, "draft", true],
       ],
@@ -63,7 +63,7 @@ describe("reviewQueues", () => {
     });
   });
 
-  it("gives an open pull request its newest settled run, newest first, and lists it under recent too", () => {
+  it("puts open #8 whose newest review passed under awaiting merge, and lists it under recent too", () => {
     const queues = reviewQueues(
       [PULL(8)],
       [
@@ -83,11 +83,32 @@ describe("reviewQueues", () => {
     );
 
     expect({
-      open: queues.open_pulls.map((r) => [r.run_id, r.line, r.state]),
+      awaiting: queues.awaiting_merge.map((r) => [r.run_id, r.line, r.state]),
       recent: queues.recent.map((r) => r.run_id),
     }).toEqual({
-      open: [["new", "re-check", "success"]],
+      awaiting: [["new", "re-check", "success"]],
       recent: ["new"],
+    });
+  });
+
+  it("parks open #8 whose newest review requested changes and open #9 whose review failed", () => {
+    const queues = reviewQueues(
+      [PULL(8), PULL(9)],
+      [
+        run({ id: "a", pr: 8, outcome: "changes_requested" }),
+        run({ id: "b", pr: 9, status: "failed", outcome: "failed" }),
+      ],
+    );
+
+    expect({
+      parked: queues.parked.map((r) => [r.pr_number, r.state]),
+      others: [queues.backlog, queues.awaiting_merge],
+    }).toEqual({
+      parked: [
+        [8, "changes_requested"],
+        [9, "failed"],
+      ],
+      others: [[], []],
     });
   });
 
