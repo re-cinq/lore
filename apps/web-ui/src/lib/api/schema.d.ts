@@ -2898,9 +2898,9 @@ export interface components {
       current: {
         pr_number: number | null;
         pr_url: string | null;
-        title: string;
         draft: boolean;
         line: string | null;
+        title: string;
         state: string;
         run_id: string | null;
         pipeline:
@@ -2914,9 +2914,9 @@ export interface components {
       backlog: {
         pr_number: number | null;
         pr_url: string | null;
-        title: string;
         draft: boolean;
         line: string | null;
+        title: string;
         state: string;
         run_id: string | null;
         pipeline:
@@ -2930,9 +2930,9 @@ export interface components {
       parked: {
         pr_number: number | null;
         pr_url: string | null;
-        title: string;
         draft: boolean;
         line: string | null;
+        title: string;
         state: string;
         run_id: string | null;
         pipeline:
@@ -2946,9 +2946,9 @@ export interface components {
       awaiting_merge: {
         pr_number: number | null;
         pr_url: string | null;
-        title: string;
         draft: boolean;
         line: string | null;
+        title: string;
         state: string;
         run_id: string | null;
         pipeline:
@@ -2962,9 +2962,9 @@ export interface components {
       recent: {
         pr_number: number | null;
         pr_url: string | null;
-        title: string;
         draft: boolean;
         line: string | null;
+        title: string;
         state: string;
         run_id: string | null;
         pipeline:

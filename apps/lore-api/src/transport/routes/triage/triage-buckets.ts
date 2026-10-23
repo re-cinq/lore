@@ -1,30 +1,17 @@
 // Issue triage in the sections every loop answers (specs/issue-triage FR28): pure, what the route read is handed in.
 import { z } from "zod";
 import { PipelineNodeSchema } from "../../../work/assembly-line-station/mini-pipeline.js";
+import { loopRowFields, loopSectionsSchema } from "../loops/loop-sections.js";
 
 export const TriageRowSchema = z.object({
   issue_number: z.number(),
   issue_url: z.string().nullable(),
-  title: z.string(),
-  /** The issue's triage label without its `triage: ` prefix, or `triaging` for an issue a run took up before it was labelled. */
-  state: z.string(),
-  run_id: z.string().nullable(),
-  pipeline: z.array(PipelineNodeSchema).nullable(),
-  created_at: z.string().nullable(),
+  /** `state`: the issue's triage label without its `triage: ` prefix, or `triaging` for an issue a run took up before it was labelled. */
+  ...loopRowFields,
 });
 
-export const IssueTriageSchema = z.object({
-  /** Issues a triage run is working right now. */
-  current: z.array(TriageRowSchema),
-  /** `triage: needs-triage`, waiting for the sweep. */
-  backlog: z.array(TriageRowSchema),
-  /** Triage stopped on something a person must answer: a reproduction, a failure, a skip. */
-  parked: z.array(TriageRowSchema),
-  /** Triage never has a pull request to merge; always empty, so every loop answers the same sections. */
-  awaiting_merge: z.array(TriageRowSchema),
-  /** `triage: needs-priority`: triage is done and the issue waits for a priority label. */
-  recent: z.array(TriageRowSchema),
-});
+/** Issue triage in the shared loop sections: Current, a triage run is on it; Backlog, `triage: needs-triage`; Parked, triage stopped on something a person must answer; Awaiting merge, always empty (triage has no pull request to merge); Recently addressed, `triage: needs-priority`, triage done and the issue waiting for a priority label. */
+export const IssueTriageSchema = loopSectionsSchema(TriageRowSchema);
 
 export type TriageRow = z.infer<typeof TriageRowSchema>;
 export type IssueTriage = z.infer<typeof IssueTriageSchema>;

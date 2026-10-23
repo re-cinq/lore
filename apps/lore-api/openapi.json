@@ -10982,14 +10982,14 @@
                 "pr_url": {
                   "type": ["string", "null"]
                 },
-                "title": {
-                  "type": "string"
-                },
                 "draft": {
                   "type": "boolean"
                 },
                 "line": {
                   "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
                 },
                 "state": {
                   "type": "string"
@@ -11027,9 +11027,9 @@
               "required": [
                 "pr_number",
                 "pr_url",
-                "title",
                 "draft",
                 "line",
+                "title",
                 "state",
                 "run_id",
                 "pipeline",
@@ -11049,14 +11049,14 @@
                 "pr_url": {
                   "type": ["string", "null"]
                 },
-                "title": {
-                  "type": "string"
-                },
                 "draft": {
                   "type": "boolean"
                 },
                 "line": {
                   "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
                 },
                 "state": {
                   "type": "string"
@@ -11094,9 +11094,9 @@
               "required": [
                 "pr_number",
                 "pr_url",
-                "title",
                 "draft",
                 "line",
+                "title",
                 "state",
                 "run_id",
                 "pipeline",
@@ -11116,14 +11116,14 @@
                 "pr_url": {
                   "type": ["string", "null"]
                 },
-                "title": {
-                  "type": "string"
-                },
                 "draft": {
                   "type": "boolean"
                 },
                 "line": {
                   "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
                 },
                 "state": {
                   "type": "string"
@@ -11161,9 +11161,9 @@
               "required": [
                 "pr_number",
                 "pr_url",
-                "title",
                 "draft",
                 "line",
+                "title",
                 "state",
                 "run_id",
                 "pipeline",
@@ -11183,14 +11183,14 @@
                 "pr_url": {
                   "type": ["string", "null"]
                 },
-                "title": {
-                  "type": "string"
-                },
                 "draft": {
                   "type": "boolean"
                 },
                 "line": {
                   "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
                 },
                 "state": {
                   "type": "string"
@@ -11228,9 +11228,9 @@
               "required": [
                 "pr_number",
                 "pr_url",
-                "title",
                 "draft",
                 "line",
+                "title",
                 "state",
                 "run_id",
                 "pipeline",
@@ -11250,14 +11250,14 @@
                 "pr_url": {
                   "type": ["string", "null"]
                 },
-                "title": {
-                  "type": "string"
-                },
                 "draft": {
                   "type": "boolean"
                 },
                 "line": {
                   "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
                 },
                 "state": {
                   "type": "string"
@@ -11295,9 +11295,9 @@
               "required": [
                 "pr_number",
                 "pr_url",
-                "title",
                 "draft",
                 "line",
+                "title",
                 "state",
                 "run_id",
                 "pipeline",
