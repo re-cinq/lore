@@ -8,6 +8,7 @@ import ImplementationExplainer from "./implementation/ImplementationExplainer";
 import MergeExplainer from "./merge/MergeExplainer";
 import ReviewExplainer from "./review/ReviewExplainer";
 import TriageExplainer from "./triage/TriageExplainer";
+import UpkeepExplainer from "./upkeep/UpkeepExplainer";
 import LoopBodyLoading from "./LoopBodyLoading";
 import LoopPicker, { ALL_LOOPS } from "./LoopPicker";
 import LoopSwitch from "./LoopSwitch";
@@ -97,21 +98,19 @@ function boardLabel(shown: readonly RepoLoop[]): string {
   return shown.length === 1 ? shown[0].label : "the loops";
 }
 
+const EXPLAINERS: Record<RepoLoop["key"], () => React.JSX.Element> = {
+  implementation: ImplementationExplainer,
+  review: ReviewExplainer,
+  merge: MergeExplainer,
+  triage: TriageExplainer,
+  upkeep: UpkeepExplainer,
+};
+
 /** How one loop shown alone takes up work, said under its switch. */
 function LoopExplainer({ loopKey }: { loopKey: RepoLoop["key"] }) {
-  if (loopKey === "review") {
-    return <ReviewExplainer />;
-  }
+  const Explainer = EXPLAINERS[loopKey];
 
-  if (loopKey === "triage") {
-    return <TriageExplainer />;
-  }
-
-  if (loopKey === "merge") {
-    return <MergeExplainer />;
-  }
-
-  return <ImplementationExplainer />;
+  return <Explainer />;
 }
 
 /** Names the connection rather than the symptom: an unreachable API and a repository with no loops would otherwise look the same. */

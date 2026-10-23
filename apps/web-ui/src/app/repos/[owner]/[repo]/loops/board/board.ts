@@ -5,6 +5,7 @@ import type { AutoMerge, MergeRow } from "@/lib/api/auto-merge";
 import type { CodeReview, ReviewRow } from "@/lib/api/code-review";
 import type { RepoLoop } from "@/lib/api/loops";
 import type { IssueTriage, TriageRow } from "@/lib/api/triage";
+import type { SpecUpkeep, UpkeepRow } from "@/lib/api/spec-upkeep";
 
 export const SECTION_KEYS = [
   "current",
@@ -80,6 +81,7 @@ const BACKLOG_HINT: Record<string, string> = {
   merge:
     "Every open pull request Lore's review approved waits here until the auto-merge loop takes it.",
   triage: "Label an issue triage: needs-triage to have it triaged.",
+  upkeep: "Spec upkeep has no backlog: it runs every Monday.",
 };
 
 export function loopBoard(reads: readonly LoopRead[]): Board {
@@ -231,6 +233,25 @@ export function triageSections(
     pipeline: row.pipeline,
     prUrl: null,
     tag: null,
+    hold: null,
+  }));
+}
+
+export function upkeepSections(
+  loop: RepoLoop,
+  upkeep: SpecUpkeep,
+): LoopSections {
+  return mapSections(upkeep, (row: UpkeepRow) => ({
+    loop,
+    ref: row.ref,
+    title: row.title,
+    url: row.url,
+    state: row.state,
+    since: row.created_at,
+    runId: row.run_id,
+    pipeline: row.pipeline,
+    prUrl: row.url,
+    tag: row.blocked,
     hold: null,
   }));
 }

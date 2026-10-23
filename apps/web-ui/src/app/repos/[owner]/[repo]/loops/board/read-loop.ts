@@ -8,6 +8,7 @@ import { getCodeReview } from "@/lib/api/code-review";
 import type { RepoLoop } from "@/lib/api/loops";
 import type { ApiResult } from "@/lib/api/result";
 import { getIssueTriage } from "@/lib/api/triage";
+import { getSpecUpkeep } from "@/lib/api/spec-upkeep";
 import {
   implementationNotice,
   implementationSections,
@@ -15,6 +16,7 @@ import {
   pausedNotice,
   reviewSections,
   triageSections,
+  upkeepSections,
   type LoopRead,
   type LoopSections,
 } from "./board";
@@ -34,6 +36,10 @@ const READERS: Partial<Record<RepoLoop["key"], LoopReader>> = {
   triage: async (loop, repo) =>
     settle(loop, await getIssueTriage(repo), (triage) =>
       triageSections(loop, triage),
+    ),
+  upkeep: async (loop, repo) =>
+    settle(loop, await getSpecUpkeep(repo), (upkeep) =>
+      upkeepSections(loop, upkeep),
     ),
 };
 

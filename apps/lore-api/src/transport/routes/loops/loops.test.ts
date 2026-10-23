@@ -67,7 +67,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     expect((await put("triage", { enabled: false })).statusCode).toBe(404);
   });
 
-  it("GET lists implementation, review and merge off and triage on for a repo with empty settings", async () => {
+  it("GET lists implementation, review and merge off and triage and upkeep on for a repo with empty settings", async () => {
     const res = await get(poolWithRepo({}));
 
     expect(
@@ -83,6 +83,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       ["review", "Code review", false],
       ["merge", "Auto merge", false],
       ["triage", "Issue triage", true],
+      ["upkeep", "Spec upkeep", true],
     ]);
   });
 
@@ -93,12 +94,28 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
         auto_review: true,
         auto_merge: { enabled: true, min_age_hours: 6 },
         issue_triage: { enabled: false },
+        spec_upkeep: { enabled: false },
       }),
     );
 
     expect(
       JSON.parse(res.payload).loops.map((l: { enabled: boolean }) => l.enabled),
-    ).toEqual([true, true, true, false]);
+    ).toEqual([true, true, true, false, false]);
+  });
+
+  it("PUT upkeep off writes spec_upkeep.enabled false", async () => {
+    const pool = poolWithRepo();
+
+    const res = await put("upkeep", { enabled: false }, pool);
+    const update = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("UPDATE lore.repos"),
+    );
+
+    expect({
+      status: res.statusCode,
+      block: /'spec_upkeep'/.test(String(update?.[0])),
+      params: update?.[1],
+    }).toEqual({ status: 200, block: true, params: ["re-cinq/lore", false] });
   });
 
   it("PUT triage off writes issue_triage.enabled under admin scope and echoes the state", async () => {
@@ -190,7 +207,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
   });
 
   it("PUT rejects a key no loop has and a payload without a boolean enabled", async () => {
-    expect((await put("upkeep", { enabled: true })).statusCode).toBe(400);
+    expect((await put("digest", { enabled: true })).statusCode).toBe(400);
     expect((await put("triage", { enabled: "yes" })).statusCode).toBe(400);
   });
 
