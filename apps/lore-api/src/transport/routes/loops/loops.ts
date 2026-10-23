@@ -16,7 +16,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { switchLoop } from "./loop-switch.js";
-import { approverGate, disarmAutoMerge } from "../repos/auto-merge-gate.js";
+import { approverGate } from "../repos/auto-merge-gate.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
 import { floorRunPages } from "../floor/floor-runs.js";
 import {
@@ -128,10 +128,6 @@ async function serveSwitchLoop(
     return h.response(gate.body).code(gate.code);
   }
   await switchLoop(pool, repo, key, { enabled });
-
-  if (key === "merge" && !enabled) {
-    await disarmAutoMerge(repo);
-  }
 
   return h.response({ ok: true as const, key, enabled }).code(200);
 }

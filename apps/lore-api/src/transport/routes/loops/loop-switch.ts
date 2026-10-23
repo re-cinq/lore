@@ -4,6 +4,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import { projectFor } from "../../../outbound/project-boot.js";
+import { disarmAutoMerge } from "../repos/auto-merge-gate.js";
 
 /** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, a top-level boolean, or (auto merge) the approver it names. */
 const SWITCH_SQL: Record<LoopKey, string> = {
@@ -32,7 +33,7 @@ function blockSwitchSql(block: string): string {
           WHERE full_name = $1`;
 }
 
-/** Flips one loop's switch. Switching the implementation loop on also seeds its labels. */
+/** Flips one loop's switch. Switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
 export async function switchLoop(
   pool: Pool,
   repo: string,
@@ -44,6 +45,10 @@ export async function switchLoop(
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);
+  }
+
+  if (key === "merge" && !enabled) {
+    await disarmAutoMerge(repo);
   }
 }
 
