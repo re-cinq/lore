@@ -235,3 +235,11 @@ export {
 
 // The implementation loop's backlog: pure queue ordering + label taxonomy (FR1).
 export * from "./work/backlog/index.js";
+
+// Subject-key formatting functions for API query construction (FR6.51).
+export {
+  planSubject,
+  detectSubject,
+  reviewSubject,
+  ingestSubject,
+} from "./outbound/project/assembly-runs/subject-keys.js";

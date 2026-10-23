@@ -14,7 +14,7 @@
 
 ## Facets
 
-- [ ] Export `planSubject`, `detectSubject`, `reviewSubject`, and `ingestSubject` from `libs/shared/src/outbound/project/assembly-runs/subject-keys.js` in `libs/shared/src/index.ts`.
+- [x] Export `planSubject`, `detectSubject`, `reviewSubject`, and `ingestSubject` from `libs/shared/src/outbound/project/assembly-runs/subject-keys.js` in `libs/shared/src/index.ts`.
 
 ## Out of scope
 
