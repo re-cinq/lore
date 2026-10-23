@@ -41,4 +41,14 @@ describe("RepoFilter", () => {
 
     expect(push).toHaveBeenLastCalledWith("/assembly-runs?status=failed");
   });
+
+  it("shows re-cinq/lore in the select as soon as it is picked, before the page for it arrives", () => {
+    render(<RepoFilter repos={["re-cinq/floor", "re-cinq/lore"]} />);
+
+    const select = screen.getByRole("combobox", { name: "Repository" });
+
+    fireEvent.change(select, { target: { value: "re-cinq/lore" } });
+
+    expect((select as HTMLSelectElement).value).toBe("re-cinq/lore");
+  });
 });
