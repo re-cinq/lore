@@ -30,135 +30,139 @@ const SkillDeletedSchema = z.object({
   deleted: z.string(),
 });
 
+function getSkillRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: BASE,
+    options: zodResponse(bearerScope("read"), SkillsListResponse, {
+      name: "SkillDefinitionsList",
+      description: "List org-level skill definitions",
+    }),
+    handler: async (_request, h) => {
+      const pool = getPool();
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const res = await pool.query(
+        `SELECT ${selectList(SKILL_DEFINITION_COLUMNS)} FROM ${SKILL_DEFINITION_TABLE} WHERE project_id IS NULL`,
+      );
+
+      const skills = res.rows.map((row) =>
+        fromRow<SkillDefinition>(SKILL_DEFINITION_COLUMNS, row),
+      );
+      return h.response({ skills });
+    },
+  };
+}
+
+function upsertSkill(pool: Pool, payload: Partial<SkillDefinition>) {
+  return pool.query(
+    `INSERT INTO ${SKILL_DEFINITION_TABLE} (name, title, description, model, content, enabled, project_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
+     title = EXCLUDED.title, description = EXCLUDED.description, model = EXCLUDED.model, content = EXCLUDED.content, enabled = EXCLUDED.enabled`,
+    [
+      payload.name,
+      payload.title,
+      payload.description,
+      payload.model || null,
+      payload.content,
+      payload.enabled !== undefined ? payload.enabled : true,
+      null,
+    ],
+  );
+}
+
+function postSkillRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: BASE,
+    options: zodResponse(bearerScope("admin"), SkillWrittenSchema, {
+      name: "SkillDefinitionCreated",
+      description: "Create a new org-level skill definition",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      await upsertSkill(pool, request.payload as Partial<SkillDefinition>);
+      return h.response({ ok: true }).code(200);
+    },
+  };
+}
+
+function buildUpdates(payload: Partial<SkillDefinition>) {
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  const add = (k: string, v: unknown) =>
+    v !== undefined &&
+    updates.push(`${k} = $${updates.length + 2}`) &&
+    values.push(v);
+  add("title", payload.title);
+  add("description", payload.description);
+  add("model", payload.model);
+  add("content", payload.content);
+  add("enabled", payload.enabled);
+  return { updates, values };
+}
+
+function putSkillRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "PUT",
+    path: `${BASE}/{name}`,
+    options: zodResponse(bearerScope("admin"), SkillWrittenSchema, {
+      name: "SkillDefinitionUpdated",
+      description: "Update an org-level skill definition",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+      const name = request.params.name;
+      const payload = request.payload as Partial<SkillDefinition>;
+
+      const { updates, values } = buildUpdates(payload);
+
+      if (updates.length > 0) {
+        await pool.query(
+          `UPDATE ${SKILL_DEFINITION_TABLE} SET ${updates.join(", ")} WHERE name = $1 AND project_id IS NULL`,
+          [name, ...values],
+        );
+      }
+
+      return h.response({ ok: true }).code(200);
+    },
+  };
+}
+
+function deleteSkillRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "DELETE",
+    path: `${BASE}/{name}`,
+    options: zodResponse(bearerScope("admin"), SkillDeletedSchema, {
+      name: "SkillDefinitionDeleted",
+      description: "Delete an org-level skill definition",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+      const name = request.params.name;
+
+      await pool.query(
+        `DELETE FROM ${SKILL_DEFINITION_TABLE} WHERE name = $1 AND project_id IS NULL`,
+        [name],
+      );
+
+      return h.response({ ok: true, deleted: name }).code(200);
+    },
+  };
+}
+
 export function skillDefinitionsRoutes(
   getPool: () => Pool | null,
 ): ServerRoute[] {
   return [
-    {
-      method: "GET",
-      path: BASE,
-      options: zodResponse(bearerScope("read"), SkillsListResponse, {
-        name: "SkillDefinitionsList",
-        description: "List org-level skill definitions",
-      }),
-      handler: async (_request, h) => {
-        const pool = getPool();
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const res = await pool.query(
-          `SELECT ${selectList(SKILL_DEFINITION_COLUMNS)} FROM ${SKILL_DEFINITION_TABLE} WHERE project_id IS NULL`,
-        );
-
-        const skills = res.rows.map((row) =>
-          fromRow<SkillDefinition>(SKILL_DEFINITION_COLUMNS, row),
-        );
-        return h.response({ skills });
-      },
-    },
-    {
-      method: "POST",
-      path: BASE,
-      options: zodResponse(bearerScope("admin"), SkillWrittenSchema, {
-        name: "SkillDefinitionCreated",
-        description: "Create a new org-level skill definition",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-        const payload = request.payload as Record<string, any>;
-
-        await pool.query(
-          `INSERT INTO ${SKILL_DEFINITION_TABLE} (name, title, description, model, content, enabled, project_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
-           title = EXCLUDED.title,
-           description = EXCLUDED.description,
-           model = EXCLUDED.model,
-           content = EXCLUDED.content,
-           enabled = EXCLUDED.enabled`,
-          [
-            payload.name,
-            payload.title,
-            payload.description,
-            payload.model || null,
-            payload.content,
-            payload.enabled !== undefined ? payload.enabled : true,
-            null,
-          ],
-        );
-
-        return h.response({ ok: true }).code(200);
-      },
-    },
-    {
-      method: "PUT",
-      path: `${BASE}/{name}`,
-      options: zodResponse(bearerScope("admin"), SkillWrittenSchema, {
-        name: "SkillDefinitionUpdated",
-        description: "Update an org-level skill definition",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-        const name = request.params.name;
-        const payload = request.payload as Record<string, any>;
-
-        const updates: string[] = [];
-        const values: any[] = [name];
-        let idx = 2;
-
-        if (payload.title !== undefined) {
-          updates.push(`title = $${idx++}`);
-          values.push(payload.title);
-        }
-        if (payload.description !== undefined) {
-          updates.push(`description = $${idx++}`);
-          values.push(payload.description);
-        }
-        if (payload.model !== undefined) {
-          updates.push(`model = $${idx++}`);
-          values.push(payload.model);
-        }
-        if (payload.content !== undefined) {
-          updates.push(`content = $${idx++}`);
-          values.push(payload.content);
-        }
-        if (payload.enabled !== undefined) {
-          updates.push(`enabled = $${idx++}`);
-          values.push(payload.enabled);
-        }
-
-        if (updates.length > 0) {
-          await pool.query(
-            `UPDATE ${SKILL_DEFINITION_TABLE} SET ${updates.join(", ")} WHERE name = $1 AND project_id IS NULL`,
-            values,
-          );
-        }
-
-        return h.response({ ok: true }).code(200);
-      },
-    },
-    {
-      method: "DELETE",
-      path: `${BASE}/{name}`,
-      options: zodResponse(bearerScope("admin"), SkillDeletedSchema, {
-        name: "SkillDefinitionDeleted",
-        description: "Delete an org-level skill definition",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-        const name = request.params.name;
-
-        await pool.query(
-          `DELETE FROM ${SKILL_DEFINITION_TABLE} WHERE name = $1 AND project_id IS NULL`,
-          [name],
-        );
-
-        return h.response({ ok: true, deleted: name }).code(200);
-      },
-    },
+    getSkillRoute(getPool),
+    postSkillRoute(getPool),
+    putSkillRoute(getPool),
+    deleteSkillRoute(getPool),
   ];
 }
