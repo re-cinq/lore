@@ -1,72 +1,97 @@
 import { describe, it, expect } from "vitest";
-import { groupImplemented, groupRoadmap } from "./group.js";
-import { closedIssue, mergedPr, openIssue } from "./fixtures.js";
+import { groupPeople } from "./group.js";
+import { closedIssue, mergedPr, openIssue, openPr } from "./fixtures.js";
 
-describe("groupImplemented", () => {
-  it("buckets PRs by author", () => {
-    const groups = groupImplemented(
+const none = { prs: [], issues: [] };
+const numbers = (people: ReturnType<typeof groupPeople>) =>
+  people.map((p) => ({
+    login: p.login,
+    did: p.did.map((c) => c.number),
+    next: p.next.map((c) => c.number),
+  }));
+
+describe("groupPeople", () => {
+  it("puts a merged PR under its author and sorts people by login", () => {
+    const people = groupPeople([
       {
-        prs: [
-          mergedPr({ number: 1, author: "bob" }),
-          mergedPr({ number: 2, author: "alice" }),
-          mergedPr({ number: 3, author: "bob" }),
-        ],
-        issues: [],
+        did: {
+          prs: [
+            mergedPr({ number: 1, author: "bob" }),
+            mergedPr({ number: 2, author: "alice" }),
+            mergedPr({ number: 3, author: "bob" }),
+          ],
+          issues: [],
+        },
+        next: none,
       },
-      "person",
-    );
+    ]);
 
-    expect(groups.map((g) => [g.key, g.changes.map((c) => c.number)])).toEqual([
-      ["alice", [2]],
-      ["bob", [1, 3]],
+    expect(numbers(people)).toEqual([
+      { login: "alice", did: [2], next: [] },
+      { login: "bob", did: [1, 3], next: [] },
     ]);
   });
 
-  it("buckets by area label without the prefix", () => {
-    const groups = groupImplemented(
+  it("lists a closed issue under each assignee and an unassigned one under unassigned", () => {
+    const people = groupPeople([
       {
-        prs: [mergedPr({ number: 1, labels: ["area:floor"] })],
-        issues: [closedIssue({ number: 12, labels: ["area:web-ui", "bug"] })],
+        did: {
+          prs: [],
+          issues: [
+            closedIssue({ number: 12, assignees: ["carol", "dan"] }),
+            closedIssue({ number: 13, assignees: [] }),
+          ],
+        },
+        next: none,
       },
-      "area",
-    );
+    ]);
 
-    expect(groups.map((g) => g.key)).toEqual(["floor", "web-ui"]);
+    expect(numbers(people)).toEqual([
+      { login: "carol", did: [12], next: [] },
+      { login: "dan", did: [12], next: [] },
+      { login: "unassigned", did: [13], next: [] },
+    ]);
   });
 
-  it("puts unlabeled items in an unlabeled bucket", () => {
-    const groups = groupImplemented(
-      { prs: [mergedPr({ number: 1, labels: ["bug"] })], issues: [] },
-      "area",
-    );
+  it("leads a person's next with their open PRs, then their assigned issues", () => {
+    const people = groupPeople([
+      {
+        did: none,
+        next: {
+          prs: [openPr({ number: 30, author: "alice" })],
+          issues: [openIssue({ number: 20, assignees: ["alice"] })],
+        },
+      },
+    ]);
 
-    expect(groups).toMatchObject([{ key: "unlabeled" }]);
-  });
-
-  it("lists a closed issue under its assignees", () => {
-    const groups = groupImplemented(
-      { prs: [], issues: [closedIssue({ number: 12, assignees: ["carol"] })] },
-      "person",
-    );
-
-    expect(groups).toMatchObject([{ key: "carol" }]);
-  });
-});
-
-describe("groupRoadmap", () => {
-  it("lists an issue under each of its assignees", () => {
-    const groups = groupRoadmap(
-      [openIssue({ number: 20, assignees: ["alice", "bob"] })],
-      "person",
-    );
-
-    expect(groups.map((g) => [g.key, g.changes.map((c) => c.number)])).toEqual([
-      ["alice", [20]],
-      ["bob", [20]],
+    expect(numbers(people)).toEqual([
+      { login: "alice", did: [], next: [30, 20] },
     ]);
   });
 
   it("skips an open issue nobody is assigned to", () => {
-    expect(groupRoadmap([openIssue({ assignees: [] })], "person")).toEqual([]);
+    expect(
+      groupPeople([
+        {
+          did: none,
+          next: { prs: [], issues: [openIssue({ assignees: [] })] },
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("joins one person's work across two repos into one entry", () => {
+    const people = groupPeople([
+      { did: { prs: [mergedPr({ number: 1 })], issues: [] }, next: none },
+      {
+        did: none,
+        next: {
+          prs: [],
+          issues: [openIssue({ repo: "re-cinq/otto", assignees: ["alice"] })],
+        },
+      },
+    ]);
+
+    expect(numbers(people)).toEqual([{ login: "alice", did: [1], next: [20] }]);
   });
 });

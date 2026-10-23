@@ -40,3 +40,12 @@ export function openIssue(overrides: Partial<IssueRef> = {}): IssueRef {
     ...overrides,
   };
 }
+
+export function openPr(overrides: Partial<PullRef> = {}): PullRef {
+  return {
+    ...mergedPr({ number: 30, url: "https://gh/pr/30" }),
+    state: "open",
+    mergedAt: undefined,
+    ...overrides,
+  };
+}

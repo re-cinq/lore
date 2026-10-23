@@ -16,7 +16,6 @@ const NEEDS = {
       repo: "re-cinq/lore",
       since: "2026-09-30T07:00:00.000Z",
       sections: ["implemented"],
-      group_by: "area",
     },
   ]),
   digest_draft: "https://floor.test/blobs/draft",

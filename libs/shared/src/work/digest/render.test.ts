@@ -1,110 +1,83 @@
 import { describe, it, expect } from "vitest";
 import {
   renderDigestDraft,
-  renderRepoSection,
+  renderPeople,
+  renderRepoFailure,
   renderThreadParent,
   splitDigestMessage,
   stripAppendix,
   APPENDIX_MARKER,
-  ASIDE_MARKER,
-  ENDING_MARKER,
   INTRO_MARKER,
 } from "./render.js";
-import { closedIssue, mergedPr, openIssue } from "./fixtures.js";
-import { DIGEST_DEFAULTS } from "../../domain/digest-settings.js";
+import { closedIssue, mergedPr, openIssue, openPr } from "./fixtures.js";
 
-const all = { ...DIGEST_DEFAULTS, enabled: true };
-const section = (
-  overrides: Partial<Parameters<typeof renderRepoSection>[0]> = {},
-) =>
-  renderRepoSection({
-    repo: "re-cinq/lore",
-    settings: all,
-    implemented: [
-      { key: "alice", changes: [mergedPr({ number: 1, title: "Add digest" })] },
-    ],
-    roadmap: [
-      { key: "bob", changes: [openIssue({ number: 20, title: "Roadmap" })] },
-    ],
-    ...overrides,
+const alice = {
+  login: "alice",
+  did: [mergedPr({ number: 1, title: "Add digest" })],
+  next: [openIssue({ number: 20, title: "Roadmap" })],
+};
+
+describe("renderPeople", () => {
+  it("writes one line per person with what they did and what is next", () => {
+    expect(renderPeople([alice], {})).toEqual([
+      "*alice* — did: <https://gh/pr/1|Add digest> (#1) · next: <https://gh/i/20|Roadmap> (#20)",
+    ]);
   });
 
-describe("renderRepoSection", () => {
-  it("links each item as slack mrkdwn", () => {
-    expect(section()).toContain("• <https://gh/pr/1|Add digest> (#1)");
-    expect(section()).toContain("• <https://gh/i/20|Roadmap> (#20)");
+  it("leaves out a list the person has nothing in", () => {
+    expect(renderPeople([{ ...alice, next: [] }], {})).toEqual([
+      "*alice* — did: <https://gh/pr/1|Add digest> (#1)",
+    ]);
   });
 
-  it("names the repo and the group as bold headers", () => {
-    expect(section()).toContain("*re-cinq/lore*");
-    expect(section()).toContain("*alice*");
-  });
-
-  it("caps roadmap items at 10 and counts the rest", () => {
-    const thirteen = Array.from({ length: 13 }, (_, i) =>
-      openIssue({ number: 100 + i, title: `Issue ${i}` }),
-    );
-    const text = section({ roadmap: [{ key: "bob", changes: thirteen }] });
-
-    expect(text).toContain("Issue 9");
-    expect(text).not.toContain("Issue 10");
-    expect(text).toContain("+3 more");
-  });
-
-  it("shows a person under their Slack name when one is known", () => {
-    const text = section({ names: { alice: "Alice Smith" } });
-
-    expect(text).toContain("*Alice Smith*");
-    expect(text).toContain("*bob*");
-  });
-
-  it("sets each section title apart as a bold capital line after a blank one", () => {
-    expect(section()).toContain("*re-cinq/lore*\n\n*IMPLEMENTED*\n");
-    expect(section()).toContain("\n\n*ROADMAP*\n");
-  });
-
-  it("omits a section the repo did not enable", () => {
-    const text = section({ settings: { ...all, sections: ["roadmap"] } });
-
-    expect(text).not.toContain("IMPLEMENTED");
-    expect(text).toContain("ROADMAP");
-  });
-
-  it("says so when nothing was implemented", () => {
-    expect(section({ implemented: [] })).toContain("Nothing merged or closed");
-  });
-
-  it("renders a failed repo read as its own section", () => {
-    expect(section({ error: "GitHub 502" })).toBe(
-      "*re-cinq/lore*\n_could not read re-cinq/lore: GitHub 502_",
-    );
-  });
-
-  it("lists a closed issue with its number", () => {
-    const text = section({
-      implemented: [
-        { key: "carol", changes: [closedIssue({ number: 12, title: "Bug" })] },
+  it("lists a closed issue and an open PR with their numbers", () => {
+    const [line] = renderPeople(
+      [
+        {
+          login: "carol",
+          did: [closedIssue({ number: 12, title: "Bug" })],
+          next: [openPr({ number: 30, title: "Draft" })],
+        },
       ],
-    });
+      {},
+    );
 
-    expect(text).toContain("• <https://gh/i/12|Bug> (#12)");
+    expect(line).toBe(
+      "*carol* — did: <https://gh/i/12|Bug> (#12) · next: <https://gh/pr/30|Draft> (#30)",
+    );
+  });
+
+  it("shows 3 titles and counts the other 2 as +2 more", () => {
+    const five = Array.from({ length: 5 }, (_, i) =>
+      mergedPr({ number: 100 + i, title: `PR ${i}` }),
+    );
+    const [line] = renderPeople([{ login: "bob", did: five, next: [] }], {});
+
+    expect(line).toContain("PR 2> (#102), +2 more");
+    expect(line).not.toContain("PR 3");
+  });
+
+  it("shows Alice Smith for alice and sorts people by the name shown", () => {
+    const lines = renderPeople(
+      [
+        { ...alice, login: "zed" },
+        { ...alice, login: "alice" },
+      ],
+      { zed: "Ana" },
+    );
+
+    expect(lines.map((line) => line.split(" — ")[0])).toEqual([
+      "*alice*",
+      "*Ana*",
+    ]);
   });
 });
 
-describe("section asides", () => {
-  it("puts one aside marker after each enabled section when asked", () => {
-    const text = section({ asides: true });
-
-    expect(
-      text.split("\n").filter((line) => line === ASIDE_MARKER),
-    ).toHaveLength(2);
-    expect(text.indexOf(ASIDE_MARKER)).toBeGreaterThan(
-      text.indexOf("Add digest"),
+describe("renderRepoFailure", () => {
+  it("names the repo and the error", () => {
+    expect(renderRepoFailure("re-cinq/lore", "GitHub 502")).toBe(
+      "_could not read re-cinq/lore: GitHub 502_",
     );
-  });
-
-  it("puts no aside marker when not asked", () => {
-    expect(section()).not.toContain(ASIDE_MARKER);
   });
 });
 
@@ -112,29 +85,20 @@ describe("renderDigestDraft", () => {
   const draft = (overrides = {}) =>
     renderDigestDraft({
       header: { weekKey: "2026-W39", date: "2026-09-25" },
-      sections: ["*re-cinq/lore*\n_section_"],
+      lines: ["*alice* — did: a", "*bob* — next: b"],
       wantsIntro: true,
-      wantsEnding: true,
-      recent: [{ intro: "Old intro", ending: "Old ending" }],
+      recentIntros: ["Old intro"],
       ...overrides,
     });
 
-  it("renders one section per repo between the intro and ending markers", () => {
-    const text = draft({ sections: ["*a*\n1", "*b*\n2"] });
-
-    expect(text.indexOf(INTRO_MARKER)).toBeLessThan(text.indexOf("*a*"));
-    expect(text.indexOf("*a*")).toBeLessThan(text.indexOf("*b*"));
-    expect(text.indexOf("*b*")).toBeLessThan(text.indexOf(ENDING_MARKER));
+  it("puts the intro marker, the dated title over the people lines, then the appendix", () => {
+    expect(draft().split(`\n\n${APPENDIX_MARKER}`)[0]).toBe(
+      `${INTRO_MARKER}\n\n*Daily digest · 2026-09-25*\n*alice* — did: a\n*bob* — next: b`,
+    );
   });
 
-  it("carries the recent intros and endings in the appendix", () => {
-    const text = draft();
-
-    expect(text.indexOf(APPENDIX_MARKER)).toBeGreaterThan(
-      text.indexOf(ENDING_MARKER),
-    );
-    expect(text).toContain("Old intro");
-    expect(text).toContain("Old ending");
+  it("carries the recent intros in the appendix", () => {
+    expect(draft().split(APPENDIX_MARKER)[1]).toContain("- Old intro");
   });
 
   it("names the voice in the appendix when one is set", () => {
@@ -144,14 +108,13 @@ describe("renderDigestDraft", () => {
   });
 
   it("omits the intro marker when no repo asked for a summary", () => {
-    const text = draft({ wantsIntro: false });
-
-    expect(text).not.toContain(INTRO_MARKER);
-    expect(text).toContain(ENDING_MARKER);
+    expect(draft({ wantsIntro: false })).not.toContain(INTRO_MARKER);
   });
 
-  it("titles the draft with the date", () => {
-    expect(draft()).toContain("Daily digest · 2026-09-25");
+  it("says nothing happened when there are no lines", () => {
+    expect(draft({ lines: [] })).toContain(
+      "_Nothing merged, closed or planned since the last digest._",
+    );
   });
 });
 
@@ -160,16 +123,8 @@ describe("stripAppendix", () => {
     expect(stripAppendix(`body\n\n${APPENDIX_MARKER}\nold stuff`)).toBe("body");
   });
 
-  it("removes aside markers a refine never filled", () => {
-    expect(stripAppendix(`*repo*\n• item\n${ASIDE_MARKER}\n\n*next*`)).toBe(
-      "*repo*\n• item\n\n*next*",
-    );
-  });
-
-  it("removes the intro and ending markers a refine never filled", () => {
-    expect(stripAppendix(`${INTRO_MARKER}\n\nbody\n\n${ENDING_MARKER}`)).toBe(
-      "body",
-    );
+  it("removes the intro marker a refine never filled", () => {
+    expect(stripAppendix(`${INTRO_MARKER}\n\nbody`)).toBe("body");
   });
 });
 

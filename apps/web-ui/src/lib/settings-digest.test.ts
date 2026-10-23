@@ -25,8 +25,7 @@ describe("parseDigestBlock", () => {
           digest_time: "17:30",
           digest_days: ["1", "3", "5"],
           digest_timezone: "Europe/Bucharest",
-          digest_sections: ["implemented", "morale"],
-          digest_group_by: "area",
+          digest_sections: ["implemented", "summary"],
           digest_voice: "  Michael Scott from The Office ",
         }),
       ),
@@ -35,8 +34,7 @@ describe("parseDigestBlock", () => {
       time: "17:30",
       days: [1, 3, 5],
       timezone: "Europe/Bucharest",
-      sections: ["implemented", "morale"],
-      group_by: "area",
+      sections: ["implemented", "summary"],
       voice: "Michael Scott from The Office",
     });
   });
@@ -48,7 +46,6 @@ describe("parseDigestBlock", () => {
       days: [],
       timezone: "Europe/Berlin",
       sections: [],
-      group_by: "person",
       voice: "",
     });
   });
@@ -60,14 +57,12 @@ describe("parseDigestBlock", () => {
           digest_time: "9am",
           digest_days: ["1", "9", "x"],
           digest_sections: ["roadmap", "gossip"],
-          digest_group_by: "nonsense",
         }),
       ),
     ).toMatchObject({
       time: "09:00",
       days: [1],
       sections: ["roadmap"],
-      group_by: "person",
     });
   });
 
@@ -78,7 +73,6 @@ describe("parseDigestBlock", () => {
       days: [],
       timezone: "Europe/Berlin",
       sections: [],
-      group_by: "person",
       voice: "",
     });
   });

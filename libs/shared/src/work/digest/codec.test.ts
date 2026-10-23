@@ -7,7 +7,6 @@ const repos = [
     repo: "re-cinq/lore",
     since: "2026-09-24T07:00:00Z",
     sections: DIGEST_DEFAULTS.sections,
-    group_by: "person" as const,
   },
 ];
 

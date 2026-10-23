@@ -11,9 +11,7 @@ export const DigestSectionSchema = z.enum([
   "implemented",
   "roadmap",
   "summary",
-  "morale",
 ]);
-export const DigestGroupBySchema = z.enum(["person", "area"]);
 
 const TimeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const Weekday = z.number().int().min(0).max(6);
@@ -42,7 +40,6 @@ export const DigestSettingsSchema = z.object({
   days: z.array(Weekday).optional(),
   timezone: TimeZone.optional(),
   sections: z.array(DigestSectionSchema).optional(),
-  group_by: DigestGroupBySchema.optional(),
   voice: Voice.optional(),
 });
 
@@ -53,12 +50,10 @@ export const ResolvedDigestSettingsSchema = z.object({
   days: z.array(Weekday),
   timezone: TimeZone,
   sections: z.array(DigestSectionSchema),
-  group_by: DigestGroupBySchema,
   voice: Voice,
 });
 
 export type {
-  DigestGroupBy,
   DigestSection,
   DigestSettings,
   ResolvedDigestSettings,

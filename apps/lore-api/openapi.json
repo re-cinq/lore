@@ -14612,17 +14612,8 @@
                             "type": "array",
                             "items": {
                               "type": "string",
-                              "enum": [
-                                "implemented",
-                                "roadmap",
-                                "summary",
-                                "morale"
-                              ]
+                              "enum": ["implemented", "roadmap", "summary"]
                             }
-                          },
-                          "group_by": {
-                            "type": "string",
-                            "enum": ["person", "area"]
                           },
                           "voice": {
                             "type": "string",
@@ -15026,14 +15017,9 @@
                                     "enum": [
                                       "implemented",
                                       "roadmap",
-                                      "summary",
-                                      "morale"
+                                      "summary"
                                     ]
                                   }
-                                },
-                                "group_by": {
-                                  "type": "string",
-                                  "enum": ["person", "area"]
                                 },
                                 "voice": {
                                   "type": "string",

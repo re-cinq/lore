@@ -53,17 +53,18 @@ function peopleLookups(io: DraftSourceIo) {
   };
 }
 
-/** The three GitHub reads of one repo's window, in parallel. */
+/** The four GitHub reads of one repo, in parallel. */
 async function collectChanges(
   io: DraftSourceIo,
   entry: DigestRepo,
 ): Promise<RepoChanges> {
   const project = await io.project(entry.repo);
-  const [merged, closed, open] = await Promise.all([
+  const [merged, closed, open, openPrs] = await Promise.all([
     project.pulls.listMergedSince(entry.since),
     project.issues.list({ state: "closed", since: entry.since }),
     project.issues.list({ state: "open" }),
+    project.pulls.list(),
   ]);
 
-  return { merged, closed, open };
+  return { merged, closed, open, openPrs };
 }

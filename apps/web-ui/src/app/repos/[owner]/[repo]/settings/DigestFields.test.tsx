@@ -20,7 +20,6 @@ describe("DigestFields", () => {
           days: [1, 5],
           timezone: "Europe/Bucharest",
           sections: ["roadmap"],
-          group_by: "area",
         }}
         slackChannelSet
       />,
@@ -36,16 +35,12 @@ describe("DigestFields", () => {
         'select[name="digest_timezone"]',
       )?.value,
       sections: checked(container, "digest_sections"),
-      groupBy: container.querySelector<HTMLSelectElement>(
-        'select[name="digest_group_by"]',
-      )?.value,
     }).toEqual({
       enabled: ["yes"],
       time: "17:30",
       days: ["1", "5"],
       timezone: "Europe/Bucharest",
       sections: ["roadmap"],
-      groupBy: "area",
     });
   });
 
@@ -69,7 +64,7 @@ describe("DigestFields", () => {
       time: "09:00",
       days: ["1", "2", "3", "4", "5"],
       timezone: "Europe/Berlin",
-      sections: ["implemented", "roadmap", "summary", "morale"],
+      sections: ["implemented", "roadmap", "summary"],
     });
   });
 

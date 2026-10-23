@@ -11,7 +11,7 @@ export interface DigestRun {
   repos: DigestRepo[];
   /** Every repo on the channel, for the week's thread parent; the run's own repos when an older fan-out did not say. */
   channelRepos: string[];
-  /** Who the agent writes as; empty for a plain tone and no section asides (FR13). */
+  /** Who the agent writes the intro as; empty for a plain tone (FR13). */
   voice: string;
   draft: string | null;
 }
