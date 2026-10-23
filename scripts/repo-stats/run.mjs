@@ -1,5 +1,6 @@
-// What Lore did on a set of repositories over the last weeks, as an internal markdown report: `node scripts/repo-stats/run.mjs --out <dir> [--repos o/r,o/r] [--weeks 8] [--with-db]`. Needs LORE_API_URL + LORE_INGEST_TOKEN, a logged-in `gh`, and for --with-db a kubectl context on the production cluster.
+// What Lore did on a set of repositories over the last weeks, as an internal markdown report: `node scripts/repo-stats/run.mjs --out <dir> [--repos o/r,o/r] [--weeks 8] [--with-db]`. Needs LORE_API_URL + LORE_INGEST_TOKEN (or `git config --global lore.api-url` / `lore.ingest-token`), a logged-in `gh`, and for --with-db a kubectl context on the production cluster.
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -16,6 +17,23 @@ import {
 } from "./weekly.mjs";
 
 const OLE_LARSON_REPOS = "re-cinq/otto,re-cinq/bowman-ui,re-cinq/HALEngine";
+
+// The same fallback the MCP runner and the VS Code extension use: install.sh keeps the address and token in the global git config.
+function gitConfig(key) {
+  try {
+    return execFileSync("git", ["config", "--global", key], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+const loreEnv = (env) => ({
+  ...env,
+  LORE_API_URL: env.LORE_API_URL || gitConfig("lore.api-url"),
+  LORE_INGEST_TOKEN: env.LORE_INGEST_TOKEN || gitConfig("lore.ingest-token"),
+});
 
 export async function buildReport({ env, repos, weekCount, withDb, now }) {
   const api = loreApi({ env });
@@ -55,7 +73,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     },
   });
   const { raws, markdown } = await buildReport({
-    env: process.env,
+    env: loreEnv(process.env),
     repos: values.repos.split(","),
     weekCount: Number(values.weeks),
     withDb: values["with-db"],
