@@ -18,6 +18,7 @@ import { withPool } from "../with-pool.js";
 import { switchLoop } from "./loop-switch.js";
 import { approverGate } from "../repos/auto-merge-gate.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
+import { autoMergeRoute } from "../auto-merge/auto-merge.js";
 import { floorRunPages } from "../floor/floor-runs.js";
 import {
   LoopKeySchema,
@@ -43,6 +44,7 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
     readLoopsRoute(getPool),
     switchLoopRoute(getPool),
     codeReviewRoute(floorRunPages),
+    autoMergeRoute(getPool),
   ];
 }
 

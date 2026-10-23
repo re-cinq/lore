@@ -4068,6 +4068,68 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/auto-merge": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_auto-merge",
+        "summary": "GET /api/repos/{owner}/{repo}/auto-merge",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The auto-merge loop: Lore's own pull requests by whether auto-merge is armed and what blocks them, and the ones merged this week",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoMerge"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/auto-merge/kpis": {
       "get": {
         "operationId": "get_api_repos_owner_repo_auto-merge_kpis",
@@ -5934,7 +5996,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Switch one of the repository's loops on or off.",
+            "description": "Switch one of the repository's loops on or off. Switching auto merge on needs the lore-reviewer App, a protecting branch rule and the two-key approval PR (x-lore-approval-pr), and answers 403 naming what is missing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10494,6 +10556,334 @@
         "required": ["entries"],
         "additionalProperties": false
       },
+      "AutoMerge": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": "number"
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "backlog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": "number"
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "parked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": "number"
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "awaiting_merge": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": "number"
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": "number"
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "blocked": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at",
+                "blocked"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "current",
+          "backlog",
+          "parked",
+          "awaiting_merge",
+          "recent"
+        ],
+        "additionalProperties": false
+      },
       "BlobPreviews": {
         "type": "object",
         "properties": {
@@ -14208,7 +14598,7 @@
           },
           "key": {
             "type": "string",
-            "enum": ["implementation", "review", "triage"]
+            "enum": ["implementation", "review", "merge", "triage"]
           },
           "enabled": {
             "type": "boolean"
@@ -16106,7 +16496,7 @@
               "properties": {
                 "key": {
                   "type": "string",
-                  "enum": ["implementation", "review", "triage"]
+                  "enum": ["implementation", "review", "merge", "triage"]
                 },
                 "label": {
                   "type": "string"
