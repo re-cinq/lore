@@ -107,7 +107,7 @@ async function serveIngestDelta(
 
   return h.response(
     overlayBranch
-      ? await overlayDeltaResult(pool, deps, repo, body, overlayBranch)
+      ? await overlayDeltaResult(pool, deps, { repo, body, overlayBranch })
       : await mainDeltaResult(pool, deps, repo, body),
   );
 }
@@ -127,40 +127,44 @@ async function overlayBranchOfDelta(
   return overlayBranchOf(reported, await deps.defaultBranch(repo));
 }
 
+type OverlayDeltaCtx = {
+  repo: string;
+  body: IngestDeltaBody;
+  overlayBranch: string;
+};
+
 /** A branch's delta: its report goes into the overlay and nothing of main's moves — not its test files, whose deleted paths are relative to main's commit, and not its stored pointer. */
 async function overlayDeltaResult(
   pool: Pool,
   deps: IngestDeltaDeps,
-  repo: string,
-  body: IngestDeltaBody,
-  overlayBranch: string,
+  ctx: OverlayDeltaCtx,
 ) {
-  const report = body.report as
-    { tests?: unknown; outcomes?: unknown } | undefined;
-
-  await saveTestReportRow(
-    pool,
-    repo,
-    body.commit,
-    overlayBranch,
-    report?.tests ?? [],
-    report?.outcomes ?? {},
-  );
-
-  const outcome = await deps.ingestReport(repo, {
-    ...(body.report as object),
-    overlayBranch,
+  await saveOverlayReport(pool, ctx);
+  const outcome = await deps.ingestReport(ctx.repo, {
+    ...(ctx.body.report as object),
+    overlayBranch: ctx.overlayBranch,
   });
-
   return {
-    kind: body.kind,
-    commit: body.commit,
+    kind: ctx.body.kind,
+    commit: ctx.body.commit,
     state: "overlay" as const,
     projected: 0,
     deleted: 0,
     test_chunks: outcome.testChunks,
     pruned_test_files: 0,
   };
+}
+
+async function saveOverlayReport(pool: Pool, ctx: OverlayDeltaCtx) {
+  const r = ctx.body.report as
+    { tests?: unknown; outcomes?: unknown } | undefined;
+  await saveTestReportRow(pool, {
+    repo: ctx.repo,
+    commit: ctx.body.commit,
+    branch: ctx.overlayBranch,
+    tests: r?.tests ?? [],
+    outcomes: r?.outcomes ?? {},
+  });
 }
 
 /** A default-branch delta: project it, THEN settle main's stored pointer, so a failed projection never moves the pointer past work that did not land. A settled delta also stamps the repo's `last_ingested_at`; a partial upload has not finished ingesting. */

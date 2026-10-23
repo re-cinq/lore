@@ -11,7 +11,13 @@ describe("saveTestReportRow", () => {
       },
     } as never;
 
-    await saveTestReportRow(pool, "org/repo", "abc123", "feature/foo", [], {});
+    await saveTestReportRow(pool, {
+      repo: "org/repo",
+      commit: "abc123",
+      branch: "feature/foo",
+      tests: [],
+      outcomes: {},
+    });
 
     const upsert = issued.find((q) => q.sql.includes("pipeline.test_reports"));
     expect(upsert).toBeDefined();
