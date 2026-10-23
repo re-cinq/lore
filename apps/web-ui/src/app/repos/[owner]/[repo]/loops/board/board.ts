@@ -149,8 +149,13 @@ export function pausedNotice(loop: RepoLoop): string | undefined {
     return undefined;
   }
 
-  return `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
+  return NO_BACKLOG.has(loop.key)
+    ? `Paused: ${loop.label} is switched off. It starts no run until it is switched on above.`
+    : `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
 }
+
+/** Loops that run on a schedule rather than take work from a backlog. */
+const NO_BACKLOG: ReadonlySet<string> = new Set(["upkeep"]);
 
 /** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
 export function implementationNotice(loop: RepoLoop): string | undefined {

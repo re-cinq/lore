@@ -61,7 +61,7 @@ describe("upkeepQueues", () => {
       recent: keys(queues.recent),
       backlog: queues.backlog,
     }).toEqual({
-      awaiting: [["#40", "awaiting review", null]],
+      awaiting: [["#40", "open", null]],
       parked: [["2026-10-12", "failed", "ci stayed red"]],
       recent: [["#39", "merged", null]],
       backlog: [],

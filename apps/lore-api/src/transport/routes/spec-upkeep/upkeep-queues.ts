@@ -8,7 +8,7 @@ export const UpkeepRowSchema = z.object({
   /** A run's day (`2026-10-19`), or a pull request's `#40`. */
   ref: z.string(),
   url: z.string().nullable(),
-  /** `state`: the run's status, `awaiting review` for its open pull request, or `merged`. */
+  /** `state`: the run's status, `open` for its open pull request, or `merged`. */
   ...loopRowFields,
   /** Why the newest run stopped, when it did not succeed. */
   blocked: z.string().nullable(),
@@ -47,9 +47,7 @@ export function upkeepQueues(input: UpkeepQueuesInput): SpecUpkeep {
     backlog: [],
     parked: stoppedRun(input.runs).map(runRow),
     awaiting_merge:
-      working.length > 0
-        ? []
-        : input.open.map((pull) => pullRow(pull, "awaiting review")),
+      working.length > 0 ? [] : input.open.map((pull) => pullRow(pull, "open")),
     recent: input.merged.map((pull) => pullRow(pull, "merged")),
   };
 }

@@ -234,7 +234,7 @@ describe("loop rows", () => {
           ref: "#40",
           url: "https://github.com/acme/widgets/pull/40",
           title: "Spec upkeep",
-          state: "awaiting review",
+          state: "open",
           blocked: null,
           run_id: null,
           pipeline: null,
@@ -252,5 +252,13 @@ describe("loop rows", () => {
       ["2026-10-19", "ci stayed red", "run-1"],
       ["#40", "https://github.com/acme/widgets/pull/40"],
     ]);
+  });
+
+  it("says a switched-off spec upkeep starts no run, rather than that nothing in its backlog is picked", () => {
+    expect(
+      pausedNotice({ ...loop("upkeep", "Spec upkeep"), enabled: false }),
+    ).toBe(
+      "Paused: Spec upkeep is switched off. It starts no run until it is switched on above.",
+    );
   });
 });
