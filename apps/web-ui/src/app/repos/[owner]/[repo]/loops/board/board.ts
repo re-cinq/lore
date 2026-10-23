@@ -143,10 +143,21 @@ function emptyText(key: SectionKey, reads: readonly LoopRead[]): string {
 
 /** Says once above the backlog that nothing in it is picked while the loop is off. */
 export function pausedNotice(loop: RepoLoop): string | undefined {
-  return loop.enabled
-    ? undefined
-    : `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
+  if (loop.enabled) {
+    return undefined;
+  }
+
+  return (
+    OFF_NOTICE[loop.key] ??
+    `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`
+  );
 }
+
+/** A loop whose work goes on while it is off, said as it is. */
+const OFF_NOTICE: Partial<Record<RepoLoop["key"], string>> = {
+  merge:
+    "Auto merge is switched off: lore-reviewer approves nothing, so each of Lore's pull requests waits for a person's approval before GitHub merges it.",
+};
 
 /** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
 export function implementationNotice(loop: RepoLoop): string | undefined {

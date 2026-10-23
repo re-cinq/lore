@@ -266,4 +266,29 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       cancelled: ["PR_7"],
     });
   });
+
+  it("PUT merge on for a repo with no row answers 404 without asking GitHub about its branch rule", async () => {
+    const res = await put("merge", { enabled: true });
+
+    expect({
+      status: res.statusCode,
+      github: vi.mocked(projectFor).mock.calls,
+    }).toEqual({
+      status: 404,
+      github: [],
+    });
+  });
+
+  it("PUT merge off still answers 200 when GitHub cannot list the pull requests to disarm", async () => {
+    const pool = poolWithRepo();
+
+    vi.mocked(projectFor).mockRejectedValue(new Error("github down"));
+
+    const res = await put("merge", { enabled: false }, pool);
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: { ok: true, key: "merge", enabled: false },
+    });
+  });
 });

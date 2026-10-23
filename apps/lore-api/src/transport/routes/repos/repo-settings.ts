@@ -110,7 +110,6 @@ function enforceBodyInvariants(body: RepoSettingsBody): void {
   );
 }
 
-/** `error` is the sentence the settings page shows; `missing` lists the gaps for a client that wants them one by one. */
 function enforceNoDarkFactory(body: RepoSettingsBody): void {
   enforceTrue(
     body.settings?.dark_factory === undefined,
@@ -193,7 +192,6 @@ function repoUpdateClauses(body: RepoSettingsBody): {
   return { updates, values };
 }
 
-/** A failed disarm never blocks the switch to none: none is the safe state, and the PR is named in the log for a person to disarm by hand. */
 async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {
   try {
     // Shared writer, not a hand-rolled INSERT — it fans the event out to its subscribers.

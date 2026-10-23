@@ -49,6 +49,7 @@ async function missingPrerequisitesOf(repo: string): Promise<string[]> {
   });
 }
 
+/** `error` is the sentence the switch shows; `missing` lists the gaps for a client that wants them one by one. */
 function missingPrerequisitesError(missing: string[]): ApprovalOutcome {
   return {
     ok: false,
@@ -61,18 +62,26 @@ function missingPrerequisitesError(missing: string[]): ApprovalOutcome {
   };
 }
 
-/** Switching auto merge off takes back the auto-merge Lore armed on its own open pull requests; a PR that cannot be disarmed is logged, never a failed save. */
+/** Switching auto merge off takes back the auto-merge Lore armed on its own open pull requests. A failed disarm never fails the switch to none: none is the safe state, the setting is already written, and the PR (or the read that failed) is named in the log for a person to disarm by hand. */
 export async function disarmAutoMerge(repo: string): Promise<void> {
-  const { pulls, audit } = await projectFor(repo);
-  const failed = await disarmLorePulls({
-    pulls,
-    audit,
-    appLogin: await loreAppLogin(),
+  const failed = await disarmableLorePulls(repo).catch((err: unknown) => {
+    console.error(
+      `[auto-merge] could not read ${repo}'s pull requests to disarm them:`,
+      err,
+    );
+
+    return [];
   });
 
   if (failed.length > 0) {
     console.error(
-      `[settings] could not disarm auto-merge on ${repo} PRs ${failed.join(", ")}`,
+      `[auto-merge] could not disarm auto-merge on ${repo} PRs ${failed.join(", ")}`,
     );
   }
+}
+
+async function disarmableLorePulls(repo: string): Promise<number[]> {
+  const { pulls, audit } = await projectFor(repo);
+
+  return disarmLorePulls({ pulls, audit, appLogin: await loreAppLogin() });
 }

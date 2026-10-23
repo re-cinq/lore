@@ -33,14 +33,13 @@ function blockSwitchSql(block: string): string {
           WHERE full_name = $1`;
 }
 
-/** Flips one loop's switch. Switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
+/** Flips one loop's switch on a repository the caller has already found (`enforceRepoRow`). Switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
 export async function switchLoop(
   pool: Pool,
   repo: string,
   key: LoopKey,
   { enabled }: { enabled: boolean },
 ): Promise<void> {
-  await enforceRepoRow(pool, repo);
   await pool.query(SWITCH_SQL[key], [repo, enabled]);
 
   if (key === "implementation" && enabled) {
@@ -52,7 +51,7 @@ export async function switchLoop(
   }
 }
 
-async function enforceRepoRow(pool: Pool, repo: string): Promise<void> {
+export async function enforceRepoRow(pool: Pool, repo: string): Promise<void> {
   const { rows } = await pool.query<{ full_name: string }>(
     "SELECT full_name FROM lore.repos WHERE full_name = $1",
     [repo],

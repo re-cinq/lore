@@ -17,7 +17,7 @@ export const LOOP_KINDS = [
     key: "merge",
     label: "Auto merge",
     description:
-      "Approves Lore's own pull requests that pass review as lore-reviewer and arms GitHub's auto-merge; GitHub merges once the branch rule is met.",
+      "Lore arms GitHub's auto-merge on its own pull requests that pass review; while this is on, lore-reviewer also approves them, so GitHub merges once the branch rule is met. While it is off, a person's approval is what merges them.",
   },
   {
     key: "triage",

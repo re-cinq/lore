@@ -211,4 +211,12 @@ describe("loop rows", () => {
       "https://github.com/acme/widgets/pull/4",
     ]);
   });
+
+  it("says above the Backlog that a switched-off auto merge waits for a person's approval, not that nothing is picked", () => {
+    const off = { ...loop("merge", "Auto merge"), enabled: false };
+
+    expect(pausedNotice(off)).toBe(
+      "Auto merge is switched off: lore-reviewer approves nothing, so each of Lore's pull requests waits for a person's approval before GitHub merges it.",
+    );
+  });
 });

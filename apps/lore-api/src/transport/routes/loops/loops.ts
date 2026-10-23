@@ -1,4 +1,4 @@
-// The repository's loops (specs/implementation-loop FR9, specs/issue-triage FR33): GET lists every loop with its switch state for the Loops tab's pill row, PUT flips one. Neither loop merges, so no two-key ceremony.
+// The repository's loops (specs/implementation-loop FR9, specs/issue-triage FR33, specs/protected-branch-merge): GET lists every loop with its switch state for the Loops tab's pill row, PUT flips one. Only switching auto merge on goes through the two-key ceremony, the same gate as the settings save.
 import type { Pool } from "pg";
 import type {
   Request,
@@ -15,7 +15,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
-import { switchLoop } from "./loop-switch.js";
+import { enforceRepoRow, switchLoop } from "./loop-switch.js";
 import { approverGate } from "../repos/auto-merge-gate.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
 import { autoMergeRoute } from "../auto-merge/auto-merge.js";
@@ -120,6 +120,8 @@ async function serveSwitchLoop(
   const { key } = request.params as z.infer<typeof SwitchParams>;
   const { enabled } = request.payload as z.infer<typeof LoopSwitchBodySchema>;
   const repo = repoOf(request.params);
+
+  await enforceRepoRow(pool, repo);
   const gate = await approverGate(
     request,
     repo,

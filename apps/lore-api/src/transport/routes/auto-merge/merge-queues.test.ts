@@ -96,4 +96,21 @@ describe("mergeQueues", () => {
       [],
     ]);
   });
+
+  it("keeps unarmed #8 waiting for its approval in the backlog until Lore's review arms it, and parks armed #9 still needing a code owner", () => {
+    const queues = mergeQueues({
+      open: [pull(8), pull(9, { autoMerge: true })],
+      merged: [],
+      blocks: [block(8, "needs_approval"), block(9, "needs_code_owner")],
+      appLogin: LORE,
+    });
+
+    expect({
+      backlog: queues.backlog.map((r) => [r.pr_number, r.state, r.blocked]),
+      parked: queues.parked.map((r) => [r.pr_number, r.state]),
+    }).toEqual({
+      backlog: [[8, "open", "Needs one approval"]],
+      parked: [[9, "blocked"]],
+    });
+  });
 });

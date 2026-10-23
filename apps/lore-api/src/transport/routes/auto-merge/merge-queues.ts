@@ -79,9 +79,18 @@ function openRow(pull: MergePull, blocks: readonly StoredBlock[]): MergeRow {
   };
 }
 
-/** Blocked on a person whatever else is true; otherwise armed or not. */
+/** Before Lore's review arms it, a pull request is supposed to lack its approval: that wait is the backlog, not a person's job. */
+const AWAITING_ARM: ReadonlySet<string> = new Set([
+  ...MOVING,
+  "needs_approval",
+  "needs_code_owner",
+]);
+
+/** Blocked on a person when the stored reason is not a wait the pull request is expected to be in; otherwise armed or not. */
 function openState(pull: MergePull, block: StoredBlock | undefined): string {
-  if (block && !MOVING.has(block.reason)) {
+  const expected = pull.autoMerge ? MOVING : AWAITING_ARM;
+
+  if (block && !expected.has(block.reason)) {
     return "blocked";
   }
 
