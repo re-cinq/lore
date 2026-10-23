@@ -39,32 +39,37 @@ export async function prReportForRun(
       threads: evidence.threads,
       openReviewRunCount: evidence.openReviewRunCount,
       hasCiHistory: evidence.hasCiHistory,
+      mergeable: evidence.mergeable,
+      behindBy: evidence.behindBy,
     }),
     (reason) =>
       reason === "ci_red" ? redFeedback(evidence.checks, judged.headSha) : {},
   );
 }
 
-/** The four independent reads a settled pull request is judged on, together — this job sweeps every parked run on a tick. */
+/** The six independent reads a settled pull request is judged on, together — this job sweeps every parked run on a tick. */
 async function prEvidence(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
   judged: { prNumber: number; headSha: string },
 ) {
-  const [checks, threads, openReviewRunCount, hasCiHistory] = await Promise.all(
-    [
+  const [checks, threads, openReviewRunCount, hasCiHistory, mergeable, behindBy] =
+    await Promise.all([
       deps.listChecks(run.repo, judged.headSha),
       deps.listReviewThreads(run.repo, judged.prNumber),
       deps.countOpenReviewRuns(run.repo, judged.prNumber),
       deps.hasCiHistory(run.repo),
-    ],
-  );
+      deps.prMergeable(run.repo, judged.prNumber),
+      deps.prBehindBy(run.repo, judged.prNumber),
+    ]);
 
   return {
     checks: await explainedChecks(run.repo, withoutOwnCheck(checks), deps),
     threads,
     openReviewRunCount,
     hasCiHistory,
+    mergeable,
+    behindBy,
   };
 }
 

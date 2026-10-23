@@ -11,6 +11,53 @@ const thread = (over: Partial<ReviewThread> = {}): ReviewThread => ({
 });
 
 describe("decidePrReady", () => {
+  it("sends a branch 3 commits behind main to the sync as changes_requested, before CI is even read", () => {
+    expect(
+      decidePrReady({
+        ci: "pending",
+        threads: [],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+        mergeable: true,
+        behindBy: 3,
+      }),
+    ).toEqual({
+      kind: "blocked",
+      reason: "pr_behind",
+      outcome: "changes_requested",
+    });
+  });
+
+  it("sends a branch that conflicts with main to the sync as changes_requested, even with no checks on it", () => {
+    expect(
+      decidePrReady({
+        ci: "none",
+        threads: [],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+        mergeable: false,
+        behindBy: undefined,
+      }),
+    ).toEqual({
+      kind: "blocked",
+      reason: "pr_conflicting",
+      outcome: "changes_requested",
+    });
+  });
+
+  it("is ready on green CI when GitHub has not computed mergeability yet and the branch is 0 behind", () => {
+    expect(
+      decidePrReady({
+        ci: "success",
+        threads: [],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+        mergeable: null,
+        behindBy: 0,
+      }),
+    ).toEqual({ kind: "ready" });
+  });
+
   it("waits while CI is pending, whatever the threads say", () => {
     expect(
       decidePrReady({
@@ -18,6 +65,8 @@ describe("decidePrReady", () => {
         threads: [thread()],
         openReviewRunCount: 0,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({ kind: "wait", reason: "ci_pending" });
   });
@@ -29,6 +78,8 @@ describe("decidePrReady", () => {
         threads: [],
         openReviewRunCount: 3,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({
       kind: "blocked",
@@ -44,6 +95,8 @@ describe("decidePrReady", () => {
         threads: [thread({ isResolved: true }), thread({ isOutdated: true })],
         openReviewRunCount: 0,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({ kind: "ready" });
   });
@@ -55,6 +108,8 @@ describe("decidePrReady", () => {
         threads: [],
         openReviewRunCount: 0,
         hasCiHistory: false,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({ kind: "ready" });
   });
@@ -66,6 +121,8 @@ describe("decidePrReady", () => {
         threads: [],
         openReviewRunCount: 0,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({ kind: "wait", reason: "ci_not_started" });
   });
@@ -77,6 +134,8 @@ describe("decidePrReady", () => {
         threads: [thread()],
         openReviewRunCount: 1,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({ kind: "wait", reason: "address_in_flight" });
   });
@@ -88,6 +147,8 @@ describe("decidePrReady", () => {
         threads: [thread()],
         openReviewRunCount: 0,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({
       kind: "blocked",
@@ -105,6 +166,8 @@ describe("the two blocked reasons resume differently", () => {
         threads: [],
         openReviewRunCount: 0,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toMatchObject({ outcome: "changes_requested" });
   });
@@ -116,6 +179,8 @@ describe("the two blocked reasons resume differently", () => {
         threads: [thread()],
         openReviewRunCount: 0,
         hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toMatchObject({ outcome: "failed" });
   });
@@ -129,6 +194,8 @@ describe("decidePrReady with no checks configured", () => {
         threads: [thread()],
         openReviewRunCount: 0,
         hasCiHistory: false,
+        mergeable: true,
+        behindBy: 0,
       }),
     ).toEqual({
       kind: "blocked",

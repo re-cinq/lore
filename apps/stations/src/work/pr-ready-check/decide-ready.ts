@@ -13,22 +13,30 @@ export type PrReadyVerdict =
   // outcome routes the walk (selectEdge), reason populates run.args; blocked reasons must have DIFFERENT outcomes (specs/implementation-loop FR3)
   | {
       kind: "blocked";
-      reason: "ci_red" | "unresolved_threads";
+      reason: "pr_conflicting" | "pr_behind" | "ci_red" | "unresolved_threads";
       outcome: "changes_requested" | "failed";
     };
 
-/** Verdict for await-pr: hasCiHistory distinguishes "no checks configured" (green) from "not started" (pending). */
-export function decidePrReady(input: {
+export interface PrReadyInput {
   ci: CiConclusion;
   threads: readonly ReviewThread[];
   openReviewRunCount: number;
   /** Does this repo run checks at all? */
   hasCiHistory: boolean;
-}): PrReadyVerdict {
-  const ci = ciVerdict({ ci: input.ci, hasCiHistory: input.hasCiHistory });
+  /** GitHub's mergeability: false on a conflict, null while GitHub computes it. */
+  mergeable: boolean | null;
+  /** Commits of the default branch the branch lacks; undefined when GitHub could not compare. */
+  behindBy: number | undefined;
+}
 
-  if (ci) {
-    return ci;
+/** Verdict for await-pr: the branch is put on main before anything else is read (a conflicted branch gets no CI at all), then hasCiHistory distinguishes "no checks configured" (green) from "not started" (pending). */
+export function decidePrReady(input: PrReadyInput): PrReadyVerdict {
+  const verdict =
+    syncVerdict(input) ??
+    ciVerdict({ ci: input.ci, hasCiHistory: input.hasCiHistory });
+
+  if (verdict) {
+    return verdict;
   }
   const unresolved = input.threads.filter(
     (t) => !t.isResolved && !t.isOutdated,
@@ -37,13 +45,24 @@ export function decidePrReady(input: {
   return threadVerdict(unresolved.length, input.openReviewRunCount);
 }
 
-/** The CI-only half of the verdict, or null to fall through to the thread check. */
-function ciVerdict(input: CiState): PrReadyVerdict | null {
-  if (input.ci === "failure") {
-    return { kind: "blocked", reason: "ci_red", outcome: "changes_requested" };
+/** A conflict or a branch behind main goes to the sync, which rebases it and returns to the wait; null when the branch is on current main. */
+function syncVerdict(
+  input: Pick<PrReadyInput, "mergeable" | "behindBy">,
+): PrReadyVerdict | null {
+  if (input.mergeable === false) {
+    return blocked("pr_conflicting");
   }
 
-  return ciWait(input);
+  return (input.behindBy ?? 0) > 0 ? blocked("pr_behind") : null;
+}
+
+function blocked(reason: "pr_conflicting" | "pr_behind" | "ci_red"): PrReadyVerdict {
+  return { kind: "blocked", reason, outcome: "changes_requested" };
+}
+
+/** The CI-only half of the verdict, or null to fall through to the thread check. */
+function ciVerdict(input: CiState): PrReadyVerdict | null {
+  return input.ci === "failure" ? blocked("ci_red") : ciWait(input);
 }
 
 interface CiState {

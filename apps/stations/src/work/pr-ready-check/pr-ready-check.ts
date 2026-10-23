@@ -237,11 +237,12 @@ type PrReads = Pick<
   | "failedJob"
   | "listReviewThreads"
   | "prMergeable"
+  | "prBehindBy"
 >;
 
 /** The PR-side reads, all through one per-sweep repo cache. */
 function prReads(
-  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls" | "repo">>,
 ): PrReads {
   return {
     listPrCommits: async (repo, number) =>
@@ -252,9 +253,20 @@ function prReads(
       (await projectOf(repo)).pulls.failedJob(jobId),
     prMergeable: async (repo, number) =>
       (await (await projectOf(repo)).pulls.get(number))?.mergeable ?? null,
+    prBehindBy: async (repo, number) => behindMain(await projectOf(repo), number),
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
   };
+}
+
+/** How far the pull request's branch is behind the default branch: what `loop-sync-check` reads too, so the wait and the sync agree. */
+async function behindMain(
+  project: Pick<Project, "pulls" | "repo">,
+  number: number,
+): Promise<number | undefined> {
+  const branch = (await project.pulls.get(number))?.branch;
+
+  return branch ? project.repo.branchBehindBy(branch) : undefined;
 }
 
 /** Resume runs parked on their PR: an `await-ci` of any line in {@link CI_WAIT_BLUEPRINTS} once the judged sha has a verdict, and an implementation-loop `await-pr` once the PR has settled — green CI, or unresolved threads with no review run open (specs/implementation-loop FR4). */
