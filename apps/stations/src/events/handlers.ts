@@ -48,11 +48,8 @@ import {
   trackerAnswerLine,
 } from "../work/utopia-backfill-tick/commits-answer.js";
 import { NO_LORE_API } from "../work/utopia-backfill-tick/run.js";
-import {
-  floorRepoOf,
-  gitItem,
-  valueItem,
-} from "@re-cinq/lore-shared/floor/floor-items.js";
+import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { triageStart } from "../work/issue-triage-tick/issue-triage-tick.js";
 import type { PullFileChange } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
   type ChangedFile,
@@ -222,15 +219,11 @@ const repoEventDeps: RepoEventDeps = {
     issueTriageEnabled(await settings().rawSettings(repo)),
   startIssueTriage: async (repo, issueNumber, issueUrl) => {
     const branch = await (await projectFor(repo)).repo.defaultBranch();
-    const started = await startLine(floorClient().lines, "issue-triage", {
-      repo: floorRepoOf(repo),
-      startItems: {
-        target: gitItem(repo, branch),
-        issue_number: valueItem(issueNumber),
-        repo: valueItem(repo),
-        issue_url: valueItem(issueUrl),
-      },
-    });
+    const started = await startLine(
+      floorClient().lines,
+      "issue-triage",
+      triageStart(repo, { number: issueNumber, url: issueUrl }, branch),
+    );
 
     return started.run.id;
   },

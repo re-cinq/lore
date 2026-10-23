@@ -147,7 +147,8 @@ stations:
       - name: issue_url
         kind: value
       - name: diagnosis
-        kind: value
+        kind: file
+        path: diagnosis.md
     produces:
       # One paragraph for the issue's reporter, which close-obsolete posts and
       # label-not-actionable comments; the agent sends it as the result line's extras.
@@ -184,7 +185,8 @@ stations:
         kind: value
     produces:
       - name: diagnosis
-        kind: value
+        kind: file
+        path: diagnosis.md
   triage-decompose:
     description: An AI agent splits a confirmed bug too broad for one change into a story and small tasks, each with acceptance criteria and a test plan.
     kind: agent
@@ -201,7 +203,8 @@ stations:
       - name: issue_url
         kind: value
       - name: diagnosis
-        kind: value
+        kind: file
+        path: diagnosis.md
     produces:
       - name: decomposition
         kind: file

@@ -25,6 +25,20 @@ const ISSUE_TRIAGE_LINE = "issue-triage";
 export interface IssueTriageIssue {
   url: string;
   number: number;
+  /** Every label on the issue; the sweep reads only the `triage:` ones. */
+  labels?: readonly string[];
+}
+
+const TRIAGE_PREFIX = "triage: ";
+const NEEDS_TRIAGE = "triage: needs-triage";
+
+/** Not triaged yet: `needs-triage` is its only triage label. The line only ever adds labels, so an issue it reached keeps `needs-triage` beside a later one, and would be triaged again on every sweep. */
+export function awaitingTriage(issue: IssueTriageIssue): boolean {
+  const triageLabels = (issue.labels ?? [NEEDS_TRIAGE]).filter((label) =>
+    label.startsWith(TRIAGE_PREFIX),
+  );
+
+  return triageLabels.length === 1 && triageLabels[0] === NEEDS_TRIAGE;
 }
 
 export interface IssueTriageTickDeps {
@@ -66,7 +80,7 @@ async function startForRepo(
     deps.runningCount(repo),
   ]);
   const slots = Math.max(0, deps.cap - running);
-  const qualifying = issues.slice(0, slots);
+  const qualifying = issues.filter(awaitingTriage).slice(0, slots);
 
   return qualifying.length === 0 ? 0 : startRuns(repo, qualifying, deps);
 }
@@ -79,16 +93,14 @@ async function startRuns(
   const branch = await deps.defaultBranch(repo);
 
   for (const issue of issues) {
-    await deps.floor.start(
-      ISSUE_TRIAGE_LINE,
-      triageStartArgs(repo, issue, branch),
-    );
+    await deps.floor.start(ISSUE_TRIAGE_LINE, triageStart(repo, issue, branch));
   }
 
   return issues.length;
 }
 
-function triageStartArgs(
+/** The issue-triage line's start: every arg it declares, for the sweep and the webhook alike. */
+export function triageStart(
   repo: string,
   issue: IssueTriageIssue,
   branch: string,
@@ -99,6 +111,7 @@ function triageStartArgs(
       target: gitItem(repo, branch),
       issue_url: valueItem(issue.url),
       issue_number: valueItem(issue.number),
+      repo: valueItem(repo),
     },
   };
 }

@@ -10,7 +10,7 @@ Your task is to instrument the codebase and trace the root cause of the reproduc
 2. Locate the relevant code paths using `lore_assemble_context` and `lore_search_context`.
 3. Trace the failure through the call stack, identifying the specific function or logic that produces the incorrect behaviour.
 4. Cross-reference the diagnosed behaviour against existing specs and documentation to confirm it is not intended behaviour.
-5. Write your findings as a concise diagnosis: the root cause, the affected code path, and a recommended fix direction.
+5. Write your findings as a concise diagnosis in Markdown to `{diagnosis_path}`: the root cause, the affected code path (file and function), and a recommended fix direction. The verify and decompose stations read that file and nothing else you print, so it must stand on its own.
 
-Emit `LORE_NODE_RESULT: {"outcome":"success","extras":{"diagnosis":"..."}}` when you have identified the root cause; include the concise diagnosis in `diagnosis` so the next station can use it.
+Emit `LORE_NODE_RESULT: {"outcome":"success"}` after writing the file, when you have identified the root cause.
 Emit `LORE_NODE_RESULT: {"outcome":"failed"}` if you cannot determine the root cause with the available information.

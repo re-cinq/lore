@@ -724,6 +724,20 @@ describe("the floor pipelines shipped in this folder", () => {
     }).toEqual({ week: true, intro: true, clone: false });
   });
 
+  it("hands the diagnosis from diagnose to verify and decompose as diagnosis.md, a file rather than a value the agent may leave out", () => {
+    const { stations } = pipelineOf("issue-triage");
+    const produced = stations["triage-diagnose"]?.produces.find(
+      (produce) => produce.name === "diagnosis",
+    );
+    const asFile = { name: "diagnosis", kind: "file", path: "diagnosis.md" };
+
+    expect({
+      produced,
+      verify: needOf(stations["triage-verify"], "diagnosis"),
+      decompose: needOf(stations["triage-decompose"], "diagnosis"),
+    }).toEqual({ produced: asFile, verify: asFile, decompose: asFile });
+  });
+
   it("walks merge from settle through close-issue, outcome-stats, curate, memory-feedback and trust to done", () => {
     const { line } = pipelineOf("merge");
 

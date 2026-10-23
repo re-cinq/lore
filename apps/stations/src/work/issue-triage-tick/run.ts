@@ -4,6 +4,7 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { settings } from "../../outbound/queues.js";
 import {
@@ -34,7 +35,9 @@ export async function runIssueTriageTick(
     defaultBranch: async (repo) =>
       (await projectFor(repo)).repo.defaultBranch(),
     cap: DEFAULT_CAP,
-    floor: { start: (line, args) => floorClient().lines.start(line, args) },
+    floor: {
+      start: (line, args) => startLine(floorClient().lines, line, args),
+    },
   });
 }
 
@@ -50,7 +53,7 @@ async function fetchNeedsTriageIssues(
   return issues
     .filter((i) => i.url !== undefined)
     .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
-    .map((i) => ({ url: i.url as string, number: i.number }));
+    .map((i) => ({ url: i.url as string, number: i.number, labels: i.labels }));
 }
 
 async function countRunning(repo: string): Promise<number> {
