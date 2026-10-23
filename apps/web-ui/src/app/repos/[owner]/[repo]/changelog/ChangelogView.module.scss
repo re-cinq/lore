@@ -1,9 +1,50 @@
 // One section per week; the toggle and the older-weeks link sit on the page's edges.
 .toolbar {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: var(--space-3);
   margin-bottom: var(--space-5);
   font-size: var(--fs-sm);
+}
+
+// The loop page's On/Off pill (loops/LoopSwitch.module.scss), on a link; off is neutral, since not grouping is no alarm.
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-pill);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: none;
+    box-shadow: 0 0 0 var(--focus-ring-width)
+      color-mix(in srgb, currentcolor 25%, transparent);
+  }
+}
+
+.on,
+.on:hover {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.off,
+.off:hover {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: currentcolor;
+  flex: none;
 }
 
 .week {

@@ -39,21 +39,38 @@ export default function ChangelogView(props: ChangelogViewProps) {
   );
 }
 
+/** "By person" with an On/Off pill like a loop's switch: green with a dot when the week is grouped by person. A link, not a form: the grouping lives in the URL. */
 function GroupingSwitch(props: {
   base: string;
   grouping: Grouping;
   before?: string;
 }) {
-  const other: Grouping = props.grouping === "person" ? "list" : "person";
+  const on = props.grouping === "person";
+  const next: Grouping = on ? "list" : "person";
 
   return (
     <div className={styles.toolbar}>
-      <Link
-        href={hrefOf(props.base, { before: props.before, grouping: other })}
-      >
-        {other === "person" ? "Group by person" : "Show as one list"}
-      </Link>
+      <span id="by-person-label">By person</span>
+      <SwitchLink
+        href={hrefOf(props.base, { before: props.before, grouping: next })}
+        on={on}
+      />
     </div>
+  );
+}
+
+function SwitchLink({ href, on }: { href: string; on: boolean }) {
+  return (
+    <Link
+      href={href}
+      role="switch"
+      aria-checked={on}
+      aria-labelledby="by-person-label"
+      className={`${styles.switch} ${on ? styles.on : styles.off}`}
+    >
+      <span className={styles.dot} aria-hidden="true" />
+      {on ? "On" : "Off"}
+    </Link>
   );
 }
 
