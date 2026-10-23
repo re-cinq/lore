@@ -1,5 +1,6 @@
 // The blocked-reason station's composition root: the repo's Project, the pr_blocked_reasons table and Lore's App login.
 
+import { autoMergeEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import { projectFor } from "../outbound/project-boot.js";
 import { pipeline } from "../outbound/queues.js";
@@ -21,6 +22,8 @@ export function productionDeps(): BlockedReasonDeps {
         audit: project.audit,
         taskIssue: async (taskId) =>
           (await tasks.getById(taskId))?.issueNumber ?? null,
+        autoMergeOn: async () =>
+          autoMergeEnabled(await project.settings.rawSettings()),
       };
     },
   };
