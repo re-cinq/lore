@@ -215,12 +215,11 @@ async function producedOf(
 ): Promise<Record<string, string>> {
   const values = feedbackValuesOf(judged);
   const feedback = feedbackOf(values);
-  const review = reviewFeedbackOf(judged);
 
-  if (!feedback && !review) {
+  if (!feedback) {
     return values;
   }
-  const brief = roundBriefOf({ feedback, handoff, review });
+  const brief = roundBriefOf({ feedback, handoff });
   const stored = await floor.blobs.put(
     new TextEncoder().encode(brief),
     "text/markdown",
@@ -243,13 +242,6 @@ function feedbackValuesOf(judged: ParkedReport): FeedbackValues {
       typeof judged.args[name] === "string" ? [[name, judged.args[name]]] : [],
     ),
   );
-}
-
-/** What review left open, when the verdict carries it. */
-function reviewFeedbackOf(judged: ParkedReport): string | null {
-  const text = judged.args.review_feedback;
-
-  return typeof text === "string" && text.length > 0 ? text : null;
 }
 
 function feedbackOf(values: FeedbackValues): CiFeedback | null {

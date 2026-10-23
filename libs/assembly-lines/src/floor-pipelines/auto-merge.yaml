@@ -1,8 +1,10 @@
 # The auto-merge loop (specs/protected-branch-merge): one run per pull request code
 # review has passed. It waits until the pull request is green, every review thread
 # is resolved, Lore's review stands approved on its head and it has been open long
-# enough; on the way it fixes red CI and answers open threads; then it approves and
-# hands the merge to GitHub, or merges itself where no rule asks for an approval.
+# enough; then it approves and hands the merge to GitHub, or merges itself where no
+# rule asks for an approval. It fixes nothing on the way: a pull request that is
+# red, conflicted or behind is the business of the loop that opened it, which
+# rebases and repairs it on the pull request's own events; this loop only waits.
 line:
   id: auto-merge
   entry: await-merge
@@ -22,12 +24,6 @@ line:
     - id: await-merge
       station: auto-merge-await
       route: "{args.pr_url}"
-    - id: fix-pr
-      station: auto-merge-fix
-      bind:
-        target: repo
-    - id: fix-replies
-      station: auto-merge-fix-replies
     - id: approve
       station: auto-merge-approve
     - id: done
@@ -35,31 +31,9 @@ line:
     - from: await-merge
       to: approve
       on: success
-    # Red CI, a conflict, or review left open: three fixes at most, then a person.
-    - from: await-merge
-      to: fix-pr
-      on: changes_requested
-      iteration_max: 3
-    # Red again on the sha the last fix left: the fix moved nothing.
+    # The pull request was closed, or cannot be judged: nothing to merge.
     - from: await-merge
       to: done
-      on: failed
-    - from: fix-pr
-      to: fix-replies
-      on: success
-    - from: fix-pr
-      to: fix-replies
-      on: changes_requested
-    - from: fix-pr
-      to: fix-pr
-      on: failed
-      iteration_max: 1
-    # The push is a new head: the wait reads CI and the review on it again.
-    - from: fix-replies
-      to: await-merge
-      on: success
-    - from: fix-replies
-      to: await-merge
       on: failed
     - from: approve
       to: done
@@ -69,58 +43,13 @@ line:
       on: failed
 stations:
   auto-merge-await:
-    description: Waits on the pull request until CI is green, no review thread is open, Lore's review stands approved on its head and it has been open long enough. Red CI, a conflict or open review goes to a fix.
+    description: Waits on the pull request until CI is green, no review thread is open, Lore's review stands approved on its head and it has been open long enough. Red CI, a conflict or an open thread is waited out, never fixed here.
     kind: human
     outcomes:
       - success
-      - changes_requested
       - failed
     needs:
       - name: head_sha
-        kind: value
-    # Written only when the pull request is sent to a fix: the red build, the
-    # review left open, and both as one file for the agent.
-    produces:
-      - name: ci_feedback_sha
-        kind: value
-      - name: ci_failed_checks
-        kind: value
-      - name: ci_failure_summary
-        kind: value
-      - name: round_brief
-        kind: file
-  auto-merge-fix:
-    description: An AI agent makes the pull request mergeable, whoever opened it - it fixes the red build or the conflict and answers each open review thread - and pushes to the pull request's branch.
-    kind: agent
-    agent_definition: auto-merge-fix
-    conversation: new
-    outcomes:
-      - success
-      - changes_requested
-      - failed
-    needs:
-      - name: target
-        kind: git
-        path: target
-        access: write
-      - name: round_brief
-        kind: file
-        path: round-brief.md
-        optional: true
-    produces:
-      - name: fix_output
-        kind: file
-        from: output
-  auto-merge-fix-replies:
-    description: Posts the fix agent's replies on the pull request, each in the thread it answers, and resolves the threads its commit settled.
-    kind: service
-    outcomes:
-      - success
-      - failed
-    needs:
-      - name: fix_output
-        kind: file
-      - name: pr_url
         kind: value
     produces: []
   auto-merge-approve:
@@ -137,32 +66,3 @@ stations:
         kind: value
       - name: merge_blocked
         kind: value
-agent_definitions:
-  auto-merge-fix:
-    settings:
-      model: gemini-3.1-pro-preview
-      image: ${LORE_AGENT_IMAGE}
-      timeout_minutes: 45
-      prices:
-        gemini-3.1-pro-preview:
-          input_per_million: 2
-          output_per_million: 12
-      config:
-        pod_resources:
-          requests:
-            cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 6Gi
-          limits:
-            memory: 2Gi
-            ephemeral-storage: 6Gi
-        skills:
-          - lore-context
-        skills_source: ${LORE_SKILLS_URL}
-        mcp_servers:
-          - name: lore
-            transport: http
-            url: ${LORE_MCP_URL}
-            headers_secret: lore-mcp-auth
-        env:
-          LORE_TEST_POLICY: none

@@ -16,8 +16,6 @@ export interface RoundHandoff {
 export interface RoundBriefInput {
   /** Null when the build is not what the next agent is sent for. */
   feedback: CiFeedback | null;
-  /** The open review threads, or the review's request, the next agent answers (the auto-merge loop's fix). */
-  review?: string | null;
   /** Null when no round has run yet, or the last one reported nothing. */
   handoff: RoundHandoff | null;
 }
@@ -25,14 +23,9 @@ export interface RoundBriefInput {
 /** How much of a CI report the brief carries. */
 const MAX_FEEDBACK_CHARS = 2500;
 
-export function roundBriefOf({
-  feedback,
-  handoff,
-  review,
-}: RoundBriefInput): string {
+export function roundBriefOf({ feedback, handoff }: RoundBriefInput): string {
   const sections = [
     ...(feedback ? [ciFeedbackSection(feedback)] : []),
-    ...(review ? [reviewSection(review)] : []),
     ...(handoff ? [handoffSection(handoff)] : []),
   ];
 
@@ -65,22 +58,6 @@ ${capped}
 \`\`\`
 `;
 }
-
-/** What review left open on the pull request: each thread by the id its reply goes under. */
-function reviewSection(review: string): string {
-  const capped =
-    review.length > MAX_REVIEW_CHARS
-      ? `${review.substring(0, MAX_REVIEW_CHARS)}\n...(truncated)`
-      : review;
-
-  return `## Review left these open
-
-${capped}
-`;
-}
-
-/** How much review text the brief carries. */
-const MAX_REVIEW_CHARS = 8000;
 
 function handoffSection(handoff: RoundHandoff): string {
   const doneLine = handoff.done ? `- Done: ${handoff.done}\n` : "";

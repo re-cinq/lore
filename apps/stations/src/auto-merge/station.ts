@@ -1,4 +1,4 @@
-// The stations the external floor dispatches for the auto-merge line (specs/protected-branch-merge): the fix's replies on the pull request, and the approval and merge.
+// The station the external floor dispatches for the auto-merge line (specs/protected-branch-merge): the approval and merge. The line fixes nothing; the loop that opened a pull request keeps it mergeable.
 import { defineStation } from "@re-cinq/floor-station";
 import type { Handle, Report, RunningStation } from "@re-cinq/floor-station";
 import { codeownersOf, ownedPaths } from "@re-cinq/lore-shared/codeowners.js";
@@ -7,7 +7,6 @@ import { autoMergeEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import { loreReviewerGitHub } from "@re-cinq/lore-shared/project/github-installations/lore-reviewer.js";
 import { projectFor } from "../outbound/project-boot.js";
-import { postReply } from "../code-review/post-reply/post-reply.js";
 import {
   approveAndMerge,
   type Approver,
@@ -37,22 +36,6 @@ export function approveMergeHandle(deps: ApproveMergeDeps): Handle {
         };
   };
 }
-
-/** Posts the fix agent's replies in the threads it answered, on any review, and resolves the ones its commit settled. */
-const fixRepliesHandle: Handle = async (brief, tools) => {
-  const { repo, prNumber } = parsePullRequestUrl(brief.needs.pr_url);
-
-  await postReply({
-    poster: (await projectFor(repo)).pulls,
-    prNumber,
-    visitId: brief.visitId,
-    iteration: brief.iteration,
-    replyOutput: (await tools.read("fix_output")).toString("utf8"),
-    reviewId: "any",
-  });
-
-  return { outcome: "success" };
-};
 
 const productionDeps: ApproveMergeDeps = {
   project: async (repo) => {
@@ -94,6 +77,5 @@ const productionDeps: ApproveMergeDeps = {
 export function startAutoMergeStations(): RunningStation[] {
   return [
     defineStation("auto-merge-approve", approveMergeHandle(productionDeps)),
-    defineStation("auto-merge-fix-replies", fixRepliesHandle),
   ];
 }

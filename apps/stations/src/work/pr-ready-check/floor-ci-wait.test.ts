@@ -288,7 +288,7 @@ describe("floorCiWaitSweep", () => {
     ]);
   });
 
-  it("judges an auto-merge run parked on await-merge as the pull request its start item names, and stores the open threads in the round brief", async () => {
+  it("judges an auto-merge run parked on await-merge as the pull request its start item names, and reports its success with nothing produced", async () => {
     const recorded = recordedPlanFloor({
       runs: [
         planRun({
@@ -315,31 +315,23 @@ describe("floorCiWaitSweep", () => {
       judgeMerge: (run) => {
         merged.push(run);
 
-        return Promise.resolve({
-          outcome: "changes_requested",
-          args: {
-            reason: "unresolved_threads",
-            review_feedback:
-              "inline comment 9 on src/a.ts:3 (gedaiu):\nRename this.",
-          },
-        });
+        return Promise.resolve({ outcome: "success", args: {} });
       },
       prState: () => Promise.resolve("open"),
     };
 
     await floorCiWaitSweep(deps);
-    const stored = recorded.requests.find(
-      (request) => request.path === "/blobs",
-    );
 
     expect({
       judged: merged.map((run) => [run.id, run.args.pr_number]),
-      brief: String(stored?.body),
+      blobs: recorded.requests.filter((request) => request.path === "/blobs"),
+      writes: recorded.requests
+        .filter((request) => request.path === "/events")
+        .map((request) => request.body),
     }).toEqual({
       judged: [["run-merge", 42]],
-      brief: expect.stringContaining(
-        "## Review left these open\n\ninline comment 9 on src/a.ts:3 (gedaiu):\nRename this.",
-      ),
+      blobs: [],
+      writes: [reportedOn("visit-await-merge", { outcome: "success" }).body],
     });
   });
 });
