@@ -234,7 +234,7 @@ The tool retrieves from all available sources:
   - `section.filter`: optional filter (e.g., only ADRs with
     status "accepted").
 - FR-3.3: The "default" template includes all sources with
-  sensible priorities.
+  sensible priorities. ([validated by includes sections for repo, adrs, memories, facts, and graph.](apps/mcp-server/src/template-default.acceptance.test.ts#L9))
 - FR-3.4: Built-in templates: "default", "review", "implementation",
   "research".
 
