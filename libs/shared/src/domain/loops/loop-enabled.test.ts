@@ -9,12 +9,16 @@ describe("issueTriageEnabled", () => {
   });
 
   it("returns false only when enabled is the boolean false", () => {
-    expect(issueTriageEnabled({ issue_triage: { enabled: false } })).toBe(false);
+    expect(issueTriageEnabled({ issue_triage: { enabled: false } })).toBe(
+      false,
+    );
     expect(issueTriageEnabled({ issue_triage: { enabled: "no" } })).toBe(true);
   });
 
   it("reads a settings column handed over as a JSON string", () => {
-    expect(issueTriageEnabled('{"issue_triage":{"enabled":false}}')).toBe(false);
+    expect(issueTriageEnabled('{"issue_triage":{"enabled":false}}')).toBe(
+      false,
+    );
   });
 });
 
