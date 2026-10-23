@@ -43,7 +43,6 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     ON pipeline.audit_log(event_type, created_at DESC);
   CREATE INDEX IF NOT EXISTS audit_log_repo_idx
     ON pipeline.audit_log(repo, created_at DESC);
-
 "
 
 echo "[lore] Dark-factory schema migration complete."
