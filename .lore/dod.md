@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Create `apps/mcp-server/templates` directory.
-- [ ] Add `default.yaml` to the directory with sections for `repo`, `adrs`, `memories`, `facts`, and `graph`.
-- [ ] Assign sensible priorities across the sections.
+- [x] Create `apps/mcp-server/templates` directory.
+- [x] Add `default.yaml` to the directory with sections for `repo`, `adrs`, `memories`, `facts`, and `graph`.
+- [x] Assign sensible priorities across the sections.
 
 ## Out of scope
 
