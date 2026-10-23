@@ -40,6 +40,7 @@ describe("routes — skills", () => {
   describe("GET", () => {
     it("lists org-level skill definitions", async () => {
       const { res } = await call(BASE, "GET");
+
       expect(res.statusCode).toBe(200);
       expect(JSON.parse(res.payload)).toHaveProperty("skills");
     });
