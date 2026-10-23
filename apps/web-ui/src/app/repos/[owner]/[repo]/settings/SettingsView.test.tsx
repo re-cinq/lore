@@ -24,7 +24,6 @@ describe("SettingsView (general only)", () => {
       task_types: ["general", "review"],
       dispatch_default_type: "general",
       slack_channel_id: "C123",
-      auto_review: true,
       trust: { level: "full" },
     });
 
@@ -42,7 +41,6 @@ describe("SettingsView (general only)", () => {
         ) as HTMLInputElement
       ).value,
     ).toBe("general");
-    expect(container.querySelector('input[name="auto_review"]')).toBeChecked();
     expect(container.querySelector('select[name="trust_level"]')).toHaveValue(
       "full",
     );

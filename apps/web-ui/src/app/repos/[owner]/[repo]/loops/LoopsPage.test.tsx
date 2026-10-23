@@ -9,6 +9,11 @@ vi.mock("./implementation/ImplementationLoopBody", () => ({
     <div data-testid="implementation-body">{fullName}</div>
   ),
 }));
+vi.mock("./review/ReviewBody", () => ({
+  default: ({ fullName }: { fullName: string }) => (
+    <div data-testid="review-body">{fullName}</div>
+  ),
+}));
 vi.mock("./triage/TriageBody", () => ({
   default: ({ fullName }: { fullName: string }) => (
     <div data-testid="triage-body">{fullName}</div>
@@ -24,6 +29,12 @@ const loops = [
     key: "implementation",
     label: "Implementation loop",
     description: "Works the backlog.",
+    enabled: false,
+  },
+  {
+    key: "review",
+    label: "Code review",
+    description: "Reviews pull requests.",
     enabled: false,
   },
   {
@@ -59,7 +70,7 @@ describe("LoopsPage", () => {
       heading: "Implementation loop",
       button: "Switch Implementation loop on",
       body: "re-cinq/lore",
-      pills: 2,
+      pills: 3,
     });
   });
 
@@ -78,8 +89,17 @@ describe("LoopsPage", () => {
     });
   });
 
+  it("?loop=review shows the code-review switch and body", async () => {
+    render(await page("review"));
+
+    expect({
+      heading: screen.getByRole("heading", { name: "Code review" }).textContent,
+      body: screen.getByTestId("review-body").textContent,
+    }).toEqual({ heading: "Code review", body: "re-cinq/lore" });
+  });
+
   it("a loop the repository does not have is a 404", async () => {
-    await expect(page("review")).rejects.toThrow(/404/);
+    await expect(page("merge")).rejects.toThrow(/404/);
   });
 
   it("names the API error when the loops cannot be read", async () => {

@@ -1,0 +1,87 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th {
+    text-align: left;
+    font-size: var(--fs-sm);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.statusCol {
+  width: 11rem;
+}
+
+.actionsCol {
+  width: 9rem;
+  text-align: right;
+}
+
+/* A status pill in its tone, led by a dot of the same colour. */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: currentcolor;
+  }
+}
+
+.tone_success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.tone_danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.tone_info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.tone_neutral {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.timeAgo {
+  display: block;
+  font-size: var(--fs-xs);
+  opacity: 0.7;
+  margin-top: var(--space-2);
+}
+
+.kind {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-hover);
+}

@@ -16,18 +16,6 @@ function form(fields: Record<string, string | string[]>): FormData {
 }
 
 describe("parseSettingsForm", () => {
-  it('auto_review is true when auto_review is "yes"', () => {
-    expect(parseSettingsForm(form({ auto_review: "yes" })).auto_review).toBe(
-      true,
-    );
-  });
-
-  it('auto_review is false when auto_review is "no"', () => {
-    expect(parseSettingsForm(form({ auto_review: "no" })).auto_review).toBe(
-      false,
-    );
-  });
-
   it("dispatch_default_type trimmed when present, omitted when blank", () => {
     expect(
       parseSettingsForm(form({ dispatch_default_type: " implementation " }))

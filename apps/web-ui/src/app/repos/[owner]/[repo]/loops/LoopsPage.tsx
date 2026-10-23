@@ -8,6 +8,7 @@ import {
 } from "@/lib/api/loops";
 import type { ApiResult } from "@/lib/api/result";
 import ImplementationLoopBody from "./implementation/ImplementationLoopBody";
+import ReviewBody from "./review/ReviewBody";
 import TriageBody from "./triage/TriageBody";
 import LoopPicker from "./LoopPicker";
 import LoopSwitch from "./LoopSwitch";
@@ -107,6 +108,10 @@ function LoopBody({
 }) {
   if (loopKey === "triage") {
     return <TriageBody fullName={fullName} />;
+  }
+
+  if (loopKey === "review") {
+    return <ReviewBody fullName={fullName} />;
   }
 
   return <ImplementationLoopBody fullName={fullName} />;
