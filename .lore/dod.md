@@ -13,7 +13,7 @@
 
 ## Facets
 
-- [ ] `test-report` delta flow writes to `pipeline.test_reports` when branch is present
+- [x] `test-report` delta flow writes to `pipeline.test_reports` when branch is present
 - [ ] The `run-dod.ts` endpoint can correctly read the test_reports table for the Definition of Done card
 
 ## Out of scope
