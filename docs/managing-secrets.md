@@ -327,7 +327,12 @@ settings → GitHub Apps → New GitHub App**, named `lore-reviewer`, with no we
 and these repository permissions: Pull requests **read and write**, Contents
 **read**, Checks **read**, Metadata **read**. Install it on the organization's
 repositories, generate a private key, and note the App id and the installation
-id (the number at the end of the installation's settings URL):
+id (the number at the end of the installation's settings URL).
+
+Terraform creates the three secret containers only once the flag is on, so turn
+it on first: set `enable_lore_reviewer = true` in `terraform.tfvars` and
+`terraform apply` from main. That creates the containers and the ExternalSecret.
+Then add the values:
 
 ```bash
 printf '%s' "<app id>" | gcloud secrets versions add lore-reviewer-app-id --data-file=-
@@ -335,13 +340,13 @@ gcloud secrets versions add lore-reviewer-app-private-key --data-file=lore-revie
 printf '%s' "<installation id>" | gcloud secrets versions add lore-reviewer-app-installation-id --data-file=-
 ```
 
-Then set `enable_lore_reviewer = true` in `terraform.tfvars` and `terraform apply`
-from main. ESO mirrors the three into the `lore-reviewer-app` Secret in
-`lore-stations`, read as `LORE_REVIEWER_APP_ID`, `LORE_REVIEWER_APP_PRIVATE_KEY`
-and `LORE_REVIEWER_APP_INSTALLATION_ID`. The references are `optional`, so the
-stations pod starts before they exist; restart it once they do:
+ESO mirrors the three into the `lore-reviewer-app` Secret in `lore-stations`,
+read as `LORE_REVIEWER_APP_ID`, `LORE_REVIEWER_APP_PRIVATE_KEY` and
+`LORE_REVIEWER_APP_INSTALLATION_ID`. The references are `optional`, so the
+stations pod starts before the values exist; once they do, sync and restart:
 
 ```bash
+kubectl -n lore-stations annotate externalsecret lore-reviewer-app force-sync="$(date +%s)" --overwrite
 kubectl -n lore-stations rollout restart deploy/lore-stations
 ```
 

@@ -204,7 +204,7 @@ variable "enable_utopia_auto_setup" {
 }
 
 variable "enable_lore_reviewer" {
-  description = "Mirror the lore-reviewer GitHub App's id, private key and installation id (GSM lore-reviewer-app-*) into lore-stations, where the auto-merge loop approves green, reviewed pull requests as it (docs/managing-secrets.md). Seed the three secrets before turning it on."
+  description = "Mirror the lore-reviewer GitHub App's id, private key and installation id (GSM lore-reviewer-app-*) into lore-stations, where the auto-merge loop approves green, reviewed pull requests as it (docs/managing-secrets.md). Turning it on creates the three GSM containers; add their versions after the apply, then force-sync and restart lore-stations."
   type        = bool
   default     = false
 }
