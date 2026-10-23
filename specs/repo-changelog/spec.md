@@ -1,0 +1,58 @@
+# Feature Specification: Repository Changelog
+
+| Field    | Value                                         |
+|----------|-----------------------------------------------|
+| Feature  | Repository Changelog                          |
+| Branch   | feat/changelog-weeks                          |
+| Status   | In Progress                                   |
+| Created  | 2026-10-23                                    |
+| Owner    | Platform Engineering                          |
+
+Every repository gets a changelog: the work done per week, newest first, each finished week opening with a short introduction on what was delivered. The daily Slack digest stays short (one line per person, `specs/daily-digest` FR5) and links here for the full list.
+
+## Problem Statement
+
+The daily digest listed every merged pull request and open issue per repository. People found it too long, and most of them read only their own lines (feedback, 2026-10-23). The full list still matters, read a week at a time and with a few sentences saying what the week delivered, so it moves to a page of its own. Nothing in Lore kept a repository's weeks: GitHub is read for each digest's window and nothing is stored.
+
+## Background: how it runs
+
+On Mondays the stations service starts one `weekly-changelog` run on the external floor per onboarded repository, for the ISO week that just ended. A station collects what merged and closed that week, an agent writes the introduction, and a station stores the week in `lore.changelog_weeks`. The repository's Changelog tab reads the stored weeks and reads the current week live (FR6, not built yet).
+
+## FR1 — The week
+
+- A week is an ISO week in UTC, keyed `YYYY-Www`, running from Monday 00:00 to the next Monday 00:00. ([validated by returns Monday 2026-10-19 to Monday 2026-10-26 for 2026-W43](libs/shared/src/work/changelog/changelog-week.test.ts#L11), [returns Monday 2026-12-28 to Monday 2027-01-04 for 2026-W53](libs/shared/src/work/changelog/changelog-week.test.ts#L15))
+- The finished weeks at a moment are the weeks before the one it falls in, newest first. ([validated by returns 2026-W43 and 2026-W42 on Monday 2026-10-26 at 06:00Z](libs/shared/src/work/changelog/changelog-week.test.ts#L24), [returns 2026-W53 on Monday 2027-01-04](libs/shared/src/work/changelog/changelog-week.test.ts#L31))
+
+## FR2 — What a week holds
+
+- A week holds the pull requests merged in it, each under its author, and the issues closed in it, each under its assignees, newest first. ([validated by lists a merged PR under its author and a closed issue under its assignees, newest first](libs/shared/src/work/changelog/changelog-week.test.ts#L39))
+- A change at the next week's Monday 00:00 belongs to the next week. ([validated by leaves out a PR merged at Monday 2026-10-26 00:00Z, the start of the next week](libs/shared/src/work/changelog/changelog-week.test.ts#L74))
+- An issue a pull request of the week closes is listed once, as the pull request. ([validated by lists issue 12 once, as the PR that closes it](libs/shared/src/work/changelog/changelog-week.test.ts#L86))
+
+## FR3 — The store
+
+- `lore.changelog_weeks` (migration 0118) holds one row per repository and week: the changes, the introduction (empty when there is none) and when it was written. A second write of the same week replaces the first. ([validated by keeps one row per repo and week, the last write winning](libs/shared/src/outbound/project/changelog-weeks/changelog-weeks.test.ts#L14), [upserts on repo and week with the changes as jsonb](libs/shared/src/outbound/project/changelog-weeks/changelog-weeks.test.ts#L62))
+- It answers which of a set of weeks a repository already has, and a page of a repository's weeks newest first, before a given week. ([validated by answers 2026-W42 as the one written of W42 and W43](libs/shared/src/outbound/project/changelog-weeks/changelog-weeks.test.ts#L23), [pages newest first, before 2026-W43 giving W42 then W41](libs/shared/src/outbound/project/changelog-weeks/changelog-weeks.test.ts#L33), [maps a page row's columns onto the model](libs/shared/src/outbound/project/changelog-weeks/changelog-weeks.test.ts#L73))
+
+## FR4 — The weekly-changelog line
+
+- `libs/assembly-lines/src/floor-pipelines/weekly-changelog.yaml` walks `collect` (service station `changelog-collect`), `intro` (agent station `changelog-intro`) and `store` (service station `changelog-store`). Every outcome of `intro` reaches `store`, so the agent can never block a week, and an empty week goes from `collect` straight to `store`. A failed `collect` or `store` is retried once. ([validated by walks weekly-changelog from collect through intro to store, reaching store on every outcome of intro and straight from an empty collect](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L669))
+- A run is keyed on `changelog_key`, the repository and the week; the agent gets the week as `changelog-week.json`, and its `intro.md` is an optional need of `changelog-store`. ([validated by keys a weekly-changelog run on changelog_key, hands the agent the week as changelog-week.json and takes intro.md back as an optional need of changelog-store](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L692))
+- The agent's prompt names both files by the paths the floor gives it, and no repository clone. ([validated by tells the changelog agent the week's and the intro's paths, and names no repository clone](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L714))
+- `changelog-collect` reads the repository for the week and produces it as `changelog_week`; it reports `empty` when nothing merged or closed, and `failed` when GitHub cannot be read or the run carries no week. ([validated by reads re-cinq/lore for 2026-10-19 to 2026-10-26 and produces the week with pull request 7](apps/stations/src/changelog/collect/station.test.ts#L55), [reports empty, with the empty week produced, when nothing merged or closed](apps/stations/src/changelog/collect/station.test.ts#L82), [reports failed with GitHub's reason when re-cinq/lore cannot be read](apps/stations/src/changelog/collect/station.test.ts#L93), [reports failed when the run carries no week_key](apps/stations/src/changelog/collect/station.test.ts#L104))
+- `changelog-store` writes the week with the agent's introduction, or with none when the agent left none, and stores nothing for a file that is not a week. ([validated by stores re-cinq/lore's 2026-W43 with the agent's introduction](apps/stations/src/changelog/store/station.test.ts#L42), [stores the week without an introduction when the agent left none](apps/stations/src/changelog/store/station.test.ts#L57), [reports failed and stores nothing when the week file is not a week](apps/stations/src/changelog/store/station.test.ts#L67))
+
+## FR5 — The tick
+
+- `cron.changelog.tick` fires Mondays at 06:00 UTC; the `changelog-tick` sweep starts one `weekly-changelog` run per onboarded repository for each requested finished week the repository has no row for, by default the week that just ended. ([validated by starts weekly-changelog for re-cinq/lore's 2026-W43 on Monday 2026-10-26, keyed re-cinq/lore:2026-W43](apps/stations/src/work/changelog-tick/changelog-tick.test.ts#L42), [starts only 2026-W42 when asked for 2 weeks and 2026-W43 is already written](apps/stations/src/work/changelog-tick/changelog-tick.test.ts#L63))
+- Started over HTTP, `repo` narrows the sweep and `weeks` backfills up to 12 finished weeks. A week the floor refuses is logged and the others still start. ([validated by narrows to params.repo and caps weeks at 12](apps/stations/src/work/changelog-tick/changelog-tick.test.ts#L96), [starts re-cinq/otto when the floor refuses re-cinq/lore, and counts 1 of 2](apps/stations/src/work/changelog-tick/changelog-tick.test.ts#L79))
+
+## FR6 — The Changelog tab
+
+- A repository's page has a Changelog tab listing its weeks newest first, each finished week opening with its introduction, the current week read live from GitHub without one.
+- The tab can group a week's changes by person: a pull request under its author, an issue under each assignee.
+- The daily digest ends with a link to the Changelog tab of each repository it covers.
+
+## Rationale
+
+The introduction is written once, after the week ends (decided 2026-10-23): a week still in progress changes daily, and an introduction rewritten each day would read differently every visit. Weeks are in UTC so every repository's week has the same bounds whatever its digest's timezone.

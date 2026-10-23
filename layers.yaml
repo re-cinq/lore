@@ -27,6 +27,7 @@ layers:
       - planning
       - merge
       - digest
+      - changelog
       - onboard
       - implementation-loop
       - spec-upkeep
@@ -64,6 +65,12 @@ layers:
     # The stations the external floor dispatches for the daily-digest line, one
     # folder each, sharing one composition root.
     digest:
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the weekly-changelog line,
+    # one folder each, sharing one composition root.
+    changelog:
       - outbound
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"

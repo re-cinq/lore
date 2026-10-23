@@ -30,6 +30,10 @@
       "types": "./dist/outbound/db/*.d.ts",
       "default": "./dist/outbound/db/*.js"
     },
+    "./changelog/*.js": {
+      "types": "./dist/work/changelog/*.d.ts",
+      "default": "./dist/work/changelog/*.js"
+    },
     "./digest/*.js": {
       "types": "./dist/work/digest/*.d.ts",
       "default": "./dist/work/digest/*.js"

@@ -28,6 +28,7 @@ import { startCodeReviewStations } from "./code-review/index.js";
 import { startPlanningStations } from "./planning/index.js";
 import { startMergeStations } from "./merge/index.js";
 import { startDigestStations } from "./digest/index.js";
+import { startChangelogStations } from "./changelog/index.js";
 import { startOnboardStations } from "./onboard/index.js";
 import { startSpecUpkeepStations } from "./spec-upkeep/index.js";
 import { startSpecTicketsStations } from "./spec-tickets/index.js";
@@ -99,6 +100,7 @@ function startFloorStations() {
         ...startPlanningStations(),
         ...startMergeStations(),
         ...startDigestStations(),
+        ...startChangelogStations(),
         ...startOnboardStations(),
         ...startSpecUpkeepStations(),
         ...startImplementationLoopStations(),
