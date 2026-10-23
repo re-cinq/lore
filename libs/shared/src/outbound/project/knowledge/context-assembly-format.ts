@@ -139,7 +139,10 @@ export function serializeContext(
   meta: ContextMeta,
   sections: SerializedSection[],
 ): string {
-  const inner = sections.map(serializeSection).join("\n");
+  const inner = sections
+    .filter((s) => s.documents.length > 0)
+    .map(serializeSection)
+    .join("\n");
   const open = `<context query="${escapeXmlAttr(meta.query)}" template="${escapeXmlAttr(meta.template)}" budget="${meta.budget}">`;
 
   return `${open}\n${inner}\n</context>`;

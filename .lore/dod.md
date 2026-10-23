@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] `serializeContext` skips formatting a `<section>` if its `documents` array is empty.
+- [x] `serializeContext` skips formatting a `<section>` if its `documents` array is empty.
 
 ## Out of scope
 
