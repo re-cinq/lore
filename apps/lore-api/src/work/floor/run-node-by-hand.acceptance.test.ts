@@ -68,10 +68,12 @@ function scene(polled: FloorEventView[]) {
   const reads = [...polled];
   const recorded = recordedFloor((request: FloorRequest) => {
     const asked = `${request.method} ${request.path}`;
+
     return asked === "GET /events/event-7"
       ? (reads.shift() ?? POSTED)
       : ANSWERS[asked];
   });
+
   return { floor: recorded.floor, requests: recorded.requests };
 }
 
