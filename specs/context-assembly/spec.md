@@ -298,7 +298,7 @@ The tool retrieves from all available sources:
   contributing documents with provenance. ([validated by `context-assembly.test.ts:282`](libs/server-core/src/work/context/context-assembly.test.ts#L285))
 - Audit log records each `lore_assemble_context` call with: query, template used,
   sources hit, total tokens returned. *(Audit-log persistence is tracked as
-  follow-up — the in-memory trace lands first.)*
+  follow-up — the in-memory trace lands first.)* ([validated by Logging captures call variables: query, template used, sources hit, total tokens returned](apps/mcp-server/src/transport/tools/context-tools-assemble.acceptance.test.ts#L44))
 - **Embedder health is a value, not a log line.** The embedding service keeps
   `{ lastOkAt, lastFailureAt, lastStatus, consecutiveFailures }`: a refused
   Vertex call records its HTTP status, a call that never reached Vertex (no
