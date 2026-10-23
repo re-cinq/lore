@@ -1150,6 +1150,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/auto-merge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/auto-merge */
+    get: operations["get_api_repos_owner_repo_auto-merge"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/auto-merge/kpis": {
     parameters: {
       query?: never;
@@ -2782,6 +2799,83 @@ export interface components {
         created_at: string;
       }[];
     };
+    AutoMerge: {
+      current: {
+        pr_number: number;
+        pr_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+        blocked: string | null;
+      }[];
+      backlog: {
+        pr_number: number;
+        pr_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+        blocked: string | null;
+      }[];
+      parked: {
+        pr_number: number;
+        pr_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+        blocked: string | null;
+      }[];
+      awaiting_merge: {
+        pr_number: number;
+        pr_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+        blocked: string | null;
+      }[];
+      recent: {
+        pr_number: number;
+        pr_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+        blocked: string | null;
+      }[];
+    };
     BlobPreviews: {
       previews: {
         [key: string]: {
@@ -3764,7 +3858,7 @@ export interface components {
       /** @constant */
       ok: true;
       /** @enum {string} */
-      key: "implementation" | "review" | "triage";
+      key: "implementation" | "review" | "merge" | "triage";
       enabled: boolean;
     };
     MemoryAuditPage: {
@@ -4320,7 +4414,7 @@ export interface components {
     RepoLoops: {
       loops: {
         /** @enum {string} */
-        key: "implementation" | "review" | "triage";
+        key: "implementation" | "review" | "merge" | "triage";
         label: string;
         description: string;
         enabled: boolean;
@@ -7317,6 +7411,35 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_repos_owner_repo_auto-merge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The auto-merge loop: Lore's own pull requests by whether auto-merge is armed and what blocks them, and the ones merged this week */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AutoMerge"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_repos_owner_repo_auto-merge_kpis": {
     parameters: {
       query?: never;
@@ -8156,7 +8279,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Switch one of the repository's loops on or off. */
+      /** @description Switch one of the repository's loops on or off. Switching auto merge on needs the lore-reviewer App, a protecting branch rule and the two-key approval PR (x-lore-approval-pr), and answers 403 naming what is missing. */
       200: {
         headers: {
           [name: string]: unknown;

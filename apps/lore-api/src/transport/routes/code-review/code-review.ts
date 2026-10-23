@@ -9,10 +9,7 @@ import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import {
-  githubFailureResponse,
-  onboardedProject,
-} from "../repos/github-read.js";
+import { answerRepoRead, onboardedProject } from "../repos/github-read.js";
 import type { FloorRunPageOf } from "../floor/floor-runs.js";
 import type { FloorRunRow } from "../../../work/floor/floor-run-rows.js";
 import {
@@ -55,14 +52,7 @@ async function serveCodeReview(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const { owner, repo } = request.params as z.infer<typeof RepoParams>;
-  const fullName = `${owner}/${repo}`;
-
-  try {
-    return h.response(await readQueues(pageOf, fullName));
-  } catch (err) {
-    return githubFailureResponse(err, h, "pull requests");
-  }
+  return answerRepoRead(request, h, (fullName) => readQueues(pageOf, fullName));
 }
 
 async function readQueues(pageOf: FloorRunPageOf, fullName: string) {

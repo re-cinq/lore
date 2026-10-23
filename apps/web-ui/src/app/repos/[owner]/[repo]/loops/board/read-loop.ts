@@ -3,6 +3,7 @@ import {
   getImplementationLoop,
   type ImplementationLoop,
 } from "@/lib/api/backlog";
+import { getAutoMerge } from "@/lib/api/auto-merge";
 import { getCodeReview } from "@/lib/api/code-review";
 import type { RepoLoop } from "@/lib/api/loops";
 import type { ApiResult } from "@/lib/api/result";
@@ -10,6 +11,7 @@ import { getIssueTriage } from "@/lib/api/triage";
 import {
   implementationNotice,
   implementationSections,
+  mergeSections,
   pausedNotice,
   reviewSections,
   triageSections,
@@ -17,24 +19,32 @@ import {
   type LoopSections,
 } from "./board";
 
+type LoopReader = (loop: RepoLoop, repo: string) => Promise<LoopRead>;
+
+/** Each loop but the implementation loop reads through its own lore-api route into the shared sections. */
+const READERS: Partial<Record<RepoLoop["key"], LoopReader>> = {
+  review: async (loop, repo) =>
+    settle(loop, await getCodeReview(repo), (queues) =>
+      reviewSections(loop, queues),
+    ),
+  merge: async (loop, repo) =>
+    settle(loop, await getAutoMerge(repo), (merge) =>
+      mergeSections(loop, merge),
+    ),
+  triage: async (loop, repo) =>
+    settle(loop, await getIssueTriage(repo), (triage) =>
+      triageSections(loop, triage),
+    ),
+};
+
 /** One shown loop's rows, read through its own lore-api route. The implementation loop's raw read rides along for its onboarding banner. */
 export async function readLoop(
   loop: RepoLoop,
   repo: string,
 ): Promise<LoopRead & { implementation?: ImplementationLoop }> {
-  if (loop.key === "review") {
-    return settle(loop, await getCodeReview(repo), (queues) =>
-      reviewSections(loop, queues),
-    );
-  }
+  const read = READERS[loop.key];
 
-  if (loop.key === "triage") {
-    return settle(loop, await getIssueTriage(repo), (triage) =>
-      triageSections(loop, triage),
-    );
-  }
-
-  return readImplementation(loop, repo);
+  return read ? read(loop, repo) : readImplementation(loop, repo);
 }
 
 async function readImplementation(loop: RepoLoop, repo: string) {

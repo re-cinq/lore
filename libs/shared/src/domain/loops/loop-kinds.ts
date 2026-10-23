@@ -14,6 +14,12 @@ export const LOOP_KINDS = [
       "Reviews every pull request when it opens and again on every push, and answers a request for changes from a trusted reviewer.",
   },
   {
+    key: "merge",
+    label: "Auto merge",
+    description:
+      "Lore arms GitHub's auto-merge on its own pull requests that pass review; while this is on, lore-reviewer also approves them, so GitHub merges once the branch rule is met. While it is off, a person's approval is what merges them.",
+  },
+  {
     key: "triage",
     label: "Issue triage",
     description:

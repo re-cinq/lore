@@ -5,6 +5,7 @@ import type { IssueTriage } from "@/lib/api/triage";
 import {
   loopBoard,
   pausedNotice,
+  mergeSections,
   reviewSections,
   triageSections,
   type LoopRead,
@@ -183,5 +184,39 @@ describe("loop rows", () => {
         "needs-reproduction",
       ],
     });
+  });
+
+  it("draws an auto-merge row as Lore's pull request, its blocked reason beside the title", () => {
+    const MERGE = loop("merge", "Auto merge");
+    const [row] = mergeSections(MERGE, {
+      ...empty,
+      parked: [
+        {
+          pr_number: 4,
+          pr_url: "https://github.com/acme/widgets/pull/4",
+          title: "Fix",
+          state: "blocked",
+          blocked: "Needs a code owner's approval",
+          run_id: null,
+          pipeline: null,
+          created_at: null,
+        },
+      ],
+    }).parked;
+
+    expect([row.ref, row.state, row.tag, row.prUrl]).toEqual([
+      "#4",
+      "blocked",
+      "Needs a code owner's approval",
+      "https://github.com/acme/widgets/pull/4",
+    ]);
+  });
+
+  it("says above the Backlog that a switched-off auto merge waits for a person's approval, not that nothing is picked", () => {
+    const off = { ...loop("merge", "Auto merge"), enabled: false };
+
+    expect(pausedNotice(off)).toBe(
+      "Auto merge is switched off: lore-reviewer approves nothing, so each of Lore's pull requests waits for a person's approval before GitHub merges it.",
+    );
   });
 });

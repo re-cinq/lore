@@ -19,24 +19,61 @@ describe("switchLoopAction", () => {
       data: { ok: true, key: "triage", enabled: false },
     } as never);
 
-    await switchLoopAction("re-cinq/lore", "triage", { enabled: false });
-
-    expect(setLoopEnabled).toHaveBeenCalledWith("re-cinq/lore", "triage", {
+    const refused = await switchLoopAction("re-cinq/lore", "triage", {
       enabled: false,
     });
-    expect(revalidatePath).toHaveBeenCalledWith("/repos/re-cinq/lore/loops");
+
+    expect({
+      refused,
+      asked: vi.mocked(setLoopEnabled).mock.calls,
+      revalidated: vi.mocked(revalidatePath).mock.calls,
+    }).toEqual({
+      refused: null,
+      asked: [["re-cinq/lore", "triage", { enabled: false }]],
+      revalidated: [["/repos/re-cinq/lore/loops"]],
+    });
   });
 
-  it("throws on a failed write instead of reporting a silent success", async () => {
+  it("answers the two-key sentence for a refused auto-merge switch and refreshes nothing", async () => {
     vi.mocked(setLoopEnabled).mockResolvedValue({
       status: "error",
-      message: "403",
-    } as never);
+      message: "two_key_required",
+      code: 403,
+      body: { error: "two_key_required" },
+    });
 
-    await expect(
-      switchLoopAction("re-cinq/lore", "implementation", { enabled: true }),
-    ).rejects.toThrow();
-    expect(revalidatePath).not.toHaveBeenCalled();
+    const refused = await switchLoopAction("re-cinq/lore", "merge", {
+      enabled: true,
+    });
+
+    expect({
+      refused,
+      revalidated: vi.mocked(revalidatePath).mock.calls,
+    }).toEqual({
+      refused:
+        "Switching auto merge on is two-key: name a pull request labelled dark-factory-approval and approved by a code owner of CLAUDE.md.",
+      revalidated: [],
+    });
+  });
+
+  it("answers the code-owner check's own detail when the approval PR does not pass it", async () => {
+    vi.mocked(setLoopEnabled).mockResolvedValue({
+      status: "error",
+      message: "codeowners_check_failed",
+      code: 403,
+      body: {
+        error: "codeowners_check_failed",
+        detail:
+          "re-cinq/lore#123 has no approval from a code owner of CLAUDE.md",
+      },
+    });
+
+    expect(
+      await switchLoopAction("re-cinq/lore", "merge", {
+        enabled: true,
+        approvalPr: "re-cinq/lore#123",
+      }),
+    ).toBe("re-cinq/lore#123 has no approval from a code owner of CLAUDE.md");
   });
 });
 

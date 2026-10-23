@@ -1,6 +1,7 @@
 // The Loops tab's board (specs/implementation-loop FR9): every shown loop's rows in one set of shared sections. Pure: the reads are handed in.
 import type { PipelineNode } from "@/lib/assembly-run-rows";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
+import type { AutoMerge, MergeRow } from "@/lib/api/auto-merge";
 import type { CodeReview, ReviewRow } from "@/lib/api/code-review";
 import type { RepoLoop } from "@/lib/api/loops";
 import type { IssueTriage, TriageRow } from "@/lib/api/triage";
@@ -76,6 +77,8 @@ const BACKLOG_HINT: Record<string, string> = {
   implementation:
     "Label an issue priority:high, priority:medium, or priority:low to queue it.",
   review: "Every open pull request no review has looked at waits here.",
+  merge:
+    "Lore's own pull requests wait here until Lore's review approves them and auto-merge is armed.",
   triage: "Label an issue triage: needs-triage to have it triaged.",
 };
 
@@ -140,10 +143,21 @@ function emptyText(key: SectionKey, reads: readonly LoopRead[]): string {
 
 /** Says once above the backlog that nothing in it is picked while the loop is off. */
 export function pausedNotice(loop: RepoLoop): string | undefined {
-  return loop.enabled
-    ? undefined
-    : `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
+  if (loop.enabled) {
+    return undefined;
+  }
+
+  return (
+    OFF_NOTICE[loop.key] ??
+    `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`
+  );
 }
+
+/** A loop whose work goes on while it is off, said as it is. */
+const OFF_NOTICE: Partial<Record<RepoLoop["key"], string>> = {
+  merge:
+    "Auto merge is switched off: lore-reviewer approves nothing, so each of Lore's pull requests waits for a person's approval before GitHub merges it.",
+};
 
 /** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
 export function implementationNotice(loop: RepoLoop): string | undefined {
@@ -191,6 +205,22 @@ export function reviewSections(
     pipeline: row.pipeline,
     prUrl: row.pr_url,
     tag: row.line,
+    hold: null,
+  }));
+}
+
+export function mergeSections(loop: RepoLoop, merge: AutoMerge): LoopSections {
+  return mapSections(merge, (row: MergeRow) => ({
+    loop,
+    ref: `#${row.pr_number}`,
+    title: row.title,
+    url: row.pr_url,
+    state: row.state,
+    since: row.created_at,
+    runId: row.run_id,
+    pipeline: row.pipeline,
+    prUrl: row.pr_url,
+    tag: row.blocked,
     hold: null,
   }));
 }

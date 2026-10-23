@@ -4,14 +4,22 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import { projectFor } from "../../../outbound/project-boot.js";
+import { disarmAutoMerge } from "../repos/auto-merge-gate.js";
 
-/** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, or a top-level boolean. */
+/** Where each loop's switch lives in `lore.repos.settings`: a boolean inside a named block, a top-level boolean, or (auto merge) the approver it names. */
 const SWITCH_SQL: Record<LoopKey, string> = {
   implementation: blockSwitchSql("implementation_loop"),
   review: `UPDATE lore.repos
               SET settings = COALESCE(settings, '{}'::jsonb)
                 || jsonb_build_object('auto_review', $2::boolean)
             WHERE full_name = $1`,
+  merge: `UPDATE lore.repos
+             SET settings = COALESCE(settings, '{}'::jsonb)
+               || jsonb_build_object('auto_merge',
+                    COALESCE(settings->'auto_merge', '{}'::jsonb)
+                      || jsonb_build_object('approver',
+                           CASE WHEN $2::boolean THEN 'lore-reviewer' ELSE 'none' END))
+           WHERE full_name = $1`,
   triage: blockSwitchSql("issue_triage"),
 };
 
@@ -25,22 +33,25 @@ function blockSwitchSql(block: string): string {
           WHERE full_name = $1`;
 }
 
-/** Flips one loop's switch. Switching the implementation loop on also seeds its labels. */
+/** Flips one loop's switch on a repository the caller has already found (`enforceRepoRow`). Switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
 export async function switchLoop(
   pool: Pool,
   repo: string,
   key: LoopKey,
   { enabled }: { enabled: boolean },
 ): Promise<void> {
-  await enforceRepoRow(pool, repo);
   await pool.query(SWITCH_SQL[key], [repo, enabled]);
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);
   }
+
+  if (key === "merge" && !enabled) {
+    await disarmAutoMerge(repo);
+  }
 }
 
-async function enforceRepoRow(pool: Pool, repo: string): Promise<void> {
+export async function enforceRepoRow(pool: Pool, repo: string): Promise<void> {
   const { rows } = await pool.query<{ full_name: string }>(
     "SELECT full_name FROM lore.repos WHERE full_name = $1",
     [repo],

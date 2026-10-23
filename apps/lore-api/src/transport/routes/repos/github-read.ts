@@ -1,4 +1,4 @@
-import type { ResponseObject, ResponseToolkit } from "@hapi/hapi";
+import type { Request, ResponseObject, ResponseToolkit } from "@hapi/hapi";
 import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
@@ -14,6 +14,21 @@ export const RepoNumberParams = z.object({
 });
 
 export type RepoNumberParams = z.infer<typeof RepoNumberParams>;
+
+/** Answers what `read` finds for the repo the path names, or how its GitHub read failed. */
+export async function answerRepoRead(
+  request: Request,
+  h: ResponseToolkit,
+  read: (fullName: string) => Promise<object>,
+): Promise<ResponseObject> {
+  const { owner, repo } = request.params as { owner: string; repo: string };
+
+  try {
+    return h.response(await read(`${owner}/${repo}`));
+  } catch (err) {
+    return githubFailureResponse(err, h, "pull requests");
+  }
+}
 
 export async function onboardedProject(repo: string): Promise<Project> {
   const project = await projectFor(repo);

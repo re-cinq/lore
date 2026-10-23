@@ -1,21 +1,29 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { setLoopEnabled, type LoopKey } from "@/lib/api/loops";
+import {
+  setLoopEnabled,
+  type LoopKey,
+  type SwitchRequest,
+} from "@/lib/api/loops";
 import { onboardRepo } from "@/lib/api/repos";
 import { enforceOk } from "@/lib/api/result";
+import { refusalReason } from "./switch-refusal";
 
-/** Flip one of the repo's loops; repo identity and loop key come from the server via bound parameters, never the browser. */
+/** Flip one of the repo's loops; repo identity and loop key come from the server via bound parameters, never the browser. Answers why lore-api refused, or null: a thrown message is hidden from the browser in production, and a refused switch must say what is missing. */
 export async function switchLoopAction(
   fullName: string,
   key: LoopKey,
-  { enabled }: { enabled: boolean },
-): Promise<void> {
-  enforceOk(
-    `switch ${key} loop`,
-    await setLoopEnabled(fullName, key, { enabled }),
-  );
+  asked: SwitchRequest,
+): Promise<string | null> {
+  const result = await setLoopEnabled(fullName, key, asked);
+
+  if (result.status !== "ok") {
+    return refusalReason(result);
+  }
   revalidateLoopsTab(fullName);
+
+  return null;
 }
 
 /** Queue the repo's onboarding again from the Loops tab. lore-api's onboard guard still refuses a duplicate, so a second click while one is running queues nothing. */

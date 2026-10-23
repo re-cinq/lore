@@ -88,23 +88,4 @@ describe("SettingsView (general only)", () => {
     expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
     expect(container.querySelector('select[name="model_select"]')).toBeNull();
   });
-
-  it("renders the auto_merge.approver select prefilled from settings", () => {
-    const { container } = renderView({
-      auto_merge: { approver: "lore-reviewer" },
-    });
-
-    expect(
-      container.querySelector('select[name="auto_merge_approver"]'),
-    ).toHaveValue("lore-reviewer");
-  });
-
-  it("links to GitHub's install page for lore-reviewer on that repo", () => {
-    const { container } = renderView();
-    const link = container.querySelector(
-      'a[href*="/apps/lore-reviewer/installations/new"]',
-    );
-
-    expect(link).not.toBeNull();
-  });
 });
