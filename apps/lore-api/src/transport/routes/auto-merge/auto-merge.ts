@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import type { Project } from "@re-cinq/lore-shared";
+import { mergeCandidate } from "@re-cinq/lore-shared/loops/merge-candidate.js";
 import { autoMergeMinAgeHours } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { loreReviewVerdict } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
@@ -71,34 +72,38 @@ async function readQueues(
   fullName: string,
 ) {
   const project = await onboardedProject(fullName);
-  const since = new Date(Date.now() - RECENT_DAYS * DAY_MS).toISOString();
-  const [pulls, merged, blocks, page, settings] = await Promise.all([
-    project.pulls.list(),
-    project.pulls.listMergedSince(since),
-    storedBlocks(sources.pool, fullName),
-    sources.pageOf({ repo: fullName, line: AUTO_MERGE_LINE, limit: RUNS_READ }),
-    project.settings.rawSettings(),
-  ]);
-  const open = pulls.filter((pull) => loopCandidate(pull, fullName));
+  const read = await readBoard(project, sources, fullName);
+  const open = read.pulls.filter((pull) => mergeCandidate(pull, fullName));
 
   return mergeQueues({
     open,
     reviewed: await reviewedPulls(project, open),
-    runs: page.runs,
-    merged,
-    blocks,
-    minAgeHours: autoMergeMinAgeHours(settings),
+    runs: read.page.runs,
+    merged: read.merged,
+    blocks: read.blocks,
+    minAgeHours: autoMergeMinAgeHours(read.settings),
     now: Date.now(),
   });
 }
 
-/** What the loop may take: open, ready for review, on a branch of this repository. */
-function loopCandidate(pull: PullRef, repo: string): boolean {
-  const ownBranch =
-    pull.headRepo === undefined ||
-    pull.headRepo.toLowerCase() === repo.toLowerCase();
+async function readBoard(
+  project: Project,
+  sources: { pool: Pool; pageOf: FloorRunPageOf },
+  fullName: string,
+) {
+  const [pulls, merged, blocks, page, settings] = await Promise.all([
+    project.pulls.list(),
+    project.pulls.listMergedSince(recentSince()),
+    storedBlocks(sources.pool, fullName),
+    sources.pageOf({ repo: fullName, line: AUTO_MERGE_LINE, limit: RUNS_READ }),
+    project.settings.rawSettings(),
+  ]);
 
-  return pull.state === "open" && pull.draft !== true && ownBranch;
+  return { pulls, merged, blocks, page, settings };
+}
+
+function recentSince(): string {
+  return new Date(Date.now() - RECENT_DAYS * DAY_MS).toISOString();
 }
 
 /** The open pull requests Lore's review stands approved on, read from the check it publishes on each head. */

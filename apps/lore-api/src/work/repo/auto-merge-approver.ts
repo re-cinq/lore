@@ -40,13 +40,12 @@ function armedLorePulls(
   open: PullRef[],
   armers: Pick<DisarmTargets, "appLogin" | "loopPulls">,
 ): Array<{ number: number; nodeId: string }> {
-  return open.flatMap(({ number, nodeId, author, autoMerge }) =>
-    (isLores(author, armers.appLogin) || armers.loopPulls.has(number)) &&
-    autoMerge &&
-    nodeId
-      ? [{ number, nodeId }]
-      : [],
-  );
+  return open.flatMap(({ number, nodeId, author, autoMerge }) => {
+    const loopArmed =
+      isLores(author, armers.appLogin) || armers.loopPulls.has(number);
+
+    return loopArmed && autoMerge && nodeId ? [{ number, nodeId }] : [];
+  });
 }
 
 function isLores(author: string | undefined, appLogin: string | undefined) {

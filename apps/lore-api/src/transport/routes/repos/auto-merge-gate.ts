@@ -51,13 +51,13 @@ async function loopPullsOf(repo: string): Promise<Set<number>> {
   if (!floorConfigured()) {
     return new Set();
   }
-  const { items } = await floorClient().runs.list(
+  const { items: loopRuns } = await floorClient().runs.list(
     { repo: floorRepoOf(repo), line: AUTO_MERGE_LINE },
     { limit: LOOP_RUNS_READ },
   );
 
   return new Set(
-    items.flatMap((run) => {
+    loopRuns.flatMap((run) => {
       const url = startValue(run, "pr_url");
 
       return url ? [parsePullRequestUrl(url).prNumber] : [];

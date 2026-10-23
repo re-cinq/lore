@@ -1,4 +1,5 @@
 import type { CiConclusion } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { ciWait } from "./decide-ready.js";
 
 /** What the auto-merge loop's wait does with one pull request (specs/protected-branch-merge). */
 export type MergeReadyVerdict =
@@ -56,18 +57,11 @@ function buildVerdict(input: MergeReadyInput): MergeReadyVerdict | null {
     return blocked("pr_conflicting");
   }
 
-  if (input.ci === "pending") {
-    return { kind: "wait", reason: "ci_pending" };
-  }
+  return input.ci === "failure" ? redVerdict(input) : ciWait(input);
+}
 
-  if (input.ci === "none" && input.hasCiHistory) {
-    return { kind: "wait", reason: "ci_not_started" };
-  }
-
-  if (input.ci !== "failure") {
-    return null;
-  }
-
+/** Red on the sha the last red verdict named: the fix pushed nothing, so another round would not either. */
+function redVerdict(input: MergeReadyInput): MergeReadyVerdict {
   return input.judgedSha === input.lastRedSha
     ? { kind: "blocked", reason: "ci_red_unchanged", outcome: "failed" }
     : blocked("ci_red");

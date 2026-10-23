@@ -8,12 +8,11 @@ import {
   loreCheckName,
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { decidePrReady, type PrReadyVerdict } from "./decide-ready.js";
+import { decidePrReady } from "./decide-ready.js";
 import {
   decideCiReady,
   redFeedback,
   type CiCheckVerdict,
-  type CiFeedbackArgs,
 } from "./decide-ci.js";
 import {
   LOOP_BLUEPRINT,
@@ -34,14 +33,15 @@ export async function prReportForRun(
   }
   const evidence = await prEvidence(run, deps, judged);
 
-  return prReport(
+  return parkedReport(
     decidePrReady({
       ci: ciConclusionOf(evidence.checks),
       threads: evidence.threads,
       openReviewRunCount: evidence.openReviewRunCount,
       hasCiHistory: evidence.hasCiHistory,
     }),
-    () => redFeedback(evidence.checks, judged.headSha),
+    (reason) =>
+      reason === "ci_red" ? redFeedback(evidence.checks, judged.headSha) : {},
   );
 }
 
@@ -68,11 +68,16 @@ async function prEvidence(
   };
 }
 
-/** A red build reaches `fix-ci` naming the checks that failed; every other blocked reason carries only its reason. */
-function prReport(
-  verdict: PrReadyVerdict,
-  feedback: () => CiFeedbackArgs,
-): ParkedReport | null {
+/** A verdict as the parked node hears it: ready, blocked with its reason and what the fix needs, or nothing while the pull request is still moving. */
+export async function parkedReport(
+  verdict:
+    | { kind: "ready" }
+    | { kind: "wait" }
+    | { kind: "blocked"; reason: string; outcome: ParkedReport["outcome"] },
+  feedback: (
+    reason: string,
+  ) => Record<string, unknown> | Promise<Record<string, unknown>>,
+): Promise<ParkedReport | null> {
   if (verdict.kind === "ready") {
     return { outcome: "success", args: {} };
   }
@@ -83,10 +88,7 @@ function prReport(
 
   return {
     outcome: verdict.outcome,
-    args: {
-      reason: verdict.reason,
-      ...(verdict.reason === "ci_red" ? feedback() : {}),
-    },
+    args: { reason: verdict.reason, ...(await feedback(verdict.reason)) },
   };
 }
 

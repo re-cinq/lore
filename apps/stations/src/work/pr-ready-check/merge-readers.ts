@@ -3,18 +3,22 @@ import {
   ciConclusionOf,
   ciJudgedSha,
   externalCheckRuns,
+  type Project,
 } from "@re-cinq/lore-shared";
+import { autoMergeMinAgeHours } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { loreReviewVerdict } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type {
+  CheckRun,
+  PullRef,
   ReviewComment,
   ReviewThread,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { redFeedback } from "./decide-ci.js";
 import {
   decideMergeReady,
-  type MergeReadyVerdict,
+  type MergeReadyInput,
 } from "./decide-merge-ready.js";
-import { explainedChecks } from "./park-readers.js";
+import { explainedChecks, parkedReport } from "./park-readers.js";
 import type {
   LoopRunSlice,
   ParkedReport,
@@ -61,7 +65,7 @@ export async function mergeReportForRun(
   const evidence = await mergeEvidence(run, deps, { prNumber, headSha });
   const verdict = decideMergeReady(evidence.input);
 
-  return reportOf(verdict, () => feedbackOf(deps, run, evidence));
+  return parkedReport(verdict, () => feedbackOf(deps, run, evidence));
 }
 
 type Evidence = Awaited<ReturnType<typeof mergeEvidence>>;
@@ -69,38 +73,68 @@ type Evidence = Awaited<ReturnType<typeof mergeEvidence>>;
 async function mergeEvidence(
   run: LoopRunSlice,
   deps: MergeWaitDeps,
+  pr: { prNumber: number; headSha: string },
+) {
+  const read = await readMergeFacts(run.repo, deps, pr);
+  const ci = await explainedChecks(
+    run.repo,
+    externalCheckRuns(read.checks),
+    deps,
+  );
+  const open = openThreads(read.threads);
+
+  return {
+    ...pr,
+    ci,
+    open,
+    input: decisionInput(run, deps, { read, ci, open, headSha: pr.headSha }),
+  };
+}
+
+type MergeFacts = Awaited<ReturnType<typeof readMergeFacts>>;
+
+interface JudgedPull {
+  read: MergeFacts;
+  ci: CheckRun[];
+  open: ReviewThread[];
+  headSha: string;
+}
+
+function decisionInput(
+  run: LoopRunSlice,
+  deps: Pick<MergeWaitDeps, "now">,
+  { read, ci, open, headSha }: JudgedPull,
+): MergeReadyInput {
+  return {
+    mergeable: read.facts.mergeable,
+    ci: ciConclusionOf(ci),
+    hasCiHistory: read.hasCiHistory,
+    judgedSha: headSha,
+    lastRedSha: stringArg(run.args.ci_feedback_sha),
+    unresolvedThreads: open.length,
+    openReviewRuns: read.openReviewRuns,
+    review: loreReviewVerdict(read.checks),
+    ageHours: ageHours(read.facts.createdAt, deps.now()),
+    minAgeHours: read.minAgeHours,
+  };
+}
+
+async function readMergeFacts(
+  repo: string,
+  deps: MergeWaitDeps,
   { prNumber, headSha }: { prNumber: number; headSha: string },
 ) {
   const [checks, threads, openReviewRuns, hasCiHistory, facts, minAgeHours] =
     await Promise.all([
-      deps.listChecks(run.repo, headSha),
-      deps.listReviewThreads(run.repo, prNumber),
-      deps.countOpenReviewRuns(run.repo, prNumber),
-      deps.hasCiHistory(run.repo),
-      deps.pullFacts(run.repo, prNumber),
-      deps.minAgeHours(run.repo),
+      deps.listChecks(repo, headSha),
+      deps.listReviewThreads(repo, prNumber),
+      deps.countOpenReviewRuns(repo, prNumber),
+      deps.hasCiHistory(repo),
+      deps.pullFacts(repo, prNumber),
+      deps.minAgeHours(repo),
     ]);
-  const ci = await explainedChecks(run.repo, externalCheckRuns(checks), deps);
-  const open = openThreads(threads);
 
-  return {
-    prNumber,
-    headSha,
-    ci,
-    open,
-    input: {
-      mergeable: facts.mergeable,
-      ci: ciConclusionOf(ci),
-      hasCiHistory,
-      judgedSha: headSha,
-      lastRedSha: stringArg(run.args.ci_feedback_sha),
-      unresolvedThreads: open.length,
-      openReviewRuns,
-      review: loreReviewVerdict(checks),
-      ageHours: ageHours(facts.createdAt, deps.now()),
-      minAgeHours,
-    },
-  };
+  return { checks, threads, openReviewRuns, hasCiHistory, facts, minAgeHours };
 }
 
 function openThreads(threads: readonly ReviewThread[]): ReviewThread[] {
@@ -114,25 +148,6 @@ function ageHours(createdAt: string | null, now: number): number {
 
 function stringArg(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-/** The parked node hears ready, a blocked reason with what the fix needs, or nothing while the pull request is still moving. */
-async function reportOf(
-  verdict: MergeReadyVerdict,
-  feedback: (reason: string) => Promise<Record<string, unknown>>,
-): Promise<ParkedReport | null> {
-  if (verdict.kind === "ready") {
-    return { outcome: "success", args: {} };
-  }
-
-  if (verdict.kind === "wait") {
-    return null;
-  }
-
-  return {
-    outcome: verdict.outcome,
-    args: { reason: verdict.reason, ...(await feedback(verdict.reason)) },
-  };
 }
 
 /** Red CI rides as the failed checks; open threads and a review's request ride as review feedback, the text the fix answers. */
@@ -170,7 +185,8 @@ function threadText(
   thread: ReviewThread,
   comments: readonly ReviewComment[],
 ): string | null {
-  const rootId = thread.comments[0]?.databaseId;
+  const opening = thread.comments.at(0);
+  const rootId = opening?.databaseId;
   const root = comments.find((c) => c.id === rootId);
 
   if (!root) {
@@ -179,4 +195,39 @@ function threadText(
   const at = root.line === null ? root.path : `${root.path}:${root.line}`;
 
   return `inline comment ${root.id} on ${at} (${root.user}):\n${root.body}`;
+}
+
+type MergeProjectOf = (
+  repo: string,
+) => Promise<Pick<Project, "pulls" | "settings">>;
+
+/** The reads only the auto-merge wait makes, through the sweep's per-repo cache. */
+export function mergeReads(projectOf: MergeProjectOf): MergeWaitReads {
+  return {
+    pullFacts: async (repo, number) =>
+      pullFactsOf(await (await projectOf(repo)).pulls.get(number)),
+    listReviewComments: async (repo, number) =>
+      (await projectOf(repo)).pulls.listComments(number),
+    latestReviewBody: async (repo, number) =>
+      latestBody(await (await projectOf(repo)).pulls.listReviews(number)),
+    minAgeHours: async (repo) =>
+      autoMergeMinAgeHours(
+        await (await projectOf(repo)).settings.rawSettings(),
+      ),
+    now: () => Date.now(),
+  };
+}
+
+function pullFactsOf(pull: Pick<PullRef, "createdAt" | "mergeable"> | null): {
+  createdAt: string | null;
+  mergeable: boolean | null;
+} {
+  return {
+    createdAt: pull?.createdAt ?? null,
+    mergeable: pull?.mergeable ?? null,
+  };
+}
+
+function latestBody(reviews: readonly { body: string }[]): string | null {
+  return reviews.findLast((review) => review.body.trim() !== "")?.body ?? null;
 }

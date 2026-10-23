@@ -44,15 +44,26 @@ export async function switchLoop(
 ): Promise<void> {
   await pool.query(SWITCH_SQL[key], [repo, enabled]);
 
-  if (key === "merge" && minAgeHours !== undefined) {
-    await pool.query(MIN_AGE_SQL, [repo, minAgeHours]);
+  if (key === "merge") {
+    await afterMergeSwitch(pool, repo, { enabled, minAgeHours });
   }
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);
   }
+}
 
-  if (key === "merge" && !enabled) {
+/** Auto merge keeps its one setting beside the switch, and Off takes back what the loop armed. */
+async function afterMergeSwitch(
+  pool: Pool,
+  repo: string,
+  { enabled, minAgeHours }: { enabled: boolean; minAgeHours?: number },
+): Promise<void> {
+  if (minAgeHours !== undefined) {
+    await pool.query(MIN_AGE_SQL, [repo, minAgeHours]);
+  }
+
+  if (!enabled) {
     await disarmAutoMerge(repo);
   }
 }

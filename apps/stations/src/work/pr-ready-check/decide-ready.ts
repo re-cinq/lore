@@ -38,23 +38,30 @@ export function decidePrReady(input: {
 }
 
 /** The CI-only half of the verdict, or null to fall through to the thread check. */
-function ciVerdict(input: {
-  ci: CiConclusion;
-  hasCiHistory: boolean;
-}): PrReadyVerdict | null {
-  if (input.ci === "pending") {
-    return { kind: "wait", reason: "ci_pending" };
-  }
-
-  if (input.ci === "none" && input.hasCiHistory) {
-    return { kind: "wait", reason: "ci_not_started" };
-  }
-
+function ciVerdict(input: CiState): PrReadyVerdict | null {
   if (input.ci === "failure") {
     return { kind: "blocked", reason: "ci_red", outcome: "changes_requested" };
   }
 
-  return null;
+  return ciWait(input);
+}
+
+interface CiState {
+  ci: CiConclusion;
+  hasCiHistory: boolean;
+}
+
+/** CI still to come: running, or not started yet on a branch whose earlier pushes had checks. */
+export function ciWait(
+  input: CiState,
+): { kind: "wait"; reason: "ci_pending" | "ci_not_started" } | null {
+  if (input.ci === "pending") {
+    return { kind: "wait", reason: "ci_pending" };
+  }
+
+  return input.ci === "none" && input.hasCiHistory
+    ? { kind: "wait", reason: "ci_not_started" }
+    : null;
 }
 
 /** The thread-only half of the verdict, once CI has already come back green. */

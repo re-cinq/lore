@@ -124,10 +124,7 @@ function settledRunRow(
   run: FloorRunRow,
   block: StoredBlock | undefined,
 ): MergeRow {
-  const personBlock =
-    block && ON_A_PERSON.has(block.reason)
-      ? labelForReason(block.reason, block.detail)
-      : null;
+  const personBlock = personBlockOf(block);
 
   if (run.outcome === "success" && !personBlock) {
     return row(pull, { state: "armed", blocked: null, run });
@@ -140,21 +137,35 @@ function settledRunRow(
   });
 }
 
+/** The blocked label's reason when it waits on a person; a block the loop itself clears is not one. */
+function personBlockOf(block: StoredBlock | undefined): string | null {
+  return block && ON_A_PERSON.has(block.reason)
+    ? labelForReason(block.reason, block.detail)
+    : null;
+}
+
 function recentRows(input: MergeQueuesInput): MergeRow[] {
   const worked = new Set(input.runs.map((run) => run.pr_url));
+  const loopMerged = input.merged.filter((pull) => worked.has(pull.url));
 
-  return input.merged
-    .filter((pull) => worked.has(pull.url))
-    .sort((a, b) => (b.mergedAt ?? "").localeCompare(a.mergedAt ?? ""))
+  return newestMergedFirst(loopMerged)
     .slice(0, RECENT_LIMIT)
-    .map((pull) => ({
-      ...row(pull, {
-        state: "merged",
-        blocked: null,
-        run: newestRunFor(pull.url, input.runs),
-      }),
-      created_at: pull.mergedAt ?? null,
-    }));
+    .map((pull) => mergedRow(pull, input.runs));
+}
+
+function newestMergedFirst(pulls: readonly MergePull[]): MergePull[] {
+  return [...pulls].sort((a, b) =>
+    (b.mergedAt ?? "").localeCompare(a.mergedAt ?? ""),
+  );
+}
+
+function mergedRow(pull: MergePull, runs: readonly FloorRunRow[]): MergeRow {
+  const run = newestRunFor(pull.url, runs);
+
+  return {
+    ...row(pull, { state: "merged", blocked: null, run }),
+    created_at: pull.mergedAt ?? null,
+  };
 }
 
 function newestRunFor(
@@ -187,8 +198,17 @@ function row(
     title: pull.title,
     state: fields.state,
     blocked: fields.blocked,
-    run_id: fields.run?.id ?? null,
-    pipeline: fields.run?.pipeline ?? null,
-    created_at: fields.run?.created_at ?? pull.createdAt ?? null,
+    ...runFields(fields.run, pull),
   };
+}
+
+function runFields(
+  run: FloorRunRow | undefined,
+  pull: MergePull,
+): Pick<MergeRow, "run_id" | "pipeline" | "created_at"> {
+  if (!run) {
+    return { run_id: null, pipeline: null, created_at: pull.createdAt ?? null };
+  }
+
+  return { run_id: run.id, pipeline: run.pipeline, created_at: run.created_at };
 }

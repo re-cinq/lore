@@ -50,9 +50,7 @@ export async function approveAndMerge(
   const pull = await project.pulls.get(prNumber);
 
   if (!pull || pull.state !== "open") {
-    return pull?.state === "merged"
-      ? { outcome: "success", state: "merged" }
-      : { outcome: "failed", reason: "the pull request is closed" };
+    return settledStep(pull?.state);
   }
 
   const usable = approverFor(approver, pull.author);
@@ -64,6 +62,12 @@ export async function approveAndMerge(
   return (await approvalRequired(project, pull.baseBranch))
     ? armAndApprove(project, usable, { prNumber, pull })
     : mergeUnprotected(project, usable, prNumber);
+}
+
+function settledStep(state: string | undefined): MergeStep {
+  return state === "merged"
+    ? { outcome: "success", state: "merged" }
+    : { outcome: "failed", reason: "the pull request is closed" };
 }
 
 export const NEEDS_REVIEWER =

@@ -49,12 +49,14 @@ export function toPullRef(repo: string, pr: OctokitPull): PullRef {
 function optionalFieldsOf(
   pr: OctokitPull,
 ): Partial<Pick<PullRef, OptionalPullField>> {
+  const headRepo = pr.head.repo;
+
   return {
     ...whenPresent("nodeId", pr.node_id),
     ...whenPresent("baseBranch", pr.base?.ref),
     ...whenPresent("mergedAt", pr.merged_at),
     ...whenPresent("createdAt", pr.created_at),
-    ...whenPresent("headRepo", pr.head.repo?.full_name),
+    ...whenPresent("headRepo", headRepo?.full_name),
     ...whenPresent("body", pr.body),
   };
 }

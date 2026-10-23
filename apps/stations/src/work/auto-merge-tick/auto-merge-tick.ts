@@ -1,4 +1,5 @@
 // Starts the auto-merge loop (specs/protected-branch-merge): one run per open pull request code review has passed, in every repository whose loop is on.
+import { mergeCandidate } from "@re-cinq/lore-shared/loops/merge-candidate.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
 /** Starts per repository per tick: a burst of reviewed pull requests reaches the floor over a few ticks rather than all at once. */
@@ -34,7 +35,7 @@ async function startForRepo(
     deps.workedPulls(repo),
   ]);
   const candidates = pulls.filter(
-    (pull) => startable(pull, repo) && !worked.has(pull.url),
+    (pull) => mergeCandidate(pull, repo) && !worked.has(pull.url),
   );
   const passed = await reviewed(deps, repo, candidates);
   const due = passed.slice(0, STARTS_PER_REPO);
@@ -44,15 +45,6 @@ async function startForRepo(
   }
 
   return due.length;
-}
-
-/** Open, ready for review, and on a branch of this repository: a fork's branch is not one Lore can push a fix to. */
-function startable(pull: PullRef, repo: string): boolean {
-  const ownBranch =
-    pull.headRepo === undefined ||
-    pull.headRepo.toLowerCase() === repo.toLowerCase();
-
-  return pull.state === "open" && pull.draft !== true && ownBranch;
 }
 
 async function reviewed(
