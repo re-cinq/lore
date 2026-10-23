@@ -177,6 +177,15 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
     ...utopiaRoutes(getPool),
+    ...repoIssueRoutes(getPool),
+    onboardRoute(getPool),
+    ...blockedReasonsRoutes(getPool),
+    ...repoContextRoutes(getPool),
+  ];
+}
+
+function repoIssueRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     prStatusRoute(),
     pullFilesRoute(),
     ciFailuresRoute(),
@@ -184,8 +193,11 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     issueRoute(),
     autoMergeKpisRoute(getPool),
     triageRoute(),
-    onboardRoute(getPool),
-    ...blockedReasonsRoutes(getPool),
+  ];
+}
+
+function repoContextRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     contextRoute(getPool),
     contextEvalRoute(getPool),
     contextEvalDocumentsRoute(getPool),
