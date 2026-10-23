@@ -26,11 +26,16 @@ export const ReviewRowSchema = z.object({
   created_at: z.string().nullable(),
 });
 
+/** The sections every loop answers (specs/implementation-loop FR9), as code review fills them. */
 export const CodeReviewSchema = z.object({
   /** Pull requests a review run is working right now. */
   current: z.array(ReviewRowSchema),
-  /** The other open pull requests, each with its newest settled run when it has one. */
-  open_pulls: z.array(ReviewRowSchema),
+  /** Open pull requests no review has looked at yet; a draft waits here until it is ready. */
+  backlog: z.array(ReviewRowSchema),
+  /** Open pull requests whose newest review did not pass: changes requested, or the run failed. */
+  parked: z.array(ReviewRowSchema),
+  /** Open pull requests whose newest review passed. */
+  awaiting_merge: z.array(ReviewRowSchema),
   /** The newest settled runs, whatever became of their pull requests. */
   recent: z.array(ReviewRowSchema),
 });
@@ -59,12 +64,25 @@ export function reviewQueues(
   const current = onePerPull(open).map((run) => runRow(run, pulls));
   const working = new Set(current.map((row) => row.pr_url));
 
+  const waiting = pulls
+    .filter((pull) => !working.has(pull.url))
+    .map((pull) => pullRow(pull, settled));
+
   return {
     current,
-    open_pulls: pulls
-      .filter((pull) => !working.has(pull.url))
-      .map((pull) => pullRow(pull, settled)),
+    ...waitingBuckets(waiting),
     recent: recentRows(settled, working, pulls),
+  };
+}
+
+/** An open pull request no run is working: unreviewed waits in the backlog, a passed review awaits its merge, anything else is parked on a person. */
+function waitingBuckets(waiting: readonly ReviewRow[]) {
+  return {
+    backlog: waiting.filter((row) => row.run_id === null),
+    parked: waiting.filter(
+      (row) => row.run_id !== null && row.state !== "success",
+    ),
+    awaiting_merge: waiting.filter((row) => row.state === "success"),
   };
 }
 
