@@ -41,9 +41,9 @@ export function serviceStations(
     .filter((mod) => hostCanRun(mod.manifest, SERVED))
     .map((mod): [string, Station] => [
       mod.manifest.name,
-      () =>
+      (params) =>
         timedStationRun(mod.manifest.name, () =>
-          mod.run({ trigger: "http", host }),
+          mod.run({ trigger: "http", host, params }),
         ),
     ]);
 

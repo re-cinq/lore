@@ -36,7 +36,7 @@ describe("serviceStations", () => {
   it("runs a registry station against the host this process supplies", async () => {
     const run = serviceStations(host).get("memory-ttl");
 
-    expect(await run?.()).toBe("Cleaned up 4 expired memories");
+    expect(await run?.({})).toBe("Cleaned up 4 expired memories");
   });
 
   it("still answers to merge-check, which has not moved yet", () => {

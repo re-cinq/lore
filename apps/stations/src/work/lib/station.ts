@@ -75,7 +75,16 @@ export interface SweepContext {
     readonly params: Readonly<Record<string, unknown>>;
     readonly eventId: string;
   };
+  /** The request's JSON body, on an http trigger. */
+  readonly params?: Readonly<Record<string, unknown>>;
   readonly host: StationHost;
+}
+
+/** What the run was asked: the event's params, or the HTTP request's, or none. */
+export function triggerParams(
+  ctx: SweepContext,
+): Readonly<Record<string, unknown>> {
+  return ctx.event?.params ?? ctx.params ?? {};
 }
 
 /** Standalone work: the service contract, unchanged but for knowing why it ran. */
