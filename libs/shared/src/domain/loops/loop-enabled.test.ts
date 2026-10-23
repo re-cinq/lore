@@ -35,6 +35,14 @@ describe("loopEnabled", () => {
     expect(loopEnabled("review", { auto_review: true })).toBe(true);
   });
 
+  it("answers merge on only when auto_merge.approver is lore-reviewer", () => {
+    expect(
+      ["lore-reviewer", "none", undefined].map((approver) =>
+        loopEnabled("merge", { auto_merge: { approver } }),
+      ),
+    ).toEqual([true, false, false]);
+  });
+
   it("answers triage from issue_triage.enabled, on by default", () => {
     expect(loopEnabled("triage", {})).toBe(true);
     expect(loopEnabled("triage", { issue_triage: { enabled: false } })).toBe(
@@ -44,14 +52,14 @@ describe("loopEnabled", () => {
 });
 
 describe("loop kinds", () => {
-  it("lists implementation, review then triage with their full names", () => {
-    expect(LOOP_KEYS).toEqual(["implementation", "review", "triage"]);
+  it("lists implementation, review, merge then triage with their full names", () => {
+    expect(LOOP_KEYS).toEqual(["implementation", "review", "merge", "triage"]);
     expect(loopKind("triage")).toMatchObject({ label: "Issue triage" });
   });
 
   it("isLoopKey rejects a key no loop has", () => {
     expect(isLoopKey("triage")).toBe(true);
-    expect(isLoopKey("merge")).toBe(false);
+    expect(isLoopKey("upkeep")).toBe(false);
     expect(isLoopKey(undefined)).toBe(false);
   });
 });

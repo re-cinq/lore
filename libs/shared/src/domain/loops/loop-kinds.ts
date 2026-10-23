@@ -14,6 +14,12 @@ export const LOOP_KINDS = [
       "Reviews every pull request when it opens and again on every push, and answers a request for changes from a trusted reviewer.",
   },
   {
+    key: "merge",
+    label: "Auto merge",
+    description:
+      "Approves Lore's own pull requests that pass review as lore-reviewer and arms GitHub's auto-merge; GitHub merges once the branch rule is met.",
+  },
+  {
     key: "triage",
     label: "Issue triage",
     description:
