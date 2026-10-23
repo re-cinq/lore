@@ -11,10 +11,11 @@
 
 ## Facets
 
-- [ ] Implement `depends-on` edge derivation from `package.json`
-- [ ] Implement `uses` and `exports` derivation from code imports/exports
-- [ ] Implement `extends` derivation for class inheritance
-- [ ] Ensure edge derivation is deterministic on re-ingestion
+- [x] Implement `depends-on` edge derivation from `package.json`
+- [x] Implement `uses` and `exports` derivation from code imports/exports
+- [x] Implement `extends` derivation for class inheritance
+- [x] Ensure edge derivation is deterministic on re-ingestion
+- [x] Fix `queryLiveGraph` incoming-direction SQL so entity=source, related_entity=target (acceptance test assertions require this)
 - [ ] Unify derivation for all onboarded repos (remove `auto_ingest_graph` opt-in constraint)
 
 ## Out of scope
