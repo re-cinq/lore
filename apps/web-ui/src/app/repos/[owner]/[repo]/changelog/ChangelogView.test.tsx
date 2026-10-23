@@ -110,6 +110,36 @@ describe("ChangelogView", () => {
     });
   });
 
+  it("renders week 42's introduction as markdown: Utopia bold, whole in italics, two paragraphs", () => {
+    render(
+      <ChangelogView
+        base="/repos/re-cinq/lore/changelog"
+        page={{
+          weeks: [
+            {
+              ...W42,
+              intro:
+                "**Utopia** now holds the *whole* git history.\n\nThe run list filters by repository.",
+            },
+          ],
+          next: null,
+        }}
+        grouping="list"
+      />,
+    );
+    const lastWeek = screen.getByRole("region", {
+      name: "Week 42 · 12 Oct – 18 Oct",
+    });
+
+    expect({
+      bold: within(lastWeek).getByText("Utopia").tagName,
+      italic: within(lastWeek).getByText("whole").tagName,
+      paragraphs: within(lastWeek).getByText(/now holds the/).tagName,
+      second: within(lastWeek).getByText("The run list filters by repository.")
+        .tagName,
+    }).toEqual({ bold: "STRONG", italic: "EM", paragraphs: "P", second: "P" });
+  });
+
   it("shows the By person switch On, linking back to the plain list, when grouped", () => {
     view("person");
     const toggle = screen.getByRole("switch", { name: "By person" });
