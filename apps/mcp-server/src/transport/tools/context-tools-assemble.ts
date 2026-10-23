@@ -106,9 +106,15 @@ async function assembleContext(args: {
   }
   const extras = buildAssembleExtras(args);
 
-  return interpretProxiedContext(
-    await cachedAssemble({ query, template, repo }, extras),
-  );
+  const proxied = await cachedAssemble({ query, template, repo }, extras);
+
+  if (proxied.ok) {
+    const { text, trace } = parseAssembleBody(proxied.body);
+    logAssembleAudit(query, template, trace);
+    return interpretProxiedContext({ ok: true, body: text });
+  }
+
+  return interpretProxiedContext(proxied);
 }
 
 function buildAssembleExtras(
@@ -159,10 +165,40 @@ async function fetchAssembledContext(
   if (!r.ok) {
     return r;
   }
-  const body = JSON.parse(r.body) as { text?: string };
 
   // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
-  return { ok: true as const, body: body.text ?? "" };
+  // Preserve the full body (including trace) so assembleContext can log the audit.
+  return r;
+}
+
+interface AssembleSection {
+  source: string;
+  returnedTokens: number;
+}
+
+interface AssembleTrace {
+  sections: AssembleSection[];
+}
+
+function parseAssembleBody(body: string): { text: string; trace?: AssembleTrace } {
+  try {
+    const parsed = JSON.parse(body) as { text?: string; trace?: AssembleTrace };
+    return { text: parsed.text ?? "", trace: parsed.trace };
+  } catch {
+    return { text: body };
+  }
+}
+
+function logAssembleAudit(
+  query: string,
+  template: string,
+  trace: AssembleTrace | undefined,
+): void {
+  const sources = trace?.sections.map((s) => s.source).join(", ") ?? "none";
+  const tokens = trace?.sections.reduce((sum, s) => sum + s.returnedTokens, 0) ?? 0;
+  console.error(
+    `[lore] lore_assemble_context: query: ${query}, template: ${template}, sources hit: ${sources}, tokens: ${tokens}`,
+  );
 }
 
 async function interpretProxiedContext(
