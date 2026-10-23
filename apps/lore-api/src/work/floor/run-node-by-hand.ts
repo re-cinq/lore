@@ -49,11 +49,11 @@ const FLOOR_PATIENCE: FloorPatience = {
 
 /** The event that starts the node: the one it declares, or the floor's default. Exit and fail end the run, so they have no station to run. */
 export function startEventFor(line: HandStartLine, nodeId: string): string {
-  const ciEdge = line.edges.find(
-    (edge) =>
-      edge.to === nodeId &&
-      line.nodes.find((n) => n.id === edge.from)?.station === "loop-await-ci",
-  );
+  const ciEdge = line.edges.find((edge) => {
+    if (edge.to !== nodeId) return false;
+    const fromNode = line.nodes.find((n) => n.id === edge.from);
+    return fromNode?.station === "loop-await-ci";
+  });
   const targetNodeId = ciEdge ? ciEdge.from : nodeId;
 
   const node = line.nodes.find((candidate) => candidate.id === targetNodeId);
