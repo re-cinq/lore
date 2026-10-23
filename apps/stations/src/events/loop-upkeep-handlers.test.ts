@@ -198,6 +198,25 @@ describe("loopUpkeepHandlers", () => {
     ]);
   });
 
+  it("starts upkeep runs for the 3 oldest of 5 loop pull requests behind main on one push, and leaves 14 and 15 for the next event", async () => {
+    const behind = [15, 11, 14, 12, 13].map((number) =>
+      pull({
+        number,
+        branch: `lore/implementation-loop/issue-${number}`,
+        url: `https://github.com/acme/widgets/pull/${number}`,
+      }),
+    );
+    const { push, starts } = scene({ pulls: behind, behindBy: 1 });
+
+    await push("main");
+
+    expect(starts().map(([, backlog]) => backlog)).toEqual([
+      "upkeep-11",
+      "upkeep-12",
+      "upkeep-13",
+    ]);
+  });
+
   it("starts nothing for a push to a feature branch, for a pull request on current main with a green build, or where the implementation loop is off", async () => {
     const featurePush = scene({ behindBy: 1 });
     const healthy = scene();
