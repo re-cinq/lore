@@ -3,13 +3,9 @@
 -- is its shipped default (`auto-merge-fix.md`).
 --
 -- The boot seed only fills rows from files that exist, so nothing removes the
--- row it wrote earlier. This does, for the org row and any per-repo override,
--- and tells every cluster-agent to drop the recipe it rendered from them.
+-- row it wrote earlier. This does, for the org row and any per-repo override.
+-- No catalog event is written: `lore.catalog_events` went with the cluster
+-- agent that read it (0102).
 
-WITH removed AS (
-  DELETE FROM lore.agent_definitions
-   WHERE name = 'auto-merge-fix'
-  RETURNING name, project_id
-)
-INSERT INTO lore.catalog_events (name, project_id, op)
-SELECT name, project_id, 'delete' FROM removed;
+DELETE FROM lore.agent_definitions
+ WHERE name = 'auto-merge-fix';
