@@ -19,7 +19,6 @@ import {
 
 export interface TestReportInput {
   repo: string;
-  commit: string;
   tests: TestDescriptor[];
   results: TaggedRunResult[];
 }
@@ -102,7 +101,6 @@ function testAttributes(
       attribute(test, "title", title),
       attribute(test, "path", descriptor.file),
       ...lineAttributes(test, descriptor),
-      attribute(test, "commit", input.commit),
       attribute(test, "permalink", permalinkOf(input, descriptor)),
     ],
   };
@@ -136,7 +134,7 @@ function permalinkOf(
   const end = endLine === undefined ? "" : `-L${endLine}`;
   const anchor = startLine === undefined ? "" : `#L${startLine}${end}`;
 
-  return `${blobUrl(input.repo, input.commit)}/${descriptor.file}${anchor}`;
+  return `${blobUrl(input.repo)}/${descriptor.file}${anchor}`;
 }
 
 function outcomeFragment(
@@ -171,7 +169,7 @@ function coverageFragments(
     return {
       e: [[file, "SourceFile", true]],
       s: [
-        relation(test, "covers", file, { lines, commit: input.commit }),
+        relation(test, "covers", file, { lines }),
         attribute(file, "path", path),
       ],
     };

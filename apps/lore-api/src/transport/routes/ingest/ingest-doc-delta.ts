@@ -81,7 +81,7 @@ async function mirrorCodeDelta(
 
   if (files.length > 0) {
     await mirrorQuietly(repo, `code at ${delta.commit}`, () =>
-      deps.mirrorCode(repo, { files, commit: delta.commit }),
+      deps.mirrorCode(repo, { files }),
     );
   }
 

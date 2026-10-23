@@ -25,18 +25,30 @@ export function cutText(text: string): string {
     : words;
 }
 
-/** Entities once each by name, in first-seen order, so a test two links name twice appears once in `e`. */
+/** Entities once each by name and statements once each, in first-seen order, so a test two links name twice, or two tests one title names, appears once. */
 export function joinFragments(head: Fragment, parts: Fragment[]): Unnamed {
-  const byName = new Map<string, Entity>();
-
-  for (const entity of [head, ...parts].flatMap((fragment) => fragment.e)) {
-    byName.set(entity[0], byName.get(entity[0]) ?? entity);
-  }
+  const fragments = [head, ...parts];
 
   return {
-    e: [...byName.values()],
-    s: [...head.s, ...parts.flatMap((fragment) => fragment.s)],
+    e: firstOfEach(
+      fragments.flatMap((fragment) => fragment.e),
+      ([name]) => name,
+    ),
+    s: firstOfEach(
+      fragments.flatMap((fragment) => fragment.s),
+      (statement) => JSON.stringify(statement),
+    ),
   };
+}
+
+function firstOfEach<T>(values: T[], keyOf: (value: T) => string): T[] {
+  const byKey = new Map<string, T>();
+
+  for (const value of values) {
+    byKey.set(keyOf(value), byKey.get(keyOf(value)) ?? value);
+  }
+
+  return [...byKey.values()];
 }
 
 /** Halves the parts until every item is under the push limits; the first item keeps the plain id and the rest take `.2`, `.3`, so an unsplit item's id never changes. */

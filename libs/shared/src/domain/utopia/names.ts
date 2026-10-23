@@ -25,8 +25,9 @@ export function testName(repo: string, path: string, title: string): string {
   return `${fileName(repo, path)}::${title}`;
 }
 
-export function blobUrl(repo: string, commit: string): string {
-  return `https://github.com/${repo}/blob/${commit}`;
+/** The default branch's tree, which GitHub resolves from `HEAD`: a link that names no commit stays the same from run to run, so an unchanged item re-pushes byte for byte and Utopia keeps no new version of it. */
+export function blobUrl(repo: string): string {
+  return `https://github.com/${repo}/blob/HEAD`;
 }
 
 /** A commit, a pull request and an issue are named as their GitHub page's path, so `https://github.com/<name>` is each one's permalink and a pull request and an issue with one number stay apart. */

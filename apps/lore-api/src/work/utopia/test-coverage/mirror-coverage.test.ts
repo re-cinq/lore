@@ -102,7 +102,6 @@ afterEach(() => {
 });
 
 const REPORT = {
-  commit: "0123456789abcdef0123456789abcdef01234567",
   report: {
     tests: [
       {
@@ -117,7 +116,6 @@ const REPORT = {
 };
 
 const CODE = {
-  commit: REPORT.commit,
   files: [
     {
       path: "src/x/b.ts",

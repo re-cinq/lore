@@ -27,7 +27,7 @@ const SPEC = [
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const DOC = "re-cinq/lore:specs/mirror/spec.md";
-const BLOB = `https://github.com/re-cinq/lore/blob/${COMMIT}`;
+const BLOB = "https://github.com/re-cinq/lore/blob/HEAD";
 
 const build = (content: string, commitTime?: string) =>
   statementItems({

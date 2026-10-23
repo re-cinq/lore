@@ -18,7 +18,7 @@ export async function mirrorReportDelta(
 
   if (report !== undefined) {
     await mirrorQuietly(repo, `test report at ${commit}`, () =>
-      deps.mirrorReport(repo, { report, commit }),
+      deps.mirrorReport(repo, { report }),
     );
   }
 

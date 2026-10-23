@@ -2,8 +2,7 @@ import { describe, it, expect } from "vitest";
 import { codeFileItems, codeFileTombstones } from "./code-statements.js";
 import { attribute, fitsOneItem, relation } from "../statements.js";
 
-const COMMIT = "0123456789abcdef0123456789abcdef01234567";
-const BLOB = `https://github.com/re-cinq/lore/blob/${COMMIT}`;
+const BLOB = "https://github.com/re-cinq/lore/blob/HEAD";
 const FILE = "re-cinq/lore:src/x/b.ts";
 const ADVANCE = "re-cinq/lore:src/x/b.ts#advance";
 const STEP = "re-cinq/lore:src/x/b.ts#step";
@@ -15,7 +14,6 @@ const build = (
   codeFileItems({
     repo: "re-cinq/lore",
     path: "src/x/b.ts",
-    commit: COMMIT,
     symbols,
     imports,
   });
@@ -42,7 +40,6 @@ describe("codeFileItems", () => {
         s: [
           relation("re-cinq/lore", "contains", FILE),
           attribute(FILE, "path", "src/x/b.ts"),
-          attribute(FILE, "commit", COMMIT),
           attribute(FILE, "permalink", `${BLOB}/src/x/b.ts`),
           relation(FILE, "defines", ADVANCE),
           attribute(ADVANCE, "symbol", "advance"),

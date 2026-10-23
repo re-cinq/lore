@@ -16,7 +16,6 @@ import {
 
 export interface CodeDeltaInput {
   repo: string;
-  commit: string;
   files: Array<{ path: string; content: string }>;
 }
 
@@ -46,7 +45,6 @@ async function fileItems(
   return codeFileItems({
     repo: input.repo,
     path: file.path,
-    commit: input.commit,
     ...parsed,
   });
 }

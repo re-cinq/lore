@@ -4,8 +4,6 @@ import { MAX_CODE_FILE_CHARS } from "../../spec-trace/project-code-file.js";
 import { relation, type PushItem } from "../../../domain/utopia/statements.js";
 import type { PushAction } from "../../../outbound/utopia/utopia-client.js";
 
-const COMMIT = "0123456789abcdef0123456789abcdef01234567";
-
 function pushClient(answer: PushAction) {
   const pushed: PushItem[] = [];
 
@@ -32,7 +30,6 @@ describe("mirrorCodeFiles", () => {
     const client = pushClient("created");
     const outcome = await mirrorCodeFiles(client, {
       repo: "re-cinq/lore",
-      commit: COMMIT,
       files: [
         { path: "src/runner.ts", content: RUNNER },
         { path: "src/huge.ts", content: "x".repeat(MAX_CODE_FILE_CHARS + 1) },
