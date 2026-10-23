@@ -62,4 +62,27 @@ describe("LoopTable", () => {
       queryByRole("table"),
     ]).toEqual(["No ticket yet.", null]);
   });
+
+  it("badges triage's needs-triage neutral, needs-priority success and needs-reproduction danger, not every triage label red", () => {
+    const { getAllByTestId } = render(
+      <LoopTable
+        subject="Issue"
+        emptyText=""
+        rows={["needs-triage", "needs-priority", "needs-reproduction"].map(
+          (state) => (
+            <tr key={state}>
+              <StatusCell state={state} since={null} />
+            </tr>
+          ),
+        )}
+      />,
+    );
+
+    expect(
+      getAllByTestId("row-status").map(
+        (badge) =>
+          badge.className.match(/tone_(success|danger|info|neutral)/)?.[1],
+      ),
+    ).toEqual(["neutral", "success", "danger"]);
+  });
 });

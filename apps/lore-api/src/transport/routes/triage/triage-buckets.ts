@@ -79,11 +79,26 @@ function runFields(run: TriageRun | undefined) {
     : { run_id: null, pipeline: null };
 }
 
-/** The issue's triage label without its prefix, absent when it carries none. */
-function triageState(labels: readonly string[]): string | undefined {
-  const label = labels.find((l) => l.startsWith(TRIAGE_PREFIX));
+/** The triage line only ever adds labels, so an issue keeps `needs-triage` beside every later one: the most progressed label is its state. */
+const TRIAGE_PRECEDENCE = [
+  "failed",
+  "needs-priority",
+  "not-actionable",
+  "unable-to-reproduce",
+  "needs-reproduction",
+  "skipped",
+  "diagnosed",
+  "reproduced",
+  "needs-triage",
+];
 
-  return label?.slice(TRIAGE_PREFIX.length);
+/** The issue's most progressed triage label without its prefix, absent when it carries none. */
+function triageState(labels: readonly string[]): string | undefined {
+  const states = labels
+    .filter((l) => l.startsWith(TRIAGE_PREFIX))
+    .map((l) => l.slice(TRIAGE_PREFIX.length));
+
+  return TRIAGE_PRECEDENCE.find((s) => states.includes(s)) ?? states[0];
 }
 
 function issueFields(issue: TriageIssue) {

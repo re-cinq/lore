@@ -68,4 +68,26 @@ describe("triageBuckets", () => {
       [8, "triaging"],
     ]);
   });
+
+  it("reads #9 carrying needs-triage and needs-priority as needs-priority, since triage never removes a label", () => {
+    const buckets = triageBuckets(
+      [
+        {
+          number: 9,
+          title: "Done",
+          labels: [
+            "triage: needs-triage",
+            "triage: diagnosed",
+            "triage: needs-priority",
+          ],
+        },
+      ],
+      [],
+    );
+
+    expect({
+      recent: buckets.recent.map((r) => [r.issue_number, r.state]),
+      backlog: buckets.backlog,
+    }).toEqual({ recent: [[9, "needs-priority"]], backlog: [] });
+  });
 });

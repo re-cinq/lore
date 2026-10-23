@@ -50,7 +50,7 @@ async function readImplementation(loop: RepoLoop, repo: string) {
   return {
     ...read,
     implementation: result.data,
-    backlogNotice: implementationNotice(loop, result.data),
+    backlogNotice: implementationNotice(loop),
   };
 }
 

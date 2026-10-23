@@ -46,7 +46,7 @@ function renderView(over: Partial<ImplementationLoop> = {}) {
     {
       loop,
       sections: implementationSections(loop, backlog),
-      backlogNotice: implementationNotice(loop, backlog),
+      backlogNotice: implementationNotice(loop),
     },
   ]);
 
@@ -349,22 +349,6 @@ describe("BoardView with tickets the loop is not working", () => {
 
     expect(getByRole("heading", { name: "Backlog" })).toBeTruthy();
     expect(queryByTestId("section-notice")).toBeNull();
-  });
-
-  it("says above the Backlog that the loop waits for onboarding, so it does not read as about to start", () => {
-    const { getByRole, getByTestId } = renderView({
-      enabled: true,
-      onboarding: { merged: false, pr_url: null, last_task: null },
-    });
-
-    expect({
-      heading: getByRole("heading", { name: "Backlog" }).textContent,
-      notice: getByTestId("section-notice").textContent,
-    }).toEqual({
-      heading: "Backlog",
-      notice:
-        "Waiting for onboarding: Implementation loop picks nothing until the repository's onboarding pull request merges.",
-    });
   });
 });
 

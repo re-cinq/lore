@@ -145,19 +145,9 @@ export function pausedNotice(loop: RepoLoop): string | undefined {
     : `Paused: ${loop.label} is switched off. Nothing in its backlog is picked until it is switched on above.`;
 }
 
-/** The implementation loop picks nothing until the repository's onboarding pull request merges; being switched off is said first. */
-export function implementationNotice(
-  loop: RepoLoop,
-  backlog: ImplementationLoop,
-): string | undefined {
-  const { onboarding } = backlog;
-
-  return (
-    pausedNotice(loop) ??
-    (onboarding.merged
-      ? undefined
-      : `Waiting for onboarding: ${loop.label} picks nothing until the repository's onboarding pull request merges.`)
-  );
+/** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
+export function implementationNotice(loop: RepoLoop): string | undefined {
+  return pausedNotice(loop);
 }
 
 export function implementationSections(

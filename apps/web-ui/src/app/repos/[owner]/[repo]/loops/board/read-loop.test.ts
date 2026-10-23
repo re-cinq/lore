@@ -39,7 +39,7 @@ describe("readLoop", () => {
     });
   });
 
-  it("says above the implementation backlog that it waits for onboarding, and hands its read to the onboarding banner", async () => {
+  it("hands the implementation read to the onboarding banner and adds no second waiting-for-onboarding notice above the backlog", async () => {
     const backlog = {
       enabled: true,
       onboarding: { merged: false, pr_url: null, last_task: null },
@@ -63,8 +63,7 @@ describe("readLoop", () => {
 
     expect({ notice: read.backlogNotice, banner: read.implementation }).toEqual(
       {
-        notice:
-          "Waiting for onboarding: Implementation loop picks nothing until the repository's onboarding pull request merges.",
+        notice: undefined,
         banner: backlog,
       },
     );
