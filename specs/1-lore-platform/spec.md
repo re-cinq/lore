@@ -567,7 +567,7 @@ ai-agent-subsystem per ADR-031). ([validated by starts code-review when a pull r
 
 - FR-13.1: After an implementation PR is created, an auto-review is started on
   the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
-  retired the loretask-watcher). ([validated by `auto-review-enabled.test.ts:5`](libs/shared/src/work/review/auto-review-enabled.test.ts#L5), [[starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [starts code-review for a pull request no review has run on](libs/shared/src/work/review/floor-review-start.test.ts#L284))
+  retired the loretask-watcher). ([validated by `auto-review-enabled.test.ts:5`](libs/shared/src/domain/loops/auto-review-enabled.test.ts#L5), [[starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [starts code-review for a pull request no review has run on](libs/shared/src/work/review/floor-review-start.test.ts#L284))
 - FR-13.2: The review agent reads spec + conventions and the `post-review`
   station posts ONE formal PR review — inline comments per finding plus a summary, carrying the verdict as its
   GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by posts one REQUEST_CHANGES review with a rendered comment per commentable finding](apps/stations/src/code-review/post-review/post-review.test.ts#L94), [validated by submits an APPROVE review carrying the inline findings for an approved verdict](apps/stations/src/code-review/post-review/post-review.test.ts#L250))
