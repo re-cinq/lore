@@ -252,7 +252,7 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     });
 
     expect({ mirrored: deps.mirrored, projectedBeforeMirror }).toEqual({
-      mirrored: [["mirrorCode", "re-cinq/lore", { files, commit: SHA_B }]],
+      mirrored: [["mirrorCode", "re-cinq/lore", { files }]],
       projectedBeforeMirror: [["projectCode"]],
     });
   });
@@ -381,7 +381,7 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     });
 
     expect({ mirrored: deps.mirrored, projectedBeforeMirror }).toEqual({
-      mirrored: [["mirrorReport", "re-cinq/lore", { report, commit: SHA_B }]],
+      mirrored: [["mirrorReport", "re-cinq/lore", { report }]],
       projectedBeforeMirror: [["ingestReport"]],
     });
   });

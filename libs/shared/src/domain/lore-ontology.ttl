@@ -138,7 +138,7 @@ lore:decided_by a owl:ObjectProperty ;
 
 lore:covers a owl:ObjectProperty ;
   rdfs:label "covers" ;
-  rdfs:comment "A test executes lines of a source file. The relation's lines qualifier says which, as 'a-b,c-d', and its commit qualifier the commit the test ran at." ;
+  rdfs:comment "A test executes lines of a source file. The relation's lines qualifier says which, as 'a-b,c-d'." ;
   utopia:temporal "eternal" ;
   rdfs:domain lore:Test ;
   rdfs:range lore:SourceFile .
@@ -230,13 +230,13 @@ lore:path a owl:DatatypeProperty ;
 
 lore:commit a owl:DatatypeProperty ;
   rdfs:label "commit" ;
-  rdfs:comment "The commit sha the document or file was read at, or the test ran at." ;
+  rdfs:comment "The commit sha a thing was read at." ;
   rdfs:domain lore:Document, lore:SourceFile, lore:Test ;
   rdfs:range xsd:string .
 
 lore:permalink a owl:DatatypeProperty ;
   rdfs:label "permalink" ;
-  rdfs:comment "GitHub URL of the thing at its commit, with line anchors where it has lines; of a commit, a pull request, an issue, a release or a tag, its page." ;
+  rdfs:comment "GitHub URL of the thing on the default branch, with line anchors where it has lines; of a commit, a pull request, an issue, a release or a tag, its page." ;
   rdfs:domain lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Release, lore:Tag ;
   rdfs:range xsd:anyURI .
 

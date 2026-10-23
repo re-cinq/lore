@@ -41,7 +41,6 @@ export interface DocStatementsInput {
 interface DocNames {
   repo: string;
   path: string;
-  commit: string;
   doc: string;
   /** The document's own class, so every place that names it names one entity. */
   kindWord: string;
@@ -74,10 +73,9 @@ function namesOf(input: DocStatementsInput): DocNames {
   return {
     repo: input.repo,
     path: input.path,
-    commit: input.commit,
     doc: fileName(input.repo, input.path),
     kindWord: DOC_KIND_WORD[input.kind],
-    blob: blobUrl(input.repo, input.commit),
+    blob: blobUrl(input.repo),
     testSources: input.testSources ?? new Map(),
   };
 }

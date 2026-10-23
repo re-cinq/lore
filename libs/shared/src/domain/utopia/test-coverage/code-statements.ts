@@ -30,7 +30,6 @@ export interface CodeImport {
 export interface CodeFileInput {
   repo: string;
   path: string;
-  commit: string;
   symbols: CodeDefinition[];
   imports: CodeImport[];
 }
@@ -61,12 +60,7 @@ function fileHead(input: CodeFileInput): Fragment {
     s: [
       relation(input.repo, "contains", file),
       attribute(file, "path", input.path),
-      attribute(file, "commit", input.commit),
-      attribute(
-        file,
-        "permalink",
-        `${blobUrl(input.repo, input.commit)}/${input.path}`,
-      ),
+      attribute(file, "permalink", `${blobUrl(input.repo)}/${input.path}`),
     ],
   };
 }
@@ -134,7 +128,7 @@ function definitionPermalink(
 ): string {
   const lines = `#L${symbol.startLine}-L${symbol.endLine}`;
 
-  return `${blobUrl(input.repo, input.commit)}/${input.path}${lines}`;
+  return `${blobUrl(input.repo)}/${input.path}${lines}`;
 }
 
 /** What a definition calls, by the name it has where it is defined: a sibling in this file, or a named import from a relative path. Recursion and calls into packages are left out. */

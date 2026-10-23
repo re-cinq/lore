@@ -4,11 +4,8 @@ import { mirrorTestReport, tombstoneTestFiles } from "./mirror-test-report.js";
 import type { PushItem } from "../../../domain/utopia/statements.js";
 import type { PushAction } from "../../../outbound/utopia/utopia-client.js";
 
-const COMMIT = "0123456789abcdef0123456789abcdef01234567";
-
 const run = {
   repo: "re-cinq/lore",
-  commit: COMMIT,
   tests: [
     { id: "a1", name: "adds", file: "src/a.test.ts", startLine: 3 },
     { id: "a2", name: "subtracts", file: "src/a.test.ts", startLine: 9 },

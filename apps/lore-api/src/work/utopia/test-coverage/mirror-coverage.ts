@@ -15,20 +15,19 @@ import { utopiaConfigured } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import { kindMirrorDeps } from "../kind-source.js";
 import { settled } from "../repo-mirror.js";
 
-/** A test report as the delta route received it, and the commit the delta names. */
+/** A test report as the delta route received it. Its items name no commit, so an unchanged test re-pushes byte for byte. */
 export interface MirroredReport {
   report: unknown;
-  commit: string;
 }
 
-/** A code delta's files as the delta route received them, and the commit the delta names. */
+/** A code delta's files as the delta route received them. */
 export type MirroredCode = Omit<CodeDeltaInput, "repo">;
 
 export async function mirrorReportFor(
   repo: string,
-  { report, commit }: MirroredReport,
+  { report }: MirroredReport,
 ): Promise<void> {
-  const run = { repo, commit, ...reportRuns(report) };
+  const run = { repo, ...reportRuns(report) };
   const deps = run.tests.length > 0 ? await coverageDepsFor(repo) : null;
 
   if (deps) {

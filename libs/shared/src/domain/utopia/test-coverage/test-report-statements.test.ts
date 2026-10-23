@@ -13,7 +13,7 @@ import {
 } from "./test-report-statements.js";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
-const BLOB = `https://github.com/re-cinq/lore/blob/${COMMIT}`;
+const BLOB = "https://github.com/re-cinq/lore/blob/HEAD";
 const FILE = "re-cinq/lore:src/a.test.ts";
 const ROUNDS = "re-cinq/lore:src/a.test.ts::counts rounds";
 const STATEMENT = "re-cinq/lore:specs/a/spec.md#s0002";
@@ -28,7 +28,7 @@ const ROUNDS_TEST: TestDescriptor = {
 };
 
 const build = (tests: TestDescriptor[], results: TaggedRunResult[] = []) =>
-  testReportItems({ repo: "re-cinq/lore", commit: COMMIT, tests, results });
+  testReportItems({ repo: "re-cinq/lore", tests, results });
 
 const passing = (
   covered: TaggedRunResult["covered"] = [],
@@ -42,7 +42,7 @@ const relationsOf = (pushed: StatementItem[], phrase: string) =>
   pushed.flatMap((part) => part.s.filter((row) => row[2] === phrase));
 
 describe("testReportItems", () => {
-  it("returns one test:src/a.test.ts item holding both its tests with title, path, line_start and permalink at the commit", () => {
+  it("returns one test:src/a.test.ts item holding both its tests with title, path, line_start and a permalink on the default branch", () => {
     const pushed = build([
       { ...ROUNDS_TEST, spec: undefined },
       { id: "t2", name: "stops", file: "src/a.test.ts", startLine: 12 },
@@ -66,13 +66,11 @@ describe("testReportItems", () => {
           attribute(ROUNDS, "path", "src/a.test.ts"),
           attribute(ROUNDS, "line_start", "4"),
           attribute(ROUNDS, "line_end", "9"),
-          attribute(ROUNDS, "commit", COMMIT),
           attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts#L4-L9`),
           relation(FILE, "contains", stops),
           attribute(stops, "title", "stops"),
           attribute(stops, "path", "src/a.test.ts"),
           attribute(stops, "line_start", "12"),
-          attribute(stops, "commit", COMMIT),
           attribute(stops, "permalink", `${BLOB}/src/a.test.ts#L12`),
         ],
       },
@@ -119,7 +117,7 @@ describe("testReportItems", () => {
     ).toEqual([]);
   });
 
-  it("returns covers src/a.ts with lines 3-9,12-20 and the commit as qualifiers when ranges are adjacent", () => {
+  it("returns covers src/a.ts qualified by lines 3-9,12-20 alone when ranges are adjacent", () => {
     const pushed = build(
       [ROUNDS_TEST],
       passing([
@@ -136,14 +134,31 @@ describe("testReportItems", () => {
       path: pushed[0].s.filter((row) => row[1] === source),
       entity: pushed[0].e.filter(([name]) => name === source),
     }).toEqual({
-      covers: [
-        relation(ROUNDS, "covers", source, {
-          lines: "3-9,12-20",
-          commit: COMMIT,
-        }),
-      ],
+      covers: [relation(ROUNDS, "covers", source, { lines: "3-9,12-20" })],
       path: [attribute(source, "path", "src/a.ts")],
       entity: [[source, "SourceFile", true]],
+    });
+  });
+
+  it("returns one title and permalink for counts rounds when two describe blocks name a test counts rounds", () => {
+    const pushed = build(
+      ["specs", "adrs"].map((suite) => ({
+        ...ROUNDS_TEST,
+        id: `src/a.test.ts::${suite} > counts rounds`,
+        name: `${suite} > counts rounds`,
+        suite: [suite],
+        spec: undefined,
+      })),
+    );
+
+    expect({
+      titles: relationsOf(pushed, "title"),
+      permalinks: relationsOf(pushed, "permalink"),
+    }).toEqual({
+      titles: [attribute(ROUNDS, "title", "counts rounds")],
+      permalinks: [
+        attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts#L4-L9`),
+      ],
     });
   });
 

@@ -71,9 +71,9 @@ Asked about dark factories against `re-cinq/lore`, Utopia's chat found the right
 
 The mirror carried specs and ADRs, so Utopia knew which tests a statement names but not whether they ran, passed, or what code they touched. Now, after the delta route has projected a default-branch test report into the graph, lore-api pushes the same run (specs/utopia-graph-mirror FR9):
 
-- **One `test:<path>` item per test file**, split past the 200-statement limit as a statement is. Each Test carries `title`, `path`, its lines, a `permalink` and the `commit`, and an `outcome` when it ran.
+- **One `test:<path>` item per test file**, split past the 200-statement limit as a statement is. Each Test carries `title`, `path`, its lines and a `permalink`, and an `outcome` when it ran.
 - **The statements its spec links name are `validated_by` it when it passed and `violated_by` it when it failed.** The outcome is the phrase, never a qualifier: Utopia keeps the qualifiers a relation was first written with, so a `passed` qualifier would stay on a test that later failed. Utopia's ADR 0070 (deeplethe/utopia#1278) proposes otherwise.
-- **A test `covers` each source file its run covered**, qualified by `lines` and `commit`. Until Utopia replaces qualifiers on a re-push, those two are informational: they say what the first run covered.
+- **A test `covers` each source file its run covered**, qualified by `lines`. Until Utopia replaces qualifiers on a re-push, it is informational: it says what the first run covered.
 - **A deleted test file is tombstoned** after the graph prunes it.
 - **A branch's report is not mirrored.** It goes to its overlay in the graph; a statement in Utopia is validated by main's tests only.
 - **`lore-code-trace` chunks a report by test file**, so a chunk never carries part of a file and replaces that file's item with the part.
@@ -105,7 +105,7 @@ Before any read moves to Utopia, Lore and Utopia run side by side, so that what 
 
 The code ingest already parses every TypeScript and JavaScript file of a default-branch `code` delta into its top-level definitions, what each calls and what the file imports. After the graph has the delta, the same parse is pushed to Utopia, closing the chain from a statement's `implemented_by` source file down to the definitions in it:
 
-- **One `code:<path>` item per source file**, split past the 200-statement limit as a statement is. Repository `contains` the SourceFile, which carries its `path`, `commit` and `permalink`.
+- **One `code:<path>` item per source file**, split past the 200-statement limit as a statement is. Repository `contains` the SourceFile, which carries its `path` and `permalink`.
 - **Each top-level definition is a `CodeDefinition` named `owner/repo:<path>#<symbol>`**, which the SourceFile `defines`, with its `symbol`, `line_start`, `line_end` and a permalink to its lines.
 - **A definition `references` what it calls** in the same file, and what it calls through a named import from a relative path, resolved against the importer's directory with a `.js` path read as the importer's own extension. The SourceFile `imports` each such file.
 - **Not linked:** imports from packages, which name nothing in the repository, and calls to names neither defined nor imported in the file. **Not copied:** the text of the file; a definition is a name, its lines and a permalink.
@@ -189,3 +189,13 @@ Everything above went through one `lore` statements source, so Utopia showed one
 - **Moving an existing base keeps the old source.** Emptying it was the first plan and does not scale: Utopia deletes and purges one document at a time, each a pass over the whole base's facts, about 10 seconds a document with parallel calls serialised, so the 129,000 documents of the 14 bases would take days and saturate the database. The old `lore` source already holds 87% of what `test-coverage` takes (on Otto: 4,615 statements, 44 tests, 18 code files), so migration 0116 makes each repo's old source its `test-coverage` source and a one-off script, run for all 14 bases on 2026-10-23 and then removed, named it so in Utopia, reset the repo's walk cursors and ran its backfill (FR19). The issue, commit, pull request, tag, release and document items it also holds are obsolete; they stay in it, no longer pushed to, until a cheaper way to remove them exists (a bulk purge of a source in Utopia, or tombstones with the push key).
 
 *(2026-10-23)* Setup no longer makes the `lore` source: it finds or creates the knowledge base, installs the ontology and records the base, and every source is made by the first push of its kind. `lore.utopia_bases` keeps each base's knowledge base by name, a repo's full name or the org memory base's `<org>/memory`, which has no settings to hold it, and a repo's `settings.utopia.kb_id` alone switches its mirror on. Migration 0119 fills the table from `lore.utopia_sources` and drops `source_id` from settings; the old table goes once that is live.
+
+## Amendment 2026-10-24: test and code items name no commit
+
+Every `test:` and `code:` item carried the commit it was pushed at, as a `commit` attribute, as the `commit` qualifier of `covers`, and inside each `permalink`, and every statement item's permalink carried it too. So every CI run changed all ~5,400 test items of `re-cinq/lore` although no test had changed, Utopia kept a new version of each, and the facts of the old versions lost their evidence and stayed as unconfirmed: 121,913 by 2026-10-24. Utopia writes no new version for an item whose bytes are the same as the last push, so the items now say only what changes when the code or a result does:
+
+- **No `commit`** on a Test or a SourceFile, and none on `covers`. Utopia records when each version arrived.
+- **Permalinks point at the default branch**, `https://github.com/<repo>/blob/HEAD/<path>#L…`, which GitHub resolves without Lore knowing the branch's name. The line anchor moves with `line_start` and `line_end`, which are already in the item.
+- **One statement once.** Two tests one title names in a file (two `describe` blocks) are one Test, so their item stated each of its attributes twice; an item now states each statement once.
+
+The ontology keeps the `commit` word, which a commit's text and older bases still use; its comment no longer names tests.
