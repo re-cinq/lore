@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Create `apps/mcp-server/templates/.keep`
+- [x] Create `apps/mcp-server/templates/.keep`
 
 ## Out of scope
 
