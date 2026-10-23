@@ -362,6 +362,30 @@ resource "kubernetes_deployment_v1" "utopia" {
               }
             }
           }
+          # The Google Drive source connects through the same OAuth client: its redirect
+          # URIs carry the Drive callback, and the Drive API is enabled on the project.
+          env {
+            name = "UTOPIA_GOOGLE_DRIVE_CLIENT_ID"
+            value_from {
+              secret_key_ref {
+                name = "utopia-oauth"
+                key  = "client-id"
+              }
+            }
+          }
+          env {
+            name = "UTOPIA_GOOGLE_DRIVE_CLIENT_SECRET"
+            value_from {
+              secret_key_ref {
+                name = "utopia-oauth"
+                key  = "client-secret"
+              }
+            }
+          }
+          env {
+            name  = "UTOPIA_GOOGLE_DRIVE_REDIRECT_URI"
+            value = "${local.utopia_url}/api/v1/google-drive/callback"
+          }
 
           volume_mount {
             name       = "data"
