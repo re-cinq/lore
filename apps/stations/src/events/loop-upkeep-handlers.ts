@@ -149,40 +149,73 @@ async function scopeOf(
     : null;
 }
 
+/** Rebase runs one event may start per repository, oldest pull request first: after a merge every open loop pull request is behind, and a pod for each at once is a stampede. The rest wait for the next push or check suite. */
+export const STARTS_PER_EVENT = 3;
+
 async function upkeepEach(scope: Scope, pulls: PullRef[]): Promise<void> {
   if (pulls.length === 0) {
     return;
   }
-  const { runs } = scope.deps.floor();
+  const openRuns = await openLoopRuns(scope);
+  const working = pulls.filter((pull) =>
+    openRunOnBranch(openRuns, pull.branch),
+  );
+  const settled = pulls.filter((pull) => !working.includes(pull));
+  const outcomes = await Promise.all([
+    ...working.map((pull) => judgeOpenRun(scope, pull)),
+    upkeepSettled(scope, settled),
+  ]);
+
+  console.log(
+    `[stations] loop-upkeep: ${scope.repo}: ${outcomes.flat().join("; ")}`,
+  );
+}
+
+async function openLoopRuns({ repo, deps }: Scope) {
+  const { runs } = deps.floor();
   const { items: openRuns } = await runs.list({
-    repo: floorRepoOf(scope.repo),
+    repo: floorRepoOf(repo),
     line: LOOP_LINE,
     open: true,
   });
-  const outcomes = await Promise.all(
-    pulls.map(async (pull) => {
-      const outcome = openRunOnBranch(openRuns, pull.branch)
-        ? await judgeOpenRun(scope, pull)
-        : await upkeepSettled(scope, pull);
 
-      return `#${pull.number} ${outcome}`;
-    }),
-  );
-
-  console.log(`[stations] loop-upkeep: ${scope.repo}: ${outcomes.join("; ")}`);
+  return openRuns;
 }
 
 /** A run is working the branch: its parked wait hears the verdict now rather than at the next tick. */
-function judgeOpenRun(scope: Scope, pull: PullRef): Promise<string> {
-  return scope.deps.judgeParked(scope.repo, pull.number);
+async function judgeOpenRun(scope: Scope, pull: PullRef): Promise<string> {
+  return `#${pull.number} ${await scope.deps.judgeParked(scope.repo, pull.number)}`;
 }
 
-/** No run is working the branch: the pull request is read, and one is started only when it needs a rebase or a fix. */
-async function upkeepSettled(scope: Scope, pull: PullRef): Promise<string> {
-  const facts = await factsOf(scope.project, pull);
-  const decision = decideUpkeep({ openRun: false, facts });
+/** No run is working these branches: each is read, and a run is started for the oldest few that need a rebase or a fix. */
+async function upkeepSettled(
+  scope: Scope,
+  pulls: PullRef[],
+): Promise<string[]> {
+  const needing = await Promise.all(
+    pulls.map(async (pull) => ((await needsUpkeep(scope, pull)) ? pull : null)),
+  );
+  const due = needing
+    .filter((pull): pull is PullRef => pull !== null)
+    .sort((a, b) => a.number - b.number);
+  const started = await Promise.all(
+    due.slice(0, STARTS_PER_EVENT).map((pull) => startOutcome(scope, pull)),
+  );
 
-  return decision === "start" ? startFor(scope, pull) : "on main and green";
+  return [
+    ...started,
+    ...due.slice(STARTS_PER_EVENT).map((pull) => `#${pull.number} deferred`),
+  ];
+}
+
+async function startOutcome(scope: Scope, pull: PullRef): Promise<string> {
+  return `#${pull.number} ${await startFor(scope, pull)}`;
+}
+
+async function needsUpkeep(scope: Scope, pull: PullRef): Promise<boolean> {
+  const facts = await factsOf(scope.project, pull);
+
+  return decideUpkeep({ openRun: false, facts }) === "start";
 }
 
 async function factsOf(
