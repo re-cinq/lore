@@ -2911,7 +2911,39 @@ export interface components {
           | null;
         created_at: string | null;
       }[];
-      open_pulls: {
+      backlog: {
+        pr_number: number | null;
+        pr_url: string | null;
+        title: string;
+        draft: boolean;
+        line: string | null;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      parked: {
+        pr_number: number | null;
+        pr_url: string | null;
+        title: string;
+        draft: boolean;
+        line: string | null;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      awaiting_merge: {
         pr_number: number | null;
         pr_url: string | null;
         title: string;
@@ -3387,6 +3419,78 @@ export interface components {
       state: string;
       url: string | null;
       body: string | null;
+    };
+    IssueTriage: {
+      current: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      backlog: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      parked: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      awaiting_merge: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      recent: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
     };
     IssueUpdated: {
       /** @constant */
@@ -4908,11 +5012,6 @@ export interface components {
     TraceRead: {
       [key: string]: unknown;
     };
-    TriageIssues: {
-      title: string;
-      triage_label: string;
-      active_run_link?: string;
-    }[];
     TurnsRelayed: {
       forwarded: number;
       skipped: number;
@@ -8619,13 +8718,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Issues with triage labels and their active floor runs */
+      /** @description Issue triage in the shared loop sections: issues a run is working, waiting, parked on a person, and done */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TriageIssues"];
+          "application/json": components["schemas"]["IssueTriage"];
         };
       };
       400: components["responses"]["BadRequest"];

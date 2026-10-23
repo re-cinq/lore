@@ -5,8 +5,9 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
+import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
+import { isOpenStatus } from "../../../work/floor/floor-run-query.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -14,98 +15,94 @@ import {
   githubFailureResponse,
   onboardedProject,
 } from "../repos/github-read.js";
+import {
+  IssueTriageSchema,
+  triageBuckets,
+  type TriageIssue,
+  type TriageRun,
+} from "./triage-buckets.js";
 
 const RepoParams = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
 });
 
-const TriageIssueSchema = z.object({
-  title: z.string(),
-  triage_label: z.string(),
-  active_run_link: z.string().optional(),
-});
+/** The repo's open issue-triage runs, each with the issue it was started for and its stages. */
+export type OpenTriageRuns = (repo: string) => Promise<TriageRun[]>;
 
-export function triageRoute(): ServerRoute {
+const TRIAGE_LINE = "issue-triage";
+
+/** How many of the line's newest runs are read for the open ones: the sweep runs three at a time per repo. */
+const RUNS_READ = 50;
+
+/** Read through the reader the run list uses, so each run carries its mini pipeline; a floor that cannot answer leaves every row without a run rather than failing the list. */
+export const openTriageRuns: OpenTriageRuns = async (repo) => {
+  if (!floorConfigured()) {
+    return [];
+  }
+
+  const reader = floorRunReader();
+  const { runs } = await reader
+    .page({ repo, line: TRIAGE_LINE, limit: RUNS_READ })
+    .catch(() => ({ runs: [] }));
+
+  return runs
+    .filter(({ run }) => isOpenStatus(run.status))
+    .map(({ run, pipeline }) => ({
+      id: run.id,
+      issueNumber: issueNumberOf(run.args),
+      pipeline,
+    }));
+};
+
+function issueNumberOf(args: Record<string, unknown>): string | undefined {
+  const value = args.issue_number;
+
+  return value === undefined ? undefined : String(value);
+}
+
+const TRIAGE_OPTIONS = zodResponse(
+  {
+    ...bearerScope("read"),
+    validate: { params: zodValidate(RepoParams) },
+  },
+  IssueTriageSchema,
+  {
+    name: "IssueTriage",
+    description:
+      "Issue triage in the shared loop sections: issues a run is working, waiting, parked on a person, and done",
+    errors: [400, 404],
+  },
+);
+
+export function triageRoute(
+  runsOf: OpenTriageRuns = openTriageRuns,
+): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/triage",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { params: zodValidate(RepoParams) },
-      },
-      z.array(TriageIssueSchema),
-      {
-        name: "TriageIssues",
-        description: "Issues with triage labels and their active floor runs",
-        errors: [400, 404],
-      },
-    ),
-    handler: (request, h) => serveTriage(request, h),
+    options: TRIAGE_OPTIONS,
+    handler: (request, h) => serveTriage(runsOf, request, h),
   };
 }
 
-type IssueLike = { title: string; number: number; labels?: string[] };
-
 async function serveTriage(
+  runsOf: OpenTriageRuns,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const { owner, repo } = request.params as unknown as z.infer<
-    typeof RepoParams
-  >;
+  const { owner, repo } = request.params as z.infer<typeof RepoParams>;
   const fullName = `${owner}/${repo}`;
 
   try {
     const project = await onboardedProject(fullName);
-    const issues = (await project.issues.list({
-      state: "open",
-    })) as IssueLike[];
-    const runs = await fetchRuns(fullName);
+    const [issues, runs] = await Promise.all([
+      project.issues.list({ state: "open" }) as Promise<TriageIssue[]>,
+      runsOf(fullName),
+    ]);
 
-    return h.response(buildWireIssues(issues, runs));
+    return h.response(triageBuckets(issues, runs));
   } catch (err) {
     return githubFailureResponse(err, h, "triage issues");
   }
-}
-
-type RunView = Awaited<
-  ReturnType<ReturnType<typeof floorClient>["runs"]["list"]>
->["items"][number];
-
-/** The open issue-triage runs of the repo; a floor that cannot answer leaves every row without a link rather than failing the list. */
-async function fetchRuns(repo: string): Promise<RunView[]> {
-  try {
-    const res = await floorClient().runs.list({
-      repo,
-      line: "issue-triage",
-      open: true,
-    });
-
-    return res.items;
-  } catch {
-    return [];
-  }
-}
-
-function buildWireIssues(issues: IssueLike[], runs: RunView[]) {
-  const triageIssues = issues.filter((i) =>
-    i.labels?.some((l) => l.startsWith("triage:")),
-  );
-
-  return triageIssues.map((issue) => {
-    const triageLabel = issue.labels?.find((l) => l.startsWith("triage:"));
-    const activeRun = runs.find(
-      (run) => startValue(run, "issue_number") === String(issue.number),
-    );
-
-    return {
-      title: issue.title,
-      triage_label: triageLabel,
-      ...(activeRun
-        ? { active_run_link: `/assembly-runs/${activeRun.id}` }
-        : {}),
-    };
-  });
 }
