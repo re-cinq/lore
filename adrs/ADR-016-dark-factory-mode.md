@@ -275,6 +275,26 @@ trust-tiered repos passing SC1–SC7 thresholds across 14 days each
 (SC8). After pilot, the legacy local-runner code paths (T058) are
 deleted as a follow-up.
 
+## Amendment 2026-08-22: artifact delivery must ride the advancing event (FR6.74)
+
+Delivery MUST ride the ADVANCING EVENT, not only the telemetry sink. The sink is a
+separate HTTP post racing the Kubernetes event the walk advances on, so nothing ordered
+the merge before the next node's dispatch — the next station could read an arg its
+predecessor had already produced and simply not find it, which reads as "my predecessor
+decided nothing" rather than as the delivery failure it is. Both terminal doors (the
+node event and the reaper's resolve, since a dropped event makes the reaper the only
+reader that output will ever have) therefore parse the artifacts out of the CR's raw
+`status.output` and merge them **before** recording the outcome; the sink stays the
+fast path, and merging identical content twice is a no-op. A declared artifact the
+agent never produced **fails** the node carrying its name and reason, rather than
+advancing with a hole in the bag.
+
+This is FR6.74, split from FR6.17 (the declared-artifact handoff mechanism introduced
+in the original decision). FR6.17 established that artifacts flow through `args` and
+that `mergeArgs` is additive and SQL-side; FR6.74 closes the race window that remained:
+without it, a station reading `args` after the walk advanced could arrive before the
+sink's HTTP post completed.
+
 ## Amendment 2026-10-02: the mode is removed
 
 The per-repo `dark_factory` settings block, the route that wrote it, the Dark
