@@ -10,10 +10,7 @@ import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { LOOP_KINDS } from "@re-cinq/lore-shared/loops/loop-kinds.js";
-import {
-  autoMergeMinAgeHours,
-  loopEnabled,
-} from "@re-cinq/lore-shared/loops/loop-enabled.js";
+import { loopEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -76,7 +73,7 @@ const SWITCH_OPTIONS = zodResponse(
   {
     name: "LoopSwitch",
     description:
-      "Switch one of the repository's loops on or off. The auto-merge loop also takes its one setting, min_age_hours: how long a pull request must have been open before the loop merges it.",
+      "Switch one of the repository's loops on or off. The auto-merge loop's minimum age is a repository setting (PUT /api/repos/{owner}/{repo}/settings, auto_merge.min_age_hours).",
     errors: [400, 404],
   },
 );
@@ -111,9 +108,6 @@ export function repoLoops(settings: unknown): RepoLoop[] {
   return LOOP_KINDS.map((kind) => ({
     ...kind,
     enabled: loopEnabled(kind.key, settings),
-    ...(kind.key === "merge"
-      ? { min_age_hours: autoMergeMinAgeHours(settings) }
-      : {}),
   }));
 }
 
@@ -123,13 +117,11 @@ async function serveSwitchLoop(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const { key } = request.params as z.infer<typeof SwitchParams>;
-  const { enabled, min_age_hours } = request.payload as z.infer<
-    typeof LoopSwitchBodySchema
-  >;
+  const { enabled } = request.payload as z.infer<typeof LoopSwitchBodySchema>;
   const repo = repoOf(request.params);
 
   await enforceRepoRow(pool, repo);
-  await switchLoop(pool, repo, key, { enabled, minAgeHours: min_age_hours });
+  await switchLoop(pool, repo, { key, enabled });
 
   return h.response({ ok: true as const, key, enabled }).code(200);
 }

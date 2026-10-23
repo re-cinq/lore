@@ -167,14 +167,28 @@ function repoUpdateClauses(body: RepoSettingsBody): {
   }
 
   if (body.settings !== undefined) {
-    values.push(JSON.stringify(body.settings));
-    // Merge, not replace: the block carries settings this route never sees.
-    updates.push(
-      `settings = COALESCE(settings, '{}') || $${values.length}::jsonb`,
-    );
+    updates.push(`settings = ${settingsMerge(body.settings, values)}`);
   }
 
   return { updates, values };
+}
+
+/** Merge, not replace: the column carries settings this route never sees. `auto_merge` merges one level deeper, because the Loops tab owns its `enabled` and the settings page its `min_age_hours`, and saving one must not drop the other. */
+function settingsMerge(
+  settings: NonNullable<RepoSettingsBody["settings"]>,
+  values: unknown[],
+): string {
+  const { auto_merge: autoMerge, ...rest } = settings;
+
+  values.push(JSON.stringify(rest));
+  const merged = `COALESCE(settings, '{}') || $${values.length}::jsonb`;
+
+  if (autoMerge === undefined || autoMerge === null) {
+    return merged;
+  }
+  values.push(JSON.stringify(autoMerge));
+
+  return `(${merged}) || jsonb_build_object('auto_merge', COALESCE(settings->'auto_merge', '{}') || $${values.length}::jsonb)`;
 }
 
 async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {

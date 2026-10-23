@@ -44,7 +44,6 @@ describe("switchLoopAction", () => {
 
     const refused = await switchLoopAction("re-cinq/lore", "merge", {
       enabled: true,
-      min_age_hours: 6,
     });
 
     expect({
@@ -53,7 +52,7 @@ describe("switchLoopAction", () => {
       revalidated: vi.mocked(revalidatePath).mock.calls,
     }).toEqual({
       refused: "repo not found: re-cinq/lore",
-      asked: [["re-cinq/lore", "merge", { enabled: true, min_age_hours: 6 }]],
+      asked: [["re-cinq/lore", "merge", { enabled: true }]],
       revalidated: [],
     });
   });

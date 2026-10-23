@@ -194,10 +194,10 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     expect((await put("triage", { enabled: "yes" })).statusCode).toBe(400);
   });
 
-  it("PUT merge on with min_age_hours 6 writes auto_merge.enabled and the minimum age, with no approval asked", async () => {
+  it("PUT merge on writes auto_merge.enabled with no approval asked", async () => {
     const pool = poolWithRepo();
 
-    const res = await put("merge", { enabled: true, min_age_hours: 6 }, pool);
+    const res = await put("merge", { enabled: true }, pool);
     const updates = pool.query.mock.calls.filter(([sql]) =>
       String(sql).includes("UPDATE lore.repos"),
     );
@@ -209,26 +209,8 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     }).toEqual({
       status: 200,
       switched: true,
-      params: [
-        ["re-cinq/lore", true],
-        ["re-cinq/lore", 6],
-      ],
+      params: [["re-cinq/lore", true]],
     });
-  });
-
-  it("GET answers the merge loop's minimum age, 24 when unset, and none on the other loops", async () => {
-    const res = await get(poolWithRepo({}));
-    const loops = JSON.parse(res.payload).loops as Array<{
-      key: string;
-      min_age_hours?: number;
-    }>;
-
-    expect(loops.map((l) => [l.key, l.min_age_hours])).toEqual([
-      ["implementation", undefined],
-      ["review", undefined],
-      ["merge", 24],
-      ["triage", undefined],
-    ]);
   });
 
   it("PUT merge off writes auto_merge.enabled false and takes back the auto-merge Lore armed on its own open pull request", async () => {

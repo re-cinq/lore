@@ -4416,7 +4416,6 @@ export interface components {
         label: string;
         description: string;
         enabled: boolean;
-        min_age_hours?: number;
       }[];
     };
     RepoOnboarded: {
@@ -8273,12 +8272,11 @@ export interface operations {
       content: {
         "application/json": {
           enabled: boolean;
-          min_age_hours?: number;
         };
       };
     };
     responses: {
-      /** @description Switch one of the repository's loops on or off. The auto-merge loop also takes its one setting, min_age_hours: how long a pull request must have been open before the loop merges it. */
+      /** @description Switch one of the repository's loops on or off. The auto-merge loop's minimum age is a repository setting (PUT /api/repos/{owner}/{repo}/settings, auto_merge.min_age_hours). */
       200: {
         headers: {
           [name: string]: unknown;

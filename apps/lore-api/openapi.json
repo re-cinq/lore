@@ -5996,7 +5996,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Switch one of the repository's loops on or off. The auto-merge loop also takes its one setting, min_age_hours: how long a pull request must have been open before the loop merges it.",
+            "description": "Switch one of the repository's loops on or off. The auto-merge loop's minimum age is a repository setting (PUT /api/repos/{owner}/{repo}/settings, auto_merge.min_age_hours).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6063,11 +6063,6 @@
                 "properties": {
                   "enabled": {
                     "type": "boolean"
-                  },
-                  "min_age_hours": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
                   }
                 },
                 "required": ["enabled"],
@@ -16513,11 +16508,6 @@
                 },
                 "enabled": {
                   "type": "boolean"
-                },
-                "min_age_hours": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
                 }
               },
               "required": ["key", "label", "description", "enabled"],

@@ -5,10 +5,9 @@ import PendingActionButton from "@/components/PendingActionButton";
 import StateDot from "./StateDot";
 import styles from "./LoopSwitch.module.scss";
 
-/** What a click asks for; the auto-merge loop also takes its minimum age. */
+/** What a click asks for. */
 export interface SwitchAsk {
   enabled: boolean;
-  min_age_hours?: number;
 }
 
 interface LoopSwitchProps {
@@ -16,8 +15,6 @@ interface LoopSwitchProps {
   label: string;
   description: string;
   enabled: boolean;
-  /** The auto-merge loop's one setting: hours a pull request must have been open before it merges. Absent on every other loop. */
-  minAgeHours?: number;
   /** Answers why the switch was refused, or null. */
   toggle: (next: SwitchAsk) => Promise<string | null>;
 }
@@ -39,73 +36,17 @@ export default function LoopSwitch(props: LoopSwitchProps) {
 
 /** The switch shows the state it was flipped to from the click on, with a spinner, until the refreshed page brings that state: the refresh re-reads every loop and takes seconds, and the old state would read as a click that did nothing. A refused write falls back to the saved state and says why. */
 function SwitchButton(props: LoopSwitchProps) {
-  const { label, enabled, minAgeHours, toggle } = props;
   const { shown, pending, refusal, flip } = useRequestedState(props);
 
   return (
     <div className={styles.control}>
-      <StateButton state={{ label, shown, pending }} onFlip={flip} />
-      {minAgeHours !== undefined && (
-        <MinAgeField
-          hours={minAgeHours}
-          save={(hours) => toggle({ enabled, min_age_hours: hours })}
-        />
-      )}
+      <StateButton
+        state={{ label: props.label, shown, pending }}
+        onFlip={flip}
+      />
       {refusal && <SwitchRefused reason={refusal} />}
     </div>
   );
-}
-
-const HOURS_INPUT = {
-  type: "number",
-  min: 0,
-  step: 1,
-  "aria-label": "Hours a pull request must be open before it merges",
-} as const;
-
-/** The auto-merge loop's one setting, saved when the field loses focus with a changed whole number of hours. */
-function MinAgeField(props: {
-  hours: number;
-  save: (hours: number) => Promise<string | null>;
-}) {
-  const { value, setValue, note, commit } = useMinAge(props);
-
-  return (
-    <label className={styles.minAge}>
-      Merges once open
-      <input
-        {...HOURS_INPUT}
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onBlur={() => void commit()}
-      />
-      hours
-      {note && <SwitchRefused reason={note} />}
-    </label>
-  );
-}
-
-/** The field's text, and what saving it answered; a value that is not a changed whole number of hours goes back to the saved one. */
-function useMinAge(props: {
-  hours: number;
-  save: (hours: number) => Promise<string | null>;
-}) {
-  const [value, setValue] = useState(String(props.hours));
-  const [note, setNote] = useState<string | null>(null);
-
-  async function commit() {
-    // Number("") is 0: a cleared field must not save zero hours.
-    const hours = value.trim() === "" ? Number.NaN : Number(value);
-
-    if (!Number.isInteger(hours) || hours < 0 || hours === props.hours) {
-      setValue(String(props.hours));
-
-      return;
-    }
-    setNote(await props.save(hours));
-  }
-
-  return { value, setValue, note, commit };
 }
 
 /** The button itself: the state it shows, in its colour, with a spinner while a flip is on its way. */

@@ -47,19 +47,4 @@ describe("setLoopEnabled", () => {
       body: { enabled: false },
     });
   });
-
-  it("sends the auto-merge loop's minimum age of 6 hours in the switch's body", async () => {
-    await setLoopEnabled("re-cinq/lore", "merge", {
-      enabled: true,
-      min_age_hours: 6,
-    });
-
-    expect({
-      url: String(call()[0]),
-      body: JSON.parse(call()[1].body as string),
-    }).toEqual({
-      url: "http://api:3000/api/repos/re-cinq/lore/loops/merge",
-      body: { enabled: true, min_age_hours: 6 },
-    });
-  });
 });

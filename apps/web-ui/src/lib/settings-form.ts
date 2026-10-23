@@ -10,6 +10,7 @@ export function parseSettingsForm(formData: FormData) {
     dispatch_label: optionalText(formData, "dispatch_label"),
     dispatch_default_type: optionalText(formData, "dispatch_default_type"),
     digest: parseDigestBlock(formData),
+    auto_merge: minAgeBlock(formData),
   };
 
   const trustLevel = formData.get("trust_level") as string;
@@ -19,6 +20,19 @@ export function parseSettingsForm(formData: FormData) {
   }
 
   return withoutUndefined(updates);
+}
+
+/** The auto-merge loop's one setting; a blank or not-whole number of hours leaves the stored one alone. The loop's on/off switch lives on the Loops tab, and lore-api merges this block into the stored one. */
+function minAgeBlock(
+  formData: FormData,
+): { min_age_hours: number } | undefined {
+  const raw = (
+    (formData.get("auto_merge_min_age_hours") as string) || ""
+  ).trim();
+  const hours = Number(raw);
+  const wholeHours = Number.isInteger(hours) && hours >= 0;
+
+  return raw !== "" && wholeHours ? { min_age_hours: hours } : undefined;
 }
 
 /** A comma-separated field as its non-empty, trimmed parts. */

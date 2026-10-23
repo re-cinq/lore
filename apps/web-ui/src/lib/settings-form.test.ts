@@ -77,4 +77,18 @@ describe("parseSettingsForm", () => {
     expect("slack_channel_id" in result).toBe(false);
     expect("dispatch_label" in result).toBe(false);
   });
+
+  it("sends auto_merge.min_age_hours 6 for a field of 6, and no auto_merge for a blank, negative or fractional one", () => {
+    const parsed = ["6", "", "-1", "1.5"].map(
+      (hours) =>
+        parseSettingsForm(form({ auto_merge_min_age_hours: hours })).auto_merge,
+    );
+
+    expect(parsed).toEqual([
+      { min_age_hours: 6 },
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
 });
