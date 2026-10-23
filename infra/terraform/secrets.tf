@@ -85,6 +85,14 @@ locals {
     # var.utopia_lore_workspace_id: lore-api sets a repo's knowledge base up with
     # it on the repo's first spec/ADR ingest (ADR-052 amendment 2026-10-15).
     var.enable_utopia_auto_setup ? ["lore-utopia-lore-api-token"] : [],
+    # The lore-reviewer GitHub App, whose only job is to approve: the auto-merge
+    # loop approves a green, reviewed PR as it, since GitHub refuses an approval
+    # from the App that opened the PR (specs/protected-branch-merge).
+    var.enable_lore_reviewer ? [
+      "lore-reviewer-app-id",
+      "lore-reviewer-app-private-key",
+      "lore-reviewer-app-installation-id",
+    ] : [],
   )
 }
 

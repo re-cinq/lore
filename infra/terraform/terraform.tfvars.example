@@ -107,6 +107,11 @@ utopia_hostname  = "utopia.example.com"
 enable_utopia_auto_setup = false
 utopia_lore_workspace_id = ""
 
+# Mirror the lore-reviewer GitHub App (seed lore-reviewer-app-id, -private-key and
+# -installation-id first, docs/managing-secrets.md) into lore-stations, so the
+# auto-merge loop can approve the pull requests Lore's own App opened.
+enable_lore_reviewer = false
+
 # Cloud Billing budget for this project, stated per week (see budget.tf: Google
 # only resets budgets monthly, so it is applied as weekly * 52 / 12, with a
 # forecast rule that fires the moment the run rate exceeds the weekly pace).

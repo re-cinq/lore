@@ -88,6 +88,14 @@ githubAppSecret:
   privateKeyKey: private-key
   installationIdKey: installation-id
 
+# The lore-reviewer GitHub App the auto-merge loop approves as; optional, mirrored
+# by terraform's enable_lore_reviewer.
+loreReviewerSecret:
+  name: lore-reviewer-app
+  appIdKey: app-id
+  privateKeyKey: private-key
+  installationIdKey: installation-id
+
 # Optional: auto-curation asks Haiku for a lesson after a merge. Absent → the
 # episode is still written, the curation step is skipped.
 anthropicKeySecret:

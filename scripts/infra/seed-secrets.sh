@@ -75,6 +75,11 @@ OPTIONAL=(
   # Behind enable_utopia_auto_setup: the Utopia write token (utp_pat_…) of the
   # Lore person, minted in Utopia (docs/managing-secrets.md).
   lore-utopia-lore-api-token
+  # Behind enable_lore_reviewer: the lore-reviewer GitHub App the auto-merge loop
+  # approves as (docs/managing-secrets.md).
+  lore-reviewer-app-id
+  lore-reviewer-app-private-key
+  lore-reviewer-app-installation-id
   # Behind enable_external_floor: the bearer tokens between Lore and the external
   # floor engine (its service token, and the one it presents to lore-api's
   # /api/floor/git-credential).
