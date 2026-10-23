@@ -10,6 +10,7 @@ import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import AssemblyRunsLive from "./AssemblyRunsLive";
 import { loadRunsPageAction } from "./runs-live-actions";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("./runs-live-actions", () => ({
   openRunsChannelAction: async () => ({ token: "t-1" }),
   loadRunsPageAction: vi.fn(),
@@ -260,7 +261,7 @@ describe("AssemblyRunsLive", () => {
     });
   });
 
-  it("asks for re-cinq/lore in the read made when the channel goes live on a repository page", async () => {
+  it("asks for re-cinq/lore in the read made when the channel goes live on the list filtered to it", async () => {
     renderLive({ repo: "re-cinq/lore" });
     await openChannel();
 

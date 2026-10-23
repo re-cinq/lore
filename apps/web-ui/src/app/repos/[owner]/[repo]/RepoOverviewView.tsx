@@ -125,7 +125,7 @@ type RecentTasksProps = RepoLinkProps &
   Pick<RepoOverviewViewProps, "recentTasks">;
 
 function RecentTasks({ owner, repo, recentTasks }: RecentTasksProps) {
-  const runs = `/repos/${owner}/${repo}/tasks`;
+  const runs = `/assembly-runs?repo=${owner}/${repo}`;
 
   return (
     <Panel

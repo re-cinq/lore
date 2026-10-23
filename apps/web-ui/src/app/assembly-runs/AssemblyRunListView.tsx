@@ -4,6 +4,8 @@ import { connectionLabel } from "@/lib/run-stream-presenter";
 import type { ChannelState } from "@/lib/live-socket/connection-machine";
 import type { ReactNode } from "react";
 import AssemblyRunsTable from "./AssemblyRunsTable";
+import RepoFilter from "./RepoFilter";
+import { runsHref } from "./runs-href";
 import styles from "./AssemblyRunListView.module.css";
 
 export interface AssemblyRunListViewProps {
@@ -15,13 +17,11 @@ export interface AssemblyRunListViewProps {
   nextCursor?: string | null;
   /** The live channel's state; the chip shows only when given. */
   connection?: ChannelState;
-  /** Where the filter and page links point; the global list by default. */
-  basePath?: string;
-  /** Shown in place of the default "Assembly runs" heading. */
-  heading?: ReactNode;
+  /** `owner/name` of the repository the list is filtered to, or undefined for every repository. */
+  activeRepo?: string;
+  /** `owner/name` of every onboarded repository, offered by the repository filter. */
+  repos?: string[];
 }
-
-const GLOBAL_RUNS_PATH = "/assembly-runs";
 
 const CONNECTION_BADGES: Record<ChannelState, string> = {
   live: "badge-green",
@@ -35,15 +35,22 @@ const FILTERS = ["queued", "running", "finished", "failed"] as const;
 
 // Global assembly-runs list, keyed on per-attempt run records. Pure render — page.tsx fetches the status-filtered runs and passes them down.
 export default function AssemblyRunListView(props: AssemblyRunListViewProps) {
-  const { basePath = GLOBAL_RUNS_PATH, activeStatus } = props;
+  const { activeRepo, activeStatus } = props;
 
   return (
     <div className={styles.page}>
-      <RunListHeader connection={props.connection} heading={props.heading} />
-      <StatusFilterBar activeStatus={activeStatus} basePath={basePath} />
+      <RunListHeader connection={props.connection} />
+      <div className={styles.filters}>
+        <RepoFilter
+          repos={props.repos ?? []}
+          activeRepo={activeRepo}
+          activeStatus={activeStatus}
+        />
+        <StatusFilterBar activeRepo={activeRepo} activeStatus={activeStatus} />
+      </div>
       <AssemblyRunsTable runs={props.runs} showStages />
       <PageLinks
-        basePath={basePath}
+        activeRepo={activeRepo}
         activeStatus={activeStatus}
         cursor={props.cursor}
         nextCursor={props.nextCursor}
@@ -52,21 +59,19 @@ export default function AssemblyRunListView(props: AssemblyRunListViewProps) {
   );
 }
 
-interface PageLinksProps extends Pick<
+type PageLinksProps = Pick<
   AssemblyRunListViewProps,
-  "activeStatus" | "cursor" | "nextCursor"
-> {
-  basePath: string;
-}
+  "activeRepo" | "activeStatus" | "cursor" | "nextCursor"
+>;
 
 function PageLinks({
-  basePath,
+  activeRepo,
   activeStatus,
   cursor,
   nextCursor,
 }: PageLinksProps) {
   const hrefAt = (page?: string) =>
-    runsHref(basePath, { status: activeStatus, cursor: page });
+    runsHref({ repo: activeRepo, status: activeStatus, cursor: page });
 
   return (
     <nav className={styles.pager} aria-label="Pages">
@@ -84,32 +89,17 @@ function PageLink(props: { href: string; children: ReactNode }) {
   );
 }
 
-function runsHref(
-  basePath: string,
-  query: { status?: string; cursor?: string },
-): string {
-  const params = new URLSearchParams();
-
-  if (query.status) {
-    params.set("status", query.status);
-  }
-
-  if (query.cursor) {
-    params.set("cursor", query.cursor);
-  }
-
-  return params.size > 0 ? `${basePath}?${params}` : basePath;
-}
-
-function StatusFilterBar(props: { activeStatus?: string; basePath: string }) {
-  const { activeStatus, basePath } = props;
+function StatusFilterBar(
+  props: Pick<AssemblyRunListViewProps, "activeRepo" | "activeStatus">,
+) {
+  const { activeRepo, activeStatus } = props;
 
   return (
     <nav className={styles.chips} aria-label="Status">
       {[undefined, ...FILTERS].map((status) => (
         <FilterLink
           key={status ?? "all"}
-          href={runsHref(basePath, { status })}
+          href={runsHref({ repo: activeRepo, status })}
           isActive={activeStatus === status}
         >
           {status ? runStatusVisual(status, null).label : "All"}
@@ -137,18 +127,17 @@ function FilterLink(props: {
 
 function RunListHeader({
   connection,
-  heading = <DefaultHeading />,
-}: Pick<AssemblyRunListViewProps, "connection" | "heading">) {
+}: Pick<AssemblyRunListViewProps, "connection">) {
   return (
     <div className={styles.header}>
-      {heading}
+      <Heading />
       {connection && <ConnectionChip state={connection} />}
     </div>
   );
 }
 
 /** The page's own title: the section it sits in, its name, and what it lists. */
-function DefaultHeading() {
+function Heading() {
   return (
     <div className={styles.titleBlock}>
       <span className={styles.eyebrow}>{"{work}"}</span>

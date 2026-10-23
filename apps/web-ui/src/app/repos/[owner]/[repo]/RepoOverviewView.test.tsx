@@ -163,7 +163,7 @@ describe("RepoOverviewView", () => {
     expect(screen.getByText("No tasks yet.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Create one" })).toHaveAttribute(
       "href",
-      "/repos/re-cinq/lore/tasks",
+      "/assembly-runs?repo=re-cinq/lore",
     );
   });
 
