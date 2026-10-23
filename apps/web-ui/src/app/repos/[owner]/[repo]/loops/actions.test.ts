@@ -34,46 +34,28 @@ describe("switchLoopAction", () => {
     });
   });
 
-  it("answers the two-key sentence for a refused auto-merge switch and refreshes nothing", async () => {
+  it("answers lore-api's own detail when it refuses the switch, and refreshes nothing", async () => {
     vi.mocked(setLoopEnabled).mockResolvedValue({
       status: "error",
-      message: "two_key_required",
-      code: 403,
-      body: { error: "two_key_required" },
+      message: "Not Found",
+      code: 404,
+      body: { error: "Not Found", detail: "repo not found: re-cinq/lore" },
     });
 
     const refused = await switchLoopAction("re-cinq/lore", "merge", {
       enabled: true,
+      min_age_hours: 6,
     });
 
     expect({
       refused,
+      asked: vi.mocked(setLoopEnabled).mock.calls,
       revalidated: vi.mocked(revalidatePath).mock.calls,
     }).toEqual({
-      refused:
-        "Switching auto merge on is two-key: name a pull request labelled dark-factory-approval and approved by a code owner of CLAUDE.md.",
+      refused: "repo not found: re-cinq/lore",
+      asked: [["re-cinq/lore", "merge", { enabled: true, min_age_hours: 6 }]],
       revalidated: [],
     });
-  });
-
-  it("answers the code-owner check's own detail when the approval PR does not pass it", async () => {
-    vi.mocked(setLoopEnabled).mockResolvedValue({
-      status: "error",
-      message: "codeowners_check_failed",
-      code: 403,
-      body: {
-        error: "codeowners_check_failed",
-        detail:
-          "re-cinq/lore#123 has no approval from a code owner of CLAUDE.md",
-      },
-    });
-
-    expect(
-      await switchLoopAction("re-cinq/lore", "merge", {
-        enabled: true,
-        approvalPr: "re-cinq/lore#123",
-      }),
-    ).toBe("re-cinq/lore#123 has no approval from a code owner of CLAUDE.md");
   });
 });
 

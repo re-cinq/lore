@@ -82,11 +82,11 @@ function Switches({
 }) {
   return (
     <div className={styles.switches}>
-      {loops.map(({ key, ...loop }) => (
+      {loops.map(({ key, min_age_hours, ...loop }) => (
         <LoopSwitch
           key={key}
           {...loop}
-          twoKey={key === "merge"}
+          minAgeHours={min_age_hours}
           toggle={switchLoopAction.bind(null, fullName, key)}
         />
       ))}

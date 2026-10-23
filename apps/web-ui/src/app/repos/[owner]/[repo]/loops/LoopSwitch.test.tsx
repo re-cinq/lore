@@ -77,9 +77,7 @@ describe("LoopSwitch", () => {
   });
 
   it("falls back to Off and shows lore-api's reason when it refuses the switch", async () => {
-    const refused = vi.fn(
-      async () => "Cannot enable lore-reviewer. Missing: App installation",
-    );
+    const refused = vi.fn(async () => "repo not found: re-cinq/lore");
     const { getByRole } = render(
       <LoopSwitch {...triageSwitch} toggle={refused} enabled={false} />,
     );
@@ -93,39 +91,57 @@ describe("LoopSwitch", () => {
       alert: getByRole("alert").textContent,
     }).toEqual({
       label: "Off",
-      alert: "Cannot enable lore-reviewer. Missing: App installation",
+      alert: "repo not found: re-cinq/lore",
     });
   });
 
-  it("asks a two-key loop that is off for its approval PR and sends it with the switch", async () => {
+  it("saves the auto-merge loop's minimum age of 6 hours when its field loses focus, keeping the switch as it is", async () => {
     const write = vi.fn(async () => null);
     const { getByRole } = render(
       <LoopSwitch
         {...triageSwitch}
         label="Auto merge"
-        twoKey
+        minAgeHours={24}
         toggle={write}
-        enabled={false}
+        enabled
       />,
     );
-
-    fireEvent.change(getByRole("textbox", { name: "Approval pull request" }), {
-      target: { value: "re-cinq/lore#123" },
+    const field = getByRole("spinbutton", {
+      name: "Hours a pull request must be open before it merges",
     });
+
+    fireEvent.change(field, { target: { value: "6" } });
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /Off/ }));
+      fireEvent.blur(field);
     });
 
-    expect(write.mock.calls).toEqual([
-      [{ enabled: true, approvalPr: "re-cinq/lore#123" }],
-    ]);
+    expect(write.mock.calls).toEqual([[{ enabled: true, min_age_hours: 6 }]]);
   });
 
-  it("asks a two-key loop that is on for nothing before switching it off", () => {
-    const { queryByRole } = render(
-      <LoopSwitch {...triageSwitch} label="Auto merge" twoKey enabled />,
-    );
+  it("shows no minimum-age field on a loop that has no such setting, and saves nothing for a value that is not a whole number of hours", async () => {
+    const write = vi.fn(async () => null);
+    const plain = render(<LoopSwitch {...triageSwitch} enabled />);
+    const fieldless = plain.queryByRole("spinbutton");
 
-    expect(queryByRole("textbox")).toBeNull();
+    plain.unmount();
+    const merge = render(
+      <LoopSwitch {...triageSwitch} minAgeHours={24} toggle={write} enabled />,
+    );
+    const field = merge.getByRole("spinbutton");
+
+    fireEvent.change(field, { target: { value: "1.5" } });
+    await act(async () => {
+      fireEvent.blur(field);
+    });
+
+    expect({
+      fieldless,
+      writes: write.mock.calls,
+      shown: (field as HTMLInputElement).value,
+    }).toEqual({
+      fieldless: null,
+      writes: [],
+      shown: "24",
+    });
   });
 });
