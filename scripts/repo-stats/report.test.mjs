@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderReport, trend } from "./report.mjs";
-import { blockers, helped, weeklyStats, windowWeeks } from "./weekly.mjs";
+import {
+  blockers,
+  combine,
+  helped,
+  weeklyStats,
+  windowWeeks,
+} from "./weekly.mjs";
 
 const WEEKS = windowWeeks("2026-10-23", 2);
 const NOW = "2026-10-23T12:00:00Z";
@@ -28,7 +34,8 @@ const humanPull = {
   mergedAt: "2026-10-13T12:00:00Z",
 };
 
-const raw = {
+const otto = {
+  repo: "re-cinq/otto",
   pulls: [lorePull, humanPull],
   commits: [],
   runs: [
@@ -45,21 +52,44 @@ const raw = {
   changelog: [{ weekKey: "2026-W43", intro: "The loop shipped a fix." }],
 };
 
-const repoStats = {
-  repo: "re-cinq/otto",
-  weekly: weeklyStats(raw, WEEKS, NOW),
-  helped: helped(raw, WEEKS),
-  blockers: blockers(raw, WEEKS, NOW),
+const statsOf = (raws) => {
+  const raw = combine(raws);
+
+  return {
+    repos: raws.map(({ repo }) => repo),
+    weekly: weeklyStats(raw, WEEKS, NOW),
+    helped: helped(raw, WEEKS),
+    blockers: blockers(raw, WEEKS, NOW),
+  };
+};
+
+const hal = {
+  ...otto,
+  repo: "re-cinq/HALEngine",
+  pulls: [{ ...lorePull, number: 7, title: "HAL fix" }],
+  runs: [],
+  changelog: [],
 };
 
 const report = (options = {}) =>
-  renderReport([repoStats], WEEKS, { generatedAt: NOW, ...options });
+  renderReport(statsOf([otto, hal]), WEEKS, {
+    generatedAt: NOW,
+    ...options,
+  });
 
 test("renderReport summarises each repo in one row of the summary table", () => {
   assert.match(
     report(),
-    /\| re-cinq\/otto \| 1 \| 1 \| 50% \| 0% \| 0 \| 100% \| \$1\.50 \| \$1\.50 \|/,
+    /\| otto, HALEngine \| 2 \| 1 \| 67% \| 0% \| 0 \| 100% \| \$1\.50 \| \$0\.75 \|/,
   );
+});
+
+test("renderReport prints a dash, not $0.00, for a repo whose runs carry no cost", () => {
+  const markdown = renderReport(statsOf([{ ...otto, runs: [] }]), WEEKS, {
+    generatedAt: NOW,
+  });
+
+  assert.match(markdown, /\| — \| — \| — \|\n/);
 });
 
 test("renderReport writes one pull-request row per week with a dash where nothing merged", () => {
@@ -70,7 +100,7 @@ test("renderReport writes one pull-request row per week with a dash where nothin
 });
 
 test("renderReport lists a merged Lore PR with its hours to merge under Helped", () => {
-  assert.match(report(), /- #5 Loop fix \(2 h to merge\)/);
+  assert.match(report(), /- otto#5 Loop fix \(2 h to merge\)/);
 });
 
 test("renderReport ranks the failure reason under Blocked", () => {
@@ -78,7 +108,7 @@ test("renderReport ranks the failure reason under Blocked", () => {
 });
 
 test("renderReport quotes the changelog introduction of its week", () => {
-  assert.match(report(), /- \*\*2026-W43\*\*: The loop shipped a fix\./);
+  assert.match(report(), /- \*\*2026-W43\*\* otto: The loop shipped a fix\./);
 });
 
 test("renderReport leaves the blocked-hours column out without the database", () => {
@@ -92,7 +122,7 @@ test("renderReport adds the blocked-hours column with the database", () => {
 test("trend of Lore's merged share returns 0% in the first half and 50% in the second", () => {
   const weekly = weeklyStats(
     {
-      ...raw,
+      ...combine([otto]),
       pulls: [
         lorePull,
         humanPull,

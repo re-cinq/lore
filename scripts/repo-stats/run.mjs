@@ -7,7 +7,13 @@ import { pathToFileURL } from "node:url";
 import { loreApi } from "../context-evals/lore-api.mjs";
 import { blockedSpans, collectRepo } from "./collect.mjs";
 import { renderReport } from "./report.mjs";
-import { blockers, helped, weeklyStats, windowWeeks } from "./weekly.mjs";
+import {
+  blockers,
+  combine,
+  helped,
+  weeklyStats,
+  windowWeeks,
+} from "./weekly.mjs";
 
 const OLE_LARSON_REPOS = "re-cinq/otto,re-cinq/bowman-ui,re-cinq/HALEngine";
 
@@ -25,12 +31,13 @@ export async function buildReport({ env, repos, weekCount, withDb, now }) {
     ...raw,
     blocked: spans.filter((span) => span.repo === raw.repo.toLowerCase()),
   }));
-  const stats = raws.map((raw) => ({
-    repo: raw.repo,
-    weekly: weeklyStats(raw, weeks, now),
-    helped: helped(raw, weeks),
-    blockers: blockers(raw, weeks, now),
-  }));
+  const pooled = combine(raws);
+  const stats = {
+    repos,
+    weekly: weeklyStats(pooled, weeks, now),
+    helped: helped(pooled, weeks),
+    blockers: blockers(pooled, weeks, now),
+  };
 
   return {
     raws,

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   authorKind,
   blockers,
+  combine,
   helped,
   isoWeekKey,
   median,
@@ -14,6 +15,7 @@ const WEEKS = windowWeeks("2026-10-23", 2);
 const NOW = "2026-10-23T12:00:00Z";
 
 const pull = (over) => ({
+  repo: "re-cinq/otto",
   number: 1,
   title: "A change",
   author: "saadahmed95",
@@ -160,9 +162,13 @@ test("weeklyStats sums runs, failures and cost per line", () => {
     costUsd: 0.75,
     byLine: {
       "code-review": { runs: 2, failed: 1, costUsd: 0.75 },
-      "implementation-loop": { runs: 1, failed: 0, costUsd: 0 },
+      "implementation-loop": { runs: 1, failed: 0, costUsd: null },
     },
   });
+});
+
+test("weeklyStats returns a null cost for a week without runs", () => {
+  assert.equal(thisWeek({}).runs.costUsd, null);
 });
 
 test("weeklyStats counts a commit with a Lore-Task trailer as Lore's", () => {
@@ -230,6 +236,7 @@ test("blockers ranks failure reasons by count and lists Lore PRs closed unmerged
       ],
       blocked: [
         {
+          repo: "re-cinq/otto",
           pr_number: 4,
           reason: "review_pending",
           since: "2026-10-19T00:00:00Z",
@@ -246,8 +253,15 @@ test("blockers ranks failure reasons by count and lists Lore PRs closed unmerged
       { line: "implementation-loop", reason: "ci red", count: 2 },
       { line: "implementation-loop", reason: "timeout", count: 1 },
     ],
-    closedUnmerged: [{ number: 9, title: "Dropped" }],
-    longestBlocked: [{ number: 4, reason: "review_pending", hours: 108 }],
+    closedUnmerged: [{ repo: "re-cinq/otto", number: 9, title: "Dropped" }],
+    longestBlocked: [
+      {
+        repo: "re-cinq/otto",
+        number: 4,
+        reason: "review_pending",
+        hours: 108,
+      },
+    ],
   });
 });
 
@@ -280,7 +294,53 @@ test("helped lists merged Lore PRs and human PRs fixed after a Lore review", () 
   );
 
   assert.deepEqual(found, {
-    merged: [{ number: 5, title: "Loop fix", hoursToMerge: 2 }],
-    fixedAfterReview: [{ number: 6, title: "Human feature" }],
+    merged: [
+      { repo: "re-cinq/otto", number: 5, title: "Loop fix", hoursToMerge: 2 },
+    ],
+    fixedAfterReview: [
+      { repo: "re-cinq/otto", number: 6, title: "Human feature" },
+    ],
   });
+});
+
+test("combine pools two repos' rows and tags each pull request and intro with its repo", () => {
+  const combined = combine([
+    {
+      repo: "re-cinq/otto",
+      ...raw({
+        pulls: [pull({ repo: undefined })],
+        changelog: [{ weekKey: "2026-W43", intro: "Otto week." }],
+      }),
+    },
+    {
+      repo: "re-cinq/HALEngine",
+      ...raw({ pulls: [pull({ repo: undefined, number: 2 })] }),
+    },
+  ]);
+
+  assert.deepEqual(
+    {
+      pulls: combined.pulls.map(({ repo, number }) => `${repo}#${number}`),
+      changelog: combined.changelog,
+    },
+    {
+      pulls: ["re-cinq/otto#1", "re-cinq/HALEngine#2"],
+      changelog: [
+        { repo: "re-cinq/otto", weekKey: "2026-W43", intro: "Otto week." },
+      ],
+    },
+  );
+});
+
+test("weeklyStats lists every repo's changelog introduction of the week", () => {
+  const week = thisWeek({
+    changelog: [
+      { repo: "re-cinq/otto", weekKey: "2026-W43", intro: "Otto week." },
+      { repo: "re-cinq/HALEngine", weekKey: "2026-W43", intro: null },
+    ],
+  });
+
+  assert.deepEqual(week.intros, [
+    { repo: "re-cinq/otto", intro: "Otto week." },
+  ]);
 });

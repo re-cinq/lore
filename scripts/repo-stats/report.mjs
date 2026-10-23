@@ -1,4 +1,6 @@
-// The markdown report of what Lore did on a set of repositories over a window of weeks: a summary row per repository, then its weekly tables and the lists of where it helped and where it blocked.
+// The markdown report of what Lore did on a set of repositories over a window of weeks, all of them pooled: one summary row, the weekly tables, and the lists of where it helped and where it blocked.
+
+import { knownSum } from "./weekly.mjs";
 
 const LISTED = 10;
 
@@ -39,12 +41,15 @@ const humanPulls = (week) => week.reviews.humanPulls;
 const failedRuns = (week) => week.runs.failed;
 const allRuns = (week) => week.runs.total;
 
-function summaryRow({ repo, weekly, helped }) {
+const shortName = (repo) => repo.split("/")[1];
+const pullRef = (item) => `${shortName(item.repo)}#${item.number}`;
+
+function summaryRow({ repos, weekly, helped }) {
   const total = (of) => sum(weekly.map(of));
-  const cost = total((week) => week.runs.costUsd);
+  const cost = knownSum(weekly.map((week) => week.runs.costUsd));
 
   return [
-    repo,
+    repos.map(shortName).join(", "),
     total(loreMerged),
     total((week) => week.pulls.human.merged),
     percent(ratio(total(loreMerged), total(allMerged))),
@@ -52,7 +57,7 @@ function summaryRow({ repo, weekly, helped }) {
     helped.fixedAfterReview.length,
     percent(ratio(total(failedRuns), total(allRuns))),
     dollars(cost),
-    dollars(ratio(cost, total(loreMerged))),
+    dollars(cost === null ? null : ratio(cost, total(loreMerged))),
   ];
 }
 
@@ -69,7 +74,7 @@ function trendLine(weekly) {
 
 function costliestLine(byLine) {
   const [line] = Object.entries(byLine).sort(
-    ([, a], [, b]) => b.costUsd - a.costUsd,
+    ([, a], [, b]) => (b.costUsd ?? -1) - (a.costUsd ?? -1),
   )[0] ?? ["—"];
 
   return line;
@@ -79,7 +84,7 @@ function weeklyTables(weekly, withDb) {
   const key = (week) => week.week.key;
 
   return [
-    "### Pull requests",
+    "## Pull requests",
     table(
       [
         "Week",
@@ -108,7 +113,7 @@ function weeklyTables(weekly, withDb) {
         ];
       }),
     ),
-    "### Reviews of human PRs",
+    "## Reviews of human PRs",
     table(
       [
         "Week",
@@ -129,7 +134,7 @@ function weeklyTables(weekly, withDb) {
         reviews.fixedAfterReview,
       ]),
     ),
-    "### Floor runs and cost",
+    "## Floor runs and cost",
     table(
       ["Week", "Runs", "Failed", "Failure rate", "Cost", "Costliest line"],
       weekly.map(({ runs, ...week }) => [
@@ -141,7 +146,7 @@ function weeklyTables(weekly, withDb) {
         costliestLine(runs.byLine),
       ]),
     ),
-    "### Commits on the default branch",
+    "## Commits on the default branch",
     table(
       [
         "Week",
@@ -171,29 +176,33 @@ function listed(items, line) {
   );
 }
 
-function repoSection(stats, withDb) {
-  const { repo, weekly, helped, blockers } = stats;
-  const intros = weekly.filter((week) => week.intro !== null);
+function details(stats, withDb) {
+  const { weekly, helped, blockers } = stats;
+  const intros = weekly.flatMap((week) =>
+    week.intros.map((entry) => ({ key: week.week.key, ...entry })),
+  );
 
   return [
-    `## ${repo}`,
     trendLine(weekly),
     ...weeklyTables(weekly, withDb),
-    "### What happened (weekly changelog)",
-    listed(intros, (week) => `- **${week.week.key}**: ${week.intro}`),
-    "### Helped",
+    "## What happened (weekly changelog)",
+    listed(
+      intros,
+      (entry) => `- **${entry.key}** ${shortName(entry.repo)}: ${entry.intro}`,
+    ),
+    "## Helped",
     `Lore PRs merged (${helped.merged.length}), newest first:`,
     listed(
       [...helped.merged].reverse(),
       (pull) =>
-        `- #${pull.number} ${pull.title} (${pull.hoursToMerge} h to merge)`,
+        `- ${pullRef(pull)} ${pull.title} (${pull.hoursToMerge} h to merge)`,
     ),
     `Human PRs that changed after a Lore review asked for something (${helped.fixedAfterReview.length}):`,
     listed(
       helped.fixedAfterReview,
-      (pull) => `- #${pull.number} ${pull.title}`,
+      (pull) => `- ${pullRef(pull)} ${pull.title}`,
     ),
-    "### Blocked",
+    "## Blocked",
     "Most common failures of floor runs:",
     blockers.reasons.length === 0
       ? "- none"
@@ -208,32 +217,32 @@ function repoSection(stats, withDb) {
     `Lore PRs closed without merging (${blockers.closedUnmerged.length}):`,
     listed(
       blockers.closedUnmerged,
-      (pull) => `- #${pull.number} ${pull.title}`,
+      (pull) => `- ${pullRef(pull)} ${pull.title}`,
     ),
     ...(withDb
       ? [
           "PRs Lore held up longest (hours inside the window; rows go 30 days after a PR closes, so older weeks undercount):",
           listed(
             blockers.longestBlocked,
-            (span) => `- #${span.number} ${span.reason} (${span.hours} h)`,
+            (span) => `- ${pullRef(span)} ${span.reason} (${span.hours} h)`,
           ),
         ]
       : []),
-  ].join("\n\n");
+  ];
 }
 
-export function renderReport(repos, weeks, { generatedAt, withDb = false }) {
+export function renderReport(stats, weeks, { generatedAt, withDb = false }) {
   const first = weeks[0];
   const last = weeks.at(-1);
 
   return (
     [
       "# Lore on the Ole Larson repositories",
-      `Weeks ${first.key} to ${last.key} (${first.from} to ${last.to}), generated ${generatedAt}. A PR or run counts in the week it was opened. Lore's PRs are those by lore-agent; Dependabot and other bots count on neither side.`,
+      `Weeks ${first.key} to ${last.key} (${first.from} to ${last.to}), generated ${generatedAt}. All repositories are pooled; a PR or run counts in the week it was opened. Lore's PRs are those by lore-agent; Dependabot and other bots count on neither side.`,
       "## Summary",
       table(
         [
-          "Repo",
+          "Repos",
           "Lore PRs merged",
           "Human PRs merged",
           "Lore share of merged",
@@ -243,9 +252,9 @@ export function renderReport(repos, weeks, { generatedAt, withDb = false }) {
           "Floor cost",
           "Cost per merged Lore PR",
         ],
-        repos.map(summaryRow),
+        [summaryRow(stats)],
       ),
-      ...repos.map((stats) => repoSection(stats, withDb)),
+      ...details(stats, withDb),
     ].join("\n\n") + "\n"
   );
 }

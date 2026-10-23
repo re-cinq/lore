@@ -14,6 +14,13 @@ const hoursBetween = (from, to) => (ms(to) - ms(from)) / HOUR_MS;
 const share = (part, whole) => (whole === 0 ? null : part / whole);
 const sum = (values) => values.reduce((total, value) => total + value, 0);
 
+/** The sum of the values that are known, or null when none is: a run the floor could not price is not a free one. */
+export function knownSum(values) {
+  const known = values.filter((value) => value !== null && value !== undefined);
+
+  return known.length === 0 ? null : sum(known);
+}
+
 export function isoWeekKey(instant) {
   const day = new Date(instant);
   const thursday = new Date(
@@ -140,7 +147,7 @@ function runTally(runs) {
   return {
     runs: runs.length,
     failed: runs.filter(isFailedRun).length,
-    costUsd: sum(runs.map((run) => run.cost_usd ?? 0)),
+    costUsd: knownSum(runs.map((run) => run.cost_usd)),
   };
 }
 
@@ -180,6 +187,20 @@ function overlapHours(span, week, now) {
   return Math.max(0, to - from) / HOUR_MS;
 }
 
+/** Several repositories' rows as one repository's, each pull request, blocked span and changelog introduction tagged with the repository it came from. */
+export function combine(raws) {
+  const tagged = (key) =>
+    raws.flatMap((raw) => raw[key].map((row) => ({ ...row, repo: raw.repo })));
+
+  return {
+    pulls: tagged("pulls"),
+    commits: raws.flatMap((raw) => raw.commits),
+    runs: raws.flatMap((raw) => raw.runs),
+    blocked: tagged("blocked"),
+    changelog: tagged("changelog"),
+  };
+}
+
 /** One row per week: pull requests and runs fall in the week they were opened, commits in the week they landed, blocked hours wherever they overlap it. */
 export function weeklyStats(raw, weeks, now) {
   const inWeek = (week) => (instant) => isoWeekKey(instant) === week.key;
@@ -198,9 +219,9 @@ export function weeklyStats(raw, weeks, now) {
       blockedHours: sum(
         raw.blocked.map((span) => overlapHours(span, week, now)),
       ),
-      intro:
-        raw.changelog.find((entry) => entry.weekKey === week.key)?.intro ??
-        null,
+      intros: raw.changelog
+        .filter((entry) => entry.weekKey === week.key && entry.intro !== null)
+        .map(({ repo, intro }) => ({ repo, intro })),
     };
   });
 }
@@ -242,9 +263,10 @@ export function blockers(raw, weeks, now) {
     closedUnmerged: raw.pulls
       .filter((pull) => kindOf(pull) === "lore" && counted(pull.createdAt))
       .filter(closedUnmerged)
-      .map(({ number, title }) => ({ number, title })),
+      .map(({ repo, number, title }) => ({ repo, number, title })),
     longestBlocked: raw.blocked
       .map((span) => ({
+        repo: span.repo,
         number: span.pr_number,
         reason: span.reason,
         hours: Math.round(windowHours(span)),
@@ -255,7 +277,7 @@ export function blockers(raw, weeks, now) {
   };
 }
 
-/** Where Lore helped: its merged pull requests, and the human ones that changed after its review. */
+/** Where Lore helped: its merged pull requests in the order they merged, and the human ones that changed after its review. */
 export function helped(raw, weeks) {
   const counted = inWindow(weeks);
   const pulls = raw.pulls.filter((pull) => counted(pull.createdAt));
@@ -263,7 +285,9 @@ export function helped(raw, weeks) {
   return {
     merged: pulls
       .filter((pull) => kindOf(pull) === "lore" && pull.mergedAt !== null)
-      .map(({ number, title, createdAt, mergedAt }) => ({
+      .sort((a, b) => ms(a.mergedAt) - ms(b.mergedAt))
+      .map(({ repo, number, title, createdAt, mergedAt }) => ({
+        repo,
         number,
         title,
         hoursToMerge: Math.round(hoursBetween(createdAt, mergedAt)),
@@ -271,6 +295,6 @@ export function helped(raw, weeks) {
     fixedAfterReview: pulls
       .filter((pull) => kindOf(pull) === "human")
       .filter(fixedAfterReview)
-      .map(({ number, title }) => ({ number, title })),
+      .map(({ repo, number, title }) => ({ repo, number, title })),
   };
 }
