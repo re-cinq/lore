@@ -39,7 +39,7 @@ const allMerged = (week) => week.pulls.lore.merged + week.pulls.human.merged;
 const reviewed = (week) => week.reviews.reviewed;
 const humanPulls = (week) => week.reviews.humanPulls;
 const failedRuns = (week) => week.runs.failed;
-const allRuns = (week) => week.runs.total;
+const finishedRuns = (week) => week.runs.total - week.runs.cancelled;
 
 const shortName = (repo) => repo.split("/")[1];
 const pullRef = (item) => `${shortName(item.repo)}#${item.number}`;
@@ -55,7 +55,7 @@ function summaryRow({ repos, weekly, helped }) {
     percent(ratio(total(loreMerged), total(allMerged))),
     percent(ratio(total(reviewed), total(humanPulls))),
     helped.fixedAfterReview.length,
-    percent(ratio(total(failedRuns), total(allRuns))),
+    percent(ratio(total(failedRuns), total(finishedRuns))),
     dollars(cost),
     dollars(cost === null ? null : ratio(cost, total(loreMerged))),
   ];
@@ -68,7 +68,7 @@ function trendLine(weekly) {
   return `First half → second half of the window: ${[
     shown("Lore's share of merged PRs", trend(weekly, loreMerged, allMerged)),
     shown("review coverage", trend(weekly, reviewed, humanPulls)),
-    shown("run failure rate", trend(weekly, failedRuns, allRuns)),
+    shown("run failure rate", trend(weekly, failedRuns, finishedRuns)),
   ].join("; ")}.`;
 }
 
@@ -136,12 +136,21 @@ function weeklyTables(weekly, withDb) {
     ),
     "## Floor runs and cost",
     table(
-      ["Week", "Runs", "Failed", "Failure rate", "Cost", "Costliest line"],
+      [
+        "Week",
+        "Runs",
+        "Cancelled",
+        "Failed",
+        "Failure rate",
+        "Cost",
+        "Costliest line",
+      ],
       weekly.map(({ runs, ...week }) => [
         key(week),
         runs.total,
+        runs.cancelled,
         runs.failed,
-        percent(ratio(runs.failed, runs.total)),
+        percent(ratio(runs.failed, runs.total - runs.cancelled)),
         dollars(runs.costUsd),
         costliestLine(runs.byLine),
       ]),
@@ -238,7 +247,7 @@ export function renderReport(stats, weeks, { generatedAt, withDb = false }) {
   return (
     [
       "# Lore on the Ole Larson repositories",
-      `Weeks ${first.key} to ${last.key} (${first.from} to ${last.to}), generated ${generatedAt}. All repositories are pooled; a PR or run counts in the week it was opened. Lore's PRs are those by lore-agent; Dependabot and other bots count on neither side.`,
+      `Weeks ${first.key} to ${last.key} (${first.from} to ${last.to}), generated ${generatedAt}. All repositories are pooled; a PR or run counts in the week it was opened. A run stopped on purpose (superseded by a push, its PR closed) counts as cancelled, outside the failure rate. Lore's PRs are those by lore-agent; Dependabot and other bots count on neither side.`,
       "## Summary",
       table(
         [

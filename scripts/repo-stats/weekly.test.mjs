@@ -159,12 +159,61 @@ test("weeklyStats sums runs, failures and cost per line", () => {
   assert.deepEqual(week.runs, {
     total: 3,
     failed: 1,
+    cancelled: 0,
     costUsd: 0.75,
     byLine: {
-      "code-review": { runs: 2, failed: 1, costUsd: 0.75 },
-      "implementation-loop": { runs: 1, failed: 0, costUsd: null },
+      "code-review": { runs: 2, failed: 1, cancelled: 0, costUsd: 0.75 },
+      "implementation-loop": {
+        runs: 1,
+        failed: 0,
+        cancelled: 0,
+        costUsd: null,
+      },
     },
   });
+});
+
+test("weeklyStats counts a run cancelled as superseded as cancelled, not failed", () => {
+  const week = thisWeek({
+    runs: [
+      {
+        blueprint_name: "code-review-recheck",
+        status: "failed",
+        outcome: "cancelled",
+        reason: "superseded",
+        created_at: "2026-10-20T09:00:00Z",
+        cost_usd: 0,
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    { failed: week.runs.failed, cancelled: week.runs.cancelled },
+    { failed: 0, cancelled: 1 },
+  );
+});
+
+test("blockers groups reasons that differ only past the dash and in their ids", () => {
+  const failed = (branch) => ({
+    blueprint_name: "gap-fill",
+    status: "failed",
+    outcome: "error",
+    reason: `the push node reported success but pushed nothing — lore/gap-fill/spec-${branch} has no commits`,
+    created_at: "2026-10-20T09:00:00Z",
+  });
+  const found = blockers(
+    raw({ runs: [failed("4150a9d2"), failed("2ff375b9")] }),
+    WEEKS,
+    NOW,
+  );
+
+  assert.deepEqual(found.reasons, [
+    {
+      line: "gap-fill",
+      reason: "the push node reported success but pushed nothing",
+      count: 2,
+    },
+  ]);
 });
 
 test("weeklyStats returns a null cost for a week without runs", () => {

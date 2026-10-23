@@ -6,7 +6,12 @@ const LORE_LOGIN = /^lore-agent/;
 const LORE_TRAILER = /^Lore-Task:/m;
 const FLOOR_AGENT = "Floor Agent";
 const BOT_LOGIN = /\[bot\]$/;
-const FAILED_OUTCOMES = new Set(["error", "failed", "cancelled"]);
+const FAILED_OUTCOMES = new Set(["error", "failed"]);
+// The floor marks a run it stopped on purpose (superseded by a push, its PR closed, upgraded) as a failed run with a cancelled outcome: no failure of Lore's.
+const CANCELLED = "cancelled";
+// The variable tail of a reason (a branch, a run id) follows its dash; ids left before it are blanked so equal failures group.
+const REASON_TAIL = / — .*/s;
+const ID = /\b[0-9a-f]{8}(?:-[0-9a-f]{4}){0,4}[0-9a-f]*\b/g;
 // A request for changes and a comment both carry findings; an approval asks for nothing.
 const FINDING_STATES = new Set(["CHANGES_REQUESTED", "COMMENTED"]);
 const LISTED = 10;
@@ -87,8 +92,14 @@ const isLoreCommit = (commit) =>
 const isWorkCommit = (commit) =>
   (commit.parents ?? 1) === 1 &&
   (isLoreCommit(commit) || !BOT_LOGIN.test(commit.author ?? ""));
+const isCancelledRun = (run) => run.outcome === CANCELLED;
 const isFailedRun = (run) =>
-  run.status === "failed" || FAILED_OUTCOMES.has(run.outcome);
+  !isCancelledRun(run) &&
+  (run.status === "failed" || FAILED_OUTCOMES.has(run.outcome));
+const reasonOf = (run) =>
+  (run.reason ?? run.outcome ?? "no reason recorded")
+    .replace(REASON_TAIL, "")
+    .replace(ID, "…");
 const loreReviews = (pull) =>
   pull.reviews.filter((review) => LORE_LOGIN.test(review.author ?? ""));
 const closedUnmerged = (pull) =>
@@ -156,6 +167,7 @@ function runTally(runs) {
   return {
     runs: runs.length,
     failed: runs.filter(isFailedRun).length,
+    cancelled: runs.filter(isCancelledRun).length,
     costUsd: knownSum(runs.map((run) => run.cost_usd)),
   };
 }
@@ -246,7 +258,7 @@ function failureReasons(runs) {
   const counts = new Map();
 
   for (const run of runs.filter(isFailedRun)) {
-    const reason = run.reason ?? run.outcome ?? "no reason recorded";
+    const reason = reasonOf(run);
     const key = `${run.blueprint_name}\u0000${reason}`;
 
     counts.set(key, (counts.get(key) ?? 0) + 1);
