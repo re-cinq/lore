@@ -13,7 +13,7 @@
 
 ## Facets
 
-- [ ] Add the 2026-08-22 amendment for FR6.74 (Delivery MUST ride the ADVANCING EVENT, not only the telemetry sink) to `adrs/ADR-016-dark-factory-mode.md`.
+- [x] Add the 2026-08-22 amendment for FR6.74 (Delivery MUST ride the ADVANCING EVENT, not only the telemetry sink) to `adrs/ADR-016-dark-factory-mode.md`.
 
 ## Out of scope
 
