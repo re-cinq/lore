@@ -16,6 +16,7 @@ import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
 import { applyDocDelta } from "./ingest-doc-delta.js";
 import { mirrorReportDelta } from "./ingest-report-mirror.js";
+import { saveTestReportRow } from "./test-report-row.js";
 import {
   advanceStoredCommit,
   storedCommit,
@@ -106,7 +107,7 @@ async function serveIngestDelta(
 
   return h.response(
     overlayBranch
-      ? await overlayDeltaResult(deps, repo, body, overlayBranch)
+      ? await overlayDeltaResult(pool, deps, repo, body, overlayBranch)
       : await mainDeltaResult(pool, deps, repo, body),
   );
 }
@@ -128,11 +129,24 @@ async function overlayBranchOfDelta(
 
 /** A branch's delta: its report goes into the overlay and nothing of main's moves — not its test files, whose deleted paths are relative to main's commit, and not its stored pointer. */
 async function overlayDeltaResult(
+  pool: Pool,
   deps: IngestDeltaDeps,
   repo: string,
   body: IngestDeltaBody,
   overlayBranch: string,
 ) {
+  const report = body.report as
+    { tests?: unknown; outcomes?: unknown } | undefined;
+
+  await saveTestReportRow(
+    pool,
+    repo,
+    body.commit,
+    overlayBranch,
+    report?.tests ?? [],
+    report?.outcomes ?? {},
+  );
+
   const outcome = await deps.ingestReport(repo, {
     ...(body.report as object),
     overlayBranch,
