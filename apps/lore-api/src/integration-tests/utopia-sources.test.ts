@@ -1,15 +1,26 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { readFileSync } from "node:fs";
 import pg from "pg";
 import {
   clearUtopiaCursors,
+  saveUtopiaBase,
   saveUtopiaCommitsHead,
   saveUtopiaMirrorSettings,
-  saveUtopiaSource,
   saveUtopiaTrackerSince,
-  utopiaSourceFor,
+  utopiaBaseFor,
 } from "../outbound/utopia-sources.js";
 
-describe("lore.utopia_sources", () => {
+const cleanUp = async (pool: pg.Pool) => {
+  await pool.query(
+    "DELETE FROM lore.utopia_bases WHERE name LIKE 'it-utopia/%'",
+  );
+  await pool.query(
+    "DELETE FROM lore.utopia_sources WHERE repo LIKE 'it-utopia/%'",
+  );
+  await pool.query("DELETE FROM lore.repos WHERE owner = 'it-utopia'");
+};
+
+describe("lore.utopia_bases and the utopia settings block", () => {
   let pool: pg.Pool;
 
   beforeAll(async () => {
@@ -20,18 +31,12 @@ describe("lore.utopia_sources", () => {
       user: process.env.LORE_DB_USER || "lore",
       password: process.env.LORE_DB_PASSWORD || "test",
     });
-    await pool.query(
-      "DELETE FROM lore.utopia_sources WHERE repo LIKE 'it-utopia/%'",
-    );
-    await pool.query("DELETE FROM lore.repos WHERE owner = 'it-utopia'");
+    await cleanUp(pool);
   });
 
   afterAll(async () => {
-    await pool?.query(
-      "DELETE FROM lore.utopia_sources WHERE repo LIKE 'it-utopia/%'",
-    );
-    await pool?.query("DELETE FROM lore.repos WHERE owner = 'it-utopia'");
-    await pool?.end();
+    await cleanUp(pool);
+    await pool.end();
   });
 
   it("keeps the commit cursor c1, the tracker cursor and the auto_review setting when the mirror settings are saved again, and each cursor write keeps the knowledge base and the other cursor beside it", async () => {
@@ -41,7 +46,6 @@ describe("lore.utopia_sources", () => {
     );
     await saveUtopiaMirrorSettings(pool, "it-utopia/cursor", {
       kb_id: "kb-1",
-      source_id: "src-1",
       ontology_version: 3,
     });
     await saveUtopiaCommitsHead(pool, "it-utopia/cursor", "c1");
@@ -52,7 +56,6 @@ describe("lore.utopia_sources", () => {
     );
     await saveUtopiaMirrorSettings(pool, "it-utopia/cursor", {
       kb_id: "kb-1",
-      source_id: "src-1",
       ontology_version: 4,
     });
     const { rows } = await pool.query<{ settings: unknown }>(
@@ -63,7 +66,6 @@ describe("lore.utopia_sources", () => {
       auto_review: true,
       utopia: {
         kb_id: "kb-1",
-        source_id: "src-1",
         ontology_version: 4,
         commits_head: "c1",
         tracker_since: "2026-10-16T02:00:00Z",
@@ -71,39 +73,69 @@ describe("lore.utopia_sources", () => {
     });
   });
 
-  it("reads the source saved for it-utopia/Lore back as it-utopia/lore, and a second save overwrites the key", async () => {
-    const first = { repo: "it-utopia/Lore", kbId: "kb-1", sourceId: "src-1" };
-
-    await saveUtopiaSource(pool, { ...first, key: "utp_old" });
-    await saveUtopiaSource(pool, {
-      ...first,
-      sourceId: "src-2",
-      key: "utp_new",
-    });
+  it("reads the kb-2 saved for it-utopia/Lore back as it-utopia/lore after a first save of kb-1, and null for it-utopia/ghost", async () => {
+    await saveUtopiaBase(pool, "it-utopia/Lore", "kb-1");
+    await saveUtopiaBase(pool, "it-utopia/Lore", "kb-2");
 
     expect({
-      read: await utopiaSourceFor(pool, "it-utopia/lore"),
-      missing: await utopiaSourceFor(pool, "it-utopia/ghost"),
-    }).toEqual({
-      read: { id: "src-2", key: "utp_new", kbId: "kb-1" },
-      missing: null,
-    });
+      read: await utopiaBaseFor(pool, "it-utopia/lore"),
+      missing: await utopiaBaseFor(pool, "it-utopia/ghost"),
+    }).toEqual({ read: "kb-2", missing: null });
   });
 
   it("grants lore every privilege and lore_ui none", async () => {
     const { rows } = await pool.query<{ lore: boolean; ui: boolean | null }>(
-      `SELECT has_table_privilege('lore', 'lore.utopia_sources', 'SELECT') AS lore,
-              (SELECT has_table_privilege('lore_ui', 'lore.utopia_sources', 'SELECT')
+      `SELECT has_table_privilege('lore', 'lore.utopia_bases', 'SELECT') AS lore,
+              (SELECT has_table_privilege('lore_ui', 'lore.utopia_bases', 'SELECT')
                  WHERE EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore_ui')) AS ui`,
     );
 
     expect(rows[0]).toMatchObject({ lore: true, ui: false });
   });
 
-  it("drops the commit and tracker cursors and keeps the knowledge base, the sources, the version and every other setting, and leaves a repo with no utopia block alone", async () => {
+  it("copies the knowledge base of every lore source into lore.utopia_bases, keeps a base already recorded, drops source_id from settings, and again changes nothing", async () => {
+    await pool.query(
+      `INSERT INTO lore.utopia_sources (repo, kb_id, source_id, source_key) VALUES
+         ('it-utopia/old', 'kb-old', 'src-old', 'utp_old'),
+         ('it-utopia/kept', 'kb-stale', 'src-kept', 'utp_kept')`,
+    );
+    await saveUtopiaBase(pool, "it-utopia/kept", "kb-kept");
     await pool.query(
       `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged, settings) VALUES
-         ('it-utopia', 'cleared', 'it-utopia/cleared', true, '{"auto_review": true, "utopia": {"kb_id": "kb-1", "source_id": "src-1", "docs_source_id": "src-docs", "ontology_version": 7, "commits_head": "c1", "tracker_since": "2026-10-16T02:00:00Z"}}'),
+         ('it-utopia', 'old', 'it-utopia/old', true, '{"auto_review": true, "utopia": {"kb_id": "kb-old", "source_id": "src-old", "ontology_version": 7}}')`,
+    );
+    const migration = readFileSync(
+      new URL(
+        "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0119_utopia_bases.sql",
+        import.meta.url,
+      ),
+      "utf-8",
+    );
+
+    await pool.query(migration);
+    await pool.query(migration);
+    const settings = await pool.query<{ settings: unknown }>(
+      "SELECT settings FROM lore.repos WHERE full_name = 'it-utopia/old'",
+    );
+
+    expect({
+      old: await utopiaBaseFor(pool, "it-utopia/old"),
+      kept: await utopiaBaseFor(pool, "it-utopia/kept"),
+      settings: settings.rows[0]?.settings,
+    }).toEqual({
+      old: "kb-old",
+      kept: "kb-kept",
+      settings: {
+        auto_review: true,
+        utopia: { kb_id: "kb-old", ontology_version: 7 },
+      },
+    });
+  });
+
+  it("drops the commit and tracker cursors and keeps the knowledge base, the docs source, the version and every other setting, and leaves a repo with no utopia block alone", async () => {
+    await pool.query(
+      `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged, settings) VALUES
+         ('it-utopia', 'cleared', 'it-utopia/cleared', true, '{"auto_review": true, "utopia": {"kb_id": "kb-1", "docs_source_id": "src-docs", "ontology_version": 7, "commits_head": "c1", "tracker_since": "2026-10-16T02:00:00Z"}}'),
          ('it-utopia', 'bare', 'it-utopia/bare', true, '{"auto_review": true}')`,
     );
 
@@ -121,7 +153,6 @@ describe("lore.utopia_sources", () => {
           auto_review: true,
           utopia: {
             kb_id: "kb-1",
-            source_id: "src-1",
             docs_source_id: "src-docs",
             ontology_version: 7,
           },

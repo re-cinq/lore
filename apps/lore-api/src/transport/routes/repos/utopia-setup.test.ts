@@ -37,14 +37,6 @@ const ANSWERS: Record<string, unknown> = {
   "GET /api/v1/workspaces/ws-2/kbs": [{ id: "kb-1", name: "re-cinq/lore" }],
   "POST /api/v1/kbs/kb-new/ontology/imports": { import_id: "imp-1", plan: {} },
   "POST /api/v1/kbs/kb-1/ontology/imports": { import_id: "imp-2", plan: {} },
-  "POST /api/v1/kbs/kb-new/sources": {
-    ingest_token: "utp_new",
-    source: { id: "src-new" },
-  },
-  "POST /api/v1/kbs/kb-1/sources": {
-    ingest_token: "utp_fresh",
-    source: { id: "src-fresh" },
-  },
 };
 
 const answerOf = (
@@ -91,27 +83,12 @@ beforeAll(async () => {
 
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-interface StoredSource {
-  kb_id: string;
-  source_id: string;
-  source_key: string;
-}
-
-const poolWith = (
-  settings: Record<string, unknown> | null,
-  stored: StoredSource | null = null,
-) => {
+const poolWith = (settings: Record<string, unknown> | null) => {
   const pool = makePool();
 
-  pool.query.mockImplementation(async (sql: string) => {
-    if (/FROM lore\.repos/.test(sql)) {
-      return { rows: [{ settings }] };
-    }
-
-    return {
-      rows: /FROM lore\.utopia_sources/.test(sql) && stored ? [stored] : [],
-    };
-  });
+  pool.query.mockImplementation(async (sql: string) => ({
+    rows: /FROM lore\.repos/.test(sql) ? [{ settings }] : [],
+  }));
 
   return pool;
 };
@@ -134,8 +111,8 @@ const writtenSettings = (pool: ReturnType<typeof makePool>) =>
     utopia: JSON.parse(json),
   }));
 
-const savedSources = (pool: ReturnType<typeof makePool>) =>
-  paramsOf(pool, /INSERT INTO lore\.utopia_sources/);
+const savedBases = (pool: ReturnType<typeof makePool>) =>
+  paramsOf(pool, /INSERT INTO lore\.utopia_bases/);
 
 describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
   useRateLimitSafeClock();
@@ -150,7 +127,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
     };
   });
 
-  it("creates the knowledge base, imports the ontology, binds the seventeen kind words, creates the lore source, saves its key to lore.utopia_sources and its ids to settings", async () => {
+  it("creates the knowledge base, imports the ontology, binds the seventeen kind words, creates no source, and saves kb-new to lore.utopia_bases and settings", async () => {
     const pool = poolWith({ auto_review: true });
     const res = await setup(pool, "ws-1");
 
@@ -161,68 +138,37 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       bound: seen.filter((call) => call.startsWith("bind ")).length,
       statementBound: seen.includes('bind Statement {"class":"statement"}'),
       written: writtenSettings(pool),
-      saved: savedSources(pool),
+      saved: savedBases(pool),
     }).toEqual({
       status: 200,
-      body: { kb_id: "kb-new", source_id: "src-new", ontology_version: 7 },
+      body: { kb_id: "kb-new", ontology_version: 7 },
       calls: [
         "GET /api/v1/workspaces/ws-1/kbs",
         "POST /api/v1/workspaces/ws-1/kbs",
         "POST /api/v1/kbs/kb-new/ontology/imports",
-        "POST /api/v1/kbs/kb-new/sources",
       ],
       bound: 17,
       statementBound: true,
-      written: [
-        {
-          utopia: {
-            kb_id: "kb-new",
-            source_id: "src-new",
-            ontology_version: 7,
-          },
-        },
-      ],
-      saved: [["re-cinq/lore", "kb-new", "src-new", "utp_new"]],
+      written: [{ utopia: { kb_id: "kb-new", ontology_version: 7 } }],
+      saved: [["re-cinq/lore", "kb-new"]],
     });
   });
 
-  it("leaves no source_key and no utp_ key anywhere in the settings it writes", async () => {
-    const pool = poolWith({ auto_review: true });
-
-    await setup(pool, "ws-1");
-    const written = JSON.stringify(paramsOf(pool, /lore\.repos/));
-
-    expect({
-      sourceKey: written.includes("source_key"),
-      key: written.includes("utp_"),
-    }).toEqual({ sourceKey: false, key: false });
-  });
-
-  it("keeps the source whose key lore.utopia_sources holds for the knowledge base it finds by name", async () => {
-    const pool = poolWith(
-      { utopia: { kb_id: "kb-1", source_id: "src-old" } },
-      { kb_id: "kb-1", source_id: "src-old", source_key: "utp_old" },
-    );
+  it("finds kb-1 by the name re-cinq/lore in ws-2, creates no knowledge base, and saves kb-1", async () => {
+    const pool = poolWith({ utopia: { kb_id: "kb-1" } });
     const res = await setup(pool, "ws-2");
 
     expect({
       body: res.result,
-      sourcesCreated: seen.filter((call) => call.endsWith("/sources")).length,
-      saved: savedSources(pool),
+      calls: seen.filter((call) => !call.startsWith("bind ")),
+      saved: savedBases(pool),
     }).toEqual({
-      body: { kb_id: "kb-1", source_id: "src-old", ontology_version: 7 },
-      sourcesCreated: 0,
-      saved: [["re-cinq/lore", "kb-1", "src-old", "utp_old"]],
-    });
-  });
-
-  it("creates src-fresh when settings name src-old but lore.utopia_sources holds no key for it", async () => {
-    const pool = poolWith({ utopia: { kb_id: "kb-1", source_id: "src-old" } });
-    const res = await setup(pool, "ws-2");
-
-    expect({ body: res.result, saved: savedSources(pool) }).toEqual({
-      body: { kb_id: "kb-1", source_id: "src-fresh", ontology_version: 7 },
-      saved: [["re-cinq/lore", "kb-1", "src-fresh", "utp_fresh"]],
+      body: { kb_id: "kb-1", ontology_version: 7 },
+      calls: [
+        "GET /api/v1/workspaces/ws-2/kbs",
+        "POST /api/v1/kbs/kb-1/ontology/imports",
+      ],
+      saved: [["re-cinq/lore", "kb-1"]],
     });
   });
 

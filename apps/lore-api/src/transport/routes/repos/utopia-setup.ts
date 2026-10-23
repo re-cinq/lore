@@ -20,7 +20,6 @@ import {
   setUpRepoInUtopia,
   storeUtopiaSetup,
 } from "../../../work/utopia/utopia-setup.js";
-import { utopiaSourceFor } from "../../../outbound/utopia-sources.js";
 
 const UtopiaSetupBody = z.object({
   /** A person's Utopia session JWT; used for this call and never stored. */
@@ -32,11 +31,10 @@ type UtopiaSetupBody = z.infer<typeof UtopiaSetupBody>;
 
 const UtopiaSetupResultSchema = z.object({
   kb_id: z.string(),
-  source_id: z.string(),
   ontology_version: z.number(),
 });
 
-/** POST /api/repos/{owner}/{repo}/utopia/setup — the repo's Utopia knowledge base, ontology and push source, recorded in its settings (specs/utopia-graph-mirror). */
+/** POST /api/repos/{owner}/{repo}/utopia/setup — the repo's Utopia knowledge base and ontology, recorded in its settings (specs/utopia-graph-mirror). */
 export function utopiaSetupRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -50,7 +48,7 @@ export function utopiaSetupRoute(getPool: () => Pool | null): ServerRoute {
       {
         name: "UtopiaSetupResult",
         description:
-          "The repo's Utopia knowledge base and push source, now in its settings; the source key itself is never answered",
+          "The repo's Utopia knowledge base and the ontology version it holds, now in its settings",
         errors: [400, 404],
       },
     ),
@@ -68,15 +66,14 @@ async function serveUtopiaSetup(
   const session = configuredUtopia().withCredential(body.session_token);
 
   await enforceRepoHeld(pool, repo);
-  const setup = await setUpRepoInUtopia(session, {
+  const settings = await setUpRepoInUtopia(session, {
     repo,
     workspaceId: body.workspace_id,
-    existing: await utopiaSourceFor(pool, repo),
   });
 
-  await storeUtopiaSetup(pool, repo, setup);
+  await storeUtopiaSetup(pool, repo, settings);
 
-  return h.response(setup.settings);
+  return h.response(settings);
 }
 
 function configuredUtopia() {

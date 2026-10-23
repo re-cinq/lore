@@ -14,10 +14,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 const SETTINGS = {
   utopia: {
     kb_id: "kb-1",
-    source_id: "src-1",
     tracker_since: "2026-10-16T00:00:00Z",
   },
 };
+let repoSettings: Record<string, unknown> = SETTINGS;
 const githubReads: string[] = [];
 
 const fakeFiles = {
@@ -44,7 +44,7 @@ const fakeFiles = {
 vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     repo: fakeFiles,
-    settings: { rawSettings: async () => SETTINGS },
+    settings: { rawSettings: async () => repoSettings },
   }),
 }));
 
@@ -81,9 +81,7 @@ beforeAll(async () => {
 
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const SRC_1 = { kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" };
-
-const poolHolding = (sources: (typeof SRC_1)[]) => {
+const poolHolding = () => {
   const pool = makePool();
 
   pool.query.mockImplementation(async (sql: string, params: string[]) => {
@@ -93,18 +91,14 @@ const poolHolding = (sources: (typeof SRC_1)[]) => {
 
     if (/FROM lore\.utopia_kind_sources/.test(sql)) {
       return {
-        rows: sources.map(() => ({
-          id: `src-${params[1]}`,
-          key: `utp_${params[1]}`,
-          kbId: "kb-1",
-        })),
+        rows: [
+          { id: `src-${params[1]}`, key: `utp_${params[1]}`, kbId: "kb-1" },
+        ],
       };
     }
 
     return {
-      rows: /FROM lore\.repos/.test(sql)
-        ? [{ full_name: "re-cinq/lore" }]
-        : sources,
+      rows: /FROM lore\.repos/.test(sql) ? [{ full_name: "re-cinq/lore" }] : [],
     };
   });
 
@@ -122,6 +116,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    repoSettings = SETTINGS;
     pushes.length = 0;
     githubReads.length = 0;
     cursorWrites.length = 0;
@@ -134,7 +129,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
   });
 
   it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 as text to the github source, moves the cursor to its update time and answers the walk", async () => {
-    const res = await tracker(poolHolding([SRC_1]));
+    const res = await tracker(poolHolding());
 
     expect({
       status: res.statusCode,
@@ -159,8 +154,9 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
     });
   });
 
-  it("answers 409 utopia_not_set_up and reads nothing from GitHub when re-cinq/lore has no stored source and UTOPIA_TOKEN is unset", async () => {
-    const res = await tracker(poolHolding([]));
+  it("answers 409 utopia_not_set_up and reads nothing from GitHub when re-cinq/lore has no Utopia knowledge base and UTOPIA_TOKEN is unset", async () => {
+    repoSettings = {};
+    const res = await tracker(poolHolding());
 
     expect({ status: res.statusCode, githubReads }).toEqual({
       status: 409,
@@ -171,6 +167,6 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
   it("answers 503 when UTOPIA_API_URL is unset", async () => {
     delete process.env.UTOPIA_API_URL;
 
-    expect((await tracker(poolHolding([SRC_1]))).statusCode).toBe(503);
+    expect((await tracker(poolHolding())).statusCode).toBe(503);
   });
 });
