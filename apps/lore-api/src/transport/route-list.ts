@@ -186,13 +186,6 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     triageRoute(),
     onboardRoute(getPool),
     ...blockedReasonsRoutes(getPool),
-    ...contextAndGraphRoutes(getPool),
-  ];
-}
-
-/** The context, evaluation, and graph read off a repo. */
-function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [
     contextRoute(getPool),
     contextEvalRoute(getPool),
     contextEvalDocumentsRoute(getPool),
