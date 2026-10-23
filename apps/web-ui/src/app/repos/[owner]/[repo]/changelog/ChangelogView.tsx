@@ -4,6 +4,7 @@ import type {
   ChangelogPage,
   ChangelogWeek,
 } from "@/lib/api/changelog";
+import Markdown from "@/components/Markdown";
 import { groupByPerson, weekTitle } from "./group-changes";
 import styles from "./ChangelogView.module.scss";
 
@@ -121,7 +122,7 @@ function WeekChanges({
 
 function WeekIntro({ week }: { week: ChangelogWeek }) {
   if (week.intro) {
-    return <p className={styles.intro}>{week.intro}</p>;
+    return <Markdown markdown={week.intro} className={styles.intro} />;
   }
 
   return <p className={styles.note}>{missingIntro(week)}</p>;
