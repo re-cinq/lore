@@ -4,7 +4,12 @@ import { InMemoryDigestPosts } from "../../outbound/project/digest-posts/digest-
 import { encodeDigestRepos } from "./codec.js";
 import { APPENDIX_MARKER, INTRO_MARKER } from "./render.js";
 import { openIssue } from "./fixtures.js";
-import { digestDraftOf, type RepoCollector } from "./serve-draft.js";
+import {
+  collectDraft,
+  digestDraftOf,
+  type RepoCollector,
+} from "./serve-draft.js";
+import { digestRunOf } from "./digest-run.js";
 
 const runs = () => new InMemoryAssemblyRuns();
 const digestArgs = (repos: string[]) => ({
@@ -233,4 +238,39 @@ describe("digestDraftOf", () => {
       draft.indexOf(APPENDIX_MARKER),
     );
   });
+
+  it("links re-cinq/lore and re-cinq/otto's Changelog tabs when the UI address is known, and nothing without it", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore", "re-cinq/otto"]),
+    });
+    const withUi = await collectDraftOf(
+      id,
+      assemblyRuns,
+      "https://lore.example",
+    );
+    const withoutUi = await collectDraftOf(id, assemblyRuns, undefined);
+
+    expect({
+      withUi: withUi.includes(
+        "Full list: <https://lore.example/repos/re-cinq/lore/changelog|lore> · <https://lore.example/repos/re-cinq/otto/changelog|otto>",
+      ),
+      withoutUi: withoutUi.includes("Full list"),
+    }).toEqual({ withUi: true, withoutUi: false });
+  });
 });
+
+async function collectDraftOf(
+  id: string,
+  assemblyRuns: InMemoryAssemblyRuns,
+  uiUrl: string | undefined,
+): Promise<string> {
+  const run = await assemblyRuns.getById(id);
+
+  return collectDraft(digestRunOf(run!)!, {
+    ...deps(assemblyRuns, collectOne),
+    uiUrl,
+  });
+}

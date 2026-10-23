@@ -49,6 +49,7 @@ function repoTabs(base: string) {
     { href: `${base}/assembled`, label: "Assembled" },
     { href: `${base}/specs`, label: "Specs" },
     { href: `${base}/plans`, label: "Plans" },
+    { href: `${base}/changelog`, label: "Changelog" },
     { href: `${base}/loops`, label: "Loops" },
     { href: `${base}/adrs`, label: "ADRs" },
     { href: `${base}/graph`, label: "Graph" },

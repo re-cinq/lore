@@ -1201,6 +1201,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/changelog": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/changelog */
+    get: operations["get_api_repos_owner_repo_changelog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/chunk-summary": {
     parameters: {
       query?: never;
@@ -2782,6 +2799,25 @@ export interface components {
     BranchCreated: {
       /** @constant */
       ok: true;
+    };
+    ChangelogPage: {
+      weeks: {
+        weekKey: string;
+        from: string;
+        to: string;
+        current: boolean;
+        intro: string | null;
+        changes: {
+          /** @enum {string} */
+          kind: "pr" | "issue";
+          number: number;
+          title: string;
+          url: string;
+          people: string[];
+          at: string;
+        }[];
+      }[];
+      next: string | null;
     };
     ChunkByPath: {
       chunks: {
@@ -7199,6 +7235,34 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_changelog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the repository's weeks, newest first: what merged and closed in each, with the introduction written once the week ended. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangelogPage"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

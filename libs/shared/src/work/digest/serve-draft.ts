@@ -8,6 +8,7 @@ import type { DigestRepo } from "./codec.js";
 import { dedupeChanges } from "./dedupe.js";
 import { groupPeople, type RepoWork } from "./group.js";
 import {
+  renderChangelogLinks,
   renderDigestDraft,
   renderPeople,
   renderRepoFailure,
@@ -32,6 +33,8 @@ export interface DraftDeps {
   collect: RepoCollector;
   /** Slack display names of a repo's GitHub logins (FR12); a login left out keeps its GitHub name. */
   namesFor(repo: string, logins: string[]): Promise<Record<string, string>>;
+  /** The web UI's address; when set, the digest links each repo's Changelog tab. */
+  uiUrl?: string;
 }
 
 type RepoDeps = Pick<DraftDeps, "collect" | "namesFor">;
@@ -61,7 +64,7 @@ export async function digestDraftOf(
 /** The draft itself, for a caller that already holds the run's facts and keeps the result where its engine keeps things. */
 export async function collectDraft(
   digest: DigestRun,
-  deps: Pick<DraftDeps, "recentTexts" | "collect" | "namesFor">,
+  deps: Pick<DraftDeps, "recentTexts" | "collect" | "namesFor" | "uiUrl">,
 ): Promise<string> {
   const [reads, recent] = await Promise.all([
     Promise.all(digest.repos.map((entry) => readRepo(entry, deps))),
@@ -71,10 +74,21 @@ export async function collectDraft(
   return renderDigestDraft({
     header: { weekKey: digest.weekKey, date: digest.date },
     lines: linesOf(reads),
+    footer: footerOf(digest, deps.uiUrl),
     wantsIntro: digest.repos.some((r) => r.sections.includes("summary")),
     recentIntros: recent.map((texts) => texts.intro).filter(Boolean),
     voice: digest.voice,
   });
+}
+
+/** The changelog links, once the web UI's address is known. */
+function footerOf(digest: DigestRun, uiUrl: string | undefined) {
+  return uiUrl
+    ? renderChangelogLinks(
+        uiUrl,
+        digest.repos.map((entry) => entry.repo),
+      )
+    : undefined;
 }
 
 /** One line per person across every repo read, then one per repo that could not be read. */
