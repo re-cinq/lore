@@ -11,7 +11,7 @@
 
   ## Facets
 
-  - [x] Update scripts/infra/setup-dark-factory-schema.sh to include `assembly_runs` indexes.
+  - [x] Remove premature `assembly_runs` index creation from setup-dark-factory-schema.sh (indexes already in migration 0040_assembly_runs.sql; script runs before that migration, so the table does not exist yet).
 
   ## Out of scope
 

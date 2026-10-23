@@ -44,11 +44,6 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   CREATE INDEX IF NOT EXISTS audit_log_repo_idx
     ON pipeline.audit_log(repo, created_at DESC);
 
-  -- FR6.42: Runs are QUERYABLE — by repo, by blueprint, and by both.
-  CREATE INDEX IF NOT EXISTS assembly_runs_blueprint_idx
-    ON pipeline.assembly_runs(blueprint_name, created_at DESC);
-  CREATE INDEX IF NOT EXISTS assembly_runs_repo_blueprint_idx
-    ON pipeline.assembly_runs(repo, blueprint_name, created_at DESC);
 "
 
 echo "[lore] Dark-factory schema migration complete."
