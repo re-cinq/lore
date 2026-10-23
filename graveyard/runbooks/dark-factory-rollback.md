@@ -50,7 +50,7 @@ psql "$LORE_DB_URL" -c "
 # before the 2026-08-17 label flip carry lore.re-cinq.com/assembly-line-id
 # instead — list both columns while any pre-flip CR can still be in flight.
 kubectl get agents.agents.re-cinq.com -n ai-agents \
-  -L lore.re-cinq.com/task-id,lore.re-cinq.com/assembly-run-id,lore.re-cinq.com/node-id
+  -L lore.re-cinq.com/task-id,lore.re-cinq.com/assembly-run-id,lore.re-cinq.com/node-id,lore.re-cinq.com/station-run-id
 
 # Active branch leases (if any tasks are in flight)
 psql "$LORE_DB_URL" -c "SELECT * FROM pipeline.task_leases;"
