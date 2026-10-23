@@ -238,6 +238,7 @@ describe("serializeContext", () => {
         },
       ],
     );
+
     expect(out).not.toContain("Empty Section");
     expect(out).toContain("Non-empty Section");
   });
