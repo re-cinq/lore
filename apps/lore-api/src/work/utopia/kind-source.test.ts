@@ -12,13 +12,12 @@ import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
+const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 7 } };
+let repoSettings: Record<string, unknown> = SETTINGS;
+
 vi.mock("../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
-    settings: {
-      rawSettings: async () => ({
-        utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 7 },
-      }),
-    },
+    settings: { rawSettings: async () => repoSettings },
   }),
 }));
 
@@ -64,13 +63,13 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 beforeEach(() => {
+  repoSettings = SETTINGS;
   seen.length = 0;
   bodies.length = 0;
 });
 
 interface Held {
   kindSources?: { kind: string; kbId: string; id: string; key: string }[];
-  repoSource?: boolean;
 }
 
 function poolHolding(held: Held) {
@@ -80,12 +79,6 @@ function poolHolding(held: Held) {
     if (/FROM lore\.utopia_kind_sources/.test(sql)) {
       return {
         rows: (held.kindSources ?? []).filter(({ kind }) => kind === params[1]),
-      };
-    }
-
-    if (/FROM lore\.utopia_sources/.test(sql) && held.repoSource !== false) {
-      return {
-        rows: [{ kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" }],
       };
     }
 
@@ -216,7 +209,9 @@ describe("kindSourceOf", () => {
   });
 
   it("rejects naming re-cinq/lore when it has no Utopia knowledge base and the deployment cannot set one up", async () => {
-    const pool = poolHolding({ repoSource: false });
+    const pool = poolHolding({});
+
+    repoSettings = {};
 
     await expect(
       kindSourceOf(asPool(pool), "re-cinq/lore", "docs", {

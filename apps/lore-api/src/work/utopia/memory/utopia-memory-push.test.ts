@@ -16,7 +16,7 @@ vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     settings: {
       rawSettings: async () => ({
-        utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 7 },
+        utopia: { kb_id: "kb-1", ontology_version: 7 },
       }),
     },
   }),
@@ -96,7 +96,7 @@ const MEMORIES_SOURCE = {
 interface Held {
   onboarded?: string[];
   memories?: (typeof MEMORY_ROW)[];
-  repoSources?: Record<string, { kb_id: string; source_id: string }>;
+  bases?: Record<string, string>;
   memorySources?: (typeof MEMORIES_SOURCE)[];
 }
 
@@ -108,11 +108,11 @@ function poolHolding(held: Held) {
     [/FROM memory\.memories/, () => held.memories ?? []],
     [/FROM lore\.utopia_memory_sources/, () => held.memorySources ?? []],
     [
-      /FROM lore\.utopia_sources/,
-      ([repo]) => {
-        const stored = held.repoSources?.[repo];
+      /FROM lore\.utopia_bases/,
+      ([name]) => {
+        const kbId = held.bases?.[name];
 
-        return stored ? [{ ...stored, source_key: "utp_k" }] : [];
+        return kbId ? [{ kb_id: kbId }] : [];
       },
     ],
     [
@@ -138,14 +138,11 @@ const memorySourceWrites = (pool: ReturnType<typeof makePool>) =>
     .filter(([sql]) => /INSERT INTO lore\.utopia_memory_sources/.test(sql))
     .map(([, params]) => params);
 
-const LORE_SRC_1 = { "re-cinq/lore": { kb_id: "kb-1", source_id: "src-1" } };
-
 describe("mirrorMemory", () => {
   it("pushes memory:claude-bogdan/gotchas of re-cinq/lore to the base's memories source src-mem under its key", async () => {
     const pool = poolHolding({
       onboarded: ["re-cinq/lore"],
       memories: [MEMORY_ROW],
-      repoSources: LORE_SRC_1,
       memorySources: [MEMORIES_SOURCE],
     });
 
@@ -172,7 +169,6 @@ describe("mirrorMemory", () => {
     const pool = poolHolding({
       onboarded: ["re-cinq/lore"],
       memories: [MEMORY_ROW],
-      repoSources: LORE_SRC_1,
     });
 
     await mirrorMemory(
@@ -198,7 +194,7 @@ describe("mirrorMemory", () => {
   it("pushes a memory whose repo Lore does not hold to the org base re-cinq/memory", async () => {
     const pool = poolHolding({
       memories: [{ ...MEMORY_ROW, repo: "someone/else" }],
-      repoSources: { "re-cinq/memory": { kb_id: "kb-1", source_id: "src-o" } },
+      bases: { "re-cinq/memory": "kb-1" },
       memorySources: [MEMORIES_SOURCE],
     });
 
@@ -246,7 +242,6 @@ describe("mirrorMemory", () => {
     const pool = poolHolding({
       onboarded: ["re-cinq/lore"],
       memories: [{ ...MEMORY_ROW, live: false }],
-      repoSources: LORE_SRC_1,
       memorySources: [MEMORIES_SOURCE],
     });
 
@@ -270,7 +265,6 @@ describe("mirrorEpisode", () => {
   it("pushes episode:e7 of re-cinq/lore to the base's episodes source", async () => {
     const pool = poolHolding({
       onboarded: ["re-cinq/lore"],
-      repoSources: LORE_SRC_1,
       memorySources: [{ ...MEMORIES_SOURCE, id: "src-ep" }],
     });
 
@@ -301,7 +295,6 @@ describe("mirrorEpisode", () => {
   it("pushes episode:e8, whose ref is a task path under re-cinq/lore, to re-cinq/lore's base and not the org's", async () => {
     const pool = poolHolding({
       onboarded: ["re-cinq/lore"],
-      repoSources: LORE_SRC_1,
       memorySources: [{ ...MEMORIES_SOURCE, id: "src-ep" }],
     });
 

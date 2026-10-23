@@ -1,8 +1,12 @@
-// The Utopia source of each mirrored kind of each repo (lore.utopia_kind_sources, migration 0114, specs/utopia-graph-mirror FR18). Like lore.utopia_sources, the keys are credentials no route answers.
+// The Utopia source of each mirrored kind of each repo (lore.utopia_kind_sources, migration 0114, specs/utopia-graph-mirror FR18). The keys are credentials no route answers, so they are kept apart from lore.repos.settings, which read-scope routes serve whole.
 
 import type { Pool } from "pg";
 import type { UtopiaSource } from "@re-cinq/lore-shared/utopia/utopia-client.js";
-import type { StoredUtopiaSource } from "./utopia-sources.js";
+
+/** A source and the knowledge base it belongs to, so a source is reused only in the base it was made in. */
+export interface StoredSource extends UtopiaSource {
+  kbId: string;
+}
 
 export type MirrorKind = "docs" | "test-coverage" | "git-history" | "github";
 
@@ -32,8 +36,8 @@ export async function kindSourceFor(
   pool: Pool,
   repo: string,
   kind: MirrorKind,
-): Promise<StoredUtopiaSource | null> {
-  const { rows } = await pool.query<StoredUtopiaSource>(
+): Promise<StoredSource | null> {
+  const { rows } = await pool.query<StoredSource>(
     `SELECT source_id AS id, source_key AS key, kb_id AS "kbId"
        FROM lore.utopia_kind_sources WHERE lower(repo) = lower($1) AND kind = $2`,
     [repo, kind],

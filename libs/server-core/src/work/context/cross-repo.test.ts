@@ -12,7 +12,6 @@ describe("repoContextSettings", () => {
         context_backend: "both",
         utopia: {
           kb_id: "kb-1",
-          source_id: "src-1",
           docs_source_id: "src-docs",
           ontology_version: 3,
         },
@@ -29,7 +28,7 @@ describe("repoContextSettings", () => {
 
   it("returns no Utopia mirror when settings.utopia names no docs source yet", async () => {
     const settings = await repoContextSettings(
-      poolWith({ utopia: { kb_id: "kb-1", source_id: "src-1" } }),
+      poolWith({ utopia: { kb_id: "kb-1" } }),
       "re-cinq/lore",
     );
 

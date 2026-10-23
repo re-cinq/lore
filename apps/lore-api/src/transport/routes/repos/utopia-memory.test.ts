@@ -11,14 +11,13 @@ import {
 import { createServer, type Server } from "node:http";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
-const SETTINGS = {
-  utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 7 },
-};
+const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 7 } };
+let repoSettings: Record<string, unknown> = SETTINGS;
 
 vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     repo: {},
-    settings: { rawSettings: async () => SETTINGS },
+    settings: { rawSettings: async () => repoSettings },
   }),
 }));
 
@@ -64,7 +63,6 @@ const MEMORY_ROW = {
   live: true,
 };
 
-const STORED_SRC_1 = { kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" };
 const STORED_SRC_MEM = {
   kbId: "kb-1",
   id: "src-mem",
@@ -72,17 +70,14 @@ const STORED_SRC_MEM = {
   cursor: "m-41",
 };
 
-function poolHolding(held: { repoSource: boolean; memorySource: boolean }) {
+function poolHolding(held: { base: boolean; memorySource: boolean }) {
   const pool = makePool();
   const cursorWrites: unknown[][] = [];
   const answers: [RegExp, () => unknown[]][] = [
     [/FROM memory\.memories/, () => [MEMORY_ROW]],
     [/FROM memory\.episodes/, () => []],
     [/FROM lore\.repos/, () => [{ full_name: "re-cinq/lore" }]],
-    [
-      /FROM lore\.utopia_sources/,
-      () => (held.repoSource ? [STORED_SRC_1] : []),
-    ],
+    [/FROM lore\.utopia_bases/, () => (held.base ? [{ kb_id: "kb-1" }] : [])],
     [
       /FROM lore\.utopia_memory_sources/,
       () => (held.memorySource ? [STORED_SRC_MEM] : []),
@@ -111,6 +106,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/memory", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    repoSettings = SETTINGS;
     pushes.length = 0;
   });
   afterEach(() => {
@@ -122,7 +118,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/memory", () => {
 
   it("pushes memory m-42 after cursor m-41 through the stored src-mem key, moves the cursor to m-42, completes the pass and answers both walks", async () => {
     const { pool, cursorWrites } = poolHolding({
-      repoSource: true,
+      base: true,
       memorySource: true,
     });
     const res = await post(pool, "/api/repos/re-cinq/lore/utopia/memory");
@@ -163,8 +159,9 @@ describe("POST /api/repos/{owner}/{repo}/utopia/memory", () => {
     });
   });
 
-  it("answers 409 utopia_not_set_up and pushes nothing when re-cinq/lore has no stored source and UTOPIA_TOKEN is unset", async () => {
-    const { pool } = poolHolding({ repoSource: false, memorySource: false });
+  it("answers 409 utopia_not_set_up and pushes nothing when re-cinq/lore has no Utopia knowledge base and UTOPIA_TOKEN is unset", async () => {
+    repoSettings = {};
+    const { pool } = poolHolding({ base: false, memorySource: false });
     const res = await post(pool, "/api/repos/re-cinq/lore/utopia/memory");
 
     expect({ status: res.statusCode, pushes }).toEqual({
@@ -189,7 +186,7 @@ describe("POST /api/utopia/memory", () => {
 
   it("answers 409 utopia_org_not_named when GITHUB_ORG is unset", async () => {
     delete process.env.GITHUB_ORG;
-    const { pool } = poolHolding({ repoSource: true, memorySource: true });
+    const { pool } = poolHolding({ base: true, memorySource: true });
     const res = await post(pool, "/api/utopia/memory");
 
     expect({ status: res.statusCode, pushes }).toEqual({
@@ -200,7 +197,7 @@ describe("POST /api/utopia/memory", () => {
 
   it("walks the rows of re-cinq/memory when GITHUB_ORG is re-cinq and pushes them through its stored src-mem key", async () => {
     process.env.GITHUB_ORG = "re-cinq";
-    const { pool } = poolHolding({ repoSource: true, memorySource: true });
+    const { pool } = poolHolding({ base: true, memorySource: true });
     const res = await post(pool, "/api/utopia/memory");
 
     expect({ status: res.statusCode, pushes }).toEqual({
@@ -212,7 +209,7 @@ describe("POST /api/utopia/memory", () => {
   it("answers 503 when UTOPIA_API_URL is unset", async () => {
     delete process.env.UTOPIA_API_URL;
     process.env.GITHUB_ORG = "re-cinq";
-    const { pool } = poolHolding({ repoSource: true, memorySource: true });
+    const { pool } = poolHolding({ base: true, memorySource: true });
 
     expect((await post(pool, "/api/utopia/memory")).statusCode).toBe(503);
   });

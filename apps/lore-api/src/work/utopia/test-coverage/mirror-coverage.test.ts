@@ -21,7 +21,7 @@ vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     settings: {
       rawSettings: async () => ({
-        utopia: { kb_id: "kb-1", source_id: "src-1", ontology_version: 7 },
+        utopia: { kb_id: "kb-1", ontology_version: 7 },
       }),
     },
   }),
@@ -89,12 +89,6 @@ beforeEach(() => {
         rows: heldCoverageSource
           ? [{ id: "src-cov", key: "utp_cov", kbId: "kb-1" }]
           : [],
-      };
-    }
-
-    if (/FROM lore\.utopia_sources/.test(sql)) {
-      return {
-        rows: [{ kb_id: "kb-1", source_id: "src-1", source_key: "utp_k" }],
       };
     }
 

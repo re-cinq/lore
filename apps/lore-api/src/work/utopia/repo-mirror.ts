@@ -1,4 +1,4 @@
-// What every ingest-side door to the Utopia mirror shares: a repo whose settings name a Utopia source whose key lore.utopia_sources holds, on a deployment given a Utopia, has what it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
+// What every ingest-side door to the Utopia mirror shares: a repo whose settings name its Utopia knowledge base, on a deployment given a Utopia, has what it ingests pushed there; on a deployment holding a Utopia write token, a repo not set up yet is set up first.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -12,7 +12,6 @@ import {
   utopiaAutoSetupConfigured,
   utopiaConfigured,
   type UtopiaEnv,
-  type UtopiaSource,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import {
   mirrorFailure,
@@ -20,66 +19,7 @@ import {
 } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
-import {
-  utopiaSourceFor,
-  type StoredUtopiaSource,
-} from "../../outbound/utopia-sources.js";
 import { autoSetUpRepo, autoUpgradeOntology } from "./utopia-auto-setup.js";
-
-/** The source the repo's documents are pushed to, or null when the deployment has no Utopia, the repo was never set up there, or the stored key belongs to another source than the one its settings name. */
-export function mirrorSource(
-  settings: Record<string, unknown> | null,
-  stored: StoredUtopiaSource | null,
-  env: UtopiaEnv = process.env,
-): UtopiaSource | null {
-  const named = namedSourceId(settings);
-
-  if (!utopiaConfigured(env) || !stored || stored.id !== named) {
-    return null;
-  }
-
-  return { id: stored.id, key: stored.key };
-}
-
-function namedSourceId(
-  settings: Record<string, unknown> | null,
-): string | null {
-  const parsed = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
-
-  return parsed.success ? parsed.data.source_id : null;
-}
-
-/** The source the repo was set up with, its ontology upgraded first where the base holds an older one, else a fresh setup where the deployment may run one itself, else null. A failed setup throws, so the ingest logs and counts it as a failed mirror. */
-export async function sourceToMirror(
-  pool: Pool,
-  repo: string,
-  settings: Record<string, unknown> | null,
-  env: UtopiaEnv = process.env,
-): Promise<UtopiaSource | null> {
-  const base = await repoBaseFor(pool, repo, settings, env);
-
-  return base && { id: base.id, key: base.key };
-}
-
-/** {@link sourceToMirror}'s source with the knowledge base it belongs to, for the mirrors that push through sources of their own in the same base. */
-export async function repoBaseFor(
-  pool: Pool,
-  repo: string,
-  settings: Record<string, unknown> | null,
-  env: UtopiaEnv = process.env,
-): Promise<StoredUtopiaSource | null> {
-  const stored = await utopiaSourceFor(pool, repo);
-
-  if (mirrorSource(settings, stored, env)) {
-    await upgradeOntologyQuietly(pool, repo, settings?.utopia, env);
-
-    return stored;
-  }
-
-  return utopiaAutoSetupConfigured(env)
-    ? autoSetUpRepo(pool, repo, stored, env)
-    : null;
-}
 
 /** The id of the knowledge base a repo's mirrors push to, the repo set up first where the deployment may; null when it has none. */
 export async function repoKnowledgeBase(
@@ -89,18 +29,34 @@ export async function repoKnowledgeBase(
 ): Promise<string | null> {
   const settings = await (await projectFor(repo)).settings.rawSettings();
 
-  return (await repoBaseFor(pool, repo, settings, env))?.kbId ?? null;
+  return knowledgeBaseToMirror(pool, repo, settings, env);
+}
+
+/** The knowledge base the repo's settings name, its ontology upgraded first where the base holds an older one, else a fresh setup where the deployment may run one itself, else null; null too on a deployment with no Utopia. A failed setup throws, so the ingest logs and counts it as a failed mirror. */
+export async function knowledgeBaseToMirror(
+  pool: Pool,
+  repo: string,
+  settings: Record<string, unknown> | null,
+  env: UtopiaEnv = process.env,
+): Promise<string | null> {
+  const mirror = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
+
+  if (utopiaConfigured(env) && mirror.success) {
+    await upgradeOntologyQuietly(pool, repo, mirror.data, env);
+
+    return mirror.data.kb_id;
+  }
+
+  return utopiaAutoSetupConfigured(env) ? autoSetUpRepo(pool, repo, env) : null;
 }
 
 /** Without a write token the push goes ahead on the old ontology, its new attributes landing unbound; a failed upgrade is logged and counted as a failed mirror, and the push goes ahead all the same. */
 async function upgradeOntologyQuietly(
   pool: Pool,
   repo: string,
-  utopia: unknown,
+  mirror: UtopiaMirrorSettings,
   env: UtopiaEnv,
 ): Promise<void> {
-  const mirror = UtopiaMirrorSettingsSchema.parse(utopia);
-
   if (ontologyUpgradable(mirror, env)) {
     await autoUpgradeOntology(pool, repo, mirror, env).catch(
       (error: unknown) => {

@@ -1,4 +1,4 @@
-// Sets a repository up in Utopia, as a person or as the Utopia person Lore acts as: its knowledge base in their workspace, the Lore ontology and kind words in it, and the one statements source the ingest pushes through.
+// Sets a repository up in Utopia, as a person or as the Utopia person Lore acts as: its knowledge base in their workspace, and the Lore ontology and kind words in it. The sources the ingest pushes through are made by the mirrors, each the first time it pushes.
 
 import {
   LORE_KIND_WORDS,
@@ -6,61 +6,36 @@ import {
   loreOntologyTurtle,
 } from "@re-cinq/lore-shared/lore-ontology.js";
 import type { UtopiaMirrorSettings } from "@re-cinq/lore-shared/models/repo-settings.js";
-import type {
-  UtopiaSession,
-  UtopiaSource,
-} from "@re-cinq/lore-shared/utopia/utopia-client.js";
+import type { UtopiaSession } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { Pool } from "pg";
 import {
+  saveUtopiaBase,
   saveUtopiaMirrorSettings,
-  saveUtopiaSource,
-  type StoredUtopiaSource,
 } from "../../outbound/utopia-sources.js";
 
 export interface UtopiaSetupInput {
   repo: string;
   workspaceId: string;
-  /** The source lore.utopia_sources already holds a key for, so a source set up before keeps it. */
-  existing: StoredUtopiaSource | null;
-}
-
-/** The settings block holds no key: settings are served whole at read scope, so the key travels apart, to lore.utopia_sources. */
-export interface UtopiaSetup {
-  settings: UtopiaMirrorSettings;
-  source: StoredUtopiaSource;
 }
 
 export async function setUpRepoInUtopia(
   session: UtopiaSession,
   input: UtopiaSetupInput,
-): Promise<UtopiaSetup> {
+): Promise<UtopiaMirrorSettings> {
   const kbId = await knowledgeBaseFor(session, input.workspaceId, input.repo);
 
   await installOntology(session, kbId);
-  const source = await sourceFor(session, kbId, input.existing);
 
-  return {
-    settings: {
-      kb_id: kbId,
-      source_id: source.id,
-      ontology_version: LORE_ONTOLOGY_VERSION,
-    },
-    source: { ...source, kbId },
-  };
+  return { kb_id: kbId, ontology_version: LORE_ONTOLOGY_VERSION };
 }
 
-/** The key first, to lore.utopia_sources, then the ids to settings: settings never name a source whose key is not stored. */
+/** The base first, to lore.utopia_bases, which a base with no repo row is found by, then the repo's settings, which gate its mirror. */
 export async function storeUtopiaSetup(
   pool: Pool,
   repo: string,
-  { settings, source }: UtopiaSetup,
+  settings: UtopiaMirrorSettings,
 ): Promise<void> {
-  await saveUtopiaSource(pool, {
-    repo,
-    kbId: source.kbId,
-    sourceId: source.id,
-    key: source.key,
-  });
+  await saveUtopiaBase(pool, repo, settings.kb_id);
   await saveUtopiaMirrorSettings(pool, repo, settings);
 }
 
@@ -92,17 +67,4 @@ async function knowledgeBaseFor(
   return found
     ? found.id
     : (await session.createKnowledgeBase(workspaceId, repo)).id;
-}
-
-/** A source set up before is kept only while its key is stored, since Utopia hands a source's key out once, at creation. */
-function sourceFor(
-  session: UtopiaSession,
-  kbId: string,
-  existing: StoredUtopiaSource | null,
-): Promise<UtopiaSource> {
-  if (existing?.kbId === kbId) {
-    return Promise.resolve({ id: existing.id, key: existing.key });
-  }
-
-  return session.createStatementsSource(kbId, "lore");
 }

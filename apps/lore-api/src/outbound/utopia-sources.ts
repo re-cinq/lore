@@ -1,53 +1,31 @@
-// The Utopia push source of each repo (lore.utopia_sources): its key is a credential, so it is kept apart from lore.repos.settings, which read-scope routes serve whole, and no route ever answers it.
+// The Utopia knowledge base of each base by name (lore.utopia_bases): a repo's full name, or the org memory base's name, which has no repo row to keep settings in.
 
 import type { Pool } from "pg";
 import type { UtopiaMirrorSettings } from "@re-cinq/lore-shared/models/repo-settings.js";
-import type { UtopiaSource } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 
-export interface SavedUtopiaSource {
-  repo: string;
-  kbId: string;
-  sourceId: string;
-  key: string;
-}
-
-/** One row per repo, matched without regard to case, so a re-run of setup overwrites the key it holds. */
-export async function saveUtopiaSource(
+/** One row per base, matched without regard to case, so a re-run of setup overwrites the knowledge base it holds. */
+export async function saveUtopiaBase(
   pool: Pool,
-  source: SavedUtopiaSource,
+  name: string,
+  kbId: string,
 ): Promise<void> {
   await pool.query(
-    `INSERT INTO lore.utopia_sources (repo, kb_id, source_id, source_key)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT ((lower(repo))) DO UPDATE
-       SET kb_id = EXCLUDED.kb_id, source_id = EXCLUDED.source_id,
-           source_key = EXCLUDED.source_key, updated_at = now()`,
-    [source.repo, source.kbId, source.sourceId, source.key],
+    `INSERT INTO lore.utopia_bases (name, kb_id) VALUES ($1, $2)
+     ON CONFLICT ((lower(name))) DO UPDATE SET kb_id = EXCLUDED.kb_id, updated_at = now()`,
+    [name, kbId],
   );
 }
 
-/** A source and the knowledge base it belongs to, so setup keeps a key only for the knowledge base it finds. */
-export interface StoredUtopiaSource extends UtopiaSource {
-  kbId: string;
-}
-
-export async function utopiaSourceFor(
+export async function utopiaBaseFor(
   pool: Pool,
-  repo: string,
-): Promise<StoredUtopiaSource | null> {
-  const { rows } = await pool.query<{
-    kb_id: string;
-    source_id: string;
-    source_key: string;
-  }>(
-    "SELECT kb_id, source_id, source_key FROM lore.utopia_sources WHERE lower(repo) = lower($1)",
-    [repo],
+  name: string,
+): Promise<string | null> {
+  const { rows } = await pool.query<{ kb_id: string }>(
+    "SELECT kb_id FROM lore.utopia_bases WHERE lower(name) = lower($1)",
+    [name],
   );
-  const row = rows.at(0);
 
-  return row
-    ? { id: row.source_id, key: row.source_key, kbId: row.kb_id }
-    : null;
+  return rows.at(0)?.kb_id ?? null;
 }
 
 /** Merged at both levels, not replaced: the settings block carries everything else the repo was configured with, and the utopia block carries the walks' cursors, which a setup or an ontology upgrade must not wipe. */
@@ -64,7 +42,7 @@ export async function saveUtopiaMirrorSettings(
   );
 }
 
-/** The commit mirror's cursor alone, set inside the utopia block so the knowledge base, source and ontology version beside it stay as they are. */
+/** The commit mirror's cursor alone, set inside the utopia block so the knowledge base and ontology version beside it stay as they are. */
 export function saveUtopiaCommitsHead(
   pool: Pool,
   repo: string,

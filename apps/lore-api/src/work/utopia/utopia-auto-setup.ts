@@ -8,29 +8,23 @@ import {
   type UtopiaSession,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { Pool } from "pg";
-import {
-  saveUtopiaMirrorSettings,
-  type StoredUtopiaSource,
-} from "../../outbound/utopia-sources.js";
+import { saveUtopiaMirrorSettings } from "../../outbound/utopia-sources.js";
 import {
   installOntology,
   setUpRepoInUtopia,
   storeUtopiaSetup,
 } from "./utopia-setup.js";
 
-const settingUp = new Map<string, Promise<StoredUtopiaSource>>();
+const settingUp = new Map<string, Promise<string>>();
 const upgrading = new Map<string, Promise<void>>();
 
-/** Two ingests of one repo in this process share one setup. Across processes, finding the base by name and the one-row-per-repo upsert keep it at one base, and the source saved last wins. */
+/** Answers the id of the knowledge base set up. Two ingests of one repo in this process share one setup; across processes, finding the base by name keeps it at one base. */
 export function autoSetUpRepo(
   pool: Pool,
   repo: string,
-  existing: StoredUtopiaSource | null,
   env: UtopiaEnv,
-): Promise<StoredUtopiaSource> {
-  return sharedPerRepo(settingUp, repo, () =>
-    setUpAndStore(pool, repo, existing, env),
-  );
+): Promise<string> {
+  return sharedPerRepo(settingUp, repo, () => setUpAndStore(pool, repo, env));
 }
 
 /** Re-imports the ontology into the repo's base and stores the version it now holds; two ingests of one repo in this process share one upgrade. */
@@ -66,18 +60,16 @@ export function sharedPerRepo<T>(
 async function setUpAndStore(
   pool: Pool,
   repo: string,
-  existing: StoredUtopiaSource | null,
   env: UtopiaEnv,
-): Promise<StoredUtopiaSource> {
-  const setup = await setUpRepoInUtopia(loreSession(env), {
+): Promise<string> {
+  const settings = await setUpRepoInUtopia(loreSession(env), {
     repo,
     workspaceId: env.UTOPIA_WORKSPACE_ID!,
-    existing,
   });
 
-  await storeUtopiaSetup(pool, repo, setup);
+  await storeUtopiaSetup(pool, repo, settings);
 
-  return setup.source;
+  return settings.kb_id;
 }
 
 export function loreSession(env: UtopiaEnv): UtopiaSession {

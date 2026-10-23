@@ -29,10 +29,9 @@ export const AutoMergeSettingsSchema = z
   })
   .passthrough();
 
-/** The Utopia knowledge base and source the repo's spec/ADR chain is mirrored into (specs/utopia-graph-mirror). No key: settings are served whole at read scope, so the source's push key lives in lore.utopia_sources. */
+/** The Utopia knowledge base the repo is mirrored into (specs/utopia-graph-mirror); naming it switches the mirror on. No keys: settings are served whole at read scope, so each source's push key lives in lore.utopia_kind_sources. */
 export const UtopiaMirrorSettingsSchema = z.object({
   kb_id: z.string(),
-  source_id: z.string(),
   ontology_version: z.number().optional(),
   /** The newest default-branch commit the commit mirror pushed; the next walk starts above it. */
   commits_head: z.string().optional(),

@@ -10,7 +10,7 @@ import {
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { IngestDocument } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import type { Pool } from "pg";
-import { utopiaSourceFor } from "../../../outbound/utopia-sources.js";
+import { utopiaBaseFor } from "../../../outbound/utopia-sources.js";
 import { onboardedRepo } from "../../../outbound/memory-rows.js";
 import {
   memorySourceFor,
@@ -122,11 +122,11 @@ async function orgKnowledgeBase(
   name: string,
   env: UtopiaEnv,
 ): Promise<string | null> {
-  const stored = await utopiaSourceFor(pool, name);
+  const kbId = await utopiaBaseFor(pool, name);
 
-  if (stored || !utopiaAutoSetupConfigured(env)) {
-    return stored?.kbId ?? null;
+  if (kbId || !utopiaAutoSetupConfigured(env)) {
+    return kbId;
   }
 
-  return (await autoSetUpRepo(pool, name, null, env)).kbId;
+  return autoSetUpRepo(pool, name, env);
 }

@@ -7746,7 +7746,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The repo's Utopia knowledge base and push source, now in its settings; the source key itself is never answered",
+            "description": "The repo's Utopia knowledge base and the ontology version it holds, now in its settings",
             "content": {
               "application/json": {
                 "schema": {
@@ -15988,9 +15988,6 @@
                       "kb_id": {
                         "type": "string"
                       },
-                      "source_id": {
-                        "type": "string"
-                      },
                       "ontology_version": {
                         "type": "number"
                       },
@@ -16004,7 +16001,7 @@
                         "type": "string"
                       }
                     },
-                    "required": ["kb_id", "source_id"],
+                    "required": ["kb_id"],
                     "additionalProperties": false
                   },
                   "context_backend": {
@@ -16403,9 +16400,6 @@
                             "kb_id": {
                               "type": "string"
                             },
-                            "source_id": {
-                              "type": "string"
-                            },
                             "ontology_version": {
                               "type": "number"
                             },
@@ -16419,7 +16413,7 @@
                               "type": "string"
                             }
                           },
-                          "required": ["kb_id", "source_id"],
+                          "required": ["kb_id"],
                           "additionalProperties": false
                         },
                         "context_backend": {
@@ -19660,14 +19654,11 @@
           "kb_id": {
             "type": "string"
           },
-          "source_id": {
-            "type": "string"
-          },
           "ontology_version": {
             "type": "number"
           }
         },
-        "required": ["kb_id", "source_id", "ontology_version"],
+        "required": ["kb_id", "ontology_version"],
         "additionalProperties": false
       },
       "UtopiaTrackerSummary": {

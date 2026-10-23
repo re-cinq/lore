@@ -4266,7 +4266,6 @@ export interface components {
             incidents?: unknown[];
             utopia?: {
               kb_id: string;
-              source_id: string;
               ontology_version?: number;
               commits_head?: string;
               tracker_since?: string;
@@ -4389,7 +4388,6 @@ export interface components {
               incidents?: unknown[];
               utopia?: {
                 kb_id: string;
-                source_id: string;
                 ontology_version?: number;
                 commits_head?: string;
                 tracker_since?: string;
@@ -5233,7 +5231,6 @@ export interface components {
     };
     UtopiaSetupResult: {
       kb_id: string;
-      source_id: string;
       ontology_version: number;
     };
     UtopiaTrackerSummary: {
@@ -9037,7 +9034,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The repo's Utopia knowledge base and push source, now in its settings; the source key itself is never answered */
+      /** @description The repo's Utopia knowledge base and the ontology version it holds, now in its settings */
       200: {
         headers: {
           [name: string]: unknown;
