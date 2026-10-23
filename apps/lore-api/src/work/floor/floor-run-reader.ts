@@ -72,6 +72,8 @@ export interface FloorRunPage {
 
 export interface FloorRunPageQuery {
   repo?: string;
+  /** One line's runs only, by the line's name. */
+  line?: string;
   status?: AssemblyRunStatus;
   cursor?: string;
   limit?: number;

@@ -30,6 +30,11 @@ describe("loopEnabled", () => {
     ).toBe(true);
   });
 
+  it("answers review from the top-level auto_review flag, off by default", () => {
+    expect(loopEnabled("review", {})).toBe(false);
+    expect(loopEnabled("review", { auto_review: true })).toBe(true);
+  });
+
   it("answers triage from issue_triage.enabled, on by default", () => {
     expect(loopEnabled("triage", {})).toBe(true);
     expect(loopEnabled("triage", { issue_triage: { enabled: false } })).toBe(
@@ -39,14 +44,14 @@ describe("loopEnabled", () => {
 });
 
 describe("loop kinds", () => {
-  it("lists implementation then triage with their full names", () => {
-    expect(LOOP_KEYS).toEqual(["implementation", "triage"]);
+  it("lists implementation, review then triage with their full names", () => {
+    expect(LOOP_KEYS).toEqual(["implementation", "review", "triage"]);
     expect(loopKind("triage")).toMatchObject({ label: "Issue triage" });
   });
 
   it("isLoopKey rejects a key no loop has", () => {
     expect(isLoopKey("triage")).toBe(true);
-    expect(isLoopKey("review")).toBe(false);
+    expect(isLoopKey("merge")).toBe(false);
     expect(isLoopKey(undefined)).toBe(false);
   });
 });

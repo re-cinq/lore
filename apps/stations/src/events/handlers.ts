@@ -9,7 +9,7 @@ import {
 } from "../work/lib/station.js";
 import { stationHost } from "./runner/station-host.js";
 import { timedStationRun } from "./runner/timed-station-run.js";
-import { autoReviewEnabled } from "@re-cinq/lore-shared/review/code-review-decisions.js";
+import { autoReviewEnabled } from "@re-cinq/lore-shared/loops/auto-review-enabled.js";
 import {
   floorClient,
   floorConfigured,

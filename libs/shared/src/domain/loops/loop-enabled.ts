@@ -1,3 +1,4 @@
+import { autoReviewEnabled } from "./auto-review-enabled.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 import type { LoopKey } from "./loop-kinds.js";
 
@@ -14,6 +15,7 @@ export function issueTriageEnabled(rawSettings: unknown): boolean {
 
 const ENABLED_BY_KEY: Record<LoopKey, (rawSettings: unknown) => boolean> = {
   implementation: implementationLoopEnabled,
+  review: autoReviewEnabled,
   triage: issueTriageEnabled,
 };
 

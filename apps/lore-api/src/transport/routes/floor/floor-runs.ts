@@ -16,6 +16,7 @@ const MAX_LIMIT = 100;
 const FloorRunsQuery = z.object({
   status: AssemblyRunStatusSchema.optional(),
   repo: repoFullName.optional(),
+  line: z.string().min(1).optional(),
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(), // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
 });

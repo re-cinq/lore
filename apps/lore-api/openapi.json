@@ -4711,6 +4711,68 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/code-review": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_code-review",
+        "summary": "GET /api/repos/{owner}/{repo}/code-review",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The code-review loop: pull requests under review, the other open ones, and the newest settled reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/commit": {
       "post": {
         "operationId": "post_api_repos_owner_repo_commit",
@@ -10906,6 +10968,214 @@
         "required": ["job_id", "lines", "total", "truncated"],
         "additionalProperties": false
       },
+      "CodeReview": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": ["number", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "draft": {
+                  "type": "boolean"
+                },
+                "line": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "draft",
+                "line",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "open_pulls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": ["number", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "draft": {
+                  "type": "boolean"
+                },
+                "line": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "draft",
+                "line",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pr_number": {
+                  "type": ["number", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "draft": {
+                  "type": "boolean"
+                },
+                "line": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "pr_number",
+                "pr_url",
+                "title",
+                "draft",
+                "line",
+                "state",
+                "run_id",
+                "pipeline",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["current", "open_pulls", "recent"],
+        "additionalProperties": false
+      },
       "CommitCreated": {
         "type": "object",
         "properties": {
@@ -13490,7 +13760,7 @@
           },
           "key": {
             "type": "string",
-            "enum": ["implementation", "triage"]
+            "enum": ["implementation", "review", "triage"]
           },
           "enabled": {
             "type": "boolean"
@@ -15388,7 +15658,7 @@
               "properties": {
                 "key": {
                   "type": "string",
-                  "enum": ["implementation", "triage"]
+                  "enum": ["implementation", "review", "triage"]
                 },
                 "label": {
                   "type": "string"

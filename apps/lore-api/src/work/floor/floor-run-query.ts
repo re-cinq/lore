@@ -150,23 +150,19 @@ const EVERY_RUN_SINCE = new Date(0).toISOString();
 
 export function floorPageFilter(query: {
   repo?: string;
+  line?: string;
   status?: AssemblyRunStatus;
 }): RunFilter {
-  const { repo, status } = query;
+  const { repo, line, status } = query;
+  const narrowed: Partial<RunFilter> = {
+    ...(repo !== undefined ? { repo: floorRepoOf(repo) } : {}),
+    ...(line !== undefined ? { line } : {}),
+    ...(status !== undefined ? { open: isOpenStatus(status) } : {}),
+  };
 
-  if (repo !== undefined && status !== undefined) {
-    return { repo: floorRepoOf(repo), open: isOpenStatus(status) };
-  }
-
-  if (repo !== undefined) {
-    return { repo: floorRepoOf(repo) };
-  }
-
-  if (status !== undefined) {
-    return { open: isOpenStatus(status) };
-  }
-
-  return { since: EVERY_RUN_SINCE };
+  return Object.keys(narrowed).length > 0
+    ? (narrowed as RunFilter)
+    : { since: EVERY_RUN_SINCE };
 }
 
 /** The floor cannot tell finished from failed, nor queued from running, so a status page is searched for in up to this many floor pages. */
