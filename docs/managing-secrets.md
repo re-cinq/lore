@@ -313,6 +313,43 @@ DELETE FROM lore.utopia_sources WHERE lower(repo) = lower('<o>/<r>');
 Setup then creates a fresh `lore` source, overwrites the row with its key and
 points the settings at it.
 
+### The lore-reviewer App (`lore-reviewer-app-*`)
+
+The auto-merge loop approves a green, reviewed pull request as a second GitHub App,
+**lore-reviewer**, whose only job is to approve: GitHub refuses an approval from the
+account that opened a pull request, and Lore's own App opens the implementation
+loop's, onboarding's and spec upkeep's. Without it the loop still approves
+people's pull requests as Lore's App, and parks Lore's own with "needs the
+lore-reviewer App" (specs/protected-branch-merge).
+
+To create it, an org owner opens **GitHub → Organization settings → Developer
+settings → GitHub Apps → New GitHub App**, named `lore-reviewer`, with no webhook,
+and these repository permissions: Pull requests **read and write**, Contents
+**read**, Checks **read**, Metadata **read**. Install it on the organization's
+repositories, generate a private key, and note the App id and the installation
+id (the number at the end of the installation's settings URL).
+
+Terraform creates the three secret containers only once the flag is on, so turn
+it on first: set `enable_lore_reviewer = true` in `terraform.tfvars` and
+`terraform apply` from main. That creates the containers and the ExternalSecret.
+Then add the values:
+
+```bash
+printf '%s' "<app id>" | gcloud secrets versions add lore-reviewer-app-id --data-file=-
+gcloud secrets versions add lore-reviewer-app-private-key --data-file=lore-reviewer.private-key.pem
+printf '%s' "<installation id>" | gcloud secrets versions add lore-reviewer-app-installation-id --data-file=-
+```
+
+ESO mirrors the three into the `lore-reviewer-app` Secret in `lore-stations`,
+read as `LORE_REVIEWER_APP_ID`, `LORE_REVIEWER_APP_PRIVATE_KEY` and
+`LORE_REVIEWER_APP_INSTALLATION_ID`. The references are `optional`, so the
+stations pod starts before the values exist; once they do, sync and restart:
+
+```bash
+kubectl -n lore-stations annotate externalsecret lore-reviewer-app force-sync="$(date +%s)" --overwrite
+kubectl -n lore-stations rollout restart deploy/lore-stations
+```
+
 ### The Utopia write token (`lore-utopia-lore-api-token`)
 
 With it, lore-api sets a repo's knowledge base up on the repo's first spec or ADR

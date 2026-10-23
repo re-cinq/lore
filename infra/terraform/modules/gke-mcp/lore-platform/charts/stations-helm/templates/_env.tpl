@@ -43,6 +43,27 @@ Usage:
     secretKeyRef:
       name: {{ .Values.githubAppSecret.name }}
       key: {{ .Values.githubAppSecret.installationIdKey }}
+{{- /* The lore-reviewer App the auto-merge loop approves as. Optional: until the
+       secret is mirrored (enable_lore_reviewer) the pod starts without it, and
+       the loop parks the pull requests Lore's own App opened. */}}
+- name: LORE_REVIEWER_APP_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.loreReviewerSecret.name }}
+      key: {{ .Values.loreReviewerSecret.appIdKey }}
+      optional: true
+- name: LORE_REVIEWER_APP_PRIVATE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.loreReviewerSecret.name }}
+      key: {{ .Values.loreReviewerSecret.privateKeyKey }}
+      optional: true
+- name: LORE_REVIEWER_APP_INSTALLATION_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.loreReviewerSecret.name }}
+      key: {{ .Values.loreReviewerSecret.installationIdKey }}
+      optional: true
 {{- if .Values.floor.enabled }}
 - name: FLOOR_API_URL
   value: {{ .Values.floor.apiUrl | quote }}

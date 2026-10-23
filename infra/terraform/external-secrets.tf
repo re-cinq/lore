@@ -1188,3 +1188,44 @@ resource "kubectl_manifest" "es_utopia_token_lore_api" {
 
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
+
+# The lore-reviewer GitHub App the auto-merge loop approves as (LORE_REVIEWER_APP_*
+# in lore-stations); see var.enable_lore_reviewer.
+resource "kubectl_manifest" "es_lore_reviewer_app_stations" {
+  count = var.enable_lore_reviewer ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-reviewer-app"
+      namespace = "lore-stations"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-reviewer-app"
+      }
+      data = [
+        {
+          secretKey = "app-id"
+          remoteRef = { key = "lore-reviewer-app-id" }
+        },
+        {
+          secretKey = "private-key"
+          remoteRef = { key = "lore-reviewer-app-private-key" }
+        },
+        {
+          secretKey = "installation-id"
+          remoteRef = { key = "lore-reviewer-app-installation-id" }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
