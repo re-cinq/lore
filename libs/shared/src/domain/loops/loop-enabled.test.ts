@@ -63,6 +63,14 @@ describe("loopEnabled", () => {
     ).toEqual([true, true, false]);
   });
 
+  it("answers digest on only when digest.enabled is the boolean true", () => {
+    expect(
+      [true, false, undefined].map((enabled) =>
+        loopEnabled("digest", { digest: { enabled, time: "09:00" } }),
+      ),
+    ).toEqual([true, false, false]);
+  });
+
   it("answers triage from issue_triage.enabled, on by default", () => {
     expect(loopEnabled("triage", {})).toBe(true);
     expect(loopEnabled("triage", { issue_triage: { enabled: false } })).toBe(
@@ -72,20 +80,21 @@ describe("loopEnabled", () => {
 });
 
 describe("loop kinds", () => {
-  it("lists implementation, review, merge, triage then upkeep with their full names", () => {
+  it("lists implementation, review, merge, triage, upkeep then digest with their full names", () => {
     expect(LOOP_KEYS).toEqual([
       "implementation",
       "review",
       "merge",
       "triage",
       "upkeep",
+      "digest",
     ]);
-    expect(loopKind("upkeep")).toMatchObject({ label: "Spec upkeep" });
+    expect(loopKind("digest")).toMatchObject({ label: "Daily digest" });
   });
 
   it("isLoopKey rejects a key no loop has", () => {
     expect(isLoopKey("triage")).toBe(true);
-    expect(isLoopKey("digest")).toBe(false);
+    expect(isLoopKey("changelog")).toBe(false);
     expect(isLoopKey(undefined)).toBe(false);
   });
 });

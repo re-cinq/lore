@@ -6,7 +6,6 @@ import {
   type DigestBlock,
 } from "@/lib/settings-digest";
 import { SettingsCard } from "@/components/SettingsCard";
-import Switch from "@/components/Switch";
 import styles from "./page.module.css";
 
 export interface DigestFieldsProps {
@@ -35,7 +34,9 @@ function DigestBody({ digest, slackChannelSet }: DigestFieldsProps) {
   return (
     <>
       {!slackChannelSet && <SlackChannelHint />}
-      <EnableField enabled={current.enabled} />
+      <span className={styles.hint}>
+        Switch the daily digest on or off on the Loops tab.
+      </span>
       <ScheduleFields
         time={current.time}
         days={current.days}
@@ -52,17 +53,6 @@ function SlackChannelHint() {
     <span className={styles.hint}>
       Set a Slack Channel ID above first: the digest is posted there.
     </span>
-  );
-}
-
-function EnableField({ enabled }: { enabled: boolean }) {
-  return (
-    <Switch
-      name="digest_enabled"
-      value="yes"
-      defaultChecked={enabled}
-      label="Post a daily digest to the Slack channel"
-    />
   );
 }
 

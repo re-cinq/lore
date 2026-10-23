@@ -1371,6 +1371,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/daily-digest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/daily-digest */
+    get: operations["get_api_repos_owner_repo_daily-digest"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/events/{id}/payload": {
     parameters: {
       query?: never;
@@ -3091,6 +3108,73 @@ export interface components {
       /** @constant */
       ok: true;
     };
+    DailyDigest: {
+      current: {
+        ref: string;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      backlog: {
+        ref: string;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      parked: {
+        ref: string;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      awaiting_merge: {
+        ref: string;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+      recent: {
+        ref: string;
+        title: string;
+        state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
+        created_at: string | null;
+      }[];
+    };
     DocumentEval:
       | {
           path: string;
@@ -3875,7 +3959,8 @@ export interface components {
       /** @constant */
       ok: true;
       /** @enum {string} */
-      key: "implementation" | "review" | "merge" | "triage" | "upkeep";
+      key:
+        "implementation" | "review" | "merge" | "triage" | "upkeep" | "digest";
       enabled: boolean;
     };
     MemoryAuditPage: {
@@ -4439,7 +4524,13 @@ export interface components {
     RepoLoops: {
       loops: {
         /** @enum {string} */
-        key: "implementation" | "review" | "merge" | "triage" | "upkeep";
+        key:
+          | "implementation"
+          | "review"
+          | "merge"
+          | "triage"
+          | "upkeep"
+          | "digest";
         label: string;
         description: string;
         enabled: boolean;
@@ -7898,6 +7989,35 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_daily-digest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The daily digest: the posts that went out for the repository this week, in the shared loop sections */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DailyDigest"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

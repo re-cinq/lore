@@ -67,7 +67,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     expect((await put("triage", { enabled: false })).statusCode).toBe(404);
   });
 
-  it("GET lists implementation, review and merge off and triage and upkeep on for a repo with empty settings", async () => {
+  it("GET lists implementation, review, merge and digest off and triage and upkeep on for a repo with empty settings", async () => {
     const res = await get(poolWithRepo({}));
 
     expect(
@@ -84,6 +84,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       ["merge", "Auto merge", false],
       ["triage", "Issue triage", true],
       ["upkeep", "Spec upkeep", true],
+      ["digest", "Daily digest", false],
     ]);
   });
 
@@ -95,12 +96,13 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
         auto_merge: { enabled: true, min_age_hours: 6 },
         issue_triage: { enabled: false },
         spec_upkeep: { enabled: false },
+        digest: { enabled: true },
       }),
     );
 
     expect(
       JSON.parse(res.payload).loops.map((l: { enabled: boolean }) => l.enabled),
-    ).toEqual([true, true, true, false, false]);
+    ).toEqual([true, true, true, false, false, true]);
   });
 
   it("PUT upkeep off writes spec_upkeep.enabled false", async () => {
@@ -207,7 +209,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
   });
 
   it("PUT rejects a key no loop has and a payload without a boolean enabled", async () => {
-    expect((await put("digest", { enabled: true })).statusCode).toBe(400);
+    expect((await put("changelog", { enabled: true })).statusCode).toBe(400);
     expect((await put("triage", { enabled: "yes" })).statusCode).toBe(400);
   });
 

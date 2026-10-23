@@ -63,7 +63,7 @@ describe("SettingsView (general only)", () => {
       (field) => field.getAttribute("name"),
     );
 
-    expect(names.indexOf("digest_enabled")).toBeGreaterThan(
+    expect(names.indexOf("digest_time")).toBeGreaterThan(
       names.indexOf("cross_repo_repos"),
     );
   });

@@ -85,4 +85,25 @@ describe("LoopTable", () => {
       ),
     ).toEqual(["neutral", "success", "danger"]);
   });
+
+  it("badges the digest's claimed post info and posted post success, not danger", () => {
+    const { getAllByTestId } = render(
+      <LoopTable
+        subject="Post"
+        emptyText=""
+        rows={["claimed", "posted"].map((state) => (
+          <tr key={state}>
+            <StatusCell state={state} since={null} />
+          </tr>
+        ))}
+      />,
+    );
+
+    expect(
+      getAllByTestId("row-status").map(
+        (badge) =>
+          badge.className.match(/tone_(success|danger|info|neutral)/)?.[1],
+      ),
+    ).toEqual(["info", "success"]);
+  });
 });

@@ -16,6 +16,7 @@ const SWITCH_SQL: Record<LoopKey, string> = {
   merge: blockSwitchSql("auto_merge"),
   triage: blockSwitchSql("issue_triage"),
   upkeep: blockSwitchSql("spec_upkeep"),
+  digest: blockSwitchSql("digest"),
 };
 
 /** Merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. */

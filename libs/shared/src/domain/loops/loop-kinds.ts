@@ -31,6 +31,12 @@ export const LOOP_KINDS = [
     description:
       "Every Monday, finds spec statements that drifted from the code or have no test link, fixes them in one pull request and sees its CI through.",
   },
+  {
+    key: "digest",
+    label: "Daily digest",
+    description:
+      "Posts what moved on the repository to its Slack channel, on the days and at the time its Settings page sets.",
+  },
 ] as const;
 
 export type LoopKind = (typeof LOOP_KINDS)[number];

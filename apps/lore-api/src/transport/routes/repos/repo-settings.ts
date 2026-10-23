@@ -173,22 +173,30 @@ function repoUpdateClauses(body: RepoSettingsBody): {
   return { updates, values };
 }
 
-/** Merge, not replace: the column carries settings this route never sees. `auto_merge` merges one level deeper, because the Loops tab owns its `enabled` and the settings page its `min_age_hours`, and saving one must not drop the other. */
+/** Merge, not replace: the column carries settings this route never sees. A block whose switch the Loops tab owns merges one level deeper, so the settings page saving its other keys keeps the switch as it was, and the switch keeps them. A block sent as null still clears it. */
 function settingsMerge(
   settings: NonNullable<RepoSettingsBody["settings"]>,
   values: unknown[],
 ): string {
-  const { auto_merge: autoMerge, ...rest } = settings;
+  const deep = SWITCHED_BLOCKS.filter((block) => isObject(settings[block]));
+  const rest = Object.fromEntries(
+    Object.entries(settings).filter(([key]) => !deep.includes(key)),
+  );
 
   values.push(JSON.stringify(rest));
-  const merged = `COALESCE(settings, '{}') || $${values.length}::jsonb`;
 
-  if (autoMerge === undefined || autoMerge === null) {
-    return merged;
-  }
-  values.push(JSON.stringify(autoMerge));
+  return deep.reduce((merged, block) => {
+    values.push(JSON.stringify(settings[block]));
 
-  return `(${merged}) || jsonb_build_object('auto_merge', COALESCE(settings->'auto_merge', '{}') || $${values.length}::jsonb)`;
+    return `(${merged}) || jsonb_build_object('${block}', COALESCE(settings->'${block}', '{}') || $${values.length}::jsonb)`;
+  }, `COALESCE(settings, '{}') || $${values.length}::jsonb`);
+}
+
+/** The settings blocks that hold a loop's switch beside the settings page's own keys. */
+const SWITCHED_BLOCKS = ["auto_merge", "digest"];
+
+function isObject(value: unknown): boolean {
+  return typeof value === "object" && value !== null;
 }
 
 async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {

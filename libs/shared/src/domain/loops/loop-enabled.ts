@@ -24,6 +24,15 @@ export function specUpkeepEnabled(rawSettings: unknown): boolean {
   return block?.enabled !== false;
 }
 
+/** The daily digest's switch, `digest.enabled` (specs/daily-digest); off by omission. */
+export function digestEnabled(rawSettings: unknown): boolean {
+  const block = (
+    parsedSettings(rawSettings) as { digest?: { enabled?: unknown } } | null
+  )?.digest;
+
+  return block?.enabled === true;
+}
+
 /** The auto-merge loop's switch, `auto_merge.enabled` (specs/protected-branch-merge); off by omission. */
 export function autoMergeEnabled(rawSettings: unknown): boolean {
   return autoMergeBlock(rawSettings)?.enabled === true;
@@ -57,6 +66,7 @@ const ENABLED_BY_KEY: Record<LoopKey, (rawSettings: unknown) => boolean> = {
   merge: autoMergeEnabled,
   triage: issueTriageEnabled,
   upkeep: specUpkeepEnabled,
+  digest: digestEnabled,
 };
 
 /** Whether the named loop is switched on for a repository, read from its raw `lore.repos.settings`. */

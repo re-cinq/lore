@@ -9,9 +9,11 @@ import styles from "./LoopTable.module.scss";
 const STATUS_TONE: Record<string, "success" | "danger" | "info" | "neutral"> = {
   completed: "success",
   merged: "success",
+  posted: "success",
   success: "success",
   "needs-priority": "success",
   running: "info",
+  claimed: "info",
   armed: "info",
   waiting: "info",
   "pr-created": "info",
