@@ -249,7 +249,7 @@ The tool retrieves from all available sources:
   (chars / 4) — no tokenizer dependency. ([validated by `context-assembly.test.ts:26`](libs/server-core/src/work/context/context-assembly.test.ts#L29))
 - FR-4.4: When content exceeds a section's budget, it is truncated
   at a paragraph boundary with a "(truncated)" marker; content under
-  budget is returned unchanged. ([validated by `context-assembly.test.ts:40`](libs/server-core/src/work/context/context-assembly.test.ts#L43), [`context-assembly.test.ts:34`](libs/server-core/src/work/context/context-assembly.test.ts#L37))
+  budget is returned unchanged. ([validated by `context-assembly.test.ts:40`](libs/server-core/src/work/context/context-assembly.test.ts#L43), [`context-assembly.test.ts:34`](libs/server-core/src/work/context/context-assembly.test.ts#L37), [`context-assembly-truncate.acceptance.test.ts:5`](libs/shared/src/outbound/project/knowledge/context-assembly-truncate.acceptance.test.ts#L5))
 - FR-4.5: **Per-document cap.** When a section has more than one document,
   no single document may exceed half the section budget — so one mega-doc
   (e.g. CLAUDE.md) cannot crowd out several smaller, more-relevant chunks. A
