@@ -98,7 +98,7 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets and spec-upkeep", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -114,6 +114,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "onboard",
       "spec-tickets",
       "spec-upkeep",
+      "weekly-changelog",
     ]);
   });
 
@@ -663,6 +664,63 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(prompt).toContain("{digest_draft_path}");
     expect(prompt).toContain("{digest_message_path}");
     expect(prompt).not.toContain("clone");
+  });
+
+  it("walks weekly-changelog from collect through intro to store, reaching store on every outcome of intro and straight from an empty collect", () => {
+    const { line } = pipelineOf("weekly-changelog");
+
+    expect({
+      nodes: line.nodes,
+      collect: edgesOn(line, "collect"),
+      intro: edgesOn(line, "intro"),
+    }).toEqual({
+      nodes: [
+        { id: "collect", station: "changelog-collect" },
+        { id: "intro", station: "changelog-intro" },
+        { id: "store", station: "changelog-store" },
+        { id: "done" },
+      ],
+      collect: [
+        { from: "collect", to: "intro", on: "success" },
+        { from: "collect", to: "store", on: "empty" },
+        { from: "collect", to: "collect", on: "failed", iteration_max: 1 },
+      ],
+      intro: [{ from: "intro", to: "store", on: "always" }],
+    });
+  });
+
+  it("keys a weekly-changelog run on changelog_key, hands the agent the week as changelog-week.json and takes intro.md back as an optional need of changelog-store", () => {
+    const { line, stations } = pipelineOf("weekly-changelog");
+
+    expect({
+      subject: line.args.changelog_key,
+      week: stations["changelog-intro"].needs[0],
+      intro: stations["changelog-intro"].produces,
+      introNeed: stations["changelog-store"].needs.find(
+        (need) => need.name === "changelog_intro",
+      ),
+    }).toEqual({
+      subject: { kind: "value", subject: true },
+      week: {
+        name: "changelog_week",
+        kind: "file",
+        path: "changelog-week.json",
+      },
+      intro: [{ name: "changelog_intro", kind: "file", path: "intro.md" }],
+      introNeed: { name: "changelog_intro", kind: "file", optional: true },
+    });
+  });
+
+  it("tells the changelog agent the week's and the intro's paths, and names no repository clone", () => {
+    const prompt =
+      pipelineOf("weekly-changelog").agent_definitions?.["changelog-intro"]
+        .settings.prompt ?? "";
+
+    expect({
+      week: prompt.includes("{changelog_week_path}"),
+      intro: prompt.includes("{changelog_intro_path}"),
+      clone: prompt.includes("clone"),
+    }).toEqual({ week: true, intro: true, clone: false });
   });
 
   it("walks merge from settle through close-issue, outcome-stats, curate, memory-feedback and trust to done", () => {

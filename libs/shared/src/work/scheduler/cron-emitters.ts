@@ -50,6 +50,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "one spec-upkeep run per onboarded repo on the external floor, started by the stations service; it replaced the spec_drift and spec_coverage_backfill fan-outs",
   },
   {
+    name: "changelog",
+    schedule: "0 6 * * 1",
+    note: "one weekly-changelog run on the external floor per onboarded repo for the ISO week (UTC) that just ended; its row in lore.changelog_weeks is what the repo's Changelog tab reads (specs/repo-changelog)",
+  },
+  {
     name: "issue_triage",
     schedule: "*/2 * * * *",
     note: "batch sweep that starts one issue-triage floor run per qualifying triage: needs-triage issue per repo, oldest first, up to the per-repo concurrency cap (specs/issue-triage FR9)",

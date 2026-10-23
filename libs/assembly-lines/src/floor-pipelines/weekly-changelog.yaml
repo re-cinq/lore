@@ -1,0 +1,110 @@
+# One repository's finished week on its changelog page (specs/repo-changelog). A
+# station collects what merged and closed in the ISO week; an agent writes the
+# week's introduction; a station stores the week in lore.changelog_weeks.
+#
+# Started by the stations service's changelog tick on Mondays, one run per
+# repository and finished week, keyed on both, so a second tick joins the run
+# rather than starting another. Started over HTTP with `weeks` it backfills.
+#
+# The agent can only add the introduction, never block the week: every outcome
+# of `intro` reaches `store`, which stores the week without one when the agent
+# left no file. A week with nothing in it skips the agent. A failed `collect` or
+# `store` is retried once and a second failure settles the run as
+# iteration_max; the next tick starts the week again.
+line:
+  id: weekly-changelog
+  entry: collect
+  exit: done
+  args:
+    changelog_key:
+      kind: value
+      subject: true
+    changelog_repo:
+      kind: value
+    week_key:
+      kind: value
+  nodes:
+    - id: collect
+      station: changelog-collect
+    - id: intro
+      station: changelog-intro
+    - id: store
+      station: changelog-store
+    - id: done
+  edges:
+    - from: collect
+      to: intro
+      on: success
+    - from: collect
+      to: store
+      on: empty
+    - from: collect
+      to: collect
+      on: failed
+      iteration_max: 1
+    - from: intro
+      to: store
+      on: always
+    - from: store
+      to: done
+      on: success
+    - from: store
+      to: store
+      on: failed
+      iteration_max: 1
+stations:
+  changelog-collect:
+    description: Gathers the pull requests merged and the issues closed in the repository during the week into the week's list.
+    kind: service
+    outcomes:
+      - success
+      - empty
+      - failed
+    needs:
+      - name: changelog_repo
+        kind: value
+      - name: week_key
+        kind: value
+    produces:
+      - name: changelog_week
+        kind: file
+  changelog-intro:
+    description: An AI agent writes a short introduction to the week, saying what the repository's users got. It can only add to the week, never block it.
+    kind: agent
+    agent_definition: changelog-intro
+    conversation: new
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: changelog_week
+        kind: file
+        path: changelog-week.json
+    produces:
+      - name: changelog_intro
+        kind: file
+        path: intro.md
+  changelog-store:
+    description: Stores the week and its introduction on the repository's changelog page. When the agent wrote nothing, the week is stored without one.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      # Carries the repo and the week as well as the changes.
+      - name: changelog_week
+        kind: file
+      # Absent when the week was empty, or the agent failed or wrote nothing.
+      - name: changelog_intro
+        kind: file
+        optional: true
+    produces: []
+agent_definitions:
+  changelog-intro:
+    settings:
+      model: gemini-3-flash-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 10
+      config:
+        # Without it the floor serves its own /skills: the test guard never reaches the pod.
+        skills_source: ${LORE_SKILLS_URL}

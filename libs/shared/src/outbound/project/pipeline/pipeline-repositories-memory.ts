@@ -11,6 +11,7 @@ import { InMemoryAudit } from "../audit/audit-memory.js";
 import { FileLeaseBackend } from "../leases/lease-backends.js";
 import { InMemoryAgentRunEvents } from "../agent-run-events/agent-run-events-memory.js";
 import { InMemoryDigestPosts } from "../digest-posts/digest-posts-memory.js";
+import { InMemoryChangelogWeeks } from "../changelog-weeks/changelog-weeks-memory.js";
 import { InMemoryPodLogs } from "../pod-logs/pod-logs-memory.js";
 import { InMemoryAgentRunTurns } from "../agent-run-turns/agent-run-turns-memory.js";
 import { InMemoryPrBlockedReasons } from "../pr-blocked-reasons/pr-blocked-reasons-memory.js";
@@ -26,14 +27,17 @@ export function createInMemoryPipelineRepositories(
     assemblyRuns: new InMemoryAssemblyRuns(),
     jobRuns: new InMemoryJobRuns(),
     audit: new InMemoryAudit(),
-    leases: new FileLeaseBackend(
-      mkdtempSync(join(tmpdir(), "pipeline-leases-")),
-    ),
+    leases: tempLeases(),
     agentRunEvents: new InMemoryAgentRunEvents(),
     podLogs: new InMemoryPodLogs(),
     agentRunTurns: new InMemoryAgentRunTurns(),
     digestPosts: new InMemoryDigestPosts(),
+    changelogWeeks: new InMemoryChangelogWeeks(),
     prBlockedReasons: new InMemoryPrBlockedReasons(),
     ...overrides,
   };
+}
+
+function tempLeases(): FileLeaseBackend {
+  return new FileLeaseBackend(mkdtempSync(join(tmpdir(), "pipeline-leases-")));
 }

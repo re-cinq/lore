@@ -8,6 +8,7 @@ import { memoryTtl } from "./memory-ttl/manifest.js";
 import { mergeCheck } from "./merge-check/manifest.js";
 import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
+import { changelogTickStation } from "./changelog-tick/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
 import { loopReap } from "./loop-reap/manifest.js";
 import { blockedReason } from "./blocked-reason/manifest.js";
@@ -25,6 +26,7 @@ export const STATION_NAMES = [
   "anthropic-cost-sync",
   "blocked-reason",
   "bus-prune",
+  "changelog-tick",
   "consolidation",
   "digest-tick",
   "gcp-cost-sync",
@@ -48,6 +50,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "anthropic-cost-sync": anthropicCostSync,
   "blocked-reason": blockedReason,
   "bus-prune": busPrune,
+  "changelog-tick": changelogTickStation,
   consolidation: consolidationStation,
   "digest-tick": digestTickStation,
   "gcp-cost-sync": gcpCostSync,
