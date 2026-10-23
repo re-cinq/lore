@@ -53,6 +53,11 @@ export const RepoSettingsSchema = z
       .object({ enabled: z.boolean().optional() })
       .passthrough()
       .optional(),
+    // The issue-triage loop's switch (specs/issue-triage FR33); on when the block is absent.
+    issue_triage: z
+      .object({ enabled: z.boolean().optional() })
+      .passthrough()
+      .optional(),
     auto_merge: AutoMergeSettingsSchema.optional(),
     cross_repo: z.boolean().optional(),
     cross_repo_repos: z.array(z.string()).optional(),
