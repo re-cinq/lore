@@ -3,7 +3,7 @@ import type { RepoLoop } from "@/lib/api/loops";
 import OnboardingBanner from "../implementation/OnboardingBanner";
 import LoopRunsFollower from "../LoopRunsFollower";
 import { retryOnboardingAction } from "../actions";
-import { loopBoard } from "./board";
+import { boardSubject, loopBoard } from "./board";
 import BoardView from "./BoardView";
 import { readLoop } from "./read-loop";
 
@@ -11,14 +11,6 @@ interface LoopBoardProps {
   loops: readonly RepoLoop[];
   fullName: string;
 }
-
-/** The subject column's heading for one loop shown alone; every loop together shows "Work". */
-const SUBJECT: Record<string, string> = {
-  implementation: "Ticket",
-  review: "Pull request",
-  merge: "Pull request",
-  triage: "Issue",
-};
 
 /** Reads the shown loops at once and draws them as one board; a loop that cannot be read is named, and the others still show. */
 export default async function LoopBoard({ loops, fullName }: LoopBoardProps) {
@@ -33,7 +25,7 @@ export default async function LoopBoard({ loops, fullName }: LoopBoardProps) {
       <ImplementationBanner reads={reads} fullName={fullName} />
       <BoardView
         board={board}
-        subject={subjectOf(loops)}
+        subject={boardSubject(loops)}
         showLoop={loops.length > 1}
       />
     </>
@@ -58,8 +50,4 @@ function ImplementationBanner({
       retry={retryOnboardingAction.bind(null, fullName)}
     />
   ) : null;
-}
-
-function subjectOf(loops: readonly RepoLoop[]): string {
-  return loops.length === 1 ? SUBJECT[loops[0].key] : "Work";
 }

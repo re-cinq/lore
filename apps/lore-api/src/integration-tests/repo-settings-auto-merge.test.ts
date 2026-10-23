@@ -88,4 +88,42 @@ describe("PUT /api/repos/{owner}/{repo}/settings with an auto_merge block", () =
       cleared: null,
     });
   });
+
+  it("saves digest time 10:00 into a block cleared to null as the object time 10:00, and switches the digest on there as enabled true", async () => {
+    await pool.query(
+      "INSERT INTO lore.repos (owner, name, full_name, settings) VALUES ('test', 'settings-auto-merge', $1, $2)",
+      [REPO, JSON.stringify({ digest: null })],
+    );
+    const digest = async () =>
+      (
+        await pool.query<{ digest: unknown }>(
+          "SELECT settings->'digest' AS digest FROM lore.repos WHERE full_name = $1",
+          [REPO],
+        )
+      ).rows[0]?.digest;
+
+    await buildServer(() => pool).inject({
+      method: "PUT",
+      url: `/api/repos/${REPO}/settings`,
+      headers: AUTH,
+      payload: JSON.stringify({ settings: { digest: { time: "10:00" } } }),
+    });
+    const saved = await digest();
+
+    await pool.query(
+      "UPDATE lore.repos SET settings = jsonb_set(settings, '{digest}', 'null') WHERE full_name = $1",
+      [REPO],
+    );
+    await buildServer(() => pool).inject({
+      method: "PUT",
+      url: `/api/repos/${REPO}/loops/digest`,
+      headers: AUTH,
+      payload: JSON.stringify({ enabled: true }),
+    });
+
+    expect({ saved, switched: await digest() }).toEqual({
+      saved: { time: "10:00" },
+      switched: { enabled: true },
+    });
+  });
 });

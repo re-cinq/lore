@@ -19,12 +19,17 @@ const SWITCH_SQL: Record<LoopKey, string> = {
   digest: blockSwitchSql("digest"),
 };
 
+/** The block as stored, or an empty one when it is absent or was cleared to null: `null || {…}` would make a JSONB array. */
+export function storedBlock(block: string): string {
+  return `(CASE WHEN jsonb_typeof(settings->'${block}') = 'object' THEN settings->'${block}' ELSE '{}'::jsonb END)`;
+}
+
 /** Merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. */
 function blockSwitchSql(block: string): string {
   return `UPDATE lore.repos
             SET settings = COALESCE(settings, '{}'::jsonb)
               || jsonb_build_object('${block}',
-                   COALESCE(settings->'${block}', '{}'::jsonb)
+                   ${storedBlock(block)}
                      || jsonb_build_object('enabled', $2::boolean))
           WHERE full_name = $1`;
 }

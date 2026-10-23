@@ -8,6 +8,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { repoOf } from "../repos/station-helpers.js";
 import { enforceRepoRow } from "../loops/loop-switch.js";
+import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { DailyDigestSchema, digestQueues } from "./digest-queues.js";
 
 const RepoParams = z.object({
@@ -36,7 +37,13 @@ const OPTIONS = zodResponse(
   },
 );
 
-export function dailyDigestRoute(getPool: () => Pool | null): ServerRoute {
+/** The run a digest post's visit belongs to: the posting station records its own visit id, and the Loops tab links the run. */
+export type RunOfVisit = (visitId: string) => Promise<string | null>;
+
+export function dailyDigestRoute(
+  getPool: () => Pool | null,
+  runOfVisit: RunOfVisit = floorRunOfVisit,
+): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/daily-digest",
@@ -46,21 +53,31 @@ export function dailyDigestRoute(getPool: () => Pool | null): ServerRoute {
 
       await enforceRepoRow(pool, repo);
 
-      return h.response(digestQueues(await postsOf(pool, repo)));
+      return h.response(digestQueues(await postsOf(pool, repo, runOfVisit)));
     }),
   };
 }
 
-async function postsOf(pool: Pool, repo: string) {
+async function postsOf(pool: Pool, repo: string, runOfVisit: RunOfVisit) {
   const { rows } = await pool.query<{
     run_id: string;
     status: string;
     posted_at: Date | string;
   }>(POSTS_SQL, [repo]);
 
-  return rows.map((row) => ({
-    runId: row.run_id,
-    status: row.status,
-    postedAt: new Date(row.posted_at).toISOString(),
-  }));
+  return Promise.all(
+    rows.map(async (row) => ({
+      runId: await runOfVisit(row.run_id),
+      status: row.status,
+      postedAt: new Date(row.posted_at).toISOString(),
+    })),
+  );
+}
+
+/** A visit the floor no longer knows, or a floor that cannot answer, leaves the row without a run link rather than failing the read. */
+async function floorRunOfVisit(visitId: string): Promise<string | null> {
+  const stationRuns = floorIfConfigured()?.stationRuns;
+  const visit = await stationRuns?.get(visitId).catch(() => null);
+
+  return visit?.runId ?? null;
 }

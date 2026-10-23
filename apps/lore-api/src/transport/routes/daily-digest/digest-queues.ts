@@ -16,7 +16,8 @@ export type DigestRow = z.infer<typeof DigestRowSchema>;
 export type DailyDigest = z.infer<typeof DailyDigestSchema>;
 
 export interface DigestPost {
-  runId: string;
+  /** The run that made the post, when it could be found. */
+  runId: string | null;
   status: string;
   postedAt: string;
 }

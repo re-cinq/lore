@@ -86,6 +86,21 @@ const BACKLOG_HINT: Record<string, string> = {
   digest: "The daily digest has no backlog: it posts on its schedule.",
 };
 
+/** What one loop's rows are, for the subject column's header; typed by key, so a new loop cannot go without one. */
+const SUBJECT: Record<RepoLoop["key"], string> = {
+  implementation: "Ticket",
+  review: "Pull request",
+  merge: "Pull request",
+  triage: "Issue",
+  upkeep: "Run",
+  digest: "Post",
+};
+
+/** The subject column's header: what the one shown loop works on, or Work when several share the board. */
+export function boardSubject(loops: readonly RepoLoop[]): string {
+  return loops.length === 1 ? SUBJECT[loops[0].key] : "Work";
+}
+
 export function loopBoard(reads: readonly LoopRead[]): Board {
   const sections = SECTION_KEYS.map((key) => boardSection(key, reads)).filter(
     (section) => !OPTIONAL.has(section.key) || section.rows.length > 0,

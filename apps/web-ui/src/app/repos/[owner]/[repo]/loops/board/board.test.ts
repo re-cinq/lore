@@ -10,6 +10,7 @@ import {
   triageSections,
   upkeepSections,
   digestSections,
+  boardSubject,
   type LoopRead,
 } from "./board";
 
@@ -285,5 +286,16 @@ describe("loop rows", () => {
       "run-1",
       null,
     ]);
+  });
+
+  it("heads the subject column Run for spec upkeep alone, Post for the digest alone, and Work for both", () => {
+    const upkeep = loop("upkeep", "Spec upkeep");
+    const digest = loop("digest", "Daily digest");
+
+    expect([
+      boardSubject([upkeep]),
+      boardSubject([digest]),
+      boardSubject([upkeep, digest]),
+    ]).toEqual(["Run", "Post", "Work"]);
   });
 });

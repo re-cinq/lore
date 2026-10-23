@@ -12,6 +12,7 @@ import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import { storedBlock } from "../loops/loop-switch.js";
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
@@ -188,7 +189,7 @@ function settingsMerge(
   return deep.reduce((merged, block) => {
     values.push(JSON.stringify(settings[block]));
 
-    return `(${merged}) || jsonb_build_object('${block}', COALESCE(settings->'${block}', '{}') || $${values.length}::jsonb)`;
+    return `(${merged}) || jsonb_build_object('${block}', ${storedBlock(block)} || $${values.length}::jsonb)`;
   }, `COALESCE(settings, '{}') || $${values.length}::jsonb`);
 }
 
