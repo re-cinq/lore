@@ -40,6 +40,32 @@ describe("triageBuckets", () => {
     });
   });
 
+  it("parks #8, whose run waits at human-gate for a person to queue it, with its run, and keeps #9's running verify under current", () => {
+    const buckets = triageBuckets(
+      [issue(8, "triage: diagnosed"), issue(9, "triage: diagnosed")],
+      [
+        {
+          id: "run-8",
+          issueNumber: "8",
+          pipeline: [
+            { node_id: "verify", state: "success" },
+            { node_id: "human-gate", state: "waiting" },
+          ],
+        },
+        {
+          id: "run-9",
+          issueNumber: "9",
+          pipeline: [{ node_id: "verify", state: "running" }],
+        },
+      ],
+    );
+
+    expect({
+      parked: buckets.parked.map((r) => [r.issue_number, r.run_id]),
+      current: buckets.current.map((r) => r.issue_number),
+    }).toEqual({ parked: [[8, "run-8"]], current: [9] });
+  });
+
   it("parks needs-reproduction, failed and a diagnosed issue no run is working, and leaves out an issue with no triage label", () => {
     const buckets = triageBuckets(
       [

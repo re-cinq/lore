@@ -10,7 +10,7 @@ export const TriageRowSchema = z.object({
   ...loopRowFields,
 });
 
-/** Issue triage in the shared loop sections: Current, a triage run is on it; Backlog, `triage: needs-triage`; Parked, triage stopped on something a person must answer; Awaiting merge, always empty (triage has no pull request to merge); Recently addressed, `triage: needs-priority`, triage done and the issue waiting for a priority label. */
+/** Issue triage in the shared loop sections: Current, a triage run is working it; Backlog, `triage: needs-triage`; Parked, triage stopped on something a person must answer, a run waiting at its human gate among them; Awaiting merge, always empty (triage has no pull request to merge); Recently addressed, `triage: needs-priority`, triage done and the issue waiting for a priority label. */
 export const IssueTriageSchema = loopSectionsSchema(TriageRowSchema);
 
 export type TriageRow = z.infer<typeof TriageRowSchema>;
@@ -41,14 +41,25 @@ export function triageBuckets(
     .map((issue) => triageRow(issue, openRuns))
     .filter((row): row is TriageRow => row !== null);
   const idle = rows.filter((row) => row.run_id === null);
+  const working = rows.filter((row) => row.run_id !== null);
 
   return {
-    current: rows.filter((row) => row.run_id !== null),
+    current: working.filter((row) => !atHumanGate(row)),
     backlog: idle.filter((row) => row.state === "needs-triage"),
-    parked: idle.filter((row) => !SETTLED_ELSEWHERE.has(row.state)),
+    parked: [
+      ...working.filter(atHumanGate),
+      ...idle.filter((row) => !SETTLED_ELSEWHERE.has(row.state)),
+    ],
     awaiting_merge: [],
     recent: idle.filter((row) => row.state === "needs-priority"),
   };
+}
+
+/** A run waiting at its human gate is a person's to answer (a `lore:implementation` label queues the issue), not the loop's to work. */
+function atHumanGate(row: TriageRow): boolean {
+  return (row.pipeline ?? []).some(
+    (node) => node.node_id === "human-gate" && node.state === "waiting",
+  );
 }
 
 /** The idle states that are not parked: still to do, or done. */
