@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import {
   enabledTriageRepos,
   issueTriageTick,
@@ -6,7 +8,10 @@ import {
 } from "./issue-triage-tick.js";
 
 function scene(opts: {
-  issues?: Record<string, Array<{ url: string; number: number }>>;
+  issues?: Record<
+    string,
+    Array<{ url: string; number: number; labels?: string[] }>
+  >;
   running?: Record<string, number>;
   cap?: number;
   repos?: string[];
@@ -59,6 +64,56 @@ describe("the issue-triage-tick sweep on the external floor", () => {
       kind: "git",
       ref: "github.com/acme/widgets@main",
     });
+  });
+
+  it("sends exactly the start items the issue-triage line declares, repo among them, so the floor accepts the run", async () => {
+    const line = parse(
+      readFileSync(
+        new URL(
+          "../../../../../libs/assembly-lines/src/floor-pipelines/issue-triage.yaml",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { line: { args: Record<string, unknown> } };
+    const { deps, started } = scene({
+      issues: {
+        "acme/widgets": [
+          { url: "https://github.com/acme/widgets/issues/1", number: 1 },
+        ],
+      },
+    });
+
+    await issueTriageTick({}, deps);
+
+    expect(Object.keys(started[0]?.startItems ?? {}).sort()).toEqual(
+      Object.keys(line.line.args).sort(),
+    );
+  });
+
+  it("starts #1, labelled only triage: needs-triage, and leaves #2, which triage already labelled reproduced", async () => {
+    const { deps, started } = scene({
+      issues: {
+        "acme/widgets": [
+          {
+            url: "https://github.com/acme/widgets/issues/1",
+            number: 1,
+            labels: ["bug", "triage: needs-triage"],
+          },
+          {
+            url: "https://github.com/acme/widgets/issues/2",
+            number: 2,
+            labels: ["triage: needs-triage", "triage: reproduced"],
+          },
+        ],
+      },
+    });
+
+    await issueTriageTick({}, deps);
+
+    expect(started.map((s) => s.startItems.issue_number)).toMatchObject([
+      { ref: "1" },
+    ]);
   });
 
   it("starts a floor run per qualifying issue, oldest first, each run independently", async () => {
