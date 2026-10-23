@@ -46,6 +46,7 @@ function triageScene(over: Partial<TriageRepoEventDeps> = {}) {
     mirrorCommits: () => Promise.resolve("0 commits"),
     mirrorTracker: () => Promise.resolve("0 entries"),
     mirrorReleases: () => Promise.resolve("0 tags"),
+    triageEnabled: () => Promise.resolve(true),
     startIssueTriage: (repo, issueNumber, issueUrl) => {
       callOrder.push("startIssueTriage");
       started.push({ repo, issueNumber, issueUrl });
@@ -122,6 +123,7 @@ function scene() {
 
       return Promise.resolve("1 tag");
     },
+    triageEnabled: () => Promise.resolve(true),
     startIssueTriage: () => Promise.resolve("run-1"),
     findParkedTriageVisit: () => Promise.resolve(null),
     reportTriageGate: () => Promise.resolve(),
@@ -252,6 +254,20 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
 
     expect(started).toHaveLength(1);
     expect(started[0]).toMatchObject({ issueNumber: 42 });
+  });
+
+  it("triage: needs-triage on a repo whose triage loop is switched off starts nothing", async () => {
+    const { fire, started } = triageScene({
+      triageEnabled: () => Promise.resolve(false),
+    });
+
+    await fire("github.issues.labeled", {
+      repo: "acme/widgets",
+      label: "triage: needs-triage",
+      issue: { number: 42, labels: ["triage: needs-triage"] },
+    });
+
+    expect(started).toEqual([]);
   });
 
   it("lore:implementation on a parked triage run reports to the human-gate visit before activeTaskByIssue fires", async () => {

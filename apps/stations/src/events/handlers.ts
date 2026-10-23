@@ -60,6 +60,7 @@ import {
   SPEC_TICKETS_LINE,
 } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
+import { issueTriageEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { relocateOnTeamChange } from "./team-changed.js";
 import { openPrOnBranch } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
@@ -217,6 +218,8 @@ const repoEventDeps: RepoEventDeps = {
       },
       repo,
     ),
+  triageEnabled: async (repo) =>
+    issueTriageEnabled(await settings().rawSettings(repo)),
   startIssueTriage: async (repo, issueNumber, issueUrl) => {
     const branch = await (await projectFor(repo)).repo.defaultBranch();
     const started = await startLine(floorClient().lines, "issue-triage", {
