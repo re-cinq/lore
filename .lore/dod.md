@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Update `CLAUDE.md` to mention that web-ui draws THAT graph and stopped keeping a hand-transcribed copy of the builtin YAMLs.
+- [x] Update `CLAUDE.md` to mention that web-ui draws THAT graph and stopped keeping a hand-transcribed copy of the builtin YAMLs.
 
 ## Out of scope
 
