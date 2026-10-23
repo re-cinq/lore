@@ -13,6 +13,7 @@ describe("default template file", () => {
   it("includes a facts section source", () => {
     const raw = readFileSync(join(templateDir, "default.yaml"), "utf-8");
     const template = parseYaml(raw) as { sections: { source: string }[] };
+
     expect(template.sections.map((s) => s.source)).toContain("facts");
   });
 });
