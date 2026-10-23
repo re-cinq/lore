@@ -767,7 +767,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("keys an auto-merge run on its pr_url and gives the auto-merge-fix agent write access to the pull request's branch on gemini-3.1-pro-preview", () => {
+  it("keys an auto-merge run on its pr_url and gives the auto-merge-fix agent write access to the pull request's branch, on Gemini Pro", () => {
     const {
       line,
       stations,

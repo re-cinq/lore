@@ -29,6 +29,10 @@ Build **Option A** first — a second GitHub App `lore-reviewer` as the approver
 
 The branch rule that makes this safe: one required approval, review from Code Owners, and the required CI checks. CODEOWNERS lists exactly the sensitive paths. A GitHub App cannot be a code owner, so lore-reviewer's approval satisfies routine paths only and never a sensitive one; GitHub enforces that difference and records who gave the human approval.
 
+### Amendment 2026-10-23: the auto-merge loop
+
+The approver setting and its two-key ceremony are gone. Approving and arming moved out of the post-review station into an **auto-merge loop** (`specs/protected-branch-merge`), switched per repo by `auto_merge.enabled` with one setting, `auto_merge.min_age_hours` (24 by default). It takes every open pull request code review has passed, whoever opened it, fixes red CI, conflicts and open review threads with an agent, and once the pull request is green, settled and old enough approves it: as lore-reviewer when that App is installed, as Lore's own App otherwise, which can approve only a person's pull request. On a protected branch it arms native auto-merge before approving and GitHub merges, as decided above. On a branch with no approval rule nothing would make GitHub wait, so the loop merges the pull request itself, unless it changes a path CODEOWNERS gives an owner, which it leaves to a person. That is the one exception to "GitHub performs every merge". Code owners stay the guard for sensitive paths on both kinds of branch; the two-key ceremony keeps guarding an agent definition's `image` only.
+
 ## Options Considered
 
 **Option A — Second GitHub App `lore-reviewer`** (chosen)
@@ -37,7 +41,7 @@ The branch rule that makes this safe: one required approval, review from Code Ow
 **Option B — Ruleset bypass list** (rejected)
 Add Lore's App to the bypass list in the branch ruleset, so its PRs skip the approval requirement. The bypass covers every Lore PR, sensitive ones included: the sensitive-path guarantee would be enforced only by Lore's code, not GitHub. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_a39ea074-f8eb-41ca-8ec5-a660f3c49285))
 
-**Option C — Human approves, Lore arms native auto-merge** (delivered as `approver = none`)
+**Option C — Human approves, Lore arms native auto-merge** (delivered as `approver = none` until 2026-10-23)
 A person approves; Lore arms `enablePullRequestAutoMerge`; GitHub merges. No click required after approval. This is what any repo gets today once Lore arms native auto-merge. The approver identity is a human, which is always audit-safe, but routine Lore PRs still need a person to review. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/ea73a044-33aa-44ab-8d08-19fe4e282156#p_14d83942-4551-4f11-812b-58c80ed94911))
 
 **Option D — GitHub merge queue** (deferred)
@@ -47,6 +51,6 @@ Orthogonal to who approves. Solves ordering and base drift, at the cost of every
 
 - lore-reviewer is the first second-identity App in the platform; its credentials follow the four-place secret procedure (secret names in terraform, ExternalSecret per namespace, seed-secrets REQUIRED list, chart secretKeyRef; terraform apply before chart change). Rotation is a platform-engineering responsibility.
 - `decideReviewOnOpen` must let Lore's own App through the bot check (read login at startup via `GET /app`, hold in memory) so Lore-authored PRs receive a review and lore-reviewer is asked to approve.
-- Enabling `auto_merge.approver = lore-reviewer` on a repo goes through the two-key ceremony: admin scope plus a CODEOWNERS approval PR with the `dark-factory-approval` label. The save path validates installation and the branch ruleset before persisting; if any prerequisite is missing, it names what is missing and leaves the setting at `none`.
+- ~~Enabling `auto_merge.approver = lore-reviewer` on a repo goes through the two-key ceremony.~~ Superseded 2026-10-23: the auto-merge loop's switch needs only admin scope (see the amendment above).
 - The automerge label workflow (`.github/workflows/auto-merge.yml`) is retired on repos where Lore arms native auto-merge itself.
 - If GitHub changes App eligibility as code owners, the sensitive-path separation must be reconsidered.
