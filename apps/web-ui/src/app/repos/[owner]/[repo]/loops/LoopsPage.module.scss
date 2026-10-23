@@ -1,0 +1,15 @@
+.section + .section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+
+  :global(.skeleton) + :global(.skeleton) {
+    margin-top: var(--space-3);
+  }
+}

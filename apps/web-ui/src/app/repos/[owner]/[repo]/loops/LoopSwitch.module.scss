@@ -34,12 +34,20 @@
   }
 }
 
-.on {
+/* Hover keeps the state's own colours, which the global button:hover (accent fill) would otherwise paint under green or red text; only a ring says it is clickable. */
+.on,
+.on:hover {
   color: var(--success);
   background: var(--success-bg);
 }
 
-.off {
+.off,
+.off:hover {
   color: var(--danger);
   background: var(--danger-bg);
+}
+
+.switch:hover:not(:disabled) {
+  box-shadow: 0 0 0 var(--focus-ring-width)
+    color-mix(in srgb, currentcolor 25%, transparent);
 }

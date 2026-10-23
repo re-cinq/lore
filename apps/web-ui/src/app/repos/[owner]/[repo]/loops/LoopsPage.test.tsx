@@ -57,20 +57,39 @@ describe("LoopsPage", () => {
     } as never);
   });
 
-  it("opens on the implementation loop when the query names none, with its switch and body", async () => {
+  it("opens on All when the query names none: every loop's switch and body, in registry order", async () => {
     render(await page());
 
     expect({
-      heading: screen.getByRole("heading", { name: "Implementation loop" })
-        .textContent,
-      button: screen.getByRole("button", { name: /Off/ }).title,
-      body: screen.getByTestId("implementation-body").textContent,
+      sections: screen
+        .getAllByRole("region")
+        .map((section) => section.getAttribute("aria-label")),
+      bodies: ["implementation-body", "review-body", "triage-body"].map(
+        (id) => screen.getByTestId(id).textContent,
+      ),
+      current: screen
+        .getByRole("link", { current: "page" })
+        .getAttribute("href"),
       pills: screen.getAllByRole("link").length,
     }).toEqual({
-      heading: "Implementation loop",
+      sections: ["Implementation loop", "Code review", "Issue triage"],
+      bodies: ["re-cinq/lore", "re-cinq/lore", "re-cinq/lore"],
+      current: "/repos/re-cinq/lore/loops?loop=all",
+      pills: 4,
+    });
+  });
+
+  it("?loop=implementation shows only the implementation loop's switch, off, and its body", async () => {
+    render(await page("implementation"));
+
+    expect({
+      sections: screen.getAllByRole("region").length,
+      button: screen.getByRole("button", { name: /Off/ }).title,
+      body: screen.getByTestId("implementation-body").textContent,
+    }).toEqual({
+      sections: 1,
       button: "Switch Implementation loop on",
       body: "re-cinq/lore",
-      pills: 3,
     });
   });
 
@@ -108,7 +127,7 @@ describe("LoopsPage", () => {
       message: "HTTP 502",
     } as never);
 
-    render(await page());
+    render(await page("triage"));
 
     expect(
       screen.getByText(/Could not load the repository's loops \(HTTP 502\)/),
