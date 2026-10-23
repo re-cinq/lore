@@ -62,8 +62,9 @@ describe("T011: Expose assembly as an MCP Tool", () => {
     });
 
     const logs = logSpy.mock.calls.map((call) => call.join(" ")).join("\n");
-    expect(logs).toContain("query: auth middleware");
-    expect(logs).toContain("template: implementation");
+    expect(logs).toMatch(
+      /query: auth middleware[\s\S]*template: implementation/,
+    );
     expect(logs).toMatch(/sources hit:.*code/i);
     expect(logs).toMatch(/tokens:.*250/i);
   });
