@@ -56,6 +56,13 @@ function SwitchButton(props: LoopSwitchProps) {
   );
 }
 
+const HOURS_INPUT = {
+  type: "number",
+  min: 0,
+  step: 1,
+  "aria-label": "Hours a pull request must be open before it merges",
+} as const;
+
 /** The auto-merge loop's one setting, saved when the field loses focus with a changed whole number of hours. */
 function MinAgeField(props: {
   hours: number;
@@ -67,10 +74,7 @@ function MinAgeField(props: {
     <label className={styles.minAge}>
       Merges once open
       <input
-        type="number"
-        min={0}
-        step={1}
-        aria-label="Hours a pull request must be open before it merges"
+        {...HOURS_INPUT}
         value={value}
         onChange={(event) => setValue(event.target.value)}
         onBlur={() => void commit()}
