@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { CONTEXT_BOOTSTRAP, renderPodPrompt } from "./recipe-prompt.js";
+import {
+  CONTEXT_BOOTSTRAP,
+  renderPodPrompt,
+  appendRuntimeContext,
+} from "./recipe-prompt.js";
 
 describe("CONTEXT_BOOTSTRAP", () => {
   it("names lore_assemble_context and lore_search_memory in that order", () => {
@@ -47,5 +51,28 @@ describe("renderPodPrompt", () => {
     expect(
       renderPodPrompt("{prompt}", { prompt: "match $& and $1 here" }),
     ).toEqual("match $& and $1 here");
+  });
+});
+
+describe("appendRuntimeContext — guard", () => {
+  it("returns the base prompt unchanged when reported_changes is false, even with failed checks (spec: specs/implementation-loop/spec.md#L282)", () => {
+    expect(
+      appendRuntimeContext("My prompt", {
+        reported_changes: false,
+        ci_verdict: {
+          judged_sha: "deadbeef",
+          failed_checks: [{ name: "lint" }],
+        },
+      }),
+    ).toBe("My prompt");
+  });
+
+  it("returns the base prompt unchanged when failed_checks is empty (spec: specs/implementation-loop/spec.md#L282)", () => {
+    expect(
+      appendRuntimeContext("My prompt", {
+        reported_changes: true,
+        ci_verdict: { judged_sha: "deadbeef", failed_checks: [] },
+      }),
+    ).toBe("My prompt");
   });
 });
