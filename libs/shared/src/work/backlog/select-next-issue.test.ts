@@ -148,6 +148,20 @@ describe("orderBacklog", () => {
   });
 });
 
+describe("orderBacklog with ranking criteria", () => {
+  it("unblocks criterion ranks higher-blockedByCount issues first at equal priority", () => {
+    const issues = [
+      issue({ number: 1, labels: ["priority:high"], blockedByCount: 0 }),
+      issue({ number: 2, labels: ["priority:high"], blockedByCount: 3 }),
+    ];
+    expect(
+      orderBacklog(issues, { criteria: ["unblocks", "age"] }).map(
+        (i) => i.number,
+      ),
+    ).toEqual([2, 1]);
+  });
+});
+
 describe("heldBacklog", () => {
   it("returns the lore:blocked #2 and the two-priority #3, oldest first, and not the queued #1", () => {
     const issues = [
