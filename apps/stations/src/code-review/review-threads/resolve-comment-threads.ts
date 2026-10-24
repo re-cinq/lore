@@ -24,7 +24,9 @@ export async function resolveCommentThreads(
       threadIds.map((threadId) => resolver.resolveReviewThread(threadId)),
     );
   } catch (err) {
-    console.warn(`[code-review] thread not resolved: ${(err as Error).message}`);
+    console.warn(
+      `[code-review] thread not resolved: ${(err as Error).message}`,
+    );
   }
 }
 

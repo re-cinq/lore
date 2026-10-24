@@ -1,6 +1,6 @@
 // The sweep's reads of the repository and its pull requests, through one per-sweep repo cache: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR.
 import type { Project } from "@re-cinq/lore-shared";
-import { loreReviewFeedbackOf } from "../../code-review/read-review/read-review.js";
+import { loreReviewFeedbackOf } from "@re-cinq/lore-shared/review/lore-review.js";
 import type { PrReadyCheckDeps } from "./sweep-contract.js";
 
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */

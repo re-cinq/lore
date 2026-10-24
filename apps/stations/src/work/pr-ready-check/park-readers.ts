@@ -39,31 +39,34 @@ export async function prReportForRun(
   );
 }
 
+interface FeedbackRead {
+  run: LoopRunSlice;
+  deps: PrReadyCheckDeps;
+  judged: { prNumber: number; headSha: string };
+  checks: CheckRun[];
+}
+
 /** What the fix is handed for the reason it was sent: the failed checks of a red build, or the findings of Lore's review and the sha it judged. */
 async function feedbackFor(
   reason: string,
-  read: {
-    run: LoopRunSlice;
-    deps: PrReadyCheckDeps;
-    judged: { prNumber: number; headSha: string };
-    checks: CheckRun[];
-  },
+  read: FeedbackRead,
 ): Promise<Record<string, unknown>> {
-  const { run, deps, judged } = read;
-
   if (reason === "ci_red") {
-    return { ...redFeedback(read.checks, judged.headSha) };
+    return { ...redFeedback(read.checks, read.judged.headSha) };
   }
 
-  return reason === "review_changes_requested"
-    ? {
-        review_feedback_sha: judged.headSha,
-        review_feedback: await deps.loreReviewFeedback(
-          run.repo,
-          judged.prNumber,
-        ),
-      }
-    : {};
+  return reason === "review_changes_requested" ? reviewFeedbackOf(read) : {};
+}
+
+async function reviewFeedbackOf({
+  run,
+  deps,
+  judged,
+}: FeedbackRead): Promise<Record<string, unknown>> {
+  return {
+    review_feedback_sha: judged.headSha,
+    review_feedback: await deps.loreReviewFeedback(run.repo, judged.prNumber),
+  };
 }
 
 /** The six independent reads a settled pull request is judged on, as the verdict takes them, with the checks explained. */

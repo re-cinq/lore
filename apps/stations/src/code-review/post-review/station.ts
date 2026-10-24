@@ -22,8 +22,8 @@ import {
   resolveCommentThreads,
   type ThreadResolver,
 } from "../review-threads/resolve-comment-threads.js";
+import { earlierLoreCommentIds } from "@re-cinq/lore-shared/review/lore-review.js";
 import {
-  LORE_REVIEW_MARKER,
   maybePostReview,
   reviewVisitMarker,
   type ReviewPoster,
@@ -149,18 +149,11 @@ async function resolveEarlierFindings(
     pulls.listReviews(target.prNumber),
     pulls.listComments(target.prNumber),
   ]);
-  const own = reviewVisitMarker(brief);
-  const earlier = reviews
-    .filter(
-      ({ body }) => body.includes(LORE_REVIEW_MARKER) && !body.includes(own),
-    )
-    .map(({ id }) => id);
-  const commentIds = comments
-    .filter(
-      ({ review_id: reviewId }) =>
-        reviewId != null && earlier.includes(reviewId),
-    )
-    .map(({ id }) => id);
+  const commentIds = earlierLoreCommentIds(
+    reviews,
+    comments,
+    reviewVisitMarker(brief),
+  );
 
   await resolveCommentThreads(pulls, target.prNumber, commentIds);
 }

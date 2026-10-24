@@ -27,7 +27,11 @@ describe("roundBriefOf", () => {
 
   it("leaves the fence out when the jobs printed nothing", () => {
     expect(
-      roundBriefOf({ feedback: { ...RED, summary: "" }, review: null, handoff: null }),
+      roundBriefOf({
+        feedback: { ...RED, summary: "" },
+        review: null,
+        handoff: null,
+      }),
     ).not.toContain("```");
   });
 
@@ -60,7 +64,8 @@ describe("roundBriefOf", () => {
         feedback: null,
         review: {
           sha: "cafe1234",
-          findings: "- inline comment 11 on src/a.ts:4: the null check is inverted",
+          findings:
+            "- inline comment 11 on src/a.ts:4: the null check is inverted",
         },
         handoff: null,
       }),

@@ -18,6 +18,7 @@ import type {
   PRReviewEvent,
   PullReview,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { LORE_REVIEW_MARKER } from "@re-cinq/lore-shared/review/lore-review.js";
 
 /** The narrow PR surface the poster touches; the two reads (dedupe probe) are optional and fail open — a rare duplicate beats a dropped review. */
 export interface ReviewPoster {
@@ -39,9 +40,6 @@ export interface ReviewVisit {
   visitId: string;
   iteration: number;
 }
-
-/** How every review Lore posts is signed, whichever visit posted it. */
-export const LORE_REVIEW_MARKER = "<!-- lore-review-run: ";
 
 /** Per-visit identity stamped into every posted review; probing for it makes a redelivered visit a no-op. */
 export function reviewVisitMarker({ visitId, iteration }: ReviewVisit): string {

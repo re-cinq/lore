@@ -69,18 +69,29 @@ export async function readIssues(
   const { issues } = project;
   const openIssues = await queuedIssues(repo, issues);
   const queued = orderBacklog(openIssues);
-  const linked = queued.filter((i) => i.blockedByCount);
-  const [taskRows, blockers] = await Promise.all([
+  const [taskRows, openBlockers] = await Promise.all([
     tasksFor(openIssues.map((i) => i.number)),
-    Promise.all(linked.map((i) => issues.openBlockers(i.number))),
+    readOpenBlockers(issues, queued),
   ]);
 
   return {
     openIssues,
     taskRows,
-    openBlockers: new Map(linked.map((i, at) => [i.number, blockers[at]])),
+    openBlockers,
     openPrBranches: await readOpenPrBranches(project, queued, taskRows),
   };
+}
+
+async function readOpenBlockers(
+  issues: Project["issues"],
+  queued: OpenIssues,
+): Promise<Map<number, number[]>> {
+  const linked = queued.filter((i) => i.blockedByCount);
+  const blockers = await Promise.all(
+    linked.map((i) => issues.openBlockers(i.number)),
+  );
+
+  return new Map(linked.map((i, at) => [i.number, blockers[at]]));
 }
 
 /** Pull requests matter only to a queued ticket whose task settled, so a backlog with none of those costs no GitHub read. */

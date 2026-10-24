@@ -65,7 +65,8 @@ function syncVerdict(
 }
 
 function blocked(
-  reason: "pr_conflicting" | "pr_behind" | "ci_red" | "review_changes_requested",
+  reason:
+    "pr_conflicting" | "pr_behind" | "ci_red" | "review_changes_requested",
 ): PrReadyVerdict {
   return { kind: "blocked", reason, outcome: "changes_requested" };
 }
