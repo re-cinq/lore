@@ -22,6 +22,7 @@ import { specUpkeepRoute } from "../spec-upkeep/spec-upkeep.js";
 import { dailyDigestRoute } from "../daily-digest/daily-digest.js";
 import { specTicketsRoute } from "../spec-tickets/spec-tickets.js";
 import { floorRunPagesWithoutCost } from "../floor/floor-runs.js";
+import { loopPullReads } from "./loop-pull-reads.js";
 import {
   LoopKeySchema,
   LoopSwitchBodySchema,
@@ -42,12 +43,14 @@ const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 
 /** The Loops tab's routes: the loops and their switches, and the pages of the loops that have no other home. */
 export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
+  const pullReads = loopPullReads();
+
   return [
     readLoopsRoute(getPool),
     switchLoopRoute(getPool),
-    codeReviewRoute(floorRunPagesWithoutCost),
-    autoMergeRoute(getPool, floorRunPagesWithoutCost),
-    specUpkeepRoute(floorRunPagesWithoutCost),
+    codeReviewRoute(floorRunPagesWithoutCost, pullReads),
+    autoMergeRoute(getPool, floorRunPagesWithoutCost, pullReads),
+    specUpkeepRoute(floorRunPagesWithoutCost, pullReads),
     dailyDigestRoute(getPool),
     specTicketsRoute(floorRunPagesWithoutCost),
   ];
