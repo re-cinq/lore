@@ -119,6 +119,51 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     });
   });
 
+  it("asks GitHub once per priority label for open issues, and answers a second load within 30 seconds from what it read", async () => {
+    const pool = makePool();
+    const asked: unknown[] = [];
+
+    pool.query.mockImplementation(async (sql: string) => ({
+      rows: /FROM lore\.repos/.test(sql)
+        ? [{ settings: { implementation_loop: { enabled: true } } }]
+        : [],
+    }));
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async (filter: unknown) => {
+          asked.push(filter);
+
+          return [openIssue(7, ["priority:high"], "2026-10-01T00:00:00Z")];
+        },
+      },
+    } as never);
+    const server = buildServer(() => pool as never);
+    const load = () =>
+      server.inject({
+        method: "GET",
+        url: "/api/repos/re-cinq/lore/implementation-loop",
+        headers: AUTH,
+      });
+
+    const first = JSON.parse((await load()).payload);
+    const second = JSON.parse((await load()).payload);
+
+    expect({
+      asked,
+      next: [first.next, second.next].map(
+        (tickets: { issue_number: number }[]) =>
+          tickets.map((t) => t.issue_number),
+      ),
+    }).toEqual({
+      asked: [
+        { state: "open", labels: ["priority:high"] },
+        { state: "open", labels: ["priority:medium"] },
+        { state: "open", labels: ["priority:low"] },
+      ],
+      next: [[7], [7]],
+    });
+  });
+
   it("returns the toggle, current ticket, ordered queue, and recent tickets", async () => {
     const pool = makePool();
 

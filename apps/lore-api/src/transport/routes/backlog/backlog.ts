@@ -34,7 +34,12 @@ import {
 import { fetchRunContext, fillFromFloor } from "./backlog-run-context.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
-import { readIssues, type BacklogIssues } from "./backlog-issues.js";
+import {
+  queuedIssuesReader,
+  readIssues,
+  type BacklogIssues,
+  type QueuedIssues,
+} from "./backlog-issues.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
@@ -50,10 +55,13 @@ const RECENT_LIMIT = 10;
 export function implementationLoopRoutes(
   getPool: () => Pool | null,
 ): ServerRoute[] {
-  return [readBacklogRoute(getPool)];
+  return [readBacklogRoute(getPool, queuedIssuesReader())];
 }
 
-function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
+function readBacklogRoute(
+  getPool: () => Pool | null,
+  queuedIssues: QueuedIssues,
+): ServerRoute {
   return {
     method: "GET",
     path: PATH,
@@ -62,16 +70,24 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
       description:
         "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
     }),
-    handler: withPool(getPool, serveReadBacklog),
+    handler: withPool(getPool, (pool, request, h) =>
+      serveReadBacklog({ pool, queuedIssues }, request, h),
+    ),
   };
 }
 
+/** What a backlog read is served from: the database, and the route's cache of queued issues. */
+interface BacklogReads {
+  pool: Pool;
+  queuedIssues: QueuedIssues;
+}
+
 async function serveReadBacklog(
-  pool: Pool,
+  reads: BacklogReads,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const state = await loadBacklogState(pool, repoOf(request.params));
+  const state = await loadBacklogState(reads, repoOf(request.params));
 
   return h
     .response({
@@ -94,7 +110,7 @@ interface BacklogState extends BacklogIssues {
 
 /** Everything the view needs, read in one place: the toggle and onboarding state, the loop's task rows, the repo's open issues, and the run each task belongs to. */
 async function loadBacklogState(
-  pool: Pool,
+  { pool, queuedIssues }: BacklogReads,
   repo: string,
 ): Promise<BacklogState> {
   const read = await readRepoRow(pool, repo);
@@ -104,7 +120,7 @@ async function loadBacklogState(
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
     taskRows,
-    ...(await readIssues(repo, taskRows)),
+    ...(await readIssues(repo, taskRows, queuedIssues)),
     currentRunId: await readCurrentRunId(pool, repo),
     ...(await readRunIndex(pool, repo, taskRows)),
   };
