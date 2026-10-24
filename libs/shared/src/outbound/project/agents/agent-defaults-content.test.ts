@@ -962,3 +962,16 @@ describe("the loop's branch sync", () => {
     }
   });
 });
+
+describe("the loop's branch sync on its own scaffolding", () => {
+  it("tells loop-sync to settle a conflict on .lore/dod.md by the commit being replayed instead of aborting", () => {
+    const prompt = promptOf("loop-sync").replace(/\s+/g, " ");
+
+    expect({
+      keepsReplayed: prompt.includes(
+        "A conflict on `.lore/dod.md` takes what the commit being replayed says about it",
+      ),
+      keepsRebasing: prompt.includes("is never a reason to abort"),
+    }).toEqual({ keepsReplayed: true, keepsRebasing: true });
+  });
+});
