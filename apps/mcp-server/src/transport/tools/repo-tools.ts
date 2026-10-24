@@ -54,6 +54,7 @@ export function registerRepoTools(server: McpServer, mode: ServerMode) {
   registerListReposTool(server);
   registerOnboardRepoTool(server);
   registerIngestFilesTool(server, mode);
+  registerNextReadyIssueTool(server, mode);
 }
 
 function registerListReposTool(server: McpServer) {
@@ -305,4 +306,52 @@ async function ingestFailure(res: Response): Promise<IngestOutcome> {
     ingested: false,
     message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
   };
+}
+
+function registerNextReadyIssueTool(server: McpServer, mode: ServerMode) {
+  server.tool(
+    "lore_next_ready_issue",
+    `Returns the issue the implementation loop would pick next for a repo: number, title, url, and a \`because\` field naming the rule that selected it. Returns { issue: null, reason } when nothing is ready — never an error. Use to preview which ticket the loop would start next without dispatching it.`,
+    { repo: repoParam(mode) },
+    (args: { repo?: string }) => withRepo(args, mode, fetchNextReadyIssue),
+  );
+}
+
+interface NextReadyResult {
+  issue: Record<string, unknown> | null;
+  because?: string;
+  reason?: string;
+}
+
+async function fetchNextReadyIssue({
+  repo,
+}: {
+  repo: string;
+}): Promise<ToolTextResult> {
+  const [owner, name] = repo.split("/");
+  const proxied = await proxyGetApi(
+    `/api/repos/${owner}/${name}/backlog-queue`,
+  );
+
+  if (!proxied.ok) {
+    return textResult(
+      JSON.stringify({
+        issue: null,
+        reason: "Could not reach Lore API to fetch backlog.",
+      }),
+    );
+  }
+  const issues = JSON.parse(proxied.body) as Array<Record<string, unknown>>;
+
+  return textResult(JSON.stringify(nextReadyResult(issues)));
+}
+
+function nextReadyResult(
+  issues: Array<Record<string, unknown>>,
+): NextReadyResult {
+  if (issues.length === 0) {
+    return { issue: null, reason: "No issues ready in the backlog." };
+  }
+
+  return { issue: issues[0], because: "priority" };
 }

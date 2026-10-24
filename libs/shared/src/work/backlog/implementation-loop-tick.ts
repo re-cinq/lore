@@ -7,7 +7,7 @@ import type { EventHandler } from "../../outbound/project/events/drain-loop.js";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import { implementationLoopEnabled } from "../../domain/loops/implementation-loop-enabled.js";
 import { decideBranchResume, type OpenPr } from "./resume-branch.js";
-import { orderBacklog } from "./select-next-issue.js";
+import { orderBacklog, type RankingCriterion } from "./select-next-issue.js";
 import { taskHoldingTicket } from "./ticket-holder.js";
 import {
   implementationTicketDescription,
@@ -94,11 +94,17 @@ interface BacklogPick {
 }
 
 async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
-  if (!(await readyToPick(repo, deps))) {
+  const settings = await deps.rawSettings(repo);
+
+  if (!(await readyToPick(repo, settings, deps))) {
     return;
   }
 
-  const ordered = orderBacklog(await deps.listIssues(repo));
+  const criteria = rankingCriteriaFor(settings);
+  const ordered = orderBacklog(
+    await deps.listIssues(repo),
+    criteria !== undefined ? { criteria } : undefined,
+  );
   const { picked, guarded } = await pickBacklogTicket(repo, ordered, deps);
 
   if (!picked) {
@@ -113,9 +119,41 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   await dispatchLoopTask({ repo, picked, branch, resume }, deps);
 }
 
+const VALID_RANKING_CRITERIA = new Set<string>([
+  "priority",
+  "age",
+  "unblocks",
+  "size",
+]);
+
+function rankingCriteriaFor(settings: unknown): RankingCriterion[] | undefined {
+  const rawCriteria = toRecord(toRecord(settings)?.backlog_ranking)?.criteria;
+
+  if (!Array.isArray(rawCriteria)) {
+    return undefined;
+  }
+  const filtered = rawCriteria.filter((crit): crit is RankingCriterion =>
+    VALID_RANKING_CRITERIA.has(String(crit)),
+  );
+
+  return filtered.length > 0 ? filtered : undefined;
+}
+
+function toRecord(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== "object" || raw === null) {
+    return null;
+  }
+
+  return raw as Record<string, unknown>;
+}
+
 /** Whether this tick may pick for the repo: its loop is on, it has finished onboarding, and it is not already driving a run. A repo that is on but not onboarded says so, because a tick that only walked onboarded repos once skipped such a repo with no trace at all. */
-async function readyToPick(repo: string, deps: LoopTickDeps): Promise<boolean> {
-  if (!implementationLoopEnabled(await deps.rawSettings(repo))) {
+async function readyToPick(
+  repo: string,
+  settings: unknown,
+  deps: LoopTickDeps,
+): Promise<boolean> {
+  if (!implementationLoopEnabled(settings)) {
     return false;
   }
 
