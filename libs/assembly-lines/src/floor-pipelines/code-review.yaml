@@ -76,6 +76,10 @@ stations:
       - name: head_sha
         kind: value
         optional: true
+      # The threads of Lore's findings the re-check was handed; an approval resolves them.
+      - name: open_threads
+        kind: value
+        optional: true
     produces:
       - name: review_summary
         kind: value
