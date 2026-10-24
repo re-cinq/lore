@@ -28,6 +28,9 @@ function scene(pull: PullRef | null) {
         get: () => Promise.resolve(pull),
         comment: () => Promise.resolve(),
         listCommits: () => Promise.resolve([]),
+        listReviews: () => Promise.resolve([]),
+        listComments: () => Promise.resolve([]),
+        listReviewThreads: () => Promise.resolve([]),
       },
       issues: { get: () => Promise.resolve(null) },
     });

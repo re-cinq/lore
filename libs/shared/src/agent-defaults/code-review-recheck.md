@@ -28,7 +28,11 @@ the server has no checkout to detect it from.
 
 Re-assess against the repo's conventions (CLAUDE.md), ADRs, and specs:
 confirm the prior concerns are resolved and flag only NEW significant issues
-the latest commits introduced. For a spec statement these commits add or
+the latest commits introduced. When your instruction above lists Lore's
+earlier findings still open, those ARE the prior concerns: read the code at
+each place it names, and approve only when every one of them is resolved
+there. List each one that is not as a finding again, with the same path
+and line. An approval settles every one of them. For a spec statement these commits add or
 change, say in one line what a person using that surface sees differently,
 and raise a `question` when it is not what they would expect.
 

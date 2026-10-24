@@ -1874,3 +1874,15 @@ function describes(description: string | undefined): boolean {
 
   return length >= 20 && length <= 300;
 }
+
+describe("the re-check settles the findings it was handed", () => {
+  it("gives code-review-recheck's post-review the open_threads value as an optional need", () => {
+    const { stations } = pipelineOf("code-review-recheck");
+
+    expect(
+      stations["post-review"].needs.find(
+        (need) => need.name === "open_threads",
+      ),
+    ).toEqual({ name: "open_threads", kind: "value", optional: true });
+  });
+});

@@ -39,6 +39,12 @@ import {
 } from "./floor-review-runs.js";
 import { startLine } from "./floor-line-start.js";
 import { REVIEW_HELP } from "./review-summary.js";
+import {
+  openFindingsBrief,
+  openThreadsItem,
+  readOpenLoreFindings,
+  type OpenFindingsReads,
+} from "./lore-review.js";
 
 export interface ReviewFloor {
   lines: Pick<FloorClient["lines"], "start">;
@@ -46,7 +52,7 @@ export interface ReviewFloor {
   blobs: Pick<FloorClient["blobs"], "put">;
 }
 
-export interface ReviewPulls {
+export interface ReviewPulls extends OpenFindingsReads {
   get(number: number): Promise<PullRef | null>;
   comment(number: number, body: string): Promise<void>;
   listCommits(number: number): Promise<PullCommit[]>;
@@ -232,16 +238,17 @@ async function startRecheckLine(
   pr: PullRef,
   sinceSha?: string,
 ): Promise<string> {
-  const description = recheckDescription(
-    target.repo,
-    target.prNumber,
-    pr.branch,
-    sinceSha,
-  );
+  const findings = await readOpenLoreFindings(deps.pulls, target.prNumber);
+  const description =
+    recheckDescription(target.repo, target.prNumber, pr.branch, sinceSha) +
+    openFindingsBrief(findings);
   const { floor } = deps;
   const started = await startLine(floor.lines, RECHECK_LINE, {
     repo: floorRepoOf(target.repo),
-    startItems: await reviewItems(deps, pr, description),
+    startItems: {
+      ...(await reviewItems(deps, pr, description)),
+      ...openThreadsItem(findings),
+    },
   });
 
   return started.run.id;

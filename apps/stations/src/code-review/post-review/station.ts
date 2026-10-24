@@ -1,4 +1,4 @@
-// The post-review service station: posts the review agent's findings to the pull request and publishes its verdict as the lore/code-review check, on the external floor engine.
+// The post-review service station: posts the review agent's findings to the pull request and publishes its verdict as the lore/code-review check, on the external floor engine. A re-check handed Lore's open findings settles their threads when it approves, before the check says so, so no wait reads an approval beside threads it has settled.
 
 import {
   defineStation,
@@ -28,6 +28,7 @@ import {
 
 export interface ReviewProject {
   pulls: ReviewPoster & {
+    resolveReviewThread(threadId: string): Promise<void>;
     get(
       number: number,
     ): Promise<Pick<PullRef, "headSha" | "baseBranch"> | null>;
@@ -73,6 +74,10 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
     const visit = await openVisit(deps, brief, parsePullRequestUrl(prUrl));
 
     await deliverReview(deps, brief, visit, { agentOutput, verdict });
+
+    if (verdict === "success") {
+      await resolveHandedThreads(visit.project, brief);
+    }
     const summary = verdictSummary(verdict, findingCountOf(agentOutput));
 
     await visit.project.upsertCheckRun(
@@ -132,6 +137,26 @@ async function approvalCountsOn(
   const rule = await project.pulls.getBranchRule(pull.baseBranch);
 
   return rule.requiredApprovals > 0;
+}
+
+/** The threads of Lore's findings the re-check was handed and judged resolved. Best-effort: the verdict is posted either way, and a thread left open only holds the merge for a person. */
+async function resolveHandedThreads(
+  { pulls }: ReviewProject,
+  brief: Brief,
+): Promise<void> {
+  const ids = new Map(Object.entries(brief.needs)).get("open_threads");
+  const outcomes = await Promise.allSettled(
+    (ids ?? "")
+      .split(",")
+      .filter(Boolean)
+      .map((threadId) => pulls.resolveReviewThread(threadId)),
+  );
+
+  outcomes
+    .filter((outcome) => outcome.status === "rejected")
+    .forEach(({ reason }) =>
+      console.warn(`[post-review] thread not resolved: ${String(reason)}`),
+    );
 }
 
 function briefedShaOf(brief: Brief): string | undefined {
