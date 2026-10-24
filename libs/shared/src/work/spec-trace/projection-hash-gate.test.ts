@@ -126,7 +126,7 @@ const stubEmbed = async (texts: string[]): Promise<number[][]> =>
 describe("projectSpecFile hash gate (fake port)", () => {
   const xid = "re-cinq/lore|specs/hash-gate/spec.md";
 
-  it("a projection that dies mid-file leaves no content_hash and the retry re-projects", async () => {
+  it("a spec projection that dies mid-file leaves no content_hash and the retry re-projects", async () => {
     const fake = fakeDgraph();
 
     fake.failMutation(4);
@@ -183,7 +183,7 @@ describe("projectSpecFile hash gate (fake port)", () => {
     expect(withHash).toEqual([fake.mutations.length - 1]);
   });
 
-  it("a re-run with the persisted hash skips the file; force re-projects it", async () => {
+  it("a spec re-run with the persisted hash skips the file; force re-projects it", async () => {
     const fake = fakeDgraph();
 
     await projectSpecFile(
@@ -224,7 +224,7 @@ describe("projectSpecFile hash gate (fake port)", () => {
 describe("projectAdrFile hash gate (fake port)", () => {
   const xid = "re-cinq/lore|adrs/ADR-999-hash-gate.md";
 
-  it("a projection that dies mid-file leaves no content_hash and the retry re-projects", async () => {
+  it("an ADR projection that dies mid-file leaves no content_hash and the retry re-projects", async () => {
     const fake = fakeDgraph();
 
     fake.failMutation(4);
@@ -276,7 +276,7 @@ describe("projectAdrFile hash gate (fake port)", () => {
     expect(withHash).toEqual([fake.mutations.length - 1]);
   });
 
-  it("a re-run with the persisted hash skips the file; force re-projects it", async () => {
+  it("an ADR re-run with the persisted hash skips the file; force re-projects it", async () => {
     const fake = fakeDgraph();
 
     await projectAdrFile(

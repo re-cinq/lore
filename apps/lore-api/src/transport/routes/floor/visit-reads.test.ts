@@ -62,7 +62,7 @@ describe("GET /api/assembly-runs/{id}/visits/{visitId}/model-calls", () => {
     });
   });
 
-  it("answers 404 for a visit of no run the floor has", async () => {
+  it("answers 404 for the model calls of a visit of no run the floor has", async () => {
     const res = await serve().inject(
       "/api/assembly-runs/run-1/visits/visit-9/model-calls",
     );
@@ -83,7 +83,7 @@ describe("GET /api/assembly-runs/{id}/visits/{visitId}/events", () => {
     });
   });
 
-  it("answers 404 for a visit of no run the floor has", async () => {
+  it("answers 404 for the events of a visit of no run the floor has", async () => {
     const res = await serve().inject(
       "/api/assembly-runs/run-1/visits/visit-9/events",
     );

@@ -61,13 +61,13 @@ describe("/api/task-logs", () => {
       expect(res.result).toEqual({ ok: true });
       expect(storage.file.save).toHaveBeenCalled();
     });
-    it("returns 500 when storage throws", async () => {
+    it("returns 500 when storage throws while saving", async () => {
       storage.file.save.mockRejectedValue(new Error("gcs"));
       const res = await post({ task_id: "t", repo: "o/r", logs: "x" });
 
       expect(res.statusCode).toBe(500);
     });
-    it("returns 403 when the token has task scope but not write", async () => {
+    it("returns 403 when the token has task scope but not write on POST", async () => {
       const pool = makePool();
 
       pool.query.mockResolvedValue({ rows: [{ scopes: ["task"] }] });
@@ -173,7 +173,7 @@ describe("/api/task-logs", () => {
         complete: true,
       });
     });
-    it("returns 500 when storage throws", async () => {
+    it("returns 500 when storage throws while reading", async () => {
       storage.file.exists.mockRejectedValue(new Error("gcs"));
       const res = await inject({
         method: "GET",
@@ -182,7 +182,7 @@ describe("/api/task-logs", () => {
 
       expect(res.statusCode).toBe(500);
     });
-    it("returns 403 when the token has task scope but not write", async () => {
+    it("returns 403 when the token has task scope but not write on GET", async () => {
       const pool = makePool();
 
       pool.query.mockResolvedValue({ rows: [{ scopes: ["task"] }] });

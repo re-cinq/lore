@@ -49,7 +49,7 @@ describe("task view reads", () => {
       expect((await get("/api/repo-tasks")).statusCode).toBe(400);
     });
 
-    it("returns an empty list rather than 500 when the table is absent", async () => {
+    it("returns an empty task list rather than 500 when the table is absent", async () => {
       const pool = makePool();
 
       pool.query.mockRejectedValue(
@@ -132,7 +132,7 @@ describe("task view reads", () => {
       ]);
     });
 
-    it("returns an empty list rather than 500 when the table is absent", async () => {
+    it("returns an empty entry list rather than 500 when the table is absent", async () => {
       const pool = makePool();
 
       pool.query.mockRejectedValue(

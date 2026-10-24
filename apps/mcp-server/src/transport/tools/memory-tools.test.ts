@@ -98,7 +98,7 @@ describe("lore_write_memory remote proxy (no local DB)", () => {
     });
   });
 
-  it("reports a denied error on a 401 without retrying", async () => {
+  it("reports a denied error on a 401 to a memory write without retrying", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 401,
@@ -171,7 +171,7 @@ describe("lore_read_memory remote proxy (no local DB)", () => {
     });
   });
 
-  it("reports a denied error on a 401 without retrying", async () => {
+  it("reports a denied error on a 401 to a memory read without retrying", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 401,
@@ -212,7 +212,7 @@ describe("lore_list_memories remote proxy (no local DB)", () => {
     });
   });
 
-  it("reports a denied error on a 401 without retrying", async () => {
+  it("reports a denied error on a 401 to a memory listing without retrying", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 401,

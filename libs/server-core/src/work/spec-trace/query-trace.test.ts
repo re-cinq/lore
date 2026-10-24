@@ -363,7 +363,7 @@ describe("runQueryTrace tests_covering", () => {
     );
   });
 
-  it("reports the proxy failure rather than throwing when the api is unreachable", async () => {
+  it("reports the proxy failure rather than throwing when the api is unreachable for tests_covering", async () => {
     const out = await runQueryTrace(
       { repo: "o/r", tests_covering: "src/a.ts" },
       {
@@ -452,7 +452,7 @@ describe("runQueryTrace failures_touching", () => {
     );
   });
 
-  it("reports the proxy failure rather than throwing when the api is unreachable", async () => {
+  it("reports the proxy failure rather than throwing when the api is unreachable for failures_touching", async () => {
     const out = await ask(async () => ({
       ok: false,
       reason: "unreachable",

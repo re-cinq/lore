@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { testDeclarations, testTitleAt } from "./test-declarations.js";
 
+const declaredTests = testDeclarations;
+const titleOfTestAt = testTitleAt;
+
 const SOURCE = [
   'import { describe, it, expect } from "vitest";',
   "",
@@ -17,7 +20,7 @@ const SOURCE = [
 
 describe("testDeclarations", () => {
   it("returns the it and test.skip titles with their lines 4 and 8, template placeholders as written", () => {
-    expect(testDeclarations(SOURCE)).toEqual([
+    expect(declaredTests(SOURCE)).toEqual([
       {
         name: "adds nothing after 2 failures, below the degraded threshold",
         line: 4,
@@ -29,16 +32,16 @@ describe("testDeclarations", () => {
 
 describe("testTitleAt", () => {
   it("returns the title declared on line 4 when the anchor is line 4", () => {
-    expect(testTitleAt(SOURCE, 4)).toBe(
+    expect(titleOfTestAt(SOURCE, 4)).toBe(
       "adds nothing after 2 failures, below the degraded threshold",
     );
   });
 
   it("returns the enclosing test's title when the anchor is line 9 inside its body", () => {
-    expect(testTitleAt(SOURCE, 9)).toBe("redacts ${kind} secrets");
+    expect(titleOfTestAt(SOURCE, 9)).toBe("redacts ${kind} secrets");
   });
 
   it("returns null when the anchor is line 3, above every test", () => {
-    expect(testTitleAt(SOURCE, 3)).toBeNull();
+    expect(titleOfTestAt(SOURCE, 3)).toBeNull();
   });
 });
