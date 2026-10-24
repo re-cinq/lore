@@ -19,6 +19,7 @@
 - [x] Implement `runPollLoop` to correctly handle `idleTicks` and sleep duration.
 - [x] Implement `pollUntil` to combine polling logic with backoff delays.
 - [x] Fix format CI failures: remove comments from test files, reduce 5-expect tests to 1 via toEqual, move sleep declaration closer to first use, fix unnecessary conditional in pollUntil, and add/correct spec links for all four backoff tests.
+- [x] Correct stale pollUntil spec link from L92 to L96 (re-lint resolver counts from test body start, not it() declaration).
 
 ## Out of scope
 
