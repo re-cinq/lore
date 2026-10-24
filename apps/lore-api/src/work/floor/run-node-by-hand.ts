@@ -5,7 +5,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { FloorLineBody } from "./floor-run-mapping.js";
 
 /** The parts of a line a start by hand reads. */
-export type HandStartLine = Pick<FloorLineBody, "exit" | "fail" | "nodes">;
+export type HandStartLine = Pick<
+  FloorLineBody,
+  "exit" | "fail" | "nodes" | "edges"
+>;
 
 export interface NodeAsk {
   event: string;
@@ -46,16 +49,26 @@ const FLOOR_PATIENCE: FloorPatience = {
 
 /** The event that starts the node: the one it declares, or the floor's default. Exit and fail end the run, so they have no station to run. */
 export function startEventFor(line: HandStartLine, nodeId: string): string {
-  const node = line.nodes.find((candidate) => candidate.id === nodeId);
+  const ciEdge = line.edges.find((edge) => {
+    if (edge.to !== nodeId) {
+      return false;
+    }
+    const fromNode = line.nodes.find((n) => n.id === edge.from);
 
-  enforceTrue(node, apiError(400), `the line has no node ${nodeId}`);
+    return fromNode?.station === "loop-await-ci";
+  });
+  const targetNodeId = ciEdge ? ciEdge.from : nodeId;
+
+  const node = line.nodes.find((candidate) => candidate.id === targetNodeId);
+
+  enforceTrue(node, apiError(400), `the line has no node ${targetNodeId}`);
   enforceTrue(
-    nodeId !== line.exit && nodeId !== line.fail,
+    targetNodeId !== line.exit && targetNodeId !== line.fail,
     apiError(400),
-    `${nodeId} ends the run; there is no station to run`,
+    `${targetNodeId} ends the run; there is no station to run`,
   );
 
-  return node.start ?? `node.${nodeId}.start`;
+  return node.start ?? `node.${targetNodeId}.start`;
 }
 
 /** Posts a node's start by hand: no iteration, so the floor opens the node's next one in the run. */
