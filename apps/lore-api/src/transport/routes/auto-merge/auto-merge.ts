@@ -15,6 +15,11 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { answerRepoRead, onboardedProject } from "../repos/github-read.js";
 import {
+  capSections,
+  SectionLimitsQuery,
+  type SectionLimits,
+} from "../loops/loop-sections.js";
+import {
   AutoMergeSchema,
   mergeQueues,
   type StoredBlock,
@@ -37,7 +42,10 @@ const BLOCKS_SQL = `SELECT pr_number, reason, detail
 const OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
-    validate: { params: zodValidate(RepoParams) },
+    validate: {
+      params: zodValidate(RepoParams),
+      query: zodValidate(SectionLimitsQuery),
+    },
   },
   AutoMergeSchema,
   {
@@ -57,8 +65,11 @@ export function autoMergeRoute(
     path: "/api/repos/{owner}/{repo}/auto-merge",
     options: OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
-      answerRepoRead(request, h, (fullName) =>
-        readQueues({ pool, pageOf }, fullName),
+      answerRepoRead(request, h, async (fullName) =>
+        capSections(
+          await readQueues({ pool, pageOf }, fullName),
+          request.query as SectionLimits,
+        ),
       ),
     ),
   };

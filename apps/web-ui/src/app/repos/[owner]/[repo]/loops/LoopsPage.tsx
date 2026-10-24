@@ -4,6 +4,7 @@ import { Alert } from "@/components/Alert";
 import { getRepoLoops, type RepoLoop, type RepoLoops } from "@/lib/api/loops";
 import type { ApiResult } from "@/lib/api/result";
 import LoopBoard from "./board/LoopBoard";
+import { pagingOf, type Paging } from "./board/section-limits";
 import ImplementationExplainer from "./implementation/ImplementationExplainer";
 import MergeExplainer from "./merge/MergeExplainer";
 import ReviewExplainer from "./review/ReviewExplainer";
@@ -19,12 +20,12 @@ import { switchLoopAction } from "./actions";
 
 interface LoopsPageProps {
   params: Promise<{ owner: string; repo: string }>;
-  searchParams: Promise<{ loop?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /** The Loops tab: All and every loop of the repository as pills with their state, the shown loops' switches, then one board of shared sections holding their rows (specs/implementation-loop FR9, specs/issue-triage FR27). */
 export default async function LoopsPage(props: LoopsPageProps) {
-  const [{ owner, repo }, { loop }] = await Promise.all([
+  const [{ owner, repo }, query] = await Promise.all([
     props.params,
     props.searchParams,
   ]);
@@ -35,16 +36,20 @@ export default async function LoopsPage(props: LoopsPageProps) {
     return <LoadFailure result={result} />;
   }
 
-  const requested = loop ?? ALL_LOOPS;
-
   return (
     <LoopsView
       loops={result.data.loops}
-      requested={requested}
-      shown={shownLoops(result.data.loops, requested)}
+      requested={requestedLoop(query)}
+      shown={shownLoops(result.data.loops, requestedLoop(query))}
       fullName={fullName}
+      paging={pagingOf(`/repos/${fullName}/loops`, query)}
     />
   );
+}
+
+/** The loop the address bar names, or All. */
+function requestedLoop(query: Record<string, unknown>): string {
+  return typeof query.loop === "string" ? query.loop : ALL_LOOPS;
 }
 
 interface LoopsViewProps {
@@ -53,9 +58,12 @@ interface LoopsViewProps {
   requested: string;
   shown: readonly RepoLoop[];
   fullName: string;
+  paging: Paging;
 }
 
-function LoopsView({ loops, requested, shown, fullName }: LoopsViewProps) {
+function LoopsView(props: LoopsViewProps) {
+  const { loops, requested, shown, fullName } = props;
+
   return (
     <div>
       <LoopPicker
@@ -65,13 +73,20 @@ function LoopsView({ loops, requested, shown, fullName }: LoopsViewProps) {
       />
       <Switches loops={shown} fullName={fullName} />
       {shown.length === 1 && <LoopExplainer loopKey={shown[0].key} />}
-      <Suspense
-        key={requested}
-        fallback={<LoopBodyLoading label={boardLabel(shown)} />}
-      >
-        <LoopBoard loops={shown} fullName={fullName} />
-      </Suspense>
+      <BoardArea {...props} />
     </div>
+  );
+}
+
+/** The board under the switches; the page above it stays while a loop or a page of rows loads. */
+function BoardArea({ requested, shown, fullName, paging }: LoopsViewProps) {
+  return (
+    <Suspense
+      key={requested}
+      fallback={<LoopBodyLoading label={boardLabel(shown)} />}
+    >
+      <LoopBoard loops={shown} fullName={fullName} paging={paging} />
+    </Suspense>
   );
 }
 

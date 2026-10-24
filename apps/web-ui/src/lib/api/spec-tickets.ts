@@ -1,5 +1,6 @@
 import "server-only";
 import { apiFetch } from "./client";
+import { withLimits, type SectionLimits } from "./loops";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
@@ -7,6 +8,12 @@ import type { components } from "./schema";
 export type SpecTickets = components["schemas"]["SpecTickets"];
 export type TicketsRow = SpecTickets["current"][number];
 
-export function getSpecTickets(repo: string): Promise<ApiResult<SpecTickets>> {
-  return apiFetch("lore-api", `/api/repos/${repo}/spec-tickets`);
+export function getSpecTickets(
+  repo: string,
+  limits?: SectionLimits,
+): Promise<ApiResult<SpecTickets>> {
+  return apiFetch(
+    "lore-api",
+    withLimits(`/api/repos/${repo}/spec-tickets`, limits),
+  );
 }

@@ -14,6 +14,7 @@ import {
 import { openFloorLoopRun } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";
 import {
   ImplementationLoopSchema,
@@ -34,6 +35,11 @@ import {
 import { fetchRunContext, fillFromFloor } from "./backlog-run-context.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
+import {
+  capSections,
+  SectionLimitsQuery,
+  type SectionLimits,
+} from "../loops/loop-sections.js";
 import {
   queuedIssuesReader,
   readIssues,
@@ -58,6 +64,19 @@ export function implementationLoopRoutes(
   return [readBacklogRoute(getPool, queuedIssuesReader())];
 }
 
+const BACKLOG_OPTIONS = zodResponse(
+  {
+    ...bearerScope("read"),
+    validate: { query: zodValidate(SectionLimitsQuery) },
+  },
+  ImplementationLoopSchema,
+  {
+    name: "ImplementationLoop",
+    description:
+      "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
+  },
+);
+
 function readBacklogRoute(
   getPool: () => Pool | null,
   queuedIssues: QueuedIssues,
@@ -65,11 +84,7 @@ function readBacklogRoute(
   return {
     method: "GET",
     path: PATH,
-    options: zodResponse(bearerScope("read"), ImplementationLoopSchema, {
-      name: "ImplementationLoop",
-      description:
-        "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
-    }),
+    options: BACKLOG_OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
       serveReadBacklog({ pool, queuedIssues }, request, h),
     ),
@@ -94,7 +109,7 @@ async function serveReadBacklog(
       enabled: state.enabled,
       current_run_id: state.currentRunId,
       onboarding: state.onboarding,
-      ...projectBacklog(state),
+      ...cappedBacklog(projectBacklog(state), request.query as SectionLimits),
     })
     .code(200);
 }
@@ -268,4 +283,18 @@ function settledTaskRows(
   currentIds: ReadonlySet<string>,
 ): LoopTaskRow[] {
   return state.taskRows.filter((t) => !currentIds.has(t.id));
+}
+
+/** The buckets cut to the page's limits: the shared sections call the queue `backlog`, this route calls it `next`. */
+function cappedBacklog(
+  buckets: BacklogBuckets,
+  limits: SectionLimits,
+): BacklogBuckets {
+  const { next, ...rest } = buckets;
+  const { backlog, ...capped } = capSections(
+    { ...rest, backlog: next },
+    limits,
+  );
+
+  return { ...capped, next: backlog };
 }

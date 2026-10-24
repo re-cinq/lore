@@ -25,14 +25,18 @@ describe("readLoop", () => {
       message: "HTTP 502",
     });
 
-    const read = await readLoop(loop("review", "Code review"), "re-cinq/lore");
+    const read = await readLoop(
+      loop("review", "Code review"),
+      "re-cinq/lore",
+      EVERY_ROW,
+    );
 
     expect({
       asked: vi.mocked(getCodeReview).mock.calls,
       sections: read.sections,
       failure: read.failure,
     }).toEqual({
-      asked: [["re-cinq/lore"]],
+      asked: [["re-cinq/lore", EVERY_ROW]],
       sections: null,
       failure:
         "Could not load Code review (HTTP 502) — check the Lore API connection and reload.",
@@ -59,6 +63,7 @@ describe("readLoop", () => {
     const read = await readLoop(
       loop("implementation", "Implementation loop"),
       "re-cinq/lore",
+      EVERY_ROW,
     );
 
     expect({ notice: read.backlogNotice, banner: read.implementation }).toEqual(
@@ -69,3 +74,10 @@ describe("readLoop", () => {
     );
   });
 });
+
+const EVERY_ROW = {
+  backlog: 200,
+  parked: 200,
+  awaiting_merge: 200,
+  recent: 200,
+};

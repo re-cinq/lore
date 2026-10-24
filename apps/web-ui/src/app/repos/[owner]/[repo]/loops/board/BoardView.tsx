@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { Alert } from "@/components/Alert";
 import MiniPipeline from "@/components/MiniPipeline";
 import Panel from "@/components/Panel";
 import LoopTable, { ActionsCell, StatusCell } from "../LoopTable";
 import type { Board, BoardRow, BoardSection } from "./board";
 import RowSubjectCell from "./RowSubjectCell";
+import LinkPending from "../LinkPending";
 import styles from "./BoardView.module.scss";
 
 interface BoardViewProps {
@@ -12,24 +14,17 @@ interface BoardViewProps {
   subject: string;
   /** Name each row's loop: on when the board shows more than one. */
   showLoop: boolean;
+  /** The address of the same view with one more page of a section. */
+  loadMore: (key: BoardSection["key"]) => string;
 }
 
 /** Pure view (DDAU) of the board: a loop that could not be read, then one panel per shared section. */
-export default function BoardView({
-  board,
-  subject,
-  showLoop,
-}: BoardViewProps) {
+export default function BoardView({ board, ...columns }: BoardViewProps) {
   return (
     <div className={styles.sections}>
       <Failures failures={board.failures} />
       {board.sections.map((section) => (
-        <SectionPanel
-          key={section.key}
-          section={section}
-          subject={subject}
-          showLoop={showLoop}
-        />
+        <SectionPanel key={section.key} section={section} {...columns} />
       ))}
     </div>
   );
@@ -43,29 +38,53 @@ function Failures({ failures }: { failures: readonly string[] }) {
   ));
 }
 
-interface SectionPanelProps {
+type SectionPanelProps = Omit<BoardViewProps, "board"> & {
   section: BoardSection;
-  subject: string;
-  showLoop: boolean;
-}
+};
 
-function SectionPanel({ section, subject, showLoop }: SectionPanelProps) {
+function SectionPanel({ section, loadMore, ...table }: SectionPanelProps) {
   return (
     <Panel title={section.heading}>
       <SectionNotices notices={section.notices} />
-      <LoopTable
-        subject={subject}
-        emptyText={section.emptyText}
-        testId="board-table"
-        rows={section.rows.map((row, i) => (
-          <BoardRowView
-            key={`${row.loop.key}-${row.ref}-${i}`}
-            row={row}
-            showLoop={showLoop}
-          />
-        ))}
-      />
+      <SectionTable section={section} {...table} />
+      {section.hasMore && <LoadMore href={loadMore(section.key)} />}
     </Panel>
+  );
+}
+
+function SectionTable({
+  section,
+  subject,
+  showLoop,
+}: Omit<SectionPanelProps, "loadMore">) {
+  return (
+    <LoopTable
+      subject={subject}
+      emptyText={section.emptyText}
+      testId="board-table"
+      rows={section.rows.map((row, i) => (
+        <BoardRowView
+          key={`${row.loop.key}-${row.ref}-${i}`}
+          row={row}
+          showLoop={showLoop}
+        />
+      ))}
+    />
+  );
+}
+
+/** Five more rows of the section, by address, so a live refresh keeps them; the page under it stays while they load. */
+function LoadMore({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      className={`btn btn-secondary ${styles.loadMore}`}
+      data-testid="load-more"
+    >
+      Load more
+      <LinkPending />
+    </Link>
   );
 }
 

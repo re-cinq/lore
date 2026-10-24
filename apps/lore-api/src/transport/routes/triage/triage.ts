@@ -5,11 +5,17 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
+import type { IssueRef, Project } from "@re-cinq/lore-shared";
 import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { isOpenStatus } from "../../../work/floor/floor-run-query.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import {
+  capSections,
+  SectionLimitsQuery,
+  type SectionLimits,
+} from "../loops/loop-sections.js";
 import { zodResponse } from "../../http/zod-response.js";
 import {
   githubFailureResponse,
@@ -64,7 +70,10 @@ function issueNumberOf(args: Record<string, unknown>): string | undefined {
 const TRIAGE_OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
-    validate: { params: zodValidate(RepoParams) },
+    validate: {
+      params: zodValidate(RepoParams),
+      query: zodValidate(SectionLimitsQuery),
+    },
   },
   IssueTriageSchema,
   {
@@ -95,14 +104,47 @@ async function serveTriage(
   const fullName = `${owner}/${repo}`;
 
   try {
-    const project = await onboardedProject(fullName);
-    const [issues, runs] = await Promise.all([
-      project.issues.list({ state: "open" }) as Promise<TriageIssue[]>,
-      runsOf(fullName),
-    ]);
+    const { issues, runs } = await readTriage(fullName, runsOf);
 
-    return h.response(triageBuckets(issues, runs));
+    return h.response(
+      capSections(
+        triageBuckets(issues as TriageIssue[], runs),
+        request.query as SectionLimits,
+      ),
+    );
   } catch (err) {
     return githubFailureResponse(err, h, "triage issues");
   }
+}
+
+/** Triage's issues and its open runs, read together. */
+async function readTriage(fullName: string, runsOf: OpenTriageRuns) {
+  const project = await onboardedProject(fullName);
+  const [labelled, runs] = await Promise.all([
+    project.issues.list({ state: "open", labels: [NEEDS_TRIAGE] }),
+    runsOf(fullName),
+  ]);
+
+  return { issues: await withRunIssues(project.issues, labelled, runs), runs };
+}
+
+/** The label every issue triage works keeps: the triage line only ever adds labels, so an issue it labelled further still carries this one, and listing it reads triage's issues and not all of the repository's (re-cinq/lore has 555 open). */
+const NEEDS_TRIAGE = "triage: needs-triage";
+
+/** The issues a triage run took up before any label landed: not in the labelled list, read one by one, a handful at most. */
+async function withRunIssues(
+  issues: Pick<Project["issues"], "get">,
+  labelled: readonly IssueRef[],
+  runs: readonly { issueNumber: string | undefined }[],
+): Promise<IssueRef[]> {
+  const listed = new Set(labelled.map((issue) => String(issue.number)));
+  const unlisted = runs
+    .map((run) => run.issueNumber)
+    .filter((n): n is string => n !== undefined && !listed.has(n));
+  const read = await Promise.all(unlisted.map((n) => issues.get(Number(n))));
+
+  return [
+    ...labelled,
+    ...read.filter((issue) => issue?.state === "open"),
+  ].filter((issue): issue is IssueRef => issue !== null);
 }

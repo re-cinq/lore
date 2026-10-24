@@ -1018,3 +1018,44 @@ describe("GET with a parked ticket whose last attempt has a run", () => {
     ]);
   });
 });
+
+describe("GET /api/repos/{owner}/{repo}/implementation-loop with section limits", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("answers 3 of 4 queued tickets for ?backlog=2, the third telling the page there is more", async () => {
+    const pool = makePool();
+
+    pool.query.mockImplementation(async (sql: string) => ({
+      rows: /FROM lore\.repos/.test(sql)
+        ? [{ settings: { implementation_loop: { enabled: true } } }]
+        : [],
+    }));
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () =>
+          [1, 2, 3, 4].map((n) =>
+            openIssue(n, ["priority:high"], `2026-10-0${n}T00:00:00Z`),
+          ),
+      },
+    } as never);
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop?backlog=2",
+      headers: AUTH,
+    });
+
+    expect(
+      JSON.parse(res.payload).next.map(
+        (t: { issue_number: number }) => t.issue_number,
+      ),
+    ).toEqual([1, 2, 3]);
+  });
+});

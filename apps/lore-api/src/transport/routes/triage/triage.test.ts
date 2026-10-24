@@ -133,3 +133,60 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
     });
   });
 });
+
+describe("GET /api/repos/{owner}/{repo}/triage reading only triage's issues", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it("asks GitHub for open issues labelled triage: needs-triage only, reads #50 a run took up before any label on its own, and cuts the backlog of 3 to 2 for ?backlog=1", async () => {
+    const asked: unknown[] = [];
+    const issue = (number: number, labels: string[]) => ({
+      number,
+      title: `Issue ${number}`,
+      state: "open",
+      labels,
+      url: `https://gh/i/${number}`,
+    });
+
+    vi.mocked(projectFor).mockResolvedValue({
+      settings: { record: async () => ({ fullName: "re-cinq/lore" }) },
+      issues: {
+        list: async (filter: unknown) => {
+          asked.push(filter);
+
+          return [1, 2, 3].map((n) => issue(n, ["triage: needs-triage"]));
+        },
+        get: async (number: number) => issue(number, []),
+      },
+    } as never);
+    const server = Hapi.server();
+
+    server.auth.scheme("stub", () => ({
+      authenticate: (_r, h) => h.authenticated({ credentials: {} }),
+    }));
+    server.auth.strategy("bearer-scope", "stub");
+    server.auth.default("bearer-scope");
+    server.route(
+      triageRoute(async () => [
+        { id: "run-50", issueNumber: "50", pipeline: [] },
+      ]),
+    );
+
+    const body = JSON.parse(
+      (await server.inject("/api/repos/re-cinq/lore/triage?backlog=1")).payload,
+    );
+
+    expect({
+      asked,
+      current: body.current.map(
+        (r: { issue_number: number }) => r.issue_number,
+      ),
+      backlog: body.backlog.map(
+        (r: { issue_number: number }) => r.issue_number,
+      ),
+    }).toEqual({
+      asked: [{ state: "open", labels: ["triage: needs-triage"] }],
+      current: [50],
+      backlog: [1, 2],
+    });
+  });
+});

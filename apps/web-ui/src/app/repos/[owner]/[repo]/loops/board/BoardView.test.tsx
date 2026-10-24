@@ -42,15 +42,25 @@ function renderView(over: Partial<ImplementationLoop> = {}) {
     description: "",
     enabled: backlog.enabled,
   };
-  const board = loopBoard([
-    {
-      loop,
-      sections: implementationSections(loop, backlog),
-      backlogNotice: implementationNotice(loop),
-    },
-  ]);
+  const board = loopBoard(
+    [
+      {
+        loop,
+        sections: implementationSections(loop, backlog),
+        backlogNotice: implementationNotice(loop),
+      },
+    ],
+    EVERY_ROW,
+  );
 
-  return render(<BoardView board={board} subject="Ticket" showLoop={false} />);
+  return render(
+    <BoardView
+      board={board}
+      subject="Ticket"
+      showLoop={false}
+      loadMore={() => "/more"}
+    />,
+  );
 }
 
 describe("BoardView for the implementation loop", () => {
@@ -365,23 +375,31 @@ describe("BoardView for every loop", () => {
       key: "implementation",
       label: "Implementation loop",
     };
-    const board = loopBoard([
-      {
-        loop: implementation,
-        sections: implementationSections(implementation, {
-          enabled: true,
-          onboarding: { merged: true, pr_url: null, last_task: null },
-          current: [ticket({ state: "running" })],
-          current_run_id: null,
-          next: [],
-          parked: [],
-          recent: [],
-          awaiting_merge: [],
-        }),
-      },
-    ]);
+    const board = loopBoard(
+      [
+        {
+          loop: implementation,
+          sections: implementationSections(implementation, {
+            enabled: true,
+            onboarding: { merged: true, pr_url: null, last_task: null },
+            current: [ticket({ state: "running" })],
+            current_run_id: null,
+            next: [],
+            parked: [],
+            recent: [],
+            awaiting_merge: [],
+          }),
+        },
+      ],
+      EVERY_ROW,
+    );
     const { getByText } = render(
-      <BoardView board={board} subject="Work" showLoop />,
+      <BoardView
+        board={board}
+        subject="Work"
+        showLoop
+        loadMore={() => "/more"}
+      />,
     );
 
     expect([
@@ -390,3 +408,49 @@ describe("BoardView for every loop", () => {
     ]).toEqual(["Implementation loop", "TH"]);
   });
 });
+
+describe("BoardView load more", () => {
+  it("links Load more to the address that asks for 5 more recent rows, under the one section that has more", () => {
+    const board = {
+      failures: [],
+      runIds: [],
+      sections: [
+        {
+          key: "recent" as const,
+          heading: "Recently addressed",
+          rows: [],
+          hasMore: true,
+          emptyText: "",
+          notices: [],
+        },
+        {
+          key: "backlog" as const,
+          heading: "Backlog",
+          rows: [],
+          hasMore: false,
+          emptyText: "",
+          notices: [],
+        },
+      ],
+    };
+    const { getAllByTestId } = render(
+      <BoardView
+        board={board}
+        subject="Work"
+        showLoop
+        loadMore={(key) => `/repos/acme/widgets/loops?${key}=10`}
+      />,
+    );
+
+    expect(
+      getAllByTestId("load-more").map((link) => link.getAttribute("href")),
+    ).toEqual(["/repos/acme/widgets/loops?recent=10"]);
+  });
+});
+
+const EVERY_ROW = {
+  backlog: 200,
+  parked: 200,
+  awaiting_merge: 200,
+  recent: 200,
+};
