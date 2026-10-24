@@ -33,11 +33,13 @@ describe("Backlog ranking configuration", () => {
     const defaultPick = selectNextIssue(issues, {
       criteria: ["priority", "age"],
     });
+
     expect(defaultPick?.number).toBe(1);
 
     const reorderedPick = selectNextIssue(issues, {
       criteria: ["unblocks", "priority", "age"],
     });
+
     expect(reorderedPick?.number).toBe(2);
   });
 
@@ -57,6 +59,7 @@ describe("Backlog ranking configuration", () => {
       }),
     ];
     const pick = selectNextIssue(issues, { criteria: ["unblocks", "age"] });
+
     expect(pick?.number).toBe(2);
   });
 
@@ -68,6 +71,7 @@ describe("Backlog ranking configuration", () => {
     const pick = selectNextIssue(issues, {
       criteria: ["size", "priority", "age"],
     });
+
     expect(pick?.number).toBe(2);
   });
 });

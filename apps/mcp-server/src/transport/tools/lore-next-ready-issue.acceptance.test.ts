@@ -15,6 +15,7 @@ function handlerFor(name: string) {
 describe("lore_next_ready_issue tool", () => {
   it("returns one issue plus `because`, and the issue equals the loop's own next pick for that repo", async () => {
     const handler = handlerFor("lore_next_ready_issue");
+
     expect(handler).toBeDefined();
 
     vi.mocked(proxyGetApi).mockResolvedValueOnce({
@@ -40,6 +41,7 @@ describe("lore_next_ready_issue tool", () => {
 
   it("{repo} with nothing ready returns an empty result and a reason, not an error", async () => {
     const handler = handlerFor("lore_next_ready_issue");
+
     expect(handler).toBeDefined();
 
     vi.mocked(proxyGetApi).mockResolvedValueOnce({
@@ -56,6 +58,7 @@ describe("lore_next_ready_issue tool", () => {
 
   it("Two runs against an unchanged backlog return the same issue", async () => {
     const handler = handlerFor("lore_next_ready_issue");
+
     expect(handler).toBeDefined();
   });
 });

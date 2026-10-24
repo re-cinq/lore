@@ -22,7 +22,7 @@ registry row and spawns the `onboard` pipeline task.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/repo-tools.ts#L84)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/repo-tools.ts#L85)).
 
 - **name**: `lore_onboard_repo`
 - **description** (verbatim):

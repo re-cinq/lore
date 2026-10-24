@@ -154,6 +154,7 @@ describe("orderBacklog with ranking criteria", () => {
       issue({ number: 1, labels: ["priority:high"], blockedByCount: 0 }),
       issue({ number: 2, labels: ["priority:high"], blockedByCount: 3 }),
     ];
+
     expect(
       orderBacklog(issues, { criteria: ["unblocks", "age"] }).map(
         (i) => i.number,

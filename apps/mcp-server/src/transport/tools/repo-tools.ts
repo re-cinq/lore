@@ -332,6 +332,7 @@ async function fetchNextReadyIssue({
   const proxied = await proxyGetApi(
     `/api/repos/${owner}/${name}/backlog-queue`,
   );
+
   if (!proxied.ok) {
     return textResult(
       JSON.stringify({
@@ -341,6 +342,7 @@ async function fetchNextReadyIssue({
     );
   }
   const issues = JSON.parse(proxied.body) as Array<Record<string, unknown>>;
+
   return textResult(JSON.stringify(nextReadyResult(issues)));
 }
 
@@ -350,5 +352,6 @@ function nextReadyResult(
   if (issues.length === 0) {
     return { issue: null, reason: "No issues ready in the backlog." };
   }
+
   return { issue: issues[0], because: "priority" };
 }
