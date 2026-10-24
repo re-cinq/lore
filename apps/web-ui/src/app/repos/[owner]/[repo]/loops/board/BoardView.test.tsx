@@ -413,6 +413,7 @@ describe("BoardView load more", () => {
   it("links Load more to the address that asks for 5 more recent rows, under the one section that has more", () => {
     const board = {
       failures: [],
+      loading: [],
       runIds: [],
       sections: [
         {

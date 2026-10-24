@@ -8,6 +8,7 @@ import type { IssueTriage, TriageRow } from "@/lib/api/triage";
 import type { SpecUpkeep, UpkeepRow } from "@/lib/api/spec-upkeep";
 import type { DailyDigest, DigestRow } from "@/lib/api/daily-digest";
 import { shownRows, type SectionLimits } from "./section-limits";
+import { sectionEmptyText } from "./section-texts";
 import type { SpecTickets, TicketsRow } from "@/lib/api/spec-tickets";
 
 export const SECTION_KEYS = [
@@ -63,6 +64,8 @@ export interface BoardSection {
 export interface Board {
   sections: BoardSection[];
   failures: string[];
+  /** The shown loops whose rows have not arrived yet, by name. */
+  loading: string[];
   /** Every run a row shows Stages for, for the live follower. */
   runIds: string[];
 }
@@ -77,19 +80,6 @@ const HEADINGS: Record<SectionKey, string> = {
 
 /** Sections absent entirely when they would hold nothing. */
 const OPTIONAL: ReadonlySet<SectionKey> = new Set(["parked", "awaiting_merge"]);
-
-/** What puts work in each loop's backlog, said when the backlog is empty. */
-const BACKLOG_HINT: Record<string, string> = {
-  implementation:
-    "Label an issue priority:high, priority:medium, or priority:low to queue it.",
-  review: "Every open pull request no review has looked at waits here.",
-  merge:
-    "Every open pull request Lore's review approved waits here until the auto-merge loop takes it.",
-  triage: "Label an issue triage: needs-triage to have it triaged.",
-  upkeep: "Spec upkeep has no backlog: it runs every Monday.",
-  digest: "The daily digest has no backlog: it posts on its schedule.",
-  tickets: "Spec tickets has no backlog: it starts when a spec merges.",
-};
 
 /** What one loop's rows are, for the subject column's header; typed by key, so a new loop cannot go without one. */
 const SUBJECT: Record<RepoLoop["key"], string> = {
@@ -110,28 +100,37 @@ export function boardSubject(loops: readonly RepoLoop[]): string {
 export function loopBoard(
   reads: readonly LoopRead[],
   limits: SectionLimits,
+  loading: readonly Pick<RepoLoop, "label">[] = [],
 ): Board {
+  const waitingFor = loading.map((loop) => loop.label);
   const sections = SECTION_KEYS.map((key) =>
-    boardSection(key, reads, limits),
+    boardSection(key, reads, limits, waitingFor),
   ).filter((section) => !OPTIONAL.has(section.key) || section.rows.length > 0);
 
   return {
     sections,
     failures: reads.flatMap((read) => (read.failure ? [read.failure] : [])),
-    runIds: [
-      ...new Set(
-        sections.flatMap((s) =>
-          s.rows.flatMap((r) => (r.runId ? [r.runId] : [])),
-        ),
-      ),
-    ],
+    loading: waitingFor,
+    runIds: runIdsOf(sections),
   };
+}
+
+/** Every run a row shows Stages for, once. */
+function runIdsOf(sections: readonly BoardSection[]): string[] {
+  return [
+    ...new Set(
+      sections.flatMap((s) =>
+        s.rows.flatMap((r) => (r.runId ? [r.runId] : [])),
+      ),
+    ),
+  ];
 }
 
 function boardSection(
   key: SectionKey,
   reads: readonly LoopRead[],
   limits: SectionLimits,
+  waitingFor: readonly string[],
 ): BoardSection {
   const shown = shownRows(key, joinedRows(key, reads), limits);
 
@@ -140,7 +139,7 @@ function boardSection(
     heading: HEADINGS[key],
     rows: shown.rows,
     hasMore: shown.hasMore,
-    emptyText: emptyText(key, reads),
+    emptyText: sectionEmptyText(key, reads, waitingFor),
     notices:
       key === "backlog"
         ? reads.flatMap((r) => (r.backlogNotice ? [r.backlogNotice] : []))
@@ -158,24 +157,6 @@ function joinedRows(key: SectionKey, reads: readonly LoopRead[]): BoardRow[] {
 /** Recently addressed across loops reads newest first; a row with no time goes last. */
 function newestFirst(rows: readonly BoardRow[]): BoardRow[] {
   return [...rows].sort((a, b) => (b.since ?? "").localeCompare(a.since ?? ""));
-}
-
-/** Each empty text says what would put work here rather than just "none": an empty section usually means the reader has something to do. */
-function emptyText(key: SectionKey, reads: readonly LoopRead[]): string {
-  if (key === "current") {
-    return "Nothing is being worked right now.";
-  }
-
-  if (key === "backlog") {
-    return [
-      "The backlog is empty.",
-      ...reads.map((r) => BACKLOG_HINT[r.loop.key]),
-    ]
-      .filter(Boolean)
-      .join(" ");
-  }
-
-  return "Nothing addressed yet.";
 }
 
 /** Says once above the backlog that nothing in it is picked while the loop is off. */

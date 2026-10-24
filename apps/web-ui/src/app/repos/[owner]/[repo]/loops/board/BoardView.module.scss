@@ -48,3 +48,16 @@
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
+
+.loadingLoops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.loadingLoop {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
