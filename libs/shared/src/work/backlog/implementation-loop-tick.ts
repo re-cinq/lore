@@ -95,6 +95,7 @@ interface BacklogPick {
 
 async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   const settings = await deps.rawSettings(repo);
+
   if (!(await readyToPick(repo, settings, deps))) {
     return;
   }
@@ -127,15 +128,22 @@ const VALID_RANKING_CRITERIA = new Set<string>([
 
 function rankingCriteriaFor(settings: unknown): RankingCriterion[] | undefined {
   const rawCriteria = toRecord(toRecord(settings)?.backlog_ranking)?.criteria;
-  if (!Array.isArray(rawCriteria)) return undefined;
+
+  if (!Array.isArray(rawCriteria)) {
+    return undefined;
+  }
   const filtered = rawCriteria.filter((crit): crit is RankingCriterion =>
     VALID_RANKING_CRITERIA.has(String(crit)),
   );
+
   return filtered.length > 0 ? filtered : undefined;
 }
 
 function toRecord(raw: unknown): Record<string, unknown> | null {
-  if (typeof raw !== "object" || raw === null) return null;
+  if (typeof raw !== "object" || raw === null) {
+    return null;
+  }
+
   return raw as Record<string, unknown>;
 }
 

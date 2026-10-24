@@ -33,22 +33,35 @@ export function orderBacklog(
   const criteria = options?.criteria ?? DEFAULT_CRITERIA;
   const eligible = issues.flatMap((i) => {
     const e = toEligible(i);
+
     return e === null ? [] : [e];
   });
+
   eligible.sort((a, b) => {
     for (const criterion of criteria) {
       const diff = compareByCriterion(criterion, a, b);
-      if (diff !== 0) return diff;
+
+      if (diff !== 0) {
+        return diff;
+      }
     }
+
     return 0;
   });
+
   return eligible.map((c) => c.issue);
 }
 
 function toEligible(issue: IssueRef): RankedIssue | null {
-  if (issue.state !== "open") return null;
-  if (issue.labels.includes(LORE_BLOCKED_LABEL)) return null;
+  if (issue.state !== "open") {
+    return null;
+  }
+
+  if (issue.labels.includes(LORE_BLOCKED_LABEL)) {
+    return null;
+  }
   const rank = priorityRank(issue.labels);
+
   return rank === null ? null : { issue, rank };
 }
 
@@ -85,18 +98,30 @@ function unblockCount(issue: IssueRef): number {
 
 function sizeRank(labels: readonly string[]): number {
   for (const label of labels) {
-    if (!label.startsWith("size:")) continue;
+    if (!label.startsWith("size:")) {
+      continue;
+    }
     const key = label.slice(5);
     const rank = (SIZE_ORDER as Record<string, number | undefined>)[key];
-    if (rank !== undefined) return rank;
+
+    if (rank !== undefined) {
+      return rank;
+    }
   }
+
   return Object.keys(SIZE_ORDER).length;
 }
 
 /** Plain lexicographic compare — correct for ISO timestamps, and not subject to the process's collation locale. */
 function compareIso(a: string, b: string): number {
-  if (a < b) return -1;
-  if (a > b) return 1;
+  if (a < b) {
+    return -1;
+  }
+
+  if (a > b) {
+    return 1;
+  }
+
   return 0;
 }
 
