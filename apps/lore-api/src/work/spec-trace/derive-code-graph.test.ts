@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parsePackageJsonEdges } from "./derive-code-graph.js";
 
 describe("parsePackageJsonEdges", () => {
-  it("derives a depends-on edge from a package.json with a github: specifier (specs/lore-derived-code-graph/spec.md#1)", () => {
+  it("derives a depends-on edge from a package.json with a github: specifier ([validated by](specs/lore-derived-code-graph/spec.md#L9))", () => {
     const content = JSON.stringify({
       name: "my-consumer",
       dependencies: { "my-library": "github:my-org/my-library" },
@@ -15,7 +15,7 @@ describe("parsePackageJsonEdges", () => {
     expect(edges[0].targetName).toBe("my-library");
   });
 
-  it("marks a github: specifier without a commit ref as not pinned (specs/lore-derived-code-graph/spec.md#1)", () => {
+  it("marks a github: specifier without a commit ref as not pinned ([validated by](specs/lore-derived-code-graph/spec.md#L9))", () => {
     const content = JSON.stringify({
       name: "my-consumer",
       dependencies: { "my-library": "github:my-org/my-library" },
@@ -26,7 +26,7 @@ describe("parsePackageJsonEdges", () => {
     expect(edges[0].pinned).toBe(false);
   });
 
-  it("marks a github: specifier with a commit ref as pinned (specs/lore-derived-code-graph/spec.md#1)", () => {
+  it("marks a github: specifier with a commit ref as pinned ([validated by](specs/lore-derived-code-graph/spec.md#L9))", () => {
     const content = JSON.stringify({
       name: "my-consumer",
       dependencies: { "my-library": "github:my-org/my-library#abc1234" },
@@ -37,13 +37,13 @@ describe("parsePackageJsonEdges", () => {
     expect(edges[0].pinned).toBe(true);
   });
 
-  it("returns empty for invalid JSON (specs/lore-derived-code-graph/spec.md#1)", () => {
+  it("returns empty for invalid JSON ([validated by](specs/lore-derived-code-graph/spec.md#L9))", () => {
     expect(
       parsePackageJsonEdges("not json", "my-org/my-consumer"),
     ).toHaveLength(0);
   });
 
-  it("derives edges from peerDependencies too (specs/lore-derived-code-graph/spec.md#1)", () => {
+  it("derives edges from peerDependencies too ([validated by](specs/lore-derived-code-graph/spec.md#L9))", () => {
     const content = JSON.stringify({
       name: "my-consumer",
       peerDependencies: { react: "^18.0.0" },
@@ -54,7 +54,7 @@ describe("parsePackageJsonEdges", () => {
     expect(edges.some((e) => e.targetName === "react")).toBe(true);
   });
 
-  it("derives edges from any repo without an auto_ingest_graph opt-in (specs/lore-derived-code-graph/spec.md#7)", () => {
+  it("derives edges from any repo without an auto_ingest_graph opt-in ([validated by](specs/lore-derived-code-graph/spec.md#L15))", () => {
     const content = JSON.stringify({
       name: "another-consumer",
       dependencies: { "a-lib": "github:other-org/a-lib" },

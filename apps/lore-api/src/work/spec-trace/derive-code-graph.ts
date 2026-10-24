@@ -263,14 +263,12 @@ function collectEntities(edges: DerivedEdge[]): Map<string, EntityEntry> {
   const entityMap = new Map<string, EntityEntry>();
 
   for (const e of edges) {
-    const sk = entityKey(e.sourceName, e.sourceType, e.sourceRepo);
-    const tk = entityKey(e.targetName, e.targetType, e.targetRepo);
-    entityMap.set(sk, {
+    entityMap.set(entityKey(e.sourceName, e.sourceType, e.sourceRepo), {
       name: e.sourceName,
       type: e.sourceType,
       repo: e.sourceRepo,
     });
-    entityMap.set(tk, {
+    entityMap.set(entityKey(e.targetName, e.targetType, e.targetRepo), {
       name: e.targetName,
       type: e.targetType,
       repo: e.targetRepo,

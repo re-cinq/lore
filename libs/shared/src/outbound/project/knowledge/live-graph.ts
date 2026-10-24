@@ -45,8 +45,7 @@ function entityGraphQuery(validFilter: string): string {
      LIMIT 50`;
 }
 
-/** Incoming edges: filter by target name but return source as entity so the caller always sees
- * (entity → related_entity) in canonical direction regardless of which end was queried. */
+/** Incoming: filter by target but return (source→target) so callers always get the same shape. */
 function incomingEdges(validFilter: string): string {
   return `SELECT
        s.name as entity, s.entity_type,
