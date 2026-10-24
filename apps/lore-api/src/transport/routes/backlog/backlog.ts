@@ -138,32 +138,44 @@ async function loadBacklogState(
   recentLimit: number,
 ): Promise<BacklogState> {
   const read = await readRepoRow(pool, repo);
-  const taskRows = await readLoopTasks(pool, repo, recentLimit);
+  const issues = await readIssues(repo, queuedIssues, (openIssueNumbers) =>
+    readLoopTasks(pool, { repo, recentLimit, openIssueNumbers }),
+  );
 
   return {
     recentLimit,
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
-    taskRows,
-    ...(await readIssues(repo, taskRows, queuedIssues)),
+    ...issues,
     currentRunId: await readCurrentRunId(pool, repo),
-    ...(await readRunIndex(pool, repo, taskRows)),
+    ...(await readRunIndex(pool, repo, issues.taskRows)),
   };
 }
 
-/** The loop's own tasks, newest first. TWICE the recent cap is read: the open ones are filtered out to build the "recent" list, and without the headroom a repo with several in flight would show a short one. */
+interface LoopTasksQuery {
+  repo: string;
+  recentLimit: number;
+  openIssueNumbers: readonly number[];
+}
+
+/** The loop's own tasks, newest first: TWICE the recent cap, since the open ones are filtered out to build the "recent" list and without the headroom a repo with several in flight would show a short one, and beside them the newest task of every open issue, however old. A settled task holding its ticket through an open pull request fell out of the newest 20 on re-cinq/Otto, and the board listed its ticket as queued while the loop skipped it. */
 async function readLoopTasks(
   pool: Pool,
-  repo: string,
-  recentLimit: number,
+  { repo, recentLimit, openIssueNumbers }: LoopTasksQuery,
 ): Promise<LoopTaskRow[]> {
   const { rows } = await pool.query<LoopTaskRow>(
-    `SELECT ${selectList(LOOP_TASK_COLUMNS)}
-           FROM pipeline.tasks
-          WHERE target_repo = $1 AND task_type = 'implementation-loop'
-          ORDER BY created_at DESC
-          LIMIT $2`,
-    [repo, recentLimit * 2],
+    `WITH loop AS (
+       SELECT ${selectList(LOOP_TASK_COLUMNS)}
+         FROM pipeline.tasks
+        WHERE target_repo = $1 AND task_type = 'implementation-loop'
+     )
+     (SELECT * FROM loop ORDER BY created_at DESC LIMIT $2)
+     UNION
+     (SELECT DISTINCT ON (issue_number) * FROM loop
+       WHERE issue_number = ANY($3::int[])
+       ORDER BY issue_number, created_at DESC)
+     ORDER BY created_at DESC`,
+    [repo, recentLimit * 2, openIssueNumbers],
   );
 
   return rows;

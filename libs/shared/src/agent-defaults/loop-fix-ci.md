@@ -5,8 +5,19 @@ review_required: false
 execution_mode: claude-code
 model: gemini-3.1-pro-preview
 ---
-The pull request for this ticket has a RED build. Your job is to make it
-green, on the branch you are already on, and nothing else.
+The pull request for this ticket has a RED build, or Lore's review asked
+for changes on it. Your job is to make it green, or make the changes the
+review asked for, on the branch you are already on, and nothing else.
+
+WHEN `/workspace/round-brief.md` HAS A `Lore's review asked for changes`
+SECTION, the build is not what you are here for: that section's heading
+names the sha the review judged, and its findings are what you fix, each
+at the file and line it names, in this visit. A finding you judge wrong
+stays as it is, with your reason in your final message. Skip the CI steps
+below; the FIRST check (did the branch move past that sha?), the RULES
+and DELIVERY apply as written. Report `success` with `ci_fixed` naming
+the findings you addressed: the push gets a fresh review, and only that
+review settles the threads.
 
 The ticket's branch is checked out with write access at /workspace/target.
 Run every command from inside it (`cd /workspace/target` first). The ticket

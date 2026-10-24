@@ -425,6 +425,58 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     });
   });
 
+  it("lists #195 under awaiting merge, not in the queue, when its settled task is older than the 20 newest and its loop pull request is open", async () => {
+    const pool = makePool();
+
+    pool.query.mockImplementation(async (sql: string, params: unknown[]) => {
+      if (/FROM lore\.repos/.test(sql)) {
+        return {
+          rows: [{ settings: { implementation_loop: { enabled: true } } }],
+        };
+      }
+      const asksFor195 =
+        /task_type = 'implementation-loop'/.test(sql) &&
+        JSON.stringify(params).includes("195");
+
+      return {
+        rows: asksFor195
+          ? [
+              {
+                id: "task-195",
+                created_at: "2026-08-01T00:00:00.000Z",
+                status: "completed",
+                description: "Ticket 195",
+                issue_number: 195,
+                issue_url: "https://gh/i/195",
+                pr_url: "https://gh/pr/500",
+              },
+            ]
+          : [],
+      };
+    });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(195, ["priority:high"], "2026-07-01T00:00:00Z"),
+        ],
+      },
+      pulls: {
+        list: async () => [
+          { number: 500, branch: "lore/implementation-loop/issue-195" },
+        ],
+      },
+    } as never);
+
+    const loop = JSON.parse((await get(pool)).payload);
+
+    expect({
+      next: loop.next,
+      awaiting: loop.awaiting_merge.map(
+        (ticket: { issue_number: number }) => ticket.issue_number,
+      ),
+    }).toEqual({ next: [], awaiting: [195] });
+  });
+
   it("keeps an awaiting-merge ticket visible past the recent cap", async () => {
     const pool = makePool();
     const olderSettled = Array.from({ length: 10 }, (_, at) => ({
@@ -626,11 +678,15 @@ describe("GET on a repo with no loop tasks yet", () => {
       next: [{ issue_number: 3 }],
       recent: [],
     });
-    const anyCalls = pool.query.mock.calls.filter(([sql]) =>
-      String(sql).includes("ANY("),
+    const emptyAnyCalls = pool.query.mock.calls.filter(
+      ([sql, params]) =>
+        String(sql).includes("ANY(") &&
+        (params as unknown[]).some(
+          (param) => Array.isArray(param) && param.length === 0,
+        ),
     );
 
-    expect(anyCalls).toHaveLength(0);
+    expect(emptyAnyCalls).toHaveLength(0);
   });
 });
 
@@ -1099,8 +1155,8 @@ describe("GET /api/repos/{owner}/{repo}/implementation-loop past ten recent tick
     }
 
     expect(asked).toEqual([
-      ["re-cinq/lore", 20],
-      ["re-cinq/lore", 32],
+      ["re-cinq/lore", 20, []],
+      ["re-cinq/lore", 32, []],
     ]);
   });
 });
