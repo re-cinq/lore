@@ -125,11 +125,6 @@ const VALID_RANKING_CRITERIA = new Set<string>([
   "size",
 ]);
 
-function toRecord(raw: unknown): Record<string, unknown> | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  return raw as Record<string, unknown>;
-}
-
 function rankingCriteriaFor(settings: unknown): RankingCriterion[] | undefined {
   const rawCriteria = toRecord(toRecord(settings)?.backlog_ranking)?.criteria;
   if (!Array.isArray(rawCriteria)) return undefined;
@@ -137,6 +132,11 @@ function rankingCriteriaFor(settings: unknown): RankingCriterion[] | undefined {
     VALID_RANKING_CRITERIA.has(String(crit)),
   );
   return filtered.length > 0 ? filtered : undefined;
+}
+
+function toRecord(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  return raw as Record<string, unknown>;
 }
 
 /** Whether this tick may pick for the repo: its loop is on, it has finished onboarding, and it is not already driving a run. A repo that is on but not onboarded says so, because a tick that only walked onboarded repos once skipped such a repo with no trace at all. */
