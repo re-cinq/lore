@@ -27,6 +27,12 @@ STEPS:
    file (`--ours` / `--theirs` on a file both sides edited), and never by
    deleting the ticket's work. `git add` the file, then
    `git rebase --continue`. Repeat until the rebase is finished.
+   A conflict on `.lore/dod.md` takes what the commit being replayed says
+   about it: `git checkout --theirs .lore/dod.md && git add .lore/dod.md`
+   when that commit keeps the file, `git rm .lore/dod.md` when it deletes
+   it. The file is the loop's own scaffolding between pods, which the
+   ready-for-review step removes before review; main never needs it, so a
+   collision on it, even one with main deleting it, is never a reason to abort.
 3. Read the result once: `git diff origin/main...HEAD --stat` must show only
    files this ticket touched. A file you did not mean to change is a
    resolution that went wrong; fix it before you push.
@@ -46,8 +52,8 @@ RULES:
 - If the branch is already on `origin/main` (the rebase says it is up to
   date), push nothing and report success.
 - If a conflict cannot be resolved without a decision only a person can make
-  (the two sides contradict each other, or the ticket's file was deleted on
-  main), run `git rebase --abort`, change nothing and report `failed` with
+  (the two sides contradict each other, or a file of the ticket's other than
+  `.lore/dod.md` was deleted on main), run `git rebase --abort`, change nothing and report `failed` with
   what collided. Never push a half-finished rebase.
 
 Print exactly one of these as the last line of your final message:
