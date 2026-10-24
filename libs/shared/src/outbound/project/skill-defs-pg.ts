@@ -14,7 +14,9 @@ function mergeRows(
 ): SkillDef | null {
   const top = project ?? org;
 
-  if (!top) return null;
+  if (!top) {
+    return null;
+  }
 
   return applyOverrides(top, project, org);
 }
@@ -47,12 +49,15 @@ function mergeWithPartials(
   };
 }
 
-function pick<T>(
-  a: T | null | undefined,
-  b: T | null | undefined,
-): T | null {
-  if (a !== null && a !== undefined) return a;
-  if (b !== null && b !== undefined) return b;
+function pick<T>(a: T | null | undefined, b: T | null | undefined): T | null {
+  if (a !== null && a !== undefined) {
+    return a;
+  }
+
+  if (b !== null && b !== undefined) {
+    return b;
+  }
+
   return null;
 }
 
