@@ -139,7 +139,7 @@ describe("DbLeaseBackend.reapExpired", () => {
     expect(calls[0].params).toEqual([cutoff]);
   });
 
-  it("returns an empty array when nothing is past the cutoff", async () => {
+  it("returns an empty array when no row is past the cutoff", async () => {
     const { pool } = fakePgPool([{ rowCount: 0, rows: [] }]);
 
     expect(
@@ -287,7 +287,7 @@ describe("InMemoryLeaseReaper.reapExpired", () => {
     expect(reaper.leases.map((l) => l.task_id)).toEqual(["fresh"]);
   });
 
-  it("returns an empty array when nothing is past the cutoff", async () => {
+  it("returns an empty array and keeps the lease when nothing is past the cutoff", async () => {
     const reaper = new InMemoryLeaseReaper([
       lease({ expires_at: new Date("2026-06-03T11:00:00Z") }),
     ]);

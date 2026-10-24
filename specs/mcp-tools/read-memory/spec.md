@@ -97,7 +97,7 @@ proxied body, the `unreachableError` message, or
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
    read`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L160), [`reports a
-   denied error on a 401 without
+   denied error on a 401 to a memory read without
    retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L174))
 
 ## Out of Scope

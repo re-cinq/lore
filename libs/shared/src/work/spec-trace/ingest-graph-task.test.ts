@@ -33,7 +33,7 @@ describe("selectIngestFiles", () => {
     expect(selectIngestFiles(TREE, "adrs")).toEqual(["adrs/0001-auth.md"]);
   });
 
-  it("returns nothing for an unknown kind", () => {
+  it("selects no files for an unknown kind", () => {
     expect(selectIngestFiles(TREE, "docs")).toEqual([]);
   });
 
@@ -74,7 +74,7 @@ describe("chunkGlobsForKind", () => {
     expect(chunkGlobsForKind("adrs", TREE)).toEqual(["adrs/"]);
   });
 
-  it("returns nothing for an unknown kind", () => {
+  it("yields no globs for an unknown kind", () => {
     expect(chunkGlobsForKind("docs", TREE)).toEqual([]);
   });
 });

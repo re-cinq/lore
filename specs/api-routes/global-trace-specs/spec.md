@@ -76,7 +76,7 @@ With Dgraph unconfigured, the route fails soft to `200 { specs: [] }` — never 
 500. ([validated by `returns 200 with an empty specs list when Dgraph is not configured`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L68))
 
 A request without a bearer token is rejected with 401 before the handler runs.
-([validated by `returns 401 without a bearer token`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L75))
+([validated by `returns 401 for the org-wide spec list without a bearer token`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L75))
 
 With a Dgraph client present, the route returns `200 { specs }` from
 `listAllSpecDocuments`, each entry carrying its lifecycle `status` pill (`null`

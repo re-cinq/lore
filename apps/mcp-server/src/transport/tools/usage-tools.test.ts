@@ -72,7 +72,7 @@ describe("lore_my_usage", () => {
     expect(proxy).toHaveBeenCalledWith("/api/usage?agent_id=dev%40example.com");
   });
 
-  it("reports a missing API configuration instead of a PostgreSQL message", async () => {
+  it("reports a missing API configuration for reading usage instead of a PostgreSQL message", async () => {
     proxy.mockResolvedValue({ ok: false, reason: "not_configured" });
 
     expect(text(await handlers()["lore_my_usage"]({}))).toContain(
@@ -92,7 +92,7 @@ describe("lore_my_usage", () => {
     );
   });
 
-  it("surfaces the failure detail when the API is unreachable", async () => {
+  it("surfaces the usage failure detail when the API is unreachable", async () => {
     proxy.mockResolvedValue({
       ok: false,
       reason: "unreachable",
@@ -128,7 +128,7 @@ describe("lore_get_analytics", () => {
     expect(proxy).toHaveBeenCalledWith("/api/analytics?period=today");
   });
 
-  it("reports a missing API configuration instead of a PostgreSQL message", async () => {
+  it("reports a missing API configuration for fetching analytics instead of a PostgreSQL message", async () => {
     proxy.mockResolvedValue({ ok: false, reason: "not_configured" });
 
     expect(text(await handlers()["lore_get_analytics"]({}))).toContain(
@@ -136,7 +136,7 @@ describe("lore_get_analytics", () => {
     );
   });
 
-  it("surfaces the failure detail when the API is unreachable", async () => {
+  it("surfaces the analytics failure detail when the API is unreachable", async () => {
     proxy.mockResolvedValue({
       ok: false,
       reason: "unreachable",

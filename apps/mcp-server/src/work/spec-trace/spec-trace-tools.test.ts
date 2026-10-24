@@ -48,7 +48,7 @@ describe("runTestsList", () => {
     ]);
   });
 
-  it("rejects when the command outlives the timeout", async () => {
+  it("rejects when the list command outlives the timeout", async () => {
     await expect(
       runTestsList(`sleep 1 && printf '[]'`, process.cwd(), 50),
     ).rejects.toThrow();
@@ -173,7 +173,7 @@ describe("runTestsRun", () => {
     });
   });
 
-  it("rejects when the command outlives the timeout", async () => {
+  it("rejects when the run command outlives the timeout", async () => {
     await expect(
       runTestsRun(
         `sleep 1 && printf '{"passed":true,"covered":[]}'`,

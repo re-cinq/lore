@@ -31,7 +31,7 @@ describe("detectCurrentRepo", () => {
     expect(detectCurrentRepo()).toBe("re-cinq/lore");
   });
 
-  it("returns null when the git command throws", () => {
+  it("returns a null repo when the git command throws", () => {
     execSync.mockImplementation(() => {
       throw new Error("not a git repo");
     });
@@ -70,7 +70,7 @@ describe("detectCurrentBranch", () => {
     expect(detectCurrentBranch()).toBeNull();
   });
 
-  it("returns null when the git command throws", () => {
+  it("returns a null branch when the git command throws", () => {
     execSync.mockImplementation(() => {
       throw new Error("not a git repo");
     });

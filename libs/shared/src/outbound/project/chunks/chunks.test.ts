@@ -149,7 +149,7 @@ describe("PgChunks adapter", () => {
     expect(await new PgChunks(pool).countChunksByTeam("platform")).toBe(0);
   });
 
-  it("rejects a schema name carrying an injection payload", async () => {
+  it("rejects a schema name carrying an injection payload when counting chunks", async () => {
     const { pool } = fakePool();
 
     await expect(
@@ -489,7 +489,7 @@ describe("InMemoryChunks double", () => {
     expect(await chunks.distinctTeams()).toEqual(["platform"]);
   });
 
-  it("rejects a schema name carrying an injection payload", async () => {
+  it("rejects a schema name carrying an injection payload when inserting a chunk", async () => {
     const chunks = new InMemoryChunks();
 
     await expect(

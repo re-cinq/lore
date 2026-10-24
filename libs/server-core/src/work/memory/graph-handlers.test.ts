@@ -31,7 +31,7 @@ describe("graphSearchHandler", () => {
     expect(result.content[0].text).toContain("GraphRAG hasn't been built");
   });
 
-  it("reports a parse error for invalid JSON", async () => {
+  it("reports a parse error for an invalid graph.json", async () => {
     writeFileSync(join(dir, "graphrag", "graph.json"), "not json");
     const { graphSearchHandler } = await freshHandlers(dir);
     const result = await graphSearchHandler({ query: "auth", depth: 2 });
@@ -145,7 +145,7 @@ describe("getDomainSummaryHandler", () => {
     expect(result.content[0].text).toContain("GraphRAG hasn't been built");
   });
 
-  it("reports a parse error for invalid JSON", async () => {
+  it("reports a parse error for an invalid communities.json", async () => {
     writeFileSync(join(dir, "graphrag", "communities.json"), "not json");
     const { getDomainSummaryHandler } = await freshHandlers(dir);
     const result = await getDomainSummaryHandler({ domain: "payments" });

@@ -74,9 +74,9 @@ The API's analytics object is returned to the caller as pretty-printed JSON. ([v
 The requested period is passed through to `/api/analytics`. ([validated by `passes the requested period through to /api/analytics`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L124))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L131))
+PostgreSQL message. ([validated by `reports a missing API configuration for fetching analytics instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L131))
 
-An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the failure detail when the API is unreachable`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L139))
+An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the analytics failure detail when the API is unreachable`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L139))
 
 ## Out of Scope
 

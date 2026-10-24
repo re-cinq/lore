@@ -31,7 +31,7 @@ describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
     expect(res.result).toEqual({ error: "not found" });
   });
 
-  it("returns 401 without a bearer token", async () => {
+  it("returns 401 for a repo's trace kind without a bearer token", async () => {
     const res = await get("/api/repos/o/r/trace/specs");
 
     expect(res.statusCode).toBe(401);
@@ -72,7 +72,7 @@ describe("GET /api/trace/specs", () => {
     expect(res.result).toEqual({ specs: [] });
   });
 
-  it("returns 401 without a bearer token", async () => {
+  it("returns 401 for the org-wide spec list without a bearer token", async () => {
     const res = await get("/api/trace/specs");
 
     expect(res.statusCode).toBe(401);

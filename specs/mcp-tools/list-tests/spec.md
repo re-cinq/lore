@@ -105,7 +105,7 @@ descriptors. ([validated by `runs the list command and returns the descriptors o
 ([validated by `returns parsed descriptors from the list command stdout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L34))
 
 `runTestsList` rejects when the command outlives the timeout.
-([validated by `rejects when the command outlives the timeout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L51))
+([validated by `rejects when the list command outlives the timeout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L51))
 
 `runTestsList` rejects naming the list command when stdout is not JSON.
 ([validated by `rejects naming the list command when stdout is not JSON`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L57))

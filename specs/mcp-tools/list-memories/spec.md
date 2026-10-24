@@ -101,7 +101,7 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
    list`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L201), [`reports a
-   denied error on a 401 without
+   denied error on a 401 to a memory listing without
    retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L215))
 
 6. *(added 2026-10-01, #2347)* A call may name its `repo`; it wins over the

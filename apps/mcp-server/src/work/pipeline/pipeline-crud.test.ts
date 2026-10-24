@@ -78,7 +78,7 @@ describe("cancelTask", () => {
     });
   });
 
-  it("throws task not found when no row matches", async () => {
+  it("throws task not found when no row matches the task to cancel", async () => {
     const pool = makePool();
 
     pool.query
@@ -179,7 +179,7 @@ describe("retryTask", () => {
     );
   });
 
-  it("throws task not found when no row matches", async () => {
+  it("throws task not found when no row matches the task to retry", async () => {
     const pool = makePool();
 
     pool.query

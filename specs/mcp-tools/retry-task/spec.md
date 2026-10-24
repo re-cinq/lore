@@ -95,7 +95,7 @@ cannot be re-run into a line that no longer exists.
 ([validated by `throws the spec-task type was removed when retrying a task of a retired type`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L145))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L182))
+([validated by `throws task not found when no row matches the task to retry`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L182))
 
 The retry action is posted to `/api/task` and the new task is returned
 verbatim. ([validated by `lore_retry_task posts the retry action and returns the new task`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L331))

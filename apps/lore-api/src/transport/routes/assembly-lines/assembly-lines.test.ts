@@ -240,7 +240,7 @@ describe("assembly-line reads", () => {
       expect(res.statusCode).toBe(200);
     });
 
-    it("returns an empty list on a pre-0025 database", async () => {
+    it("returns an empty run list on a pre-0025 database", async () => {
       const pool = makePool();
 
       pool.query.mockRejectedValue(undefinedTable());
@@ -574,7 +574,7 @@ describe("assembly-line reads", () => {
       });
     });
 
-    it("returns an empty list on a pre-0025 database", async () => {
+    it("returns an empty node list on a pre-0025 database", async () => {
       const pool = makePool();
 
       pool.query.mockRejectedValue(undefinedTable());

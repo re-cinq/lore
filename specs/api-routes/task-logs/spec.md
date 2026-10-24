@@ -100,7 +100,7 @@ A missing field returns 400. ([validated by `returns 400 when fields are missing
 
 A complete body saves the logs to GCS and returns `{ ok: true }`. ([validated by `saves logs to storage`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L57))
 
-A GCS failure returns 500. ([validated by `returns 500 when storage throws`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L64))
+A GCS failure returns 500. ([validated by `returns 500 when storage throws while saving`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L64))
 
 The companion read returns 400 without `task_id`/`repo`. ([validated by `returns 400 when task_id is missing`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L90))
 
@@ -108,7 +108,7 @@ The companion read returns empty for a missing object. ([validated by `returns e
 
 The companion read returns the slice from `offset` for an existing object. ([validated by `returns a slice from offset when the file exists`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L162))
 
-The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L176))
+The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws while reading`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L176))
 
 A `task`-scoped token that lacks `write` is rejected 403 on both the POST upload and the GET read, before the handler runs. ([validated by `task-logs.test.ts:70`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L70), [validated by `task-logs.test.ts:182`](apps/lore-api/src/transport/routes/tasks/task-logs.test.ts#L185))
 

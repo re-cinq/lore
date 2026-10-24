@@ -211,7 +211,7 @@ describe("rewriteSpecStatusRow", () => {
     ).toBeNull();
   });
 
-  it("preserves CRLF line endings when the source uses them", () => {
+  it("preserves CRLF line endings when the spec source uses them", () => {
     const crlf = spec("Draft").replace(/\n/g, "\r\n");
     const out = rewriteSpecStatusRow(crlf, "Implemented") as string;
 
@@ -220,7 +220,7 @@ describe("rewriteSpecStatusRow", () => {
     expect(parseDocStatus(out, "spec").status).toBe("shipped");
   });
 
-  it("leaves every other line untouched", () => {
+  it("leaves every line other than the Status row untouched", () => {
     const before = spec("Draft");
     const after = rewriteSpecStatusRow(before, "Implemented") as string;
     const changed = before
@@ -290,7 +290,7 @@ describe("rewriteAdrStatusRow", () => {
     expect(out.endsWith("\n\nstatus: shipped\n")).toBe(true);
   });
 
-  it("preserves CRLF line endings when the source uses them", () => {
+  it("preserves CRLF line endings when the ADR source uses them", () => {
     const crlf = adr("shipped").replace(/\n/g, "\r\n");
     const out = rewriteAdrStatusRow(crlf, "draft") as string;
 
@@ -299,7 +299,7 @@ describe("rewriteAdrStatusRow", () => {
     expect(parseDocStatus(out, "adr").status).toBe("draft");
   });
 
-  it("leaves every other line untouched", () => {
+  it("leaves every line other than the frontmatter status untouched", () => {
     const before = adr("shipped");
     const after = rewriteAdrStatusRow(before, "draft") as string;
     const changed = before

@@ -128,7 +128,7 @@ agent cannot tell a blank reply from a broken one. ([validated by renders a no-t
 The branch and ranges reach the proxied URL url-encoded. ([validated by passes branch and ranges through to the proxied url, url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L341))
 
 An unreachable API is reported as prose rather than thrown, like every other
-shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366))
+shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for tests_covering](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366))
 
 ## The `failures_touching` shape
 
@@ -168,7 +168,7 @@ recognition, and the whole log lives in the run's pod logs. ([validated by trunc
 The requested path reaches the proxied URL url-encoded. ([validated by proxies a GET to the repo's failures-touching route with the path url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L441))
 
 An unreachable API is reported as prose rather than thrown, like every other
-shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
+shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for failures_touching](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
 
 ## The `callers` shape
 

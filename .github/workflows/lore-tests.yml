@@ -3,8 +3,8 @@ name: Lore test-report
 # Spec-traceability test-report ingest for THIS repo, via the portable
 # lore-code-trace binary — the same orchestrator onboarded repos download. CI sets
 # up the toolchain (the manifest's list/run use node+vitest), fetches the binary
-# from the mcp /dist route, and runs it --post, which POSTs the report to the Floor
-# ci-tests ingress. Runs on push to main (the merged state) only.
+# from lore-api's /dist route, and runs it --post, which POSTs the report to
+# lore-api's delta route. Runs on push to main (the merged state) only.
 on:
   push:
     branches: [main]
@@ -54,10 +54,10 @@ jobs:
       - name: Build trace tooling
         run: npm run build -w @re-cinq/lore-shared
 
-      # Fetch the orchestrator from the host this repo already talks to (mcp).
+      # Fetch the orchestrator from the host this repo already talks to (lore-api).
       - name: Fetch lore-code-trace
         env:
-          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL }}
+          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
         run: |
           if [ -z "${LORE_INGEST_URL}" ]; then
             echo "::warning::LORE_INGEST_URL not set — skipping test ingest"; exit 0
@@ -76,8 +76,7 @@ jobs:
       - name: Run tests + ingest
         if: hashFiles('lore-code-trace') != ''
         env:
-          # Chunked-webhook fallback for a lore-api that predates the route.
-          LORE_WEBHOOK_URL: ${{ vars.LORE_WEBHOOK_URL }}
+          LORE_API_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
           # Cold CI runners are slower than dev machines; give the full-suite list +
           # per-file coverage runs headroom over the 120s default.
