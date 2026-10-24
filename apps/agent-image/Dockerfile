@@ -29,6 +29,19 @@ RUN set -eu; \
 	echo "${yq_sha256}  /usr/local/bin/yq" | sha256sum -c -; \
 	chmod 0755 /usr/local/bin/yq
 
+# GitHub CLI: add the official apt repository then install gh so review-mode
+# entrypoints can post PR comments with `gh pr review`.
+RUN set -eu; \
+	export DEBIAN_FRONTEND=noninteractive; \
+	curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+		| dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg; \
+	chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg; \
+	echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+		| tee /etc/apt/sources.list.d/github-cli.list > /dev/null; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends gh; \
+	rm -rf /var/lib/apt/lists/*
+
 # The loop runs a repository's own tests, and a JVM repository's Maven or Gradle
 # wrapper brings its build tool but not the JDK it runs on: carry Temurin 21.
 COPY --from=eclipse-temurin:21-jdk /opt/java/openjdk /opt/java/openjdk
