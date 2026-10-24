@@ -52,7 +52,8 @@ async function startOnFloor(
   deps: DigestTickDeps,
 ): Promise<boolean> {
   const slot = runSlot(run);
-  const { items: earlier } = await deps.floor.runs.list(slot);
+  const { runs } = deps.floor;
+  const { items: earlier } = await runs.list(slot);
 
   if (earlier.some(isOpen) || earlier.length >= MAX_RUNS_PER_CHANNEL_DAY) {
     return false;
