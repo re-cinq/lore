@@ -67,7 +67,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     expect((await put("triage", { enabled: false })).statusCode).toBe(404);
   });
 
-  it("GET lists implementation, review, merge and digest off and triage and upkeep on for a repo with empty settings", async () => {
+  it("GET lists implementation, review, merge and digest off and triage, upkeep and tickets on for a repo with empty settings", async () => {
     const res = await get(poolWithRepo({}));
 
     expect(
@@ -85,6 +85,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       ["triage", "Issue triage", true],
       ["upkeep", "Spec upkeep", true],
       ["digest", "Daily digest", false],
+      ["tickets", "Spec tickets", true],
     ]);
   });
 
@@ -97,12 +98,13 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
         issue_triage: { enabled: false },
         spec_upkeep: { enabled: false },
         digest: { enabled: true },
+        spec_tickets: { enabled: false },
       }),
     );
 
     expect(
       JSON.parse(res.payload).loops.map((l: { enabled: boolean }) => l.enabled),
-    ).toEqual([true, true, true, false, false, true]);
+    ).toEqual([true, true, true, false, false, true, false]);
   });
 
   it("PUT upkeep off writes spec_upkeep.enabled false", async () => {

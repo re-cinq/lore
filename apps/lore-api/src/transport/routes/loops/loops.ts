@@ -20,6 +20,7 @@ import { codeReviewRoute } from "../code-review/code-review.js";
 import { autoMergeRoute } from "../auto-merge/auto-merge.js";
 import { specUpkeepRoute } from "../spec-upkeep/spec-upkeep.js";
 import { dailyDigestRoute } from "../daily-digest/daily-digest.js";
+import { specTicketsRoute } from "../spec-tickets/spec-tickets.js";
 import { floorRunPages } from "../floor/floor-runs.js";
 import {
   LoopKeySchema,
@@ -48,6 +49,7 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
     autoMergeRoute(getPool, floorRunPages),
     specUpkeepRoute(floorRunPages),
     dailyDigestRoute(getPool),
+    specTicketsRoute(floorRunPages),
   ];
 }
 

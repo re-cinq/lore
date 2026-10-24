@@ -10,6 +10,7 @@ import {
   triageSections,
   upkeepSections,
   digestSections,
+  ticketsSections,
   boardSubject,
   type LoopRead,
 } from "./board";
@@ -297,5 +298,45 @@ describe("loop rows", () => {
       boardSubject([digest]),
       boardSubject([upkeep, digest]),
     ]).toEqual(["Run", "Post", "Work"]);
+  });
+
+  it("draws a spec tickets run as its spec name with why it stopped, linked to its run and to no pull request", () => {
+    const TICKETS = loop("tickets", "Spec tickets");
+    const sections = ticketsSections(TICKETS, {
+      ...empty,
+      parked: [
+        {
+          ref: "billing",
+          url: null,
+          title: "specs/billing/spec.md",
+          state: "failed",
+          blocked: "decompose broke",
+          run_id: "run-1",
+          pipeline: [],
+          created_at: "2026-10-20T10:00:00Z",
+        },
+      ],
+    });
+    const [run] = sections.parked;
+
+    expect([run.ref, run.title, run.tag, run.runId, run.prUrl]).toEqual([
+      "billing",
+      "specs/billing/spec.md",
+      "decompose broke",
+      "run-1",
+      null,
+    ]);
+  });
+
+  it("heads the subject column Spec for the spec tickets loop alone, and says a switched-off loop starts no run", () => {
+    const TICKETS = loop("tickets", "Spec tickets");
+
+    expect([
+      boardSubject([TICKETS]),
+      pausedNotice({ ...TICKETS, enabled: false }),
+    ]).toEqual([
+      "Spec",
+      "Paused: Spec tickets is switched off. It starts no run until it is switched on above.",
+    ]);
   });
 });
