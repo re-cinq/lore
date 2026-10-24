@@ -51,6 +51,7 @@ function getSkillRoute(getPool: () => Pool | null): ServerRoute {
     }),
     handler: async (_request, h) => {
       const skills = await fetchSkills(getPool());
+
       return h.response({ skills });
     },
   };
@@ -61,6 +62,7 @@ async function fetchSkills(pool: Pool | null): Promise<SkillDefinition[]> {
   const res = await pool.query(
     `SELECT ${selectList(SKILL_DEFINITION_COLUMNS)} FROM ${SKILL_DEFINITION_TABLE} WHERE project_id IS NULL`,
   );
+
   return res.rows.map((row) =>
     fromRow<SkillDefinition>(SKILL_DEFINITION_COLUMNS, row),
   );
@@ -76,8 +78,10 @@ function postSkillRoute(getPool: () => Pool | null): ServerRoute {
     }),
     handler: async (request, h) => {
       const pool = getPool();
+
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       await upsertSkill(pool, request.payload as Partial<SkillDefinition>);
+
       return h.response({ ok: true }).code(200);
     },
   };
@@ -112,7 +116,9 @@ function putSkillRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
       const payload = request.payload as Partial<SkillDefinition>;
+
       await updateSkill(pool, request.params.name, payload);
+
       return h.response({ ok: true }).code(200);
     },
   };
@@ -125,6 +131,7 @@ async function updateSkill(
 ) {
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { updates, values } = buildUpdates(payload);
+
   if (updates.length > 0) {
     await pool.query(
       `UPDATE ${SKILL_DEFINITION_TABLE} SET ${updates.join(", ")} WHERE name = $1 AND project_id IS NULL`,
@@ -140,11 +147,13 @@ function buildUpdates(payload: Partial<SkillDefinition>) {
     v !== undefined &&
     updates.push(`${k} = $${updates.length + 2}`) &&
     values.push(v);
+
   add("title", payload.title);
   add("description", payload.description);
   add("model", payload.model);
   add("content", payload.content);
   add("enabled", payload.enabled);
+
   return { updates, values };
 }
 
@@ -158,11 +167,13 @@ function deleteSkillRoute(getPool: () => Pool | null): ServerRoute {
     }),
     handler: async (request, h) => {
       const pool = getPool();
+
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       await pool.query(
         `DELETE FROM ${SKILL_DEFINITION_TABLE} WHERE name = $1 AND project_id IS NULL`,
         [request.params.name],
       );
+
       return h.response({ ok: true, deleted: request.params.name }).code(200);
     },
   };
