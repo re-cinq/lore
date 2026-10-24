@@ -14,8 +14,6 @@ function handlerFor(name: string) {
 
 describe("lore_next_ready_issue tool", () => {
   it("returns one issue plus `because`, and the issue equals the loop's own next pick for that repo", async () => {
-    // This requires mocking proxyGetApi or whatever dependency the tool uses to fetch issues and settings
-    // But since the tool isn't implemented, it's missing the behaviour completely and `handler` will be undefined.
     const handler = handlerFor("lore_next_ready_issue");
     expect(handler).toBeDefined();
 
