@@ -16,7 +16,8 @@ export const FLOOR_REVIEW_LINES: readonly string[] = [
   REPLY_LINE,
 ];
 
-const RUNS_READ_PER_REPO = 200;
+/** A re-check or reply line's newest runs: about ten days of a busy repository. */
+const RUNS_READ_PER_LINE = 200;
 
 export interface ReviewRunsFloor {
   runs: Pick<FloorClient["runs"], "list">;
@@ -49,22 +50,26 @@ export async function openFloorReviewCount(
   return runs.filter(isOpen).length;
 }
 
-/** Every review-family run of one pull request, newest first. Read by repository and matched on `pr_url` here, because only the review line keys its run on the pull request: a re-check or a reply that joined an open review would judge nothing. */
+/** Every review-family run of one pull request, newest first. Each line is read on its own: a busy repository's newest runs are mostly other lines', and a window over all of them lost a morning's review by night, so a push read as a pull request never reviewed (#3061, 2026-10-23). The review line keys its run on the pull request and is asked for that subject; a re-check keys on its sha and a reply on its review, so their lines are read and matched on `pr_url`. */
 export async function reviewRunsForPr(
   floor: ReviewRunsFloor,
   target: PullRequestRef,
 ): Promise<RunView[]> {
   const url = pullRequestUrl(target.repo, target.prNumber);
-  const page = await floor.runs.list(
-    { repo: floorRepoOf(target.repo) },
-    { limit: RUNS_READ_PER_REPO },
-  );
+  const repo = floorRepoOf(target.repo);
+  const pages = await Promise.all([
+    floor.runs.list({ repo, line: REVIEW_LINE, subject: `pr_url:${url}` }),
+    floor.runs.list(
+      { repo, line: RECHECK_LINE },
+      { limit: RUNS_READ_PER_LINE },
+    ),
+    floor.runs.list({ repo, line: REPLY_LINE }, { limit: RUNS_READ_PER_LINE }),
+  ]);
 
-  return page.items.filter(
-    (run) =>
-      FLOOR_REVIEW_LINES.includes(run.lineId) &&
-      startValue(run, "pr_url") === url,
-  );
+  return pages
+    .flatMap((page) => page.items)
+    .filter((run) => startValue(run, "pr_url") === url)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function isOpen(run: RunView): boolean {
