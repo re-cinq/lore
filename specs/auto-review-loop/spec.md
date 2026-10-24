@@ -147,7 +147,7 @@ When `TASK_TYPE=review`, the entrypoint:
 
 **2. claude-runner Dockerfile — add gh CLI**
 
-Add GitHub CLI to the runner image for posting PR reviews.
+Add GitHub CLI to the runner image for posting PR reviews. ([validated by agent-image has gh CLI installed](apps/agent-image/agent-image.acceptance.test.ts#L5))
 
 **3. loretask-watcher.ts — trigger review after PR creation**
 
