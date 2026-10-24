@@ -49,6 +49,7 @@ function fakeProject(
   const repos: string[] = [];
   const ruleReads: string[] = [];
   const steps: string[] = [];
+  const resolved: string[] = [];
 
   const project: ReviewProject = {
     pulls: {
@@ -83,6 +84,9 @@ function fakeProject(
           body: review.body ?? "",
           submitted_at: "2026-10-13T00:00:00Z",
         })),
+      resolveReviewThread: async (threadId: string) => {
+        resolved.push(threadId);
+      },
       listIssueComments: async () =>
         comments.map((body) => ({
           id: 1,
@@ -112,6 +116,7 @@ function fakeProject(
     repos,
     ruleReads,
     steps,
+    resolved,
   };
 }
 
@@ -296,5 +301,29 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
 
       expect(reviews).toHaveLength(1);
     });
+  });
+});
+
+describe("an approving re-check settles the findings it was handed", () => {
+  it("resolves threads T1 and T2 named in open_threads when the re-check approves", async () => {
+    const { deps, resolved } = fakeProject();
+
+    await postReviewHandle(deps)(
+      brief({ open_threads: "T1,T2" }),
+      toolsReading("REVIEW_RESULT:APPROVED"),
+    );
+
+    expect(resolved).toEqual(["T1", "T2"]);
+  });
+
+  it("resolves no thread when the re-check handed T1 asks for changes again", async () => {
+    const { deps, resolved } = fakeProject();
+
+    await postReviewHandle(deps)(
+      brief({ open_threads: "T1" }),
+      toolsReading(changesRequestedOutput),
+    );
+
+    expect(resolved).toEqual([]);
   });
 });

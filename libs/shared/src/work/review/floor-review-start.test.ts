@@ -4,6 +4,9 @@ import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import type {
   PullCommit,
   PullRef,
+  PullReview,
+  ReviewComment,
+  ReviewThread,
 } from "../../outbound/project/pulls/pull-requests-port.js";
 import {
   recordedFloor,
@@ -72,6 +75,9 @@ interface Scene {
   joined?: boolean;
   commits?: PullCommit[];
   issue?: IssueRef | null;
+  reviews?: PullReview[];
+  inlineComments?: ReviewComment[];
+  threads?: ReviewThread[];
 }
 
 function scene(given: Scene = {}) {
@@ -93,6 +99,9 @@ function scene(given: Scene = {}) {
         return Promise.resolve();
       },
       listCommits: () => Promise.resolve(given.commits ?? []),
+      listReviews: () => Promise.resolve(given.reviews ?? []),
+      listComments: () => Promise.resolve(given.inlineComments ?? []),
+      listReviewThreads: () => Promise.resolve(given.threads ?? []),
     },
     issues: { get: () => Promise.resolve(given.issue ?? null) },
     uiUrl: "https://lore.test/",
@@ -337,6 +346,53 @@ describe("reviewOrRecheck", () => {
         description: {
           ref: 'repo: "re-cinq/lore"\nRe-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.',
         },
+      },
+    });
+  });
+
+  it("hands the re-check Lore's open finding on src/a.ts:12 in its brief and thread T1 as open_threads", async () => {
+    const { deps, requests } = scene({
+      runs: [run()],
+      reviews: [
+        {
+          id: 5,
+          state: "COMMENTED",
+          body: "1 finding <!-- lore-review-run: v1/1 -->",
+          user: "lore",
+          submitted_at: "2026-09-30T10:00:00Z",
+        },
+      ],
+      inlineComments: [
+        {
+          id: 50,
+          path: "src/a.ts",
+          line: 12,
+          body: "the null check is inverted",
+          user: "lore",
+          created_at: "2026-09-30T10:00:00Z",
+          review_id: 5,
+        },
+      ],
+      threads: [
+        {
+          id: "T1",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ databaseId: 50 }],
+        },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests)[0].body).toMatchObject({
+      startItems: {
+        description: {
+          ref: expect.stringContaining(
+            "- src/a.ts:12: the null check is inverted",
+          ) as string,
+        },
+        open_threads: { kind: "value", ref: "T1" },
       },
     });
   });
