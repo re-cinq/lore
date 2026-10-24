@@ -850,7 +850,7 @@ describe("GET with tickets the loop is not working", () => {
   });
 });
 
-describe("floorRunContext", () => {
+describe("floorRunContexts", () => {
   function fakeFloor(overrides: {
     summaries?: Array<{ id: string; status: string; reason: string | null }>;
     graph?: { nodes: Array<{ id: string; type: string }> } | null;
@@ -861,38 +861,49 @@ describe("floorRunContext", () => {
     }>;
   }) {
     return {
-      taskRunContext: async () => {
+      taskRunContexts: async () => {
         const run = overrides.summaries?.at(0);
 
-        return run
-          ? {
-              run,
-              graph: overrides.graph ?? null,
-              visits: overrides.visits ?? [],
-            }
-          : null;
+        return new Map(
+          run
+            ? [
+                [
+                  "task-1",
+                  {
+                    run,
+                    graph: overrides.graph ?? null,
+                    visits: overrides.visits ?? [],
+                  },
+                ],
+              ]
+            : [],
+        );
       },
     };
   }
 
   it("is null when the floor has no run for the task", async () => {
-    const { floorRunContext } = await import("./backlog-run-context.js");
+    const { floorRunContexts } = await import("./backlog-run-context.js");
+    const found = await floorRunContexts(
+      fakeFloor({}) as never,
+      "re-cinq/lore",
+      ["task-1"],
+    );
 
-    expect(
-      await floorRunContext(fakeFloor({}) as never, "re-cinq/lore", "task-1"),
-    ).toBeNull();
+    expect(found.get("task-1")).toBeUndefined();
   });
 
   it("carries the run's status and reason even with no graph yet, asking the floor for no run by id", async () => {
-    const { floorRunContext } = await import("./backlog-run-context.js");
+    const { floorRunContexts } = await import("./backlog-run-context.js");
     const floor = fakeFloor({
       summaries: [{ id: "run-9", status: "running", reason: null }],
       graph: null,
     });
+    const found = await floorRunContexts(floor as never, "re-cinq/lore", [
+      "task-1",
+    ]);
 
-    expect(
-      await floorRunContext(floor as never, "re-cinq/lore", "task-1"),
-    ).toEqual({
+    expect(found.get("task-1")).toEqual({
       run: {
         id: "run-9",
         task_id: "task-1",
@@ -905,16 +916,17 @@ describe("floorRunContext", () => {
   });
 
   it("maps the floor's visits into the pipeline's node rows", async () => {
-    const { floorRunContext } = await import("./backlog-run-context.js");
+    const { floorRunContexts } = await import("./backlog-run-context.js");
     const floor = fakeFloor({
       summaries: [{ id: "run-9", status: "failed", reason: "iteration_max" }],
       graph: { nodes: [{ id: "implement", type: "agent" }] },
       visits: [{ nodeId: "implement", iteration: 1, outcome: "failed" }],
     });
+    const found = await floorRunContexts(floor as never, "re-cinq/lore", [
+      "task-1",
+    ]);
 
-    expect(
-      await floorRunContext(floor as never, "re-cinq/lore", "task-1"),
-    ).toEqual({
+    expect(found.get("task-1")).toEqual({
       run: {
         id: "run-9",
         task_id: "task-1",

@@ -347,3 +347,31 @@ describe("FloorRunReader.page", () => {
     ]);
   });
 });
+
+describe("FloorRunReader.taskRunContexts", () => {
+  it("finds the runs of task-1 and task-9, a page apart, in one walk of the line's two pages, asking no run by id", async () => {
+    const recorded = recordedFloor(loopRunsInTwoPages);
+    const found = await new FloorRunReader(recorded.floor).taskRunContexts({
+      repo: "re-cinq/lore",
+      line: "implementation-loop",
+      taskIds: ["task-1", "task-9", "task-404"],
+    });
+    const paths = recorded.requests.map((request) => request.path);
+
+    expect({
+      runs: [...found].map(([taskId, context]) => [taskId, context.run.id]),
+      listed: paths.filter((path) => path.startsWith("/assembly-runs?")),
+      byId: paths.filter((path) => /^\/assembly-runs\/[^?]/.test(path)),
+    }).toEqual({
+      runs: [
+        ["task-1", "run-task-1"],
+        ["task-9", "run-task-9"],
+      ],
+      listed: [
+        "/assembly-runs?repo=github.com%2Fre-cinq%2Flore&line=implementation-loop&limit=50",
+        "/assembly-runs?repo=github.com%2Fre-cinq%2Flore&line=implementation-loop&limit=50&cursor=page-2",
+      ],
+      byId: [],
+    });
+  });
+});
