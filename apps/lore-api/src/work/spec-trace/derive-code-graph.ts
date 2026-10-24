@@ -21,6 +21,23 @@ interface PackageManifest {
   peerDependencies?: Record<string, string>;
 }
 
+/** Parse a package.json to derive depends-on edges for each dependency. */
+export function parsePackageJsonEdges(
+  content: string,
+  repo: string,
+): DerivedEdge[] {
+  try {
+    const pkg = JSON.parse(content) as PackageManifest;
+    const deps = allPackageDeps(pkg);
+
+    return Object.entries(deps)
+      .filter(([, specifier]) => typeof specifier === "string")
+      .map(([name, specifier]) => toDependsOnEdge(repo, name, specifier));
+  } catch {
+    return [];
+  }
+}
+
 function allPackageDeps(pkg: PackageManifest): Record<string, string> {
   return { ...(pkg.dependencies ?? {}), ...(pkg.peerDependencies ?? {}) };
 }
@@ -44,44 +61,21 @@ function toDependsOnEdge(
   };
 }
 
-/** Parse a package.json to derive depends-on edges for each dependency. */
-export function parsePackageJsonEdges(
-  content: string,
+function parseImportSymbols(
+  importList: string,
+  fileEntity: string,
   repo: string,
 ): DerivedEdge[] {
-  try {
-    const pkg = JSON.parse(content) as PackageManifest;
-    const deps = allPackageDeps(pkg);
-
-    return Object.entries(deps)
-      .filter(([, specifier]) => typeof specifier === "string")
-      .map(([name, specifier]) => toDependsOnEdge(repo, name, specifier));
-  } catch {
-    return [];
-  }
-}
-
-function parseExportEdges(
-  content: string,
-  exportSource: string,
-): DerivedEdge[] {
-  const edges: DerivedEdge[] = [];
-  const exportRe =
-    /^export\s+(?:abstract\s+)?(?:class|const|function\*?|interface|type|enum|let|var)\s+(\w+)/gm;
-
-  for (const m of content.matchAll(exportRe)) {
-    edges.push({
-      sourceName: exportSource,
-      sourceType: "package",
-      sourceRepo: null,
-      targetName: m[1],
-      targetType: "symbol",
-      targetRepo: null,
-      relation: "exports",
-    });
-  }
-
-  return edges;
+  return importList
+    .split(",")
+    .map((raw) =>
+      raw
+        .trim()
+        .split(/\s+as\s+/)[0]
+        .trim(),
+    )
+    .filter(Boolean)
+    .map((symbol) => importSymbolEdge(fileEntity, repo, symbol));
 }
 
 function importSymbolEdge(
@@ -98,23 +92,6 @@ function importSymbolEdge(
     targetRepo: null,
     relation: "uses",
   };
-}
-
-function parseImportSymbols(
-  importList: string,
-  fileEntity: string,
-  repo: string,
-): DerivedEdge[] {
-  return importList
-    .split(",")
-    .map((raw) =>
-      raw
-        .trim()
-        .split(/\s+as\s+/)[0]
-        .trim(),
-    )
-    .filter(Boolean)
-    .map((symbol) => importSymbolEdge(fileEntity, repo, symbol));
 }
 
 function parseImportEdges(
@@ -166,6 +143,29 @@ function parseTsEdges(
     ...parseImportEdges(fileEntity, content, repo),
     ...parseExtendsEdges(content),
   ];
+}
+
+function parseExportEdges(
+  content: string,
+  exportSource: string,
+): DerivedEdge[] {
+  const edges: DerivedEdge[] = [];
+  const exportRe =
+    /^export\s+(?:abstract\s+)?(?:class|const|function\*?|interface|type|enum|let|var)\s+(\w+)/gm;
+
+  for (const m of content.matchAll(exportRe)) {
+    edges.push({
+      sourceName: exportSource,
+      sourceType: "package",
+      sourceRepo: null,
+      targetName: m[1],
+      targetType: "symbol",
+      targetRepo: null,
+      relation: "exports",
+    });
+  }
+
+  return edges;
 }
 
 /** Resolve the package name declared in any package.json in the file list. */
