@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { memoizeWithTtl } from "./ttl-memo.js";
+import { memoizeByKeyWithTtl, memoizeWithTtl } from "./ttl-memo.js";
 
 describe("memoizeWithTtl", () => {
   beforeEach(() => {
@@ -77,5 +77,29 @@ describe("memoizeWithTtl", () => {
     await expect(stale).rejects.toThrow(new Error("stale"));
     await expect(memoized()).resolves.toBe("second");
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("memoizeByKeyWithTtl", () => {
+  it("reads re-cinq/lore once for two asks within 20 seconds, again after, and re-cinq/otto on its own", async () => {
+    let now = 0;
+    const reads: string[] = [];
+    const read = memoizeByKeyWithTtl(
+      async (key: string) => {
+        reads.push(key);
+
+        return key.length;
+      },
+      20_000,
+      () => now,
+    );
+
+    await read("re-cinq/lore");
+    await read("re-cinq/lore");
+    await read("re-cinq/otto");
+    now = 20_001;
+    await read("re-cinq/lore");
+
+    expect(reads).toEqual(["re-cinq/lore", "re-cinq/otto", "re-cinq/lore"]);
   });
 });

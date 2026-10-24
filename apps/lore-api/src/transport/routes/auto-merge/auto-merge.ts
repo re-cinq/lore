@@ -14,6 +14,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { answerRepoRead, onboardedProject } from "../repos/github-read.js";
+import { loopPullReads, type LoopPullReads } from "../loops/loop-pull-reads.js";
 import {
   capSections,
   recentWindow,
@@ -31,11 +32,6 @@ const RepoParams = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
 });
-
-/** How far back Recently addressed looks for Lore's merged pull requests. */
-const RECENT_DAYS = 7;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const BLOCKS_SQL = `SELECT pr_number, reason, detail
        FROM pipeline.pr_blocked_reasons
@@ -61,21 +57,16 @@ const OPTIONS = zodResponse(
 export function autoMergeRoute(
   getPool: () => Pool | null,
   pageOf: FloorRunPageOf,
+  reads: LoopPullReads = loopPullReads(),
 ): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/auto-merge",
     options: OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
-      answerRepoRead(request, h, async (fullName) => {
-        const limits = request.query as SectionLimits;
-        const recentLimit = recentWindow(limits, RECENT_LIMIT);
-
-        return capSections(
-          await readQueues({ pool, pageOf, recentLimit }, fullName),
-          limits,
-        );
-      }),
+      answerRepoRead(request, h, (fullName) =>
+        cappedQueues({ pool, pageOf, reads }, fullName, request.query),
+      ),
     ),
   };
 }
@@ -83,17 +74,40 @@ export function autoMergeRoute(
 /** How many of the loop's newest runs the board reads: enough to cover every open pull request and the week's merges. */
 const RUNS_READ = 50;
 
-async function readQueues(
-  sources: { pool: Pool; pageOf: FloorRunPageOf; recentLimit: number },
+/** The loop's sections cut to the page's counts, Recently addressed gathered as far as they reach. */
+async function cappedQueues(
+  sources: Omit<MergeSources, "recentLimit">,
   fullName: string,
+  query: unknown,
 ) {
+  const limits = query as SectionLimits;
+  const recentLimit = recentWindow(limits, RECENT_LIMIT);
+
+  return capSections(
+    await readQueues({ ...sources, recentLimit }, fullName),
+    limits,
+  );
+}
+
+interface MergeSources {
+  pool: Pool;
+  pageOf: FloorRunPageOf;
+  reads: LoopPullReads;
+  recentLimit: number;
+}
+
+async function readQueues(sources: MergeSources, fullName: string) {
   const project = await onboardedProject(fullName);
   const read = await readBoard(project, sources, fullName);
   const open = read.pulls.filter((pull) => mergeCandidate(pull, fullName));
 
   return mergeQueues({
     open,
-    reviewed: await reviewedPulls(project, open),
+    reviewed: await reviewedPulls(
+      { reads: sources.reads, fullName },
+      project,
+      open,
+    ),
     runs: read.page.runs,
     merged: read.merged,
     blocks: read.blocks,
@@ -105,12 +119,12 @@ async function readQueues(
 
 async function readBoard(
   project: Project,
-  sources: { pool: Pool; pageOf: FloorRunPageOf },
+  sources: MergeSources,
   fullName: string,
 ) {
   const [pulls, merged, blocks, page, settings] = await Promise.all([
-    project.pulls.list(),
-    project.pulls.listMergedSince(recentSince()),
+    sources.reads.openPulls(fullName, project.pulls),
+    sources.reads.mergedThisWeek(fullName, project.pulls),
     storedBlocks(sources.pool, fullName),
     sources.pageOf({ repo: fullName, line: AUTO_MERGE_LINE, limit: RUNS_READ }),
     project.settings.rawSettings(),
@@ -119,19 +133,18 @@ async function readBoard(
   return { pulls, merged, blocks, page, settings };
 }
 
-function recentSince(): string {
-  return new Date(Date.now() - RECENT_DAYS * DAY_MS).toISOString();
-}
-
 /** The open pull requests Lore's review stands approved on, read from the check it publishes on each head. */
 async function reviewedPulls(
+  { reads, fullName }: { reads: LoopPullReads; fullName: string },
   project: Project,
   open: readonly PullRef[],
 ): Promise<Set<number>> {
   const verdicts = await Promise.all(
     open.map(async (pull) =>
       pull.headSha
-        ? loreReviewVerdict(await project.pulls.listChecks(pull.headSha))
+        ? loreReviewVerdict(
+            await reads.checksOf(fullName, pull.headSha, project.pulls),
+          )
         : "none",
     ),
   );

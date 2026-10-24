@@ -1,6 +1,5 @@
 // GET /api/repos/{owner}/{repo}/spec-upkeep — the spec upkeep loop as the Loops tab shows it: its weekly runs and the pull requests they opened, in the shared loop sections.
 import type { ServerRoute } from "@hapi/hapi";
-import type { Project } from "@re-cinq/lore-shared";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
   SPEC_UPKEEP_LINE,
@@ -9,32 +8,34 @@ import {
 import type { FloorRunPageOf } from "../floor/floor-runs.js";
 import { onboardedProject } from "../repos/github-read.js";
 import { loopReadRoute } from "../loops/loop-read-route.js";
+import { loopPullReads, type LoopPullReads } from "../loops/loop-pull-reads.js";
 import { SpecUpkeepSchema, upkeepQueues } from "./upkeep-queues.js";
 
 /** A weekly line: a quarter's runs cover the open one and the newest settled one. */
 const RUNS_READ = 12;
 
-/** How far back Recently addressed looks for merged upkeep pull requests. */
-const RECENT_DAYS = 7;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export function specUpkeepRoute(pageOf: FloorRunPageOf): ServerRoute {
+export function specUpkeepRoute(
+  pageOf: FloorRunPageOf,
+  reads: LoopPullReads = loopPullReads(),
+): ServerRoute {
   return loopReadRoute({
     segment: "spec-upkeep",
     schema: SpecUpkeepSchema,
     name: "SpecUpkeep",
     description:
       "The spec upkeep loop: its weekly runs and the pull requests they opened, in the shared loop sections",
-    read: (fullName) => readQueues(pageOf, fullName),
+    read: (fullName) => readQueues({ pageOf, reads }, fullName),
   });
 }
 
-async function readQueues(pageOf: FloorRunPageOf, fullName: string) {
+async function readQueues(
+  { pageOf, reads }: { pageOf: FloorRunPageOf; reads: LoopPullReads },
+  fullName: string,
+) {
   const project = await onboardedProject(fullName);
   const [open, merged, page] = await Promise.all([
-    project.pulls.list(),
-    mergedThisWeek(project),
+    reads.openPulls(fullName, project.pulls),
+    reads.mergedThisWeek(fullName, project.pulls),
     pageOf({ repo: fullName, line: SPEC_UPKEEP_LINE, limit: RUNS_READ }),
   ]);
 
@@ -43,12 +44,6 @@ async function readQueues(pageOf: FloorRunPageOf, fullName: string) {
     open: open.filter(onUpkeepBranch),
     merged: merged.filter(onUpkeepBranch),
   });
-}
-
-function mergedThisWeek(project: Project): Promise<PullRef[]> {
-  const since = new Date(Date.now() - RECENT_DAYS * DAY_MS).toISOString();
-
-  return project.pulls.listMergedSince(since);
 }
 
 function onUpkeepBranch(pull: PullRef): boolean {

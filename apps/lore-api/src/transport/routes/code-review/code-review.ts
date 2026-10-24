@@ -2,6 +2,7 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { onboardedProject } from "../repos/github-read.js";
 import { loopReadRoute } from "../loops/loop-read-route.js";
+import { loopPullReads, type LoopPullReads } from "../loops/loop-pull-reads.js";
 import type { FloorRunPageOf } from "../floor/floor-runs.js";
 import type { FloorRunRow } from "../../../work/floor/floor-run-rows.js";
 import {
@@ -15,7 +16,10 @@ import { recentWindow } from "../loops/loop-sections.js";
 /** How many of each line's newest runs the page reads: enough to find every open pull request's last review. */
 const RUNS_PER_LINE = 30;
 
-export function codeReviewRoute(pageOf: FloorRunPageOf): ServerRoute {
+export function codeReviewRoute(
+  pageOf: FloorRunPageOf,
+  reads: LoopPullReads = loopPullReads(),
+): ServerRoute {
   return loopReadRoute({
     segment: "code-review",
     schema: CodeReviewSchema,
@@ -23,18 +27,22 @@ export function codeReviewRoute(pageOf: FloorRunPageOf): ServerRoute {
     description:
       "The code-review loop: pull requests under review, the other open ones, and the newest settled reviews",
     read: (fullName, limits) =>
-      readQueues(pageOf, fullName, recentWindow(limits, RECENT_LIMIT)),
+      readQueues(
+        { pageOf, reads },
+        fullName,
+        recentWindow(limits, RECENT_LIMIT),
+      ),
   });
 }
 
 async function readQueues(
-  pageOf: FloorRunPageOf,
+  { pageOf, reads }: { pageOf: FloorRunPageOf; reads: LoopPullReads },
   fullName: string,
   recentLimit: number,
 ) {
   const project = await onboardedProject(fullName);
   const [pulls, runs] = await Promise.all([
-    project.pulls.list(),
+    reads.openPulls(fullName, project.pulls),
     reviewRuns(pageOf, fullName),
   ]);
 
