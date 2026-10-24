@@ -15,9 +15,9 @@
 
 ## Facets
 
-- [ ] Implement `backoffDelay` with exponential increase and boundary checks.
-- [ ] Implement `runPollLoop` to correctly handle `idleTicks` and sleep duration.
-- [ ] Implement `pollUntil` to combine polling logic with backoff delays.
+- [x] Implement `backoffDelay` with exponential increase and boundary checks.
+- [x] Implement `runPollLoop` to correctly handle `idleTicks` and sleep duration.
+- [x] Implement `pollUntil` to combine polling logic with backoff delays.
 
 ## Out of scope
 
