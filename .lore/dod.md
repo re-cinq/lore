@@ -22,6 +22,7 @@
 - [x] Correct stale pollUntil spec link from L92 to L96 (re-lint resolver counts from test body start, not it() declaration).
 - [x] Correct stale runPollLoop "false from the start" spec link from L75 to L79 (same resolver rule: body start, not it() declaration).
 - [x] Correct stale runPollLoop "Omitting isIdle" spec link from L52 to L55 (re-lint resolver found test at L55, not the it() declaration at L52).
+- [x] Fix lint failures: "false from start" link L55→L81 (L55 fell inside first test's range, not the third test), and pollUntil link L96→L98 (L96 was a blank line outside any test's range).
 
 ## Out of scope
 
