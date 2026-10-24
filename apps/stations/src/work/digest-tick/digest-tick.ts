@@ -77,6 +77,7 @@ async function launchRun(
   deps: DigestTickDeps,
 ): Promise<void> {
   const slackUsers = await deps.orgSetting("slack_users");
+
   await startLine(deps.floor.lines, DAILY_DIGEST_LINE, {
     repo,
     startItems: startItems(

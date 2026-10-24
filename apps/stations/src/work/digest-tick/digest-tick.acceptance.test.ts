@@ -28,6 +28,7 @@ function scene(rows: ReturnType<typeof repoRow>[]) {
       lines: {
         start: (line: string, starting: Record<string, unknown>) => {
           started.push({ line, starting });
+
           return Promise.resolve({ run: { id: "run-new" }, joined: false });
         },
       },
