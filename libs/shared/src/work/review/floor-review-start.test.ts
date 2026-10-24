@@ -103,7 +103,7 @@ function scene(given: Scene = {}) {
 
 function answerOf(request: FloorRequest, given: Scene): unknown {
   if (request.path.startsWith("/assembly-runs?")) {
-    return { items: given.runs ?? [], nextCursor: null };
+    return { items: onLine(request, given.runs ?? []), nextCursor: null };
   }
 
   if (request.path === "/blobs") {
@@ -115,6 +115,12 @@ function answerOf(request: FloorRequest, given: Scene): unknown {
   }
 
   return { run: run({ id: "run-new" }), joined: given.joined ?? false };
+}
+
+function onLine(request: FloorRequest, runs: RunView[]): RunView[] {
+  const line = new URLSearchParams(request.path.split("?")[1]).get("line");
+
+  return line ? runs.filter((r) => r.lineId === line) : runs;
 }
 
 function started(requests: FloorRequest[]): FloorRequest[] {

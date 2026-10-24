@@ -68,7 +68,14 @@ function scene(
 
 function answerOf(request: FloorRequest, runs: unknown[]): unknown {
   if (request.path.startsWith("/assembly-runs?")) {
-    return { items: runs, nextCursor: null };
+    const line = new URLSearchParams(request.path.split("?")[1]).get("line");
+
+    return {
+      items: runs.filter(
+        (run) => !line || (run as { lineId?: string }).lineId === line,
+      ),
+      nextCursor: null,
+    };
   }
 
   return { run: { id: "run-new" }, joined: true };
