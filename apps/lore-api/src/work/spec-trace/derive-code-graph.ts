@@ -61,6 +61,23 @@ function toDependsOnEdge(
   };
 }
 
+/** Derive and write graph edges from a batch of ingested files. Called once per ingestFiles run. */
+export async function deriveCodeGraphEdges(
+  pool: Pool,
+  files: ParsedFile[],
+  repo: string,
+): Promise<void> {
+  if (files.length === 0) {
+    return;
+  }
+
+  const packageName = resolvePackageName(files);
+  const allEdges = collectFileEdges(files, packageName, repo);
+
+  allEdges.push(...noneSentinels(allEdges));
+  await writeEdges(pool, allEdges);
+}
+
 /** Resolve the package name declared in any package.json in the file list. */
 function resolvePackageName(files: ParsedFile[]): string | null {
   const pkgFile = files.find(
@@ -90,7 +107,8 @@ function collectFileEdges(
   for (const file of files) {
     if (file.path === "package.json" || file.path.endsWith("/package.json")) {
       edges.push(...parsePackageJsonEdges(file.content, repo));
-    } else if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file.path)) {
+    }
+    if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file.path)) {
       edges.push(...parseTsEdges(file.path, file.content, repo, packageName));
     }
   }
@@ -205,18 +223,6 @@ function importSymbolEdge(
   };
 }
 
-function noneEdge(sym: string): DerivedEdge {
-  return {
-    sourceName: "none",
-    sourceType: "none",
-    sourceRepo: null,
-    targetName: sym,
-    targetType: "symbol",
-    targetRepo: null,
-    relation: "uses",
-  };
-}
-
 function noneSentinels(edges: DerivedEdge[]): DerivedEdge[] {
   const exported = new Set(
     edges.filter((e) => e.relation === "exports").map((e) => e.targetName),
@@ -228,21 +234,16 @@ function noneSentinels(edges: DerivedEdge[]): DerivedEdge[] {
   return [...exported].filter((sym) => !used.has(sym)).map(noneEdge);
 }
 
-/** Derive and write graph edges from a batch of ingested files. Called once per ingestFiles run. */
-export async function deriveCodeGraphEdges(
-  pool: Pool,
-  files: ParsedFile[],
-  repo: string,
-): Promise<void> {
-  if (files.length === 0) {
-    return;
-  }
-
-  const packageName = resolvePackageName(files);
-  const allEdges = collectFileEdges(files, packageName, repo);
-
-  allEdges.push(...noneSentinels(allEdges));
-  await writeEdges(pool, allEdges);
+function noneEdge(sym: string): DerivedEdge {
+  return {
+    sourceName: "none",
+    sourceType: "none",
+    sourceRepo: null,
+    targetName: sym,
+    targetType: "symbol",
+    targetRepo: null,
+    relation: "uses",
+  };
 }
 
 function entityKey(name: string, type: string, repo: string | null): string {
