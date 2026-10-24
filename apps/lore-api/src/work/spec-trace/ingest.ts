@@ -97,6 +97,15 @@ export async function ingestFiles(
 
   await deriveCodeGraphEdges(pool, resolvedContents, repo);
 
+  return buildSummary(repo, commit, schema, results);
+}
+
+function buildSummary(
+  repo: string,
+  commit: string,
+  schema: string,
+  results: IngestResult[],
+): IngestFilesSummary {
   const counts = tallyIngestResults(results);
 
   logIngestSummary(repo, commit, schema, counts);
