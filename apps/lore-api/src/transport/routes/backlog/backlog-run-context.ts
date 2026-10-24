@@ -45,28 +45,28 @@ export async function fetchRunContext(
   return { taskRuns, nodeRows };
 }
 
-/** The floor read a ticket's run takes: the one that never asks the floor for a run by id (`runs.get` costs seconds a run there). */
-export type LoopRunReads = Pick<FloorRunReader, "taskRunContext">;
+/** The floor read a page of tickets takes: one walk of the loop's runs for all of them, never a run by id (`runs.get` costs seconds a run there). */
+export type LoopRunReads = Pick<FloorRunReader, "taskRunContexts">;
 
-/** A task's run and node visits read straight from the floor, for a task Postgres has no row for: every implementation-loop run has lived there since ADR-049, and `pipeline.assembly_runs` only holds the ones Lore's own retired engine walked. Callers try Postgres first (above) and call this only on a miss, so a floor-out-of-reach error costs one task its pipeline, not the whole page. */
-export async function floorRunContext(
+type FloorFind = { run: LoopRunRow; nodeRows: NodeRow[] };
+
+/** The tasks' runs and node visits read straight from the floor, for tasks Postgres has no row for: every implementation-loop run has lived there since ADR-049, and `pipeline.assembly_runs` only holds the ones Lore's own retired engine walked. Callers try Postgres first (above) and call this only for the misses, all of them in one read. */
+export async function floorRunContexts(
   floor: LoopRunReads,
   repo: string,
-  taskId: string,
-): Promise<{ run: LoopRunRow; nodeRows: NodeRow[] } | null> {
-  const found = await floor.taskRunContext({
-    repo,
-    taskId,
-    blueprintName: LOOP_LINE,
-  });
+  taskIds: readonly string[],
+): Promise<Map<string, FloorFind>> {
+  if (taskIds.length === 0) {
+    return new Map();
+  }
+  const found = await floor.taskRunContexts({ repo, line: LOOP_LINE, taskIds });
 
-  return found ? loopRunOf(found, taskId) : null;
+  return new Map(
+    [...found].map(([taskId, context]) => [taskId, loopRunOf(context, taskId)]),
+  );
 }
 
-function loopRunOf(
-  found: TaskRunContext,
-  taskId: string,
-): { run: LoopRunRow; nodeRows: NodeRow[] } {
+function loopRunOf(found: TaskRunContext, taskId: string): FloorFind {
   const run: LoopRunRow = {
     id: found.run.id,
     task_id: taskId,
@@ -90,34 +90,22 @@ function nodeRow(
   };
 }
 
-/** Every task Postgres had no run for, tried on the floor; a hit is folded into `runByTask` in place and its node rows handed back for the caller to merge in. */
+/** Every task Postgres had no run for, tried on the floor in one read; a hit is folded into `runByTask` in place and its node rows handed back for the caller to merge in. */
 export async function fillFromFloor(
   floor: LoopRunReads,
   repo: string,
   missing: readonly LoopTaskRow[],
   runByTask: Map<string, LoopRunRow>,
 ): Promise<NodeRow[]> {
-  const found = await Promise.all(
-    missing.map((t) => floorRunContext(floor, repo, t.id)),
+  const found = await floorRunContexts(
+    floor,
+    repo,
+    missing.map((task) => task.id),
   );
 
-  return mergeFloorFinds(found, missing, runByTask);
-}
+  return [...found].flatMap(([taskId, { run, nodeRows }]) => {
+    runByTask.set(taskId, run);
 
-function mergeFloorFinds(
-  found: ReadonlyArray<{ run: LoopRunRow; nodeRows: NodeRow[] } | null>,
-  missing: readonly LoopTaskRow[],
-  runByTask: Map<string, LoopRunRow>,
-): NodeRow[] {
-  const extraNodeRows: NodeRow[] = [];
-
-  found.forEach((result, at) => {
-    if (!result) {
-      return;
-    }
-    runByTask.set(missing[at].id, result.run);
-    extraNodeRows.push(...result.nodeRows);
+    return nodeRows;
   });
-
-  return extraNodeRows;
 }

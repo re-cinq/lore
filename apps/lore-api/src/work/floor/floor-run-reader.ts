@@ -33,6 +33,7 @@ import {
 } from "./floor-run-mapping.js";
 import { readLineFacts, type LineFacts } from "./floor-line-facts.js";
 import { costsByRunOf, costUsdOf } from "./floor-costs.js";
+import { newestRunPerTask, type TaskRunsAsk } from "./floor-task-runs.js";
 import { recordsOf, runNodeLogs, runTurns } from "./floor-run-records.js";
 import {
   visitEvents,
@@ -97,28 +98,31 @@ export class FloorRunReader {
     return (await this.matchingRuns(query)).map(({ summary }) => summary);
   }
 
-  /** A task's run with its graph and its visits, in the reads that are cheap: the list that finds it, the line's facts (held per line) and its visits. Never `runs.get`, which the floor answers in seconds per run (re-cinq/floor#52) while a page of tickets asks for twenty. */
-  async taskRunContext(
-    query: AssemblyRunQuery,
-  ): Promise<TaskRunContext | null> {
-    const found = (await this.matchingRuns(query)).at(0);
+  /** Each task's newest run on one line of the repository, with its graph and visits, in ONE walk of the line's list: newest first, page by page until every task is found or the list ends. A page of tickets once searched the list once per ticket, up to 160 requests a load, which the floor answered with refused connections under a few loads at once; `runs.get` is never asked (re-cinq/floor#52). */
+  async taskRunContexts(
+    ask: TaskRunsAsk,
+  ): Promise<Map<string, TaskRunContext>> {
+    const runs = await newestRunPerTask(this.floor.runs, ask);
+    const contexts = await Promise.all(
+      [...runs].map(
+        async ([taskId, run]) => [taskId, await this.contextOf(run)] as const,
+      ),
+    );
 
-    return found ? this.contextOf(found) : null;
+    return new Map(contexts);
   }
 
-  private async contextOf({
-    run,
-    summary,
-  }: {
-    run: RunView;
-    summary: AssemblyRunSummary;
-  }): Promise<TaskRunContext> {
+  private async contextOf(run: RunView): Promise<TaskRunContext> {
     const [graph, visits] = await Promise.all([
       this.graphOf(run),
       this.floor.stationRuns.list({ run: run.id }),
     ]);
 
-    return { run: summary, graph, visits: visits.map(visitOutcome) };
+    return {
+      run: floorRunToSummary({ run, visits }),
+      graph,
+      visits: visits.map(visitOutcome),
+    };
   }
 
   private async matchingRuns(
