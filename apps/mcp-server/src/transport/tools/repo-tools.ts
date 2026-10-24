@@ -323,6 +323,15 @@ interface NextReadyResult {
   reason?: string;
 }
 
+function nextReadyResult(
+  issues: Array<Record<string, unknown>>,
+): NextReadyResult {
+  if (issues.length === 0) {
+    return { issue: null, reason: "No issues ready in the backlog." };
+  }
+  return { issue: issues[0], because: "priority" };
+}
+
 async function fetchNextReadyIssue({
   repo,
 }: {
@@ -332,28 +341,14 @@ async function fetchNextReadyIssue({
   const proxied = await proxyGetApi(
     `/api/repos/${owner}/${name}/backlog-queue`,
   );
-
   if (!proxied.ok) {
-    const result: NextReadyResult = {
-      issue: null,
-      reason: "Could not reach Lore API to fetch backlog.",
-    };
-    return textResult(JSON.stringify(result));
+    return textResult(
+      JSON.stringify({
+        issue: null,
+        reason: "Could not reach Lore API to fetch backlog.",
+      }),
+    );
   }
-
   const issues = JSON.parse(proxied.body) as Array<Record<string, unknown>>;
-
-  if (issues.length === 0) {
-    const result: NextReadyResult = {
-      issue: null,
-      reason: "No issues ready in the backlog.",
-    };
-    return textResult(JSON.stringify(result));
-  }
-
-  const result: NextReadyResult = {
-    issue: issues[0],
-    because: "priority",
-  };
-  return textResult(JSON.stringify(result));
+  return textResult(JSON.stringify(nextReadyResult(issues)));
 }

@@ -62,6 +62,10 @@ export function heldBacklog(issues: readonly IssueRef[]): IssueRef[] {
     .sort((a, b) => compareIso(createdAtOrder(a), createdAtOrder(b)));
 }
 
+function unblockCount(issue: IssueRef): number {
+  return issue.blockedByCount ?? 0;
+}
+
 function compareByCriterion(
   criterion: RankingCriterion,
   a: RankedIssue,
@@ -73,7 +77,7 @@ function compareByCriterion(
     case "age":
       return compareIso(createdAtOrder(a.issue), createdAtOrder(b.issue));
     case "unblocks":
-      return (b.issue.blockedByCount ?? 0) - (a.issue.blockedByCount ?? 0);
+      return unblockCount(b.issue) - unblockCount(a.issue);
     case "size":
       return sizeRank(a.issue.labels) - sizeRank(b.issue.labels);
   }
@@ -92,11 +96,7 @@ function sizeRank(labels: readonly string[]): number {
 
 /** Plain lexicographic compare — correct for ISO timestamps, and not subject to the process's collation locale. */
 function compareIso(a: string, b: string): number {
-  if (a < b) {
-    return -1;
-  }
-
-  return a > b ? 1 : 0;
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function priorityRank(labels: readonly string[]): number | null {
