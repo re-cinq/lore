@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { capSections, SectionLimitsQuery } from "./loop-sections.js";
+import {
+  capSections,
+  recentWindow,
+  SectionLimitsQuery,
+} from "./loop-sections.js";
 
 const rows = (n: number) => Array.from({ length: n }, (_, at) => at + 1);
 
@@ -43,5 +47,15 @@ describe("capSections", () => {
       SectionLimitsQuery.safeParse({ recent: "0" }).success,
       SectionLimitsQuery.safeParse({ parked: "1000" }).success,
     ]).toEqual([{ recent: 5, backlog: 10 }, false, false]);
+  });
+});
+
+describe("recentWindow", () => {
+  it("gathers 10 recent rows when the page asks for none, 16 for ?recent=15, and still 10 for ?recent=3", () => {
+    expect([
+      recentWindow({}, 10),
+      recentWindow({ recent: 15 }, 10),
+      recentWindow({ recent: 3 }, 10),
+    ]).toEqual([10, 16, 10]);
   });
 });

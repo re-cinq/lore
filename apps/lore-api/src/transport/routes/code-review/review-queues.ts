@@ -35,20 +35,17 @@ export interface ReviewPull {
   draft?: boolean;
 }
 
-const RECENT_LIMIT = 10;
+/** Recently addressed rows when the page asks for no count. */
+export const RECENT_LIMIT = 10;
 
 export function reviewQueues(
   pulls: readonly ReviewPull[],
   runs: readonly FloorRunRow[],
+  recentLimit = RECENT_LIMIT,
 ): CodeReview {
-  const newestFirst = [...runs].sort((a, b) =>
-    b.created_at.localeCompare(a.created_at),
-  );
-  const open = newestFirst.filter((run) => isOpenStatus(run.status));
-  const settled = newestFirst.filter((run) => !isOpenStatus(run.status));
+  const { open, settled } = byStatus(runs);
   const current = onePerPull(open).map((run) => runRow(run, pulls));
   const working = new Set(current.map((row) => row.pr_url));
-
   const waiting = pulls
     .filter((pull) => !working.has(pull.url))
     .map((pull) => pullRow(pull, settled));
@@ -56,7 +53,19 @@ export function reviewQueues(
   return {
     current,
     ...waitingBuckets(waiting),
-    recent: recentRows(settled, working, pulls),
+    recent: recentRows(settled, working, pulls).slice(0, recentLimit),
+  };
+}
+
+/** The runs newest first, split into the ones still working and the settled ones. */
+function byStatus(runs: readonly FloorRunRow[]) {
+  const newestFirst = [...runs].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  );
+
+  return {
+    open: newestFirst.filter((run) => isOpenStatus(run.status)),
+    settled: newestFirst.filter((run) => !isOpenStatus(run.status)),
   };
 }
 
@@ -78,7 +87,6 @@ function recentRows(
 ): ReviewRow[] {
   return onePerPull(settled)
     .filter((run) => !working.has(run.pr_url))
-    .slice(0, RECENT_LIMIT)
     .map((run) => runRow(run, pulls));
 }
 

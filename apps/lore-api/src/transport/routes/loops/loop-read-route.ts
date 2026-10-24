@@ -25,8 +25,8 @@ export interface LoopReadRoute<Read extends Sections> {
   schema: z.ZodType;
   name: string;
   description: string;
-  /** The loop's sections for one repository, whole. */
-  read(fullName: string): Promise<Read>;
+  /** The loop's sections for one repository, whole but for Recently addressed, which a loop may gather only as far as the page's count reaches (`recentWindow`). */
+  read(fullName: string, limits: SectionLimits): Promise<Read>;
 }
 
 /** The loop's GET route: its sections read for the repository and cut to `?backlog=&parked=&awaiting_merge=&recent=`. */
@@ -38,9 +38,11 @@ export function loopReadRoute<Read extends Sections>(
     path: `/api/repos/{owner}/{repo}/${route.segment}`,
     options: loopReadOptions(route),
     handler: (request, h) =>
-      answerRepoRead(request, h, async (fullName) =>
-        capSections(await route.read(fullName), request.query as SectionLimits),
-      ),
+      answerRepoRead(request, h, async (fullName) => {
+        const limits = request.query as SectionLimits;
+
+        return capSections(await route.read(fullName, limits), limits);
+      }),
   };
 }
 

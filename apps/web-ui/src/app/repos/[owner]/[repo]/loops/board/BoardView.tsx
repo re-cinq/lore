@@ -73,11 +73,12 @@ function SectionTable({
   );
 }
 
-/** Five more rows of the section, by address, so a live refresh keeps them; the page under it stays while they load. */
+/** Five more rows of the section, by address, so a live refresh keeps them; the page under it stays while they load. Not prefetched: each one re-reads every shown loop. */
 function LoadMore({ href }: { href: string }) {
   return (
     <Link
       href={href}
+      prefetch={false}
       scroll={false}
       className={`btn btn-secondary ${styles.loadMore}`}
       data-testid="load-more"

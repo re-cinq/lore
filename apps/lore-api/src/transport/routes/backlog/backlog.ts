@@ -37,6 +37,7 @@ import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
 import {
   capSections,
+  recentWindow,
   SectionLimitsQuery,
   type SectionLimits,
 } from "../loops/loop-sections.js";
@@ -102,19 +103,26 @@ async function serveReadBacklog(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const state = await loadBacklogState(reads, repoOf(request.params));
+  const limits = request.query as SectionLimits;
+  const state = await loadBacklogState(
+    reads,
+    repoOf(request.params),
+    recentWindow(limits, RECENT_LIMIT),
+  );
 
   return h
     .response({
       enabled: state.enabled,
       current_run_id: state.currentRunId,
       onboarding: state.onboarding,
-      ...cappedBacklog(projectBacklog(state), request.query as SectionLimits),
+      ...cappedBacklog(projectBacklog(state), limits),
     })
     .code(200);
 }
 
 interface BacklogState extends BacklogIssues {
+  /** How many settled tickets Recently addressed gathers. */
+  recentLimit: number;
   enabled: boolean;
   onboarding: Onboarding;
   taskRows: LoopTaskRow[];
@@ -127,11 +135,13 @@ interface BacklogState extends BacklogIssues {
 async function loadBacklogState(
   { pool, queuedIssues }: BacklogReads,
   repo: string,
+  recentLimit: number,
 ): Promise<BacklogState> {
   const read = await readRepoRow(pool, repo);
-  const taskRows = await readLoopTasks(pool, repo);
+  const taskRows = await readLoopTasks(pool, repo, recentLimit);
 
   return {
+    recentLimit,
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
     taskRows,
@@ -141,15 +151,19 @@ async function loadBacklogState(
   };
 }
 
-/** The loop's own tasks, newest first. TWICE the display cap is read: the open ones are filtered out to build the "recent" list, and without the headroom a repo with several in flight would show a short one. */
-async function readLoopTasks(pool: Pool, repo: string): Promise<LoopTaskRow[]> {
+/** The loop's own tasks, newest first. TWICE the recent cap is read: the open ones are filtered out to build the "recent" list, and without the headroom a repo with several in flight would show a short one. */
+async function readLoopTasks(
+  pool: Pool,
+  repo: string,
+  recentLimit: number,
+): Promise<LoopTaskRow[]> {
   const { rows } = await pool.query<LoopTaskRow>(
     `SELECT ${selectList(LOOP_TASK_COLUMNS)}
            FROM pipeline.tasks
           WHERE target_repo = $1 AND task_type = 'implementation-loop'
           ORDER BY created_at DESC
-          LIMIT ${RECENT_LIMIT * 2}`,
-    [repo],
+          LIMIT $2`,
+    [repo, recentLimit * 2],
   );
 
   return rows;
@@ -272,7 +286,7 @@ function recentTickets(
   return settledTaskRows(state, currentIds)
     .filter((t) => !isAwaitingMerge(t, state.openPrBranches))
     .filter((t) => !parkedIssueNumbers.has(t.issue_number ?? -1))
-    .slice(0, RECENT_LIMIT)
+    .slice(0, state.recentLimit)
     .map((t) => taskTicket(t, state))
     .filter((t): t is Ticket => t !== null);
 }

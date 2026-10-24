@@ -23,6 +23,8 @@ import {
 } from "../repos/github-read.js";
 import {
   IssueTriageSchema,
+  TRIAGE_PRECEDENCE,
+  TRIAGE_PREFIX,
   triageBuckets,
   type TriageIssue,
   type TriageRun,
@@ -121,15 +123,32 @@ async function serveTriage(
 async function readTriage(fullName: string, runsOf: OpenTriageRuns) {
   const project = await onboardedProject(fullName);
   const [labelled, runs] = await Promise.all([
-    project.issues.list({ state: "open", labels: [NEEDS_TRIAGE] }),
+    triageLabelled(project.issues),
     runsOf(fullName),
   ]);
 
   return { issues: await withRunIssues(project.issues, labelled, runs), runs };
 }
 
-/** The label every issue triage works keeps: the triage line only ever adds labels, so an issue it labelled further still carries this one, and listing it reads triage's issues and not all of the repository's (re-cinq/lore has 555 open). */
-const NEEDS_TRIAGE = "triage: needs-triage";
+/** Every `triage:` label the board reads a state from: a child issue triage filed carries `triage: needs-priority` alone (specs/issue-triage FR33), so no one label covers them all. */
+const TRIAGE_LABELS = TRIAGE_PRECEDENCE.map(
+  (state) => `${TRIAGE_PREFIX}${state}`,
+);
+
+/** The open issues carrying any `triage:` label, one GitHub list per label read together and joined, an issue with several once: triage's issues and not every open one (re-cinq/lore has 555). */
+async function triageLabelled(
+  issues: Pick<Project["issues"], "list">,
+): Promise<IssueRef[]> {
+  const lists = await Promise.all(
+    TRIAGE_LABELS.map((label) =>
+      issues.list({ state: "open", labels: [label] }),
+    ),
+  );
+
+  return [
+    ...new Map(lists.flat().map((issue) => [issue.number, issue])).values(),
+  ];
+}
 
 /** The issues a triage run took up before any label landed: not in the labelled list, read one by one, a handful at most. */
 async function withRunIssues(

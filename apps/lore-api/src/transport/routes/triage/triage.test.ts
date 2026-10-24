@@ -137,7 +137,7 @@ describe("GET /api/repos/{owner}/{repo}/triage", () => {
 describe("GET /api/repos/{owner}/{repo}/triage reading only triage's issues", () => {
   afterEach(() => vi.clearAllMocks());
 
-  it("asks GitHub for open issues labelled triage: needs-triage only, reads #50 a run took up before any label on its own, and cuts the backlog of 3 to 2 for ?backlog=1", async () => {
+  it("asks GitHub for the open issues of each triage label rather than every open issue, reads #50 a run took up before any label on its own, and cuts the backlog of 3 to 2 for ?backlog=1", async () => {
     const asked: unknown[] = [];
     const issue = (number: number, labels: string[]) => ({
       number,
@@ -184,7 +184,17 @@ describe("GET /api/repos/{owner}/{repo}/triage reading only triage's issues", ()
         (r: { issue_number: number }) => r.issue_number,
       ),
     }).toEqual({
-      asked: [{ state: "open", labels: ["triage: needs-triage"] }],
+      asked: [
+        "failed",
+        "needs-priority",
+        "not-actionable",
+        "unable-to-reproduce",
+        "needs-reproduction",
+        "skipped",
+        "diagnosed",
+        "reproduced",
+        "needs-triage",
+      ].map((state) => ({ state: "open", labels: [`triage: ${state}`] })),
       current: [50],
       backlog: [1, 2],
     });

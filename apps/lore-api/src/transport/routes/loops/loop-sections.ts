@@ -68,3 +68,10 @@ export function capSections<
 
   return capped;
 }
+
+/** How many Recently addressed rows a loop gathers: its own default, or the page's count and the one row past it that says there is more. */
+export function recentWindow(limits: SectionLimits, fallback: number): number {
+  return limits.recent === undefined
+    ? fallback
+    : Math.max(fallback, limits.recent + 1);
+}

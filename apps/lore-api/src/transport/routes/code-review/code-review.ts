@@ -6,9 +6,11 @@ import type { FloorRunPageOf } from "../floor/floor-runs.js";
 import type { FloorRunRow } from "../../../work/floor/floor-run-rows.js";
 import {
   CodeReviewSchema,
+  RECENT_LIMIT,
   REVIEW_LINES,
   reviewQueues,
 } from "./review-queues.js";
+import { recentWindow } from "../loops/loop-sections.js";
 
 /** How many of each line's newest runs the page reads: enough to find every open pull request's last review. */
 const RUNS_PER_LINE = 30;
@@ -20,11 +22,16 @@ export function codeReviewRoute(pageOf: FloorRunPageOf): ServerRoute {
     name: "CodeReview",
     description:
       "The code-review loop: pull requests under review, the other open ones, and the newest settled reviews",
-    read: (fullName) => readQueues(pageOf, fullName),
+    read: (fullName, limits) =>
+      readQueues(pageOf, fullName, recentWindow(limits, RECENT_LIMIT)),
   });
 }
 
-async function readQueues(pageOf: FloorRunPageOf, fullName: string) {
+async function readQueues(
+  pageOf: FloorRunPageOf,
+  fullName: string,
+  recentLimit: number,
+) {
   const project = await onboardedProject(fullName);
   const [pulls, runs] = await Promise.all([
     project.pulls.list(),
@@ -34,6 +41,7 @@ async function readQueues(pageOf: FloorRunPageOf, fullName: string) {
   return reviewQueues(
     pulls.filter((pull) => pull.state === "open"),
     runs,
+    recentLimit,
   );
 }
 

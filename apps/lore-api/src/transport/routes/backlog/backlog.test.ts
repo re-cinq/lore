@@ -1059,3 +1059,48 @@ describe("GET /api/repos/{owner}/{repo}/implementation-loop with section limits"
     ).toEqual([1, 2, 3]);
   });
 });
+
+describe("GET /api/repos/{owner}/{repo}/implementation-loop past ten recent tickets", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("reads 20 task rows by default and 32 for ?recent=15, twice the 16 recent tickets it gathers", async () => {
+    const asked: unknown[][] = [];
+    const pool = makePool();
+
+    pool.query.mockImplementation(async (sql: string, params: unknown[]) => {
+      if (/task_type = 'implementation-loop'/.test(sql)) {
+        asked.push(params);
+      }
+
+      return {
+        rows: /FROM lore\.repos/.test(sql)
+          ? [{ settings: { implementation_loop: { enabled: true } } }]
+          : [],
+      };
+    });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: { list: async () => [] },
+    } as never);
+    const server = buildServer(() => pool as never);
+
+    for (const url of ["", "?recent=15"]) {
+      await server.inject({
+        method: "GET",
+        url: `/api/repos/re-cinq/lore/implementation-loop${url}`,
+        headers: AUTH,
+      });
+    }
+
+    expect(asked).toEqual([
+      ["re-cinq/lore", 20],
+      ["re-cinq/lore", 32],
+    ]);
+  });
+});
