@@ -5,6 +5,11 @@ import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import {
+  capSections,
+  SectionLimitsQuery,
+  type SectionLimits,
+} from "../loops/loop-sections.js";
 import { withPool } from "../with-pool.js";
 import { repoOf } from "../repos/station-helpers.js";
 import { enforceRepoRow } from "../loops/loop-switch.js";
@@ -26,7 +31,10 @@ const POSTS_SQL = `SELECT run_id, status, posted_at
 const OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
-    validate: { params: zodValidate(RepoParams) },
+    validate: {
+      params: zodValidate(RepoParams),
+      query: zodValidate(SectionLimitsQuery),
+    },
   },
   DailyDigestSchema,
   {
@@ -53,7 +61,12 @@ export function dailyDigestRoute(
 
       await enforceRepoRow(pool, repo);
 
-      return h.response(digestQueues(await postsOf(pool, repo, runOfVisit)));
+      return h.response(
+        capSections(
+          digestQueues(await postsOf(pool, repo, runOfVisit)),
+          request.query as SectionLimits,
+        ),
+      );
     }),
   };
 }

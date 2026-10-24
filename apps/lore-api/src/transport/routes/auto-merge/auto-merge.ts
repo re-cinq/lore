@@ -15,9 +15,16 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { answerRepoRead, onboardedProject } from "../repos/github-read.js";
 import {
+  capSections,
+  recentWindow,
+  SectionLimitsQuery,
+  type SectionLimits,
+} from "../loops/loop-sections.js";
+import {
   AutoMergeSchema,
   mergeQueues,
   type StoredBlock,
+  RECENT_LIMIT,
 } from "./merge-queues.js";
 
 const RepoParams = z.object({
@@ -37,7 +44,10 @@ const BLOCKS_SQL = `SELECT pr_number, reason, detail
 const OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
-    validate: { params: zodValidate(RepoParams) },
+    validate: {
+      params: zodValidate(RepoParams),
+      query: zodValidate(SectionLimitsQuery),
+    },
   },
   AutoMergeSchema,
   {
@@ -57,9 +67,15 @@ export function autoMergeRoute(
     path: "/api/repos/{owner}/{repo}/auto-merge",
     options: OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
-      answerRepoRead(request, h, (fullName) =>
-        readQueues({ pool, pageOf }, fullName),
-      ),
+      answerRepoRead(request, h, async (fullName) => {
+        const limits = request.query as SectionLimits;
+        const recentLimit = recentWindow(limits, RECENT_LIMIT);
+
+        return capSections(
+          await readQueues({ pool, pageOf, recentLimit }, fullName),
+          limits,
+        );
+      }),
     ),
   };
 }
@@ -68,7 +84,7 @@ export function autoMergeRoute(
 const RUNS_READ = 50;
 
 async function readQueues(
-  sources: { pool: Pool; pageOf: FloorRunPageOf },
+  sources: { pool: Pool; pageOf: FloorRunPageOf; recentLimit: number },
   fullName: string,
 ) {
   const project = await onboardedProject(fullName);
@@ -83,6 +99,7 @@ async function readQueues(
     blocks: read.blocks,
     minAgeHours: autoMergeMinAgeHours(read.settings),
     now: Date.now(),
+    recentLimit: sources.recentLimit,
   });
 }
 

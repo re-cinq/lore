@@ -1,5 +1,6 @@
 import "server-only";
 import { apiFetch } from "./client";
+import { withLimits, type SectionLimits } from "./loops";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
@@ -7,6 +8,9 @@ import type { components } from "./schema";
 export type IssueTriage = components["schemas"]["IssueTriage"];
 export type TriageRow = IssueTriage["current"][number];
 
-export function getIssueTriage(repo: string): Promise<ApiResult<IssueTriage>> {
-  return apiFetch("lore-api", `/api/repos/${repo}/triage`);
+export function getIssueTriage(
+  repo: string,
+  limits?: SectionLimits,
+): Promise<ApiResult<IssueTriage>> {
+  return apiFetch("lore-api", withLimits(`/api/repos/${repo}/triage`, limits));
 }

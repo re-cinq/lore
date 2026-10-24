@@ -1,5 +1,6 @@
 import "server-only";
 import { apiFetch } from "./client";
+import { withLimits, type SectionLimits } from "./loops";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
@@ -7,6 +8,12 @@ import type { components } from "./schema";
 export type CodeReview = components["schemas"]["CodeReview"];
 export type ReviewRow = CodeReview["current"][number];
 
-export function getCodeReview(repo: string): Promise<ApiResult<CodeReview>> {
-  return apiFetch("lore-api", `/api/repos/${repo}/code-review`);
+export function getCodeReview(
+  repo: string,
+  limits?: SectionLimits,
+): Promise<ApiResult<CodeReview>> {
+  return apiFetch(
+    "lore-api",
+    withLimits(`/api/repos/${repo}/code-review`, limits),
+  );
 }

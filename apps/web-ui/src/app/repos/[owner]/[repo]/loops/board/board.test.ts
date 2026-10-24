@@ -14,6 +14,7 @@ import {
   boardSubject,
   type LoopRead,
 } from "./board";
+import { sectionLimitsOf } from "./section-limits";
 
 const loop = (key: RepoLoop["key"], label: string): RepoLoop => ({
   key,
@@ -67,10 +68,10 @@ const issue = (n: number, created_at: string | null = null) => ({
 
 describe("loopBoard", () => {
   it("joins code review's and triage's Current rows into one Current, grouped by loop in the order the loops are read", () => {
-    const board = loopBoard([
-      review({ current: [pr(7), pr(8)] }),
-      triage({ current: [issue(3)] }),
-    ]);
+    const board = loopBoard(
+      [review({ current: [pr(7), pr(8)] }), triage({ current: [issue(3)] })],
+      EVERY_ROW,
+    );
     const current = board.sections.find((s) => s.key === "current");
 
     expect({
@@ -89,10 +90,13 @@ describe("loopBoard", () => {
   });
 
   it("orders Recently addressed newest first across loops, a row with no time last", () => {
-    const board = loopBoard([
-      review({ recent: [pr(7, "2026-10-20T00:00:00Z"), pr(8, null)] }),
-      triage({ recent: [issue(3, "2026-10-22T00:00:00Z")] }),
-    ]);
+    const board = loopBoard(
+      [
+        review({ recent: [pr(7, "2026-10-20T00:00:00Z"), pr(8, null)] }),
+        triage({ recent: [issue(3, "2026-10-22T00:00:00Z")] }),
+      ],
+      EVERY_ROW,
+    );
 
     expect(
       board.sections.find((s) => s.key === "recent")?.rows.map((r) => r.ref),
@@ -100,7 +104,7 @@ describe("loopBoard", () => {
   });
 
   it("shows Parked and Awaiting merge only when a loop has a row there", () => {
-    const board = loopBoard([review({ awaiting_merge: [pr(9)] })]);
+    const board = loopBoard([review({ awaiting_merge: [pr(9)] })], EVERY_ROW);
 
     expect(board.sections.map((s) => s.key)).toEqual([
       "current",
@@ -111,14 +115,17 @@ describe("loopBoard", () => {
   });
 
   it("names a loop that could not be read and keeps the other loops' rows", () => {
-    const board = loopBoard([
-      {
-        loop: REVIEW,
-        sections: null,
-        failure: "Could not load Code review (HTTP 502)",
-      },
-      triage({ backlog: [issue(4)] }),
-    ]);
+    const board = loopBoard(
+      [
+        {
+          loop: REVIEW,
+          sections: null,
+          failure: "Could not load Code review (HTTP 502)",
+        },
+        triage({ backlog: [issue(4)] }),
+      ],
+      EVERY_ROW,
+    );
 
     expect({
       failures: board.failures,
@@ -133,14 +140,17 @@ describe("loopBoard", () => {
 
   it("says above the Backlog which shown loops are switched off, and what fills an empty backlog for each", () => {
     const off = { ...loop("triage", "Issue triage"), enabled: false };
-    const board = loopBoard([
-      review({}),
-      {
-        loop: off,
-        sections: triageSections(off, empty),
-        backlogNotice: pausedNotice(off),
-      },
-    ]);
+    const board = loopBoard(
+      [
+        review({}),
+        {
+          loop: off,
+          sections: triageSections(off, empty),
+          backlogNotice: pausedNotice(off),
+        },
+      ],
+      EVERY_ROW,
+    );
     const backlog = board.sections.find((s) => s.key === "backlog");
 
     expect({ notices: backlog?.notices, empty: backlog?.emptyText }).toEqual({
@@ -340,3 +350,41 @@ describe("loop rows", () => {
     ]);
   });
 });
+
+describe("a page of rows at a time", () => {
+  it("shows all 7 current pull requests, 5 of 6 recent ones with more to load, and 3 awaiting merge with none", () => {
+    const board = loopBoard(
+      [
+        review({
+          current: [1, 2, 3, 4, 5, 6, 7].map((n) => pr(n)),
+          recent: [11, 12, 13, 14, 15, 16].map((n) =>
+            pr(n, `2026-10-${n}T00:00:00Z`),
+          ),
+          awaiting_merge: [21, 22, 23].map((n) => pr(n)),
+        }),
+      ],
+      sectionLimitsOf({}),
+    );
+    const shown = (key: string) =>
+      board.sections.find((section) => section.key === key);
+
+    expect(
+      ["current", "recent", "awaiting_merge"].map((key) => [
+        key,
+        shown(key)?.rows.length,
+        shown(key)?.hasMore,
+      ]),
+    ).toEqual([
+      ["current", 7, false],
+      ["recent", 5, true],
+      ["awaiting_merge", 3, false],
+    ]);
+  });
+});
+
+const EVERY_ROW = {
+  backlog: 200,
+  parked: 200,
+  awaiting_merge: 200,
+  recent: 200,
+};

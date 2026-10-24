@@ -44,10 +44,14 @@ export interface MergeQueuesInput {
   blocks: readonly StoredBlock[];
   minAgeHours: number;
   now: number;
+  /** Recently addressed rows to gather; ten when the page asks for no count. */
+  recentLimit?: number;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
-const RECENT_LIMIT = 10;
+
+/** Recently addressed rows when the page asks for no count. */
+export const RECENT_LIMIT = 10;
 
 /** The reasons a person must act on; the others are waits the loop handles. */
 const ON_A_PERSON: ReadonlySet<string> = new Set([
@@ -69,7 +73,7 @@ export function mergeQueues(input: MergeQueuesInput): AutoMerge {
       rows,
       (state) => state === "armed" || state === "waiting",
     ),
-    recent: recentRows(input),
+    recent: recentRows(input).slice(0, input.recentLimit ?? RECENT_LIMIT),
   };
 }
 
@@ -161,9 +165,9 @@ function recentRows(input: MergeQueuesInput): MergeRow[] {
   const worked = new Set(input.runs.map((run) => run.pr_url));
   const loopMerged = input.merged.filter((pull) => worked.has(pull.url));
 
-  return newestMergedFirst(loopMerged)
-    .slice(0, RECENT_LIMIT)
-    .map((pull) => mergedRow(pull, input.runs));
+  return newestMergedFirst(loopMerged).map((pull) =>
+    mergedRow(pull, input.runs),
+  );
 }
 
 function newestMergedFirst(pulls: readonly MergePull[]): MergePull[] {
