@@ -20,6 +20,7 @@ import {
 type Floor = ReturnType<typeof floorClient>;
 
 export interface DigestTickDeps extends DueDeps {
+  orgSetting: (key: string) => Promise<string | null>;
   floor: {
     runs: Pick<Floor["runs"], "list">;
     lines: Pick<Floor["lines"], "start">;
@@ -50,23 +51,41 @@ async function startOnFloor(
   run: ChannelRun,
   deps: DigestTickDeps,
 ): Promise<boolean> {
-  const { runs, lines } = deps.floor;
-  const slot = {
-    repo: floorRepoOf(run.host.repo),
-    line: DAILY_DIGEST_LINE,
-    subject: `digest_key:${digestKey(run)}`,
-  };
+  const slot = runSlot(run);
+  const { runs } = deps.floor;
   const { items: earlier } = await runs.list(slot);
 
   if (earlier.some(isOpen) || earlier.length >= MAX_RUNS_PER_CHANNEL_DAY) {
     return false;
   }
-  await startLine(lines, DAILY_DIGEST_LINE, {
-    repo: slot.repo,
-    startItems: startItems(digestKey(run), digestRunArgs(run, deps.now())),
-  });
+  await launchRun(run, slot.repo, deps);
 
   return true;
+}
+
+function runSlot(run: ChannelRun) {
+  return {
+    repo: floorRepoOf(run.host.repo),
+    line: DAILY_DIGEST_LINE,
+    subject: `digest_key:${digestKey(run)}`,
+  };
+}
+
+async function launchRun(
+  run: ChannelRun,
+  repo: string,
+  deps: DigestTickDeps,
+): Promise<void> {
+  const slackUsers = await deps.orgSetting("slack_users");
+
+  await startLine(deps.floor.lines, DAILY_DIGEST_LINE, {
+    repo,
+    startItems: startItems(
+      digestKey(run),
+      digestRunArgs(run, deps.now()),
+      slackUsers,
+    ),
+  });
 }
 
 /** The floor keys a run on the one argument its line marks as the subject; this is that value. */
@@ -78,8 +97,10 @@ function digestKey(run: ChannelRun): string {
 function startItems(
   key: string,
   args: ReturnType<typeof digestRunArgs>,
+  slackUsers: string | null,
 ): Parameters<Floor["lines"]["start"]>[1]["startItems"] {
-  const present = Object.entries({ digest_key: key, ...args }).filter(
+  const extra = slackUsers !== null ? { slack_users: slackUsers } : {};
+  const present = Object.entries({ digest_key: key, ...args, ...extra }).filter(
     ([, value]) => value !== "",
   );
 

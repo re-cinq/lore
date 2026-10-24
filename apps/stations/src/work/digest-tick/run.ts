@@ -18,6 +18,7 @@ export async function runDigestTick(
 
   return digestTick(params, {
     repoSettings: () => settings().onboardedRepoSettings(),
+    orgSetting: (key: string) => settings().orgSetting(key),
     posts: pipeline().digestPosts,
     now: () => new Date(),
     floor: floorClient(),
