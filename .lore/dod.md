@@ -6,7 +6,7 @@
 
 ## Done when these pass
 
-- [ ] **FR14.20 — The slack_users override of FR12 is read through the settings port's orgSetting, so the stations service reads it without SQL of its own.** — verifies that `slack_users` is read and forwarded as a start item to the external floor.
+- [x] **FR14.20 — The slack_users override of FR12 is read through the settings port's orgSetting, so the stations service reads it without SQL of its own.** — verifies that `slack_users` is read and forwarded as a start item to the external floor.
   `apps/stations/src/work/digest-tick/digest-tick.acceptance.test.ts`
 
 ## Facets

@@ -51,28 +51,39 @@ async function startOnFloor(
   run: ChannelRun,
   deps: DigestTickDeps,
 ): Promise<boolean> {
-  const { runs, lines } = deps.floor;
-  const slot = {
-    repo: floorRepoOf(run.host.repo),
-    line: DAILY_DIGEST_LINE,
-    subject: `digest_key:${digestKey(run)}`,
-  };
-  const { items: earlier } = await runs.list(slot);
+  const slot = runSlot(run);
+  const { items: earlier } = await deps.floor.runs.list(slot);
 
   if (earlier.some(isOpen) || earlier.length >= MAX_RUNS_PER_CHANNEL_DAY) {
     return false;
   }
+  await launchRun(run, slot.repo, deps);
+
+  return true;
+}
+
+function runSlot(run: ChannelRun) {
+  return {
+    repo: floorRepoOf(run.host.repo),
+    line: DAILY_DIGEST_LINE,
+    subject: `digest_key:${digestKey(run)}`,
+  };
+}
+
+async function launchRun(
+  run: ChannelRun,
+  repo: string,
+  deps: DigestTickDeps,
+): Promise<void> {
   const slackUsers = await deps.orgSetting("slack_users");
-  await startLine(lines, DAILY_DIGEST_LINE, {
-    repo: slot.repo,
+  await startLine(deps.floor.lines, DAILY_DIGEST_LINE, {
+    repo,
     startItems: startItems(
       digestKey(run),
       digestRunArgs(run, deps.now()),
       slackUsers,
     ),
   });
-
-  return true;
 }
 
 /** The floor keys a run on the one argument its line marks as the subject; this is that value. */

@@ -149,7 +149,6 @@ describe("the digest tick on the external floor", () => {
   });
 
   it("reads slack_users from orgSetting and passes it as a start item", async () => {
-    // specs/daily-digest/spec.md#FR14.20
     const { deps, started } = scene([repoRow("re-cinq/lore", "C1")]);
 
     deps.orgSetting = (key: string) =>
