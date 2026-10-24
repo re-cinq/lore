@@ -36,6 +36,7 @@ describe("floorSpecTicketsHandlers", () => {
       tickets: () =>
         Promise.resolve({
           floor: recorded.floor,
+          loopOn: async () => true,
           defaultBranch: () => Promise.resolve("main"),
           changedFiles: () =>
             Promise.resolve([

@@ -27,6 +27,8 @@ export interface ChangedFile {
 
 export interface SpecTicketsDeps {
   floor: { lines: Pick<FloorClient["lines"], "start"> };
+  /** The repository's spec tickets loop is on (`spec_tickets.enabled`, specs/spec-tickets FR14). */
+  loopOn(repo: string): Promise<boolean>;
   defaultBranch(repo: string): Promise<string>;
   /** Every file the pull request touched, deleted ones included, with GitHub's patch of it when it gives one. */
   changedFiles(repo: string, prNumber: number): Promise<ChangedFile[]>;
@@ -93,6 +95,11 @@ export function specTicketsKey(
   return `${repo}:${specPath}@${mergeCommitSha}`;
 }
 
+/** The spec a run's subject key (`key:<repo>:specs/<name>/spec.md@<sha>`) names, by its directory name; null for a key of another shape. */
+export function specNameOfRunKey(subjectKey: string | null): string | null {
+  return /specs\/([^/]+)\/spec\.md@/.exec(subjectKey ?? "")?.[1] ?? null;
+}
+
 /** What the tickets of a spec are recognised by on every run. The issue markers split on the first slash, so the key holds none. */
 export function specFilingKey(specPath: string): string {
   return `spec-${SPEC_PATH.exec(specPath)?.[1]}`;
@@ -117,7 +124,11 @@ async function specsToTicket(
 ): Promise<string[]> {
   const { repo, prNumber, merged, baseRef } = merge;
 
-  if (!merged || baseRef !== (await deps.defaultBranch(repo))) {
+  if (!merged || !(await deps.loopOn(repo))) {
+    return [];
+  }
+
+  if (baseRef !== (await deps.defaultBranch(repo))) {
     return [];
   }
 

@@ -62,7 +62,10 @@ import {
   SPEC_TICKETS_LINE,
 } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
-import { issueTriageEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
+import {
+  issueTriageEnabled,
+  specTicketsEnabled,
+} from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { relocateOnTeamChange } from "./team-changed.js";
 import { openPrOnBranch } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
@@ -149,25 +152,32 @@ async function changedFilesOf(
 
 const floorSpecTicketsDeps: FloorSpecTicketsDeps = {
   tickets: async (repo) => {
-    const { pulls, repo: files } = await projectFor(repo);
+    const {
+      pulls,
+      repo: files,
+      settings: repoSettings,
+    } = await projectFor(repo);
 
     return {
       floor: floorClient(),
+      loopOn: async () => specTicketsEnabled(await repoSettings.rawSettings()),
       defaultBranch: () => files.defaultBranch(),
       changedFiles: (_repo, prNumber) => changedFilesOf(pulls, prNumber),
       readSpec: (_repo, path, ref) => files.read(path, ref),
-      openRunKeys: async (name) => {
-        const open = await floorClient().runs.list({
-          repo: floorRepoOf(name),
-          line: SPEC_TICKETS_LINE,
-          open: true,
-        });
-
-        return runKeysOf(open.items);
-      },
+      openRunKeys: openSpecTicketRunKeys,
     };
   },
 };
+
+async function openSpecTicketRunKeys(name: string): Promise<string[]> {
+  const open = await floorClient().runs.list({
+    repo: floorRepoOf(name),
+    line: SPEC_TICKETS_LINE,
+    open: true,
+  });
+
+  return runKeysOf(open.items);
+}
 
 async function findParkedVisitId(
   floor: ReturnType<typeof floorClient>,

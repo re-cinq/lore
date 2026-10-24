@@ -71,6 +71,14 @@ describe("loopEnabled", () => {
     ).toEqual([true, false, false]);
   });
 
+  it("answers tickets from spec_tickets.enabled, on by default so a repository keeps ticketing its merged specs", () => {
+    expect(
+      [undefined, true, false].map((enabled) =>
+        loopEnabled("tickets", { spec_tickets: { enabled } }),
+      ),
+    ).toEqual([true, true, false]);
+  });
+
   it("answers triage from issue_triage.enabled, on by default", () => {
     expect(loopEnabled("triage", {})).toBe(true);
     expect(loopEnabled("triage", { issue_triage: { enabled: false } })).toBe(
@@ -80,7 +88,7 @@ describe("loopEnabled", () => {
 });
 
 describe("loop kinds", () => {
-  it("lists implementation, review, merge, triage, upkeep then digest with their full names", () => {
+  it("lists implementation, review, merge, triage, upkeep, digest then tickets with their full names", () => {
     expect(LOOP_KEYS).toEqual([
       "implementation",
       "review",
@@ -88,8 +96,9 @@ describe("loop kinds", () => {
       "triage",
       "upkeep",
       "digest",
+      "tickets",
     ]);
-    expect(loopKind("digest")).toMatchObject({ label: "Daily digest" });
+    expect(loopKind("tickets")).toMatchObject({ label: "Spec tickets" });
   });
 
   it("isLoopKey rejects a key no loop has", () => {

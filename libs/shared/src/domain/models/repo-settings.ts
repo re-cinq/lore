@@ -64,6 +64,11 @@ export const RepoSettingsSchema = z
       .object({ enabled: z.boolean().optional() })
       .passthrough()
       .optional(),
+    // The spec tickets loop's switch (specs/spec-tickets FR14); on when the block is absent.
+    spec_tickets: z
+      .object({ enabled: z.boolean().optional() })
+      .passthrough()
+      .optional(),
     cross_repo: z.boolean().optional(),
     cross_repo_repos: z.array(z.string()).optional(),
     slack_channel_id: z.string().optional(),

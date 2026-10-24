@@ -17,6 +17,7 @@ const SWITCH_SQL: Record<LoopKey, string> = {
   triage: blockSwitchSql("issue_triage"),
   upkeep: blockSwitchSql("spec_upkeep"),
   digest: blockSwitchSql("digest"),
+  tickets: blockSwitchSql("spec_tickets"),
 };
 
 /** The block as stored, or an empty one when it is absent or was cleared to null: `null || {…}` would make a JSONB array. */
