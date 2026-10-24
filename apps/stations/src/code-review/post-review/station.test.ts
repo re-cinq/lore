@@ -1,12 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Brief, Tools } from "@re-cinq/floor-station";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type {
-  CreateReviewInput,
-  PullReview,
-  ReviewComment,
-  ReviewThread,
-} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { postReviewHandle, type ReviewProject } from "./station.js";
 
@@ -41,20 +36,12 @@ const toolsReading = (output: string): Tools => ({
 
 interface FakeOverrides {
   requiredApprovals?: number;
-  earlierReviews?: PullReview[];
-  inlineComments?: ReviewComment[];
-  threads?: ReviewThread[];
 }
 
 function fakeProject(
   refusal?: string,
   model?: string,
-  {
-    requiredApprovals = 0,
-    earlierReviews = [],
-    inlineComments = [],
-    threads = [],
-  }: FakeOverrides = {},
+  { requiredApprovals = 0 }: FakeOverrides = {},
 ) {
   const reviews: CreateReviewInput[] = [];
   const comments: string[] = [];
@@ -62,7 +49,6 @@ function fakeProject(
   const repos: string[] = [];
   const ruleReads: string[] = [];
   const steps: string[] = [];
-  const resolved: string[] = [];
 
   const project: ReviewProject = {
     pulls: {
@@ -89,21 +75,14 @@ function fakeProject(
           requiredChecks: [],
         };
       },
-      listReviews: async () => [
-        ...earlierReviews,
-        ...reviews.map((review) => ({
+      listReviews: async () =>
+        reviews.map((review) => ({
           id: 1,
           user: "lore",
           state: review.event,
           body: review.body ?? "",
           submitted_at: "2026-10-13T00:00:00Z",
         })),
-      ],
-      listComments: async () => inlineComments,
-      listReviewThreads: async () => threads,
-      resolveReviewThread: async (threadId: string) => {
-        resolved.push(threadId);
-      },
       listIssueComments: async () =>
         comments.map((body) => ({
           id: 1,
@@ -133,7 +112,6 @@ function fakeProject(
     repos,
     ruleReads,
     steps,
-    resolved,
   };
 }
 
@@ -318,79 +296,5 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
 
       expect(reviews).toHaveLength(1);
     });
-  });
-});
-
-describe("Lore settles its own earlier findings once it approves", () => {
-  const earlier = {
-    earlierReviews: [
-      {
-        id: 5,
-        state: "COMMENTED",
-        body: "4 findings <!-- lore-review-run: visit-1/1 -->",
-        user: "lore",
-        submitted_at: "2026-10-12T00:00:00Z",
-      },
-      {
-        id: 6,
-        state: "COMMENTED",
-        body: "a person's review",
-        user: "alice",
-        submitted_at: "2026-10-12T01:00:00Z",
-      },
-    ],
-    inlineComments: [
-      {
-        id: 50,
-        path: "src/a.ts",
-        line: 4,
-        body: "the null check is inverted",
-        user: "lore",
-        created_at: "2026-10-12T00:00:00Z",
-        review_id: 5,
-      },
-      {
-        id: 60,
-        path: "src/a.ts",
-        line: 9,
-        body: "why this name?",
-        user: "alice",
-        created_at: "2026-10-12T01:00:00Z",
-        review_id: 6,
-      },
-    ],
-    threads: [
-      {
-        id: "T-lore",
-        isResolved: false,
-        isOutdated: false,
-        comments: [{ databaseId: 50 }],
-      },
-      {
-        id: "T-alice",
-        isResolved: false,
-        isOutdated: false,
-        comments: [{ databaseId: 60 }],
-      },
-    ],
-  };
-
-  it("resolves thread T-lore of Lore's earlier review and leaves T-alice open when the re-check approves", async () => {
-    const { deps, resolved } = fakeProject(undefined, undefined, earlier);
-
-    await postReviewHandle(deps)(
-      brief(),
-      toolsReading("REVIEW_RESULT:APPROVED"),
-    );
-
-    expect(resolved).toEqual(["T-lore"]);
-  });
-
-  it("resolves no thread when the re-check asks for changes again", async () => {
-    const { deps, resolved } = fakeProject(undefined, undefined, earlier);
-
-    await postReviewHandle(deps)(brief(), toolsReading(changesRequestedOutput));
-
-    expect(resolved).toEqual([]);
   });
 });

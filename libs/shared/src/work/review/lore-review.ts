@@ -25,25 +25,3 @@ export function loreReviewFeedbackOf(
       )
     : "";
 }
-
-/** The inline comments of every review Lore posted except the one signed `ownMarker`: what an approval settles, while the approving review's own comments are new. */
-export function earlierLoreCommentIds(
-  reviews: readonly PullReview[],
-  comments: readonly ReviewComment[],
-  ownMarker: string,
-): number[] {
-  const earlier = new Set(
-    reviews
-      .filter(
-        ({ body }) =>
-          body.includes(LORE_REVIEW_MARKER) && !body.includes(ownMarker),
-      )
-      .map(({ id }) => id),
-  );
-
-  return comments
-    .filter(
-      ({ review_id: reviewId }) => reviewId != null && earlier.has(reviewId),
-    )
-    .map(({ id }) => id);
-}
