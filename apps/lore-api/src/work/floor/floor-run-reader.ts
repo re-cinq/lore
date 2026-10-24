@@ -1,9 +1,7 @@
 // A run that lives on the external floor, read through its client and answered in the models the run page already reads. Nothing here writes: a floor run is changed only by the floor.
 import type {
   FloorClient,
-  RecordKind,
   RunView,
-  StationRunRecordView,
   VisitView,
   RunFilter,
 } from "@re-cinq/floor-client";
@@ -31,27 +29,23 @@ import {
 import {
   floorRunToAssemblyRun,
   floorRunToSummary,
-  turnRecordToRow,
   visitToStationRun,
 } from "./floor-run-mapping.js";
 import { readLineFacts, type LineFacts } from "./floor-line-facts.js";
+import { costsByRunOf, costUsdOf } from "./floor-costs.js";
+import { recordsOf, runNodeLogs, runTurns } from "./floor-run-records.js";
 import {
   visitEvents,
   visitModelCalls,
   type VisitReadDeps,
 } from "./floor-visit-reads.js";
-import {
-  floorVisitIdOf,
-  nodeLogsOf,
-  type FloorNodeLogs,
-} from "./floor-records.js";
+import { type FloorNodeLogs } from "./floor-records.js";
 
 export type FloorRunSource = Pick<
   FloorClient,
   "runs" | "stationRuns" | "lines" | "stations" | "costs" | "events"
 >;
 
-const RECORDS_PER_READ = 1000;
 const EVENTS_PER_READ = 200;
 const DEFAULT_LIST_LIMIT = 50;
 
@@ -68,6 +62,13 @@ export interface FloorRunListing {
 export interface FloorRunPage {
   runs: FloorRunListing[];
   nextCursor: string | null;
+}
+
+/** A task's run as the backlog page draws its ticket: the run, the line's graph and the visits as node rows. */
+export interface TaskRunContext {
+  run: AssemblyRunSummary;
+  graph: RunGraph;
+  visits: Array<{ nodeId: string; iteration: number; outcome: string | null }>;
 }
 
 export interface FloorRunPageQuery {
@@ -93,14 +94,45 @@ export class FloorRunReader {
 
   /** The floor's runs the query matches, newest first within each of the lists it took to ask. */
   async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    return (await this.matchingRuns(query)).map(({ summary }) => summary);
+  }
+
+  /** A task's run with its graph and its visits, in the reads that are cheap: the list that finds it, the line's facts (held per line) and its visits. Never `runs.get`, which the floor answers in seconds per run (re-cinq/floor#52) while a page of tickets asks for twenty. */
+  async taskRunContext(
+    query: AssemblyRunQuery,
+  ): Promise<TaskRunContext | null> {
+    const found = (await this.matchingRuns(query)).at(0);
+
+    return found ? this.contextOf(found) : null;
+  }
+
+  private async contextOf({
+    run,
+    summary,
+  }: {
+    run: RunView;
+    summary: AssemblyRunSummary;
+  }): Promise<TaskRunContext> {
+    const [graph, visits] = await Promise.all([
+      this.graphOf(run),
+      this.floor.stationRuns.list({ run: run.id }),
+    ]);
+
+    return { run: summary, graph, visits: visits.map(visitOutcome) };
+  }
+
+  private async matchingRuns(
+    query: AssemblyRunQuery,
+  ): Promise<Array<{ run: RunView; summary: AssemblyRunSummary }>> {
     const lists = await Promise.all(
       floorRunFilters(query).map((filter) => this.runsFor(filter, query)),
     );
-    const summaries = await Promise.all(
-      lists.flat().map((run) => this.summaryOf(run)),
-    );
+    const runs = lists.flat();
+    const summaries = await Promise.all(runs.map((run) => this.summaryOf(run)));
 
-    return summaries.filter((run) => matchesFloorQuery(run, query));
+    return runs
+      .map((run, at) => ({ run, summary: summaries[at] }))
+      .filter(({ summary }) => matchesFloorQuery(summary, query));
   }
 
   /** One list of the floor's, or a search through it when the list is not keyed on the task asked for. */
@@ -220,61 +252,35 @@ export class FloorRunReader {
       runById: async (runId) => (await runs.get(runId))?.run ?? null,
       eventsPage: (runId, since) =>
         events.feed({ run: runId, since }, { limit: EVENTS_PER_READ }),
-      recordsOf: (visit, kind) => this.recordsOf(visit, kind),
+      recordsOf: (visit, kind) =>
+        recordsOf(this.floor.stationRuns, visit, kind),
       lineFactsOf: (run) => this.lineFactsOf(run),
     };
   }
 
-  /** Every turn of the run, visit by visit in the order the walk opened them. The floor numbers turns within a visit, so a row's id here is its place in the run: the cursor a reader pages with. */
-  async turns(runId: string): Promise<AgentRunTurnRow[]> {
-    const visits = await this.floor.stationRuns.list({ run: runId });
-    const perVisit = await Promise.all(
-      visits.map((visit) => this.turnsOf(visit)),
-    );
-
-    return perVisit
-      .flat()
-      .map((turn, place) => ({ ...turn, id: String(place + 1) }));
+  /** Every turn of the run, visit by visit in the order the walk opened them. */
+  turns(runId: string): Promise<AgentRunTurnRow[]> {
+    return runTurns(this.floor.stationRuns, runId);
   }
 
   /** The log the floor kept for one of the run's visits, named as the run page names it (`floor-<visit id>`); null for a name of no visit of this run. */
-  async nodeLogs(
+  nodeLogs(
     runId: string,
     agentCrName: string,
     tail: number | undefined,
   ): Promise<FloorNodeLogs | null> {
-    const visitId = floorVisitIdOf(agentCrName);
-    const visit = visitId ? await this.floor.stationRuns.get(visitId) : null;
-
-    if (!visit || visit.runId !== runId) {
-      return null;
-    }
-
-    return nodeLogsOf(visit, await this.recordsOf(visit, "log"), tail);
+    return runNodeLogs(this.floor.stationRuns, runId, agentCrName, tail);
   }
 
   async costUsd(runId: string): Promise<number | null> {
-    const totals = await this.floor.costs.summary({ run: runId }, "run");
-
-    return totals.at(0)?.costUsd ?? null;
+    return costUsdOf(this.floor.costs, runId);
   }
 
-  /** The cost of each run, in ONE read: the list page asks once, not once per row. A lone run asks for just its own; several ask for everything since the oldest began. */
-  async costsByRun(
+  /** The cost of each run, in ONE read: the list page asks once, not once per row. */
+  costsByRun(
     runs: readonly { id: string; createdAt: Date }[],
   ): Promise<Map<string, number>> {
-    const oldest = Math.min(...runs.map((run) => run.createdAt.getTime()));
-    const filter =
-      runs.length === 1
-        ? { run: runs[0].id }
-        : { since: new Date(oldest).toISOString() };
-    const totals = await this.floor.costs.summary(filter, "run");
-
-    return new Map(
-      totals.flatMap((row) =>
-        row.key === null ? [] : [[row.key, row.costUsd]],
-      ),
-    );
+    return costsByRunOf(this.floor.costs, runs);
   }
 
   async recordOf(run: RunView): Promise<AssemblyRunRecord> {
@@ -294,14 +300,7 @@ export class FloorRunReader {
 
     return {
       run: floorRunToSummary({ run, visits }),
-      pipeline: miniPipeline(
-        graph.nodes,
-        visits.map((visit) => ({
-          nodeId: visit.nodeId,
-          iteration: visit.iteration,
-          outcome: visit.report?.outcome ?? null,
-        })),
-      ),
+      pipeline: miniPipeline(graph.nodes, visits.map(visitOutcome)),
     };
   }
 
@@ -312,34 +311,6 @@ export class FloorRunReader {
       : await this.floor.stationRuns.list({ run: run.id });
 
     return floorRunToSummary({ run, visits });
-  }
-
-  private async turnsOf(visit: VisitView): Promise<AgentRunTurnRow[]> {
-    const turns = await this.recordsOf(visit, "turn");
-
-    return turns.map((turn) => turnRecordToRow(turn, visit));
-  }
-
-  /** Every record of one kind the visit has, read to the end. */
-  private async recordsOf(
-    visit: VisitView,
-    kind: RecordKind,
-  ): Promise<StationRunRecordView[]> {
-    const records: StationRunRecordView[] = [];
-    let since: number | null = 0;
-
-    while (since !== null) {
-      const page = await this.floor.stationRuns.records(visit.id, {
-        kind,
-        since,
-        limit: RECORDS_PER_READ,
-      });
-
-      records.push(...page.items);
-      since = page.nextCursor;
-    }
-
-    return records;
   }
 
   private async graphOf(run: RunView): Promise<RunGraph> {
@@ -365,4 +336,12 @@ function hasStatus(
   status: AssemblyRunStatus | undefined,
 ): boolean {
   return status === undefined || listing.run.status === status;
+}
+
+function visitOutcome(visit: VisitView): TaskRunContext["visits"][number] {
+  return {
+    nodeId: visit.nodeId,
+    iteration: visit.iteration,
+    outcome: visit.report?.outcome ?? null,
+  };
 }

@@ -816,9 +816,17 @@ describe("floorRunContext", () => {
     }>;
   }) {
     return {
-      listSummaries: async () => overrides.summaries ?? [],
-      getById: async () => ({ graph: overrides.graph ?? null }),
-      listStationRuns: async () => overrides.visits ?? [],
+      taskRunContext: async () => {
+        const run = overrides.summaries?.at(0);
+
+        return run
+          ? {
+              run,
+              graph: overrides.graph ?? null,
+              visits: overrides.visits ?? [],
+            }
+          : null;
+      },
     };
   }
 
@@ -830,7 +838,7 @@ describe("floorRunContext", () => {
     ).toBeNull();
   });
 
-  it("carries the run's status and reason even with no graph yet", async () => {
+  it("carries the run's status and reason even with no graph yet, asking the floor for no run by id", async () => {
     const { floorRunContext } = await import("./backlog-run-context.js");
     const floor = fakeFloor({
       summaries: [{ id: "run-9", status: "running", reason: null }],
