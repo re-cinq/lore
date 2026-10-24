@@ -192,7 +192,7 @@ export function truncateText(text: string, maxTokens: number): string {
   const cut = text.substring(0, maxChars);
   const lastParagraph = cut.lastIndexOf("\n\n");
 
-  return lastParagraph > maxChars * 0.5 ? cut.substring(0, lastParagraph) : cut;
+  return lastParagraph >= 0 ? cut.substring(0, lastParagraph) : cut;
 }
 
 export function estimateTokens(text: string): number {
