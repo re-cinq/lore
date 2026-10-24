@@ -40,9 +40,8 @@ import {
 import { startLine } from "./floor-line-start.js";
 import { REVIEW_HELP } from "./review-summary.js";
 import {
-  openFindingsBrief,
   openThreadsItem,
-  readOpenLoreFindings,
+  readRecheckHandOff,
   type OpenFindingsReads,
 } from "./lore-review.js";
 
@@ -238,16 +237,16 @@ async function startRecheckLine(
   pr: PullRef,
   sinceSha?: string,
 ): Promise<string> {
-  const findings = await readOpenLoreFindings(deps.pulls, target.prNumber);
+  const handOff = await readRecheckHandOff(deps.pulls, target.prNumber);
   const description =
     recheckDescription(target.repo, target.prNumber, pr.branch, sinceSha) +
-    openFindingsBrief(findings);
+    handOff.brief;
   const { floor } = deps;
   const started = await startLine(floor.lines, RECHECK_LINE, {
     repo: floorRepoOf(target.repo),
     startItems: {
       ...(await reviewItems(deps, pr, description)),
-      ...openThreadsItem(findings),
+      ...openThreadsItem(handOff.threadIds),
     },
   });
 

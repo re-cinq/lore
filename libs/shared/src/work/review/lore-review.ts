@@ -8,6 +8,7 @@ import { findThreadForComment } from "../../outbound/project/pulls/review-thread
 import { valueItem } from "../../outbound/floor/floor-items.js";
 import type { Item } from "@re-cinq/floor-client";
 import { reviewFeedback } from "./code-review-decisions.js";
+import { CHANGES_SUGGESTED_HEADING } from "./review-summary.js";
 
 /** How every review Lore posts is signed, whichever visit posted it. */
 export const LORE_REVIEW_MARKER = "<!-- lore-review-run: ";
@@ -17,17 +18,28 @@ export function loreReviewFeedbackOf(
   reviews: readonly PullReview[],
   comments: readonly ReviewComment[],
 ): string {
-  const newest = reviews
+  const newest = newestLoreReview(reviews);
+
+  return newest ? feedbackOfReview(newest, comments) : "";
+}
+
+function newestLoreReview(
+  reviews: readonly PullReview[],
+): PullReview | undefined {
+  return reviews
     .filter((review) => review.body.includes(LORE_REVIEW_MARKER))
     .sort((a, b) => a.id - b.id)
     .at(-1);
+}
 
-  return newest
-    ? reviewFeedback(
-        newest.body,
-        comments.filter((comment) => comment.review_id === newest.id),
-      )
-    : "";
+function feedbackOfReview(
+  review: PullReview,
+  comments: readonly ReviewComment[],
+): string {
+  return reviewFeedback(
+    review.body,
+    comments.filter((comment) => comment.review_id === review.id),
+  );
 }
 
 /** One finding of Lore's still open on the pull request: its thread, and the comment that opened it. */
@@ -88,25 +100,52 @@ export interface OpenFindingsReads {
   listReviewThreads(number: number): Promise<ReviewThread[]>;
 }
 
-/** Lore's findings still open, which the re-check judges again: without them it judges only the commits since the last verdict, and approves a rebase that fixed nothing. */
-export async function readOpenLoreFindings(
+/** What a re-check is handed of Lore's earlier review: its brief, and the threads its approval settles. */
+export interface RecheckHandOff {
+  brief: string;
+  threadIds: string[];
+}
+
+/** Lore's findings still open, as threads, and, when Lore's newest review asked for changes, that review's findings, which a review GitHub would take no inline comment for keeps only in its body. Without them the re-check judges only the commits since the last verdict, and approves a rebase that fixed nothing. */
+export function recheckHandOff(
+  reviews: readonly PullReview[],
+  comments: readonly ReviewComment[],
+  threads: readonly ReviewThread[],
+): RecheckHandOff {
+  const findings = openLoreFindings(reviews, comments, threads);
+  const newest = newestLoreReview(reviews);
+  const asked = newest?.body.includes(CHANGES_SUGGESTED_HEADING)
+    ? askedSection(feedbackOfReview(newest, comments))
+    : "";
+
+  return {
+    brief: openFindingsBrief(findings) + asked,
+    threadIds: findings.map(({ threadId }) => threadId),
+  };
+}
+
+function askedSection(feedback: string): string {
+  return `\n\nLore's last review asked for changes. Approve only when the code resolves every finding it made; list each one it does not resolve as a finding again:\n${feedback}`;
+}
+
+export async function readRecheckHandOff(
   pulls: OpenFindingsReads,
   prNumber: number,
-): Promise<OpenLoreFinding[]> {
+): Promise<RecheckHandOff> {
   const [reviews, comments, threads] = await Promise.all([
     pulls.listReviews(prNumber),
     pulls.listComments(prNumber),
     pulls.listReviewThreads(prNumber),
   ]);
 
-  return openLoreFindings(reviews, comments, threads);
+  return recheckHandOff(reviews, comments, threads);
 }
 
 /** The threads an approving re-check settles, named for the station that posts its verdict. */
 export function openThreadsItem(
-  findings: readonly OpenLoreFinding[],
+  threadIds: readonly string[],
 ): Record<string, Item> {
-  return findings.length > 0
-    ? { open_threads: valueItem(findings.map((f) => f.threadId).join(",")) }
+  return threadIds.length > 0
+    ? { open_threads: valueItem(threadIds.join(",")) }
     : {};
 }

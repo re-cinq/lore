@@ -4,7 +4,11 @@ import type {
   ReviewComment,
   ReviewThread,
 } from "../../outbound/project/pulls/pull-requests-port.js";
-import { loreReviewFeedbackOf, openLoreFindings } from "./lore-review.js";
+import {
+  loreReviewFeedbackOf,
+  openLoreFindings,
+  recheckHandOff,
+} from "./lore-review.js";
 
 function comment(id: number, reviewId: number | null): ReviewComment {
   return {
@@ -76,5 +80,34 @@ describe("openLoreFindings", () => {
     expect(openLoreFindings(reviews, comments, threads)).toEqual([
       { threadId: "T1", where: "src/a.ts:12", body: "fix 50" },
     ]);
+  });
+});
+
+describe("recheckHandOff", () => {
+  const asked = review(
+    5,
+    "### Lore review — Changes suggested\n\n**`src/a.ts:4`** — the null check is inverted\n\n<!-- lore-review-run: v1/1 -->",
+  );
+
+  it("hands the body of Lore's newest review 5 when it asked for changes and opened no thread", () => {
+    const { brief, threadIds } = recheckHandOff([asked], [], []);
+
+    expect({
+      names: brief.includes("Lore's last review asked for changes"),
+      carries: brief.includes("**`src/a.ts:4`** — the null check is inverted"),
+      threadIds,
+    }).toEqual({ names: true, carries: true, threadIds: [] });
+  });
+
+  it("hands nothing when Lore's newest review 6 approved after review 5 asked for changes", () => {
+    const approved = review(
+      6,
+      "### Lore review — Approved\n\n<!-- lore-review-run: v2/1 -->",
+    );
+
+    expect(recheckHandOff([asked, approved], [], [])).toEqual({
+      brief: "",
+      threadIds: [],
+    });
   });
 });
