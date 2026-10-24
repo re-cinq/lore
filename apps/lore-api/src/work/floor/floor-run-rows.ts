@@ -85,6 +85,8 @@ function wireRow(
   return { ...toRunRow(listing.run, enrichment), pipeline: listing.pipeline };
 }
 
+const NO_COSTS: ReadonlyMap<string, number> = new Map();
+
 export class FloorRunRows {
   constructor(private readonly reader: FloorRunSource) {}
 
@@ -101,6 +103,18 @@ export class FloorRunRows {
 
     return {
       runs: runs.map((listing) => wireRow(listing, costs)),
+      next_cursor: nextCursor,
+    };
+  }
+
+  /** The same page with no cost on any row, for a reader that shows none (the Loops tab): the floor's cost summary takes seconds a page (re-cinq/floor#52) while the list takes a quarter of one. */
+  async pageWithoutCost(
+    query: FloorRunPageQuery,
+  ): Promise<z.infer<typeof FloorRunPageSchema>> {
+    const { runs, nextCursor } = await this.reader.page(query);
+
+    return {
+      runs: runs.map((listing) => wireRow(listing, NO_COSTS)),
       next_cursor: nextCursor,
     };
   }
