@@ -71,17 +71,27 @@ export function loadMoreHref(
   return `${base}?${query.toString()}`;
 }
 
-/** What the board pages by: each section's row count, and the address that loads one more page of a section. */
+/** What the board pages by: each section's row count, and the view's address and parameters a "Load more" link adds to. Plain data, so it reaches the browser. */
 export interface Paging {
   limits: SectionLimits;
-  loadMore(key: string): string;
+  base: string;
+  params: Readonly<Record<string, string>>;
 }
 
 /** The paging of the view at `base` with the address bar's parameters. */
 export function pagingOf(base: string, params: SearchParams): Paging {
   return {
     limits: sectionLimitsOf(params),
-    loadMore: (key) =>
-      isLimited(key) ? loadMoreHref(base, params, key) : base,
+    base,
+    params: Object.fromEntries(
+      Object.entries(params).flatMap(([name, value]) =>
+        typeof value === "string" ? [[name, value]] : [],
+      ),
+    ),
   };
+}
+
+/** The address that loads one more page of a section; Current, which has no pages, links the view itself. */
+export function loadMoreOf({ base, params }: Paging): (key: string) => string {
+  return (key) => (isLimited(key) ? loadMoreHref(base, params, key) : base);
 }

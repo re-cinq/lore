@@ -382,6 +382,30 @@ describe("a page of rows at a time", () => {
   });
 });
 
+describe("loops still loading", () => {
+  it("says an empty section is waiting for Auto merge and Spec tickets, not that it holds nothing, and names them on the board", () => {
+    const board = loopBoard([review({})], EVERY_ROW, [
+      loop("merge", "Auto merge"),
+      loop("tickets", "Spec tickets"),
+    ]);
+    const current = board.sections.find((section) => section.key === "current");
+
+    expect([board.loading, current?.emptyText]).toEqual([
+      ["Auto merge", "Spec tickets"],
+      "Loading Auto merge and Spec tickets…",
+    ]);
+  });
+
+  it("keeps a section's own empty text once no loop is loading", () => {
+    const board = loopBoard([review({})], EVERY_ROW, []);
+
+    expect([
+      board.loading,
+      board.sections.find((section) => section.key === "current")?.emptyText,
+    ]).toEqual([[], "Nothing is being worked right now."]);
+  });
+});
+
 const EVERY_ROW = {
   backlog: 200,
   parked: 200,
