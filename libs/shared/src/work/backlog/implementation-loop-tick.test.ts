@@ -424,4 +424,21 @@ describe("a ticket whose blockers are still open", () => {
 
     expect(d.started).toEqual([]);
   });
+
+  it("uses backlog_ranking criteria from repo settings when ordering", async () => {
+    const d = deps({
+      listIssues: async () => [
+        { ...issue(1, ["priority:high"]), blockedByCount: 0 },
+        { ...issue(2, ["priority:high"]), blockedByCount: 2 },
+      ],
+      rawSettings: async () => ({
+        implementation_loop: { enabled: true },
+        backlog_ranking: { criteria: ["unblocks", "priority", "age"] },
+      }),
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started[0]?.issue.number).toBe(2);
+  });
 });

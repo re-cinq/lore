@@ -7,7 +7,7 @@ import type { EventHandler } from "../../outbound/project/events/drain-loop.js";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import { implementationLoopEnabled } from "../../domain/loops/implementation-loop-enabled.js";
 import { decideBranchResume, type OpenPr } from "./resume-branch.js";
-import { orderBacklog } from "./select-next-issue.js";
+import { orderBacklog, type RankingCriterion } from "./select-next-issue.js";
 import { taskHoldingTicket } from "./ticket-holder.js";
 import {
   implementationTicketDescription,
@@ -98,7 +98,11 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
     return;
   }
 
-  const ordered = orderBacklog(await deps.listIssues(repo));
+  const criteria = rankingCriteriaFor(await deps.rawSettings(repo));
+  const ordered = orderBacklog(
+    await deps.listIssues(repo),
+    criteria !== undefined ? { criteria } : undefined,
+  );
   const { picked, guarded } = await pickBacklogTicket(repo, ordered, deps);
 
   if (!picked) {
@@ -111,6 +115,26 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   const resume = await resolveResume(repo, picked, branch, deps);
 
   await dispatchLoopTask({ repo, picked, branch, resume }, deps);
+}
+
+const VALID_RANKING_CRITERIA = new Set<string>([
+  "priority",
+  "age",
+  "unblocks",
+  "size",
+]);
+
+function rankingCriteriaFor(settings: unknown): RankingCriterion[] | undefined {
+  if (typeof settings !== "object" || settings === null) return undefined;
+  const rankingBlock = (settings as Record<string, unknown>).backlog_ranking;
+  if (typeof rankingBlock !== "object" || rankingBlock === null)
+    return undefined;
+  const rawCriteria = (rankingBlock as Record<string, unknown>).criteria;
+  if (!Array.isArray(rawCriteria)) return undefined;
+  const filtered = rawCriteria.filter((v): v is RankingCriterion =>
+    VALID_RANKING_CRITERIA.has(String(v)),
+  );
+  return filtered.length > 0 ? filtered : undefined;
 }
 
 /** Whether this tick may pick for the repo: its loop is on, it has finished onboarding, and it is not already driving a run. A repo that is on but not onboarded says so, because a tick that only walked onboarded repos once skipped such a repo with no trace at all. */

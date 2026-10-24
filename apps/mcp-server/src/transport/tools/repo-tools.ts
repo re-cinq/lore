@@ -323,15 +323,6 @@ interface NextReadyResult {
   reason?: string;
 }
 
-function nextReadyResult(
-  issues: Array<Record<string, unknown>>,
-): NextReadyResult {
-  if (issues.length === 0) {
-    return { issue: null, reason: "No issues ready in the backlog." };
-  }
-  return { issue: issues[0], because: "priority" };
-}
-
 async function fetchNextReadyIssue({
   repo,
 }: {
@@ -351,4 +342,13 @@ async function fetchNextReadyIssue({
   }
   const issues = JSON.parse(proxied.body) as Array<Record<string, unknown>>;
   return textResult(JSON.stringify(nextReadyResult(issues)));
+}
+
+function nextReadyResult(
+  issues: Array<Record<string, unknown>>,
+): NextReadyResult {
+  if (issues.length === 0) {
+    return { issue: null, reason: "No issues ready in the backlog." };
+  }
+  return { issue: issues[0], because: "priority" };
 }

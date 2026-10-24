@@ -16,7 +16,7 @@
 - [x] Update `selectNextIssue` and `orderBacklog` to accept ranking configuration options
 - [x] Implement ranking rule for `unblocks` (using `blockedByCount`)
 - [x] Implement ranking rule for `size` (smaller first)
-- [ ] Read repo settings in the implementation loop tick to pass custom criteria
+- [x] Read repo settings in the implementation loop tick to pass custom criteria
 - [x] Implement the `lore_next_ready_issue` tool handler returning the next pick and reason
 - [x] Register the new tool in `apps/mcp-server/src/transport/tools/repo-tools.ts`
 
