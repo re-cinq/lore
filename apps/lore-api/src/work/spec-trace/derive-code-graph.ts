@@ -61,68 +61,38 @@ function toDependsOnEdge(
   };
 }
 
-function parseImportSymbols(
-  importList: string,
-  fileEntity: string,
-  repo: string,
-): DerivedEdge[] {
-  return importList
-    .split(",")
-    .map((raw) =>
-      raw
-        .trim()
-        .split(/\s+as\s+/)[0]
-        .trim(),
-    )
-    .filter(Boolean)
-    .map((symbol) => importSymbolEdge(fileEntity, repo, symbol));
-}
+/** Resolve the package name declared in any package.json in the file list. */
+function resolvePackageName(files: ParsedFile[]): string | null {
+  const pkgFile = files.find(
+    (f) => f.path === "package.json" || f.path.endsWith("/package.json"),
+  );
 
-function importSymbolEdge(
-  fileEntity: string,
-  repo: string,
-  symbol: string,
-): DerivedEdge {
-  return {
-    sourceName: fileEntity,
-    sourceType: "file",
-    sourceRepo: repo,
-    targetName: symbol,
-    targetType: "symbol",
-    targetRepo: null,
-    relation: "uses",
-  };
-}
-
-function parseImportEdges(
-  fileEntity: string,
-  content: string,
-  repo: string,
-): DerivedEdge[] {
-  const edges: DerivedEdge[] = [];
-  const importRe = /^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/gm;
-
-  for (const m of content.matchAll(importRe)) {
-    edges.push(...parseImportSymbols(m[1], fileEntity, repo));
+  if (!pkgFile) {
+    return null;
   }
 
-  return edges;
+  try {
+    const pkg = JSON.parse(pkgFile.content) as { name?: string };
+
+    return pkg.name ?? null;
+  } catch {
+    return null;
+  }
 }
 
-function parseExtendsEdges(content: string): DerivedEdge[] {
+function collectFileEdges(
+  files: ParsedFile[],
+  packageName: string | null,
+  repo: string,
+): DerivedEdge[] {
   const edges: DerivedEdge[] = [];
-  const extendsRe = /class\s+(\w+)\s+extends\s+(\w+)/gm;
 
-  for (const m of content.matchAll(extendsRe)) {
-    edges.push({
-      sourceName: m[1],
-      sourceType: "symbol",
-      sourceRepo: null,
-      targetName: m[2],
-      targetType: "symbol",
-      targetRepo: null,
-      relation: "extends",
-    });
+  for (const file of files) {
+    if (file.path === "package.json" || file.path.endsWith("/package.json")) {
+      edges.push(...parsePackageJsonEdges(file.content, repo));
+    } else if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file.path)) {
+      edges.push(...parseTsEdges(file.path, file.content, repo, packageName));
+    }
   }
 
   return edges;
@@ -168,41 +138,71 @@ function parseExportEdges(
   return edges;
 }
 
-/** Resolve the package name declared in any package.json in the file list. */
-function resolvePackageName(files: ParsedFile[]): string | null {
-  const pkgFile = files.find(
-    (f) => f.path === "package.json" || f.path.endsWith("/package.json"),
-  );
-
-  if (!pkgFile) {
-    return null;
-  }
-
-  try {
-    const pkg = JSON.parse(pkgFile.content) as { name?: string };
-
-    return pkg.name ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function collectFileEdges(
-  files: ParsedFile[],
-  packageName: string | null,
+function parseImportEdges(
+  fileEntity: string,
+  content: string,
   repo: string,
 ): DerivedEdge[] {
   const edges: DerivedEdge[] = [];
+  const importRe = /^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/gm;
 
-  for (const file of files) {
-    if (file.path === "package.json" || file.path.endsWith("/package.json")) {
-      edges.push(...parsePackageJsonEdges(file.content, repo));
-    } else if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file.path)) {
-      edges.push(...parseTsEdges(file.path, file.content, repo, packageName));
-    }
+  for (const m of content.matchAll(importRe)) {
+    edges.push(...parseImportSymbols(m[1], fileEntity, repo));
   }
 
   return edges;
+}
+
+function parseExtendsEdges(content: string): DerivedEdge[] {
+  const edges: DerivedEdge[] = [];
+  const extendsRe = /class\s+(\w+)\s+extends\s+(\w+)/gm;
+
+  for (const m of content.matchAll(extendsRe)) {
+    edges.push({
+      sourceName: m[1],
+      sourceType: "symbol",
+      sourceRepo: null,
+      targetName: m[2],
+      targetType: "symbol",
+      targetRepo: null,
+      relation: "extends",
+    });
+  }
+
+  return edges;
+}
+
+function parseImportSymbols(
+  importList: string,
+  fileEntity: string,
+  repo: string,
+): DerivedEdge[] {
+  return importList
+    .split(",")
+    .map((raw) =>
+      raw
+        .trim()
+        .split(/\s+as\s+/)[0]
+        .trim(),
+    )
+    .filter(Boolean)
+    .map((symbol) => importSymbolEdge(fileEntity, repo, symbol));
+}
+
+function importSymbolEdge(
+  fileEntity: string,
+  repo: string,
+  symbol: string,
+): DerivedEdge {
+  return {
+    sourceName: fileEntity,
+    sourceType: "file",
+    sourceRepo: repo,
+    targetName: symbol,
+    targetType: "symbol",
+    targetRepo: null,
+    relation: "uses",
+  };
 }
 
 function noneEdge(sym: string): DerivedEdge {
