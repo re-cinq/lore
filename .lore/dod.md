@@ -12,8 +12,8 @@
 
 ## Facets
 
-- [ ] Add github apt repository to the Dockerfile
-- [ ] Install `gh` package in the agent-image Dockerfile
+- [x] Add github apt repository to the Dockerfile
+- [x] Install `gh` package in the agent-image Dockerfile
 
 ## Out of scope
 
