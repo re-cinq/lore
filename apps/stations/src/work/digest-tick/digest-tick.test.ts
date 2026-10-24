@@ -22,6 +22,7 @@ function scene(rows: ReturnType<typeof repoRow>[], floorRuns: FloorRun[] = []) {
     [];
   const deps = {
     repoSettings: () => Promise.resolve(rows),
+    orgSetting: () => Promise.resolve(null),
     posts: new InMemoryDigestPosts(() => FRIDAY_0905_BERLIN),
     now: () => FRIDAY_0905_BERLIN,
     floor: {
@@ -144,6 +145,23 @@ describe("the digest tick on the external floor", () => {
     );
     expect(await digestTick({}, off.deps)).toBe(
       "started 0 of 0 due channel(s)",
+    );
+  });
+
+  it("reads slack_users from orgSetting and passes it as a start item", async () => {
+    // specs/daily-digest/spec.md#FR14.20
+    const { deps, started } = scene([repoRow("re-cinq/lore", "C1")]);
+
+    deps.orgSetting = (key: string) =>
+      key === "slack_users"
+        ? Promise.resolve('{"github_user":"U123"}')
+        : Promise.resolve(null);
+
+    await digestTick({}, deps);
+
+    expect(valuesOf(started[0].starting)).toHaveProperty(
+      "slack_users",
+      '{"github_user":"U123"}',
     );
   });
 });

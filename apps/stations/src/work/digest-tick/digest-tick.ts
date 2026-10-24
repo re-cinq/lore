@@ -20,6 +20,7 @@ import {
 type Floor = ReturnType<typeof floorClient>;
 
 export interface DigestTickDeps extends DueDeps {
+  orgSetting: (key: string) => Promise<string | null>;
   floor: {
     runs: Pick<Floor["runs"], "list">;
     lines: Pick<Floor["lines"], "start">;
@@ -61,9 +62,14 @@ async function startOnFloor(
   if (earlier.some(isOpen) || earlier.length >= MAX_RUNS_PER_CHANNEL_DAY) {
     return false;
   }
+  const slackUsers = await deps.orgSetting("slack_users");
   await startLine(lines, DAILY_DIGEST_LINE, {
     repo: slot.repo,
-    startItems: startItems(digestKey(run), digestRunArgs(run, deps.now())),
+    startItems: startItems(
+      digestKey(run),
+      digestRunArgs(run, deps.now()),
+      slackUsers,
+    ),
   });
 
   return true;
@@ -78,8 +84,10 @@ function digestKey(run: ChannelRun): string {
 function startItems(
   key: string,
   args: ReturnType<typeof digestRunArgs>,
+  slackUsers: string | null,
 ): Parameters<Floor["lines"]["start"]>[1]["startItems"] {
-  const present = Object.entries({ digest_key: key, ...args }).filter(
+  const extra = slackUsers !== null ? { slack_users: slackUsers } : {};
+  const present = Object.entries({ digest_key: key, ...args, ...extra }).filter(
     ([, value]) => value !== "",
   );
 

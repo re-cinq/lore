@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Read `slack_users` from `orgSetting("slack_users")`
-- [ ] Pass it as `slack_users` in the `startItems` sent to the floor
+- [x] Read `slack_users` from `orgSetting("slack_users")`
+- [x] Pass it as `slack_users` in the `startItems` sent to the floor
 
 ## Out of scope
 
