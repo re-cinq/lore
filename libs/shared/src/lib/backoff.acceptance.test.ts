@@ -16,11 +16,16 @@ describe("runPollLoop", () => {
     const running = vi.fn(() => ticks < outcomes.length);
     const onOutcome = vi.fn(async () => {
       const outcome = outcomes[ticks];
+
       ticks++;
+
       return outcome;
     });
     const delayFor = vi.fn((outcome: string, idleTicks: number) => {
-      if (outcome === "busy") return 100;
+      if (outcome === "busy") {
+        return 100;
+      }
+
       return 200 * Math.pow(2, idleTicks);
     });
     const isIdle = (outcome: string) => outcome === "idle";
@@ -58,6 +63,7 @@ describe("runPollLoop", () => {
       running: () => ticks < 3,
       onOutcome: async () => {
         ticks++;
+
         return "any";
       },
       delayFor,
@@ -96,7 +102,11 @@ describe("pollUntil", () => {
     const result = await pollUntil(
       async () => {
         calls++;
-        if (calls < 6) return null;
+
+        if (calls < 6) {
+          return null;
+        }
+
         return "done";
       },
       100,

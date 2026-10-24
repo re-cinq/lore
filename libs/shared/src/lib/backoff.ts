@@ -26,6 +26,7 @@ export async function runPollLoop<T>(opts: PollLoopOptions<T>): Promise<void> {
     const currentIsIdle = opts.isIdle ? opts.isIdle(outcome) : false;
     const idleTicks = currentIsIdle ? idleStreak : 0;
     const delay = opts.delayFor(outcome, idleTicks);
+
     idleStreak = currentIsIdle ? idleStreak + 1 : 0;
     await sleep(delay);
   }
@@ -40,11 +41,13 @@ export async function pollUntil<T>(
   const sleep = opts?.sleep ?? defaultSleep;
   let attempt = 0;
   let result = await tick();
+
   while (result === null) {
     await sleep(backoffDelay(baseDelayMs, attempt, maxDelayMs));
     attempt++;
     result = await tick();
   }
+
   return result;
 }
 
