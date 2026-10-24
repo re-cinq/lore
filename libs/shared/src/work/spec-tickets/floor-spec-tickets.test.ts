@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { recordedPlanFloor } from "../../outbound/floor/recorded-plan-floor.js";
 import {
   mergedSpecPaths,
+  specNameOfRunKey,
   onlyLinksChanged,
   specFilingKey,
   specTicketsKey,
@@ -27,6 +28,7 @@ function scene(
   const recorded = recordedPlanFloor();
   const deps: SpecTicketsDeps = {
     floor: recorded.floor,
+    loopOn: async () => true,
     defaultBranch: () => Promise.resolve("main"),
     changedFiles: () =>
       Promise.resolve(
@@ -100,7 +102,29 @@ describe("specFilingKey", () => {
   });
 });
 
+describe("specNameOfRunKey", () => {
+  it("reads widgets out of key:acme/widgets:specs/widgets/spec.md@abc123, and null out of a plan run's key", () => {
+    expect([
+      specNameOfRunKey("key:acme/widgets:specs/widgets/spec.md@abc123"),
+      specNameOfRunKey("plan_id:p1"),
+      specNameOfRunKey(null),
+    ]).toEqual(["widgets", null, null]);
+  });
+});
+
 describe("startSpecTicketRuns", () => {
+  it("starts nothing for acme/widgets while its spec tickets loop is switched off", async () => {
+    const { deps, started } = scene(
+      { "specs/a/spec.md": IN_PROGRESS },
+      { loopOn: async () => false },
+    );
+
+    expect([await startSpecTicketRuns(MERGE, deps), started()]).toEqual([
+      "spec tickets: started 0, skipped 0",
+      [],
+    ]);
+  });
+
   it("starts one spec-tickets run per merged spec, keyed on repo, path and merge commit", async () => {
     const { deps, started } = scene({
       "specs/a/spec.md": IN_PROGRESS,

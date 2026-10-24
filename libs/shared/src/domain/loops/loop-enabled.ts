@@ -24,6 +24,17 @@ export function specUpkeepEnabled(rawSettings: unknown): boolean {
   return block?.enabled !== false;
 }
 
+/** The spec tickets loop's `spec_tickets.enabled` switch (specs/spec-tickets FR14): on unless the repository switched it off, so a repository keeps the ticketing it had before the switch existed. */
+export function specTicketsEnabled(rawSettings: unknown): boolean {
+  const block = (
+    parsedSettings(rawSettings) as {
+      spec_tickets?: { enabled?: unknown };
+    } | null
+  )?.spec_tickets;
+
+  return block?.enabled !== false;
+}
+
 /** The daily digest's switch, `digest.enabled` (specs/daily-digest); off by omission. */
 export function digestEnabled(rawSettings: unknown): boolean {
   const block = (
@@ -67,6 +78,7 @@ const ENABLED_BY_KEY: Record<LoopKey, (rawSettings: unknown) => boolean> = {
   triage: issueTriageEnabled,
   upkeep: specUpkeepEnabled,
   digest: digestEnabled,
+  tickets: specTicketsEnabled,
 };
 
 /** Whether the named loop is switched on for a repository, read from its raw `lore.repos.settings`. */

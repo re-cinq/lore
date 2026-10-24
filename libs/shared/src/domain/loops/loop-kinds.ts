@@ -37,6 +37,12 @@ export const LOOP_KINDS = [
     description:
       "Posts what moved on the repository to its Slack channel, on the days and at the time its Settings page sets.",
   },
+  {
+    key: "tickets",
+    label: "Spec tickets",
+    description:
+      "Every time a spec merges, splits it into a user story and task issues for the implementation loop, and rewrites the ones an earlier merge filed.",
+  },
 ] as const;
 
 export type LoopKind = (typeof LOOP_KINDS)[number];

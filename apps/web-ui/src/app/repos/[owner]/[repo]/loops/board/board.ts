@@ -7,6 +7,7 @@ import type { RepoLoop } from "@/lib/api/loops";
 import type { IssueTriage, TriageRow } from "@/lib/api/triage";
 import type { SpecUpkeep, UpkeepRow } from "@/lib/api/spec-upkeep";
 import type { DailyDigest, DigestRow } from "@/lib/api/daily-digest";
+import type { SpecTickets, TicketsRow } from "@/lib/api/spec-tickets";
 
 export const SECTION_KEYS = [
   "current",
@@ -84,6 +85,7 @@ const BACKLOG_HINT: Record<string, string> = {
   triage: "Label an issue triage: needs-triage to have it triaged.",
   upkeep: "Spec upkeep has no backlog: it runs every Monday.",
   digest: "The daily digest has no backlog: it posts on its schedule.",
+  tickets: "Spec tickets has no backlog: it starts when a spec merges.",
 };
 
 /** What one loop's rows are, for the subject column's header; typed by key, so a new loop cannot go without one. */
@@ -94,6 +96,7 @@ const SUBJECT: Record<RepoLoop["key"], string> = {
   triage: "Issue",
   upkeep: "Run",
   digest: "Post",
+  tickets: "Spec",
 };
 
 /** The subject column's header: what the one shown loop works on, or Work when several share the board. */
@@ -172,7 +175,11 @@ export function pausedNotice(loop: RepoLoop): string | undefined {
 }
 
 /** Loops that run on a schedule rather than take work from a backlog. */
-const NO_BACKLOG: ReadonlySet<string> = new Set(["upkeep", "digest"]);
+const NO_BACKLOG: ReadonlySet<string> = new Set([
+  "upkeep",
+  "digest",
+  "tickets",
+]);
 
 /** The implementation loop's backlog notice. An enabled loop waiting for its onboarding says so in the onboarding banner above the board, with the action that moves it on, so the backlog does not repeat it. */
 export function implementationNotice(loop: RepoLoop): string | undefined {
@@ -264,6 +271,27 @@ export function upkeepSections(
   upkeep: SpecUpkeep,
 ): LoopSections {
   return mapSections(upkeep, (row: UpkeepRow) => ({
+    ...runRow(loop, row),
+    prUrl: row.url,
+  }));
+}
+
+/** What a run's row carries in every loop that shows runs: the upkeep and tickets reads share the shape. */
+type RunRead = Pick<
+  UpkeepRow,
+  | "ref"
+  | "title"
+  | "url"
+  | "state"
+  | "created_at"
+  | "run_id"
+  | "pipeline"
+  | "blocked"
+>;
+
+/** A row that is a run, or what one made: a spec upkeep pull request, a spec being ticketed. Its tag says why the run stopped. */
+function runRow(loop: RepoLoop, row: RunRead): BoardRow {
+  return {
     loop,
     ref: row.ref,
     title: row.title,
@@ -272,10 +300,10 @@ export function upkeepSections(
     since: row.created_at,
     runId: row.run_id,
     pipeline: row.pipeline,
-    prUrl: row.url,
+    prUrl: null,
     tag: row.blocked,
     hold: null,
-  }));
+  };
 }
 
 export function digestSections(
@@ -304,4 +332,11 @@ function mapSections<Row>(
   return Object.fromEntries(
     SECTION_KEYS.map((key) => [key, buckets[key].map(toRow)]),
   ) as LoopSections;
+}
+
+export function ticketsSections(
+  loop: RepoLoop,
+  tickets: SpecTickets,
+): LoopSections {
+  return mapSections(tickets, (row: TicketsRow) => runRow(loop, row));
 }
