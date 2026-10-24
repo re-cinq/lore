@@ -8,7 +8,6 @@
   "status": "ready",
   "doc_time": "2026-10-15T10:00:00Z",
   "updated_at": "2026-10-16T08:12:44.512Z",
-  "missing_since": null,
   "version": 2,
   "content": "{\n  \"external_id\": \"stmt:specs/utopia-graph-mirror/spec.md#0003\"\n}",
   "versions": [

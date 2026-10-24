@@ -72,7 +72,6 @@ const storedDocumentSchema = z.object({
   filename: z.string(),
   status: z.string(),
   doc_time: z.string().nullable(),
-  missing_since: z.string().nullable(),
   version: z.number(),
   content: z.string(),
 });
@@ -83,8 +82,6 @@ export interface StoredDocument {
   filename: string;
   status: string;
   docTime: string | null;
-  /** Set when a tombstone marked the item missing; only read with `include_missing`. */
-  missingSince: string | null;
   version: number;
   /** The newest version as pushed: a statements item is its JSON body. */
   content: string;
@@ -99,7 +96,6 @@ export function parseStoredDocument(json: unknown): StoredDocument {
     filename: document.filename,
     status: document.status,
     docTime: document.doc_time,
-    missingSince: document.missing_since,
     version: document.version,
     content: document.content,
   };
