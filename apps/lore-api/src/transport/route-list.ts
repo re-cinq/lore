@@ -33,10 +33,7 @@ import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
 import { floorRunsStreamTokenRoute } from "./routes/floor/floor-runs-stream-token.js";
 import { runStreamTokenRoute } from "./routes/assembly-lines/run-stream-token.js";
 import { taskByPrRoute } from "./routes/tasks/task-by-pr.js";
-import {
-  taskLogsGetRoute,
-  taskLogsPostRoute,
-} from "./routes/tasks/task-logs.js";
+import * as taskLogs from "./routes/tasks/task-logs.js";
 import { taskTurnsPostRoute } from "./routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "./routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "./routes/tasks/task-post.js";
@@ -64,12 +61,7 @@ import { tokensRoute } from "./routes/tokens/tokens.js";
 import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
 import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
 import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
-import {
-  agentsGetRoute,
-  agentsPostRoute,
-  agentsPutRoute,
-  agentsDeleteRoute,
-} from "./routes/agent-definitions/agents.js";
+import * as agents from "./routes/agent-definitions/agents.js";
 import { usageRoute } from "./routes/analytics/usage.js";
 import { analyticsRoute } from "./routes/analytics/analytics.js";
 import { activityRoutes } from "./routes/analytics/activity.js";
@@ -95,29 +87,19 @@ import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
 import { runNodeRoute } from "./routes/floor/run-node.js";
-import {
-  upgradeStateRoute,
-  upgradeRunRoute,
-} from "./routes/floor/upgrade-run.js";
+import * as upgradeRun from "./routes/floor/upgrade-run.js";
 import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
 import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
 import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
 import { floorRunBlob, runBlobRoute } from "./routes/floor/run-blob.js";
-import {
-  blobPreviewsRoute,
-  floorBlobPreviews,
-} from "./routes/floor/blob-previews.js";
+import * as blobPreviews from "./routes/floor/blob-previews.js";
 import { floorRunBag, runBagRoute } from "./routes/floor/run-bag.js";
-import {
-  floorVisitEvents,
-  floorVisitModelCalls,
-  visitEventsRoute,
-  visitModelCallsRoute,
-} from "./routes/floor/visit-reads.js";
+import * as visitReads from "./routes/floor/visit-reads.js";
 import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
+import { skillDefinitionsRoutes } from "./routes/skill-definitions/skills.js";
 
 type PoolGetter = () => Pool | null;
 
@@ -135,6 +117,7 @@ export function routeList(
     ...webhookRoutes(getPool),
     ...integrationRoutes(getPool),
     ...agentDefinitionRoutes(getPool),
+    ...skillDefinitionsRoutes(getPool),
     ...analyticsRoutes(getPool),
     ...traceRoutes(),
   ];
@@ -146,8 +129,8 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
     floorGitCredentialRoute(getPool),
     reviewStartRoute(),
     runNodeRoute(getPool),
-    upgradeStateRoute(),
-    upgradeRunRoute(),
+    upgradeRun.upgradeStateRoute(),
+    upgradeRun.upgradeRunRoute(),
     floorRunsRoute(floorRunPages),
     ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),
@@ -175,6 +158,15 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
     ...utopiaRoutes(getPool),
+    ...repoIssueRoutes(getPool),
+    onboardRoute(getPool),
+    ...blockedReasonsRoutes(getPool),
+    ...repoContextRoutes(getPool),
+  ];
+}
+
+function repoIssueRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     prStatusRoute(),
     pullFilesRoute(),
     ciFailuresRoute(),
@@ -182,14 +174,10 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     issueRoute(),
     autoMergeKpisRoute(getPool),
     triageRoute(),
-    onboardRoute(getPool),
-    ...blockedReasonsRoutes(getPool),
-    ...contextAndGraphRoutes(getPool),
   ];
 }
 
-/** The context, evaluation, and graph read off a repo. */
-function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
+function repoContextRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     contextRoute(getPool),
     contextEvalRoute(getPool),
@@ -217,7 +205,7 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     runStreamTokenRoute(getPool),
     floorRunsStreamTokenRoute(getPool),
     taskByPrRoute(getPool),
-    taskLogsGetRoute(getPool),
+    taskLogs.taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
     taskPostRoute(getPool),
     taskGroupRoute(getPool),
@@ -230,7 +218,7 @@ function backlogRoutes(
   plans: PlanVerbSeams,
 ): ServerRoute[] {
   return [
-    taskLogsPostRoute(),
+    taskLogs.taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
     ...plansRoutes(getPool, plans),
     ...implementationLoopRoutes(getPool),
@@ -280,13 +268,13 @@ function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
 /** The recipes a run resolves by name, read and edited here. */
 function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    agentsGetRoute(getPool),
+    agents.agentsGetRoute(getPool),
     agentDefinitionUsageRoute(),
     orgAgentDefinitionsRoute(getPool),
     orgAgentDefinitionUpdateRoute(getPool),
-    agentsPostRoute(getPool),
-    agentsPutRoute(getPool),
-    agentsDeleteRoute(getPool),
+    agents.agentsPostRoute(getPool),
+    agents.agentsPutRoute(getPool),
+    agents.agentsDeleteRoute(getPool),
   ];
 }
 
@@ -327,9 +315,9 @@ function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
     runEventsRoute(eventPageReader(stored)),
     nodeLogsRoute(nodeLogsReader(stored)),
     runBlobRoute(floorRunBlob),
-    blobPreviewsRoute(floorBlobPreviews),
+    blobPreviews.blobPreviewsRoute(blobPreviews.floorBlobPreviews),
     runBagRoute(floorRunBag),
-    visitModelCallsRoute(floorVisitModelCalls),
-    visitEventsRoute(floorVisitEvents),
+    visitReads.visitModelCallsRoute(visitReads.floorVisitModelCalls),
+    visitReads.visitEventsRoute(visitReads.floorVisitEvents),
   ];
 }
