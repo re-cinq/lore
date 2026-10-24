@@ -18,6 +18,7 @@
 - [x] Implement `backoffDelay` with exponential increase and boundary checks.
 - [x] Implement `runPollLoop` to correctly handle `idleTicks` and sleep duration.
 - [x] Implement `pollUntil` to combine polling logic with backoff delays.
+- [x] Fix format CI failures: remove comments from test files, reduce 5-expect tests to 1 via toEqual, move sleep declaration closer to first use, fix unnecessary conditional in pollUntil, and add/correct spec links for all four backoff tests.
 
 ## Out of scope
 

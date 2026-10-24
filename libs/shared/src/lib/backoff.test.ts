@@ -4,11 +4,9 @@ import { withBackoff, backoffDelay } from "./backoff.js";
 
 describe("backoffDelay", () => {
   it("returns baseMs * 2^attempts capped at maxMs, flooring a negative attempt count at the base delay", () => {
-    expect(backoffDelay(100, 0, 1000)).toBe(100);
-    expect(backoffDelay(100, 1, 1000)).toBe(200);
-    expect(backoffDelay(100, 3, 1000)).toBe(800);
-    expect(backoffDelay(100, 4, 1000)).toBe(1000);
-    expect(backoffDelay(100, -1, 1000)).toBe(100);
+    expect([0, 1, 3, 4, -1].map((a) => backoffDelay(100, a, 1000))).toEqual([
+      100, 200, 800, 1000, 100,
+    ]);
   });
 });
 

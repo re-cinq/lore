@@ -39,12 +39,13 @@ export async function pollUntil<T>(
 ): Promise<T> {
   const sleep = opts?.sleep ?? defaultSleep;
   let attempt = 0;
-  while (true) {
-    const result = await tick();
-    if (result !== null) return result;
+  let result = await tick();
+  while (result === null) {
     await sleep(backoffDelay(baseDelayMs, attempt, maxDelayMs));
     attempt++;
+    result = await tick();
   }
+  return result;
 }
 
 // Retries a fallible async op on a fixed delay schedule: `delaysMs.length + 1` attempts total, rethrowing the last error on exhaustion — replaces two hand-rolled floor loops that ran one attempt short and never awaited the final delay.

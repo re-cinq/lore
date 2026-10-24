@@ -3,21 +3,14 @@ import { backoffDelay, runPollLoop, pollUntil } from "./backoff.js";
 
 describe("backoffDelay", () => {
   it("returns baseMs * 2^attempts capped at maxMs, flooring a negative attempt count at the base delay", () => {
-    expect(backoffDelay(100, 0, 1000)).toBe(100);
-    expect(backoffDelay(100, 1, 1000)).toBe(200);
-    expect(backoffDelay(100, 2, 1000)).toBe(400);
-
-    // capped at maxMs
-    expect(backoffDelay(100, 4, 1000)).toBe(1000);
-
-    // flooring a negative attempt count at the base delay
-    expect(backoffDelay(100, -1, 1000)).toBe(100);
+    expect([0, 1, 2, 4, -1].map((a) => backoffDelay(100, a, 1000))).toEqual([
+      100, 200, 400, 1000, 100,
+    ]);
   });
 });
 
 describe("runPollLoop", () => {
   it("ticks while running() holds, awaits onOutcome before the sleep that follows it, and sleeps whatever delayFor(outcome, idleTicks) returns — where idleTicks counts the consecutive isIdle outcomes BEFORE this one, so the first idle tick still sleeps the base delay and only consecutive ones grow it", async () => {
-    const sleep = vi.fn(async (_ms: number) => {});
     const outcomes = ["busy", "idle", "idle", "busy", "idle"];
     let ticks = 0;
     const running = vi.fn(() => ticks < outcomes.length);
@@ -31,6 +24,7 @@ describe("runPollLoop", () => {
       return 200 * Math.pow(2, idleTicks);
     });
     const isIdle = (outcome: string) => outcome === "idle";
+    const sleep = vi.fn(async (_ms: number) => {});
 
     await runPollLoop({
       running,
@@ -105,8 +99,8 @@ describe("pollUntil", () => {
         if (calls < 6) return null;
         return "done";
       },
-      100, // baseDelayMs
-      300, // maxDelayMs
+      100,
+      300,
       { sleep },
     );
 
