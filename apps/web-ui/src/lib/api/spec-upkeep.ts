@@ -1,5 +1,6 @@
 import "server-only";
 import { apiFetch } from "./client";
+import { withLimits, type SectionLimits } from "./loops";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
@@ -7,6 +8,12 @@ import type { components } from "./schema";
 export type SpecUpkeep = components["schemas"]["SpecUpkeep"];
 export type UpkeepRow = SpecUpkeep["current"][number];
 
-export function getSpecUpkeep(repo: string): Promise<ApiResult<SpecUpkeep>> {
-  return apiFetch("lore-api", `/api/repos/${repo}/spec-upkeep`);
+export function getSpecUpkeep(
+  repo: string,
+  limits?: SectionLimits,
+): Promise<ApiResult<SpecUpkeep>> {
+  return apiFetch(
+    "lore-api",
+    withLimits(`/api/repos/${repo}/spec-upkeep`, limits),
+  );
 }

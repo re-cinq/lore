@@ -6,6 +6,7 @@ import {
 import { getAutoMerge } from "@/lib/api/auto-merge";
 import { getCodeReview } from "@/lib/api/code-review";
 import type { RepoLoop } from "@/lib/api/loops";
+import type { SectionLimits } from "./section-limits";
 import type { ApiResult } from "@/lib/api/result";
 import { getIssueTriage } from "@/lib/api/triage";
 import { getSpecUpkeep } from "@/lib/api/spec-upkeep";
@@ -25,32 +26,36 @@ import {
   type LoopSections,
 } from "./board";
 
-type LoopReader = (loop: RepoLoop, repo: string) => Promise<LoopRead>;
+type LoopReader = (
+  loop: RepoLoop,
+  repo: string,
+  limits: SectionLimits,
+) => Promise<LoopRead>;
 
 /** Each loop but the implementation loop reads through its own lore-api route into the shared sections. */
 const READERS: Partial<Record<RepoLoop["key"], LoopReader>> = {
-  review: async (loop, repo) =>
-    settle(loop, await getCodeReview(repo), (queues) =>
+  review: async (loop, repo, limits) =>
+    settle(loop, await getCodeReview(repo, limits), (queues) =>
       reviewSections(loop, queues),
     ),
-  merge: async (loop, repo) =>
-    settle(loop, await getAutoMerge(repo), (merge) =>
+  merge: async (loop, repo, limits) =>
+    settle(loop, await getAutoMerge(repo, limits), (merge) =>
       mergeSections(loop, merge),
     ),
-  triage: async (loop, repo) =>
-    settle(loop, await getIssueTriage(repo), (triage) =>
+  triage: async (loop, repo, limits) =>
+    settle(loop, await getIssueTriage(repo, limits), (triage) =>
       triageSections(loop, triage),
     ),
-  upkeep: async (loop, repo) =>
-    settle(loop, await getSpecUpkeep(repo), (upkeep) =>
+  upkeep: async (loop, repo, limits) =>
+    settle(loop, await getSpecUpkeep(repo, limits), (upkeep) =>
       upkeepSections(loop, upkeep),
     ),
-  digest: async (loop, repo) =>
-    settle(loop, await getDailyDigest(repo), (digest) =>
+  digest: async (loop, repo, limits) =>
+    settle(loop, await getDailyDigest(repo, limits), (digest) =>
       digestSections(loop, digest),
     ),
-  tickets: async (loop, repo) =>
-    settle(loop, await getSpecTickets(repo), (tickets) =>
+  tickets: async (loop, repo, limits) =>
+    settle(loop, await getSpecTickets(repo, limits), (tickets) =>
       ticketsSections(loop, tickets),
     ),
 };
@@ -59,14 +64,21 @@ const READERS: Partial<Record<RepoLoop["key"], LoopReader>> = {
 export async function readLoop(
   loop: RepoLoop,
   repo: string,
+  limits: SectionLimits,
 ): Promise<LoopRead & { implementation?: ImplementationLoop }> {
   const read = READERS[loop.key];
 
-  return read ? read(loop, repo) : readImplementation(loop, repo);
+  return read
+    ? read(loop, repo, limits)
+    : readImplementation(loop, repo, limits);
 }
 
-async function readImplementation(loop: RepoLoop, repo: string) {
-  const result = await getImplementationLoop(repo);
+async function readImplementation(
+  loop: RepoLoop,
+  repo: string,
+  limits: SectionLimits,
+) {
+  const result = await getImplementationLoop(repo, limits);
   const read = settle(loop, result, (backlog) =>
     implementationSections(loop, backlog),
   );

@@ -7,6 +7,7 @@ import type { RepoLoop } from "@/lib/api/loops";
 import type { IssueTriage, TriageRow } from "@/lib/api/triage";
 import type { SpecUpkeep, UpkeepRow } from "@/lib/api/spec-upkeep";
 import type { DailyDigest, DigestRow } from "@/lib/api/daily-digest";
+import { shownRows, type SectionLimits } from "./section-limits";
 import type { SpecTickets, TicketsRow } from "@/lib/api/spec-tickets";
 
 export const SECTION_KEYS = [
@@ -53,6 +54,8 @@ export interface BoardSection {
   key: SectionKey;
   heading: string;
   rows: BoardRow[];
+  /** The section holds more rows than it shows: the page offers to load them. */
+  hasMore: boolean;
   emptyText: string;
   notices: string[];
 }
@@ -104,10 +107,13 @@ export function boardSubject(loops: readonly RepoLoop[]): string {
   return loops.length === 1 ? SUBJECT[loops[0].key] : "Work";
 }
 
-export function loopBoard(reads: readonly LoopRead[]): Board {
-  const sections = SECTION_KEYS.map((key) => boardSection(key, reads)).filter(
-    (section) => !OPTIONAL.has(section.key) || section.rows.length > 0,
-  );
+export function loopBoard(
+  reads: readonly LoopRead[],
+  limits: SectionLimits,
+): Board {
+  const sections = SECTION_KEYS.map((key) =>
+    boardSection(key, reads, limits),
+  ).filter((section) => !OPTIONAL.has(section.key) || section.rows.length > 0);
 
   return {
     sections,
@@ -125,19 +131,28 @@ export function loopBoard(reads: readonly LoopRead[]): Board {
 function boardSection(
   key: SectionKey,
   reads: readonly LoopRead[],
+  limits: SectionLimits,
 ): BoardSection {
-  const rows = reads.flatMap((read) => read.sections?.[key] ?? []);
+  const shown = shownRows(key, joinedRows(key, reads), limits);
 
   return {
     key,
     heading: HEADINGS[key],
-    rows: key === "recent" ? newestFirst(rows) : rows,
+    rows: shown.rows,
+    hasMore: shown.hasMore,
     emptyText: emptyText(key, reads),
     notices:
       key === "backlog"
         ? reads.flatMap((r) => (r.backlogNotice ? [r.backlogNotice] : []))
         : [],
   };
+}
+
+/** Every shown loop's rows of one section, Recently addressed newest first. */
+function joinedRows(key: SectionKey, reads: readonly LoopRead[]): BoardRow[] {
+  const joined = reads.flatMap((read) => read.sections?.[key] ?? []);
+
+  return key === "recent" ? newestFirst(joined) : joined;
 }
 
 /** Recently addressed across loops reads newest first; a row with no time goes last. */

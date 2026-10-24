@@ -41,3 +41,10 @@
 .sectionNotice {
   margin-bottom: 0;
 }
+
+.loadMore {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}

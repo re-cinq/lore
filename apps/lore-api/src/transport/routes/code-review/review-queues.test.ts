@@ -128,3 +128,20 @@ describe("reviewQueues", () => {
     }).toEqual({ count: 10, first: ["r11", "Pull request #111"] });
   });
 });
+
+describe("reviewQueues past ten recent reviews", () => {
+  it("answers 10 of 20 settled reviews by default and 15 when the page asks for 15", () => {
+    const settled = Array.from({ length: 20 }, (_, at) =>
+      run({
+        id: `run-${at}`,
+        pr: 100 + at,
+        created_at: `2026-10-23T10:${String(at).padStart(2, "0")}:00.000Z`,
+      }),
+    );
+
+    expect([
+      reviewQueues([], settled).recent.length,
+      reviewQueues([], settled, 15).recent.length,
+    ]).toEqual([10, 15]);
+  });
+});

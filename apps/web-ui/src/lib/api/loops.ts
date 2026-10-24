@@ -11,6 +11,20 @@ export type LoopSwitch = components["schemas"]["LoopSwitch"];
 
 const path = (repo: string) => `/api/repos/${repo}/loops`;
 
+/** How many rows of each section the Loops tab asks a loop's route for; Current is always answered whole. */
+export type SectionLimits = Partial<
+  Record<"backlog" | "parked" | "awaiting_merge" | "recent", number>
+>;
+
+/** A loop route's path with the sections' row counts as its query, `?backlog=5&recent=10`. */
+export function withLimits(path: string, limits: SectionLimits = {}): string {
+  const query = new URLSearchParams(
+    Object.entries(limits).map(([key, count]) => [key, String(count)]),
+  ).toString();
+
+  return query ? `${path}?${query}` : path;
+}
+
 export function getRepoLoops(repo: string): Promise<ApiResult<RepoLoops>> {
   return apiFetch("lore-api", path(repo));
 }

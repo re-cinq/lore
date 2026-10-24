@@ -31,7 +31,7 @@ export interface TriageRun {
   pipeline: z.infer<typeof PipelineNodeSchema>[];
 }
 
-const TRIAGE_PREFIX = "triage: ";
+export const TRIAGE_PREFIX = "triage: ";
 
 export function triageBuckets(
   issues: readonly TriageIssue[],
@@ -91,7 +91,7 @@ function runFields(run: TriageRun | undefined) {
 }
 
 /** The triage line only ever adds labels, so an issue keeps `needs-triage` beside every later one: the most progressed label is its state. */
-const TRIAGE_PRECEDENCE = [
+export const TRIAGE_PRECEDENCE = [
   "failed",
   "needs-priority",
   "not-actionable",

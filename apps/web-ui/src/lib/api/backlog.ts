@@ -1,5 +1,6 @@
 import "server-only";
 import { apiFetch } from "./client";
+import { withLimits, type SectionLimits } from "./loops";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
@@ -9,6 +10,10 @@ export type LoopTicket = ImplementationLoop["next"][number];
 
 export function getImplementationLoop(
   repo: string,
+  limits?: SectionLimits,
 ): Promise<ApiResult<ImplementationLoop>> {
-  return apiFetch("lore-api", `/api/repos/${repo}/implementation-loop`);
+  return apiFetch(
+    "lore-api",
+    withLimits(`/api/repos/${repo}/implementation-loop`, limits),
+  );
 }
