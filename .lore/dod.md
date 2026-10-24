@@ -14,6 +14,7 @@
 
 - [x] Add github apt repository to the Dockerfile
 - [x] Install `gh` package in the agent-image Dockerfile
+- [x] Register acceptance test in a CI runner in pr-checks.yml
 
 ## Out of scope
 
