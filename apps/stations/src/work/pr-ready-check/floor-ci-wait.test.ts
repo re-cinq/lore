@@ -272,6 +272,33 @@ describe("floorCiWaitSweep", () => {
     expect(writes()).toEqual([reportedOn("visit-await-pr", SUCCESS)]);
   });
 
+  it("stores Lore's findings on cafe1234 as the round brief file when Lore's review sends await-pr to the fix", async () => {
+    const { deps, writes, requests } = scene(PARKED_ON_PR, {
+      judgePr: () =>
+        Promise.resolve({
+          outcome: "changes_requested",
+          args: {
+            reason: "review_changes_requested",
+            review_feedback_sha: "cafe1234",
+            review_feedback: "src/a.ts:4: the null check is inverted",
+          },
+        }),
+    });
+
+    await floorCiWaitSweep(deps);
+    const stored = requests.find((request) => request.path === "/blobs");
+
+    expect(String(stored?.body)).toContain(
+      "## Lore's review asked for changes on cafe1234",
+    );
+    expect(writes()).toEqual([
+      reportedOn("visit-await-pr", {
+        outcome: "changes_requested",
+        produced: { round_brief: PLAN_BLOB_HASH },
+      }),
+    ]);
+  });
+
   it("reports failed with no produced value when await-pr is blocked on unresolved threads", async () => {
     const { deps, writes } = scene(PARKED_ON_PR, {
       judgePr: () =>

@@ -13,7 +13,12 @@ export type PrReadyVerdict =
   // outcome routes the walk (selectEdge), reason populates run.args; blocked reasons must have DIFFERENT outcomes (specs/implementation-loop FR3)
   | {
       kind: "blocked";
-      reason: "pr_conflicting" | "pr_behind" | "ci_red" | "unresolved_threads";
+      reason:
+        | "pr_conflicting"
+        | "pr_behind"
+        | "ci_red"
+        | "review_changes_requested"
+        | "unresolved_threads";
       outcome: "changes_requested" | "failed";
     };
 
@@ -27,13 +32,16 @@ export interface PrReadyInput {
   mergeable: boolean | null;
   /** Commits of the default branch the branch lacks; undefined when GitHub could not compare. */
   behindBy: number | undefined;
+  /** Lore's review verdict on the head, from its `lore/code-review` check. */
+  review: "approved" | "changes_requested" | "none";
 }
 
-/** Verdict for await-pr: the branch is put on main before anything else is read (a conflicted branch gets no CI at all), then hasCiHistory distinguishes "no checks configured" (green) from "not started" (pending). */
+/** Verdict for await-pr: the branch is put on main before anything else is read (a conflicted branch gets no CI at all), then hasCiHistory distinguishes "no checks configured" (green) from "not started" (pending). Changes Lore's own review asked for go to the fix like red CI does: GitHub keeps Lore from requesting changes on a pull request it opened, so no reply line ever answers them. */
 export function decidePrReady(input: PrReadyInput): PrReadyVerdict {
   const verdict =
     syncVerdict(input) ??
-    ciVerdict({ ci: input.ci, hasCiHistory: input.hasCiHistory });
+    ciVerdict({ ci: input.ci, hasCiHistory: input.hasCiHistory }) ??
+    reviewVerdict(input);
 
   if (verdict) {
     return verdict;
@@ -57,7 +65,7 @@ function syncVerdict(
 }
 
 function blocked(
-  reason: "pr_conflicting" | "pr_behind" | "ci_red",
+  reason: "pr_conflicting" | "pr_behind" | "ci_red" | "review_changes_requested",
 ): PrReadyVerdict {
   return { kind: "blocked", reason, outcome: "changes_requested" };
 }
@@ -83,6 +91,19 @@ export function ciWait(
   return input.ci === "none" && input.hasCiHistory
     ? { kind: "wait", reason: "ci_not_started" }
     : null;
+}
+
+/** Lore asked for changes on the head: the fix, unless a re-check of a newer push is still judging it. */
+function reviewVerdict(
+  input: Pick<PrReadyInput, "review" | "openReviewRunCount">,
+): PrReadyVerdict | null {
+  if (input.review !== "changes_requested") {
+    return null;
+  }
+
+  return input.openReviewRunCount > 0
+    ? { kind: "wait", reason: "address_in_flight" }
+    : blocked("review_changes_requested");
 }
 
 /** The thread-only half of the verdict, once CI has already come back green. */

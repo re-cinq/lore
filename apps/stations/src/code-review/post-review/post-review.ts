@@ -40,9 +40,12 @@ export interface ReviewVisit {
   iteration: number;
 }
 
+/** How every review Lore posts is signed, whichever visit posted it. */
+export const LORE_REVIEW_MARKER = "<!-- lore-review-run: ";
+
 /** Per-visit identity stamped into every posted review; probing for it makes a redelivered visit a no-op. */
 export function reviewVisitMarker({ visitId, iteration }: ReviewVisit): string {
-  return `<!-- lore-review-run: ${visitId}/${iteration} -->`;
+  return `${LORE_REVIEW_MARKER}${visitId}/${iteration} -->`;
 }
 
 /** Split findings by whether (path, line) is inside a diff hunk — line-level, not file-level, since an unchanged line on a changed file still 422s an inline comment. */

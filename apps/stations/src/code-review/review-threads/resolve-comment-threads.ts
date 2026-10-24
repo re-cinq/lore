@@ -6,8 +6,8 @@ export interface ThreadResolver {
   resolveReviewThread(threadId: string): Promise<void>;
 }
 
-// Best-effort on purpose: the replies already posted, so an unreadable or unresolvable thread is left open.
-export async function resolveRepliedThreads(
+// Best-effort on purpose: what settles the threads is already posted, so an unreadable or unresolvable thread is left open.
+export async function resolveCommentThreads(
   resolver: ThreadResolver,
   prNumber: number,
   commentIds: readonly number[],
@@ -18,18 +18,18 @@ export async function resolveRepliedThreads(
 
   try {
     const threads = await resolver.listReviewThreads(prNumber);
-    const threadIds = repliedThreadIds(threads, commentIds);
+    const threadIds = commentThreadIds(threads, commentIds);
 
     await Promise.all(
       threadIds.map((threadId) => resolver.resolveReviewThread(threadId)),
     );
   } catch (err) {
-    console.warn(`[post-reply] thread not resolved: ${(err as Error).message}`);
+    console.warn(`[code-review] thread not resolved: ${(err as Error).message}`);
   }
 }
 
-/** The open threads the settled comments sit in, each once: two comments of one thread resolve it once. */
-function repliedThreadIds(
+/** The open threads the comments sit in, each once: two comments of one thread resolve it once. */
+function commentThreadIds(
   threads: readonly ReviewThread[],
   commentIds: readonly number[],
 ): string[] {

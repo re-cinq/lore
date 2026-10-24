@@ -20,6 +20,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 3,
+        review: "none",
       }),
     ).toEqual({
       kind: "blocked",
@@ -37,6 +38,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: false,
         behindBy: undefined,
+        review: "none",
       }),
     ).toEqual({
       kind: "blocked",
@@ -54,6 +56,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: null,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({ kind: "ready" });
   });
@@ -67,6 +70,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({ kind: "wait", reason: "ci_pending" });
   });
@@ -80,6 +84,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({
       kind: "blocked",
@@ -97,6 +102,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({ kind: "ready" });
   });
@@ -110,6 +116,7 @@ describe("decidePrReady", () => {
         hasCiHistory: false,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({ kind: "ready" });
   });
@@ -123,6 +130,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({ kind: "wait", reason: "ci_not_started" });
   });
@@ -136,6 +144,7 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({ kind: "wait", reason: "address_in_flight" });
   });
@@ -149,12 +158,47 @@ describe("decidePrReady", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({
       kind: "blocked",
       reason: "unresolved_threads",
       outcome: "failed",
     });
+  });
+});
+
+describe("decidePrReady on Lore's own review verdict", () => {
+  it("sends Lore's changes_requested verdict on the head to the fix as changes_requested, with its threads still open", () => {
+    expect(
+      decidePrReady({
+        ci: "success",
+        threads: [thread()],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
+        review: "changes_requested",
+      }),
+    ).toEqual({
+      kind: "blocked",
+      reason: "review_changes_requested",
+      outcome: "changes_requested",
+    });
+  });
+
+  it("waits on Lore's changes_requested verdict while a re-check of a newer push is still open", () => {
+    expect(
+      decidePrReady({
+        ci: "success",
+        threads: [],
+        openReviewRunCount: 1,
+        hasCiHistory: true,
+        mergeable: true,
+        behindBy: 0,
+        review: "changes_requested",
+      }),
+    ).toEqual({ kind: "wait", reason: "address_in_flight" });
   });
 });
 
@@ -168,6 +212,7 @@ describe("the two blocked reasons resume differently", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toMatchObject({ outcome: "changes_requested" });
   });
@@ -181,6 +226,7 @@ describe("the two blocked reasons resume differently", () => {
         hasCiHistory: true,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toMatchObject({ outcome: "failed" });
   });
@@ -196,6 +242,7 @@ describe("decidePrReady with no checks configured", () => {
         hasCiHistory: false,
         mergeable: true,
         behindBy: 0,
+        review: "none",
       }),
     ).toEqual({
       kind: "blocked",

@@ -91,6 +91,7 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
     failedJob: async () => null,
     listReviewThreads: async () => [],
     countOpenReviewRuns: async () => 0,
+    loreReviewFeedback: async () => "",
     report: async (target, outcome, args) => {
       reported.push({ target, outcome, ...(args ? { args } : {}) });
     },
@@ -449,6 +450,37 @@ describe("prReadyCheckSweep", () => {
 
     expect(d.reported).toEqual([]);
     expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 1");
+  });
+});
+
+describe("Lore's own review on the head of a settled pull request", () => {
+  it("resumes changes_requested with Lore's findings and the sha they judged when Lore's review asked for changes", async () => {
+    const d = deps({
+      listChecks: async () => [
+        { name: "test", status: "completed", conclusion: "success" },
+        {
+          id: 7,
+          name: "lore/code-review",
+          status: "completed",
+          conclusion: "neutral",
+        },
+      ],
+      loreReviewFeedback: async () => "src/a.ts:4: the null check is inverted",
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([
+      {
+        target: { lineId: "run-1", nodeId: "await-pr", iteration: 1 },
+        outcome: "changes_requested",
+        args: {
+          reason: "review_changes_requested",
+          review_feedback_sha: "deadbeef",
+          review_feedback: "src/a.ts:4: the null check is inverted",
+        },
+      },
+    ]);
   });
 });
 

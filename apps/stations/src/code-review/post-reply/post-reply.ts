@@ -10,9 +10,9 @@ import type {
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { inlineCommentsOf } from "../read-review/read-review.js";
 import {
-  resolveRepliedThreads,
+  resolveCommentThreads,
   type ThreadResolver,
-} from "./reply-thread-resolve.js";
+} from "../review-threads/resolve-comment-threads.js";
 
 export interface ReplyPoster extends ThreadResolver {
   replyToReviewComment(
@@ -87,7 +87,7 @@ export async function postReply(
   );
   const threads = await postThreadReplies(delivery, targets, onPr);
 
-  await resolveRepliedThreads(poster, prNumber, settledIn(targets, threads));
+  await resolveCommentThreads(poster, prNumber, settledIn(targets, threads));
   const general = generalReply(body, [...stray, ...threads.refused]);
   const commented = await postGeneralReply(delivery, general, onPr);
 

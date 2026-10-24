@@ -1,4 +1,4 @@
-// The post-review service station: posts the review agent's findings to the pull request and publishes its verdict as the lore/code-review check, on the external floor engine.
+// The post-review service station: posts the review agent's findings to the pull request and publishes its verdict as the lore/code-review check, on the external floor engine. An approval also resolves the threads Lore's earlier reviews opened: the reviewer that asked for those changes has judged them made.
 
 import {
   defineStation,
@@ -12,11 +12,22 @@ import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port
 import type {
   BranchRule,
   PullRef,
+  PullReview,
+  ReviewComment,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { commentablePositions } from "@re-cinq/lore-shared/review/diff-hunks.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { maybePostReview, type ReviewPoster } from "./post-review.js";
+import {
+  resolveCommentThreads,
+  type ThreadResolver,
+} from "../review-threads/resolve-comment-threads.js";
+import {
+  LORE_REVIEW_MARKER,
+  maybePostReview,
+  reviewVisitMarker,
+  type ReviewPoster,
+} from "./post-review.js";
 import { reviewModelOf } from "./review-model.js";
 import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
 import {
@@ -27,14 +38,17 @@ import {
 } from "./review-check.js";
 
 export interface ReviewProject {
-  pulls: ReviewPoster & {
-    get(
-      number: number,
-    ): Promise<Pick<PullRef, "headSha" | "baseBranch"> | null>;
-    getBranchRule(
-      branch: string,
-    ): Promise<Pick<BranchRule, "requiredApprovals">>;
-  };
+  pulls: ReviewPoster &
+    ThreadResolver & {
+      listReviews(number: number): Promise<PullReview[]>;
+      listComments(number: number): Promise<ReviewComment[]>;
+      get(
+        number: number,
+      ): Promise<Pick<PullRef, "headSha" | "baseBranch"> | null>;
+      getBranchRule(
+        branch: string,
+      ): Promise<Pick<BranchRule, "requiredApprovals">>;
+    };
   upsertCheckRun(input: CheckRunInput): Promise<void>;
 }
 
@@ -73,6 +87,10 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
     const visit = await openVisit(deps, brief, parsePullRequestUrl(prUrl));
 
     await deliverReview(deps, brief, visit, { agentOutput, verdict });
+
+    if (verdict === "success") {
+      await resolveEarlierFindings(brief, visit);
+    }
     const summary = verdictSummary(verdict, findingCountOf(agentOutput));
 
     await visit.project.upsertCheckRun(
@@ -119,6 +137,32 @@ async function deliverReview(
     model: await deps.reviewModel(brief.visitId),
     allowApprove: !visit.approvalCounts,
   });
+}
+
+/** The threads Lore's earlier reviews opened on the pull request; this visit's own review is left alone, since its comments are new. */
+async function resolveEarlierFindings(
+  brief: Brief,
+  { project, target }: ReviewVisitState,
+): Promise<void> {
+  const { pulls } = project;
+  const [reviews, comments] = await Promise.all([
+    pulls.listReviews(target.prNumber),
+    pulls.listComments(target.prNumber),
+  ]);
+  const own = reviewVisitMarker(brief);
+  const earlier = reviews
+    .filter(
+      ({ body }) => body.includes(LORE_REVIEW_MARKER) && !body.includes(own),
+    )
+    .map(({ id }) => id);
+  const commentIds = comments
+    .filter(
+      ({ review_id: reviewId }) =>
+        reviewId != null && earlier.includes(reviewId),
+    )
+    .map(({ id }) => id);
+
+  await resolveCommentThreads(pulls, target.prNumber, commentIds);
 }
 
 /** Whether the base branch's rule requires an approval; a PR with no base branch read counts as unprotected. */
