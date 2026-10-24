@@ -246,8 +246,15 @@ function noneEdge(sym: string): DerivedEdge {
   };
 }
 
-function entityKey(name: string, type: string, repo: string | null): string {
-  return `${name}\0${type}\0${repo ?? ""}`;
+async function writeEdges(pool: Pool, edges: DerivedEdge[]): Promise<void> {
+  if (edges.length === 0) {
+    return;
+  }
+
+  const entityMap = collectEntities(edges);
+  const idMap = await resolveEntityIds(pool, entityMap);
+
+  await persistEdges(pool, edges, idMap);
 }
 
 type EntityEntry = { name: string; type: string; repo: string | null };
@@ -303,15 +310,8 @@ async function persistEdges(
   }
 }
 
-async function writeEdges(pool: Pool, edges: DerivedEdge[]): Promise<void> {
-  if (edges.length === 0) {
-    return;
-  }
-
-  const entityMap = collectEntities(edges);
-  const idMap = await resolveEntityIds(pool, entityMap);
-
-  await persistEdges(pool, edges, idMap);
+function entityKey(name: string, type: string, repo: string | null): string {
+  return `${name}\0${type}\0${repo ?? ""}`;
 }
 
 async function upsertEntity(
