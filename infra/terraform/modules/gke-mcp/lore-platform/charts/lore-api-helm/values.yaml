@@ -34,9 +34,13 @@ service:
 # (~250 MB) ran out every Monday at 11:00 UTC when the weekly
 # spec-coverage-backfill started ~20 detect pods reading chunks through here
 # at once (#2217).
+# CPU may burst to 2 cores: the Loops tab reads seven loop routes at once,
+# each 0.3 to 3.6 s alone, and at a 500m limit the burst was throttled into
+# 16 s for the board (measured 2026-10-24). Autopilot bills the request, so
+# the limit costs nothing while the pod is idle.
 resources:
   limits:
-    cpu: "500m"
+    cpu: "2"
     memory: 1Gi
   requests:
     cpu: "100m"
