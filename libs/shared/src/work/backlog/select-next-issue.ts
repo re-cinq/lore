@@ -12,6 +12,11 @@ const DEFAULT_CRITERIA: RankingCriterion[] = ["priority", "age"];
 /** size:S < size:M < size:L; no label sorts after all lettered sizes. */
 const SIZE_ORDER: Record<string, number> = { S: 0, M: 1, L: 2 };
 
+interface RankedIssue {
+  issue: IssueRef;
+  rank: number;
+}
+
 /** Next backlog ticket, or null for an empty backlog (normal, not a failure); pure. Eligible = open + exactly one priority:* label + no lore:blocked, ordered by `options.criteria` (default: priority then age); the FR1 "no open Lore PR" filter is the loop driver's job, not this function's. */
 export function selectNextIssue(
   issues: readonly IssueRef[],
@@ -26,35 +31,25 @@ export function orderBacklog(
   options?: RankingOptions,
 ): IssueRef[] {
   const criteria = options?.criteria ?? DEFAULT_CRITERIA;
-
-  const eligible = issues.flatMap((issue) => {
-    if (issue.state !== "open") {
-      return [];
-    }
-
-    if (issue.labels.includes(LORE_BLOCKED_LABEL)) {
-      return [];
-    }
-    const rank = priorityRank(issue.labels);
-
-    return rank === null ? [] : [{ issue, rank }];
+  const eligible = issues.flatMap((i) => {
+    const e = toEligible(i);
+    return e === null ? [] : [e];
   });
-
   eligible.sort((a, b) => {
     for (const criterion of criteria) {
-      const diff = compareByCriterion(
-        criterion,
-        a.issue,
-        b.issue,
-        a.rank,
-        b.rank,
-      );
+      const diff = compareByCriterion(criterion, a, b);
       if (diff !== 0) return diff;
     }
     return 0;
   });
-
   return eligible.map((c) => c.issue);
+}
+
+function toEligible(issue: IssueRef): RankedIssue | null {
+  if (issue.state !== "open") return null;
+  if (issue.labels.includes(LORE_BLOCKED_LABEL)) return null;
+  const rank = priorityRank(issue.labels);
+  return rank === null ? null : { issue, rank };
 }
 
 /** The open tickets someone queued that the picker leaves out: parked ones (`lore:blocked`) and ones carrying two priority labels. The backlog page lists them with why, since `orderBacklog` drops them without a word. Oldest first. */
@@ -69,21 +64,18 @@ export function heldBacklog(issues: readonly IssueRef[]): IssueRef[] {
 
 function compareByCriterion(
   criterion: RankingCriterion,
-  a: IssueRef,
-  b: IssueRef,
-  aRank: number,
-  bRank: number,
+  a: RankedIssue,
+  b: RankedIssue,
 ): number {
   switch (criterion) {
     case "priority":
-      return aRank - bRank;
+      return a.rank - b.rank;
     case "age":
-      return compareIso(createdAtOrder(a), createdAtOrder(b));
+      return compareIso(createdAtOrder(a.issue), createdAtOrder(b.issue));
     case "unblocks":
-      // more blockedByCount = picked first (descending)
-      return (b.blockedByCount ?? 0) - (a.blockedByCount ?? 0);
+      return (b.issue.blockedByCount ?? 0) - (a.issue.blockedByCount ?? 0);
     case "size":
-      return sizeRank(a.labels) - sizeRank(b.labels);
+      return sizeRank(a.issue.labels) - sizeRank(b.issue.labels);
   }
 }
 
