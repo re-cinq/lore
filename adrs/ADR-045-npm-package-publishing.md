@@ -1,7 +1,7 @@
 ---
 adr_number: 45
 title: "npm publishing convention for re:cinq product packages"
-status: accepted
+status: draft
 date: 2026-08-24
 deciders: ["Loredana Moanga"]
 domains: [build, ci, packaging, security]
