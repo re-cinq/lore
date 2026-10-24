@@ -94,11 +94,12 @@ interface BacklogPick {
 }
 
 async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
-  if (!(await readyToPick(repo, deps))) {
+  const settings = await deps.rawSettings(repo);
+  if (!(await readyToPick(repo, settings, deps))) {
     return;
   }
 
-  const criteria = rankingCriteriaFor(await deps.rawSettings(repo));
+  const criteria = rankingCriteriaFor(settings);
   const ordered = orderBacklog(
     await deps.listIssues(repo),
     criteria !== undefined ? { criteria } : undefined,
@@ -124,22 +125,27 @@ const VALID_RANKING_CRITERIA = new Set<string>([
   "size",
 ]);
 
+function toRecord(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  return raw as Record<string, unknown>;
+}
+
 function rankingCriteriaFor(settings: unknown): RankingCriterion[] | undefined {
-  if (typeof settings !== "object" || settings === null) return undefined;
-  const rankingBlock = (settings as Record<string, unknown>).backlog_ranking;
-  if (typeof rankingBlock !== "object" || rankingBlock === null)
-    return undefined;
-  const rawCriteria = (rankingBlock as Record<string, unknown>).criteria;
+  const rawCriteria = toRecord(toRecord(settings)?.backlog_ranking)?.criteria;
   if (!Array.isArray(rawCriteria)) return undefined;
-  const filtered = rawCriteria.filter((v): v is RankingCriterion =>
-    VALID_RANKING_CRITERIA.has(String(v)),
+  const filtered = rawCriteria.filter((crit): crit is RankingCriterion =>
+    VALID_RANKING_CRITERIA.has(String(crit)),
   );
   return filtered.length > 0 ? filtered : undefined;
 }
 
 /** Whether this tick may pick for the repo: its loop is on, it has finished onboarding, and it is not already driving a run. A repo that is on but not onboarded says so, because a tick that only walked onboarded repos once skipped such a repo with no trace at all. */
-async function readyToPick(repo: string, deps: LoopTickDeps): Promise<boolean> {
-  if (!implementationLoopEnabled(await deps.rawSettings(repo))) {
+async function readyToPick(
+  repo: string,
+  settings: unknown,
+  deps: LoopTickDeps,
+): Promise<boolean> {
+  if (!implementationLoopEnabled(settings)) {
     return false;
   }
 
