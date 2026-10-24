@@ -23,7 +23,7 @@
 - [x] Implement `extends` derivation for class inheritance
 - [x] Ensure edge derivation is deterministic on re-ingestion
 - [x] Fix `queryLiveGraph` incoming-direction SQL so entity=source, related_entity=target (acceptance test assertions require this)
-- [ ] Unify derivation for all onboarded repos (remove `auto_ingest_graph` opt-in constraint)
+- [x] Unify derivation for all onboarded repos (remove `auto_ingest_graph` opt-in constraint)
 
 ## Out of scope
 

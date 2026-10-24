@@ -53,4 +53,16 @@ describe("parsePackageJsonEdges", () => {
 
     expect(edges.some((e) => e.targetName === "react")).toBe(true);
   });
+
+  it("derives edges from any repo without an auto_ingest_graph opt-in (specs/lore-derived-code-graph/spec.md#7)", () => {
+    const content = JSON.stringify({
+      name: "another-consumer",
+      dependencies: { "a-lib": "github:other-org/a-lib" },
+    });
+
+    const edges = parsePackageJsonEdges(content, "other-org/another-consumer");
+
+    expect(edges[0].relation).toBe("depends-on");
+    expect(edges[0].sourceName).toBe("other-org/another-consumer");
+  });
 });
