@@ -40,9 +40,26 @@ function emptyToNull(value: string | undefined): string | null {
 function entityGraphQuery(validFilter: string): string {
   return `${edgesFrom("s", "t", "outgoing", validFilter)}
      UNION ALL
-     ${edgesFrom("t", "s", "incoming", validFilter)}
+     ${incomingEdges(validFilter)}
      ORDER BY valid_from DESC
      LIMIT 50`;
+}
+
+/** Incoming: filter by target but return (source→target) so callers always get the same shape. */
+function incomingEdges(validFilter: string): string {
+  return `SELECT
+       s.name as entity, s.entity_type,
+       e.relation_type as relation,
+       t.name as related_entity, t.entity_type as related_type,
+       'incoming' as direction,
+       e.valid_from
+     FROM memory.edges e
+     JOIN memory.entities s ON s.id = e.source_id
+     JOIN memory.entities t ON t.id = e.target_id
+     WHERE LOWER(t.name) = LOWER($1)
+       ${validFilter}
+       AND ($2::text IS NULL OR e.relation_type = $2)
+       AND ($3::text IS NULL OR s.repo = $3)`;
 }
 
 /** One direction of the entity's edges: `near` is the side matched against the queried name, `far` the neighbor reported back. Both halves of the UNION are this same shape with the sides swapped — an edge is stored once, but the entity at either end wants to see it. */
