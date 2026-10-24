@@ -27,6 +27,19 @@ describe("FloorRunRows", () => {
       next_cursor: "cursor-2",
     });
   });
+
+  it("answers the same page with no cost and no request for costs when the reader has no use for them", async () => {
+    const recorded = recordedFloor(floorWithRunPage);
+    const reader = new FloorRunReader(recorded.floor);
+    const page = await new FloorRunRows(reader).pageWithoutCost({});
+
+    expect({
+      ids: page.runs.map((run) => [run.id, run.cost_usd]),
+      costRequests: recorded.requests.filter((r) =>
+        r.path.startsWith("/costs"),
+      ),
+    }).toEqual({ ids: [["run-1", null]], costRequests: [] });
+  });
 });
 
 const PLANNING_RUN: AssemblyRunSummary = {

@@ -21,7 +21,7 @@ import { autoMergeRoute } from "../auto-merge/auto-merge.js";
 import { specUpkeepRoute } from "../spec-upkeep/spec-upkeep.js";
 import { dailyDigestRoute } from "../daily-digest/daily-digest.js";
 import { specTicketsRoute } from "../spec-tickets/spec-tickets.js";
-import { floorRunPages } from "../floor/floor-runs.js";
+import { floorRunPagesWithoutCost } from "../floor/floor-runs.js";
 import {
   LoopKeySchema,
   LoopSwitchBodySchema,
@@ -45,11 +45,11 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     readLoopsRoute(getPool),
     switchLoopRoute(getPool),
-    codeReviewRoute(floorRunPages),
-    autoMergeRoute(getPool, floorRunPages),
-    specUpkeepRoute(floorRunPages),
+    codeReviewRoute(floorRunPagesWithoutCost),
+    autoMergeRoute(getPool, floorRunPagesWithoutCost),
+    specUpkeepRoute(floorRunPagesWithoutCost),
     dailyDigestRoute(getPool),
-    specTicketsRoute(floorRunPages),
+    specTicketsRoute(floorRunPagesWithoutCost),
   ];
 }
 

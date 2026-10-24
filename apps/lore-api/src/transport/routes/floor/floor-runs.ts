@@ -31,6 +31,12 @@ export const floorRunPages: FloorRunPageOf = async (query) =>
     ? floorRunRows().page(query)
     : { runs: [], next_cursor: null };
 
+/** The same pages without the cost of each run, for the Loops tab, which shows none and paid the floor's slow cost summary on every load. */
+export const floorRunPagesWithoutCost: FloorRunPageOf = async (query) =>
+  floorConfigured()
+    ? floorRunRows().pageWithoutCost(query)
+    : { runs: [], next_cursor: null };
+
 export function floorRunsRoute(pageOf: FloorRunPageOf): ServerRoute {
   const validate = { query: zodValidate(FloorRunsQuery) };
 
