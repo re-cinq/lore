@@ -81,11 +81,11 @@ The request goes to `/api/usage` for the resolved agent id. ([validated by `requ
 An explicit agent id is url-encoded into the query string. ([validated by `url-encodes an explicit agent id`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L68))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L75))
+PostgreSQL message. ([validated by `reports a missing API configuration for reading usage instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L75))
 
 A denied token yields the denial message naming the tool. ([validated by `reports a denied token`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L83))
 
-An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the failure detail when the API is unreachable`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L95))
+An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the usage failure detail when the API is unreachable`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L95))
 
 ## Out of Scope
 

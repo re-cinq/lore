@@ -79,7 +79,7 @@ A running task transitions to `cancelled` and the call returns that status.
 ([validated by `returns cancelled status when the task is running`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L66))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L81))
+([validated by `throws task not found when no row matches the task to cancel`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L81))
 
 A task already in a terminal state (e.g. merged) is rejected with a
 `Cannot cancel task in <state> state` error.

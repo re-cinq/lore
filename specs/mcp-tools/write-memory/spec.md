@@ -116,7 +116,7 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
    write`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L87), [`reports a
-   denied error on a 401 without
+   denied error on a 401 to a memory write without
    retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L101))
 
 5. *(added 2026-10-01, #2103)* In the agent gateway, which has no checkout to

@@ -92,7 +92,7 @@ identical guard on the list path is validated.
 ([validated by `substitutes the selector into the run command before executing`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L163))
 
 `runTestsRun` rejects when the command outlives the timeout.
-([validated by `rejects when the command outlives the timeout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L176))
+([validated by `rejects when the run command outlives the timeout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L176))
 
 `runTestsRun` rejects naming the run command when output is not JSON.
 ([validated by `rejects naming the run command when output is not JSON`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L187))
