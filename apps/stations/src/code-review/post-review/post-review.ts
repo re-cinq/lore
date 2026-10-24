@@ -18,6 +18,7 @@ import type {
   PRReviewEvent,
   PullReview,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { LORE_REVIEW_MARKER } from "@re-cinq/lore-shared/review/lore-review.js";
 
 /** The narrow PR surface the poster touches; the two reads (dedupe probe) are optional and fail open — a rare duplicate beats a dropped review. */
 export interface ReviewPoster {
@@ -42,7 +43,7 @@ export interface ReviewVisit {
 
 /** Per-visit identity stamped into every posted review; probing for it makes a redelivered visit a no-op. */
 export function reviewVisitMarker({ visitId, iteration }: ReviewVisit): string {
-  return `<!-- lore-review-run: ${visitId}/${iteration} -->`;
+  return `${LORE_REVIEW_MARKER}${visitId}/${iteration} -->`;
 }
 
 /** Split findings by whether (path, line) is inside a diff hunk — line-level, not file-level, since an unchanged line on a changed file still 422s an inline comment. */

@@ -4,6 +4,7 @@ import type { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   roundBriefOf,
   type CiFeedback,
+  type ReviewFeedback,
   type RoundHandoff,
 } from "@re-cinq/lore-shared/ci-wait/round-brief.js";
 import { loreRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
@@ -212,7 +213,7 @@ function judgeFor(deps: FloorCiWaitDeps, nodeId: string): Judge {
   return nodeId === PR_NODE ? deps.judgePr : deps.judge;
 }
 
-/** The feedback values a wait station declares, and the round brief stored as a file; the reason stays with the outcome that routes on it. A verdict that names no failed check produces nothing. */
+/** The feedback values a wait station declares, and the round brief stored as a file; the reason stays with the outcome that routes on it. A verdict that names no failed check and carries no review findings produces nothing. */
 async function producedOf(
   floor: CiWaitFloor,
   judged: ParkedReport,
@@ -220,11 +221,12 @@ async function producedOf(
 ): Promise<Record<string, string>> {
   const values = feedbackValuesOf(judged);
   const feedback = feedbackOf(values);
+  const review = reviewOf(judged);
 
-  if (!feedback) {
+  if (!feedback && !review) {
     return values;
   }
-  const brief = roundBriefOf({ feedback, handoff });
+  const brief = roundBriefOf({ feedback, review, handoff });
   const stored = await floor.blobs.put(
     new TextEncoder().encode(brief),
     "text/markdown",
@@ -254,6 +256,14 @@ function feedbackOf(values: FeedbackValues): CiFeedback | null {
 
   return sha && failedChecks
     ? { sha, failedChecks, summary: values.ci_failure_summary ?? "" }
+    : null;
+}
+
+function reviewOf({ args }: ParkedReport): ReviewFeedback | null {
+  const { review_feedback_sha: sha, review_feedback: findings } = args;
+
+  return typeof sha === "string" && typeof findings === "string"
+    ? { sha, findings }
     : null;
 }
 

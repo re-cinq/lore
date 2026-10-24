@@ -219,8 +219,10 @@ line:
     - from: await-pr
       to: done
       on: success
-    # Red CI, a conflict and a branch behind main are the blocking conditions
-    # this line acts on. A conflicted pull request gets no CI at all, so the
+    # Red CI, changes Lore's own review asked for, a conflict and a branch
+    # behind main are the blocking conditions this line acts on: GitHub keeps
+    # Lore from requesting changes on a pull request it opened, so no reply
+    # line answers its review, and the fix is handed the findings instead. A conflicted pull request gets no CI at all, so the
     # branch is put on main first; a rebase alone is cheap and a long-lived pull
     # request falls behind many times, so the sync has twice the fix's budget.
     - from: await-pr
@@ -472,7 +474,7 @@ stations:
         optional: true
     produces: []
   loop-await-pr:
-    description: Waits on the pull request until it is on current main, CI is green and no review thread is open. A branch behind or in conflict goes to the sync, red CI to a fix, while open threads end the run for people to settle.
+    description: Waits on the pull request until it is on current main, CI is green, Lore's review asks for no changes and no review thread is open. A branch behind or in conflict goes to the sync, red CI and Lore's requested changes to a fix, while a person's open threads end the run for people to settle.
     kind: human
     outcomes:
       - success
@@ -491,7 +493,7 @@ stations:
       - name: round_brief
         kind: file
   loop-fix-ci:
-    description: An AI agent makes the red build green on the pull request after it was marked ready, changing only what CI reported.
+    description: An AI agent makes the red build green, or makes the changes Lore's review asked for, on the pull request after it was marked ready, changing only what CI or the review reported.
     kind: agent
     agent_definition: loop-fix-ci
     conversation: new

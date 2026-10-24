@@ -54,6 +54,8 @@ export interface PrReadyCheckDeps {
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
   /** Open runs of PR-review family for this PR — "address round-trip in flight" signal. */
   countOpenReviewRuns(repo: string, number: number): Promise<number>;
+  /** What Lore's newest review of the PR said, its body and inline comments as one text: what the fix is handed when that review asked for changes. */
+  loreReviewFeedback(repo: string, number: number): Promise<string>;
   report(
     target: ParkedTarget,
     outcome: "success" | "changes_requested" | "failed",

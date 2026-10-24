@@ -9,7 +9,7 @@ const RED = {
 
 describe("roundBriefOf", () => {
   it("names the sha deadbeef, the failed checks lint and test, and fences what they printed", () => {
-    expect(roundBriefOf({ feedback: RED, handoff: null })).toBe(
+    expect(roundBriefOf({ feedback: RED, review: null, handoff: null })).toBe(
       [
         "## CI reported failures on deadbeef",
         "",
@@ -27,13 +27,18 @@ describe("roundBriefOf", () => {
 
   it("leaves the fence out when the jobs printed nothing", () => {
     expect(
-      roundBriefOf({ feedback: { ...RED, summary: "" }, handoff: null }),
+      roundBriefOf({
+        feedback: { ...RED, summary: "" },
+        review: null,
+        handoff: null,
+      }),
     ).not.toContain("```");
   });
 
   it("cuts what the jobs printed at 2500 characters and says so", () => {
     const brief = roundBriefOf({
       feedback: { ...RED, summary: "x".repeat(3000) },
+      review: null,
       handoff: null,
     });
 
@@ -45,10 +50,34 @@ describe("roundBriefOf", () => {
     expect(
       roundBriefOf({
         feedback: RED,
+        review: null,
         handoff: { done: "parses the header", next: "reject an empty body" },
       }),
     ).toContain(
       "## The previous round reported\n\n- Done: parses the header\n- Next: reject an empty body\n",
+    );
+  });
+
+  it("names Lore's review of cafe1234 and gives its findings as Lore wrote them", () => {
+    expect(
+      roundBriefOf({
+        feedback: null,
+        review: {
+          sha: "cafe1234",
+          findings:
+            "- inline comment 11 on src/a.ts:4: the null check is inverted",
+        },
+        handoff: null,
+      }),
+    ).toBe(
+      [
+        "## Lore's review asked for changes on cafe1234",
+        "",
+        "Make the changes these findings ask for, and only those. A finding you judge wrong is left as it is, with the reason in your report.",
+        "",
+        "- inline comment 11 on src/a.ts:4: the null check is inverted",
+        "",
+      ].join("\n"),
     );
   });
 });

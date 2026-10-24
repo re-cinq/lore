@@ -1,5 +1,6 @@
 // The sweep's reads of the repository and its pull requests, through one per-sweep repo cache: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR.
 import type { Project } from "@re-cinq/lore-shared";
+import { loreReviewFeedbackOf } from "@re-cinq/lore-shared/review/lore-review.js";
 import type { PrReadyCheckDeps } from "./sweep-contract.js";
 
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
@@ -60,6 +61,7 @@ type PrReads = Pick<
   | "listReviewThreads"
   | "prMergeable"
   | "prBehindBy"
+  | "loreReviewFeedback"
 >;
 
 /** The PR-side reads, all through one per-sweep repo cache. */
@@ -79,7 +81,21 @@ export function prReads(
       behindMain(await projectOf(repo), number),
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
+    loreReviewFeedback: async (repo, number) =>
+      loreReviewOf(await projectOf(repo), number),
   };
+}
+
+async function loreReviewOf(
+  { pulls }: Pick<Project, "pulls">,
+  number: number,
+): Promise<string> {
+  const [reviews, comments] = await Promise.all([
+    pulls.listReviews(number),
+    pulls.listComments(number),
+  ]);
+
+  return loreReviewFeedbackOf(reviews, comments);
 }
 
 /** How far the pull request's branch is behind the default branch: what `loop-sync-check` reads too, so the wait and the sync agree. */

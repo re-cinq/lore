@@ -54,26 +54,44 @@ export interface BacklogIssues {
   openPrBranches: Set<string>;
 }
 
-/** The repo's open issues, and the open blockers of the queued ones. Only a ticket whose listing reports a blocked-by link costs a second GitHub read, the driver's own rule (FR2). */
+/** The loop's task rows, given the open issues the board shows: their own tasks are read whatever their age. */
+export type LoopTasksFor = (
+  openIssueNumbers: readonly number[],
+) => Promise<LoopTaskRow[]>;
+
+/** The repo's open issues, the loop's tasks for them, and the open blockers of the queued ones. Only a ticket whose listing reports a blocked-by link costs a second GitHub read, the driver's own rule (FR2). */
 export async function readIssues(
   repo: string,
-  taskRows: LoopTaskRow[],
   queuedIssues: QueuedIssues,
-): Promise<BacklogIssues> {
+  tasksFor: LoopTasksFor,
+): Promise<BacklogIssues & { taskRows: LoopTaskRow[] }> {
   const project = await projectFor(repo);
   const { issues } = project;
   const openIssues = await queuedIssues(repo, issues);
   const queued = orderBacklog(openIssues);
+  const [taskRows, openBlockers] = await Promise.all([
+    tasksFor(openIssues.map((i) => i.number)),
+    readOpenBlockers(issues, queued),
+  ]);
+
+  return {
+    openIssues,
+    taskRows,
+    openBlockers,
+    openPrBranches: await readOpenPrBranches(project, queued, taskRows),
+  };
+}
+
+async function readOpenBlockers(
+  issues: Project["issues"],
+  queued: OpenIssues,
+): Promise<Map<number, number[]>> {
   const linked = queued.filter((i) => i.blockedByCount);
   const blockers = await Promise.all(
     linked.map((i) => issues.openBlockers(i.number)),
   );
 
-  return {
-    openIssues,
-    openBlockers: new Map(linked.map((i, at) => [i.number, blockers[at]])),
-    openPrBranches: await readOpenPrBranches(project, queued, taskRows),
-  };
+  return new Map(linked.map((i, at) => [i.number, blockers[at]]));
 }
 
 /** Pull requests matter only to a queued ticket whose task settled, so a backlog with none of those costs no GitHub read. */

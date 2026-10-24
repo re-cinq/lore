@@ -6,6 +6,7 @@ import {
 import {
   explainFailedChecks,
   loreCheckName,
+  loreReviewVerdict,
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { decidePrReady, type PrReadyInput } from "./decide-ready.js";
@@ -21,7 +22,7 @@ import {
   type PrReadyCheckDeps,
 } from "./sweep-contract.js";
 
-/** The end-of-line wait: the branch against main, CI and the review threads. Every read runs together — they are independent, and this job sweeps every parked run on a tick. */
+/** The end-of-line wait: the branch against main, CI, Lore's review and the review threads. Every read runs together — they are independent, and this job sweeps every parked run on a tick. */
 export async function prReportForRun(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
@@ -34,8 +35,38 @@ export async function prReportForRun(
   const evidence = await prEvidence(run, deps, judged);
 
   return parkedReport(decidePrReady(evidence), (reason) =>
-    reason === "ci_red" ? redFeedback(evidence.checks, judged.headSha) : {},
+    feedbackFor(reason, { run, deps, judged, checks: evidence.checks }),
   );
+}
+
+interface FeedbackRead {
+  run: LoopRunSlice;
+  deps: PrReadyCheckDeps;
+  judged: { prNumber: number; headSha: string };
+  checks: CheckRun[];
+}
+
+/** What the fix is handed for the reason it was sent: the failed checks of a red build, or the findings of Lore's review and the sha it judged. */
+async function feedbackFor(
+  reason: string,
+  read: FeedbackRead,
+): Promise<Record<string, unknown>> {
+  if (reason === "ci_red") {
+    return { ...redFeedback(read.checks, read.judged.headSha) };
+  }
+
+  return reason === "review_changes_requested" ? reviewFeedbackOf(read) : {};
+}
+
+async function reviewFeedbackOf({
+  run,
+  deps,
+  judged,
+}: FeedbackRead): Promise<Record<string, unknown>> {
+  return {
+    review_feedback_sha: judged.headSha,
+    review_feedback: await deps.loreReviewFeedback(run.repo, judged.prNumber),
+  };
 }
 
 /** The six independent reads a settled pull request is judged on, as the verdict takes them, with the checks explained. */
@@ -51,7 +82,12 @@ async function prEvidence(
     deps,
   );
 
-  return { ...read, checks, ci: ciConclusionOf(checks) };
+  return {
+    ...read,
+    checks,
+    ci: ciConclusionOf(checks),
+    review: loreReviewVerdict(checks),
+  };
 }
 
 async function readPrFacts(
