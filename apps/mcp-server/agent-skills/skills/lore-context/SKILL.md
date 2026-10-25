@@ -16,3 +16,8 @@ This agent runs with a live Lore MCP connection — the `lore_*` tools are avail
 decision, a correction to earlier assumptions — record it with `lore_write_memory`
 (or `lore_write_episode` for raw observations), so the next run starts warmer. This is
 how an agent session feeds its learnings back into shared memory.
+
+<!-- lore-help:begin -->
+## Help
+This skill connects the agent to the live Lore MCP server. Use it to search repo conventions, past decisions, and record new learnings.
+<!-- lore-help:end -->

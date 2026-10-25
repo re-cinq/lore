@@ -12,6 +12,7 @@ import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
 import { seedFloor } from "./app/seed-floor.js";
 import { seedAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-seed.js";
+import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
 import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
 
 // Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
@@ -35,6 +36,7 @@ async function main() {
 
   if (state.pool) {
     await seedShippedAgents(state.pool);
+    await seedShippedSkills(state.pool);
   }
   await seedFloor();
 
@@ -72,6 +74,15 @@ async function seedShippedAgents(pool: Pool): Promise<void> {
       "[lore-api] agent defaults seed FAILED — serving the rows already in lore.agent_definitions:",
       err,
     );
+  }
+}
+
+async function seedShippedSkills(pool: Pool): Promise<void> {
+  try {
+    await seedSkillDefaults(pool);
+    console.error(`[lore-api] skill defaults seeded`);
+  } catch (err) {
+    console.error(`[lore-api] failed to seed skill defaults:`, err);
   }
 }
 

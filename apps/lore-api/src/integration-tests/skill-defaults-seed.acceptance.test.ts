@@ -15,25 +15,20 @@ describe("seedSkillDefaults (Acceptance)", () => {
   });
 
   afterAll(async () => {
-    // Delete the skills we seeded to clean up
     try {
       await pool.query(
         `DELETE FROM lore.skill_definitions WHERE name IN ('lore-context', 'tdd-loop', 'legacy-characterize')`,
       );
-    } catch (e) {
-      // Table might not exist yet
-    }
+    } catch (_e) {}
     await pool.end();
   });
 
   it("seeds the three static skills with a Help block into lore.skill_definitions", async () => {
-    // The module is absent, so we dynamically import to prevent the test suite from crashing
     const mod =
       await import("@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js").catch(
         () => null,
       );
 
-    // Fallback if the path is in outbound/project/skills instead
     const altMod =
       await import("@re-cinq/lore-shared/project/skills/skill-defaults-seed.js").catch(
         () => null,
@@ -48,11 +43,12 @@ describe("seedSkillDefaults (Acceptance)", () => {
       `SELECT name, content FROM lore.skill_definitions WHERE name IN ('lore-context', 'tdd-loop', 'legacy-characterize')`,
     );
 
-    expect(rows).toHaveLength(3);
-
-    for (const row of rows) {
-      expect(row.content).toContain("<!-- lore-help:begin -->");
-      expect(row.content).toContain("<!-- lore-help:end -->");
-    }
+    expect(
+      rows.map((r) => ({
+        hasHelp:
+          r.content.includes("<!-- lore-help:begin -->") &&
+          r.content.includes("<!-- lore-help:end -->"),
+      })),
+    ).toEqual([{ hasHelp: true }, { hasHelp: true }, { hasHelp: true }]);
   });
 });

@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./agent-defaults/*.js": {
+      "types": "./dist/agent-defaults/*.d.ts",
+      "default": "./dist/agent-defaults/*.js"
+    },
     "./project/*.js": {
       "types": "./dist/outbound/project/*.d.ts",
       "default": "./dist/outbound/project/*.js"
