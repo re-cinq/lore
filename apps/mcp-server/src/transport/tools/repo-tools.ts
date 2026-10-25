@@ -86,29 +86,32 @@ async function walkRepoPages(): Promise<
   const pageSize = 100;
   const repos: unknown[] = [];
   for (let offset = 0; ; offset += pageSize) {
-    const proxied = await proxyGetApi(
-      `/api/repos?limit=${pageSize}&offset=${offset}`,
-    );
-    if (!proxied.ok)
-      return {
-        failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
-      };
+    const page = await fetchRepoPage(pageSize, offset, repos.length);
+    if ("failure" in page) return page;
 
-    const parsed = JSON.parse(proxied.body) as {
-      repos?: unknown[];
-      total?: number;
-    };
-    const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
-    const total =
-      typeof parsed.total === "number"
-        ? parsed.total
-        : repos.length + pageRepos.length;
-
-    repos.push(...pageRepos);
-    if (pageRepos.length < pageSize || repos.length >= total) {
-      return { repos, total };
+    repos.push(...page.pageRepos);
+    if (page.pageRepos.length < pageSize || repos.length >= page.total) {
+      return { repos, total: page.total };
     }
   }
+}
+
+type RepoPageResult =
+  { pageRepos: unknown[]; total: number } | { failure: ToolTextResult };
+
+async function fetchRepoPage(
+  pageSize: number,
+  offset: number,
+  currentTotal: number,
+): Promise<RepoPageResult> {
+  const proxied = await proxyGetApi(`/api/repos?limit=${pageSize}&offset=${offset}`);
+  if (!proxied.ok) return { failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied) };
+  const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
+  const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
+  return {
+    pageRepos,
+    total: typeof parsed.total === "number" ? parsed.total : currentTotal + pageRepos.length,
+  };
 }
 
 function proxyFailure(
@@ -230,6 +233,13 @@ async function postIngest(
     },
     body: JSON.stringify({ files, repo: resolvedRepo, commit }),
   });
+  return parseIngestResponse(res, resolvedRepo);
+}
+
+async function parseIngestResponse(
+  res: Response,
+  resolvedRepo: string,
+): Promise<IngestOutcome> {
   if (res.ok) {
     const result = (await res.json()) as { ingested?: number; errors?: number };
     return {
