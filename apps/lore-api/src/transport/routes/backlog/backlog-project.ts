@@ -92,5 +92,6 @@ export function cappedBacklog(
     { ...rest, backlog: next },
     limits,
   );
+
   return { ...capped, next: backlog };
 }

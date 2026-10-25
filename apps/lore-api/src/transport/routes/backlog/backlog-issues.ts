@@ -73,6 +73,7 @@ export async function readIssues(
     tasksFor(openIssues.map((i) => i.number)),
     readOpenBlockers(project.issues, queued),
   ]);
+
   return {
     openIssues,
     taskRows,

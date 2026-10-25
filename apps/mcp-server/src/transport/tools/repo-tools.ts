@@ -85,11 +85,16 @@ async function walkRepoPages(): Promise<
 > {
   const pageSize = 100;
   const repos: unknown[] = [];
+
   for (let offset = 0; ; offset += pageSize) {
     const page = await fetchRepoPage(pageSize, offset, repos.length);
-    if ("failure" in page) return page;
+
+    if ("failure" in page) {
+      return page;
+    }
 
     repos.push(...page.pageRepos);
+
     if (page.pageRepos.length < pageSize || repos.length >= page.total) {
       return { repos, total: page.total };
     }
@@ -107,16 +112,19 @@ async function fetchRepoPage(
   const proxied = await proxyGetApi(
     `/api/repos?limit=${pageSize}&offset=${offset}`,
   );
-  if (!proxied.ok)
+
+  if (!proxied.ok) {
     return {
       failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
     };
+  }
   const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
   const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
   const total =
     typeof parsed.total === "number"
       ? parsed.total
       : currentTotal + pageRepos.length;
+
   return { pageRepos, total };
 }
 
@@ -125,8 +133,14 @@ function proxyFailure(
   unconfiguredText: string,
   proxied: Extract<ProxyResult, { ok: false }>,
 ): ToolTextResult {
-  if (proxied.reason === "not_configured") return textResult(unconfiguredText);
-  if (proxied.reason === "denied") return deniedError(toolName, proxied.detail);
+  if (proxied.reason === "not_configured") {
+    return textResult(unconfiguredText);
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError(toolName, proxied.detail);
+  }
+
   return failedProxyError(toolName, proxied);
 }
 
@@ -150,13 +164,19 @@ async function onboardRepo({
     repo: full_name,
     reonboard,
   });
-  if (proxied.ok) return textResult(proxied.body);
+
+  if (proxied.ok) {
+    return textResult(proxied.body);
+  }
+
   if (
     proxied.reason === "unreachable" &&
     proxied.status === 409 &&
     proxied.body
-  )
+  ) {
     return textResult(proxied.body);
+  }
+
   return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
 }
 
@@ -201,6 +221,7 @@ async function ingestFiles(
 
 function ingestCredentials(): IngestCredentials | null {
   const { LORE_API_URL: apiUrl, LORE_INGEST_TOKEN: apiToken } = process.env;
+
   return apiUrl && apiToken ? { apiUrl, apiToken } : null;
 }
 
@@ -239,6 +260,7 @@ async function postIngest(
     },
     body: JSON.stringify({ files, repo: resolvedRepo, commit }),
   });
+
   return parseIngestResponse(res, resolvedRepo);
 }
 
@@ -248,12 +270,14 @@ async function parseIngestResponse(
 ): Promise<IngestOutcome> {
   if (res.ok) {
     const result = (await res.json()) as { ingested?: number; errors?: number };
+
     return {
       ingested: true,
       message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
     };
   }
   const err = await res.json().catch(() => ({ error: res.statusText }));
+
   return {
     ingested: false,
     message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
@@ -282,10 +306,13 @@ async function fetchNextReadyIssue(args: {
   const proxied = await proxyGetApi(
     `/api/repos/${args.repo}/implementation-loop`,
   );
-  if (!proxied.ok)
+
+  if (!proxied.ok) {
     return textResult(
       JSON.stringify({ issue: null, reason: "Could not reach Lore API." }),
     );
+  }
+
   return textResult(
     JSON.stringify(nextReadyResult(JSON.parse(proxied.body) as LoopState)),
   );
@@ -297,6 +324,7 @@ function nextReadyResult(loopState: {
 }): NextReadyResult {
   const issues = loopState.next || [];
   const readyIssues = issues.filter((i) => !i.hold);
+
   if (readyIssues.length === 0) {
     return { issue: null, reason: "No issues ready in the backlog." };
   }
