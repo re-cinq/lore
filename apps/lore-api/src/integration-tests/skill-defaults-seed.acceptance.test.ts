@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 
@@ -20,7 +21,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
         `DELETE FROM lore.skill_definitions WHERE name IN ('lore-context', 'tdd-loop', 'legacy-characterize')`,
       );
     } catch (_e) {
-      // ignore teardown errors
+      void _e;
     }
     await pool.end();
   });
@@ -32,8 +33,9 @@ describe("seedSkillDefaults (Acceptance)", () => {
       );
 
     const seedModule = mod;
+
     expect(seedModule, "Skill seed module must be implemented").not.toBeNull();
-    if (!seedModule) throw new Error("Skill seed module must be implemented");
+    enforceTrue(seedModule, Error, "Skill seed module must be implemented");
 
     await seedModule.seedSkillDefaults(pool);
 
