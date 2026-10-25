@@ -218,7 +218,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("gives the loop twelve rounds and two repairs on a red await-ci, six sync-pr visits on a blocked await-pr and three fix-ci visits", () => {
+  it("gives the loop twelve rounds and two repairs on a red await-ci, fourteen sync-pr visits on a blocked await-pr and eight fix-ci visits", () => {
     const { line } = pipelineOf("implementation-loop");
     const budgets = line.edges
       .filter((edge) => ["await-ci", "await-pr", "sync-pr"].includes(edge.from))
@@ -231,8 +231,8 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(budgets).toEqual([
       "await-ci>tdd-round on changes_requested: 12",
       "await-ci>repair-build on failed: 2",
-      "await-pr>sync-pr on changes_requested: 6",
-      "sync-pr>fix-ci on success: 3",
+      "await-pr>sync-pr on changes_requested: 14",
+      "sync-pr>fix-ci on success: 8",
       "sync-pr>sync-pr-rebase on changes_requested: 6",
       "sync-pr>sync-pr on failed: 1",
     ]);
