@@ -24,7 +24,9 @@ const reachable = await dgraphReachable();
 describe.skipIf(!reachable)("setup-spec-trace-schema applier (TS)", () => {
   beforeAll(async () => {
     const client = createDgraphClient({ LORE_DGRAPH_HTTP: DGRAPH_HTTP });
+
     if (!client) throw new Error("Could not create client");
+
     await setupSpecTraceSchema(client);
   });
 
@@ -176,6 +178,7 @@ describe.skipIf(!reachable)("setup-spec-trace-schema applier (TS)", () => {
     const before = sortByPred((await querySchema("schema {}")).schema);
 
     const client = createDgraphClient({ LORE_DGRAPH_HTTP: DGRAPH_HTTP });
+
     if (!client) throw new Error("Could not create client");
     await setupSpecTraceSchema(client);
 
