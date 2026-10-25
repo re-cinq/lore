@@ -19,9 +19,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
       await pool.query(
         `DELETE FROM lore.skill_definitions WHERE name IN ('lore-context', 'tdd-loop', 'legacy-characterize')`,
       );
-    } catch (_e) {
-      // Ignore
-    }
+    } catch (_e) {}
     await pool.end();
   });
 
@@ -33,6 +31,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
 
     const seedModule = mod;
     expect(seedModule, "Skill seed module must be implemented").not.toBeNull();
+    if (!seedModule) throw new Error("Skill seed module must be implemented");
 
     await seedModule.seedSkillDefaults(pool);
 

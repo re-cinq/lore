@@ -33,13 +33,12 @@ async function processSkill(pool: PgPool, skillName: string): Promise<void> {
     throw new Error(`Skill ${skillName} is missing a ## Help block`);
   }
 
-  await insertSkillDefinition(
-    pool,
-    result.name || skillName,
-    result.title || skillName,
-    result.description || "",
+  await insertSkillDefinition(pool, {
+    name: result.name || skillName,
+    title: result.title || skillName,
+    description: result.description || "",
     body,
-  );
+  });
 }
 
 function extractFrontmatter(content: string) {
@@ -53,27 +52,27 @@ function extractFrontmatter(content: string) {
 
   const frontmatter = content.slice(3, endIdx);
   body = content.slice(endIdx + 3).trim();
-  const parsed = (parse(frontmatter) as Record<string, string>) || {};
-  return { body, result: parsed };
+  const parsed = parse(frontmatter);
+  return {
+    body,
+    result: (parsed as Record<string, string> | null) ?? {},
+  };
 }
 
 async function insertSkillDefinition(
   pool: PgPool,
-  name: string,
-  title: string,
-  description: string,
-  body: string,
+  skill: { name: string; title: string; description: string; body: string },
 ) {
   await pool.query(
     `
     INSERT INTO lore.skill_definitions (name, title, description, model, content, enabled, project_id)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (name, project_id) DO UPDATE SET
+    ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
       title = EXCLUDED.title,
       description = EXCLUDED.description,
       content = EXCLUDED.content,
       enabled = EXCLUDED.enabled
     `,
-    [name, title, description, null, body, true, null],
+    [skill.name, skill.title, skill.description, null, skill.body, true, null],
   );
 }
