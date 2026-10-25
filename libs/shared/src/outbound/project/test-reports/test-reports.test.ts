@@ -118,4 +118,36 @@ describe("PgTestReports", () => {
       receivedAt: new Date(0),
     });
   });
+
+  it("queries pipeline.test_reports by repo and branch and returns the latest row", async () => {
+    const calls: Array<{ text: string; params?: unknown[] }> = [];
+    const pool: PgPool = {
+      async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
+        calls.push({ text, params });
+
+        return {
+          rows: [
+            {
+              id: 7,
+              repo: "o/r",
+              commit: "abc123",
+              branch: "lore/ticket-7",
+              tests: [],
+              outcomes: {},
+              received_at: new Date(0),
+            },
+          ] as T[],
+        };
+      },
+    };
+
+    const result = await new PgTestReports(pool).latestForBranch(
+      "o/r",
+      "lore/ticket-7",
+    );
+
+    expect(calls[0].text).toContain("WHERE repo = $1 AND branch = $2");
+    expect(calls[0].params).toEqual(["o/r", "lore/ticket-7"]);
+    expect(result?.branch).toBe("lore/ticket-7");
+  });
 });
