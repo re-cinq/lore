@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 
 const UPSERT_TEST_REPORT_SQL = `INSERT INTO pipeline.test_reports (repo, commit, branch, tests, outcomes)
-     VALUES ($1, $2, $3, $4, $5)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
      ON CONFLICT (repo, commit) DO UPDATE
        SET branch = EXCLUDED.branch,
            tests = EXCLUDED.tests,
@@ -25,7 +25,7 @@ export async function saveTestReportRow(
     row.repo,
     row.commit,
     row.branch,
-    row.tests,
-    row.outcomes,
+    JSON.stringify(row.tests),
+    JSON.stringify(row.outcomes),
   ]);
 }

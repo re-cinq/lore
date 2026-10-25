@@ -50,7 +50,7 @@ describe("Test report ingest (acceptance)", () => {
         report: {
           branch: "feature/foo",
           tests: [{ id: "test-id", name: "test-name", file: "test-file.ts" }],
-          outcomes: { "test-id": true },
+          results: [{ id: "test-id", passed: true, covered: [] }],
         },
       },
     });
@@ -76,7 +76,7 @@ describe("Test report ingest (acceptance)", () => {
         base_commit: null,
         report: {
           tests: [{ id: "test-id", name: "test-name", file: "test-file.ts" }],
-          outcomes: { "test-id": true },
+          results: [{ id: "test-id", passed: true, covered: [] }],
         },
       },
     });
