@@ -156,43 +156,35 @@ async function overlayDeltaResult(
   };
 }
 
+interface OverlayReportBody {
+  tests?: Array<{
+    id: string;
+    name: string;
+    file: string;
+    suite?: string;
+    startLine?: number;
+    [key: string]: unknown;
+  }>;
+  results?: Array<{ id: string; passed: boolean }>;
+}
+
 async function saveOverlayReport(pool: Pool, ctx: OverlayDeltaCtx) {
-  const r = ctx.body.report as
-    | {
-        tests?: Array<{
-          id: string;
-          name: string;
-          file: string;
-          suite?: string;
-          startLine?: number;
-          [key: string]: any;
-        }>;
-        results?: Array<{ id: string; passed: boolean }>;
-      }
-    | undefined;
-
-  let trimmedTests = [];
-  if (Array.isArray(r?.tests)) {
-    trimmedTests = r.tests.map((t) => ({
-      id: t.id,
-      name: t.name,
-      file: t.file,
-      ...(t.suite !== undefined && { suite: t.suite }),
-      ...(t.startLine !== undefined && { startLine: t.startLine }),
-    }));
-  }
-
-  let outcomes: Record<string, boolean> = {};
-  if (Array.isArray(r?.results)) {
-    outcomes = Object.fromEntries(r.results.map((res) => [res.id, res.passed]));
-  }
+  const r = ctx.body.report as OverlayReportBody | undefined;
 
   await saveTestReportRow(pool, {
     repo: ctx.repo,
     commit: ctx.body.commit,
     branch: ctx.overlayBranch,
-    tests: trimmedTests,
-    outcomes,
+    tests: (r?.tests ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      file: t.file,
+      ...(t.suite !== undefined && { suite: t.suite }),
+      ...(t.startLine !== undefined && { startLine: t.startLine }),
+    })),
+    outcomes: Object.fromEntries(
+      (r?.results ?? []).map((res) => [res.id, res.passed]),
+    ),
   });
 }
 
