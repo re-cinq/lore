@@ -31,8 +31,8 @@
 
 ## Facets
 
-- [ ] Create `libs/shared/src/outbound/setup-spec-trace-schema.ts`.
-- [ ] Implement `setupSpecTraceSchema(client: DgraphClientPort)` implementing the Dgraph schema applying logic.
+- [x] Create `libs/shared/src/outbound/setup-spec-trace-schema.ts`.
+- [x] Implement `setupSpecTraceSchema(client: DgraphClientPort)` implementing the Dgraph schema applying logic.
 - [ ] Make the tests pass against a live Dgraph.
 
 ## Out of scope

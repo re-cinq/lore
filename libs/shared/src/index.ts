@@ -163,6 +163,7 @@ export {
 
 export { auditDgraphAcl } from "./outbound/dgraph-acl-policy.js";
 export { createDgraphClient } from "./outbound/dgraph-client.js";
+export { setupSpecTraceSchema } from "./outbound/setup-spec-trace-schema.js";
 export {
   classifyFile,
   dropIngestExcluded,
