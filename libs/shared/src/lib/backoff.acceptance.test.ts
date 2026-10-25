@@ -31,20 +31,23 @@ describe("runPollLoop", () => {
       sleep,
     });
 
-    expect(tick).toHaveBeenCalledTimes(5);
-    expect(onOutcome).toHaveBeenCalledTimes(5);
-
-    expect(delayFor.mock.calls).toEqual([
-      ["busy", 0],
-      ["idle", 0],
-      ["idle", 1],
-      ["busy", 0],
-      ["idle", 0],
-    ]);
-
-    expect(sleep.mock.calls.map((c) => c[0])).toEqual([
-      100, 200, 400, 100, 200,
-    ]);
+    expect({
+      tickCalls: tick.mock.calls.length,
+      onOutcomeCalls: onOutcome.mock.calls.length,
+      delayCalls: delayFor.mock.calls,
+      sleepCalls: sleep.mock.calls.map((c) => c[0]),
+    }).toEqual({
+      tickCalls: 5,
+      onOutcomeCalls: 5,
+      delayCalls: [
+        ["busy", 0],
+        ["idle", 0],
+        ["idle", 1],
+        ["busy", 0],
+        ["idle", 0],
+      ],
+      sleepCalls: [100, 200, 400, 100, 200],
+    });
   });
 
   it("Omitting isIdle makes every outcome non-idle, giving a flat interval", async () => {

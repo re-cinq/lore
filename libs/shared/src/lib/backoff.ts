@@ -28,13 +28,25 @@ export async function runPollLoop<T>(opts: PollLoopOptions<T>): Promise<void> {
 
     await opts.onOutcome?.(outcome);
 
-    const currentIsIdle = opts.isIdle ? opts.isIdle(outcome) : false;
-    const idleTicks = currentIsIdle ? idleStreak : 0;
-    const delay = opts.delayFor(outcome, idleTicks);
-
-    idleStreak = currentIsIdle ? idleStreak + 1 : 0;
-    await sleep(delay);
+    idleStreak = await applyDelay(opts, outcome, idleStreak, sleep);
   }
+}
+
+async function applyDelay<T>(
+  opts: PollLoopOptions<T>,
+  outcome: T,
+  idleStreak: number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<number> {
+  const currentIsIdle = opts.isIdle ? opts.isIdle(outcome) : false;
+
+  if (currentIsIdle) {
+    await sleep(opts.delayFor(outcome, idleStreak));
+    return idleStreak + 1;
+  }
+
+  await sleep(opts.delayFor(outcome, 0));
+  return 0;
 }
 
 export async function pollUntil<T>(
