@@ -42,10 +42,12 @@ async function applyDelay<T>(
 
   if (currentIsIdle) {
     await sleep(opts.delayFor(outcome, idleStreak));
+
     return idleStreak + 1;
   }
 
   await sleep(opts.delayFor(outcome, 0));
+
   return 0;
 }
 

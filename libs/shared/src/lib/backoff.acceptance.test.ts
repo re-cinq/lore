@@ -8,7 +8,9 @@ describe("runPollLoop", () => {
     const running = vi.fn(() => ticksCount < outcomes.length);
     const tick = vi.fn(async () => {
       const outcome = outcomes[ticksCount];
+
       ticksCount++;
+
       return outcome;
     });
     const onOutcome = vi.fn(async (_outcome: string) => {});
