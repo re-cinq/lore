@@ -8,8 +8,10 @@ import { issueNumberFromLoopBranch } from "@re-cinq/lore-shared/backlog/loop-mer
 import {
   decideUpkeep,
   isLoopPull,
+  lastUpkeepStarts,
   openRunOnBranch,
   startUpkeepRun,
+  upkeepOrder,
   type UpkeepFacts,
 } from "@re-cinq/lore-shared/backlog/loop-pr-upkeep.js";
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
@@ -149,7 +151,7 @@ async function scopeOf(
     : null;
 }
 
-/** Rebase runs one event may start per repository, oldest pull request first: after a merge every open loop pull request is behind, and a pod for each at once is a stampede. The rest wait for the next push or check suite. */
+/** Rebase runs one event may start per repository, the pull request upkept longest ago first (`upkeepOrder`): after a merge every open loop pull request is behind, and a pod for each at once is a stampede. The rest wait for the next push or check suite. */
 export const STARTS_PER_EVENT = 3;
 
 async function upkeepEach(scope: Scope, pulls: PullRef[]): Promise<void> {
@@ -195,9 +197,10 @@ async function upkeepSettled(
   const needing = await Promise.all(
     pulls.map(async (pull) => ((await needsUpkeep(scope, pull)) ? pull : null)),
   );
-  const due = needing
-    .filter((pull): pull is PullRef => pull !== null)
-    .sort((a, b) => a.number - b.number);
+  const due = upkeepOrder(
+    needing.filter((pull): pull is PullRef => pull !== null),
+    lastUpkeepStarts(await loopRuns(scope)),
+  );
   const started = await Promise.all(
     due.slice(0, STARTS_PER_EVENT).map((pull) => startOutcome(scope, pull)),
   );
@@ -206,6 +209,17 @@ async function upkeepSettled(
     ...started,
     ...due.slice(STARTS_PER_EVENT).map((pull) => `#${pull.number} deferred`),
   ];
+}
+
+/** The loop line's runs of the repository, open and finished, newest first: where each pull request's last upkeep run is read from. */
+async function loopRuns({ repo, deps }: Scope) {
+  const { runs } = deps.floor();
+  const { items: lineRuns } = await runs.list(
+    { repo: floorRepoOf(repo), line: LOOP_LINE },
+    { limit: 200 },
+  );
+
+  return lineRuns;
 }
 
 async function startOutcome(scope: Scope, pull: PullRef): Promise<string> {

@@ -33,6 +33,7 @@ const goodHook = {
     "push",
     "release",
     "create",
+    "check_suite",
   ],
   config: { url: URL },
   last_response: { code: 200, status: "ok" },

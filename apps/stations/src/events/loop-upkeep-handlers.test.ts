@@ -233,3 +233,49 @@ describe("loopUpkeepHandlers", () => {
     ]);
   });
 });
+
+describe("loopUpkeepHandlers rotating its starts", () => {
+  it("starts 14, 15 and then 12, upkept earliest, when 11, 12 and 13 were each upkept at the last push", async () => {
+    const behind = [11, 12, 13, 14, 15].map((number) =>
+      pull({
+        number,
+        branch: `lore/implementation-loop/issue-${number}`,
+        url: `https://github.com/acme/widgets/pull/${number}`,
+      }),
+    );
+    const upkept = (number: number, createdAt: string) =>
+      planRun({
+        id: `upkeep-run-${number}`,
+        lineId: "implementation-loop",
+        repo: "github.com/acme/widgets",
+        subjectKey: `backlog:upkeep-${number}`,
+        startItems: {
+          repo: {
+            kind: "git",
+            ref: `github.com/acme/widgets@lore/implementation-loop/issue-${number}`,
+            by: "lore",
+          },
+        },
+        outcome: "iteration_max",
+        createdAt,
+        finishedAt: "2026-10-25T07:40:00.000Z",
+      });
+    const { push, starts } = scene({
+      pulls: behind,
+      behindBy: 1,
+      openRuns: [
+        upkept(11, "2026-10-25T07:27:03.000Z"),
+        upkept(12, "2026-10-25T07:27:01.000Z"),
+        upkept(13, "2026-10-25T07:27:02.000Z"),
+      ],
+    });
+
+    await push("main");
+
+    expect(starts().map(([, backlog]) => backlog)).toEqual([
+      "upkeep-14",
+      "upkeep-15",
+      "upkeep-12",
+    ]);
+  });
+});
