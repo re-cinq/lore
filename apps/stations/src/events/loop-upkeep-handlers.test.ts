@@ -41,7 +41,7 @@ const LOOP_RUN_ON_7 = planRun({
 
 interface SceneInput {
   pulls?: PullRef[];
-  behindBy?: number | undefined;
+  mergeState?: string;
   ci?: "success" | "failure" | "pending" | "none";
   openRuns?: ReturnType<typeof planRun>[];
   loopOn?: boolean;
@@ -55,6 +55,10 @@ function scene(input: SceneInput = {}) {
     pulls: {
       list: async () => pulls,
       get: async (number) => pulls.find((p) => p.number === number) ?? null,
+      getMergeability: async () => ({
+        mergeable: true,
+        state: input.mergeState ?? "clean",
+      }),
       listCommits: async () => [
         { sha: "abc", message: "feat", parents: [] } as never,
         {
@@ -83,7 +87,6 @@ function scene(input: SceneInput = {}) {
     },
     repo: {
       defaultBranch: async () => "main",
-      branchBehindBy: async () => input.behindBy ?? 0,
     },
     issues: {
       get: async (number) => ({
@@ -143,8 +146,8 @@ describe("loopUpkeepHandlers", () => {
     expect([...scene().handlers.keys()]).toEqual([...LOOP_UPKEEP_EVENTS]);
   });
 
-  it("starts the line at sync-pr, keyed on upkeep-12, when main moves and settled pull request 12 is 1 commit behind it", async () => {
-    const { push, starts, judged } = scene({ behindBy: 1 });
+  it("starts the line at sync-pr, keyed on upkeep-12, when main moves and GitHub calls settled pull request 12 behind it", async () => {
+    const { push, starts, judged } = scene({ mergeState: "behind" });
 
     await push("main");
 
@@ -158,7 +161,7 @@ describe("loopUpkeepHandlers", () => {
 
   it("judges the parked wait of the open run on issue 7's branch instead of starting a second run", async () => {
     const { push, starts, judged } = scene({
-      behindBy: 1,
+      mergeState: "behind",
       openRuns: [LOOP_RUN_ON_7],
     });
 
@@ -206,7 +209,7 @@ describe("loopUpkeepHandlers", () => {
         url: `https://github.com/acme/widgets/pull/${number}`,
       }),
     );
-    const { push, starts } = scene({ pulls: behind, behindBy: 1 });
+    const { push, starts } = scene({ pulls: behind, mergeState: "behind" });
 
     await push("main");
 
@@ -218,9 +221,9 @@ describe("loopUpkeepHandlers", () => {
   });
 
   it("starts nothing for a push to a feature branch, for a pull request on current main with a green build, or where the implementation loop is off", async () => {
-    const featurePush = scene({ behindBy: 1 });
+    const featurePush = scene({ mergeState: "behind" });
     const healthy = scene();
-    const loopOff = scene({ behindBy: 1, loopOn: false });
+    const loopOff = scene({ mergeState: "behind", loopOn: false });
 
     await featurePush.push("feature/export");
     await healthy.push("main");
@@ -262,7 +265,7 @@ describe("loopUpkeepHandlers rotating its starts", () => {
       });
     const { push, starts } = scene({
       pulls: behind,
-      behindBy: 1,
+      mergeState: "behind",
       openRuns: [
         upkept(11, "2026-10-25T07:27:03.000Z"),
         upkept(12, "2026-10-25T07:27:01.000Z"),

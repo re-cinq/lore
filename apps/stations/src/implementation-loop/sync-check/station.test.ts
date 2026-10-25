@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
+import type { Mergeability } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { syncCheckHandle } from "./station.js";
 
 const TOOLS: Tools = {
@@ -19,12 +20,16 @@ function brief() {
   };
 }
 
-function checkWith(behindBy: number | undefined) {
+function checkWith(
+  behindBy: number | undefined,
+  pull: Mergeability | null = null,
+) {
   return syncCheckHandle({
     behindBy: (repo, branch) =>
       repo === "re-cinq/app" && branch === BRANCH
         ? Promise.resolve(behindBy)
         : Promise.reject(new Error(`Not Found: ${repo}@${branch}`)),
+    pullMergeability: () => Promise.resolve(pull),
   });
 }
 
@@ -49,11 +54,30 @@ describe("loop-sync-check", () => {
   it("reports failed with the error when the lookup throws", async () => {
     const handle = syncCheckHandle({
       behindBy: () => Promise.reject(new Error("Bad credentials")),
+      pullMergeability: () => Promise.resolve(null),
     });
 
     expect(await handle(brief(), TOOLS)).toEqual({
       outcome: "failed",
       error: "Bad credentials",
     });
+  });
+});
+
+describe("loop-sync-check on a branch with an open pull request", () => {
+  it("reports success for a pull request 4 commits behind main that GitHub calls clean, since no branch rule asks for it up to date", async () => {
+    expect(
+      await checkWith(4, { mergeable: true, state: "clean" })(brief(), TOOLS),
+    ).toEqual({ outcome: "success" });
+  });
+
+  it("asks for a rebase when GitHub calls the pull request behind, and when it conflicts", async () => {
+    expect([
+      await checkWith(4, { mergeable: true, state: "behind" })(brief(), TOOLS),
+      await checkWith(4, { mergeable: false, state: "dirty" })(brief(), TOOLS),
+    ]).toEqual([
+      { outcome: "changes_requested" },
+      { outcome: "changes_requested" },
+    ]);
   });
 });

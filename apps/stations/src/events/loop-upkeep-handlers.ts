@@ -26,6 +26,7 @@ import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type {
   CheckRun,
   CiConclusion,
+  Mergeability,
   PullCommit,
   PullRef,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
@@ -35,12 +36,12 @@ export interface UpkeepProject {
   pulls: {
     list(): Promise<PullRef[]>;
     get(number: number): Promise<PullRef | null>;
+    getMergeability(number: number): Promise<Mergeability>;
     listCommits(number: number): Promise<PullCommit[]>;
     listChecks(ref: string): Promise<CheckRun[]>;
   };
   repo: {
     defaultBranch(): Promise<string>;
-    branchBehindBy(branch: string): Promise<number | undefined>;
   };
   issues: { get(number: number): Promise<IssueRef | null> };
   settings: { rawSettings(): Promise<unknown> };
@@ -233,16 +234,15 @@ async function needsUpkeep(scope: Scope, pull: PullRef): Promise<boolean> {
 }
 
 async function factsOf(
-  { repo, pulls }: UpkeepProject,
+  { pulls }: UpkeepProject,
   pull: PullRef,
 ): Promise<UpkeepFacts> {
-  const [behindBy, fresh, ci] = await Promise.all([
-    repo.branchBehindBy(pull.branch),
-    pulls.get(pull.number),
+  const [{ mergeable, state }, ci] = await Promise.all([
+    pulls.getMergeability(pull.number),
     buildOf(pulls, pull.number),
   ]);
 
-  return { behindBy, mergeable: fresh?.mergeable ?? null, ci };
+  return { mergeState: state, mergeable, ci };
 }
 
 /** The repository's own checks on the commit CI judged, as the loop's waits read them: Lore's checks left out, and a `[skip ci]` commit on top never mistaken for a build that did not start. */

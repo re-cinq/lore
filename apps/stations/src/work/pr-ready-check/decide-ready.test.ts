@@ -11,7 +11,7 @@ const thread = (over: Partial<ReviewThread> = {}): ReviewThread => ({
 });
 
 describe("decidePrReady", () => {
-  it("sends a branch 3 commits behind main to the sync as changes_requested, before CI is even read", () => {
+  it("sends a branch GitHub calls behind, because a rule wants it up to date, to the sync as changes_requested, before CI is even read", () => {
     expect(
       decidePrReady({
         ci: "pending",
@@ -19,7 +19,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 3,
+        mergeState: "behind",
         review: "none",
       }),
     ).toEqual({
@@ -37,7 +37,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: false,
-        behindBy: undefined,
+        mergeState: "dirty",
         review: "none",
       }),
     ).toEqual({
@@ -47,7 +47,7 @@ describe("decidePrReady", () => {
     });
   });
 
-  it("is ready on green CI when GitHub has not computed mergeability yet and the branch is 0 behind", () => {
+  it("is ready on green CI when GitHub has not computed mergeability yet", () => {
     expect(
       decidePrReady({
         ci: "success",
@@ -55,7 +55,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: null,
-        behindBy: 0,
+        mergeState: "unknown",
         review: "none",
       }),
     ).toEqual({ kind: "ready" });
@@ -69,7 +69,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({ kind: "wait", reason: "ci_pending" });
@@ -83,7 +83,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 3,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({
@@ -101,7 +101,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({ kind: "ready" });
@@ -115,7 +115,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: false,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({ kind: "ready" });
@@ -129,7 +129,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({ kind: "wait", reason: "ci_not_started" });
@@ -143,7 +143,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 1,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({ kind: "wait", reason: "address_in_flight" });
@@ -157,7 +157,7 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({
@@ -177,7 +177,7 @@ describe("decidePrReady on Lore's own review verdict", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "changes_requested",
       }),
     ).toEqual({
@@ -195,7 +195,7 @@ describe("decidePrReady on Lore's own review verdict", () => {
         openReviewRunCount: 1,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "changes_requested",
       }),
     ).toEqual({ kind: "wait", reason: "address_in_flight" });
@@ -211,7 +211,7 @@ describe("the two blocked reasons resume differently", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toMatchObject({ outcome: "changes_requested" });
@@ -225,7 +225,7 @@ describe("the two blocked reasons resume differently", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toMatchObject({ outcome: "failed" });
@@ -241,13 +241,47 @@ describe("decidePrReady with no checks configured", () => {
         openReviewRunCount: 0,
         hasCiHistory: false,
         mergeable: true,
-        behindBy: 0,
+        mergeState: "clean",
         review: "none",
       }),
     ).toEqual({
       kind: "blocked",
       reason: "unresolved_threads",
       outcome: "failed",
+    });
+  });
+});
+
+describe("decidePrReady on a branch behind main that no rule needs up to date", () => {
+  it("is ready on green CI when GitHub calls the pull request clean, however far main has moved (lore #2876 was rebased 6 times in one run)", () => {
+    expect(
+      decidePrReady({
+        ci: "success",
+        threads: [],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+        mergeable: true,
+        mergeState: "clean",
+        review: "none",
+      }),
+    ).toEqual({ kind: "ready" });
+  });
+
+  it("sends red CI on such a branch straight to the fix as ci_red, not to a rebase", () => {
+    expect(
+      decidePrReady({
+        ci: "failure",
+        threads: [],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+        mergeable: true,
+        mergeState: "unstable",
+        review: "none",
+      }),
+    ).toEqual({
+      kind: "blocked",
+      reason: "ci_red",
+      outcome: "changes_requested",
     });
   });
 });
