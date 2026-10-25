@@ -16,6 +16,43 @@ export function upkeepBacklog(prNumber: number): string {
   return `${UPKEEP_BACKLOG}${prNumber}`;
 }
 
+const UPKEEP_SUBJECT = new RegExp(`^backlog:${UPKEEP_BACKLOG}(\\d+)$`);
+
+/** When each pull request's newest upkeep run started, by pull request number, read from the loop line's runs. */
+export function lastUpkeepStarts(
+  runs: readonly RunView[],
+): Map<number, string> {
+  const starts = new Map<number, string>();
+
+  for (const { number, createdAt } of runs.flatMap(upkeepStartOf)) {
+    if (createdAt > (starts.get(number) ?? "")) {
+      starts.set(number, createdAt);
+    }
+  }
+
+  return starts;
+}
+
+function upkeepStartOf(
+  run: RunView,
+): Array<{ number: number; createdAt: string }> {
+  const digits = UPKEEP_SUBJECT.exec(run.subjectKey ?? "")?.[1];
+
+  return digits ? [{ number: Number(digits), createdAt: run.createdAt }] : [];
+}
+
+/** The order upkeep runs start in: a pull request never upkept first, then the one upkept longest ago, then the oldest. Oldest first alone handed the same three failing pull requests every start on every push, and left the rest deferred for good (re-cinq/Otto, re-cinq/lore, 2026-10-24). */
+export function upkeepOrder<T extends { number: number }>(
+  pulls: readonly T[],
+  lastStarts: ReadonlyMap<number, string>,
+): T[] {
+  const startOf = (pull: T) => lastStarts.get(pull.number) ?? "";
+
+  return [...pulls].sort(
+    (a, b) => startOf(a).localeCompare(startOf(b)) || a.number - b.number,
+  );
+}
+
 /** The pull request as the upkeep decision reads it. */
 export interface UpkeepPull {
   number: number;
