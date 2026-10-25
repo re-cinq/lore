@@ -169,3 +169,23 @@ describe("isLoreHook", () => {
     expect(isLoreHook({ config: {} })).toBe(false);
   });
 });
+
+describe("classifyWebhook without check_suite", () => {
+  it("returns narrow_events for the hook re-cinq/Otto had, which carries push and release but not check_suite, the finished build the loop's upkeep fixes", () => {
+    const withoutCheckSuite = [
+      "create",
+      "issues",
+      "issue_comment",
+      "pull_request",
+      "pull_request_review",
+      "pull_request_review_comment",
+      "push",
+      "release",
+      "repository",
+    ];
+
+    expect(
+      classifyWebhook([hook({ events: withoutCheckSuite })], URL).state,
+    ).toBe("narrow_events");
+  });
+});

@@ -12,6 +12,8 @@ export const REQUIRED_EVENTS = [
   /** A release published or edited, and a tag created: the Utopia release mirror pushes the repo's tags and releases again. */
   "release",
   "create",
+  /** A finished build on a pull request's head: the implementation loop's upkeep fixes a loop pull request whose CI went red after its run settled, and judges a parked wait at once (specs/external-floor FR12.19). */
+  "check_suite",
 ] as const;
 
 export interface RepoHook {
