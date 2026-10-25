@@ -82,7 +82,6 @@ describe("setupSpecTraceSchema (applier unit)", () => {
     } as unknown as DgraphClientPort;
 
     const promise = setupSpecTraceSchema(client);
-    // Advance past the two retry delays (2s each)
     await vi.advanceTimersByTimeAsync(10_000);
     await promise;
     expect(calls).toBe(3);
