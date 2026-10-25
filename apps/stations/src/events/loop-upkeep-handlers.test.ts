@@ -46,6 +46,7 @@ interface SceneInput {
   openRuns?: ReturnType<typeof planRun>[];
   loopOn?: boolean;
   ticketLabels?: string[];
+  loreReview?: "failure" | "neutral" | "success";
 }
 
 function scene(input: SceneInput = {}) {
@@ -81,7 +82,7 @@ function scene(input: SceneInput = {}) {
                 id: 2,
                 name: "lore/code-review",
                 status: "completed",
-                conclusion: "failure",
+                conclusion: input.loreReview ?? "failure",
               },
             ]
           : [],
@@ -294,5 +295,17 @@ describe("loop upkeep on a parked ticket", () => {
     await parked.push("main");
 
     expect(parked.starts()).toEqual([]);
+  });
+});
+
+describe("loop upkeep on a pull request Lore's review asked changes on", () => {
+  it("starts an upkeep run at sync-pr for settled pull request 12, on main and green, whose head Lore's review asked changes on (otto #478 sat with nobody to fix them)", async () => {
+    const { suite, starts } = scene({ loreReview: "neutral" });
+
+    await suite([12]);
+
+    expect(starts()).toEqual([
+      ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+    ]);
   });
 });

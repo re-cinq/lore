@@ -20,6 +20,7 @@ import {
   ciConclusionOf,
   ciJudgedSha,
   externalCheckRuns,
+  loreReviewVerdict,
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import { implementationLoopEnabled } from "@re-cinq/lore-shared/loops/implementation-loop-enabled.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
@@ -252,12 +253,18 @@ async function factsOf(
   { pulls }: UpkeepProject,
   pull: PullRef,
 ): Promise<UpkeepFacts> {
-  const [{ mergeable, state }, ci] = await Promise.all([
+  const [{ mergeable, state }, ci, headChecks] = await Promise.all([
     pulls.getMergeability(pull.number),
     buildOf(pulls, pull.number),
+    pull.headSha ? pulls.listChecks(pull.headSha) : Promise.resolve([]),
   ]);
 
-  return { mergeState: state, mergeable, ci };
+  return {
+    mergeState: state,
+    mergeable,
+    ci,
+    review: loreReviewVerdict(headChecks),
+  };
 }
 
 /** The repository's own checks on the commit CI judged, as the loop's waits read them: Lore's checks left out, and a `[skip ci]` commit on top never mistaken for a build that did not start. */

@@ -16,6 +16,7 @@ const ON_MAIN: UpkeepFacts = {
   mergeState: "clean",
   mergeable: true,
   ci: "success",
+  review: "none",
 };
 
 const PULL = {
@@ -149,5 +150,16 @@ describe("decideUpkeep on a pull request behind main that no rule needs up to da
         facts: { mergeState: "clean", mergeable: true, ci: "success" },
       }),
     ).toEqual("none");
+  });
+});
+
+describe("decideUpkeep on a pull request Lore's review asked changes on", () => {
+  it("starts an upkeep run for a green pull request GitHub calls clean when Lore's review on its head asked for changes, since only the loop fixes them", () => {
+    expect(
+      decideUpkeep({
+        openRun: false,
+        facts: { ...ON_MAIN, review: "changes_requested" },
+      }),
+    ).toEqual("start");
   });
 });
