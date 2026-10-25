@@ -43,9 +43,15 @@ export async function taskHoldingTicket(
 export async function openPrOnBranch(
   project: Pick<Project, "pulls">,
   branch: string,
-): Promise<{ number: number; url: string } | null> {
+): Promise<{ number: number; url: string; draft: boolean } | null> {
   const open = await project.pulls.list();
   const forBranch = open.find((pr) => pr.branch === branch);
 
-  return forBranch ? { number: forBranch.number, url: forBranch.url } : null;
+  return forBranch
+    ? {
+        number: forBranch.number,
+        url: forBranch.url,
+        draft: forBranch.draft === true,
+      }
+    : null;
 }

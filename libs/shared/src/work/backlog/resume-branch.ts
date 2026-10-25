@@ -15,6 +15,8 @@ export interface BranchResumeInput {
 export interface OpenPr {
   number: number;
   url: string;
+  /** Still a draft: the run that opened it had not finished the ticket. */
+  draft?: boolean;
 }
 
 export type BranchResume =

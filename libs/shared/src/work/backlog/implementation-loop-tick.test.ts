@@ -425,3 +425,33 @@ describe("a ticket whose blockers are still open", () => {
     expect(d.started).toEqual([]);
   });
 });
+
+describe("createImplementationLoopTickHandler resuming a ticket whose pull request is open", () => {
+  const PR_77 = { number: 77, url: "https://gh/acme/widgets/pull/77" };
+  const resumedWithReadyPr = () =>
+    deps({
+      branchExists: async () => true,
+      openPrForBranch: async () => ({ ...PR_77, draft: false }),
+    });
+  const resumedWithDraftPr = () =>
+    deps({
+      branchExists: async () => true,
+      openPrForBranch: async () => ({ ...PR_77, draft: true }),
+    });
+
+  it("continues at sync-pr when pull request 77 is ready for review, so the definition of done is not judged again on finished work", async () => {
+    const d = resumedWithReadyPr();
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started[0].entry).toBe("sync-pr");
+  });
+
+  it("continues at the line's entry when pull request 77 is still a draft", async () => {
+    const d = resumedWithDraftPr();
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started[0].entry).toBeUndefined();
+  });
+});
