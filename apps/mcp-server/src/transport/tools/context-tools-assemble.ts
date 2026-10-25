@@ -170,8 +170,9 @@ async function fetchAssembledContext(
 }
 
 interface AssembleSection {
-  source: string;
-  returnedTokens: number;
+  header: string;
+  tokens: number;
+  truncated: boolean;
 }
 
 function parseAssembleBody(body: string): {
@@ -181,12 +182,10 @@ function parseAssembleBody(body: string): {
   try {
     const parsed = JSON.parse(body) as {
       text?: string;
-      trace?: {
-        sections?: AssembleSection[];
-      };
+      sections?: AssembleSection[];
     };
 
-    return { text: parsed.text ?? "", sections: parsed.trace?.sections };
+    return { text: parsed.text ?? "", sections: parsed.sections };
   } catch {
     return { text: body };
   }
@@ -197,8 +196,8 @@ function logAssembleAudit(
   template: string,
   sections: AssembleSection[] | undefined,
 ): void {
-  const sources = sections?.map((s) => s.source).join(", ") || "none";
-  const tokens = sections?.reduce((sum, s) => sum + s.returnedTokens, 0) ?? 0;
+  const sources = sections?.map((s) => s.header).join(", ") || "none";
+  const tokens = sections?.reduce((sum, s) => sum + s.tokens, 0) ?? 0;
 
   console.error(
     `[lore] lore_assemble_context: query: ${query}, template: ${template}, sources hit: ${sources}, tokens: ${tokens}`,

@@ -47,9 +47,7 @@ describe("T011: Expose assembly as an MCP Tool", () => {
       ok: true,
       json: async () => ({
         text: '<context><section name="Code" source="code"></section></context>',
-        trace: {
-          sections: [{ source: "code", budget: 1000, returnedTokens: 250 }],
-        },
+        sections: [{ header: "code", tokens: 250, truncated: false }],
       }),
     }));
 

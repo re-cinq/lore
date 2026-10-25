@@ -27,12 +27,10 @@ describe("lore_assemble_context audit logging", () => {
         ok: true,
         json: async () => ({
           text: "assembled context block",
-          trace: {
-            sections: [
-              { source: "conventions", budget: 2000, returnedTokens: 400 },
-              { source: "memories", budget: 1000, returnedTokens: 150 },
-            ],
-          },
+          sections: [
+            { header: "conventions", tokens: 400, truncated: false },
+            { header: "memories", tokens: 150, truncated: false },
+          ],
         }),
       })),
     );
