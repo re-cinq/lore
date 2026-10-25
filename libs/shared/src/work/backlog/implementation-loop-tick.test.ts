@@ -428,8 +428,8 @@ describe("a ticket whose blockers are still open", () => {
   it("uses backlog_ranking criteria from repo settings when ordering", async () => {
     const d = deps({
       listIssues: async () => [
-        { ...issue(1, ["priority:high"]), blockedByCount: 0 },
-        { ...issue(2, ["priority:high"]), blockedByCount: 2 },
+        { ...issue(1, ["priority:high"]), unblocksCount: 0 },
+        { ...issue(2, ["priority:high"]), unblocksCount: 2 },
       ],
       rawSettings: async () => ({
         implementation_loop: { enabled: true },

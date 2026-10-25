@@ -108,11 +108,11 @@ async function serveReadBacklog(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const limits = request.query as SectionLimits;
-  const state = await loadBacklogState(
+  const state = await loadBacklogState({
     reads,
-    repoOf(request.params),
-    recentWindow(limits, RECENT_LIMIT),
-  );
+    repo: repoOf(request.params),
+    recentLimit: recentWindow(limits, RECENT_LIMIT),
+  });
 
   return h
     .response({
@@ -129,7 +129,7 @@ interface BacklogState extends BacklogIssues {
   recentLimit: number;
   enabled: boolean;
   onboarding: Onboarding;
-  criteria?: import("@re-cinq/lore-shared/work/backlog/select-next-issue.js").RankingCriterion[];
+  criteria?: import("@re-cinq/lore-shared/backlog/select-next-issue.js").RankingCriterion[];
   taskRows: LoopTaskRow[];
   currentRunId: string | null;
   runByTask: Map<string, LoopRunRow>;
@@ -137,30 +137,53 @@ interface BacklogState extends BacklogIssues {
 }
 
 /** Everything the view needs, read in one place: the toggle and onboarding state, the loop's task rows, the repo's open issues, and the run each task belongs to. */
+interface LoadBacklogStateArgs {
+  reads: BacklogReads;
+  repo: string;
+  recentLimit: number;
+}
 async function loadBacklogState(
-  { pool, queuedIssues }: BacklogReads,
-  repo: string,
-  recentLimit: number,
+  args: LoadBacklogStateArgs,
 ): Promise<BacklogState> {
-  const read = await readRepoRow(pool, repo);
-  const criteria = rankingCriteriaFor(read.repo.settings);
+  const read = await readRepoRow(args.reads.pool, args.repo);
   const issues = await readIssues(
-    repo,
-    queuedIssues,
-    (openIssueNumbers) =>
-      readLoopTasks(pool, { repo, recentLimit, openIssueNumbers }),
-    criteria,
+    args.repo,
+    args.reads.queuedIssues,
+    buildLoopTasksReader(args),
+    rankingCriteriaFor(read.repo.settings),
   );
+  return buildStateObject(
+    args,
+    read,
+    issues,
+    await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
+    await readCurrentRunId(args.reads.pool, args.repo),
+  );
+}
 
-  return {
-    recentLimit,
+function buildStateObject(
+  args: LoadBacklogStateArgs,
+  read: any,
+  issues: any,
+  runIndex: any,
+  currentRunId: any,
+): BacklogState {
+  return Object.assign(issues, runIndex, {
+    recentLimit: args.recentLimit,
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
-    criteria,
-    ...issues,
-    currentRunId: await readCurrentRunId(pool, repo),
-    ...(await readRunIndex(pool, repo, issues.taskRows)),
-  };
+    criteria: rankingCriteriaFor(read.repo.settings),
+    currentRunId,
+  });
+}
+
+function buildLoopTasksReader(args: LoadBacklogStateArgs) {
+  return (openIssueNumbers: readonly number[]) =>
+    readLoopTasks(args.reads.pool, {
+      repo: args.repo,
+      recentLimit: args.recentLimit,
+      openIssueNumbers,
+    });
 }
 
 interface LoopTasksQuery {
