@@ -278,7 +278,7 @@ The tool retrieves from all available sources:
     </section>
   </context>
   ```
-- FR-5.3: Empty sections are omitted from output.
+- FR-5.3: Empty sections are omitted from output. ([validated by `serializeContext > omits empty sections from output`](libs/shared/src/outbound/project/knowledge/context-assembly-format.acceptance.test.ts#L5), [validated by `omits a section whose documents array is empty`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L221))
 - FR-5.4: A truncated document carries `truncated="true"` rather than an inline
   `...(truncated)` marker. ([validated by `context-assembly-format.test.ts:107`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L179))
 
