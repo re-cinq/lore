@@ -1,5 +1,6 @@
 // The floor's runs as the list page reads them: wire rows with their pull request, cost and mini pipeline, and the floor's own cursor.
 import { z } from "zod";
+import { errorMessage } from "@re-cinq/lore-shared/lib/error-classify.js";
 import type { AssemblyRunSummary } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   RunRowSchema,
@@ -90,7 +91,7 @@ const NO_COSTS: ReadonlyMap<string, number> = new Map();
 export class FloorRunRows {
   constructor(private readonly reader: FloorRunSource) {}
 
-  /** One page as the list page reads it: the wire rows and the floor's cursor. Costs are one read for the whole page. */
+  /** One page as the list page reads it: the wire rows and the floor's cursor. Costs are one read for the whole page, and a page whose costs the floor cannot sum is listed without them: the read scans from the oldest run on the page, and on 2026-10-25 it timed out and failed every page with it. */
   async page(
     query: FloorRunPageQuery,
   ): Promise<z.infer<typeof FloorRunPageSchema>> {
@@ -99,7 +100,13 @@ export class FloorRunRows {
     if (runs.length === 0) {
       return { runs: [], next_cursor: nextCursor };
     }
-    const costs = await this.reader.costsByRun(runs.map(({ run }) => run));
+    const costs = await this.reader
+      .costsByRun(runs.map(({ run }) => run))
+      .catch((err: unknown) => {
+        console.warn(`[floor-runs] costs not read: ${errorMessage(err)}`);
+
+        return NO_COSTS;
+      });
 
     return {
       runs: runs.map((listing) => wireRow(listing, costs)),

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { recordedFloor } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import { FloorRunReader } from "./floor-run-reader.js";
 import type { AssemblyRunSummary } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
@@ -93,5 +94,26 @@ describe("floorEnrichmentOf", () => {
       issue_url: null,
       issue_number: null,
     });
+  });
+});
+
+describe("FloorRunRows when the floor cannot sum the page's costs", () => {
+  it("answers run-1 with no cost instead of failing the page when the cost summary times out", async () => {
+    const reader = new FloorRunReader(
+      recordedFloor((request) => {
+        enforceTrue(
+          !request.path.startsWith("/costs"),
+          Error,
+          "The operation was aborted due to timeout",
+        );
+
+        return floorWithRunPage(request);
+      }).floor,
+    );
+    const page = await new FloorRunRows(reader).page({});
+
+    expect(page.runs.map((run) => [run.id, run.cost_usd])).toEqual([
+      ["run-1", null],
+    ]);
   });
 });
