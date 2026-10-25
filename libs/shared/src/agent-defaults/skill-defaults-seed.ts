@@ -8,6 +8,40 @@ const SKILLS_DIR = fileURLToPath(
   new URL("../../../../apps/mcp-server/agent-skills/skills", import.meta.url),
 );
 
+export async function seedSkillDefaults(pool: PgPool): Promise<void> {
+  const skills = ["lore-context", "tdd-loop", "legacy-characterize"];
+  for (const skillName of skills) {
+    await processSkill(pool, skillName);
+  }
+}
+
+async function processSkill(pool: PgPool, skillName: string): Promise<void> {
+  const skillPath = join(SKILLS_DIR, skillName, "SKILL.md");
+
+  let content: string;
+  try {
+    content = readFileSync(skillPath, "utf-8");
+  } catch (_e) {
+    return;
+  }
+
+  const { body, result } = extractFrontmatter(content);
+  if (
+    !body.includes("<!-- lore-help:begin -->") ||
+    !body.includes("<!-- lore-help:end -->")
+  ) {
+    throw new Error(`Skill ${skillName} is missing a ## Help block`);
+  }
+
+  await insertSkillDefinition(
+    pool,
+    result.name || skillName,
+    result.title || skillName,
+    result.description || "",
+    body,
+  );
+}
+
 function extractFrontmatter(content: string) {
   let body = content;
   const result: Record<string, string> = {};
@@ -42,38 +76,4 @@ async function insertSkillDefinition(
     `,
     [name, title, description, null, body, true, null],
   );
-}
-
-async function processSkill(pool: PgPool, skillName: string): Promise<void> {
-  const skillPath = join(SKILLS_DIR, skillName, "SKILL.md");
-
-  let content: string;
-  try {
-    content = readFileSync(skillPath, "utf-8");
-  } catch (_e) {
-    return;
-  }
-
-  const { body, result } = extractFrontmatter(content);
-  if (
-    !body.includes("<!-- lore-help:begin -->") ||
-    !body.includes("<!-- lore-help:end -->")
-  ) {
-    throw new Error(`Skill ${skillName} is missing a ## Help block`);
-  }
-
-  await insertSkillDefinition(
-    pool,
-    result.name || skillName,
-    result.title || skillName,
-    result.description || "",
-    body,
-  );
-}
-
-export async function seedSkillDefaults(pool: PgPool): Promise<void> {
-  const skills = ["lore-context", "tdd-loop", "legacy-characterize"];
-  for (const skillName of skills) {
-    await processSkill(pool, skillName);
-  }
 }

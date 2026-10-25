@@ -31,12 +31,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
         () => null,
       );
 
-    const altMod =
-      await import("@re-cinq/lore-shared/project/skills/skill-defaults-seed.js").catch(
-        () => null,
-      );
-
-    const seedModule = mod || altMod;
+    const seedModule = mod;
     expect(seedModule, "Skill seed module must be implemented").not.toBeNull();
 
     await seedModule.seedSkillDefaults(pool);
