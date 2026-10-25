@@ -9,8 +9,8 @@ import {
   logLines,
   loreReviewVerdict,
   npmScriptOf,
-  summarizeFailedChecks,
 } from "./check-runs.js";
+import { summarizeFailedChecks } from "./failure-summary.js";
 import type { CheckRun, PullCommit } from "./pull-requests-port.js";
 
 const check = (over: Partial<CheckRun> = {}): CheckRun => ({
@@ -569,5 +569,62 @@ describe("loreReviewVerdict", () => {
         }),
       ]),
     ).toEqual("approved");
+  });
+});
+
+describe("failureTail on a coloured log", () => {
+  it("returns ✓ test/chat.test.ts for a line vitest wrapped in colour codes", () => {
+    expect(
+      failureTail(
+        [
+          "2026-10-25T09:48:37.0000000Z ##[endgroup]",
+          "2026-10-25T09:48:38.0000000Z \u001b[32m✓\u001b[39m test/chat.test.ts",
+          "2026-10-25T09:48:39.0000000Z ##[error]Process completed with exit code 1.",
+        ].join("\n"),
+      ),
+    ).toEqual(["✓ test/chat.test.ts"]);
+  });
+});
+
+describe("summarizeFailedChecks on a step whose output runs past the cap", () => {
+  const passingPackages = Array.from(
+    { length: 40 },
+    (_, index) => `✓ test/passing-${index}.test.ts (3 tests)`,
+  );
+  const summary = summarizeFailedChecks(
+    [
+      check({
+        name: "verify",
+        conclusion: "failure",
+        output: { title: null, summary: null },
+        jobFailure: {
+          annotations: [],
+          steps: ["Test"],
+          tail: [
+            "> otto@0.0.0 test",
+            ...passingPackages,
+            "> @support-agent/web@0.0.0 test",
+            "FAIL test/chat.test.ts > shows the persona",
+            "AssertionError: expected 'Otto' to be 'Ava'",
+          ],
+        },
+      }),
+    ],
+    400,
+  ).summary;
+
+  it("ends with the failing test's assertion (otto run 82f38496 cut it off and kept the passing packages)", () => {
+    expect(summary).toMatch(
+      /FAIL test\/chat\.test\.ts > shows the persona\nAssertionError: expected 'Otto' to be 'Ava'$/,
+    );
+  });
+
+  it("keeps the failed step and the npm script, then marks where the earlier output was cut, within 400 characters", () => {
+    expect({
+      start: summary.startsWith(
+        "### verify (failure)\n\nFailed step: Test\n\nRan as: npm script `test` of package `@support-agent/web`\n\n...(earlier output cut)\n",
+      ),
+      withinCap: summary.length <= 400,
+    }).toEqual({ start: true, withinCap: true });
   });
 });
