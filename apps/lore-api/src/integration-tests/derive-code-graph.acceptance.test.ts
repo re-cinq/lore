@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
-import { ingestFiles } from "./ingest.js";
+import { ingestFiles } from "../work/spec-trace/ingest.js";
 import { queryLiveGraph } from "@re-cinq/lore-shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const repoRoot = join(__dirname, "../../../../../");
+const repoRoot = join(__dirname, "../../../../");
 const fixturesDir = join(
   repoRoot,
   "specs/lore-derived-code-graph/__tests__/fixtures",
