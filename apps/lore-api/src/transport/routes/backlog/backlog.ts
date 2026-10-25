@@ -5,7 +5,11 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { heldBacklog, orderBacklog } from "@re-cinq/lore-shared";
+import {
+  heldBacklog,
+  orderBacklog,
+  rankingCriteriaFor,
+} from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import {
   floorClient,
@@ -125,6 +129,7 @@ interface BacklogState extends BacklogIssues {
   recentLimit: number;
   enabled: boolean;
   onboarding: Onboarding;
+  criteria?: import("@re-cinq/lore-shared/work/backlog/select-next-issue.js").RankingCriterion[];
   taskRows: LoopTaskRow[];
   currentRunId: string | null;
   runByTask: Map<string, LoopRunRow>;
@@ -138,14 +143,20 @@ async function loadBacklogState(
   recentLimit: number,
 ): Promise<BacklogState> {
   const read = await readRepoRow(pool, repo);
-  const issues = await readIssues(repo, queuedIssues, (openIssueNumbers) =>
-    readLoopTasks(pool, { repo, recentLimit, openIssueNumbers }),
+  const criteria = rankingCriteriaFor(read.repo.settings);
+  const issues = await readIssues(
+    repo,
+    queuedIssues,
+    (openIssueNumbers) =>
+      readLoopTasks(pool, { repo, recentLimit, openIssueNumbers }),
+    criteria,
   );
 
   return {
     recentLimit,
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
+    criteria,
     ...issues,
     currentRunId: await readCurrentRunId(pool, repo),
     ...(await readRunIndex(pool, repo, issues.taskRows)),
@@ -284,7 +295,7 @@ function nextTickets(state: BacklogState): Ticket[] {
       .map((t) => t.issue_number),
   );
 
-  return orderBacklog(openIssues)
+  return orderBacklog(openIssues, { criteria: state.criteria })
     .filter((i) => !guardedIssues.has(i.number))
     .map((issue) => waitingTicket(issue, "queued", state));
 }

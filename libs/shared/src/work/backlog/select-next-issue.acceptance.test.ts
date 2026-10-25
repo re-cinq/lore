@@ -20,13 +20,13 @@ describe("Backlog ranking configuration", () => {
         number: 1,
         labels: ["priority:medium"],
         createdAt: "2026-08-01T00:00:00Z",
-        blockedByCount: 0,
+        unblocksCount: 0,
       }),
       issue({
         number: 2,
         labels: ["priority:low"],
         createdAt: "2026-08-02T00:00:00Z",
-        blockedByCount: 2,
+        unblocksCount: 2,
       }),
     ];
 
@@ -49,13 +49,13 @@ describe("Backlog ranking configuration", () => {
         number: 1,
         labels: ["priority:high"],
         createdAt: "2026-07-01T00:00:00Z",
-        blockedByCount: 0,
+        unblocksCount: 0,
       }),
       issue({
         number: 2,
         labels: ["priority:high"],
         createdAt: "2026-08-01T00:00:00Z",
-        blockedByCount: 2,
+        unblocksCount: 2,
       }),
     ];
     const pick = selectNextIssue(issues, { criteria: ["unblocks", "age"] });

@@ -3,6 +3,7 @@ export {
   orderBacklog,
   heldBacklog,
 } from "./select-next-issue.js";
+export { rankingCriteriaFor } from "./implementation-loop-tick.js";
 export {
   ticketHold,
   TICKET_HOLD_KINDS,

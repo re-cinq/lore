@@ -93,7 +93,7 @@ function compareByCriterion(
 }
 
 function unblockCount(issue: IssueRef): number {
-  return issue.blockedByCount ?? 0;
+  return issue.unblocksCount ?? 0;
 }
 
 function sizeRank(labels: readonly string[]): number {

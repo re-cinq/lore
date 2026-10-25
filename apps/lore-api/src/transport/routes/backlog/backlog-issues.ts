@@ -64,11 +64,12 @@ export async function readIssues(
   repo: string,
   queuedIssues: QueuedIssues,
   tasksFor: LoopTasksFor,
+  criteria?: import("@re-cinq/lore-shared/work/backlog/select-next-issue.js").RankingCriterion[],
 ): Promise<BacklogIssues & { taskRows: LoopTaskRow[] }> {
   const project = await projectFor(repo);
   const { issues } = project;
   const openIssues = await queuedIssues(repo, issues);
-  const queued = orderBacklog(openIssues);
+  const queued = orderBacklog(openIssues, { criteria });
   const [taskRows, openBlockers] = await Promise.all([
     tasksFor(openIssues.map((i) => i.number)),
     readOpenBlockers(issues, queued),

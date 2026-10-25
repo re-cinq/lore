@@ -151,8 +151,8 @@ describe("orderBacklog", () => {
 describe("orderBacklog with ranking criteria", () => {
   it("unblocks criterion ranks higher-blockedByCount issues first at equal priority", () => {
     const issues = [
-      issue({ number: 1, labels: ["priority:high"], blockedByCount: 0 }),
-      issue({ number: 2, labels: ["priority:high"], blockedByCount: 3 }),
+      issue({ number: 1, labels: ["priority:high"], unblocksCount: 0 }),
+      issue({ number: 2, labels: ["priority:high"], unblocksCount: 3 }),
     ];
 
     expect(

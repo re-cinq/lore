@@ -330,7 +330,7 @@ async function fetchNextReadyIssue({
 }): Promise<ToolTextResult> {
   const [owner, name] = repo.split("/");
   const proxied = await proxyGetApi(
-    `/api/repos/${owner}/${name}/backlog-queue`,
+    `/api/repos/${owner}/${name}/implementation-loop`,
   );
 
   if (!proxied.ok) {
@@ -341,17 +341,27 @@ async function fetchNextReadyIssue({
       }),
     );
   }
-  const issues = JSON.parse(proxied.body) as Array<Record<string, unknown>>;
+  const loopState = JSON.parse(proxied.body) as {
+    next?: Array<Record<string, unknown>>;
+    criteria?: string[];
+  };
 
-  return textResult(JSON.stringify(nextReadyResult(issues)));
+  return textResult(JSON.stringify(nextReadyResult(loopState)));
 }
 
-function nextReadyResult(
-  issues: Array<Record<string, unknown>>,
-): NextReadyResult {
-  if (issues.length === 0) {
+function nextReadyResult(loopState: {
+  next?: Array<Record<string, unknown>>;
+  criteria?: string[];
+}): NextReadyResult {
+  const issues = loopState.next || [];
+  const readyIssues = issues.filter((i) => !i.hold);
+  if (readyIssues.length === 0) {
     return { issue: null, reason: "No issues ready in the backlog." };
   }
 
-  return { issue: issues[0], because: "priority" };
+  const issue = readyIssues[0];
+  const rule = loopState.criteria?.[0] || "priority";
+  const because = `${rule} (unblocks: ${issue.unblocks_count || 0})`;
+
+  return { issue, because };
 }

@@ -20,13 +20,15 @@ describe("lore_next_ready_issue tool", () => {
 
     vi.mocked(proxyGetApi).mockResolvedValueOnce({
       ok: true,
-      body: JSON.stringify([
-        {
-          number: 42,
-          title: "Next pick",
-          url: "https://github.com/acme/widgets/issues/42",
-        },
-      ]),
+      body: JSON.stringify({
+        next: [
+          {
+            number: 42,
+            title: "Next pick",
+            url: "https://github.com/acme/widgets/issues/42",
+          },
+        ],
+      }),
     });
 
     const result = await handler({ repo: "acme/widgets" });
@@ -46,7 +48,7 @@ describe("lore_next_ready_issue tool", () => {
 
     vi.mocked(proxyGetApi).mockResolvedValueOnce({
       ok: true,
-      body: JSON.stringify([]),
+      body: JSON.stringify({ next: [] }),
     });
 
     const result = await handler({ repo: "acme/widgets" });
@@ -58,7 +60,28 @@ describe("lore_next_ready_issue tool", () => {
 
   it("Two runs against an unchanged backlog return the same issue", async () => {
     const handler = handlerFor("lore_next_ready_issue");
+    const payload = JSON.stringify({
+      next: [
+        {
+          number: 42,
+          title: "Next pick",
+          url: "https://github.com/acme/widgets/issues/42",
+        },
+      ],
+    });
 
-    expect(handler).toBeDefined();
+    vi.mocked(proxyGetApi)
+      .mockResolvedValueOnce({ ok: true, body: payload })
+      .mockResolvedValueOnce({ ok: true, body: payload });
+
+    const first = JSON.parse(
+      (await handler({ repo: "acme/widgets" })).content[0].text,
+    );
+    const second = JSON.parse(
+      (await handler({ repo: "acme/widgets" })).content[0].text,
+    );
+
+    expect(first.issue).toEqual(second.issue);
+    expect(first.because).toEqual(second.because);
   });
 });

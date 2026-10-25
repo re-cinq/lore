@@ -129,7 +129,9 @@ const VALID_RANKING_CRITERIA = new Set<string>([
   "size",
 ]);
 
-function rankingCriteriaFor(settings: unknown): RankingCriterion[] | undefined {
+export function rankingCriteriaFor(
+  settings: unknown,
+): RankingCriterion[] | undefined {
   const rawCriteria = toRecord(toRecord(settings)?.backlog_ranking)?.criteria;
 
   if (!Array.isArray(rawCriteria)) {
