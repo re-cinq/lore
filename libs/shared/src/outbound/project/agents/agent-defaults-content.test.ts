@@ -964,14 +964,39 @@ describe("the loop's branch sync", () => {
 });
 
 describe("the loop's branch sync on its own scaffolding", () => {
-  it("tells loop-sync to settle a conflict on .lore/dod.md by the commit being replayed instead of aborting", () => {
+  it("tells loop-sync to settle a conflict on .lore/dod.md as the branch tip has it instead of aborting", () => {
     const prompt = promptOf("loop-sync").replace(/\s+/g, " ");
 
     expect({
-      keepsReplayed: prompt.includes(
-        "A conflict on `.lore/dod.md` takes what the commit being replayed says about it",
+      keepsTip: prompt.includes(
+        "`.lore/dod.md`: keep the file as `$TIP` has it",
       ),
-      keepsRebasing: prompt.includes("is never a reason to abort"),
-    }).toEqual({ keepsReplayed: true, keepsRebasing: true });
+      onlyOtherFilesAbort: prompt.includes(
+        "a file of the ticket's other than `.lore/dod.md`",
+      ),
+    }).toEqual({ keepsTip: true, onlyOtherFilesAbort: true });
+  });
+});
+
+describe("the loop's branch sync keeps both sides' work", () => {
+  it("tells loop-sync to rebuild a conflicting branch as one commit of its net change, carrying the replaced commits' trailers", () => {
+    const prompt = promptOf("loop-sync").replace(/\s+/g, " ");
+
+    expect({
+      squashes: prompt.includes("git merge --squash"),
+      trailers: prompt.includes("%(trailers:only,unfold)"),
+    }).toEqual({ squashes: true, trailers: true });
+  });
+
+  it("tells loop-sync to keep both sides' additions, keep main's copy of what a sibling already merged, and leave a resolution to CI instead of aborting", () => {
+    const prompt = promptOf("loop-sync").replace(/\s+/g, " ");
+
+    expect({
+      keepsBoth: prompt.includes("keep both, each once"),
+      keepsMains: prompt.includes("keep main's and drop the duplicate"),
+      ciJudges: prompt.includes(
+        "is never a reason to abort: CI judges the push",
+      ),
+    }).toEqual({ keepsBoth: true, keepsMains: true, ciJudges: true });
   });
 });

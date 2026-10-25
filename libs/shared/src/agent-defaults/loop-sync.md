@@ -19,20 +19,32 @@ STEPS:
    (it is `main` unless that prints something else; use that name wherever
    this prompt says `main`). Then `git fetch origin main` and
    `git rebase origin/main`. Rebase, never merge: the branch's history stays
-   a straight line on top of the default branch.
-2. On a conflict, open each conflicted file and resolve it by hand. Keep
-   everything `origin/main` changed that this ticket did not write, and keep
-   everything this ticket wrote; when the two edit the same lines, combine
-   them so both intents survive. Never resolve by taking one whole side of a
-   file (`--ours` / `--theirs` on a file both sides edited), and never by
-   deleting the ticket's work. `git add` the file, then
-   `git rebase --continue`. Repeat until the rebase is finished.
-   A conflict on `.lore/dod.md` takes what the commit being replayed says
-   about it: `git checkout --theirs .lore/dod.md && git add .lore/dod.md`
-   when that commit keeps the file, `git rm .lore/dod.md` when it deletes
-   it. The file is the loop's own scaffolding between pods, which the
-   ready-for-review step removes before review; main never needs it, so a
-   collision on it, even one with main deleting it, is never a reason to abort.
+   a straight line on top of the default branch. If the rebase finishes with
+   no conflict, go to step 3.
+2. If the rebase stops on a conflict, do not resolve it commit by commit:
+   replaying the branch's rounds one at a time collides on states nobody
+   meant to keep, again and again. Run `git rebase --abort` and rebuild the
+   branch as ONE commit of its net change on top of main instead:
+   `TIP=$(git rev-parse HEAD)`,
+   `TRAILERS=$(git log --format='%(trailers:only,unfold)' origin/main..$TIP | sort -u)`,
+   `git reset --hard origin/main`, then `git merge --squash $TIP`. Each file
+   now conflicts at most once. Open each conflicted file and resolve it:
+   - Both sides added to the same list, block or file (entries, imports,
+     checks, cases, variables): keep both, each once.
+   - Main already has what this ticket adds (the same definition or entry,
+     usually from a sibling ticket that merged first): keep main's and drop
+     the duplicate.
+   - Both sides changed the same lines: combine them so both intents
+     survive. Keep everything `origin/main` changed that this ticket did not
+     write, and keep everything this ticket wrote.
+   - `.lore/dod.md`: keep the file as `$TIP` has it (`git checkout $TIP --
+     .lore/dod.md`), or `git rm .lore/dod.md` when `$TIP` has none. It is
+     the loop's own scaffolding between pods, which the ready-for-review step
+     removes before review; main never needs it.
+   Never resolve by taking one whole side of a file both sides edited, and
+   never by deleting the ticket's work. `git add` each file, then commit once:
+   `git commit -m "Rebase onto main as one commit of the ticket's change" -m "$TRAILERS"`,
+   so the replaced commits' trailers (`Lore-Task:` among them) stay on the branch.
 3. Read the result once: `git diff origin/main...HEAD --stat` must show only
    files this ticket touched. A file you did not mean to change is a
    resolution that went wrong; fix it before you push.
@@ -51,10 +63,14 @@ RULES:
   the pod's memory. Format nothing: you changed no logic.
 - If the branch is already on `origin/main` (the rebase says it is up to
   date), push nothing and report success.
-- If a conflict cannot be resolved without a decision only a person can make
-  (the two sides contradict each other, or a file of the ticket's other than
-  `.lore/dod.md` was deleted on main), run `git rebase --abort`, change nothing and report `failed` with
-  what collided. Never push a half-finished rebase.
+- Not being able to run the tests here is never a reason to abort: CI judges the push,
+  and a resolution it finds wrong comes back as a red build the fix step
+  repairs, with the failure named.
+- Abort only when keeping both sides would make the code do two
+  incompatible things, or when main deleted a file of the ticket's other
+  than `.lore/dod.md`: then `git merge --abort` (or `git rebase --abort`),
+  `git reset --hard $TIP`, change nothing, and report `failed` naming the
+  file and the lines that collide. Never push a half-finished resolution.
 
 Print exactly one of these as the last line of your final message:
 - The branch is rebased onto origin/main and pushed:
