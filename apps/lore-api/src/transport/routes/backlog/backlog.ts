@@ -140,28 +140,27 @@ async function loadBacklogState(
     rankingCriteriaFor(read.repo.settings),
   );
 
-  return assembleBacklogState(
-    args,
-    read,
-    issues,
-    await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
-    await readCurrentRunId(args.reads.pool, args.repo),
-  );
+  return assembleBacklogState(args, read, issues, {
+    index: await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
+    currentId: await readCurrentRunId(args.reads.pool, args.repo),
+  });
 }
 
 function assembleBacklogState(
   args: LoadBacklogStateArgs,
   read: RepoRead,
-  issues: BacklogIssues,
-  runIndex: Pick<BacklogState, "runByTask" | "nodeRows">,
-  currentRunId: string | null,
+  issues: BacklogIssues & Pick<BacklogState, "taskRows">,
+  runs: {
+    index: Pick<BacklogState, "runByTask" | "nodeRows">;
+    currentId: string | null;
+  },
 ): BacklogState {
-  return Object.assign(issues, runIndex, {
+  return Object.assign(issues, runs.index, {
     recentLimit: args.recentLimit,
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
     criteria: rankingCriteriaFor(read.repo.settings),
-    currentRunId,
+    currentRunId: runs.currentId,
   });
 }
 

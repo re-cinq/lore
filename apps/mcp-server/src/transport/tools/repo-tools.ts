@@ -113,13 +113,11 @@ async function fetchRepoPage(
     };
   const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
   const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
-  return {
-    pageRepos,
-    total:
-      typeof parsed.total === "number"
-        ? parsed.total
-        : currentTotal + pageRepos.length,
-  };
+  const total =
+    typeof parsed.total === "number"
+      ? parsed.total
+      : currentTotal + pageRepos.length;
+  return { pageRepos, total };
 }
 
 function proxyFailure(
