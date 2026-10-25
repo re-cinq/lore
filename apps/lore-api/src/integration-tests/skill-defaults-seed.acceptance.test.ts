@@ -19,9 +19,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
       await pool.query(
         `DELETE FROM lore.skill_definitions WHERE name IN ('lore-context', 'tdd-loop', 'legacy-characterize')`,
       );
-    } catch (_e) {
-      // ignore deletion errors
-    }
+    } catch (_e) {}
     await pool.end();
   });
 
