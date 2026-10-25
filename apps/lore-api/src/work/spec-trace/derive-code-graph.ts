@@ -108,6 +108,7 @@ function collectFileEdges(
     if (file.path === "package.json" || file.path.endsWith("/package.json")) {
       edges.push(...parsePackageJsonEdges(file.content, repo));
     }
+
     if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file.path)) {
       edges.push(...parseTsEdges(file.path, file.content, repo, packageName));
     }
@@ -200,6 +201,7 @@ function parseImportSymbols(
     .map((raw) => {
       const trimmed = raw.trim();
       const parts = trimmed.split(/\s+as\s+/);
+
       return parts[0].trim();
     })
     .filter(Boolean)

@@ -16,6 +16,7 @@ const fixturesDir = join(
 
 function readFixture(repo: string, filePath: string) {
   const content = readFileSync(join(fixturesDir, repo, filePath), "utf-8");
+
   return { path: filePath, content };
 }
 
@@ -55,6 +56,7 @@ describe("Lore Derived Code Graph", () => {
   it("emits a depends-on edge from the consumer to the library ([validated by](specs/lore-derived-code-graph/spec.md#L9))", async () => {
     const edges = await queryLiveGraph(pool, { entity: "my-library" });
     const dependsOn = edges.find((e) => e.relation === "depends-on");
+
     expect(dependsOn).toBeDefined();
     expect(dependsOn?.entity).toBe("my-org/my-consumer");
     expect(dependsOn?.related_entity).toBe("my-library");
@@ -65,6 +67,7 @@ describe("Lore Derived Code Graph", () => {
       entity: "usedExport",
       relationType: "uses",
     });
+
     expect(edges.some((e) => e.entity === "my-org/my-consumer/app.ts")).toBe(
       true,
     );
@@ -75,6 +78,7 @@ describe("Lore Derived Code Graph", () => {
       entity: "unusedExport",
       relationType: "uses",
     });
+
     expect(edges.length).toBeGreaterThan(0);
     expect(edges[0].relation).toBe("uses");
     expect(edges[0].entity).toBe("none");
@@ -85,6 +89,7 @@ describe("Lore Derived Code Graph", () => {
       entity: "my-library",
       relationType: "exports",
     });
+
     expect(edges.some((e) => e.related_entity === "BaseClass")).toBe(true);
   });
 
@@ -93,6 +98,7 @@ describe("Lore Derived Code Graph", () => {
       repo: "my-org/my-consumer",
       relationType: "uses",
     });
+
     expect(edges.some((e) => e.related_entity === "usedExport")).toBe(true);
     expect(edges.some((e) => e.related_entity === "unusedExport")).toBe(false);
   });
@@ -100,6 +106,7 @@ describe("Lore Derived Code Graph", () => {
   it("emits an extends edge from the subclass to its base type ([validated by](specs/lore-derived-code-graph/spec.md#L13))", async () => {
     const edges = await queryLiveGraph(pool, { entity: "SubClass" });
     const extendsEdge = edges.find((e) => e.relation === "extends");
+
     expect(extendsEdge).toBeDefined();
     expect(extendsEdge?.related_entity).toBe("BaseClass");
   });
@@ -108,6 +115,7 @@ describe("Lore Derived Code Graph", () => {
     const before = await queryLiveGraph(pool, {
       repo: "my-org/my-consumer",
     });
+
     await ingestFiles(
       pool,
       [
@@ -119,6 +127,7 @@ describe("Lore Derived Code Graph", () => {
     const after = await queryLiveGraph(pool, {
       repo: "my-org/my-consumer",
     });
+
     expect(after).toEqual(before);
   });
 });
