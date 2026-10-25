@@ -197,12 +197,11 @@ function parseImportSymbols(
 ): DerivedEdge[] {
   return importList
     .split(",")
-    .map((raw) =>
-      raw
-        .trim()
-        .split(/\s+as\s+/)[0]
-        .trim(),
-    )
+    .map((raw) => {
+      const trimmed = raw.trim();
+      const parts = trimmed.split(/\s+as\s+/);
+      return parts[0].trim();
+    })
     .filter(Boolean)
     .map((symbol) => importSymbolEdge(fileEntity, repo, symbol));
 }
