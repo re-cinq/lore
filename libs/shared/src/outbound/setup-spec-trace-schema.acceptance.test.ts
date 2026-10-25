@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 import { createDgraphClient } from "./dgraph-client.js";
 
-// @ts-expect-error - not yet implemented
 import { setupSpecTraceSchema } from "./setup-spec-trace-schema.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
