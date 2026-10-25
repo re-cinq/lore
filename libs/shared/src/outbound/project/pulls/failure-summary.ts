@@ -37,7 +37,9 @@ function outputRoom(
   maxChars: number,
 ): number {
   const printing = failed.filter(printedOutput).length;
-  const room = maxChars - renderSummary(byName, 0).length;
+  // A zero-room render already holds one cut marker per printing run, which outputEnd counts again within each run's room.
+  const room =
+    maxChars - renderSummary(byName, 0).length + printing * OUTPUT_CUT.length;
 
   return printing === 0 ? 0 : Math.max(0, Math.floor(room / printing));
 }
