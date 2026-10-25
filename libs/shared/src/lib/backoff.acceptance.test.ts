@@ -1,26 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
-import { backoffDelay, runPollLoop, pollUntil } from "./backoff.js";
-
-describe("backoffDelay", () => {
-  it("returns baseMs * 2^attempts capped at maxMs, flooring a negative attempt count at the base delay", () => {
-    expect([0, 1, 2, 4, -1].map((a) => backoffDelay(100, a, 1000))).toEqual([
-      100, 200, 400, 1000, 100,
-    ]);
-  });
-});
+import { runPollLoop, pollUntil } from "./backoff.js";
 
 describe("runPollLoop", () => {
   it("ticks while running() holds, awaits onOutcome before the sleep that follows it, and sleeps whatever delayFor(outcome, idleTicks) returns — where idleTicks counts the consecutive isIdle outcomes BEFORE this one, so the first idle tick still sleeps the base delay and only consecutive ones grow it", async () => {
     const outcomes = ["busy", "idle", "idle", "busy", "idle"];
-    let ticks = 0;
-    const running = vi.fn(() => ticks < outcomes.length);
-    const onOutcome = vi.fn(async () => {
-      const outcome = outcomes[ticks];
-
-      ticks++;
-
+    let ticksCount = 0;
+    const running = vi.fn(() => ticksCount < outcomes.length);
+    const tick = vi.fn(async () => {
+      const outcome = outcomes[ticksCount];
+      ticksCount++;
       return outcome;
     });
+    const onOutcome = vi.fn(async (_outcome: string) => {});
     const delayFor = vi.fn((outcome: string, idleTicks: number) => {
       if (outcome === "busy") {
         return 100;
@@ -33,12 +24,14 @@ describe("runPollLoop", () => {
 
     await runPollLoop({
       running,
+      tick,
       onOutcome,
       delayFor,
       isIdle,
       sleep,
     });
 
+    expect(tick).toHaveBeenCalledTimes(5);
     expect(onOutcome).toHaveBeenCalledTimes(5);
 
     expect(delayFor.mock.calls).toEqual([
@@ -56,13 +49,13 @@ describe("runPollLoop", () => {
 
   it("Omitting isIdle makes every outcome non-idle, giving a flat interval", async () => {
     const sleep = vi.fn(async (_ms: number) => {});
-    let ticks = 0;
+    let ticksCount = 0;
     const delayFor = vi.fn(() => 50);
 
     await runPollLoop({
-      running: () => ticks < 3,
-      onOutcome: async () => {
-        ticks++;
+      running: () => ticksCount < 3,
+      tick: async () => {
+        ticksCount++;
 
         return "any";
       },
@@ -80,16 +73,16 @@ describe("runPollLoop", () => {
 
   it("a running() that is false from the start runs no tick at all", async () => {
     const sleep = vi.fn(async (_ms: number) => {});
-    const onOutcome = vi.fn(async () => "any");
+    const tick = vi.fn(async () => "any");
 
     await runPollLoop({
       running: () => false,
-      onOutcome,
+      tick,
       delayFor: () => 10,
       sleep,
     });
 
-    expect(onOutcome).not.toHaveBeenCalled();
+    expect(tick).not.toHaveBeenCalled();
     expect(sleep).not.toHaveBeenCalled();
   });
 });

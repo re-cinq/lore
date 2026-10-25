@@ -10,19 +10,24 @@ export function backoffDelay(
 }
 
 export interface PollLoopOptions<T> {
-  running: () => boolean;
-  onOutcome: () => Promise<T>;
+  running?: () => boolean;
+  tick: () => Promise<T>;
+  onOutcome?: (outcome: T) => void | Promise<void>;
   delayFor: (outcome: T, idleTicks: number) => number;
   isIdle?: (outcome: T) => boolean;
   sleep?: (ms: number) => Promise<void>;
 }
 
 export async function runPollLoop<T>(opts: PollLoopOptions<T>): Promise<void> {
+  const running = opts.running ?? ((): boolean => true);
   const sleep = opts.sleep ?? defaultSleep;
   let idleStreak = 0;
 
-  while (opts.running()) {
-    const outcome = await opts.onOutcome();
+  while (running()) {
+    const outcome = await opts.tick();
+
+    await opts.onOutcome?.(outcome);
+
     const currentIsIdle = opts.isIdle ? opts.isIdle(outcome) : false;
     const idleTicks = currentIsIdle ? idleStreak : 0;
     const delay = opts.delayFor(outcome, idleTicks);
