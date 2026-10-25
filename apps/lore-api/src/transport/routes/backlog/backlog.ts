@@ -28,7 +28,6 @@ import { fetchRunContext, fillFromFloor } from "./backlog-run-context.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow } from "./backlog-repo.js";
 import {
-  capSections,
   recentWindow,
   SectionLimitsQuery,
   type SectionLimits,
