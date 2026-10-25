@@ -195,9 +195,9 @@ export {
   ciJudgedSha,
   externalCheckRuns,
   failedCheckRuns,
-  summarizeFailedChecks,
   SKIP_CI_MARKERS,
 } from "./outbound/project/pulls/check-runs.js";
+export { summarizeFailedChecks } from "./outbound/project/pulls/failure-summary.js";
 export {
   decideOnboard,
   onboardLockKey,
