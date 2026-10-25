@@ -105,25 +105,22 @@ type RepoPageResult =
   { pageRepos: unknown[]; total: number } | { failure: ToolTextResult };
 
 async function fetchRepoPage(
-  pageSize: number,
+  limit: number,
   offset: number,
-  currentTotal: number,
+  curr: number,
 ): Promise<RepoPageResult> {
   const proxied = await proxyGetApi(
-    `/api/repos?limit=${pageSize}&offset=${offset}`,
+    `/api/repos?limit=${limit}&offset=${offset}`,
   );
-
-  if (!proxied.ok) {
+  if (!proxied.ok)
     return {
       failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
     };
-  }
+
   const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
   const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
   const total =
-    typeof parsed.total === "number"
-      ? parsed.total
-      : currentTotal + pageRepos.length;
+    typeof parsed.total === "number" ? parsed.total : curr + pageRepos.length;
 
   return { pageRepos, total };
 }
@@ -153,29 +150,17 @@ function registerOnboardRepoTool(server: McpServer) {
   );
 }
 
-async function onboardRepo({
-  full_name,
-  reonboard,
-}: {
-  full_name: string;
-  reonboard?: boolean;
-}): Promise<ToolTextResult> {
-  const proxied = await proxyToApi("/api/onboard", {
-    repo: full_name,
-    reonboard,
-  });
+type OnboardArgs = { full_name: string; reonboard?: boolean };
 
-  if (proxied.ok) {
-    return textResult(proxied.body);
-  }
+async function onboardRepo(args: OnboardArgs): Promise<ToolTextResult> {
+  const repo = args.full_name;
+  const reonboard = args.reonboard;
+  const proxied = await proxyToApi("/api/onboard", { repo, reonboard });
 
-  if (
-    proxied.reason === "unreachable" &&
-    proxied.status === 409 &&
-    proxied.body
-  ) {
-    return textResult(proxied.body);
-  }
+  if (proxied.ok) return textResult(proxied.body);
+
+  const isConflict = proxied.reason === "unreachable" && proxied.status === 409;
+  if (isConflict && proxied.body) return textResult(proxied.body);
 
   return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
 }

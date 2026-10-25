@@ -3485,6 +3485,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        unblocks_count?: number;
       }[];
       current_run_id: string | null;
       next: {
@@ -3514,6 +3515,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        unblocks_count?: number;
       }[];
       parked: {
         issue_number: number;
@@ -3542,6 +3544,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        unblocks_count?: number;
       }[];
       recent: {
         issue_number: number;
@@ -3570,6 +3573,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        unblocks_count?: number;
       }[];
       awaiting_merge: {
         issue_number: number;
@@ -3598,7 +3602,9 @@ export interface components {
               state: string;
             }[]
           | null;
+        unblocks_count?: number;
       }[];
+      criteria?: string[];
     };
     IncidentRecorded: {
       /** @constant */

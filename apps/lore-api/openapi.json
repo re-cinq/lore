@@ -13285,6 +13285,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13389,6 +13394,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13490,6 +13500,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13591,6 +13606,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13692,6 +13712,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13707,6 +13732,12 @@
                 "pipeline"
               ],
               "additionalProperties": false
+            }
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         },

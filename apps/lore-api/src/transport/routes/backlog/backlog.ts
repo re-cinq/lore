@@ -141,8 +141,8 @@ async function loadBacklogState(
   );
 
   return assembleBacklogState(args, read, issues, {
-    index: await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
     currentId: await readCurrentRunId(args.reads.pool, args.repo),
+    index: await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
   });
 }
 
