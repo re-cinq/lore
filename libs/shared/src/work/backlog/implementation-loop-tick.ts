@@ -7,6 +7,7 @@ import type { EventHandler } from "../../outbound/project/events/drain-loop.js";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import { implementationLoopEnabled } from "../../domain/loops/implementation-loop-enabled.js";
 import { decideBranchResume, type OpenPr } from "./resume-branch.js";
+import { UPKEEP_ENTRY } from "./loop-pr-upkeep.js";
 import { orderBacklog } from "./select-next-issue.js";
 import { taskHoldingTicket } from "./ticket-holder.js";
 import {
@@ -64,6 +65,8 @@ export interface StartedTicket {
   description: string;
   /** The pull request a resumed branch already has; null for a fresh branch, and for a resumed one nobody opened a pull request for. */
   openPr: OpenPr | null;
+  /** Where the run starts; left out, the line's entry. */
+  entry?: string;
 }
 
 /** One tick of the self-re-arming backlog loop (FR2): serialized per repo by the open-run subject key, per issue by `activeTaskByIssue` (FR1's "no open PR already referencing it"); a cross-issue race settles via the unique `(repo, subject_key)` index. */
@@ -216,7 +219,7 @@ interface LoopDispatchInput {
   resume: ReturnType<typeof decideBranchResume>;
 }
 
-/** Creates the backlog task, stamps the issue link onto it, and hands it to whoever starts it. */
+/** Creates the backlog task, stamps the issue link onto it, and hands it to whoever starts it. A ticket whose pull request is open and ready for review continues at `sync-pr`, where its pull request is: starting it at the line's entry made `dod` judge the finished branch and close re-cinq/Otto #326 as "already resolved" while its pull request still had review findings to address (2026-10-25). */
 async function dispatchLoopTask(
   input: LoopDispatchInput,
   deps: LoopTickDeps,
@@ -224,6 +227,7 @@ async function dispatchLoopTask(
   const { repo, picked, branch, resume } = input;
   const description = implementationTicketDescription(picked);
   const taskId = await mintTask(input, description, deps);
+  const openPr = resume.resume ? resume.openPr : null;
 
   logDispatch(input, taskId);
   await deps.started({
@@ -232,7 +236,8 @@ async function dispatchLoopTask(
     branch,
     issue: picked,
     description,
-    openPr: resume.resume ? resume.openPr : null,
+    openPr,
+    ...(openPr?.draft === false ? { entry: UPKEEP_ENTRY } : {}),
   });
 }
 
