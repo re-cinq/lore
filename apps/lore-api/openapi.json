@@ -13201,6 +13201,12 @@
             "required": ["merged", "pr_url", "last_task"],
             "additionalProperties": false
           },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "current": {
             "type": "array",
             "items": {
@@ -13732,12 +13738,6 @@
                 "pipeline"
               ],
               "additionalProperties": false
-            }
-          },
-          "criteria": {
-            "type": "array",
-            "items": {
-              "type": "string"
             }
           }
         },

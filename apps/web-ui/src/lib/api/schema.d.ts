@@ -3458,6 +3458,7 @@ export interface components {
           in_flight: boolean;
         } | null;
       };
+      criteria?: string[];
       current: {
         issue_number: number;
         issue_url: string | null;
@@ -3604,7 +3605,6 @@ export interface components {
           | null;
         unblocks_count?: number;
       }[];
-      criteria?: string[];
     };
     IncidentRecorded: {
       /** @constant */
