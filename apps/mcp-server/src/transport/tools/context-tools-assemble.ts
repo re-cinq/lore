@@ -105,9 +105,9 @@ async function assembleContext(args: AssembleContextArgs) {
   );
 
   if (proxied.ok) {
-    const { text, trace } = parseAssembleBody(proxied.body);
+    const { text, sections } = parseAssembleBody(proxied.body);
 
-    logAssembleAudit(query, template, trace);
+    logAssembleAudit(query, template, sections);
 
     return interpretProxiedContext({ ok: true, body: text });
   }
@@ -152,6 +152,7 @@ async function cachedAssemble(
       ttlSeconds: 600,
     },
     () => fetchAssembledContext(new URLSearchParams({ ...key, ...extras })),
+    { label: false },
   );
 }
 
@@ -169,22 +170,22 @@ async function fetchAssembledContext(
 }
 
 interface AssembleSection {
-  source: string;
-  returnedTokens: number;
-}
-
-interface AssembleTrace {
-  sections: AssembleSection[];
+  header: string;
+  tokens: number;
+  truncated: boolean;
 }
 
 function parseAssembleBody(body: string): {
   text: string;
-  trace?: AssembleTrace;
+  sections?: AssembleSection[];
 } {
   try {
-    const parsed = JSON.parse(body) as { text?: string; trace?: AssembleTrace };
+    const parsed = JSON.parse(body) as {
+      text?: string;
+      sections?: AssembleSection[];
+    };
 
-    return { text: parsed.text ?? "", trace: parsed.trace };
+    return { text: parsed.text ?? "", sections: parsed.sections };
   } catch {
     return { text: body };
   }
@@ -193,11 +194,10 @@ function parseAssembleBody(body: string): {
 function logAssembleAudit(
   query: string,
   template: string,
-  trace: AssembleTrace | undefined,
+  sections: AssembleSection[] | undefined,
 ): void {
-  const sections = trace?.sections ?? [];
-  const sources = sections.map((s) => s.source).join(", ") || "none";
-  const tokens = sections.reduce((sum, s) => sum + s.returnedTokens, 0);
+  const sources = sections?.map((s) => s.header).join(", ") || "none";
+  const tokens = sections?.reduce((sum, s) => sum + s.tokens, 0) ?? 0;
 
   console.error(
     `[lore] lore_assemble_context: query: ${query}, template: ${template}, sources hit: ${sources}, tokens: ${tokens}`,
