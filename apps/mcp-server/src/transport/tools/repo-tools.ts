@@ -104,13 +104,21 @@ async function fetchRepoPage(
   offset: number,
   currentTotal: number,
 ): Promise<RepoPageResult> {
-  const proxied = await proxyGetApi(`/api/repos?limit=${pageSize}&offset=${offset}`);
-  if (!proxied.ok) return { failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied) };
+  const proxied = await proxyGetApi(
+    `/api/repos?limit=${pageSize}&offset=${offset}`,
+  );
+  if (!proxied.ok)
+    return {
+      failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
+    };
   const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
   const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
   return {
     pageRepos,
-    total: typeof parsed.total === "number" ? parsed.total : currentTotal + pageRepos.length,
+    total:
+      typeof parsed.total === "number"
+        ? parsed.total
+        : currentTotal + pageRepos.length,
   };
 }
 

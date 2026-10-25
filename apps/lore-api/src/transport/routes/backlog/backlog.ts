@@ -26,7 +26,7 @@ import {
 } from "./backlog-ticket.js";
 import { fetchRunContext, fillFromFloor } from "./backlog-run-context.js";
 import { withPool } from "../with-pool.js";
-import { onboardingOf, readRepoRow } from "./backlog-repo.js";
+import { onboardingOf, readRepoRow, type RepoRead } from "./backlog-repo.js";
 import {
   recentWindow,
   SectionLimitsQuery,
@@ -139,13 +139,23 @@ async function loadBacklogState(
     buildLoopTasksReader(args),
     rankingCriteriaFor(read.repo.settings),
   );
-  const runIndex = await readRunIndex(
-    args.reads.pool,
-    args.repo,
-    issues.taskRows,
-  );
-  const currentRunId = await readCurrentRunId(args.reads.pool, args.repo);
 
+  return assembleBacklogState(
+    args,
+    read,
+    issues,
+    await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
+    await readCurrentRunId(args.reads.pool, args.repo),
+  );
+}
+
+function assembleBacklogState(
+  args: LoadBacklogStateArgs,
+  read: RepoRead,
+  issues: BacklogIssues,
+  runIndex: Pick<BacklogState, "runByTask" | "nodeRows">,
+  currentRunId: string | null,
+): BacklogState {
   return Object.assign(issues, runIndex, {
     recentLimit: args.recentLimit,
     enabled: resolveEnabled(read.repo.settings),
