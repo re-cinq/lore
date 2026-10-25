@@ -4,6 +4,7 @@ import {
   type LoopFloor,
   type LoopRunsFloor,
 } from "@re-cinq/lore-shared/backlog/floor-loop.js";
+import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared/backlog/labels.js";
 import { issueNumberFromLoopBranch } from "@re-cinq/lore-shared/backlog/loop-merge-success.js";
 import {
   decideUpkeep,
@@ -228,9 +229,23 @@ async function startOutcome(scope: Scope, pull: PullRef): Promise<string> {
 }
 
 async function needsUpkeep(scope: Scope, pull: PullRef): Promise<boolean> {
-  const facts = await factsOf(scope.project, pull);
+  const [facts, parked] = await Promise.all([
+    factsOf(scope.project, pull),
+    ticketParked(scope.project, pull),
+  ]);
 
-  return decideUpkeep({ openRun: false, facts }) === "start";
+  return !parked && decideUpkeep({ openRun: false, facts }) === "start";
+}
+
+/** The loop parked the pull request's ticket: a run on it ended blocked, and the ticket is a person's until they take the label off. Upkeep that ignored the label started a run on lore #2879 after every push to main, each ending in the same place. */
+async function ticketParked(
+  { issues }: UpkeepProject,
+  pull: PullRef,
+): Promise<boolean> {
+  const number = issueNumberFromLoopBranch(pull.branch);
+  const ticket = number === null ? null : await issues.get(number);
+
+  return ticket?.labels.includes(LORE_BLOCKED_LABEL) ?? false;
 }
 
 async function factsOf(

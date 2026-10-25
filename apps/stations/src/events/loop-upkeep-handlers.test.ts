@@ -45,6 +45,7 @@ interface SceneInput {
   ci?: "success" | "failure" | "pending" | "none";
   openRuns?: ReturnType<typeof planRun>[];
   loopOn?: boolean;
+  ticketLabels?: string[];
 }
 
 function scene(input: SceneInput = {}) {
@@ -94,7 +95,7 @@ function scene(input: SceneInput = {}) {
         number,
         title: "Add the export button",
         state: "open",
-        labels: [],
+        labels: input.ticketLabels ?? [],
         body: "Export.",
       }),
     },
@@ -280,5 +281,18 @@ describe("loopUpkeepHandlers rotating its starts", () => {
       "upkeep-15",
       "upkeep-12",
     ]);
+  });
+});
+
+describe("loop upkeep on a parked ticket", () => {
+  it("starts nothing for settled pull request 12 whose ticket the loop parked with lore:blocked, since a parked ticket is a person's until they unpark it (lore #2879 kept getting upkeep runs after each parking)", async () => {
+    const parked = scene({
+      mergeState: "behind",
+      ticketLabels: ["lore:blocked"],
+    });
+
+    await parked.push("main");
+
+    expect(parked.starts()).toEqual([]);
   });
 });
