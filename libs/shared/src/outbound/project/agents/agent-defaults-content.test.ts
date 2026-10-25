@@ -4,6 +4,11 @@ import { DELIVERING_PROMPT_REFS } from "../../../domain/task-types/delivering-re
 import { loadAgentDefaults } from "./agent-defaults-files.js";
 
 const SHIPPED = new Map(loadAgentDefaults().map((def) => [def.name, def]));
+const LINTING_RECIPES: readonly string[] = [
+  "loop-dod",
+  "loop-tdd-round",
+  "loop-fix-ci",
+];
 
 function promptOf(name: string): string {
   return SHIPPED.get(name)?.prompt ?? "";
@@ -22,15 +27,17 @@ describe("the delivering recipes", () => {
     }
   });
 
-  it("tells every delivering recipe to format the files it changed and never to run the linter", () => {
+  it("tells every delivering recipe to format the files it changed, and the ones that do not write code never to run the linter", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name).replace(/\s+/g, " ");
+      const lints = LINTING_RECIPES.includes(name);
 
       expect(prompt, name).toContain(
         "run the repository's FORMATTER over the files you changed",
       );
-      expect(prompt, name).toContain("Do NOT run the linter in this pod");
-      expect(prompt, name).not.toContain("npx eslint");
+      expect(prompt.includes("Do NOT run the linter in this pod"), name).toBe(
+        !lints,
+      );
     }
   });
 
@@ -998,5 +1005,30 @@ describe("the loop's branch sync keeps both sides' work", () => {
         "is never a reason to abort: CI judges the push",
       ),
     }).toEqual({ keepsBoth: true, keepsMains: true, ciJudges: true });
+  });
+});
+
+describe("the loop's recipes that write code lint what they changed", () => {
+  it("tells loop-dod, loop-tdd-round and loop-fix-ci to run eslint --fix over the files they changed before committing, never over the whole repository", () => {
+    for (const name of LINTING_RECIPES) {
+      const prompt = promptOnOneLine(name);
+
+      expect(
+        {
+          lintsChanged: prompt.includes(
+            "timeout 300 npx --no-install eslint --fix <files>",
+          ),
+          neverWholeRepo: prompt.includes("Never lint the whole repository"),
+          installsFirst: prompt.includes("install the dependencies first"),
+          runsNoTests: prompt.includes("Linting is not testing"),
+        },
+        name,
+      ).toEqual({
+        lintsChanged: true,
+        neverWholeRepo: true,
+        installsFirst: true,
+        runsNoTests: true,
+      });
+    }
   });
 });

@@ -30,8 +30,9 @@ directory that holds them: CI is the judge of this branch, runs them on
 every push, and tells you where they stand. Read that from
 `/workspace/round-brief.md` when it exists, or ask `lore_get_ci_failures`
 — not from your memory, and not from what `.lore/dod.md` predicted. Not
-the repository's full suite either, not lint, not the typechecker, not
-the formatter. The pod's Bash hook refuses an acceptance test by name and
+the repository's full suite either, and not the typechecker; the
+formatter and the linter run at delivery, over the files you changed.
+The pod's Bash hook refuses an acceptance test by name and
 a runner given no test file.
 
 If this pod cannot run your test — the command that runs it (`java`, `mvn`,
@@ -124,12 +125,19 @@ RULES:
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
   changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
-  this repo uses) and nothing else from CI's checklist. Do NOT run the
-  linter in this pod: CI runs it on every push, and here it does not
-  fit — in this repository a two-file `eslint` peaks near 800 MB against
-  a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
-  that. A lint finding comes back as a red build naming the file and
-  line, which the next round fixes with an editor.
+  this repo uses), then the repository's LINTER over the same files:
+  `timeout 300 npx --no-install eslint --fix <files>` (or the repo's own
+  linter, such as `ruff` or `golangci-lint`, scoped the same way), every
+  file you changed, spec and ADR markdown included. Fix what it still
+  reports, then commit what `--fix` changed with your work. CI's format
+  job runs `eslint --fix` before it lints and reports line numbers in the
+  file it fixed, so a branch that skipped the fix sends you chasing a
+  spec-link line that moves by one each round. When `eslint` is not
+  installed in the checkout, install the dependencies first (`npm ci`
+  from the repository root); never reach for a linter `npx` would
+  download. Never lint the whole repository (`eslint .`, `npm run lint`):
+  a two-file `eslint` here peaks near 800 MB, and a repo-wide one does not
+  fit the pod. Linting is not testing: the test rules above still hold.
 - Do NOT typecheck here either. A green test is not a compiled build —
   vitest transpiles each file without checking types — but CI's build
   step is what proves it, and in this repository `tsc --noEmit` on
