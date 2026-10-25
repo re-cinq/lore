@@ -112,10 +112,12 @@ async function fetchRepoPage(
   const proxied = await proxyGetApi(
     `/api/repos?limit=${limit}&offset=${offset}`,
   );
-  if (!proxied.ok)
+
+  if (!proxied.ok) {
     return {
       failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
     };
+  }
 
   const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
   const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
@@ -157,10 +159,15 @@ async function onboardRepo(args: OnboardArgs): Promise<ToolTextResult> {
   const reonboard = args.reonboard;
   const proxied = await proxyToApi("/api/onboard", { repo, reonboard });
 
-  if (proxied.ok) return textResult(proxied.body);
+  if (proxied.ok) {
+    return textResult(proxied.body);
+  }
 
   const isConflict = proxied.reason === "unreachable" && proxied.status === 409;
-  if (isConflict && proxied.body) return textResult(proxied.body);
+
+  if (isConflict && proxied.body) {
+    return textResult(proxied.body);
+  }
 
   return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
 }
