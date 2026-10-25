@@ -28,6 +28,7 @@ describe("Skills Sync Background Loop", () => {
           ],
         } as Response;
       }
+
       return { ok: true, json: async () => ({}) } as Response;
     });
   });
@@ -39,6 +40,7 @@ describe("Skills Sync Background Loop", () => {
 
   it("syncs enabled skills locally with a marker on boot, ignoring unmanaged directories.", async () => {
     const manualSkillDir = path.join(claudeSkillsDir, "manual-skill");
+
     await fs.mkdir(manualSkillDir);
     await fs.writeFile(path.join(manualSkillDir, "SKILL.md"), "manual content");
 
