@@ -6,13 +6,18 @@ import { REVIEW_RERUN_HINT } from "./review-definitions.js";
 /** The how-to line shown on the review body and the "review started" PR comment. It names only what acts: a reply on a thread starts nothing, a review that requests changes does. */
 export const REVIEW_HELP = `Submit a review that requests changes to have Lore push a fix for it. ${REVIEW_RERUN_HINT}`;
 
+/** How a review that asks for changes opens: what a later reader tells it by. */
+export const CHANGES_SUGGESTED_HEADING = "### Lore review — Changes suggested";
+
 export function buildReviewSummary(
   output: ReviewOutput,
   opts: { model?: string } = {},
 ): string {
-  const verdict =
-    output.verdict === "approved" ? "Approved" : "Changes suggested";
-  const blocks = [`### Lore review — ${verdict}`];
+  const blocks = [
+    output.verdict === "approved"
+      ? "### Lore review — Approved"
+      : CHANGES_SUGGESTED_HEADING,
+  ];
 
   if (output.summary?.trim()) {
     blocks.push(output.summary.trim());
