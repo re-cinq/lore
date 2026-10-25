@@ -228,11 +228,13 @@ line:
     - from: await-pr
       to: sync-pr
       on: changes_requested
-      iteration_max: 6
+      iteration_max: 14
+    # Eight fixes: review findings and red CI share them, and a fix that
+    # answers the review often leaves the coverage gate red for one more.
     - from: sync-pr
       to: fix-ci
       on: success
-      iteration_max: 3
+      iteration_max: 8
     - from: sync-pr
       to: sync-pr-rebase
       on: changes_requested
