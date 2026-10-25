@@ -30,55 +30,52 @@ export function startSkillsSync(): void {
   });
 }
 
-async function syncSkills(): Promise<void> {
-  const apiUrl = process.env.LORE_API_URL;
-  const token = process.env.LORE_INGEST_TOKEN;
-  if (!apiUrl || !token) {
-    return;
-  }
-
+async function fetchSkills(
+  apiUrl: string,
+  token: string,
+): Promise<SkillDefinition[]> {
   const res = await fetch(`${apiUrl}/api/skill-definitions`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    signal: AbortSignal.timeout(30000),
   });
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
 
-  const skills = (await res.json()) as SkillDefinition[];
-  const claudeSkillsDir = path.join(
-    process.env.HOME || os.homedir(),
-    ".claude",
-    "skills",
-  );
+  return (await res.json()) as SkillDefinition[];
+}
 
-  await fs.mkdir(claudeSkillsDir, { recursive: true });
+async function isManagedDir(dirPath: string): Promise<boolean> {
+  const stat = await fs.stat(dirPath).catch(() => null);
+  if (!stat?.isDirectory()) return false;
 
+  const markerPath = path.join(dirPath, ".lore-managed");
+  return fs
+    .stat(markerPath)
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function getManagedDirs(claudeSkillsDir: string): Promise<Set<string>> {
   const existingDirs = await fs.readdir(claudeSkillsDir);
-
   const managedDirs = new Set<string>();
 
   for (const dir of existingDirs) {
-    const dirPath = path.join(claudeSkillsDir, dir);
-    const stat = await fs.stat(dirPath).catch(() => null);
-    if (!stat || !stat.isDirectory()) continue;
-
-    const markerPath = path.join(dirPath, ".lore-managed");
-    const isManaged = await fs
-      .stat(markerPath)
-      .then(() => true)
-      .catch(() => false);
-    if (isManaged) {
+    if (await isManagedDir(path.join(claudeSkillsDir, dir))) {
       managedDirs.add(dir);
     }
   }
+  return managedDirs;
+}
 
-  const enabledSkills = skills.filter((s) => s.enabled);
-  const enabledNames = new Set(enabledSkills.map((s) => s.name));
-
-  // Remove managed dirs that are no longer enabled
+async function cleanupStaleSkills(
+  claudeSkillsDir: string,
+  managedDirs: Set<string>,
+  enabledNames: Set<string>,
+): Promise<void> {
   for (const dir of managedDirs) {
     if (!enabledNames.has(dir)) {
       await fs.rm(path.join(claudeSkillsDir, dir), {
@@ -87,12 +84,31 @@ async function syncSkills(): Promise<void> {
       });
     }
   }
+}
 
-  // Write enabled skills
+async function writeEnabledSkills(
+  claudeSkillsDir: string,
+  enabledSkills: SkillDefinition[],
+): Promise<void> {
   for (const skill of enabledSkills) {
     const dirPath = path.join(claudeSkillsDir, skill.name);
     await fs.mkdir(dirPath, { recursive: true });
     await fs.writeFile(path.join(dirPath, "SKILL.md"), skill.content, "utf8");
     await fs.writeFile(path.join(dirPath, ".lore-managed"), "", "utf8");
   }
+}
+
+async function syncSkills(): Promise<void> {
+  const apiUrl = process.env.LORE_API_URL;
+  const token = process.env.LORE_INGEST_TOKEN;
+  if (!apiUrl || !token) return;
+
+  const skills = await fetchSkills(apiUrl, token);
+  const dir = path.join(process.env.HOME || os.homedir(), ".claude", "skills");
+  await fs.mkdir(dir, { recursive: true });
+
+  const enabled = skills.filter((s) => s.enabled);
+  const enabledNames = new Set(enabled.map((s) => s.name));
+  await cleanupStaleSkills(dir, await getManagedDirs(dir), enabledNames);
+  await writeEnabledSkills(dir, enabled);
 }
