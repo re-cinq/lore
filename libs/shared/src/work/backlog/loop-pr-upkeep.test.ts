@@ -147,7 +147,7 @@ describe("decideUpkeep on a pull request behind main that no rule needs up to da
     expect(
       decideUpkeep({
         openRun: false,
-        facts: { mergeState: "clean", mergeable: true, ci: "success" },
+        facts: { ...ON_MAIN, mergeState: "clean" },
       }),
     ).toEqual("none");
   });
