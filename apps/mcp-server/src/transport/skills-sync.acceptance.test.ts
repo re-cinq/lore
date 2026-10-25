@@ -38,50 +38,40 @@ describe("Skills Sync Background Loop", () => {
   });
 
   it("syncs enabled skills locally with a marker on boot, ignoring unmanaged directories.", async () => {
-    // 1. Arrange: manual skill exists
     const manualSkillDir = path.join(claudeSkillsDir, "manual-skill");
     await fs.mkdir(manualSkillDir);
     await fs.writeFile(path.join(manualSkillDir, "SKILL.md"), "manual content");
 
-    // 2. Act: Boot the MCP server in 'full' mode (not 'agent')
     buildMcpServer({ serverMode: "full" });
 
-    // Wait a brief moment to allow the async sync loop to execute
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // 3. Assert: enabled skill is written with a marker
     const testSkillDir = path.join(claudeSkillsDir, "test-skill");
+    const dirs = await fs.readdir(claudeSkillsDir);
 
-    const testSkillStats = await fs.stat(testSkillDir).catch(() => null);
-    expect(testSkillStats).toBeTruthy();
+    const actualState = {
+      dirs: dirs.sort(),
+      testSkillContent: await fs
+        .readFile(path.join(testSkillDir, "SKILL.md"), "utf8")
+        .catch(() => null),
+      testSkillMarkerExists: !!(await fs
+        .stat(path.join(testSkillDir, ".lore-managed"))
+        .catch(() => null)),
+      manualSkillContent: await fs
+        .readFile(path.join(manualSkillDir, "SKILL.md"), "utf8")
+        .catch(() => null),
+      manualSkillMarkerExists: !!(await fs
+        .stat(path.join(manualSkillDir, ".lore-managed"))
+        .catch(() => null)),
+    };
 
-    const content = await fs.readFile(
-      path.join(testSkillDir, "SKILL.md"),
-      "utf8",
-    );
-    expect(content).toBe("test content");
-
-    const markerStats = await fs
-      .stat(path.join(testSkillDir, ".lore-managed"))
-      .catch(() => null);
-    expect(markerStats).toBeTruthy();
-
-    // Disabled skill is not present
-    const disabledSkillStats = await fs
-      .stat(path.join(claudeSkillsDir, "disabled-skill"))
-      .catch(() => null);
-    expect(disabledSkillStats).toBeNull();
-
-    // Manual skill is untouched
-    const manualContent = await fs.readFile(
-      path.join(manualSkillDir, "SKILL.md"),
-      "utf8",
-    );
-    expect(manualContent).toBe("manual content");
-    const manualMarker = await fs
-      .stat(path.join(manualSkillDir, ".lore-managed"))
-      .catch(() => null);
-    expect(manualMarker).toBeNull();
+    expect(actualState).toEqual({
+      dirs: ["manual-skill", "test-skill"],
+      testSkillContent: "test content",
+      testSkillMarkerExists: true,
+      manualSkillContent: "manual content",
+      manualSkillMarkerExists: false,
+    });
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://fake-api/api/skill-definitions",
