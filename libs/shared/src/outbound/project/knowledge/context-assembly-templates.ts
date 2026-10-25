@@ -11,6 +11,7 @@ export interface TemplateSection {
     | "code"
     | "adrs"
     | "memories"
+    | "facts"
     | "graph"
     | "coupling"
     | "episodes"
