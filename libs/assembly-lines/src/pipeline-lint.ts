@@ -27,7 +27,11 @@ export type { PipelineProblem, PipelineRule };
 const FLOOR_SUPPLIED = new Set(["context", "description", "prompt"]);
 
 // Filled by the floor around a retry or a fan-out branch, never seeded or produced by a line.
-const FLOOR_FILLED_NEEDS = new Set(["previous_error", "previous_failures", "item"]);
+const FLOOR_FILLED_NEEDS = new Set([
+  "previous_error",
+  "previous_failures",
+  "item",
+]);
 
 const PLACEHOLDER = /\{([a-z_][a-z0-9_]*)\}/g;
 
@@ -125,7 +129,12 @@ function unseededNeeds(
     .filter(({ bagName }) => !FLOOR_FILLED_NEEDS.has(bagName))
     .filter(({ need, bagName }) => !isSeeded(checked, need, bagName))
     .map(({ need, bagName }) =>
-      problem(checked, node.id, "unseeded-need", unseededDetail(node, need, bagName)),
+      problem(
+        checked,
+        node.id,
+        "unseeded-need",
+        unseededDetail(node, need, bagName),
+      ),
     );
 }
 
@@ -136,13 +145,17 @@ function bagNameOf(node: Node, need: BagItem): string {
 }
 
 function isSeeded(checked: Checked, need: BagItem, bagName: string): boolean {
+  const { args, files } = checked.line;
+
   if (need.kind === "git") {
-    return checked.line.args[bagName]?.kind === "git";
+    return Object.entries(args).some(
+      ([name, arg]) => name === bagName && arg.kind === "git",
+    );
   }
 
   return (
-    bagName in checked.line.args ||
-    bagName in (checked.line.files ?? {}) ||
+    bagName in args ||
+    bagName in (files ?? {}) ||
     producedNames(checked).has(bagName)
   );
 }
@@ -157,7 +170,9 @@ function producedNames(checked: Checked): Set<string> {
 
 function unseededDetail(node: Node, need: BagItem, bagName: string): string {
   const label =
-    need.name === bagName ? `"${need.name}"` : `"${need.name}" (bound as "${bagName}")`;
+    need.name === bagName
+      ? `"${need.name}"`
+      : `"${need.name}" (bound as "${bagName}")`;
 
   return need.kind === "git"
     ? `node "${node.id}" needs ${label} as kind "git", which nothing in the line seeds`

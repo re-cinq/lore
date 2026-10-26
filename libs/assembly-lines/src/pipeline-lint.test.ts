@@ -116,7 +116,6 @@ stations:
     produces: []
 `;
 
-// The needs are seeded as args too: this test is about the placeholders, not about where the bag items come from.
 const DECOMPOSE_INPUTS_DECLARED = SPEC_TICKETS_DECOMPOSE_REUSED.replace(
   "    issue_url:\n",
   "    spec_path:\n      kind: value\n    merge_sha:\n      kind: value\n    existing_tickets:\n      kind: file\n    issue_url:\n",
@@ -412,7 +411,6 @@ describe("pipelineProblems — what the floor requires of a station", () => {
   });
 });
 
-// The shape of feature-planning after #2886: plan-grounding binds target to base, and the line no longer declares it.
 const BOUND_TO_REMOVED_ARG = `
 line:
   id: planning
@@ -471,7 +469,12 @@ describe("pipelineProblems — the bag a node reads", () => {
 
   it("reports nothing when the bind names a git arg the line declares", () => {
     expect(
-      problems(BOUND_TO_REMOVED_ARG.replace("        target: base", "        target: repo")),
+      problems(
+        BOUND_TO_REMOVED_ARG.replace(
+          "        target: base",
+          "        target: repo",
+        ),
+      ),
     ).toEqual([]);
   });
 
@@ -489,7 +492,12 @@ describe("pipelineProblems — the bag a node reads", () => {
 
   it("reports nothing for an optional need", () => {
     expect(
-      problems(FILE_NEED.replace("        path: ticket.md\n", "        path: ticket.md\n        optional: true\n")),
+      problems(
+        FILE_NEED.replace(
+          "        path: ticket.md\n",
+          "        path: ticket.md\n        optional: true\n",
+        ),
+      ),
     ).toEqual([]);
   });
 
@@ -506,7 +514,12 @@ describe("pipelineProblems — the bag a node reads", () => {
 
   it("reports nothing for a need the line's files seed", () => {
     expect(
-      problems(FILE_NEED.replace("  args:\n", "  files:\n    ticket: abc123\n  args:\n")),
+      problems(
+        FILE_NEED.replace(
+          "  args:\n",
+          "  files:\n    ticket: abc123\n  args:\n",
+        ),
+      ),
     ).toEqual([]);
   });
 
