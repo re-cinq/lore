@@ -13,7 +13,8 @@ ADR, or runbook as appropriate. Read existing files for format.
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
-  changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+  changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`, whichever
   this repo uses) and nothing else from CI's checklist. Do NOT run the
   linter in this pod: CI runs it on every push, and here it does not
   fit — in this repository a two-file `eslint` peaks near 800 MB against

@@ -29,7 +29,7 @@ RULES:
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
-  wrote, if it has one,.
+  wrote, if it has one.
 - LINT the files you changed before you commit, after the formatter:
   `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
   (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the

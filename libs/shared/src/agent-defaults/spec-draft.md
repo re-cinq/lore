@@ -58,7 +58,8 @@ specs you changed before you commit (see Deliver); the rules it checks:
 ## Deliver
 
 - Before you commit, run the repository's FORMATTER over the files
-  you changed (`npx prettier --write <files>`, `gofmt -w <files>`,
+  you changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`,
   whichever this repo uses).
 - LINT the files you changed before you commit, after the formatter:
   `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`

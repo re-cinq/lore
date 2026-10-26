@@ -1072,3 +1072,13 @@ describe("the recipes that write files lint what they changed", () => {
     }
   });
 });
+
+describe("the formatter and linter commands every recipe names", () => {
+  it("names no formatter or linter through npx without --no-install, which the pod's guard refuses", () => {
+    const downloading = [...SHIPPED.keys()].filter((name) =>
+      /npx (prettier|eslint|biome|ruff|black)\b/.test(promptOf(name)),
+    );
+
+    expect(downloading).toEqual([]);
+  });
+});

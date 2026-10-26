@@ -27,7 +27,8 @@ Do NOT run builds or tests: commit the change and let the PR's CI
 validate it. The pod's Bash hook refuses test and build commands outright.
 Before each commit:
 - Run the repository's FORMATTER over the files you changed
-  (`npx prettier --write <files>`, `gofmt -w <files>`, whichever this
+  (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`, whichever this
   repo uses).
 - LINT the files you changed before you commit, after the formatter:
   `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`

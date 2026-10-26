@@ -61,7 +61,7 @@ RUNNER="$RUNNER|(^|$W)(cargo$W+test|go$W+test|deno$W+test|playwright$W+test|cypr
 SCRIPT="(^|$W)(npm|pnpm|yarn|bun)$W+((run|run-script)$W+)?(test|tst|t|coverage)(:$NW*)?($W|$)"
 INSTALL="^((npm|pnpm|bun)$W+(ci|install|i|add)|yarn($W+(install|add))?|pip3?$W+install|uv$W+(sync|pip$W+install)|poetry$W+install|go$W+mod$W+download)($W|$)"
 BUILD="^((npm|pnpm|yarn|bun)$W+(run$W+)?build(:$NW*)?|(npx$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?tsc|go$W+(build|install|generate)|cargo$W+(build|check)|make|docker$W+build)($W|$)"
-LOCKFILE_INSTALL="^(npm$W+ci|(pnpm|yarn|bun)($W+install)?$W+.*--(frozen-lockfile|immutable))($W|$)"
+LOCKFILE_INSTALL="^(npm$W+ci|(pnpm|yarn|bun)($W+install)?($W+-$NW+)*$W+--(frozen-lockfile|immutable))($W|$)"
 # Linters and formatters run over named files only. Reaching one through npx without
 # --no-install downloads it into the pod, which is how a review pod fetched eslint@10 (#2155).
 LINT="^((npx|bunx)$W+(-$NW+$W+)*|(pnpm|yarn|bun)$W+(dlx|exec|x)$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?(eslint|prettier|biome|ruff|black|golangci-lint)($W|$)"

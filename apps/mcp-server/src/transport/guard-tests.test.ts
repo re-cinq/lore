@@ -443,3 +443,24 @@ describe("guard-tests hook", () => {
     ]).toEqual([0, 0]);
   });
 });
+
+describe("guard-tests hook, lockfile installs", () => {
+  it("refuses adding a package under policy none even when the command carries --frozen-lockfile or --immutable", () => {
+    const adding = [
+      "pnpm add lodash --frozen-lockfile",
+      "yarn add lodash --immutable",
+      "bun add lodash --frozen-lockfile",
+    ];
+    const lockfileOnly = [
+      "pnpm install --frozen-lockfile",
+      "yarn install --immutable",
+      "yarn --frozen-lockfile",
+      "bun install --frozen-lockfile",
+    ];
+
+    expect({
+      added: adding.filter((c) => !blocked(c, "none")),
+      refusedLockfile: lockfileOnly.filter((c) => blocked(c, "none")),
+    }).toEqual({ added: [], refusedLockfile: [] });
+  });
+});
