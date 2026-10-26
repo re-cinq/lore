@@ -73,7 +73,13 @@ jobs:
 
       # A pull request fixes the files it changed (the lint job still lints the
       # whole repo); a dispatch has no base to diff against and formats it all.
+      # The fix is pushed even when lint stays red, and the job fails after the
+      # push: the findings name lines in the file eslint --fix produced, so a
+      # branch that never received it sent fix agents to lines one or two off
+      # (#2881's link moved L41 -> L40 -> L41 round after round).
       - name: Prettier + eslint --fix
+        id: format
+        continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -89,16 +95,20 @@ jobs:
       # sync PR (in scope now that any-base PRs trigger) or a dispatch on main —
       # since branch protection would reject the push and fail the whole needs-chain.
       - name: Authenticate push
-        if: github.head_ref != 'main' && github.ref != 'refs/heads/main'
+        if: ${{ !cancelled() && github.head_ref != 'main' && github.ref != 'refs/heads/main' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
 
       - name: Commit formatting
-        if: github.head_ref != 'main' && github.ref != 'refs/heads/main'
+        if: ${{ !cancelled() && github.head_ref != 'main' && github.ref != 'refs/heads/main' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "style: prettier [skip ci]"
+
+      - name: Fail on what eslint --fix could not fix
+        if: steps.format.outcome == 'failure'
+        run: exit 1
 
   test:
     name: ${{ matrix.name }}
