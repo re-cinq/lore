@@ -1,6 +1,7 @@
 // Instruments are resolved against the CURRENT global provider on every record, never at import: the metrics API has no proxy meter, so one created before a provider registers is a no-op for good (ADR-050).
 
 import { metrics, type Meter, type MeterProvider } from "@opentelemetry/api";
+import { floorRepoOf } from "../floor/floor-items.js";
 import { modelVendor } from "../llm/model-vendor.js";
 
 const GAP_THRESHOLD = 0.72;
@@ -118,6 +119,13 @@ export function recordFloorStart(
   started: { joined: boolean },
 ): void {
   instruments().floorStarts.add(1, { line, joined: String(started.joined) });
+}
+
+/** How the implementation loop left a ticket: merged, closed because the work was already done, parked for a person, or deferred to the next tick after an infrastructure failure. The repository is named as the floor names it (`github.com/<owner>/<name>`, lowercase), so one board filter matches this and the floor's own series. */
+export type LoopTicketResult = "merged" | "closed_done" | "parked" | "deferred";
+
+export function recordLoopTicket(repo: string, result: LoopTicketResult): void {
+  instruments().loopTickets.add(1, { repo: floorRepoOf(repo), result });
 }
 
 export function recordWebhookEvent(eventName: string): void {
@@ -260,6 +268,10 @@ function floorInstruments(meter: Meter) {
     webhookEvents: meter.createCounter("lore.webhook.events", {
       description:
         "GitHub deliveries captured onto the bus, by the event they became",
+    }),
+    loopTickets: meter.createCounter("lore.loop.tickets", {
+      description:
+        "Implementation loop tickets settled, by repository and result (merged, closed_done, parked, deferred)",
     }),
     utopiaMirrorFailures: meter.createCounter("lore.utopia.mirror_failures", {
       description:

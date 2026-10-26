@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   handleLoopRunClosed,
+  ticketResultOf,
   type LoopRunClosedDeps,
 } from "./loop-run-closed.js";
 import {
@@ -599,5 +600,27 @@ describe("handleLoopRunClosed", () => {
     await handleLoopRunClosed(run(), "completed", undefined, d);
 
     expect(ticks).toEqual(["acme/widgets"]);
+  });
+});
+
+describe("ticketResultOf", () => {
+  it("reads a verdict the definition-of-done step resolved as closed_done", () => {
+    expect(
+      ticketResultOf({ why: "", askForRewrite: false, resolved: "PR #12" }),
+    ).toBe("closed_done");
+  });
+
+  it("reads a verdict carrying an infrastructure deferral as deferred", () => {
+    const deferral = { attempt: 1, max: 3, reason: "unclaimed" };
+
+    expect(ticketResultOf({ why: "", askForRewrite: false, deferral })).toBe(
+      "deferred",
+    );
+  });
+
+  it("reads any other verdict as parked", () => {
+    expect(ticketResultOf({ why: "stuck", askForRewrite: true })).toBe(
+      "parked",
+    );
   });
 });
