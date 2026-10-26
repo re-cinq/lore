@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { AssemblyRun, AssemblyRunNode } from "@/lib/assembly-runs";
+import { isFloorEngine } from "@/lib/assembly-run-rows";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import { formatDuration, runHeaderVisual } from "@/lib/assembly-run-presenter";
 import type { RunBag } from "@/lib/run-bag";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
+import { CancelRunButton } from "./CancelRunButton";
 import { CancelTaskButton } from "./CancelTaskButton";
 import RunBagFacts from "./RunBagFacts";
 import styles from "./AssemblyRunView.module.css";
@@ -82,7 +84,7 @@ export function RunFacts({ run, bag = null, nodes = [] }: RunFactsProps) {
         <Fact label="Outcome">{run.outcome ?? EM_DASH}</Fact>
         <ReasonFact reason={run.reason} />
         <Fact label="Duration">{formatDuration(run.durationSeconds)}</Fact>
-        <TaskFact run={run} />
+        <CancelFact run={run} />
         <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
         <IssueFact issueUrl={run.issueUrl} issueNumber={run.issueNumber} />
       </dl>
@@ -133,17 +135,25 @@ function ReasonFact({ reason }: { reason: string | null }) {
   );
 }
 
-/** Cancelling is the task's to do, and the run page is the only page a task has: offered while the run is still open. */
-function TaskFact({ run }: AssemblyRunViewProps) {
-  if (!run.taskId || isTerminalRunStatus(run.status)) {
+/** One cancel per open run: a run with a task cancels the task, the run page being the only page a task has; a floor run with none cancels the run itself. A run Lore's own engine walked has nothing left to cancel it. */
+function CancelFact({ run }: AssemblyRunViewProps) {
+  if (isTerminalRunStatus(run.status)) {
     return null;
   }
 
-  return (
-    <Fact label="Task">
-      <CancelTaskButton taskId={run.taskId} />
+  if (run.taskId) {
+    return (
+      <Fact label="Task">
+        <CancelTaskButton taskId={run.taskId} />
+      </Fact>
+    );
+  }
+
+  return isFloorEngine(run.engine) ? (
+    <Fact label="Run">
+      <CancelRunButton runId={run.id} />
     </Fact>
-  );
+  ) : null;
 }
 
 interface PrFactProps {

@@ -82,6 +82,35 @@ describe("AssemblyRunView", () => {
     expect(screen.queryByRole("button", { name: "Cancel Task" })).toBeNull();
   });
 
+  it("offers Cancel run on a running floor run with no task", () => {
+    render(
+      <RunFacts
+        run={run({ taskId: null, status: "running", engine: "floor" })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Cancel run" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a finished floor run", { status: "finished", engine: "floor" }],
+    ["a failed floor run", { status: "failed", engine: "floor" }],
+    [
+      "a running floor run with task-9, which offers Cancel Task instead",
+      { taskId: "task-9", status: "running", engine: "floor" },
+    ],
+    [
+      "a running run Lore's own engine walked",
+      { status: "running", engine: "lore" },
+    ],
+  ] as const)("offers no Cancel run on %s", (_name, over) => {
+    render(<RunFacts run={run(over)} />);
+
+    expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
+  });
+
   it("links to no task page", () => {
     render(<RunFacts run={run({ taskId: "task-9" })} />);
 
