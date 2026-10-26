@@ -152,16 +152,27 @@ export async function startRecheck(
   if (!decideReviewOnOpen({ ...target, pr, loreAppLogin }).start) {
     return null;
   }
-  const { runs, range, decision } = await recheckDecision(deps, target, pr!);
+  const { range, decision } = await recheckDecision(deps, target, pr!);
 
   if (!decision.start) {
     return skipped(target.prNumber, decision.reason);
   }
 
-  return (
-    (await carryApproval(deps, pr!, lastJudgedSha(runs), range.sinceSha)) ??
-    supersedeAndRecheck(deps, target, pr!, range.sinceSha)
-  );
+  return carryOrRecheck(deps, target, pr!, range);
+}
+
+/** A rebase that changed nothing Lore approved keeps the approval and starts nothing; anything else is re-checked. */
+async function carryOrRecheck(
+  deps: ReviewStartDeps,
+  target: PullRequestTarget,
+  pr: PullRef,
+  { judged, sinceSha }: { judged?: string; sinceSha?: string },
+): Promise<string | null> {
+  const carried = await carryApproval(deps, pr, judged, sinceSha);
+
+  return carried
+    ? skipped(target.prNumber, carried)
+    : supersedeAndRecheck(deps, target, pr, sinceSha);
 }
 
 async function recheckDecision(
@@ -177,7 +188,7 @@ async function recheckDecision(
     newCommitMessages: range.newCommitMessages,
   });
 
-  return { runs, range, decision };
+  return { range: { ...range, judged: lastJudgedSha(runs) }, decision };
 }
 
 /** An open re-check of an older sha is judging code the branch no longer has, and its verdict would land beside the new one. One already judging the head sha is left alone: two deliveries of the same push can reach here together, and the second must join the first, not cancel it. */
