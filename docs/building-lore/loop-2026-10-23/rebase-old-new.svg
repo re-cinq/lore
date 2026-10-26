@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 140" width="970" height="140" role="img" aria-label="Bringing a pull request up to date fails far more on old ones">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="140" rx="8"/>
+<text class="ink title" x="16" y="28">Bringing a pull request up to date fails far more on old ones</text>
+<text class="muted sub" x="16" y="48">Share of &quot;bring the pull request up to date&quot; runs that broke.</text>
+<line class="grid" x1="300" x2="300" y1="58" y2="118" stroke-width="1"/>
+<text class="ink" x="290" y="77" text-anchor="end">Pull requests opened before Friday</text>
+<path class="s1" d="M300.0,64h436.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-436.0z"><title>Pull requests opened before Friday: 43%</title></path>
+<text class="muted" x="748.0" y="77">43%  (117 of 275)</text>
+<text class="ink" x="290" y="107" text-anchor="end">Pull requests opened since Friday</text>
+<path class="s1" d="M300.0,94h50.7a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-50.7z"><title>Pull requests opened since Friday: 5%</title></path>
+<text class="muted" x="362.7" y="107">5%  (12 of 227)</text>
+</svg>
