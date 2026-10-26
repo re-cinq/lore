@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 494" width="970" height="494" role="img" aria-label="How often each step broke">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="494" rx="8"/>
+<text class="ink title" x="16" y="28">How often each step broke</text>
+<text class="muted sub" x="16" y="48">Share of a step&#x27;s runs that ended in an error. Steps that never broke are left out.</text>
+<line class="grid" x1="300" x2="300" y1="58" y2="448" stroke-width="1"/>
+<text class="ink" x="290" y="77" text-anchor="end">Approve and merge</text>
+<path class="s1" d="M300.0,64h436.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-436.0z"><title>Approve and merge: 40%</title></path>
+<text class="muted" x="748.0" y="77">40%  (17 of 43)</text>
+<text class="ink" x="290" y="107" text-anchor="end">Bring the pull request up to date</text>
+<path class="s1" d="M300.0,94h282.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-282.0z"><title>Bring the pull request up to date: 26%</title></path>
+<text class="muted" x="594.0" y="107">26%  (129 of 502)</text>
+<text class="ink" x="290" y="137" text-anchor="end">Open a draft pull request</text>
+<path class="s1" d="M300.0,124h263.1a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-263.1z"><title>Open a draft pull request: 24%</title></path>
+<text class="muted" x="575.1" y="137">24%  (18 of 75)</text>
+<text class="ink" x="290" y="167" text-anchor="end">Bring the new branch up to date</text>
+<path class="s1" d="M300.0,154h155.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-155.0z"><title>Bring the new branch up to date: 14%</title></path>
+<text class="muted" x="467.0" y="167">14%  (4 of 28)</text>
+<text class="ink" x="290" y="197" text-anchor="end">Re-check new commits (re-check)</text>
+<path class="s1" d="M300.0,184h70.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-70.2z"><title>Re-check new commits (re-check): 7%</title></path>
+<text class="muted" x="382.2" y="197">7%  (20 of 300)</text>
+<text class="ink" x="290" y="227" text-anchor="end">Post a review on GitHub</text>
+<path class="s1" d="M300.0,214h63.5a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-63.5z"><title>Post a review on GitHub: 6%</title></path>
+<text class="muted" x="375.5" y="227">6%  (4 of 66)</text>
+<text class="ink" x="290" y="257" text-anchor="end">Post a review on GitHub (re-check)</text>
+<path class="s1" d="M300.0,244h60.1a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-60.1z"><title>Post a review on GitHub (re-check): 6%</title></path>
+<text class="muted" x="372.1" y="257">6%  (16 of 278)</text>
+<text class="ink" x="290" y="287" text-anchor="end">Write the pull request description</text>
+<path class="s1" d="M300.0,274h37.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-37.2z"><title>Write the pull request description: 4%</title></path>
+<text class="muted" x="349.2" y="287">4%  (2 of 54)</text>
+<text class="ink" x="290" y="317" text-anchor="end">Decide what &quot;done&quot; means</text>
+<path class="s1" d="M300.0,304h31.9a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-31.9z"><title>Decide what &quot;done&quot; means: 3%</title></path>
+<text class="muted" x="343.9" y="317">3%  (12 of 372)</text>
+<text class="ink" x="290" y="347" text-anchor="end">Fix the build or review comments</text>
+<path class="s1" d="M300.0,334h19.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-19.8z"><title>Fix the build or review comments: 2%</title></path>
+<text class="muted" x="331.8" y="347">2%  (3 of 140)</text>
+<text class="ink" x="290" y="377" text-anchor="end">Wait for the build and tests</text>
+<path class="s1" d="M300.0,364h5.5a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-5.5z"><title>Wait for the build and tests: 1%</title></path>
+<text class="muted" x="317.5" y="377">1%  (2 of 234)</text>
+<text class="ink" x="290" y="407" text-anchor="end">Write code, one round</text>
+<path class="s1" d="M300.0,394h0.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-0.8z"><title>Write code, one round: 0%</title></path>
+<text class="muted" x="312.8" y="407">0%  (1 of 234)</text>
+<text class="ink" x="290" y="437" text-anchor="end">Is the new branch up to date?</text>
+<path class="s1" d="M300.0,424h0.0a3.0659536541889483,3.0659536541889483 0 0 1 3.0659536541889483,3.0659536541889483v11.868092691622103a3.0659536541889483,3.0659536541889483 0 0 1 -3.0659536541889483,3.0659536541889483h-0.0z"><title>Is the new branch up to date?: 0%</title></path>
+<text class="muted" x="311.1" y="437">0%  (1 of 363)</text>
+<text class="muted sub" x="16" y="480">&quot;Approve and merge&quot; refuses on purpose when a change needs a code owner&#x27;s approval.</text>
+</svg>
