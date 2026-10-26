@@ -296,4 +296,47 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       { "Coverage.xid": `${repo}|t.test.ts|renders` },
     ]);
   });
+
+  it("looks each covered File up once per report, however many records cover it", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+    const fileLookups: string[] = [];
+    const countingClient = {
+      newTxn() {
+        const txn = dgraphClient.newTxn();
+
+        return {
+          queryWithVars(query: string, vars: Record<string, string>) {
+            if (query.includes("File.xid")) {
+              fileLookups.push(vars.$xid);
+            }
+
+            return txn.queryWithVars(query, vars);
+          },
+          mutate: txn.mutate.bind(txn),
+          discard: txn.discard.bind(txn),
+        };
+      },
+    } as unknown as Parameters<typeof ingestCoverageReport>[0];
+    const covered = [
+      { file: "src/a.ts", startLine: 1, endLine: 2 },
+      { file: "src/b.ts", startLine: 3, endLine: 4 },
+    ];
+
+    createdRepo = repo;
+
+    await ingestCoverageReport(
+      countingClient,
+      { scope: mainScope(repo), tool: "lcov", commit: "abc123" },
+      [
+        { testFile: "t.test.ts", testName: "t.test.ts", covered },
+        { testFile: "t.test.ts", testName: "renders", covered },
+        { testFile: "t.test.ts", testName: "updates", covered },
+      ],
+    );
+
+    expect(fileLookups.sort()).toEqual([
+      `${repo}|src/a.ts`,
+      `${repo}|src/b.ts`,
+    ]);
+  });
 });
