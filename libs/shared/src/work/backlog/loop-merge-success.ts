@@ -1,5 +1,6 @@
 // A merged pull request is the loop's own definition of success, whoever merged it: a ticket the run left blocked or still open on the floor must not stay that way once a human has already closed out the work by merging its branch.
 import { floorRepoOf } from "../../outbound/floor/floor-items.js";
+import { recordLoopTicket } from "../../outbound/otel/metrics.js";
 import { startValueOf } from "../../outbound/floor/run-start-items.js";
 import { LOOP_LINE, FLOOR_BACKLOG_SUBJECT } from "./floor-loop.js";
 import { LORE_BLOCKED_LABEL } from "./labels.js";
@@ -87,6 +88,7 @@ async function markMerged(
   await deps.tasks.recordEvent(task.id, task.status, "merged", {
     settled_by: "pr-merged",
   });
+  recordLoopTicket(repo, "merged");
   await settleIssue(deps, repo, issueNumber);
   await deps.emitTick(repo);
 

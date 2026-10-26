@@ -12,6 +12,7 @@ import {
   recordBusDelivery,
   recordFloorStart,
   recordLlmCall,
+  recordLoopTicket,
   recordStationRun,
   recordToolCall,
   recordUtopiaMirrorFailure,
@@ -102,6 +103,17 @@ describe("lore metrics", () => {
 
     expect(point).toMatchObject({
       attributes: { line: "code-review", joined: "true" },
+      value: 1,
+    });
+  });
+
+  it("counts a parked loop ticket of re-cinq/otto", async () => {
+    recordLoopTicket("re-cinq/otto", "parked");
+
+    const [ticket] = points("lore.loop.tickets", await collected());
+
+    expect(ticket).toMatchObject({
+      attributes: { repo: "re-cinq/otto", result: "parked" },
       value: 1,
     });
   });

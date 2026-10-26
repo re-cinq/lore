@@ -120,6 +120,13 @@ export function recordFloorStart(
   instruments().floorStarts.add(1, { line, joined: String(started.joined) });
 }
 
+/** How the implementation loop left a ticket: merged, closed because the work was already done, parked for a person, or deferred to the next tick after an infrastructure failure. */
+export type LoopTicketResult = "merged" | "closed_done" | "parked" | "deferred";
+
+export function recordLoopTicket(repo: string, result: LoopTicketResult): void {
+  instruments().loopTickets.add(1, { repo, result });
+}
+
 export function recordWebhookEvent(eventName: string): void {
   instruments().webhookEvents.add(1, { event: eventName });
 }
@@ -260,6 +267,10 @@ function floorInstruments(meter: Meter) {
     webhookEvents: meter.createCounter("lore.webhook.events", {
       description:
         "GitHub deliveries captured onto the bus, by the event they became",
+    }),
+    loopTickets: meter.createCounter("lore.loop.tickets", {
+      description:
+        "Implementation loop tickets settled, by repository and result (merged, closed_done, parked, deferred)",
     }),
     utopiaMirrorFailures: meter.createCounter("lore.utopia.mirror_failures", {
       description:
