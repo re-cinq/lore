@@ -93,7 +93,7 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
   then across all of them — because it rides an Agent CR's status, where an
   oversized object has already lost a run.
 - `await-pr` resuming with `success` means the PR is ready and the ticket is complete; resuming with `changes_requested` means the ticket is blocked. Both route to `retrospective` so the run always closes through the same exit.
-- `await-pr` declares `route: "{args.pr_url}"`, satisfying the loader's requirement that a human station carry a route built only from `{args.*}` placeholders.
+- `await-pr` declares `route: "{args.pr_url}"`, using only `{args.*}` placeholders; the floor resolves the parked wait's route from the task's args, and a route referencing anything else would park the run on a path that never resolves.
 - The definition introduces no new node type. `implement` is an ordinary `agent` node carrying an explicit `station_ref: implementation-tdd` — an agent node's Station otherwise inherits the LINE's task type, and no Station named `implementation-loop` exists, which is exactly how the first live run died; `validate`, `push` and `retrospective` reuse the existing station recipes unchanged.
 - Every outcome each node can produce has an outgoing edge, because the floor's edge selection does not fall through when no edge matches; the line loader (`libs/assembly-lines/src/loader.ts`) enforces this at parse time.
 - The PR-open path stamps `{ pr_url, pr_number }` onto the task's open assembly runs through `mergeArgs` (SQL-side merge, so concurrent node artifacts are not clobbered), resolved via the task's `listForTask` — the PR-keyed lookup (`findOpenByPr`) matches on `args.pr_number`, which does not exist until this very stamp.
