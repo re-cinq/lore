@@ -25,6 +25,7 @@ export class LoreClient {
   constructor(
     private readonly apiUrl: string,
     private readonly token: string,
+    private readonly retryDelaysMs: readonly number[] = RETRY_DELAYS_MS,
   ) {}
 
   /** The repo's spec force-graph — the "graph request to the remote server". */
@@ -66,7 +67,7 @@ export class LoreClient {
   private async get<T>(path: string): Promise<T> {
     let lastError = "no attempts made";
 
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    for (let attempt = 0; attempt <= this.retryDelaysMs.length; attempt++) {
       const result = await this.fetchOnce<T>(path);
 
       if (result.ok) {
@@ -78,8 +79,8 @@ export class LoreClient {
         break;
       }
 
-      if (attempt < RETRY_DELAYS_MS.length) {
-        await delay(RETRY_DELAYS_MS[attempt]);
+      if (attempt < this.retryDelaysMs.length) {
+        await delay(this.retryDelaysMs[attempt]);
       }
     }
     throw new Error(`Lore API GET ${path} failed: ${lastError}`);

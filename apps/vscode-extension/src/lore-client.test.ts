@@ -8,6 +8,8 @@ import {
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { LoreClient } from "./lore-client.js";
 
+const NO_WAIT = [0, 0, 0];
+
 let server: Server | undefined;
 
 afterEach(
@@ -37,7 +39,7 @@ describe("LoreClient", () => {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ specs: ["a", "b"] }));
     });
-    const client = new LoreClient(baseUrl, "tok-1");
+    const client = new LoreClient(baseUrl, "tok-1", NO_WAIT);
 
     expect(await client.specs("owner/repo")).toEqual({ specs: ["a", "b"] });
   });
@@ -49,7 +51,7 @@ describe("LoreClient", () => {
       res.statusCode = 400;
       res.end("bad request");
     });
-    const client = new LoreClient(baseUrl, "tok-1");
+    const client = new LoreClient(baseUrl, "tok-1", NO_WAIT);
 
     await expect(client.specs("owner/repo")).rejects.toThrow(
       /Lore API GET .* failed: HTTP 400/,
@@ -71,7 +73,7 @@ describe("LoreClient", () => {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ specs: ["ok"] }));
     });
-    const client = new LoreClient(baseUrl, "tok-1");
+    const client = new LoreClient(baseUrl, "tok-1", NO_WAIT);
 
     expect(await client.specs("owner/repo")).toEqual({ specs: ["ok"] });
     expect(requestCount).toBe(2);
@@ -90,7 +92,7 @@ describe("LoreClient", () => {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ specs: ["recovered"] }));
     });
-    const client = new LoreClient(baseUrl, "tok-1");
+    const client = new LoreClient(baseUrl, "tok-1", NO_WAIT);
 
     expect(await client.specs("owner/repo")).toEqual({ specs: ["recovered"] });
     expect(requestCount).toBe(2);
@@ -103,7 +105,7 @@ describe("LoreClient", () => {
       res.statusCode = 502;
       res.end("bad gateway");
     });
-    const client = new LoreClient(baseUrl, "tok-1");
+    const client = new LoreClient(baseUrl, "tok-1", NO_WAIT);
 
     await expect(client.specs("owner/repo")).rejects.toThrow(
       /Lore API GET .* failed: HTTP 502/,
