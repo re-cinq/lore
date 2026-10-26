@@ -58,3 +58,14 @@ func TestParseManifestRejectsEmptyRun(t *testing.T) {
 		t.Fatal("expected error when run is empty")
 	}
 }
+
+func TestParseManifestKeepsTheRelatedCommand(t *testing.T) {
+	ms, err := parseManifest([]byte("list: \"echo []\"\nrun: \"echo {selector}\"\nrelated: \"echo {base}\"\ncoverage_format: json\n"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := Manifest{List: "echo []", Run: "echo {selector}", Related: "echo {base}", CoverageFormat: "json", Cwd: "."}
+	if len(ms) != 1 || ms[0] != want {
+		t.Errorf("got %+v, want [%+v]", ms, want)
+	}
+}

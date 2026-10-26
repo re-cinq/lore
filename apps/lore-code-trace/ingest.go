@@ -199,6 +199,9 @@ type deltaDeps struct {
 	post         func(context.Context, ingestDelta) error
 	// Body budget per post; zero means deltaChunkBytes.
 	maxChunkBytes int
+	// The report holds only what the change affects (or, under --full, all of
+	// it), so the diff names the deleted paths and filters nothing.
+	reportIsScoped bool
 }
 
 // runDeltaFlow is FR5 end to end. No state ⇒ full ingest against null. A state
@@ -219,7 +222,9 @@ func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error 
 			if err != nil {
 				return err
 			}
-			delta.Report = selectDelta(report, changed)
+			if !deps.reportIsScoped {
+				delta.Report = selectDelta(report, changed)
+			}
 			delta.Deleted = deleted
 		}
 		return postDeltaChunked(ctx, deps, delta)

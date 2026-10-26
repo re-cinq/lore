@@ -47,6 +47,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web-ui/package-lock.json
 
       # --ignore-scripts (#1062): dep lifecycle scripts were the supply-chain
       # execution vector; nothing in the tree needs them.
@@ -59,8 +63,17 @@ jobs:
       - name: Build shared
         run: npm run build -w @re-cinq/lore-shared
 
+      # A pull request fixes the files it changed (the lint job still lints the
+      # whole repo); a dispatch has no base to diff against and formats it all.
       - name: Prettier + eslint --fix
-        run: npm run format
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "${BASE_REF}" ]; then
+            bash scripts/ci/format-changed.sh "origin/${BASE_REF}"
+          else
+            npm run format
+          fi
 
       # The write token enters the job only here — after every npm install and
       # every third-party tool run — and only for the auto-commit push. Both push
@@ -229,6 +242,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web-ui/package-lock.json
 
       # Booted before the install so the container warms up while npm ci runs.
       # Port 8081 is not a preference — it is the port dgraphReachable() probes.
