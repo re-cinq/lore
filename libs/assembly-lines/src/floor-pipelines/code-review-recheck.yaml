@@ -106,7 +106,7 @@ agent_definitions:
             memory: 2Gi
             ephemeral-storage: 6Gi
           limits:
-            memory: 4Gi
+            memory: 8Gi
             ephemeral-storage: 6Gi
         skills:
           - lore-context

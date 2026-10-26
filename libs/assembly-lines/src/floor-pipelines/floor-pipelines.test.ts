@@ -1662,7 +1662,7 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(told).toEqual([true, true, true]);
   });
 
-  it("sizes every agent that lints for eslint and npm ci: 500m CPU, 2Gi of memory requested and 4Gi at most, 6Gi of disk", () => {
+  it("sizes every agent that lints for eslint and npm ci: 500m CPU, 2Gi of memory requested and 8Gi at most, 6Gi of disk", () => {
     const linting = [
       "code-review",
       "code-review-recheck",
@@ -1681,7 +1681,7 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     ];
     const size = {
       requests: { cpu: "500m", memory: "2Gi", "ephemeral-storage": "6Gi" },
-      limits: { memory: "4Gi", "ephemeral-storage": "6Gi" },
+      limits: { memory: "8Gi", "ephemeral-storage": "6Gi" },
     };
 
     expect(
