@@ -13,9 +13,14 @@
 #                     test files or a path, a workspace package or a Go package
 #                     path, or follows a cd into a subdirectory. Bare suite
 #                     runs are refused.
-#   none              no runner, no dependency install, no build, and no
-#                     linter/formatter/typechecker: CI publishes that verdict.
+#   none              no runner, no build, and no install but the lockfile one
+#                     (npm ci) a linter needs.
 #   any               guard off.
+#
+# Under scoped and none alike a linter or formatter runs only over the files or
+# paths it names: a whole-repository lint, a lint script and a linter npx would
+# download are refused. In this repository a two-file eslint holds ~1.2 GB and
+# seven packages in one call over 2 GB.
 #
 # LORE_ACCEPTANCE_DOD, set on the implementation loop's rounds: the path of the
 # branch's .lore/dod.md. Its "Done when these pass" tests are CI's to run, so a
@@ -56,9 +61,12 @@ RUNNER="$RUNNER|(^|$W)(cargo$W+test|go$W+test|deno$W+test|playwright$W+test|cypr
 SCRIPT="(^|$W)(npm|pnpm|yarn|bun)$W+((run|run-script)$W+)?(test|tst|t|coverage)(:$NW*)?($W|$)"
 INSTALL="^((npm|pnpm|bun)$W+(ci|install|i|add)|yarn($W+(install|add))?|pip3?$W+install|uv$W+(sync|pip$W+install)|poetry$W+install|go$W+mod$W+download)($W|$)"
 BUILD="^((npm|pnpm|yarn|bun)$W+(run$W+)?build(:$NW*)?|(npx$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?tsc|go$W+(build|install|generate)|cargo$W+(build|check)|make|docker$W+build)($W|$)"
-# Linters and formatters: CI publishes their verdict, and reaching one through npx
-# downloads it into the pod, which is how a review pod fetched eslint@10 (#2155).
-LINT="^((npx$W+|(pnpm|bun)$W+dlx$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?(eslint|prettier|biome|ruff|black|golangci-lint)|(npm|pnpm|yarn|bun)$W+(run$W+)?(lint|format|fmt|typecheck|type-check|check)(:$NW*)?)($W|$)"
+LOCKFILE_INSTALL="^(npm$W+ci|(pnpm|yarn|bun)($W+install)?($W+-$NW+)*$W+--(frozen-lockfile|immutable))($W|$)"
+# Linters and formatters run over named files only. Reaching one through npx without
+# --no-install downloads it into the pod, which is how a review pod fetched eslint@10 (#2155).
+LINT="^((npx|bunx)$W+(-$NW+$W+)*|(pnpm|yarn|bun)$W+(dlx|exec|x)$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?(eslint|prettier|biome|ruff|black|golangci-lint)($W|$)"
+LINT_DOWNLOAD="^((pnpm|yarn|bun)$W+(dlx|x)|bunx)$W"
+LINT_SCRIPT="^(npm|pnpm|yarn|bun)$W+(run$W+)?(lint|format|fmt|typecheck|type-check|check)(:$NW*)?($W|$)"
 TEST_FILE="\.(test|spec)\.[cm]?[jt]sx?($W|:|$)|_test\.go($W|$)|(^|$W|/)test_[A-Za-z0-9_]+\.py"
 WORKSPACE="(^|$W)(-w|--workspace|--filter|--project)(=|$W+)[^-[:space:]]"
 GO_PACKAGE="go$W+test($W+-$NW+)*$W+\./[A-Za-z0-9_][A-Za-z0-9_/.-]*($W|$)"
@@ -125,6 +133,40 @@ names_path() (
   return 1
 )
 
+# True when a linter's positional arguments name a file or a path other than the
+# repository root, skipping subcommands and the values of flags that take one.
+lint_names_path() (
+  IFS=' '
+  seen=0
+  skip=0
+  for tok in $1; do
+    if [ "$seen" = 0 ]; then
+      case "${tok##*/}" in
+        eslint|prettier|biome|ruff|black|golangci-lint) seen=1;;
+      esac
+      continue
+    fi
+    if [ "$skip" = 1 ]; then
+      skip=0
+      continue
+    fi
+    case "$tok" in
+      -c|--config|--ext|--rule|-f|--format|-o|--output-file|--plugin|--parser|--parser-options|--resolve-plugins-relative-to|--max-warnings|--ignore-pattern|--ignore-path|--cache-location|--rulesdir|--env|--global|--log-level|--select|--ignore|--extend-select|--line-length|--target-version|--timeout|-E|--enable|-D|--disable|--out-format|--new-from-rev)
+        skip=1;;
+      -*|check|run|format|lint|fmt|.|./|./...|...|"$cwd"|"$cwd/") ;;
+      *) return 0;;
+    esac
+  done
+  return 1
+)
+
+downloads_linter() {
+  matches "$1" "$LINT_DOWNLOAD" && return 0
+  matches "$1" "^npx$W" && ! matches "$1" "$W--no(-install)?($W|$)"
+}
+
+LINT_HOW="Lint the files you changed, one package per call: \`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>\`, after \`npm ci\` when eslint is not installed."
+
 scoped_runner() {
   if matches "$1" "$EXCLUDE"; then
     return 1
@@ -170,15 +212,24 @@ for seg in $segments; do
   fi
   matches "$head" "$READ_ONLY" && continue
 
+  if matches "$head" "$LINT_SCRIPT"; then
+    refuse "a lint script runs over the whole repository, which is CI's to lint: read its verdict with lore_get_ci_failures. $LINT_HOW"
+  fi
+  if matches "$head" "$LINT"; then
+    if downloads_linter "$head"; then
+      refuse "npx would download this linter into the pod (#2155); run the checkout's own with npx --no-install eslint <files>. $LINT_HOW"
+    fi
+    lint_names_path "$head" \
+      || refuse "the whole repository is CI's to lint: read its verdict with lore_get_ci_failures. $LINT_HOW"
+    continue
+  fi
+
   if [ "$policy" = "none" ]; then
     if matches "$seg" "$RUNNER" || matches "$seg" "$SCRIPT"; then
       refuse "this node does not run tests. CI runs the suite; review from the source tree and the diff alone."
     fi
-    if matches "$head" "$INSTALL" || matches "$head" "$BUILD"; then
-      refuse "this node does not install dependencies or build. The pod has a 1Gi disk budget and CI already builds the branch."
-    fi
-    if matches "$head" "$LINT"; then
-      refuse "lint, types and formatting are CI's verdict — read it with lore_get_ci_failures. Reaching a linter through npx also downloads it into a 1Gi pod."
+    if { matches "$head" "$INSTALL" && ! matches "$head" "$LOCKFILE_INSTALL"; } || matches "$head" "$BUILD"; then
+      refuse "this node does not build, and installs only the lockfile's dependencies (npm ci) a linter needs. CI already builds the branch."
     fi
     continue
   fi

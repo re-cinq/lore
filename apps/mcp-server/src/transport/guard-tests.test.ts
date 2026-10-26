@@ -218,29 +218,34 @@ describe("guard-tests hook", () => {
     expect(ordinary.filter((c) => blocked(c))).toEqual([]);
   });
 
-  it("refuses named tests, installs and builds alike under policy none", () => {
+  it("refuses named tests, builds and every install but the lockfile one a linter needs under policy none", () => {
     const forbidden = [
       "npx vitest run src/foo.test.ts",
-      "npm ci",
+      "npm install",
+      "npm i lodash",
       "npm run build",
       "npx tsc --noEmit",
       "yarn",
       "uv sync",
-      'sh -c "npm ci"',
+      'sh -c "npm install"',
       "node_modules/.bin/tsc",
       "timeout 60 make",
-      "git diff && npm ci",
+      "git diff && npm install",
     ];
-    const reading = [
+    const allowed = [
       "git diff main...HEAD",
       "echo make",
       "grep -n tsc package.json",
       'grep -rn "npm ci" .github',
       "cat Makefile",
+      "npm ci",
+      'sh -c "npm ci"',
+      "cd /workspace/target && npm ci --no-audit --no-fund",
+      "pnpm install --frozen-lockfile",
     ];
 
     expect(forbidden.filter((c) => !blocked(c, "none"))).toEqual([]);
-    expect(reading.filter((c) => blocked(c, "none"))).toEqual([]);
+    expect(allowed.filter((c) => blocked(c, "none"))).toEqual([]);
   });
 
   it("stands down under policy any and on an event with no command", () => {
@@ -302,24 +307,63 @@ describe("guard-tests hook", () => {
     });
   });
 
-  it("refuses eslint, prettier and a lint script under policy none, where CI has already published that verdict", () => {
-    expect([
-      blocked("npx eslint apps/web-ui/src/app/api/route.ts", "none"),
-      blocked("cd /workspace/target && npx eslint .", "none"),
-      blocked("npm run lint -- --ext .ts", "none"),
-      blocked("prettier --check src/a.ts", "none"),
-      blocked("node_modules/.bin/eslint src", "none"),
-    ]).toEqual([true, true, true, true, true]);
+  it("lets a linter or formatter run over the files it names under policies scoped and none", () => {
+    const named = [
+      "NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix apps/web-ui/src/app/api/route.ts specs/x/spec.md",
+      "npx --no-install eslint --config eslint.config.js src/a.ts",
+      "cd apps/web-ui && npx --no-install eslint src/lib/github.ts",
+      "node_modules/.bin/eslint src",
+      "npx --no-install prettier --check src/a.ts",
+      "ruff check app/models.py",
+      "golangci-lint run ./internal/...",
+    ];
+
+    expect({
+      scoped: named.filter((c) => blocked(c, "scoped")),
+      none: named.filter((c) => blocked(c, "none")),
+    }).toEqual({ scoped: [], none: [] });
   });
 
-  it("names CI's verdict as where to read it instead", () => {
-    expect(guard("npx eslint .", "none").reason).toContain(
+  it("refuses a whole-repository lint and a lint script under policies scoped and none", () => {
+    const whole = [
+      "npx --no-install eslint .",
+      "cd /workspace/target && npx --no-install eslint --fix ./",
+      "npx --no-install eslint --ext .ts",
+      "npm run lint -- --ext .ts",
+      "npm run format",
+      "pnpm lint:specs",
+      "golangci-lint run ./...",
+    ];
+
+    expect({
+      scoped: whole.filter((c) => !blocked(c, "scoped")),
+      none: whole.filter((c) => !blocked(c, "none")),
+    }).toEqual({ scoped: [], none: [] });
+  });
+
+  it("refuses a linter npx or dlx would download under policies scoped and none, and names --no-install", () => {
+    const downloading = [
+      "npx eslint src/a.ts",
+      "npx prettier --check src/a.ts",
+      "pnpm dlx eslint src/a.ts",
+      "bunx eslint src/a.ts",
+    ];
+
+    expect({
+      scoped: downloading.filter((c) => !blocked(c, "scoped")),
+      none: downloading.filter((c) => !blocked(c, "none")),
+      reason: guard("npx eslint src/a.ts", "none").reason,
+    }).toEqual({
+      scoped: [],
+      none: [],
+      reason: expect.stringContaining("npx --no-install eslint"),
+    });
+  });
+
+  it("names CI's verdict as where to read a whole-repository lint instead", () => {
+    expect(guard("npx --no-install eslint .", "none").reason).toContain(
       "lore_get_ci_failures",
     );
-  });
-
-  it("leaves a linter alone under the scoped policy an implementation pod runs", () => {
-    expect(blocked("npx eslint src/a.ts", "scoped")).toBe(false);
   });
 
   it("wires the same guard into the Gemini bundle, which blocks with a decision on stdout rather than an exit code", () => {
@@ -350,7 +394,7 @@ describe("guard-tests hook", () => {
       geminiDecision("npm install", "none"),
       geminiDecision("git -C /workspace/target diff main...HEAD", "none"),
     ]).toEqual([
-      "[lore] blocked: this node does not install dependencies or build. The pod has a 1Gi disk budget and CI already builds the branch.",
+      "[lore] blocked: this node does not build, and installs only the lockfile's dependencies (npm ci) a linter needs. CI already builds the branch.",
       null,
     ]);
   });
@@ -397,5 +441,26 @@ describe("guard-tests hook", () => {
         LORE_ACCEPTANCE_DOD: "/nonexistent/dod.md",
       }).code,
     ]).toEqual([0, 0]);
+  });
+});
+
+describe("guard-tests hook, lockfile installs", () => {
+  it("refuses adding a package under policy none even when the command carries --frozen-lockfile or --immutable", () => {
+    const adding = [
+      "pnpm add lodash --frozen-lockfile",
+      "yarn add lodash --immutable",
+      "bun add lodash --frozen-lockfile",
+    ];
+    const lockfileOnly = [
+      "pnpm install --frozen-lockfile",
+      "yarn install --immutable",
+      "yarn --frozen-lockfile",
+      "bun install --frozen-lockfile",
+    ];
+
+    expect({
+      added: adding.filter((c) => !blocked(c, "none")),
+      refusedLockfile: lockfileOnly.filter((c) => blocked(c, "none")),
+    }).toEqual({ added: [], refusedLockfile: [] });
   });
 });

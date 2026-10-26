@@ -36,10 +36,10 @@ conventions of the specs already in the repository. Keep any `Status`
 row honest. Open questions stay open in the spec's Open Questions;
 never answer one for the author.
 
-## Lint rules CI will enforce (you cannot run the linter here)
+## Lint rules CI will enforce
 
-CI lints every spec on push, and a finding is a red build. The rules
-you must satisfy by hand:
+CI lints every spec on push, and a finding is a red build. Lint the
+specs you changed before you commit (see Deliver); the rules it checks:
 
 - The `| Status |` row must match test-link coverage: a spec with
   NO `([validated by](…))` links is `Draft` — a brand-new spec is
@@ -58,12 +58,20 @@ you must satisfy by hand:
 ## Deliver
 
 - Before you commit, run the repository's FORMATTER over the files
-  you changed (`npx prettier --write <files>`, `gofmt -w <files>`,
-  whichever this repo uses) and nothing else from CI's checklist. Do
-  NOT run the linter in this pod: CI runs it on every push, and here
-  it does not fit — in this repository a two-file `eslint` peaks
-  near 800 MB against a 1Gi pod. A lint finding comes back as a red
-  build naming the file and line.
+  you changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`,
+  whichever this repo uses).
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - Do NOT typecheck here either, and NEVER run a workspace build in
   this pod (`npm run build`, `tsc -b`, a `tsc` without `--noEmit`):
   CI's build step proves compilation, and the build is the 950 MB
