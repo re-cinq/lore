@@ -653,13 +653,15 @@ agent_definitions:
           LORE_TEST_POLICY: none
   loop-fix-ci:
     settings:
-      model: gemini-3.1-pro-preview
+      # Gemini 4 Argon since 2026-10-26 (#3502): on loop-bench's medium and large
+      # tickets it left 38 of 68 repairs green, Gemini 3.1 Pro 18 of 66.
+      model: gemini-4-argon
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 45
       prices:
-        gemini-3.1-pro-preview:
+        gemini-4-argon:
           input_per_million: 2
-          output_per_million: 12
+          output_per_million: 10
           cache_read_per_million: 0.2
       config:
         pod_resources:

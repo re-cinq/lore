@@ -508,40 +508,40 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   earlier verdict it reads `main...HEAD` as before. The sha and the range are resolved
   together, so a rebase that drops the judged commit names no sha at all rather than
   sending the pod to diff against history the branch no longer has.
-  ([validated by starts a re-check that names sha-old as the last judged commit](libs/shared/src/work/review/floor-review-start.test.ts#L327), [validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1566))
+  ([validated by starts a re-check that names sha-old as the last judged commit](libs/shared/src/work/review/floor-review-start.test.ts#L327), [validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1570))
 - *(added 2026-09-25)* The re-check recipe carries the deep review's discipline at its own
   scope: context queried with the PR title and the surface the new commits change, the CI
   verdict read through `lore_get_ci_failures` rather than reasoned about or re-run, each
   diff read once in place, and a `question` when an added spec statement is not what a
   person using that surface would expect.
-  ([validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1566), [validated by carries the same CI-verdict and read-once rules as the deep review, so a re-check lints only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1576), [validated by queries context with the PR title and the surface the new commits change](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1587))
+  ([validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1570), [validated by carries the same CI-verdict and read-once rules as the deep review, so a re-check lints only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1580), [validated by queries context with the PR title and the surface the new commits change](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1591))
 - *(added 2026-09-25)* A review asked for by hand supersedes the fast pass a push started:
   the open re-check is finished `superseded` before the deep review starts, so one sha
   never collects two verdicts of different depths. ([validated by cancels the open re-check as superseded when a review is forced](libs/shared/src/work/review/floor-review-start.test.ts#L295))
 - Every recipe that asks for a `REVIEW_FINDINGS` block shows a whole finding
   (`path`, `line`, `label`, `decoration`, `subject`) rather than pointing at
   another recipe's schema, so no model has to guess the shape.
-  ([validated by shows a whole finding with path, line, label, decoration and subject in code-review and code-review-recheck, so no model guesses the shape (#2143's recheck lost every finding)](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1605))
+  ([validated by shows a whole finding with path, line, label, decoration and subject in code-review and code-review-recheck, so no model guesses the shape (#2143's recheck lost every finding)](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1609))
 - *(added 2026-09-24)* The deep review reads the change as its user before it reads
   it as its reviewer: for every spec statement the PR adds or changes, one line on
   what a person using that surface sees differently, compared with the statements
   beside it and the page or route that renders it, and a mismatch is a `question`
   finding rather than silence — a spec written in the same PR as its code proves
   nothing about intent (the #2130 replay approved a fresh-run design twice).
-  ([validated by asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1515))
+  ([validated by asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1519))
 - Lint, types, formatting and tests are CI's verdict, read through
   `lore_get_ci_failures` first. *(amended 2026-10-26)* The review may lint the changed
   files, one package per call and never with `--fix`, to confirm a finding before it
   reports one; it runs no tsc, formatter, test runner or install other than the
-  `npm ci` the linter needs. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1525), [validated by lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L1052))
+  `npm ci` the linter needs. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1529), [validated by lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L1052))
 - The diff is read once, in place, never dumped to a file and read back.
-  ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1538))
+  ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1542))
 - Context is queried with the PR title, the spec sections it touches and the surface
   it changes, never with a description of reviewing, which returns the platform
-  overview. ([validated by queries context with the PR's subject, spec and surface, never with a description of reviewing](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1544))
+  overview. ([validated by queries context with the PR's subject, spec and surface, never with a description of reviewing](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1548))
 - `changes_requested` is for a defect in the changed code or a mismatch between what
   the spec says and what a person would expect of its surface; a `question` alone
-  never blocks. ([validated by reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1553))
+  never blocks. ([validated by reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1557))
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair

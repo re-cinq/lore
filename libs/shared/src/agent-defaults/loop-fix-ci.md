@@ -3,7 +3,7 @@
 timeout_minutes: 45
 review_required: false
 execution_mode: claude-code
-model: gemini-3.1-pro-preview
+model: gemini-4-argon
 ---
 The pull request for this ticket has a RED build, or Lore's review asked
 for changes on it. Your job is to make it green, or make the changes the
