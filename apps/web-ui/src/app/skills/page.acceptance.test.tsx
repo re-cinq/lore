@@ -15,27 +15,42 @@ describe("Skills Management UI", () => {
     vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({
-        skills: [{ name: "my-custom-skill", title: "Dynamic Skill API", model: "claude-3-5-sonnet", content: "hello" }]
-      })
+        skills: [
+          {
+            name: "my-custom-skill",
+            title: "Dynamic Skill API",
+            model: "claude-3-5-sonnet",
+            content: "hello",
+          },
+        ],
+      }),
     } as Response);
 
-    const Component = SkillsPage as unknown as (props: any) => Promise<JSX.Element> | JSX.Element;
+    const Component = SkillsPage as unknown as (
+      props: any,
+    ) => Promise<JSX.Element> | JSX.Element;
     const ui = await Component({});
 
     render(ui);
 
     expect(await screen.findByText("Dynamic Skill API")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /edit/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /remove|delete/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /remove|delete/i }),
+    ).toBeInTheDocument();
   });
 
   it("Skill definitions offer options for setting models, titles, and content", async () => {
-    const Component = SkillsPage as unknown as (props: any) => Promise<JSX.Element> | JSX.Element;
+    const Component = SkillsPage as unknown as (
+      props: any,
+    ) => Promise<JSX.Element> | JSX.Element;
     const ui = await Component({});
 
     render(ui);
 
-    const createBtn = screen.queryByRole("button", { name: /create|new/i }) || screen.queryByRole("link", { name: /create|new/i });
+    const createBtn =
+      screen.queryByRole("button", { name: /create|new/i }) ||
+      screen.queryByRole("link", { name: /create|new/i });
 
     if (createBtn) {
       fireEvent.click(createBtn);
