@@ -48,7 +48,8 @@ at exactly `{decomposition_path}`; the file is the deliverable:
           "acceptance_criteria": ["<observable outcome that proves it done>", "..."],
           "test_plan": "<which tests to write or run, and what they show>",
           "references": ["specs/<slug>/spec.md#<section>"],
-          "spec_lines": { "specs/<slug>/spec.md": [42, 57] }
+          "spec_lines": { "specs/<slug>/spec.md": [42, 57] },
+          "needs_person": "<only when a person must do it: what they do, and why the loop cannot>"
         }
       ]
     }
@@ -121,6 +122,20 @@ Rules:
   the intro and the narrative sections (Background, Rationale, Problem
   Statement, Open Questions). Name every testable statement in at least
   one task.
+- **Set `needs_person` only on a task the implementation loop cannot do
+  from a checkout of this repository.** The loop's agent works in a pod
+  with the repository and its CI, nothing else. So a task needs a person
+  when it applies terraform or changes anything in a cloud console, the
+  cluster or Secret Manager; creates or rotates a credential; changes
+  another repository; needs an outside account or vendor; takes a
+  product or design decision the spec leaves open; or is a by-hand step
+  on production data. Write in it what the person does and why the
+  loop cannot. Its issue is filed with `lore:blocked`, so the loop skips
+  it until the person removes the label. Never set it on code, tests,
+  docs, workflows, Helm values, terraform files or migrations in this
+  repository: the loop writes those, even when a person applies them
+  later. Give that step a task of its own, and have the tasks that need
+  it done first `depends_on` it, rather than folding it into a code task.
 - Wire real dependencies: schema and data-model tasks before the code
   that uses them; tests and integration after the code they cover.
 - Prefer a handful of well-scoped tasks per story over many trivial

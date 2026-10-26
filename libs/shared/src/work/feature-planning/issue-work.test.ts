@@ -222,4 +222,28 @@ describe("decideIssueWork", () => {
       "triage: needs-priority",
     ]);
   });
+
+  it("files a task a person must do with lore:blocked beside priority:medium, so the loop skips it until the label is removed", () => {
+    const [slice] = decomposition().stories;
+    const work = decideIssueWork(
+      decomposition({
+        stories: [
+          {
+            ...slice,
+            tasks: [
+              { ...slice.tasks[0], needs_person: "Apply terraform from main." },
+            ],
+          },
+        ],
+      }),
+      REPO_LABELS,
+    );
+
+    expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
+      "area:floor",
+      "lore-managed",
+      "priority:medium",
+      "lore:blocked",
+    ]);
+  });
 });
