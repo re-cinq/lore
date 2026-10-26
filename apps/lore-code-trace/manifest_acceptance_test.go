@@ -60,7 +60,7 @@ func TestParseManifestAcceptsMultiEntryManifest(t *testing.T) {
 
 	// Run the orchestrator in non-post mode (prints JSON to stdout).
 	var out bytes.Buffer
-	if err := run(dir, false, &out); err != nil {
+	if err := run(dir, false, false, &out); err != nil {
 		t.Fatalf("run() returned error: %v", err)
 	}
 

@@ -6,8 +6,11 @@
 # Descriptors are per-`it` (the describe chain feeds spec-sentence acceptance
 # links); `run` executes one whole FILE under buildTestReport's concurrency cap.
 # coverage_format MUST be json: the local run path JSON.parses stdout.
+# `related` names the test files the change since Lore's last ingest affects,
+# so a push runs those and not the whole suite.
 list: "node libs/shared/scripts/trace/list-tests.mjs"
 run: "node libs/shared/scripts/trace/run-test.mjs {selector}"
+related: "node libs/shared/scripts/trace/related-tests.mjs {base}"
 coverage_format: "json"
 cwd: "."
 path_prefix_strip: ""

@@ -61,10 +61,10 @@ type reportMeta struct {
 }
 
 // buildReport runs the manifest's list, then runs the run command once per file
-// (bounded by concurrency) and fans each file's RunResult onto every descriptor
+// in scope (bounded by concurrency) and fans each file's RunResult onto every descriptor
 // id in that file — the file is the coverage granularity. A per-file run failure
 // is logged and skipped, never fatal.
-func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, concurrency int, logw io.Writer) (TestReport, error) {
+func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, scope testScope, concurrency int, logw io.Writer) (TestReport, error) {
 	runCwd := filepath.Join(cwd, m.Cwd)
 	timeout := traceTimeout()
 
@@ -85,9 +85,14 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 			return TestReport{}, fmt.Errorf("parsing tests.list output: %w", err)
 		}
 	}
-	for i := range tests {
-		tests[i].File = stripPrefix(tests[i].File, m.PathPrefixStrip)
+	inScope := make([]TestDescriptor, 0, len(tests))
+	for _, test := range tests {
+		test.File = stripPrefix(test.File, m.PathPrefixStrip)
+		if scope.includes(test.File) {
+			inScope = append(inScope, test)
+		}
 	}
+	tests = inScope
 
 	files, idsByFile := groupByFile(tests)
 

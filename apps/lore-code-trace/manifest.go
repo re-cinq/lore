@@ -14,6 +14,7 @@ import (
 type Manifest struct {
 	List            string `yaml:"list"`
 	Run             string `yaml:"run"`
+	Related         string `yaml:"related"`
 	CoverageFormat  string `yaml:"coverage_format"`
 	Cwd             string `yaml:"cwd"`
 	PathPrefixStrip string `yaml:"path_prefix_strip"`
