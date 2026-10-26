@@ -12,6 +12,7 @@
 | Spec task executor | Every minute | tick → sweep | Starts a run for each plan spec-task whose dependencies have merged |
 | Daily digest | Every 15 minutes | tick → sweep | Starts the digest line for each Slack channel whose configured time has come |
 | Spec upkeep | Monday 10:00 | tick → sweep | Starts one spec-upkeep run per onboarded repository: fix drifted specs, add missing test links, open one pull request |
+| Webhook ensure | Monday 03:00 | tick → sweep | Points every onboarded repository's GitHub webhook at Lore with every event it requires, so a repository onboarded before an event was required still delivers it |
 | Events prune | Hourly | tick → sweep | Housekeeping of handled `pipeline.events` rows and their deliveries |
 | Telemetry prune | Daily 03:43 | tick → sweep | 14-day reap of agent run events and stored pod log chunks |
 | Memory TTL | Hourly | courier CronJob | Deletes memories whose TTL has passed |

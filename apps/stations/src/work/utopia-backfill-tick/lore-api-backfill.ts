@@ -64,6 +64,14 @@ export function postUtopiaReleases(
   return postLoreApi(target, `/api/repos/${repo}/utopia/releases`);
 }
 
+/** The ensure of one repo's GitHub webhook: lore-api points it at itself with every required event, and answers its state. */
+export function postWebhookEnsure(
+  target: LoreApiTarget,
+  repo: string,
+): Promise<BackfillAnswer> {
+  return postLoreApi(target, `/api/repos/${repo}/webhook/ensure`);
+}
+
 /** The memory walk of the org base, `<org>/memory`, which holds the memories and episodes no onboarded repo owns. */
 export function postOrgMemory(target: LoreApiTarget): Promise<BackfillAnswer> {
   return postLoreApi(target, "/api/utopia/memory");

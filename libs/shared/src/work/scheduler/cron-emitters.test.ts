@@ -36,6 +36,12 @@ describe("cronTickEventNames", () => {
     expect(cronTickEventNames()).not.toContain("cron.spec_task_executor.tick");
   });
 
+  it("schedules webhook_ensure weekly on Monday at 03:00 UTC", () => {
+    expect(
+      CRON_EMITTERS.find((emitter) => emitter.name === "webhook_ensure"),
+    ).toMatchObject({ schedule: "0 3 * * 1" });
+  });
+
   it("schedules utopia_backfill weekly on Sunday at 02:30 UTC", () => {
     expect(
       CRON_EMITTERS.find((emitter) => emitter.name === "utopia_backfill"),
