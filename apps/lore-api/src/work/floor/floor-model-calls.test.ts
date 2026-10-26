@@ -29,6 +29,7 @@ describe("modelCallsOf", () => {
         model: "gemini-3.1-pro",
         costUsd: 0.02,
         tokensIn: 1000,
+        cacheReadTokens: 100,
         tokensOut: 120,
       },
     ]);
@@ -56,17 +57,24 @@ describe("modelCallsOf", () => {
       modelCallsOf([result]).map((row) => [
         row.model,
         row.tokensIn,
+        row.cacheReadTokens,
         row.costUsd,
       ]),
     ).toEqual([
-      ["claude-sonnet-5-5", 2000, 0.45],
-      ["claude-haiku-4-5", 500, 0.05],
+      ["claude-sonnet-5-5", 2000, null, 0.45],
+      ["claude-haiku-4-5", 500, null, 0.05],
     ]);
   });
 
   it("reads a result naming no model as one row with the record's cost and a null model", () => {
     expect(modelCallsOf([record(3, { costUsd: 0.1 })])).toMatchObject([
-      { model: null, costUsd: 0.1, tokensIn: null, tokensOut: null },
+      {
+        model: null,
+        costUsd: 0.1,
+        tokensIn: null,
+        cacheReadTokens: null,
+        tokensOut: null,
+      },
     ]);
   });
 

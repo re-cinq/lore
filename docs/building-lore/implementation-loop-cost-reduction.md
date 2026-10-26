@@ -49,6 +49,8 @@ The floor records Gemini's cached tokens but prices them at the full input price
 
 If the cache already works the way it does in the bench, the weekend's real Gemini bill was roughly a third of what we counted, and every Gemini saving below shrinks to the low end of its range.
 
+_Update 2026-10-26 (#3495):_ the floor's counting was right all along: gemini-cli reports the uncached and the cached share of each prompt apart, the floor keeps both, and only the price was missing. Every Gemini price block now names the cache price, each visit's "Model calls" card on the run page shows how much of what a model read came from its cache, and the board's Money row has a cache hit rate per step once the floor reports cache reads as their own token kind. Whether the pods hit the cache as well as the bench did is read off those numbers, not assumed; the comparison with Google's bill is still to be made.
+
 ### 2. Stop upkeep on pull requests that keep failing ([#3496](https://github.com/re-cinq/lore/issues/3496))
 
 Runs after a ticket's first cost $693, 29% of the weekend's spend. The worst of it: after two upkeep runs on the same pull request gave up in a row, the loop started 77 more on those pull requests. They cost $267, and 11 of them succeeded. lore #2879 had 25 runs and #2880 had 27, and neither merged. After two runs give up, the ticket should be parked for a person with the reason.

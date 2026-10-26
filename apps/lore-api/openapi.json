@@ -21071,6 +21071,9 @@
                 "tokensIn": {
                   "type": ["number", "null"]
                 },
+                "cacheReadTokens": {
+                  "type": ["number", "null"]
+                },
                 "tokensOut": {
                   "type": ["number", "null"]
                 }
@@ -21081,6 +21084,7 @@
                 "model",
                 "costUsd",
                 "tokensIn",
+                "cacheReadTokens",
                 "tokensOut"
               ],
               "additionalProperties": false

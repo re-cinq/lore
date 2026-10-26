@@ -5592,6 +5592,7 @@ export interface components {
         model: string | null;
         costUsd: number | null;
         tokensIn: number | null;
+        cacheReadTokens: number | null;
         tokensOut: number | null;
       }[];
     };

@@ -139,7 +139,7 @@ describe("HumanVisitCard", () => {
 });
 
 describe("ModelCallsView", () => {
-  it("lists two calls with model, tokens and cost", () => {
+  it("lists three calls with model, tokens, the cached share and cost, and the visit's hit rate as a label", () => {
     render(
       <ModelCallsView
         calls={[
@@ -149,26 +149,65 @@ describe("ModelCallsView", () => {
             model: "gemini-3.1-pro",
             costUsd: 0.02,
             tokensIn: 1000,
+            cacheReadTokens: 820,
             tokensOut: 120,
           },
           {
             seq: 2,
             occurredAt: "t",
+            model: "claude-haiku-4-5",
+            costUsd: 0.01,
+            tokensIn: 500,
+            cacheReadTokens: null,
+            tokensOut: 50,
+          },
+          {
+            seq: 3,
+            occurredAt: "t",
             model: null,
             costUsd: null,
             tokensIn: null,
+            cacheReadTokens: null,
             tokensOut: null,
           },
         ]}
       />,
     );
 
-    expect(
-      screen
+    expect({
+      rows: screen
         .getAllByRole("row")
         .slice(1)
         .map((row) => row.textContent),
-    ).toEqual(["gemini-3.1-pro1000 / 120$0.0200", "—— / ——"]);
+      hitRate: screen.getByText("82% cached").textContent,
+    }).toEqual({
+      rows: [
+        "gemini-3.1-pro1000 (82% cached) / 120$0.0200",
+        "claude-haiku-4-5500 / 50$0.0100",
+        "—— / ——",
+      ],
+      hitRate: "82% cached",
+    });
+  });
+
+  it("labels no hit rate when no call read from a cache", () => {
+    render(
+      <ModelCallsView
+        calls={[
+          {
+            seq: 1,
+            occurredAt: "t",
+            model: "claude-haiku-4-5",
+            costUsd: 0.01,
+            tokensIn: 500,
+            cacheReadTokens: null,
+            tokensOut: 50,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.queryByText(/% cached/)).toBeNull();
   });
 
   it("renders nothing for no calls", () => {

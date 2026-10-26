@@ -537,6 +537,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
@@ -563,6 +564,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         # Autopilot holds an ephemeral-storage limit to its request, so the limit
         # is what evicts: runs aa9c26e4's dod pods were evicted at 2Gi by npm ci.
@@ -620,6 +622,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
@@ -649,6 +652,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
