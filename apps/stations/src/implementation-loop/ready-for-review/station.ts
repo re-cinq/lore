@@ -21,10 +21,13 @@ import { errorMessage } from "@re-cinq/lore-shared/lib/error-classify.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import type { LlmToolResult } from "@re-cinq/lore-shared/llm/llm-provider.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { findPullRequestTemplate } from "../pr-sections.js";
 
 export interface ReadyForReviewDeps {
   diffOf(repo: string, prNumber: number): Promise<string>;
   fileAt(repo: string, path: string, ref: string): Promise<string | null>;
+  /** The repository's pull request template on its default branch, as mark-ready reads it. */
+  template(repo: string): Promise<string | null>;
   deleteFile(
     repo: string,
     branch: string,
@@ -38,13 +41,13 @@ const LLM_USE = "pr_description";
 
 const DOD_PATH = ".lore/dod.md";
 
-const TEMPLATE_PATH = ".github/PULL_REQUEST_TEMPLATE.md";
-
 const productionDeps: ReadyForReviewDeps = {
   diffOf: async (repo, prNumber) =>
     (await projectFor(repo)).pulls.getDiff(prNumber),
   fileAt: async (repo, path, ref) =>
     (await projectFor(repo)).repo.read(path, ref),
+  template: async (repo) =>
+    findPullRequestTemplate((await projectFor(repo)).repo),
   deleteFile: async (repo, branch, path, message) =>
     (await projectFor(repo)).repo.deleteFile(branch, path, message),
   describe: (prompt) =>
@@ -115,7 +118,7 @@ async function describe(deps: ReadyForReviewDeps, tools: Tools, at: Branch) {
   const [diff, dod, template, ticket] = await Promise.all([
     deps.diffOf(at.repo, at.prNumber),
     deps.fileAt(at.repo, DOD_PATH, at.branch),
-    deps.fileAt(at.repo, TEMPLATE_PATH, at.branch),
+    deps.template(at.repo),
     tools.read("ticket"),
   ]);
   const prompt = prDescriptionPrompt({

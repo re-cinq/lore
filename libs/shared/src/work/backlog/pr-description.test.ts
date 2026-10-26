@@ -60,6 +60,16 @@ describe("describedPull", () => {
     ]);
   });
 
+  it("ends a first line over 70 characters with an ellipsis, as mark-ready clamps every title", () => {
+    expect(
+      describedPull({
+        title: "x".repeat(80),
+        body: "## Why\nB.",
+        issue_coverage: "full",
+      })?.title,
+    ).toBe(`${"x".repeat(69)}…`);
+  });
+
   it("is null for an answer with no title or no body, so the step fails and runs once more", () => {
     expect([
       describedPull({ title: " ", body: "## Why", issue_coverage: "full" }),

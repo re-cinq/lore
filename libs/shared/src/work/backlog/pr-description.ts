@@ -1,4 +1,5 @@
 // The loop's pull request description, written from the diff (#3503): a small model reads the ticket, the definition of done and the pull request's diff, and answers the title, the description under the repository's headings, and whether the branch covers the whole ticket. The agent this replaces read 786k input tokens a visit on Gemini 3.1 Pro with the repository, the skills and Lore's MCP loaded.
+import { clampPrTitle } from "../../domain/pr-title.js";
 
 /** How much of the diff the model reads. */
 export const PR_DESCRIPTION_DIFF_CHARS = 60_000;
@@ -71,7 +72,7 @@ export function describedPull(
   answer: PullDescription,
 ): { title: string; body: string; coverage: "full" | "partial" } | null {
   const [firstLine = ""] = answer.title.split("\n");
-  const title = firstLine.trim().slice(0, TITLE_CHARS);
+  const title = clampPrTitle(firstLine);
   const body = answer.body.trim();
 
   if (!title || !body) {

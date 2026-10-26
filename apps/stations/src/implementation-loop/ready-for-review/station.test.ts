@@ -34,6 +34,7 @@ function scene(
       Promise.resolve(
         path === ".lore/dod.md" ? "Done when export.test.ts passes" : null,
       ),
+    template: () => Promise.resolve("## Summary\n\n## Risk\n"),
     deleteFile: (_repo, branch, path, message) => {
       deleted.push(`${branch}:${path}:${message.split("\n")[0]}`);
 
@@ -88,6 +89,7 @@ describe("loop-ready-for-review", () => {
       body: produced.pr_body,
       deleted,
       sawDod: prompts[0]?.includes("Done when export.test.ts passes"),
+      templateHeadings: prompts[0]?.includes("`## Summary`, `## Risk`"),
       calls: calls.length,
     }).toEqual({
       report: {
@@ -99,6 +101,7 @@ describe("loop-ready-for-review", () => {
         `${BRANCH}:.lore/dod.md:Remove the definition of done before review`,
       ],
       sawDod: true,
+      templateHeadings: true,
       calls: 1,
     });
   });
