@@ -26,6 +26,7 @@ coverage_format: "lcov"          # optional; lcov | cobertura | json
 cwd: "."                         # optional; subdir for monorepo packages
 path_prefix_strip: ""            # optional; make coverage paths repo-relative
 related: "npm run -s test:related-json -- {base}"  # optional; affected test files
+run_many: "npm run -s test:run-many-json"           # optional; json only; many files at once
 ```
 
 `run` is the only required field. A suite that runs whole and cannot honestly
@@ -113,6 +114,17 @@ Effect: upserts one `Coverage` node (`xid = repo|test_file|test_name`) +
 overlapping `CodeChunk` — the **execution-verified** evidence tier — on
 demand, without a full-report upload. `passed: false` on a validating
 test raises the **`violated`** signal (after the flaky guard).
+
+## `tests.run_many` — run many test files at once (optional, `json` only)
+
+Reads the test files to run on stdin, one per line (paths as `list` reports
+them), and prints one JSON object keyed by file whose values have the shape
+`run` prints for one file: `{"<file>": {"passed": true, "covered": [...]}}`.
+`lore-code-trace` sends the whole selection through it instead of running `run`
+once per file, so the runner boots once per batch rather than once per file. A
+file the answer leaves out is skipped, as a failed `run` is. A non-zero exit or
+output that is not that object makes it run `run` per file instead. `run` stays
+required: `lore_run_test` runs one test through it.
 
 ## `tests.related` — name the test files a change affects (optional)
 
