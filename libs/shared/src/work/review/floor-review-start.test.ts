@@ -814,3 +814,71 @@ describe("reviewOrRecheck after a rebase that changed what Lore reviewed", () =>
     );
   });
 });
+
+describe("reviewOrRecheck carrying an approval in a repository with CI", () => {
+  it("carries sha-old's approval to sha-new while sha-new's CI still runs, since a rebase that changed nothing needs no wait, and does nothing again once the carried check stands on sha-new", async () => {
+    const carry = scene({
+      ...REBASED,
+      checks: {
+        "sha-old": [
+          ...APPROVED_SHA_OLD["sha-old"],
+          build("completed", "success"),
+        ],
+        "sha-new": [build("in_progress", null)],
+      },
+      netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE },
+    });
+    const again = scene({
+      ...REBASED,
+      checks: {
+        "sha-old": [
+          ...APPROVED_SHA_OLD["sha-old"],
+          build("completed", "success"),
+        ],
+        "sha-new": [
+          {
+            id: 7,
+            name: "lore/code-review",
+            status: "completed",
+            conclusion: "success",
+          },
+          build("completed", "success"),
+        ],
+      },
+      netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE },
+    });
+
+    await reviewOrRecheck(carry.deps, TARGET);
+    await reviewOrRecheck(again.deps, TARGET);
+
+    expect({
+      carried: carry.published.map((check) => check.headSha),
+      again: [again.published.length, started(again.requests).length],
+    }).toEqual({ carried: ["sha-new"], again: [0, 0] });
+  });
+
+  it("reads whether the repository runs CI from the commit CI judged at the last verdict, not from the skip-ci commit the last re-check ran on", async () => {
+    const { deps, requests } = scene({
+      runs: [run({ startItems: judging("sha-fmt") })],
+      pr: pull({ headSha: "sha-next" }),
+      commits: [
+        {
+          sha: "sha-new",
+          message: "Guard the null",
+          date: "2026-09-30T11:00:00Z",
+        },
+        {
+          sha: "sha-fmt",
+          message: "style: prettier [skip ci]",
+          date: "2026-09-30T11:01:00Z",
+        },
+        { sha: "sha-next", message: "Log it", date: "2026-09-30T12:00:00Z" },
+      ],
+      checks: { "sha-new": [build("completed", "success")] },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests).length).toBe(0);
+  });
+});

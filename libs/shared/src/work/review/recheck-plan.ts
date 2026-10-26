@@ -9,6 +9,7 @@ import {
   ciConclusionOf,
   ciJudgedSha,
   externalCheckRuns,
+  loreReviewVerdict,
 } from "../../outbound/project/pulls/check-runs.js";
 import { decideRecheck } from "./code-review-decisions.js";
 import {
@@ -29,27 +30,68 @@ export interface RecheckPlan {
   reason: string;
   sinceSha?: string;
   judged?: string;
+  /** The commit CI judges at the head, and the one it judged at the last verdict. */
+  ciShas?: { head?: string; judged?: string };
 }
 
+/** Whether a push earns a re-check at all: a range to judge, no run on the head already, and no verdict of Lore's standing on it (a carried approval among them). CI is waited for after an approval had its chance to carry. */
 export async function planRecheck(
   pulls: RecheckReads,
   pr: Pick<PullRef, "number" | "headSha">,
   runs: RunView[],
 ): Promise<RecheckPlan> {
-  const commits = await pulls.listCommits(pr.number);
+  const [commits, headChecks] = await Promise.all([
+    pulls.listCommits(pr.number),
+    pr.headSha ? pulls.listChecks(pr.headSha) : [],
+  ]);
   const judged = lastJudgedSha(runs);
   const range = rangeSince(commits, judged);
   const decision = pushDecision(pr, runs, range.newCommitMessages);
+  const ciShas = ciShasOf(commits, pr.headSha, judged);
 
+  return (
+    blockedPush(decision, headChecks) ?? {
+      ...decision,
+      ...{ sinceSha: range.sinceSha, judged, ciShas },
+    }
+  );
+}
+
+function ciShasOf(
+  commits: readonly PullCommit[],
+  headSha: string | undefined,
+  judged: string | undefined,
+) {
+  return {
+    head: ciJudgedSha(commits) ?? headSha,
+    judged: ciShaAt(commits, judged),
+  };
+}
+
+/** No re-check when the push earned none, or when Lore's verdict, a carried approval among them, already stands on the head. */
+function blockedPush(
+  decision: { start: boolean; reason: string },
+  headChecks: readonly CheckRun[],
+): RecheckPlan | null {
   if (!decision.start) {
     return decision;
   }
-  const ciSha = ciJudgedSha(commits) ?? pr.headSha;
-  const held = await ciHold(pulls, ciSha, judged);
 
-  return held
-    ? { start: false, reason: held }
-    : { ...decision, sinceSha: range.sinceSha, judged };
+  return loreReviewVerdict(headChecks) === "none"
+    ? null
+    : { start: false, reason: VERDICT_STANDS };
+}
+
+const VERDICT_STANDS = "Lore's verdict already stands on this sha";
+
+/** The commit CI judged at `sha`: the newest at or before it that did not skip CI, or `sha` itself when the branch no longer has it. */
+function ciShaAt(
+  commits: readonly PullCommit[],
+  sha: string | undefined,
+): string | undefined {
+  const at = commits.findIndex((commit) => commit.sha === sha);
+
+  return at < 0 ? sha : (ciJudgedSha(commits.slice(0, at + 1)) ?? sha);
 }
 
 function pushDecision(
@@ -65,14 +107,14 @@ function pushDecision(
   });
 }
 
-async function ciHold(
+/** Why the re-check waits for CI, read on the commits the plan named; null when it may start. */
+export async function ciHold(
   pulls: RecheckReads,
-  ciSha: string | undefined,
-  judged: string | undefined,
+  { ciShas = {} }: RecheckPlan,
 ): Promise<string | null> {
   const [head, before] = await Promise.all([
-    ciSha ? pulls.listChecks(ciSha) : [],
-    judged ? pulls.listChecks(judged) : [],
+    ciShas.head ? pulls.listChecks(ciShas.head) : [],
+    ciShas.judged ? pulls.listChecks(ciShas.judged) : [],
   ]);
 
   return recheckWaitsForCi(head, before);

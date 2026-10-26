@@ -97,6 +97,17 @@ function keyOf(file: FileChangeSummary): string {
     : `${file.status}\n${file.patch.replace(HUNK_HEADER, "@@")}`;
 }
 
+/** What the re-check's instruction adds after a rebase: the files whose change differs, when GitHub could name them; nothing otherwise. */
+export function scopeAfterRebase(
+  rebase: RebaseVerdict,
+  judged: string | undefined,
+  base: string,
+): string {
+  const differing = "differing" in rebase ? rebase.differing : null;
+
+  return judged && differing ? rebasedScope(judged, differing, base) : "";
+}
+
 /** The re-check's scope after a rebase that changed some files: those files' change against the base, and nothing else. */
 export function rebasedScope(
   judged: string,

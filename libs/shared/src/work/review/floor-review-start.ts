@@ -7,11 +7,12 @@ import type {
 } from "../../outbound/project/pulls/pull-requests-port.js";
 import {
   judgeRebase,
-  rebasedScope,
+  scopeAfterRebase,
   type CarryChecks,
   type CarryReads,
 } from "./carry-approval.js";
 import {
+  ciHold,
   planRecheck,
   type RecheckPlan,
   type RecheckReads,
@@ -164,22 +165,22 @@ export async function startRecheck(
     : skipped(target.prNumber, plan.reason);
 }
 
-/** A rebase that changed nothing Lore approved keeps the approval and starts nothing; one that changed some files is re-checked on those; anything else is re-checked on the range since the last verdict. */
+/** A rebase that changed nothing Lore approved keeps the approval and starts nothing, whatever CI is doing; anything else waits for green CI, then is re-checked on the files a rebase changed or the range since the last verdict. */
 async function carryOrRecheck(
   deps: ReviewStartDeps,
   target: PullRequestTarget,
   pr: PullRef,
-  { judged, sinceSha }: RecheckPlan,
+  plan: RecheckPlan,
 ): Promise<string | null> {
+  const { judged, sinceSha } = plan;
   const rebase = await judgeRebase(deps, pr, judged, sinceSha);
+  const held =
+    "carried" in rebase ? rebase.carried : await ciHold(deps.pulls, plan);
 
-  if ("carried" in rebase) {
-    return skipped(target.prNumber, rebase.carried);
+  if (held) {
+    return skipped(target.prNumber, held);
   }
-  const scope =
-    judged && rebase.differing
-      ? rebasedScope(judged, rebase.differing, pr.baseBranch ?? "main")
-      : "";
+  const scope = scopeAfterRebase(rebase, judged, pr.baseBranch ?? "main");
 
   return supersedeAndRecheck(deps, target, pr, { sinceSha, scope });
 }
