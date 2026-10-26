@@ -15,10 +15,15 @@ const GUARD = resolve(
   "../../agent-skills/skills/lore-context/guard-tests.sh",
 );
 
-function guard(command: string, policy?: string, env: NodeJS.ProcessEnv = {}) {
+function guard(
+  command: string,
+  policy?: string,
+  env: NodeJS.ProcessEnv = {},
+  cwd = "/workspace/target",
+) {
   const result = spawnSync("sh", [GUARD], {
     input: JSON.stringify({
-      cwd: "/workspace/target",
+      cwd,
       tool_name: "Bash",
       tool_input: { command },
     }),
@@ -32,29 +37,42 @@ function guard(command: string, policy?: string, env: NodeJS.ProcessEnv = {}) {
   return { code: result.status, reason: result.stderr.toString().trim() };
 }
 
-const DOD = `# Definition of Done
+function git(dir: string, ...args: string[]) {
+  spawnSync("git", ["-C", dir, ...args], {
+    env: {
+      PATH: process.env.PATH,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@t",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@t",
+    },
+  });
+}
 
-> The approver setting refuses a repo without a ruleset.
+function branchClone(): string {
+  const dir = mkdtempSync(join(tmpdir(), "lore-branch-"));
 
-**Strategy: \`direct\`** — the route handler is the seam.
+  mkdirSync(join(dir, "src"));
+  git(dir, "init", "-q", "-b", "main");
+  writeFileSync(join(dir, "src/old.test.ts"), "");
+  writeFileSync(join(dir, "src/edited.test.ts"), "");
+  git(dir, "add", "-A");
+  git(dir, "commit", "-q", "-m", "main");
+  git(dir, "update-ref", "refs/remotes/origin/main", "HEAD");
+  git(dir, "checkout", "-q", "-b", "lore/implementation-loop/issue-7");
+  writeFileSync(join(dir, "src/new.test.ts"), "");
+  writeFileSync(join(dir, "src/edited.test.ts"), "it('new facet')");
+  git(dir, "add", "-A");
+  git(dir, "commit", "-q", "-m", "round");
+  writeFileSync(join(dir, "src/staged.test.ts"), "");
+  git(dir, "add", "src/staged.test.ts");
+  writeFileSync(join(dir, "src/untracked.test.ts"), "");
 
-## Done when these pass
+  return dir;
+}
 
-- [ ] **refuses with 403 naming missing prerequisites** — calls \`getBranchRule\`
-  \`apps/lore-api/src/transport/routes/repos/repo-settings.acceptance.test.ts\`
-
-## Facets
-
-- [ ] check the ruleset in \`apps/lore-api/src/transport/routes/repos/repo-settings.test.ts\`
-`;
-
-function underDod(command: string) {
-  const dir = mkdtempSync(join(tmpdir(), "lore-dod-"));
-  const dod = join(dir, "dod.md");
-
-  writeFileSync(dod, DOD);
-
-  return guard(command, undefined, { LORE_ACCEPTANCE_DOD: dod });
+function onBranch(command: string, dir = branchClone(), cwd = dir) {
+  return guard(command, undefined, { LORE_BRANCH_TESTS: dir }, cwd);
 }
 
 const blocked = (command: string, policy?: string) =>
@@ -399,48 +417,74 @@ describe("guard-tests hook", () => {
     ]);
   });
 
-  it("refuses a round's run of an acceptance test the definition of done lists, from the root or after a cd", () => {
-    const acceptance = [
-      "npx vitest run apps/lore-api/src/transport/routes/repos/repo-settings.acceptance.test.ts",
-      "cd apps/lore-api && npx vitest run src/transport/routes/repos/repo-settings.acceptance.test.ts",
-      "npx vitest run src/a.test.ts repo-settings.acceptance.test.ts",
-    ];
+  it("lets a round run the test files its branch created, committed, staged or new, from the root or after a cd", () => {
+    const dir = branchClone();
 
-    expect(acceptance.map((c) => underDod(c).code)).toEqual([2, 2, 2]);
-  });
-
-  it("says acceptance tests are CI's to run and where to read their verdict", () => {
     expect(
-      underDod("npx vitest run src/repo-settings.acceptance.test.ts").reason,
-    ).toMatch(
-      /^\[lore\] blocked: acceptance tests are CI's.*lore_get_ci_failures/,
-    );
+      [
+        "timeout 300 npx vitest run src/new.test.ts",
+        "npx vitest run src/staged.test.ts src/untracked.test.ts",
+        "cd src && npx vitest run new.test.ts",
+      ].map((command) => onBranch(command, dir).code),
+    ).toEqual([0, 0, 0]);
   });
 
-  it("refuses a directory run under a definition of done, since it would sweep the acceptance tests in", () => {
+  it("refuses a round's run of a test file main already had, even beside one the branch created, since CI runs everything else", () => {
+    const dir = branchClone();
+
+    expect(
+      [
+        "npx vitest run src/old.test.ts",
+        "npx vitest run src/new.test.ts src/old.test.ts",
+      ].map((command) => onBranch(command, dir).reason),
+    ).toEqual([
+      "[lore] blocked: old.test.ts was not created on this branch. Run only the tests this branch created; CI runs every other test on each push, and lore_get_ci_failures reads its verdict.",
+      "[lore] blocked: old.test.ts was not created on this branch. Run only the tests this branch created; CI runs every other test on each push, and lore_get_ci_failures reads its verdict.",
+    ]);
+  });
+
+  it("lets a round run a test it added to a file main already had only by its name, so main's tests in that file stay CI's", () => {
+    const dir = branchClone();
+
     expect([
-      underDod("cd apps/lore-api && npx vitest run").code,
-      underDod("npx vitest run src/transport").code,
+      onBranch('npx vitest run src/edited.test.ts -t "new facet"', dir).code,
+      onBranch("npx vitest run src/edited.test.ts", dir).reason,
+    ]).toEqual([
+      0,
+      '[lore] blocked: edited.test.ts holds tests main already had; run only the one this branch added, by its name, e.g. `npx vitest run src/edited.test.ts -t "<test name>"`.',
+    ]);
+  });
+
+  it("finds the clone the setting names when the shell is outside it, as before the first cd", () => {
+    const dir = branchClone();
+
+    expect([
+      onBranch("cd src && npx vitest run new.test.ts", dir, "/").code,
+      onBranch("npx vitest run old.test.ts", dir, "/").code,
+    ]).toEqual([0, 2]);
+  });
+
+  it("refuses a round's run that names no test file, since a directory or a package sweeps in tests main already had", () => {
+    const dir = branchClone();
+
+    expect([
+      onBranch("cd src && npx vitest run", dir).code,
+      onBranch("npx vitest run src", dir).code,
     ]).toEqual([2, 2]);
   });
 
-  it("lets a round run the test it wrote, including a file the definition of done only mentions outside its acceptance list", () => {
-    expect([
-      underDod(
-        "cd apps/lore-api && timeout 300 npx vitest run src/transport/routes/repos/repo-settings.test.ts",
-      ).code,
-      underDod('npx vitest run src/x.test.ts -t "refuses"').code,
-      underDod("git log -- repo-settings.acceptance.test.ts").code,
-    ]).toEqual([0, 0, 0]);
+  it("refuses a named run when the clone cannot tell where its branch left main, and says to fetch main", () => {
+    const dir = branchClone();
+
+    git(dir, "update-ref", "-d", "refs/remotes/origin/main");
+
+    expect(onBranch("npx vitest run src/new.test.ts", dir).reason).toMatch(
+      /^\[lore\] blocked: .*git fetch origin main/,
+    );
   });
 
-  it("leaves a directory run alone when no definition of done is declared or the file is not there yet", () => {
-    expect([
-      guard("cd apps/lore-api && npx vitest run").code,
-      guard("cd apps/lore-api && npx vitest run", undefined, {
-        LORE_ACCEPTANCE_DOD: "/nonexistent/dod.md",
-      }).code,
-    ]).toEqual([0, 0]);
+  it("leaves a directory run alone when the setting is absent", () => {
+    expect(guard("cd apps/lore-api && npx vitest run").code).toBe(0);
   });
 });
 

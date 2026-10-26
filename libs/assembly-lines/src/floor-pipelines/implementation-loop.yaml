@@ -619,8 +619,8 @@ agent_definitions:
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
         env:
-          # A round runs the test it writes; the definition of done's acceptance tests are CI's.
-          LORE_ACCEPTANCE_DOD: /workspace/target/.lore/dod.md
+          # A round runs the tests its branch created, acceptance tests included; main's tests are CI's.
+          LORE_BRANCH_TESTS: /workspace/target
   loop-pr-ready:
     settings:
       model: gemini-3.1-pro-preview

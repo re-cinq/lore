@@ -22,10 +22,15 @@
 # download are refused. In this repository a two-file eslint holds ~1.2 GB and
 # seven packages in one call over 2 GB.
 #
-# LORE_ACCEPTANCE_DOD, set on the implementation loop's rounds: the path of the
-# branch's .lore/dod.md. Its "Done when these pass" tests are CI's to run, so a
-# runner naming one is refused, and so is one naming no test file at all, which
-# would sweep them in. Unset, or the file not written yet, changes nothing.
+# LORE_BRANCH_TESTS, set on the implementation loop's rounds to the clone's
+# path: a runner may run only the tests this branch created, and must name
+# them. A test file the branch added (committed since it left main, staged, or
+# new and untracked) runs whole, the acceptance tests the definition of done
+# wrote among them; a test file main already had and the branch edited runs
+# only by a test-name filter, so main's tests in it stay CI's, as does every
+# other test. The clone is the shell's directory when that is inside it, the
+# variable's path otherwise. A clone that cannot tell where its branch left
+# main runs none until main is fetched.
 #
 # The command is judged one segment at a time (split on ; & | and newlines,
 # parentheses and braces) so a test-file name in a comment or in a neighbouring
@@ -175,26 +180,48 @@ scoped_runner() {
     || matches "$1" "$CARGO_PACKAGE" || names_path "$1"
 }
 
-# Basenames of the test files under "## Done when these pass", dots escaped for grep -E.
+# Basenames of the test files this branch created, for LORE_BRANCH_TESTS.
 # Basenames, not paths: after a `cd` the runner names the file relative to the
-# package, so a full-path match would let the same file through.
-acceptance=''
-if [ -n "$LORE_ACCEPTANCE_DOD" ] && [ -r "$LORE_ACCEPTANCE_DOD" ]; then
-  acceptance=$(sed -n '/^## Done when these pass/,/^## /p' "$LORE_ACCEPTANCE_DOD" \
-    | grep -oE '`[^`]+`' | tr -d '`' | grep -E "$TEST_FILE" \
-    | sed -E 's:.*/::; s/\./\\./g')
+# package. branch_known stays 0 when the clone cannot find where it left main.
+branch_tests=''
+branch_edited=''
+branch_known=0
+if [ -n "$LORE_BRANCH_TESTS" ]; then
+  repo="${cwd:-/}"
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || repo="$LORE_BRANCH_TESTS"
+  main_ref=$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)
+  if base=$(git -C "$repo" merge-base HEAD "$main_ref" 2>/dev/null); then
+    branch_known=1
+    branch_tests=$( {
+      git -C "$repo" diff --name-only --diff-filter=A "$base" HEAD
+      git -C "$repo" diff --name-only --diff-filter=A --cached
+      git -C "$repo" ls-files --others --exclude-standard
+    } 2>/dev/null | grep -E "$TEST_FILE" | sed -E 's:.*/::' | sort -u)
+    branch_edited=$( {
+      git -C "$repo" diff --name-only --diff-filter=M "$base" HEAD
+      git -C "$repo" diff --name-only --diff-filter=M HEAD
+    } 2>/dev/null | grep -E "$TEST_FILE" | sed -E 's:.*/::' | sort -u)
+  fi
 fi
 
-acceptance_check() {
-  [ -z "$acceptance" ] && return 0
-  for name in $acceptance; do
-    if matches "$1" "(^|$W|/)$name($W|:|$)"; then
-      refuse "acceptance tests are CI's to run, and the definition of done lists this one. Run the test you wrote this round and read CI's verdict on the acceptance tests with lore_get_ci_failures."
+NAME_FILTER="(^|$W)(-t|--testNamePattern|-k|-run|--grep)(=|$W)"
+
+branch_check() {
+  [ -z "$LORE_BRANCH_TESTS" ] && return 0
+  [ "$branch_known" = 1 ] \
+    || refuse "this clone cannot tell where its branch left main: run \`git fetch origin main\` first, then run the tests this branch created."
+  named=$(printf '%s' "$1" | tr ' ' '\n' | grep -E "$TEST_FILE" | sed -E 's/:.*$//; s:.*/::')
+  [ -n "$named" ] \
+    || refuse "name the test files this branch created, e.g. \`cd <package> && timeout 300 npx vitest run <file.test.ts>\`. A run over a directory or a package sweeps in tests main already had, which CI runs."
+  for name in $named; do
+    printf '%s\n' "$branch_tests" | grep -qxF "$name" && continue
+    if printf '%s\n' "$branch_edited" | grep -qxF "$name"; then
+      matches "$1" "$NAME_FILTER" \
+        || refuse "$name holds tests main already had; run only the one this branch added, by its name, e.g. \`npx vitest run $(printf '%s' "$1" | grep -oE "[^[:space:]]*$name" | head -n 1) -t \"<test name>\"\`."
+      continue
     fi
+    refuse "$name was not created on this branch. Run only the tests this branch created; CI runs every other test on each push, and lore_get_ci_failures reads its verdict."
   done
-  if ! matches "$1" "$TEST_FILE"; then
-    refuse "name the test file you wrote this round, e.g. \`cd <package> && timeout 300 npx vitest run <file.test.ts>\`. A run over a directory sweeps in the acceptance tests, which are CI's to run."
-  fi
 }
 
 segments=$(printf '%s' "$command" | tr ';|&(){}' '\n\n\n\n\n\n\n')
@@ -235,7 +262,7 @@ for seg in $segments; do
   fi
 
   if matches "$seg" "$RUNNER" || matches "$seg" "$SCRIPT"; then
-    acceptance_check "$seg"
+    branch_check "$seg"
     if [ "$scope" = "sub" ] || scoped_runner "$seg"; then
       continue
     fi
