@@ -25,6 +25,7 @@ Some steps are done by an **AI** (they cost money), some are **automatic** check
 - A ticket typically had its pull request **about 6 minutes** after the loop picked it up, and was merged **about a day and a half** later. Most of that wait is the 24-hour minimum age and the review.
 - The single most expensive step is the first one: **deciding what "done" means, $899 (37%)**, because it runs on every ticket, including the 293 that end right there.
 - **The loop got stuck on Saturday.** Otto's ten open pull requests all waited on things nobody was doing: Lore's own review asking for changes that no step made, rebases that kept failing, and a webhook that never told the loop a build had finished. It took **14 fixes to Lore** (about 3,600 lines added) and a series of manual steps over the weekend. After the fix of Sunday 12:21 went live, all ten merged within 3.5 hours. See [What it took to get the tickets through](#what-it-took-to-get-the-tickets-through).
+- **Lint was the biggest avoidable cost.** Of $709 spent on extra rounds after a red build, $368 went on lint and spec-link rules the AI was not allowed to run before pushing. Letting it run them would have saved about **170 rounds and $300**, and 5 runs that gave up would probably have finished. It may since Sunday night (#3461). See [What the extra rounds cost](#what-the-extra-rounds-cost).
 - **Old pull requests kept failing.** Seven lore pull requests from before Friday took 97 runs, 80 of them failures, and $366, and none merged. Monday's fix (#3462) targets exactly this.
 
 ![What happened to the tickets](loop-2026-10-23/tickets.svg)
@@ -185,6 +186,53 @@ A **run** is one trip of a ticket through a process, from its first step until i
 | Write the pull request description | 1 | |
 | Pull request closed | 3 | a person closed it (Otto #471, #472, #477) |
 
+## What the extra rounds cost
+
+Every time CI comes back red, or a review asks for changes, the loop sends the AI back for another round. To price those rounds, every version the AI pushed to a loop pull request was matched with the CI checks that judged it. Each failed check was read from its log to tell why it failed: a lint rule, a spec link, a type error, a failing test, test coverage under the threshold, a dependency advisory. The next AI round was then charged to that cause.
+
+**428 of the 802 versions the AI pushed came back red.** The loop spent **322 extra rounds, $709 in AI, 46 hours of AI time and 91 hours waiting for CI** answering them.
+
+![What the extra rounds were spent on](loop-2026-10-23/ci-causes.svg)
+
+| What made it red | Red builds | Extra rounds | AI cost | AI hours | Hours waiting for CI | Runs that gave up |
+|---|---|---|---|---|---|---|
+| Spec links: a test not linked to the spec line it proves, or linked to the wrong line | 197 | 91 | $212 | 13.3 | 38.5 | 2.3 |
+| Lint and format: code-style rules | 210 | 101 | $156 | 11.0 | 22.0 | 3.3 |
+| Review comments (CI was green) | – | 27 | $110 | 4.0 | 11.8 | 0 |
+| Unit tests failing | 42 | 24 | $69 | 5.0 | 6.0 | 0.5 |
+| Coverage under the threshold | 23 | 20 | $55 | 4.5 | 1.5 | 4 |
+| Type errors and build | 53 | 25 | $46 | 2.9 | 4.0 | 1.3 |
+| End-to-end tests | 21 | 6 | $25 | 1.0 | 1.7 | 0.3 |
+| Dependency audit (a security advisory on a library) | 44 | 14 | $17 | 2.0 | 1.2 | 0 |
+| Other checks | 16 | 12 | $12 | 2.2 | 3.0 | 1.5 |
+| Could not tell | – | 4 | $6 | 0.6 | 1.5 | 1 |
+| **All** | **428 of 802** | **322** | **$709** | **46** | **91** | **14** |
+
+A build that failed for two reasons has its rounds split between them, which is why some counts are fractions.
+
+### Lint
+
+Lint and spec links are the same kind of failure: rules CI checks that the AI was not allowed to run itself until Sunday night, because the linter was too heavy for the pods' memory then. So it only learned a rule was broken after a full CI cycle, which takes about 32 minutes on lore and 5 on Otto. Lore's lint job also runs before the tests, so a lint failure hid any other failure for one more cycle. The worst cases: lore #2879 had lint red 21 times in a row, and spec links were red 16 times on lore #2881 and 12 times on #3430.
+
+If the AI could have run the same rules before pushing:
+
+| What it runs before pushing | Rounds saved | AI cost saved | AI hours saved | Hours of CI waiting saved | Runs that would not have given up |
+|---|---|---|---|---|---|
+| Lint and format only | 65 | $64 | 4.2 | 10.2 | 0 |
+| Lint, format and the spec-link rules | **170** | **$302** | **20** | **55** | **5** (HALEngine #290, lore #3389, #3430, #2877, #2878) |
+
+A round counts as saved only when everything that made it red is something the AI could have seen locally, so these are lower bounds. They assume the AI fixes what it sees in the same round.
+
+Since #3461 (Sunday 22:49) the AI lints what it changes. The 9 hours after it are too few, and mostly overnight, to show the effect yet: rounds touched by lint fell from 2.9 an hour to 1.1.
+
+### The other avoidable causes
+
+- **The fixing AI could not see why the build was red.** The CI summary it reads kept only the first 2,500 characters of a failed step. In all 20 of Otto's coverage failures, and 19 of its 23 failing-test builds, the reason came after that cut. All four Otto runs that ended red on coverage (#499, #500, #501, #502) spent their three fix attempts blind. That cost 20 rounds and $55. #3460 now keeps the end of the output, where the failure is.
+- **Type errors**: 25 rounds and $46, of which 19 rounds and $20 would have been avoided if the AI ran the type check before pushing.
+- **A dependency advisory** (body-parser and undici) turned 44 builds red on Otto and HALEngine. It came from main, not from the tickets, and mostly sat on top of real failures: only 3 rounds failed on it alone.
+- **Answering review comments** is the most expensive kind of round, about $4.10 each.
+- No check was flaky: nothing that failed passed again when re-run on the same version.
+
 ## When the work happened
 
 ![Steps started per hour, by type](loop-2026-10-23/steps-per-hour.svg)
@@ -222,7 +270,7 @@ In plain words, five things held them:
 | 7 | Sun 09:35 | [#3446](https://github.com/re-cinq/lore/pull/3446): such a ticket continues at "keep the pull request up to date" instead | so it cannot be closed by mistake again |
 | | Sun 11:30 | Bogdan widened the webhooks of lore and Otto so GitHub sends "build finished" | needed once per repository; HALEngine and the others still lack it |
 | 8 | Sun 12:21 | [#3450](https://github.com/re-cinq/lore/pull/3450): updates rebuild the branch as one commit and keep both sides' work; 8 fix rounds instead of 3 | cause 2 above; then each stuck pull request was kicked by re-running one of its checks. **All ten Otto pull requests (#499–#508) merged by 15:54** |
-| 9 | Sun 22:48–22:49 | [#3460](https://github.com/re-cinq/lore/pull/3460), [#3461](https://github.com/re-cinq/lore/pull/3461): the AI sees the end of a failing build log, and the AI steps that write code lint their own changes | cause 5 above |
+| 9 | Sun 22:48–22:49 | [#3460](https://github.com/re-cinq/lore/pull/3460), [#3461](https://github.com/re-cinq/lore/pull/3461): the AI sees the end of a failing build log, and the AI steps that write code lint their own changes | cause 5 above; see [What the extra rounds cost](#what-the-extra-rounds-cost) |
 | | Mon 08:18 | Bogdan added a starting test by hand on lore #2879 | to get it past its first round |
 | | Mon 08:28 | [#3462](https://github.com/re-cinq/lore/pull/3462): update a pull request only when GitHub says it must | #2876 was updated six times in one run and #2879/#2880 had about 25 runs each: main moved faster than CI, so they never caught up (about 30 of the 96 gave-up runs) |
 

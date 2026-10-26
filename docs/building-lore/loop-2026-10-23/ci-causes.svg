@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 404" width="970" height="404" role="img" aria-label="What the extra rounds were spent on">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="404" rx="8"/>
+<text class="ink title" x="16" y="28">What the extra rounds were spent on</text>
+<text class="muted sub" x="16" y="48">Extra AI rounds after a red build or a review, by what made it red. $709 and 322 rounds in all.</text>
+<line class="grid" x1="300" x2="300" y1="58" y2="358" stroke-width="1"/>
+<text class="ink" x="290" y="77" text-anchor="end">Spec links</text>
+<path class="s1" d="M300.0,64h436.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-436.0z"><title>Spec links: $212</title></path>
+<text class="muted" x="748.0" y="77">$212  (91 rounds)</text>
+<text class="ink" x="290" y="107" text-anchor="end">Lint and format</text>
+<path class="s1" d="M300.0,94h319.4a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-319.4z"><title>Lint and format: $156</title></path>
+<text class="muted" x="631.4" y="107">$156  (101 rounds)</text>
+<text class="ink" x="290" y="137" text-anchor="end">Review comments</text>
+<path class="s1" d="M300.0,124h225.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-225.6z"><title>Review comments: $110</title></path>
+<text class="muted" x="537.6" y="137">$110  (27 rounds)</text>
+<text class="ink" x="290" y="167" text-anchor="end">Unit tests failing</text>
+<path class="s1" d="M300.0,154h139.5a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-139.5z"><title>Unit tests failing: $69</title></path>
+<text class="muted" x="451.5" y="167">$69  (24 rounds)</text>
+<text class="ink" x="290" y="197" text-anchor="end">Coverage threshold</text>
+<path class="s1" d="M300.0,184h110.1a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-110.1z"><title>Coverage threshold: $55</title></path>
+<text class="muted" x="422.1" y="197">$55  (20 rounds)</text>
+<text class="ink" x="290" y="227" text-anchor="end">Type errors and build</text>
+<path class="s1" d="M300.0,214h92.7a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-92.7z"><title>Type errors and build: $46</title></path>
+<text class="muted" x="404.7" y="227">$46  (25 rounds)</text>
+<text class="ink" x="290" y="257" text-anchor="end">End-to-end tests</text>
+<path class="s1" d="M300.0,244h48.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-48.6z"><title>End-to-end tests: $25</title></path>
+<text class="muted" x="360.6" y="257">$25  (6 rounds)</text>
+<text class="ink" x="290" y="287" text-anchor="end">Dependency audit</text>
+<path class="s1" d="M300.0,274h31.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-31.8z"><title>Dependency audit: $17</title></path>
+<text class="muted" x="343.8" y="287">$17  (14 rounds)</text>
+<text class="ink" x="290" y="317" text-anchor="end">Other checks</text>
+<path class="s1" d="M300.0,304h21.4a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-21.4z"><title>Other checks: $12</title></path>
+<text class="muted" x="333.4" y="317">$12  (12 rounds)</text>
+<text class="ink" x="290" y="347" text-anchor="end">Could not tell</text>
+<path class="s1" d="M300.0,334h8.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-8.0z"><title>Could not tell: $6</title></path>
+<text class="muted" x="320.0" y="347">$6  (4 rounds)</text>
+<text class="muted sub" x="16" y="390">Lint and spec links are the same kind of failure: rules the AI could not run before Sunday night.</text>
+</svg>
