@@ -24,7 +24,7 @@ fi
 echo "[lore] formatting ${#CHANGED[@]} changed file(s) against ${BASE}"
 
 # `;` in `npm run format`: a spec pass with errors left still lets the rest run.
-npx eslint "specs/**/*.md" "adrs/**/*.md" --fix --quiet || true
+npx eslint "specs/**/*.md" "adrs/**/*.md" ".specify/spec.md" --fix --quiet || true
 
 mapfile -t LINTABLE < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.(ts|tsx|mts|cts|js|mjs|cjs)$' || true)
 if ((${#LINTABLE[@]})); then

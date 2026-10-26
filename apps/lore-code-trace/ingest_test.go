@@ -221,6 +221,27 @@ func TestDeltaFlowDiffsAgainstAReachableBaseAndSendsOnlyTheDelta(t *testing.T) {
 	}
 }
 
+// A report already narrowed to the files the change affects (by `related`, or
+// whole under --full) posts every test it holds: filtering it again by coverage
+// drops the dependents in other packages and leaves a --full run nothing to post.
+func TestDeltaFlowPostsEveryTestOfAnAlreadyScopedReport(t *testing.T) {
+	base := "base1234"
+	deps, posts := flowDeps([]*string{&base}, true,
+		[]string{"src/b.test.ts"}, []string{"src/gone.test.ts"}, []error{nil})
+	deps.reportIsScoped = true
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	got := (*posts)[0].delta
+	if want := []string{"t1", "t2", "t3"}; !reflect.DeepEqual(ids(got.Report.Tests), want) {
+		t.Fatalf("tests = %v, want %v", ids(got.Report.Tests), want)
+	}
+	if !reflect.DeepEqual(got.Deleted, []string{"src/gone.test.ts"}) {
+		t.Fatalf("deleted = %v", got.Deleted)
+	}
+}
+
 func TestDeltaFlowRefetchesAndRediffsOnceOnAStaleBase(t *testing.T) {
 	// Two merges landing together: the first POST loses the CAS with a 409 that
 	// names the current commit; the runner re-fetches, re-diffs and posts again.

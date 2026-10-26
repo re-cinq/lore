@@ -152,8 +152,11 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 		}, os.Stderr)
 	}
 	combined := TestReport{Commit: commit, Branch: branch}
+	reportIsScoped := full
+	everyManifestNarrowed := true
 	for _, m := range manifests {
 		scope := scopeFor(ctx, m, root, ingestedBase, os.Stderr)
+		everyManifestNarrowed = everyManifestNarrowed && !scope.all
 		report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch}, scope, runConcurrency, os.Stderr)
 		if err != nil {
 			return err
@@ -161,6 +164,7 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 		combined.Tests = append(combined.Tests, report.Tests...)
 		combined.Results = append(combined.Results, report.Results...)
 	}
+	reportIsScoped = reportIsScoped || everyManifestNarrowed
 
 	if !post {
 		enc := json.NewEncoder(stdout)
@@ -184,6 +188,7 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 			post: func(ctx context.Context, d ingestDelta) error {
 				return postIngestDelta(ctx, apiBase, token, repo, d, deltaClient)
 			},
+			reportIsScoped: reportIsScoped,
 		}, combined)
 		if err == nil {
 			fmt.Fprintf(os.Stderr, "lore-code-trace: posted incremental test report for %s@%s\n",
