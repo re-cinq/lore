@@ -414,11 +414,11 @@ func TestPostIngestDeltaGivesUpAfterTheAttemptBudget(t *testing.T) {
 	defer srv.Close()
 
 	err := deltaTo(srv)
-	if err == nil || !strings.Contains(err.Error(), "after 3 attempts") {
+	if err == nil || !strings.Contains(err.Error(), "after 7 attempts") {
 		t.Fatalf("err = %v, want the exhausted-budget error", err)
 	}
-	if calls != postAttempts {
-		t.Fatalf("calls = %d, want %d", calls, postAttempts)
+	if calls != deltaPostAttempts {
+		t.Fatalf("calls = %d, want %d", calls, deltaPostAttempts)
 	}
 }
 
@@ -476,5 +476,31 @@ func TestPostIngestDeltaNeverRetriesAConflictOrAClientError(t *testing.T) {
 		if _, isStale := err.(*staleStateError); tc.status == http.StatusConflict && !isStale {
 			t.Fatalf("409 must surface as *staleStateError, got %T", err)
 		}
+	}
+}
+
+// lore-api runs one replica and was deployed 20 times on 2026-10-26; a chunk
+// in flight during a deploy got 502s for the minute or two the new pod took to
+// start, and three attempts 10 s apart gave up long before it was back.
+func TestPostIngestDeltaWaitsOutALoreApiRollout(t *testing.T) {
+	var waited time.Duration
+	retrySleep = func(d time.Duration) { waited += d }
+	t.Cleanup(func() { retrySleep = time.Sleep })
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls < deltaPostAttempts {
+			http.Error(w, "<html>bad gateway</html>", http.StatusBadGateway)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"state": "advanced"})
+	}))
+	defer srv.Close()
+
+	if err := deltaTo(srv); err != nil {
+		t.Fatalf("err = %v, want success once lore-api is back", err)
+	}
+	if waited < 2*time.Minute {
+		t.Fatalf("waited %v between attempts, want at least 2m to outlast a rollout", waited)
 	}
 }

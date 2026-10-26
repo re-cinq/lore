@@ -62,7 +62,16 @@ var (
 
 type retryExhaustedError struct{ cause error }
 
-func (e retryExhaustedError) Error() string { return fmt.Sprintf("%v (after %d attempts)", e.cause, postAttempts) }
+func (e retryExhaustedError) Error() string {
+	return fmt.Sprintf("%v (after %d attempts)", e.cause, deltaPostAttempts)
+}
+
+// deltaPostAttempts outlasts a lore-api rollout: lore-api runs one replica, a
+// deploy refuses requests for the minute or two the new pod takes to start, and
+// it was deployed 20 times on 2026-10-26. The webhook path's 3 attempts gave up
+// after 10 s, so a chunk in flight during any deploy failed the whole upload;
+// 7 attempts on the same n*n*2s backoff wait about 3 minutes in all.
+const deltaPostAttempts = 7
 func (e retryExhaustedError) Unwrap() []error { return []error{errRetryExhausted, e.cause} }
 
 func repoURL(apiBase, repo, tail string) string {
@@ -126,7 +135,7 @@ func postIngestDelta(ctx context.Context, apiBase, token, repo string, d any, cl
 // retryTransient runs one attempt at a time under the webhook path's budget and
 // backoff. An attempt answers its error and whether another try could help.
 func retryTransient(attempt func() (error, bool)) error {
-	return retryWithExhaustion(attempt, func(lastErr error) error {
+	return retryWithExhaustion(postAttempts, attempt, func(lastErr error) error {
 		return fmt.Errorf("%w (after %d attempts)", lastErr, postAttempts)
 	})
 }
@@ -134,14 +143,14 @@ func retryTransient(attempt func() (error, bool)) error {
 // retryIngestTransient marks an exhausted request so the CLI can distinguish a
 // retryable graph-projection failure from an ordinary command failure.
 func retryIngestTransient(attempt func() (error, bool)) error {
-	return retryWithExhaustion(attempt, func(lastErr error) error {
+	return retryWithExhaustion(deltaPostAttempts, attempt, func(lastErr error) error {
 		return retryExhaustedError{cause: lastErr}
 	})
 }
 
-func retryWithExhaustion(attempt func() (error, bool), exhausted func(error) error) error {
+func retryWithExhaustion(attempts int, attempt func() (error, bool), exhausted func(error) error) error {
 	var lastErr error
-	for n := 1; n <= postAttempts; n++ {
+	for n := 1; n <= attempts; n++ {
 		if n > 1 {
 			failed := n - 1
 			retrySleep(time.Duration(failed*failed) * 2 * time.Second)
