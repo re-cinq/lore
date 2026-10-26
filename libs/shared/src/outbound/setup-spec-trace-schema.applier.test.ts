@@ -15,9 +15,11 @@ function makeCapturingClient(): AlterCapture {
     },
     alter(op) {
       client.capturedSchema = op.schema;
+
       return Promise.resolve({});
     },
   };
+
   return client;
 }
 
@@ -28,6 +30,7 @@ afterEach(() => {
 describe("setupSpecTraceSchema (applier unit)", () => {
   it("calls alter with a schema declaring Statement.xid as a hash upsert index. ([validated by FR — setup-spec-trace-schema applier](libs/shared/src/outbound/setup-spec-trace-schema.applier.test.ts#L30))", async () => {
     const client = makeCapturingClient();
+
     await setupSpecTraceSchema(client as unknown as DgraphClientPort);
     expect(client.capturedSchema).toContain(
       "Statement.xid: string @index(hash) @upsert",
@@ -36,6 +39,7 @@ describe("setupSpecTraceSchema (applier unit)", () => {
 
   it("calls alter with a schema declaring Statement.embedding as a float32vector HNSW index. ([validated by FR — setup-spec-trace-schema applier](libs/shared/src/outbound/setup-spec-trace-schema.applier.test.ts#L39))", async () => {
     const client = makeCapturingClient();
+
     await setupSpecTraceSchema(client as unknown as DgraphClientPort);
     expect(client.capturedSchema).toContain(
       "Statement.embedding: float32vector @index(hnsw",
@@ -44,8 +48,10 @@ describe("setupSpecTraceSchema (applier unit)", () => {
 
   it("calls alter with a schema declaring every traceability node type's xid. ([validated by FR — setup-spec-trace-schema applier](libs/shared/src/outbound/setup-spec-trace-schema.applier.test.ts#L48))", async () => {
     const client = makeCapturingClient();
+
     await setupSpecTraceSchema(client as unknown as DgraphClientPort);
     const s = client.capturedSchema ?? "";
+
     for (const xid of [
       "Repo.xid",
       "Spec.xid",
@@ -72,16 +78,19 @@ describe("setupSpecTraceSchema (applier unit)", () => {
       },
       alter(_op: { schema: string }) {
         calls++;
+
         if (calls < 3) {
           return Promise.reject(
             new Error("Pending transactions found, cannot alter schema"),
           );
         }
+
         return Promise.resolve({});
       },
     } as unknown as DgraphClientPort;
 
     const promise = setupSpecTraceSchema(client);
+
     await vi.advanceTimersByTimeAsync(10_000);
     await promise;
     expect(calls).toBe(3);

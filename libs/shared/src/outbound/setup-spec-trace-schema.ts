@@ -20,9 +20,12 @@ export async function setupSpecTraceSchema(
   for (let attempt = 1; attempt <= 10; attempt++) {
     try {
       await alter({ schema: SPEC_TRACE_SCHEMA });
+
       return;
     } catch (err) {
-      if (attempt >= 10 || !isTransient(err)) throw err;
+      if (attempt >= 10 || !isTransient(err)) {
+        throw err;
+      }
       await new Promise<void>((resolve) => setTimeout(resolve, 2_000));
     }
   }
@@ -30,5 +33,6 @@ export async function setupSpecTraceSchema(
 
 function isTransient(err: unknown): boolean {
   const text = err instanceof Error ? err.message : String(err);
+
   return TRANSIENT_PATTERNS.some((p) => p.test(text));
 }
