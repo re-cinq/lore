@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 230" width="970" height="230" role="img" aria-label="Where the time from pull request to merge goes">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="230" rx="8"/>
+<text class="ink title" x="16" y="28">Where the time from pull request to merge goes</text>
+<text class="muted sub" x="16" y="48">23 merged tickets, 821 hours in all, median 34.9 hours each.</text>
+<line class="grid" x1="300" x2="300" y1="58" y2="208" stroke-width="1"/>
+<text class="ink" x="290" y="77" text-anchor="end">Waiting to merge (24 h minimum age)</text>
+<path class="s1" d="M300.0,64h436.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-436.0z"><title>Waiting to merge (24 h minimum age): 471 h</title></path>
+<text class="muted" x="748.0" y="77">471 h  (57%)</text>
+<text class="ink" x="290" y="107" text-anchor="end">No run active</text>
+<path class="s1" d="M300.0,94h223.9a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-223.9z"><title>No run active: 244 h</title></path>
+<text class="muted" x="535.9" y="107">244 h  (30%)</text>
+<text class="ink" x="290" y="137" text-anchor="end">AI steps working</text>
+<path class="s1" d="M300.0,124h38.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-38.0z"><title>AI steps working: 45 h</title></path>
+<text class="muted" x="350.0" y="137">45 h  (5%)</text>
+<text class="ink" x="290" y="167" text-anchor="end">Waiting until it can merge</text>
+<path class="s1" d="M300.0,154h38.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-38.0z"><title>Waiting until it can merge: 45 h</title></path>
+<text class="muted" x="350.0" y="167">45 h  (5%)</text>
+<text class="ink" x="290" y="197" text-anchor="end">Waiting for CI</text>
+<path class="s1" d="M300.0,184h10.9a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-10.9z"><title>Waiting for CI: 16 h</title></path>
+<text class="muted" x="322.9" y="197">16 h  (2%)</text>
+</svg>
