@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 338" width="970" height="338" role="img" aria-label="What each change could save per week">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="338" rx="8"/>
+<text class="ink title" x="16" y="28">What each change could save per week</text>
+<text class="muted sub" x="16" y="48">Per week, scaled from the weekend. High: costs as the floor priced them. Low: if Gemini&#x27;s cache already works.</text>
+<rect class="s1" x="16" y="62" width="12" height="12" rx="2"/><text class="muted" x="34" y="72">Low estimate</text>
+<rect class="s2" x="142" y="62" width="12" height="12" rx="2"/><text class="muted" x="160" y="72">Up to</text>
+<line class="grid" x1="300" x2="300" y1="82" y2="292" stroke-width="1"/>
+<text class="ink" x="290" y="101" text-anchor="end">Cheap &quot;already done?&quot; check before dod</text>
+<path class="s1" d="M300.0,88h109.4v18h-109.4z"><title>Cheap &quot;already done?&quot; check before dod: $242</title></path>
+<path class="s2" d="M411.4,88h324.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-324.6z"><title>Cheap &quot;already done?&quot; check before dod: $714</title></path>
+<text class="muted" x="748.0" y="101">$242 – $956</text>
+<text class="ink" x="290" y="131" text-anchor="end">Lint, spec and type checks before pushing</text>
+<path class="s1" d="M300.0,118h17.3v18h-17.3z"><title>Lint, spec and type checks before pushing: $42</title></path>
+<path class="s2" d="M319.3,118h268.5a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-268.5z"><title>Lint, spec and type checks before pushing: $592</title></path>
+<text class="muted" x="599.8" y="131">$42 – $634</text>
+<text class="ink" x="290" y="161" text-anchor="end">Stop upkeep after two runs gave up</text>
+<path class="s1" d="M300.0,148h75.3v18h-75.3z"><title>Stop upkeep after two runs gave up: $168</title></path>
+<path class="s2" d="M377.3,148h176.9a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-176.9z"><title>Stop upkeep after two runs gave up: $393</title></path>
+<text class="muted" x="566.2" y="161">$168 – $561</text>
+<text class="ink" x="290" y="191" text-anchor="end">Rebase without AI when it is clean</text>
+<path class="s1" d="M300.0,178h50.0v18h-50.0z"><title>Rebase without AI when it is clean: $113</title></path>
+<path class="s2" d="M352.0,178h176.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-176.0z"><title>Rebase without AI when it is clean: $391</title></path>
+<text class="muted" x="540.0" y="191">$113 – $504</text>
+<text class="ink" x="290" y="221" text-anchor="end">Review and re-check as batch jobs</text>
+<path class="s1" d="M300.0,208h43.6v18h-43.6z"><title>Review and re-check as batch jobs: $99</title></path>
+<path class="s2" d="M345.6,208h103.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-103.2z"><title>Review and re-check as batch jobs: $233</title></path>
+<text class="muted" x="460.8" y="221">$99 – $332</text>
+<text class="ink" x="290" y="251" text-anchor="end">Re-check only what changed</text>
+<path class="s1" d="M300.0,238h33.9v18h-33.9z"><title>Re-check only what changed: $78</title></path>
+<path class="s2" d="M335.9,238h78.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-78.8z"><title>Re-check only what changed: $180</title></path>
+<text class="muted" x="426.7" y="251">$78 – $258</text>
+<text class="ink" x="290" y="281" text-anchor="end">Write the PR description from the diff</text>
+<path class="s1" d="M300.0,268h18.3v18h-18.3z"><title>Write the PR description from the diff: $44</title></path>
+<path class="s2" d="M320.3,268h42.5a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-42.5z"><title>Write the PR description from the diff: $101</title></path>
+<text class="muted" x="374.7" y="281">$44 – $145</text>
+<text class="muted sub" x="16" y="324">Not added together: some overlap. Lint is mostly live since #3461. Model switches wait for the bench.</text>
+</svg>
