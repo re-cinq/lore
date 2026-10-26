@@ -4,6 +4,8 @@
 
 The period is **Friday 23 October 00:00 to Monday 26 October 08:04 (UTC)**, on four repositories: **Otto**, **HALEngine**, **bowman-ui** and **lore**.
 
+The same numbers, live and for any period, are on the Grafana board [Lore · Implementation loop](https://grafana.gcp.re-cinq.com/d/lore-implementation-loop): tickets by result, steps started per hour by type, and each step's failures, times and AI cost, by repository.
+
 ## What the loop is
 
 Lore's *implementation loop* is a robot that turns tickets into code. A ticket is a GitHub issue with a priority label. The loop takes one ticket at a time per repository and walks it through a fixed series of **steps**:
