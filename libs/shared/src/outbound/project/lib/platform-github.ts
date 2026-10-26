@@ -38,6 +38,7 @@ import type {
   ReviewThread,
   PullFileChange,
   BranchRule,
+  FileChangeSummary,
   Mergeability,
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
@@ -346,6 +347,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
   ): Promise<PullFileChange[]> {
     return pullsRead.listFileChanges(await this.octo(), repo, number);
+  }
+
+  async netChange(
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<FileChangeSummary[] | null> {
+    return pullsRead.netChange(await this.octo(), repo, base, head);
   }
 
   // ── PullRequestsPort: reviews/comments/CI ───────────────────────────

@@ -3,6 +3,7 @@ import type {
   PullRef,
   PullCommit,
   PullStats,
+  FileChangeSummary,
   PullFileChange,
 } from "../pulls/pull-requests-port.js";
 import { split, toPullRef } from "./platform-github-support.js";
@@ -197,6 +198,36 @@ export async function changedFileCount(
   });
 
   return comparison.files?.length ?? 0;
+}
+
+/** A compare GitHub refuses (a commit it no longer has, a branch gone) is null, never a throw: the caller falls back to reading the whole pull request. */
+export async function netChange(
+  ok: Octokit,
+  repo: string,
+  base: string,
+  head: string,
+): Promise<FileChangeSummary[] | null> {
+  const [owner, name] = split(repo);
+  const { repos } = ok.rest;
+  const basehead = `${base}...${head}`;
+
+  try {
+    const { data: comparison } = await repos.compareCommitsWithBasehead({
+      owner,
+      repo: name,
+      basehead,
+    });
+
+    return (comparison.files ?? []).map(summaryOf);
+  } catch {
+    return null;
+  }
+}
+
+function summaryOf({ filename, status, patch }: ListedFile): FileChangeSummary {
+  return patch === undefined
+    ? { filename, status }
+    : { filename, status, patch };
 }
 
 export async function listFileChanges(

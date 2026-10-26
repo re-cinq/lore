@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { RunView } from "@re-cinq/floor-client";
-import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import type {
+  CheckRunInput,
+  IssueRef,
+} from "../../outbound/project/lib/github-port.js";
+import type {
+  CheckRun,
+  FileChangeSummary,
   PullCommit,
   PullRef,
   PullReview,
@@ -78,10 +83,13 @@ interface Scene {
   reviews?: PullReview[];
   inlineComments?: ReviewComment[];
   threads?: ReviewThread[];
+  checks?: Record<string, CheckRun[]>;
+  netChanges?: Record<string, FileChangeSummary[] | null>;
 }
 
 function scene(given: Scene = {}) {
   const comments: string[] = [];
+  const published: CheckRunInput[] = [];
   const reads: RunView[][] = [...(given.runsByRead ?? [])];
   const recorded = recordedFloor((request) =>
     answerOf(request, {
@@ -102,12 +110,22 @@ function scene(given: Scene = {}) {
       listReviews: () => Promise.resolve(given.reviews ?? []),
       listComments: () => Promise.resolve(given.inlineComments ?? []),
       listReviewThreads: () => Promise.resolve(given.threads ?? []),
+      listChecks: (ref) => Promise.resolve(given.checks?.[ref] ?? []),
+      netChange: (_base, head) =>
+        Promise.resolve(given.netChanges?.[head] ?? null),
+    },
+    checks: {
+      upsertCheckRun: (input) => {
+        published.push(input);
+
+        return Promise.resolve();
+      },
     },
     issues: { get: () => Promise.resolve(given.issue ?? null) },
     uiUrl: "https://lore.test/",
   };
 
-  return { deps, requests: recorded.requests, comments };
+  return { deps, requests: recorded.requests, comments, published };
 }
 
 function answerOf(request: FloorRequest, given: Scene): unknown {
@@ -588,5 +606,85 @@ describe("issueMarkdown", () => {
         labels: [],
       }),
     ).toBe("# Empty (#3)\n\n\n");
+  });
+});
+
+const APPROVED_SHA_OLD = {
+  "sha-old": [
+    {
+      id: 1,
+      name: "lore/code-review",
+      status: "completed",
+      conclusion: "success",
+    },
+  ],
+};
+
+const LOGIN_CHANGE = [
+  {
+    filename: "src/login.ts",
+    status: "modified",
+    patch: "@@ -1,1 +1,2 @@\n ok\n+audit();",
+  },
+];
+
+const REBASED = {
+  runs: [run()],
+  commits: [
+    { sha: "sha-new", message: "Fix the login", date: "2026-09-30T11:00:00Z" },
+  ],
+};
+
+describe("reviewOrRecheck after a rebase that changed nothing Lore reviewed", () => {
+  it("carries sha-old's approval to sha-new as lore/code-review and starts no re-check, when the pull request changes the same lines at both (170 re-checks after a rebase-only push over the weekend of 2026-10-23, 149 with the same verdict)", async () => {
+    const { deps, requests, published } = scene({
+      ...REBASED,
+      checks: APPROVED_SHA_OLD,
+      netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect({
+      started: started(requests).length,
+      published: published.map(({ headSha, name, conclusion }) => ({
+        headSha,
+        name,
+        conclusion,
+      })),
+    }).toEqual({
+      started: 0,
+      published: [
+        { headSha: "sha-new", name: "lore/code-review", conclusion: "success" },
+      ],
+    });
+  });
+
+  it("starts the re-check and carries nothing when the rebase changed a line, or when Lore did not approve sha-old", async () => {
+    const outcomes = [];
+
+    for (const given of [
+      {
+        checks: APPROVED_SHA_OLD,
+        netChanges: {
+          "sha-old": LOGIN_CHANGE,
+          "sha-new": [{ ...LOGIN_CHANGE[0], patch: "@@ -1 +1 @@\n+other();" }],
+        },
+      },
+      { netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE } },
+    ]) {
+      const { deps, requests, published } = scene({ ...REBASED, ...given });
+
+      await reviewOrRecheck(deps, TARGET);
+      outcomes.push({
+        started: started(requests).length,
+        published: published.length,
+      });
+    }
+
+    expect(outcomes).toEqual([
+      { started: 1, published: 0 },
+      { started: 1, published: 0 },
+    ]);
   });
 });
