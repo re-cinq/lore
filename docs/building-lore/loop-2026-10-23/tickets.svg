@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 260" width="970" height="260" role="img" aria-label="What happened to the 352 tickets the loop picked up">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="260" rx="8"/>
+<text class="ink title" x="16" y="28">What happened to the 352 tickets the loop picked up</text>
+<text class="muted sub" x="16" y="48">Otto, HALEngine and lore, Friday 23 Oct to Monday 26 Oct 2026. bowman-ui picked up none.</text>
+<line class="grid" x1="300" x2="300" y1="58" y2="238" stroke-width="1"/>
+<text class="ink" x="290" y="77" text-anchor="end">Already done, closed</text>
+<path class="s1" d="M300.0,64h436.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-436.0z"><title>Already done, closed: 255 tickets</title></path>
+<text class="muted" x="748.0" y="77">255  (72%)</text>
+<text class="ink" x="290" y="107" text-anchor="end">Built, waiting to merge</text>
+<path class="s1" d="M300.0,94h44.3a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-44.3z"><title>Built, waiting to merge: 28 tickets</title></path>
+<text class="muted" x="356.3" y="107">28  (8%)</text>
+<text class="ink" x="290" y="137" text-anchor="end">Built and merged</text>
+<path class="s1" d="M300.0,124h35.7a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-35.7z"><title>Built and merged: 23 tickets</title></path>
+<text class="muted" x="347.7" y="137">23  (7%)</text>
+<text class="ink" x="290" y="167" text-anchor="end">Parked: could not be tested</text>
+<path class="s1" d="M300.0,154h61.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-61.6z"><title>Parked: could not be tested: 38 tickets</title></path>
+<text class="muted" x="373.6" y="167">38  (11%)</text>
+<text class="ink" x="290" y="197" text-anchor="end">Gave up before building</text>
+<path class="s1" d="M300.0,184h4.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-4.6z"><title>Gave up before building: 5 tickets</title></path>
+<text class="muted" x="316.6" y="197">5  (1%)</text>
+<text class="ink" x="290" y="227" text-anchor="end">Built, closed by a person</text>
+<path class="s1" d="M300.0,214h1.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-1.2z"><title>Built, closed by a person: 3 tickets</title></path>
+<text class="muted" x="313.2" y="227">3  (1%)</text>
+</svg>

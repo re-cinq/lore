@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 290" width="970" height="290" role="img" aria-label="What the AI money bought">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="290" rx="8"/>
+<text class="ink title" x="16" y="28">What the AI money bought</text>
+<text class="muted sub" x="16" y="48">AI cost grouped by how the ticket ended. $2,415 in all (a lower bound).</text>
+<line class="grid" x1="300" x2="300" y1="58" y2="268" stroke-width="1"/>
+<text class="ink" x="290" y="77" text-anchor="end">Built, waiting to merge</text>
+<path class="s1" d="M300.0,64h436.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-436.0z"><title>Built, waiting to merge: $667</title></path>
+<text class="muted" x="748.0" y="77">$667  (28%)</text>
+<text class="ink" x="290" y="107" text-anchor="end">Built and merged</text>
+<path class="s1" d="M300.0,94h411.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-411.0z"><title>Built and merged: $629</title></path>
+<text class="muted" x="723.0" y="107">$629  (26%)</text>
+<text class="ink" x="290" y="137" text-anchor="end">Already done, closed</text>
+<path class="s1" d="M300.0,124h362.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-362.0z"><title>Already done, closed: $555</title></path>
+<text class="muted" x="674.0" y="137">$555  (23%)</text>
+<text class="ink" x="290" y="167" text-anchor="end">Pull requests opened before Friday</text>
+<path class="s1" d="M300.0,154h282.7a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-282.7z"><title>Pull requests opened before Friday: $435</title></path>
+<text class="muted" x="594.7" y="167">$435  (18%)</text>
+<text class="ink" x="290" y="197" text-anchor="end">Parked: could not be tested</text>
+<path class="s1" d="M300.0,184h47.1a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-47.1z"><title>Parked: could not be tested: $77</title></path>
+<text class="muted" x="359.1" y="197">$77  (3%)</text>
+<text class="ink" x="290" y="227" text-anchor="end">Built, closed by a person</text>
+<path class="s1" d="M300.0,214h30.4a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-30.4z"><title>Built, closed by a person: $52</title></path>
+<text class="muted" x="342.4" y="227">$52  (2%)</text>
+<text class="ink" x="290" y="257" text-anchor="end">Gave up before building</text>
+<path class="s1" d="M300.0,244h0.0a1,1 0 0 1 1,1v16a1,1 0 0 1 -1,1h-0.0z"><title>Gave up before building: $0</title></path>
+<text class="muted" x="308.3" y="257">$0  (0%)</text>
+</svg>
