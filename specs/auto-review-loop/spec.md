@@ -481,7 +481,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   way is untouched, a PRESENT-but-unknown label is still rejected (that
   strictness is the point), and a finding carrying neither spelling of a
   required field still yields null.
-  ([validated by](libs/shared/src/work/review/review-findings.test.ts#L222), [validated by](libs/shared/src/work/review/review-findings.test.ts#L252))
+  ([validated by](libs/shared/src/work/review/review-findings.test.ts#L162), [validated by](libs/shared/src/work/review/review-findings.test.ts#L176), [validated by](libs/shared/src/work/review/review-findings.test.ts#L184), [validated by](libs/shared/src/work/review/review-findings.test.ts#L193), [validated by](libs/shared/src/work/review/review-findings.test.ts#L211))
 - A `decoration` the contract does not name — a model writing `"none"` for "no decoration", as Gemini did on the first review the external floor ran (HALEngine#123, 2026-09-30), which lost four findings to that one word — is dropped and its finding kept; a named decoration is kept as written. ([validated by keeps the finding and drops the decoration none](libs/shared/src/work/review/review-findings.test.ts#L292), [validated by keeps the decoration non-blocking as written](libs/shared/src/work/review/review-findings.test.ts#L298))
 - A finding written as one `message` — Gemini's shape on #2143's recheck
   (2026-09-23), which lost every finding and failed the run — reads its
@@ -533,7 +533,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   `lore_get_ci_failures` first. *(amended 2026-10-26)* The review may lint the changed
   files, one package per call and never with `--fix`, to confirm a finding before it
   reports one; it runs no tsc, formatter, test runner or install other than the
-  `npm ci` the linter needs. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1529), [validated by lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L1056))
+  `npm ci` the linter needs. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1521), [validated by lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L1003))
 - The diff is read once, in place, never dumped to a file and read back.
   ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1534))
 - Context is queried with the PR title, the spec sections it touches and the surface
