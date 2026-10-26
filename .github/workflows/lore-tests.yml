@@ -4,18 +4,14 @@ name: Lore test-report
 # lore-code-trace binary — the same orchestrator onboarded repos download. CI sets
 # up the toolchain (the manifest's list/run use node+vitest), fetches the binary
 # from lore-api's /dist route, and runs it --post, which POSTs the report to
-# lore-api's delta route. A push or pull request runs only the test files the
-# change affects (the manifest's `related`); the weekly run and a dispatch run
-# the whole suite, which heals anything the module graph missed.
+# lore-api's delta route. It runs on main only: coverage is ingested for the
+# merged state, and a pull request's own CI already runs its tests. A push runs
+# only the test files the change affects (the manifest's `related`); the weekly
+# run and a dispatch run the whole suite, which heals anything the module graph
+# missed.
 on:
   push:
     branches: [main]
-  pull_request:
-    # No test reads these, so a pull request touching nothing else has no tests to run.
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "infra/**"
   schedule:
     - cron: "0 3 * * 0"
   workflow_dispatch:
@@ -34,8 +30,10 @@ jobs:
     # chosen; by 2026-10-02 it took 40 on a quiet runner and was cancelled at 45
     # when a merge started nine other workflows beside it. A push now runs only
     # the affected files, but the weekly full run, and a push that changes a
-    # lockfile or the vitest setup, still run everything.
-    timeout-minutes: 90
+    # lockfile or the vitest setup, still run everything. A dispatched run gets
+    # GitHub's 6-hour maximum: it is how a recorded commit that fell far behind
+    # catches up, and an upload cut short advances nothing.
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 360 || 90 }}
     steps:
       - uses: actions/checkout@v5
         with:
