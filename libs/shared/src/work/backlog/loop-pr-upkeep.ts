@@ -69,12 +69,14 @@ export function isLoopPull(pull: UpkeepPull): boolean {
 }
 
 export interface UpkeepFacts {
-  /** Commits of the default branch the branch lacks; undefined when GitHub could not compare. */
-  behindBy: number | undefined;
+  /** GitHub's `mergeable_state`: `behind` only when a branch rule asks the pull request to be up to date with its base. */
+  mergeState: string;
   /** GitHub's mergeability: false on a conflict. */
   mergeable: boolean | null;
   /** The repository's own checks on the head. */
   ci: CiConclusion;
+  /** Lore's review verdict on the head, from its `lore/code-review` check. */
+  review: "approved" | "changes_requested" | "none";
 }
 
 /** `judge_parked`: a loop run is open on the branch, so its parked wait is judged now instead of at the next tick. `start`: no run is open and the pull request needs a rebase or a fix. `none`: nothing to do. */
@@ -91,8 +93,19 @@ export function decideUpkeep(input: {
   return needsUpkeep(input.facts) ? "start" : "none";
 }
 
-function needsUpkeep({ behindBy, mergeable, ci }: UpkeepFacts): boolean {
-  return (behindBy ?? 0) > 0 || mergeable === false || ci === "failure";
+/** A conflict, a red build, a branch GitHub calls behind, or changes Lore's own review asked for, which only the loop makes: GitHub refuses Lore's request for changes on a pull request it opened. A branch merely behind main is left alone: GitHub merges it as it is unless a branch rule asks it to be up to date, and rebasing it on every push to main gave lore #2879 24 upkeep runs in two days. */
+function needsUpkeep({
+  mergeState,
+  mergeable,
+  ci,
+  review,
+}: UpkeepFacts): boolean {
+  return (
+    mergeState === "behind" ||
+    mergeable === false ||
+    ci === "failure" ||
+    review === "changes_requested"
+  );
 }
 
 /** The open loop run working the branch, if any: the repository's backlog run or an upkeep run, both carry the branch in their `repo` start item. */

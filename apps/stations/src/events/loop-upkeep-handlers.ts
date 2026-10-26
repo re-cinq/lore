@@ -4,6 +4,7 @@ import {
   type LoopFloor,
   type LoopRunsFloor,
 } from "@re-cinq/lore-shared/backlog/floor-loop.js";
+import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared/backlog/labels.js";
 import { issueNumberFromLoopBranch } from "@re-cinq/lore-shared/backlog/loop-merge-success.js";
 import {
   decideUpkeep,
@@ -19,13 +20,14 @@ import {
   ciConclusionOf,
   ciJudgedSha,
   externalCheckRuns,
+  loreReviewVerdict,
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import { implementationLoopEnabled } from "@re-cinq/lore-shared/loops/implementation-loop-enabled.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type {
   CheckRun,
-  CiConclusion,
+  Mergeability,
   PullCommit,
   PullRef,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
@@ -35,12 +37,12 @@ export interface UpkeepProject {
   pulls: {
     list(): Promise<PullRef[]>;
     get(number: number): Promise<PullRef | null>;
+    getMergeability(number: number): Promise<Mergeability>;
     listCommits(number: number): Promise<PullCommit[]>;
     listChecks(ref: string): Promise<CheckRun[]>;
   };
   repo: {
     defaultBranch(): Promise<string>;
-    branchBehindBy(branch: string): Promise<number | undefined>;
   };
   issues: { get(number: number): Promise<IssueRef | null> };
   settings: { rawSettings(): Promise<unknown> };
@@ -227,34 +229,50 @@ async function startOutcome(scope: Scope, pull: PullRef): Promise<string> {
 }
 
 async function needsUpkeep(scope: Scope, pull: PullRef): Promise<boolean> {
-  const facts = await factsOf(scope.project, pull);
+  const [facts, parked] = await Promise.all([
+    factsOf(scope.project, pull),
+    ticketParked(scope.project, pull),
+  ]);
 
-  return decideUpkeep({ openRun: false, facts }) === "start";
+  return !parked && decideUpkeep({ openRun: false, facts }) === "start";
+}
+
+/** The loop parked the pull request's ticket: a run on it ended blocked, and the ticket is a person's until they take the label off. Upkeep that ignored the label started a run on lore #2879 after every push to main, each ending in the same place. */
+async function ticketParked(
+  { issues }: UpkeepProject,
+  pull: PullRef,
+): Promise<boolean> {
+  const number = issueNumberFromLoopBranch(pull.branch);
+  const ticket = number === null ? null : await issues.get(number);
+
+  return ticket?.labels.includes(LORE_BLOCKED_LABEL) ?? false;
 }
 
 async function factsOf(
-  { repo, pulls }: UpkeepProject,
+  { pulls }: UpkeepProject,
   pull: PullRef,
 ): Promise<UpkeepFacts> {
-  const [behindBy, fresh, ci] = await Promise.all([
-    repo.branchBehindBy(pull.branch),
-    pulls.get(pull.number),
-    buildOf(pulls, pull.number),
+  const [{ mergeable, state }, checks] = await Promise.all([
+    pulls.getMergeability(pull.number),
+    judgedChecks(pulls, pull.number),
   ]);
 
-  return { behindBy, mergeable: fresh?.mergeable ?? null, ci };
+  return {
+    mergeState: state,
+    mergeable,
+    ci: checks ? ciConclusionOf(externalCheckRuns(checks)) : "none",
+    review: loreReviewVerdict(checks ?? []),
+  };
 }
 
-/** The repository's own checks on the commit CI judged, as the loop's waits read them: Lore's checks left out, and a `[skip ci]` commit on top never mistaken for a build that did not start. */
-async function buildOf(
+/** The check runs on the commit CI judged, as the loop's waits read them: a `[skip ci]` commit on top is never mistaken for a build that did not start, and Lore's review check is read from the same commit. Null when every commit skipped CI. */
+async function judgedChecks(
   pulls: UpkeepProject["pulls"],
   prNumber: number,
-): Promise<CiConclusion> {
+): Promise<CheckRun[] | null> {
   const judged = ciJudgedSha(await pulls.listCommits(prNumber));
 
-  return judged
-    ? ciConclusionOf(externalCheckRuns(await pulls.listChecks(judged)))
-    : "none";
+  return judged ? pulls.listChecks(judged) : null;
 }
 
 /** The ticket's text and task ride along as on any loop run; a pull request whose ticket or task cannot be found is left for the next event. */

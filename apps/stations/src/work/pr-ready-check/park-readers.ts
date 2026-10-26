@@ -126,12 +126,12 @@ async function readBranch(
   deps: PrReadyCheckDeps,
   prNumber: number,
 ) {
-  const [mergeable, behindBy] = await Promise.all([
+  const [mergeable, mergeState] = await Promise.all([
     deps.prMergeable(run.repo, prNumber),
-    deps.prBehindBy(run.repo, prNumber),
+    deps.prMergeState(run.repo, prNumber),
   ]);
 
-  return { mergeable, behindBy };
+  return { mergeable, mergeState };
 }
 
 /** A verdict as the parked node hears it: ready, blocked with its reason and what the fix needs, or nothing while the pull request is still moving. */

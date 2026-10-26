@@ -12,7 +12,12 @@ import {
   type UpkeepFacts,
 } from "./loop-pr-upkeep.js";
 
-const ON_MAIN: UpkeepFacts = { behindBy: 0, mergeable: true, ci: "success" };
+const ON_MAIN: UpkeepFacts = {
+  mergeState: "clean",
+  mergeable: true,
+  ci: "success",
+  review: "none",
+};
 
 const PULL = {
   number: 12,
@@ -28,10 +33,10 @@ describe("decideUpkeep", () => {
     );
   });
 
-  it("starts an upkeep run for a settled pull request 2 commits behind main, one in conflict, and one whose build is red", () => {
+  it("starts an upkeep run for a settled pull request GitHub calls behind, one in conflict, and one whose build is red", () => {
     expect(
       [
-        { ...ON_MAIN, behindBy: 2 },
+        { ...ON_MAIN, mergeState: "behind" },
         { ...ON_MAIN, mergeable: false },
         { ...ON_MAIN, ci: "failure" as const },
       ].map((facts) => decideUpkeep({ openRun: false, facts })),
@@ -134,5 +139,27 @@ describe("startUpkeepRun", () => {
         },
       },
     ]);
+  });
+});
+
+describe("decideUpkeep on a pull request behind main that no rule needs up to date", () => {
+  it("does nothing for a green pull request GitHub calls clean, however far main has moved, since every push to main would otherwise rebase it (lore #2879, 24 upkeep runs in two days)", () => {
+    expect(
+      decideUpkeep({
+        openRun: false,
+        facts: { ...ON_MAIN, mergeState: "clean" },
+      }),
+    ).toEqual("none");
+  });
+});
+
+describe("decideUpkeep on a pull request Lore's review asked changes on", () => {
+  it("starts an upkeep run for a green pull request GitHub calls clean when Lore's review on its head asked for changes, since only the loop fixes them", () => {
+    expect(
+      decideUpkeep({
+        openRun: false,
+        facts: { ...ON_MAIN, review: "changes_requested" },
+      }),
+    ).toEqual("start");
   });
 });
