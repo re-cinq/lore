@@ -12,6 +12,14 @@ line:
     plan_id:
       kind: value
       subject: true
+    # The repository at its default branch, which plan-grounding and validate
+    # clone: a git item carrying no sha clones the branch as it stands when the
+    # visit opens. `repo` is the spec branch, cut from main when the run started,
+    # so a Validate days later would read deleted code from it. #2886 removed
+    # this arg with the ticketing tail that also read it, and the floor refused
+    # the line on every boot until #3487 put it back.
+    base:
+      kind: git
   nodes:
     - id: analyze
       station: plan-analyze

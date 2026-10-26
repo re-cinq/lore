@@ -13,6 +13,7 @@ import {
   problem,
   readPipeline,
   stationOf,
+  type BagItem,
   type Checked,
   type Node,
   type PipelineProblem,
@@ -24,6 +25,9 @@ export type { PipelineProblem, PipelineRule };
 
 // The floor fills these from the run itself, so no line declares them.
 const FLOOR_SUPPLIED = new Set(["context", "description", "prompt"]);
+
+// Filled by the floor around a retry or a fan-out branch, never seeded or produced by a line.
+const FLOOR_FILLED_NEEDS = new Set(["previous_error", "previous_failures", "item"]);
 
 const PLACEHOLDER = /\{([a-z_][a-z0-9_]*)\}/g;
 
@@ -105,7 +109,59 @@ function nodeProblems(
   return [
     ...unroutedOutcomes(checked, node, station),
     ...unsuppliedInputs(checked, node, station, prompts),
+    ...unseededNeeds(checked, node, station),
   ];
+}
+
+// The floor's own check (its line-needs.ts), which refused feature-planning on every boot for four days after #2886 removed the `base` arg two nodes still bound (#3487). A git need is only ever seeded, by a git arg. Any other need is seeded by an arg or a line file, or produced by a station; the floor further asks that a producer sits on EVERY path into the node, which this does not.
+function unseededNeeds(
+  checked: Checked,
+  node: Node,
+  station: Station,
+): PipelineProblem[] {
+  return (station.needs ?? [])
+    .filter((need) => !need.optional && need.collect === undefined)
+    .map((need) => ({ need, bagName: bagNameOf(node, need) }))
+    .filter(({ bagName }) => !FLOOR_FILLED_NEEDS.has(bagName))
+    .filter(({ need, bagName }) => !isSeeded(checked, need, bagName))
+    .map(({ need, bagName }) =>
+      problem(checked, node.id, "unseeded-need", unseededDetail(node, need, bagName)),
+    );
+}
+
+function bagNameOf(node: Node, need: BagItem): string {
+  const name = need.name ?? "";
+
+  return node.bind?.[name] ?? name;
+}
+
+function isSeeded(checked: Checked, need: BagItem, bagName: string): boolean {
+  if (need.kind === "git") {
+    return checked.line.args[bagName]?.kind === "git";
+  }
+
+  return (
+    bagName in checked.line.args ||
+    bagName in (checked.line.files ?? {}) ||
+    producedNames(checked).has(bagName)
+  );
+}
+
+function producedNames(checked: Checked): Set<string> {
+  return new Set(
+    Object.values(checked.stations).flatMap((station) =>
+      namesOf(station.produces ?? []),
+    ),
+  );
+}
+
+function unseededDetail(node: Node, need: BagItem, bagName: string): string {
+  const label =
+    need.name === bagName ? `"${need.name}"` : `"${need.name}" (bound as "${bagName}")`;
+
+  return need.kind === "git"
+    ? `node "${node.id}" needs ${label} as kind "git", which nothing in the line seeds`
+    : `node "${node.id}" needs ${label}, which nothing in the line seeds or produces`;
 }
 
 // A recipe reused from another line reads inputs this line may never put in the bag.
