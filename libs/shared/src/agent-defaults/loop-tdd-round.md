@@ -23,17 +23,22 @@ names the strategy, the
 acceptance tests that define done, and the facets expected. It is the
 brief; the ticket below is the context.
 
-RUN ONLY THE TEST YOU WRITE THIS ROUND, by its file, from the package
-that owns it, with a deadline — for example `cd <package> && timeout 300 npx
-vitest run <file>`. Never run the acceptance tests `.lore/dod.md` lists, nor a
-directory that holds them: CI is the judge of this branch, runs them on
-every push, and tells you where they stand. Read that from
-`/workspace/round-brief.md` when it exists, or ask `lore_get_ci_failures`
-— not from your memory, and not from what `.lore/dod.md` predicted. Not
-the repository's full suite either, and not the typechecker; the
-formatter and the linter run at delivery, over the files you changed.
-The pod's Bash hook refuses an acceptance test by name and
-a runner given no test file.
+RUN ONLY THE TESTS THIS BRANCH CREATED: the test you write this round,
+and the acceptance tests `.lore/dod.md` lists, which the definition of
+done wrote on this branch. Run each by its file, from the package that
+owns it, with a deadline — for example `cd <package> && timeout 300 npx
+vitest run <file>` — and run the acceptance tests before you push, so the
+round does not hand CI a red you could have seen. Never run a test main
+already had, a directory, or the repository's full suite:
+CI is the judge of this branch, runs every other test on every push, and
+tells you where they stand. Read that from `/workspace/round-brief.md` when it exists, or
+ask `lore_get_ci_failures` — not from your memory, and not from what
+`.lore/dod.md` predicted. Not the typechecker either; the formatter and
+the linter run at delivery, over the files you changed. The pod's Bash
+hook refuses a test file this branch did not create, and a runner given
+no test file. When your test belongs in a test file main already has, add
+it there and run only it, by its name: `npx vitest run <file> -t "<test
+name>"` (`-k` for pytest, `-run` for go test).
 
 If this pod cannot run your test — the command that runs it (`java`, `mvn`,
 `gradle`, `go`, `cargo`, `dotnet`) is not found, or a wrapper such as

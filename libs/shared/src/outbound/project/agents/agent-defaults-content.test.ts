@@ -236,23 +236,27 @@ describe("the delivering recipes", () => {
     expect(round).toContain("REGRESSION");
   });
 
-  it("has tdd-round run only the test it wrote and read the acceptance tests from CI", () => {
+  it("has tdd-round run only the tests its branch created, the acceptance tests among them, and leave every other test to CI", () => {
     const round = promptOnOneLine("loop-tdd-round");
 
     expect({
-      runsOwnTestOnly: round.includes("RUN ONLY THE TEST YOU WRITE THIS ROUND"),
-      acceptanceFromCi: round.includes(
+      branchTestsOnly: round.includes("RUN ONLY THE TESTS THIS BRANCH CREATED"),
+      acceptanceBeforePush: round.includes(
+        "run the acceptance tests before you push",
+      ),
+      neverMainTests: round.includes("Never run a test main already had"),
+      oldAcceptanceBan: round.includes(
         "Never run the acceptance tests `.lore/dod.md` lists",
       ),
-      oldRunAcceptance: round.includes("RUN the acceptance tests it names"),
     }).toEqual({
-      runsOwnTestOnly: true,
-      acceptanceFromCi: true,
-      oldRunAcceptance: false,
+      branchTestsOnly: true,
+      acceptanceBeforePush: true,
+      neverMainTests: true,
+      oldAcceptanceBan: false,
     });
   });
 
-  it("has dod write acceptance tests to files of their own, so a round's guard can refuse them by name", () => {
+  it("has dod write acceptance tests to files of their own, which the branch's rounds run by name", () => {
     expect(promptOnOneLine("loop-dod")).toContain(
       "in a NEW test file of their own",
     );

@@ -33,10 +33,10 @@ THE CONTRACT, NON-NEGOTIABLE:
   appended to an existing test file. Its name MUST end in
   `.acceptance.test.<ext>` — `repo-settings.acceptance.test.ts`,
   `Plan.acceptance.test.tsx` — so a reader and the tooling can tell an
-  acceptance test from a round's own at a glance. Later rounds write their own tests and run
-  only those; the pod's Bash hook refuses the files listed under "Done
-  when these pass" by name, so an acceptance test sharing a file with
-  theirs would lock them out of their own test.
+  acceptance test from a round's own at a glance. Later rounds run them
+  by file, beside their own tests; the pod's Bash hook lets a round run
+  only the test files its branch created, so an acceptance test appended
+  to a file main already had could be run only by its name.
 - RUN them — those, and nothing else. Not the repository's full suite,
   and not the typechecker; the formatter and the linter run at delivery,
   over the files you changed.

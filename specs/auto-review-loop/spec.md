@@ -533,7 +533,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   `lore_get_ci_failures` first. *(amended 2026-10-26)* The review may lint the changed
   files, one package per call and never with `--fix`, to confirm a finding before it
   reports one; it runs no tsc, formatter, test runner or install other than the
-  `npm ci` the linter needs. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1529), [validated by lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L1052))
+  `npm ci` the linter needs. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1529), [validated by lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L1056))
 - The diff is read once, in place, never dumped to a file and read back.
   ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1542))
 - Context is queried with the PR title, the spec sections it touches and the surface
