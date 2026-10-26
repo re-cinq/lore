@@ -135,23 +135,23 @@ function ReasonFact({ reason }: { reason: string | null }) {
   );
 }
 
-/** One cancel per open run: a run with a task cancels the task, the run page being the only page a task has; a floor run with none cancels the run itself. A run Lore's own engine walked has nothing left to cancel it. */
+/** One cancel per open run. A floor run is cancelled on the floor, task or none: cancelling its task marks the row and leaves the floor run walking, and the run's settle then settles the task. A run Lore's own engine walked cancels its task, which ends the run with it; with no task it has nothing left to cancel it. */
 function CancelFact({ run }: AssemblyRunViewProps) {
   if (isTerminalRunStatus(run.status)) {
     return null;
   }
 
-  if (run.taskId) {
+  if (isFloorEngine(run.engine)) {
     return (
-      <Fact label="Task">
-        <CancelTaskButton taskId={run.taskId} />
+      <Fact label="Run">
+        <CancelRunButton runId={run.id} />
       </Fact>
     );
   }
 
-  return isFloorEngine(run.engine) ? (
-    <Fact label="Run">
-      <CancelRunButton runId={run.id} />
+  return run.taskId ? (
+    <Fact label="Task">
+      <CancelTaskButton taskId={run.taskId} />
     </Fact>
   ) : null;
 }
