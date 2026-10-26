@@ -23,12 +23,14 @@ export interface MergeProject {
     > | null>;
     getBranchRule(
       branch: string,
-    ): Promise<Pick<BranchRule, "requiredApprovals">>;
+    ): Promise<Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">>;
     enableAutoMerge(nodeId: string, method: MergeMethod): Promise<void>;
     merge(number: number, method: MergeMethod): Promise<void>;
   };
   /** The changed files a CODEOWNERS row gives an owner. */
   sensitivePaths(prNumber: number): Promise<string[]>;
+  /** Tells the owners of those files, once per pull request, that only their approval is missing. */
+  askCodeOwners(prNumber: number): Promise<void>;
   /** The repository's auto-merge switch, read again at the last step: it may have been switched off while the run waited. */
   loopOn(): Promise<boolean>;
   audit: { write(entry: Omit<AuditLogEntry, "repo">): Promise<void> };
@@ -59,10 +61,19 @@ export async function approveAndMerge(
     return { outcome: "failed", reason: LOOP_OFF };
   }
   const usable = approverFor(approver, pull.author);
+  const rule = await ruleOf(project, pull.baseBranch);
 
-  return (await approvalRequired(project, pull.baseBranch))
-    ? approveProtected(project, usable, { prNumber, pull })
+  return rule.requiredApprovals > 0
+    ? approveProtected(project, usable, { prNumber, pull, rule })
     : mergeUnprotected(project, usable, prNumber);
+}
+
+type Rule = Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">;
+
+interface ProtectedTarget {
+  prNumber: number;
+  pull: Pick<PullRef, "nodeId" | "autoMerge">;
+  rule: Rule;
 }
 
 export const LOOP_OFF =
@@ -72,7 +83,7 @@ export const LOOP_OFF =
 async function approveProtected(
   project: MergeProject,
   approver: Approver | null,
-  target: { prNumber: number; pull: Pick<PullRef, "nodeId" | "autoMerge"> },
+  target: ProtectedTarget,
 ): Promise<MergeStep> {
   return approver
     ? armAndApprove(project, approver, target)
@@ -105,25 +116,19 @@ function approverFor(
     : approver;
 }
 
-async function approvalRequired(
+const NO_RULE: Rule = { requiredApprovals: 0, codeOwnersReview: false };
+
+async function ruleOf(
   project: MergeProject,
   baseBranch: string | undefined,
-): Promise<boolean> {
-  if (!baseBranch) {
-    return false;
-  }
-  const rule = await project.pulls.getBranchRule(baseBranch);
-
-  return rule.requiredApprovals > 0;
+): Promise<Rule> {
+  return baseBranch ? project.pulls.getBranchRule(baseBranch) : NO_RULE;
 }
 
 async function armAndApprove(
   project: MergeProject,
   approver: Approver,
-  {
-    prNumber,
-    pull,
-  }: { prNumber: number; pull: Pick<PullRef, "nodeId" | "autoMerge"> },
+  { prNumber, pull, rule }: ProtectedTarget,
 ): Promise<MergeStep> {
   if (!pull.autoMerge && pull.nodeId) {
     await project.pulls.enableAutoMerge(pull.nodeId, SQUASH);
@@ -131,6 +136,13 @@ async function armAndApprove(
   }
   await approver.approve(prNumber, APPROVAL_BODY);
   await project.audit.write(auditRow(approvalEvent(approver), prNumber));
+
+  if (
+    rule.codeOwnersReview &&
+    (await project.sensitivePaths(prNumber)).length > 0
+  ) {
+    await project.askCodeOwners(prNumber);
+  }
 
   return { outcome: "success", state: "armed" };
 }
@@ -142,6 +154,8 @@ async function mergeUnprotected(
   prNumber: number,
 ): Promise<MergeStep> {
   if ((await project.sensitivePaths(prNumber)).length > 0) {
+    await project.askCodeOwners(prNumber);
+
     return { outcome: "failed", reason: NEEDS_CODE_OWNER };
   }
   await approver?.approve(prNumber, APPROVAL_BODY);
