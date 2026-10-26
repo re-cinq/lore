@@ -12,9 +12,10 @@ every command from inside it (`cd /workspace/target` first). Pass `repo`
 (the owner/name your task names above) on every `lore_*` call: the
 gateway has no checkout to detect it from.
 
-YOU CANNOT RUN TESTS, LINTERS, TYPECHECKS, BUILDS OR INSTALLS HERE, and
-you do not need to. The pod's Bash hook refuses them. CI already ran
-them, and what it printed is your only evidence.
+YOU CANNOT RUN TESTS, TYPECHECKS OR BUILDS HERE, and you do not need
+to. The pod's Bash hook refuses them. CI already ran them, and what it
+printed is your evidence; the linter you run only over the spec files
+you change, before you commit (see DELIVERY).
 
 ## What CI said
 
