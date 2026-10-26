@@ -1,20 +1,48 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-// @ts-expect-error - SkillsPage is not implemented yet
+// @ts-expect-error - SkillsPage is a placeholder
 import SkillsPage from "./page";
 
 describe("Skills Management UI", () => {
-  it("Skills page supports listing, creating, editing, and deleting skills", async () => {
-    render(<SkillsPage />);
+  afterEach(() => {
+    vi.restoreAllMocks();
+    cleanup();
+  });
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Skills",
-    );
+  it("Skills page lists org-level skill definitions fetched from the API with options to edit and delete", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        skills: [{ name: "my-custom-skill", title: "Dynamic Skill API", model: "claude-3-5-sonnet", content: "hello" }]
+      })
+    } as Response);
 
-    expect(screen.getByRole("table")).toBeInTheDocument();
+    const Component = SkillsPage as unknown as (props: any) => Promise<JSX.Element> | JSX.Element;
+    const ui = await Component({});
 
-    expect(screen.getByRole("button", { name: /create/i })).toBeInTheDocument();
+    render(ui);
+
+    expect(await screen.findByText("Dynamic Skill API")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /edit/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /remove|delete/i })).toBeInTheDocument();
+  });
+
+  it("Skill definitions offer options for setting models, titles, and content", async () => {
+    const Component = SkillsPage as unknown as (props: any) => Promise<JSX.Element> | JSX.Element;
+    const ui = await Component({});
+
+    render(ui);
+
+    const createBtn = screen.queryByRole("button", { name: /create|new/i }) || screen.queryByRole("link", { name: /create|new/i });
+
+    if (createBtn) {
+      fireEvent.click(createBtn);
+    }
+
+    expect(await screen.findByLabelText(/model/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/content|skill\.md/i)).toBeInTheDocument();
   });
 });

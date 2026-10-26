@@ -2,22 +2,23 @@
 
 > The web UI MUST provide a "Skills" management page so Organization Admins can manage skills dynamically. It provides options for models, titles, and SKILL.md content.
 
-**Strategy: `direct`** — The test calls the new SkillsPage component directly to verify its behaviour; the red bar is CI's to show because the test runner requires a workspace install this pod cannot run.
+**Strategy: `direct`** — A seam exists via the target `apps/web-ui/src/app/skills/page.tsx` rendering and testing the forms.
 
 ## Done when these pass
 
-- [ ] **Skills page supports listing, creating, editing, and deleting skills** — validates that the page renders the management interface and responds to CRUD interactions.
+- [ ] **Skills page lists org-level skill definitions fetched from the API with options to edit and delete** — the UI lists skills and provides edit/delete buttons
+  `apps/web-ui/src/app/skills/page.acceptance.test.tsx`
+- [ ] **Skill definitions offer options for setting models, titles, and content** — the form for creating or editing skills contains the required fields
   `apps/web-ui/src/app/skills/page.acceptance.test.tsx`
 
 ## Facets
 
-- [ ] Scaffold SkillsPage component.
-- [ ] Implement skill list rendering using table.
-- [ ] Implement skill creation form.
-- [ ] Implement skill editing form.
-- [ ] Implement skill deletion action.
+- [ ] Fetch skills from the `/api/skill-definitions` endpoint and render them in a list
+- [ ] Implement Create form with Name, Title, Model, Content fields and API submission
+- [ ] Implement Edit form/modal that populates fields and saves changes via API
+- [ ] Implement Delete action to remove a skill via API
 
 ## Out of scope
 
-- Per-repo and per-developer skill overrides.
-- Multi-file skills support.
+- Per-repo skill overrides
+- Multi-file skills support
