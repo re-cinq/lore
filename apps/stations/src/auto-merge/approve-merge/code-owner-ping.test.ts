@@ -3,10 +3,13 @@ import { askedAlready, codeOwnerPing } from "./code-owner-ping.js";
 
 describe("codeOwnerPing", () => {
   it("names each owner once and each owned path, and says the rest is ready, behind a marker that keeps it to one comment", () => {
-    const body = codeOwnerPing([
-      { path: ".github/workflows/ci.yml", owners: ["@re-cinq/platform"] },
-      { path: "infra/main.tf", owners: ["@re-cinq/platform", "@gedaiu"] },
-    ]);
+    const body = codeOwnerPing(
+      [
+        { path: ".github/workflows/ci.yml", owners: ["@re-cinq/platform"] },
+        { path: "infra/main.tf", owners: ["@re-cinq/platform", "@gedaiu"] },
+      ],
+      "approve",
+    );
 
     expect({
       mentions: body.split("\n")[0],
@@ -22,5 +25,16 @@ describe("codeOwnerPing", () => {
 
   it("finds no earlier ask among comments that carry no marker", () => {
     expect(askedAlready([{ body: "LGTM" }])).toBe(false);
+  });
+
+  it("asks to approve and merge where nothing merges the pull request after an approval, a branch with no approval rule", () => {
+    const body = codeOwnerPing(
+      [{ path: "infra/main.tf", owners: ["@gedaiu"] }],
+      "approve and merge",
+    );
+
+    expect(body.split("\n")[0]).toBe(
+      "@gedaiu: this pull request is ready to merge except for your review. Nothing merges it on this branch without a person: please approve and merge it.",
+    );
   });
 });

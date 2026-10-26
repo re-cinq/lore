@@ -41,9 +41,13 @@ function scene(opts: {
         steps.push(`merge:${number}:${method}`);
       },
     },
-    sensitivePaths: async () => opts.sensitive ?? [],
-    askCodeOwners: async (number) => {
-      steps.push(`ask-owners:${number}`);
+    codeOwners: async () =>
+      (opts.sensitive ?? []).map((path) => ({
+        path,
+        owners: ["@acme/platform"],
+      })),
+    askCodeOwners: async (number, owned, ask) => {
+      steps.push(`ask-owners:${number}:${owned.length}:${ask}`);
     },
     loopOn: async () => opts.loopOn ?? true,
     audit: {
@@ -111,7 +115,7 @@ describe("approveAndMerge", () => {
       steps,
     }).toEqual({
       step: { outcome: "failed", reason: NEEDS_CODE_OWNER },
-      steps: ["ask-owners:7"],
+      steps: ["ask-owners:7:1:approve and merge"],
     });
   });
 
@@ -184,7 +188,7 @@ describe("approveAndMerge", () => {
     await approveAndMerge(unowned.project, unowned.approver(LORE), 7);
 
     expect([owned.steps.at(-1), unowned.steps.at(-1)]).toEqual([
-      "ask-owners:7",
+      "ask-owners:7:1:approve",
       "audit:auto_merge_approved",
     ]);
   });

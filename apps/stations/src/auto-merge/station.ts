@@ -49,16 +49,12 @@ const productionDeps: ApproveMergeDeps = {
     return {
       pulls: project.pulls,
       audit: project.audit,
-      sensitivePaths: async (prNumber) =>
-        (await ownedChanges(project, prNumber)).map((row) => row.path),
-      askCodeOwners: async (prNumber) => {
-        const [owned, comments] = await Promise.all([
-          ownedChanges(project, prNumber),
-          project.pulls.listIssueComments(prNumber),
-        ]);
+      codeOwners: (prNumber) => ownedChanges(project, prNumber),
+      askCodeOwners: async (prNumber, owned, ask) => {
+        const comments = await project.pulls.listIssueComments(prNumber);
 
-        if (owned.length > 0 && !askedAlready(comments)) {
-          await project.pulls.comment(prNumber, codeOwnerPing(owned));
+        if (!askedAlready(comments)) {
+          await project.pulls.comment(prNumber, codeOwnerPing(owned, ask));
         }
       },
       loopOn: async () =>
