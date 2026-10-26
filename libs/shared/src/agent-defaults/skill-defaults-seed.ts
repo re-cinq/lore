@@ -18,23 +18,15 @@ export async function seedSkillDefaults(pool: PgPool): Promise<void> {
 }
 
 async function processSkill(pool: PgPool, skillName: string): Promise<void> {
-  const skillPath = join(SKILLS_DIR, skillName, "SKILL.md");
+  const content = readSkillContent(skillName);
 
-  let content: string;
-
-  try {
-    content = readFileSync(skillPath, "utf-8");
-  } catch (_e) {
-    return;
-  }
+  if (!content) {return;}
 
   const { body, result } = extractFrontmatter(content);
 
   enforceTrue(
-    !(
-      !body.includes("<!-- lore-help:begin -->") ||
-      !body.includes("<!-- lore-help:end -->")
-    ),
+    body.includes("<!-- lore-help:begin -->") &&
+      body.includes("<!-- lore-help:end -->"),
     Error,
     `Skill ${skillName} is missing a ## Help block`,
   );
@@ -45,6 +37,14 @@ async function processSkill(pool: PgPool, skillName: string): Promise<void> {
     description: result.description || "",
     body,
   });
+}
+
+function readSkillContent(skillName: string): string | undefined {
+  try {
+    return readFileSync(join(SKILLS_DIR, skillName, "SKILL.md"), "utf-8");
+  } catch {
+    return undefined;
+  }
 }
 
 function extractFrontmatter(content: string) {
