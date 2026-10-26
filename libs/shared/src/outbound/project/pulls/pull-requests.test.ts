@@ -57,6 +57,7 @@ function fakePulls(
       requiredChecks: [],
     }),
     getMergeability: async () => ({ mergeable: null, state: "unknown" }),
+    netChange: async () => null,
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
     },

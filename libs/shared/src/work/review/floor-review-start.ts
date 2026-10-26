@@ -1,15 +1,15 @@
 // Starting the code-review lines on the external floor: what a pull request's lifecycle asks of it, decided here and started through the floor's API. `lines.start` answers whether the run was joined, which is what keeps the announcement from being posted twice.
-import type {
-  FloorClient,
-  Item,
-  RunView,
-  StartedRun,
-} from "@re-cinq/floor-client";
+import type { FloorClient, Item, StartedRun } from "@re-cinq/floor-client";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import type {
   PullCommit,
   PullRef,
 } from "../../outbound/project/pulls/pull-requests-port.js";
+import {
+  carryApproval,
+  type CarryChecks,
+  type CarryReads,
+} from "./carry-approval.js";
 import {
   fileItem,
   floorRepoOf,
@@ -34,6 +34,7 @@ import {
   hasReviewedPr,
   headShaOf,
   isOpen,
+  judgedRange,
   lastJudgedSha,
   reviewRunsForPr,
 } from "./floor-review-runs.js";
@@ -51,7 +52,7 @@ export interface ReviewFloor {
   blobs: Pick<FloorClient["blobs"], "put">;
 }
 
-export interface ReviewPulls extends OpenFindingsReads {
+export interface ReviewPulls extends OpenFindingsReads, CarryReads {
   get(number: number): Promise<PullRef | null>;
   comment(number: number, body: string): Promise<void>;
   listCommits(number: number): Promise<PullCommit[]>;
@@ -65,6 +66,7 @@ export interface ReviewStartDeps {
   floor: ReviewFloor;
   pulls: ReviewPulls;
   issues: ReviewIssues;
+  checks: CarryChecks;
   uiUrl?: string;
   loreAppLogin?: string;
 }
@@ -150,17 +152,32 @@ export async function startRecheck(
   if (!decideReviewOnOpen({ ...target, pr, loreAppLogin }).start) {
     return null;
   }
+  const { runs, range, decision } = await recheckDecision(deps, target, pr!);
+
+  if (!decision.start) {
+    return skipped(target.prNumber, decision.reason);
+  }
+
+  return (
+    (await carryApproval(deps, pr!, lastJudgedSha(runs), range.sinceSha)) ??
+    supersedeAndRecheck(deps, target, pr!, range.sinceSha)
+  );
+}
+
+async function recheckDecision(
+  deps: ReviewStartDeps,
+  target: PullRequestTarget,
+  pr: PullRef,
+) {
   const runs = await reviewRunsForPr(deps.floor, target);
   const range = await judgedRange(deps.pulls, target.prNumber, runs);
   const decision = decideRecheck({
-    headSha: pr!.headSha,
+    headSha: pr.headSha,
     openReviewShas: runs.filter(isOpen).flatMap(headShaOf),
     newCommitMessages: range.newCommitMessages,
   });
 
-  return decision.start
-    ? supersedeAndRecheck(deps, target, pr!, range.sinceSha)
-    : skipped(target.prNumber, decision.reason);
+  return { runs, range, decision };
 }
 
 /** An open re-check of an older sha is judging code the branch no longer has, and its verdict would land beside the new one. One already judging the head sha is left alone: two deliveries of the same push can reach here together, and the second must join the first, not cancel it. */
@@ -301,24 +318,6 @@ async function linkedIssueItem(
 
 export function issueMarkdown(issue: IssueRef): string {
   return `# ${issue.title} (#${issue.number})\n\n${issue.body ?? ""}\n`;
-}
-
-/** Where the last verdict left off: the sha it judged and the commits pushed since. After a rebase the judged commit is no longer on the branch, so there is no range and the whole pull request is new again. */
-async function judgedRange(
-  pulls: ReviewPulls,
-  prNumber: number,
-  runs: RunView[],
-): Promise<{ sinceSha?: string; newCommitMessages: string[] }> {
-  const lastSha = lastJudgedSha(runs);
-  const commits = lastSha ? await pulls.listCommits(prNumber) : [];
-  const judged = commits.findIndex((commit) => commit.sha === lastSha);
-
-  return judged < 0
-    ? { newCommitMessages: [] }
-    : {
-        sinceSha: lastSha,
-        newCommitMessages: commits.slice(judged + 1).map((c) => c.message),
-      };
 }
 
 async function announceReview(

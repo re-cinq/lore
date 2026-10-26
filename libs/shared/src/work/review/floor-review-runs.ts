@@ -1,5 +1,6 @@
 // What the floor holds about one pull request's reviews: the read side of the review lines, for everything in Lore that asks whether a review ran or is still running.
 import type { FloorClient, Item, RunView } from "@re-cinq/floor-client";
+import type { PullCommit } from "../../outbound/project/pulls/pull-requests-port.js";
 import {
   floorRepoOf,
   pullRequestUrl,
@@ -97,4 +98,22 @@ export function startValue(run: RunView, name: string): string | undefined {
   const startItems: Partial<Record<string, Item>> = run.startItems;
 
   return startItems[name]?.ref;
+}
+
+/** Where the last verdict left off: the sha it judged and the commits pushed since. After a rebase the judged commit is no longer on the branch, so there is no range and the whole pull request is new again. */
+export async function judgedRange(
+  pulls: { listCommits(number: number): Promise<PullCommit[]> },
+  prNumber: number,
+  runs: RunView[],
+): Promise<{ sinceSha?: string; newCommitMessages: string[] }> {
+  const lastSha = lastJudgedSha(runs);
+  const commits = lastSha ? await pulls.listCommits(prNumber) : [];
+  const judged = commits.findIndex((commit) => commit.sha === lastSha);
+
+  return judged < 0
+    ? { newCommitMessages: [] }
+    : {
+        sinceSha: lastSha,
+        newCommitMessages: commits.slice(judged + 1).map((c) => c.message),
+      };
 }

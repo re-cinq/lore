@@ -16,6 +16,7 @@ import type {
   ReviewThread,
   PullFileChange,
   BranchRule,
+  FileChangeSummary,
   Mergeability,
 } from "./pull-requests-port.js";
 
@@ -148,6 +149,10 @@ export class PullRequests {
 
   listFileChanges(number: number): Promise<PullFileChange[]> {
     return this.pulls.listFileChanges(this.repo, number);
+  }
+
+  netChange(base: string, head: string): Promise<FileChangeSummary[] | null> {
+    return this.pulls.netChange(this.repo, base, head);
   }
 
   listChecks(ref: string): Promise<CheckRun[]> {
