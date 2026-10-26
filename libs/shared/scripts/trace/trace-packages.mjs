@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 
 export const PKGS = (
   process.env.LORE_TRACE_PKGS ||
-  "libs/shared,libs/runner,libs/server-core,apps/lore-api,apps/mcp-server,apps/web-ui"
+  "libs/shared,libs/assembly-lines,libs/server-core,apps/lore-api,apps/mcp-server,apps/stations,apps/vscode-extension,apps/web-ui"
 )
   .split(",")
   .map((s) => s.trim())
