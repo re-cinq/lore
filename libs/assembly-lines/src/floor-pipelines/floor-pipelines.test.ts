@@ -502,7 +502,9 @@ describe("the floor pipelines shipped in this folder", () => {
     ].filter((phrase) => prompt.includes(phrase));
 
     expect(told).toHaveLength(3);
-    expect(prompt).not.toMatch(/npm run (test|build)|vitest|run only that step/);
+    expect(prompt).not.toMatch(
+      /npm run (test|build)|vitest|run only that step/,
+    );
   });
 
   it("lets neither upkeep agent run tests, installs or builds", () => {
