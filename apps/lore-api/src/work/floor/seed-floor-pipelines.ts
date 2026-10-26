@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { isFloorProblem } from "@re-cinq/floor-client";
 import {
   importPipeline,
   pipelineOf,
@@ -87,7 +88,12 @@ async function putOne(
   }
 }
 
+// A 400's title alone ("invalid line body") hid the two unseeded binds that kept feature-planning off the floor for four days (#3487): the floor's problem list rides along.
 function reasonOf(cause: unknown): string {
+  if (isFloorProblem(cause) && cause.errors?.length) {
+    return `${cause.message}: ${cause.errors.join("; ")}`;
+  }
+
   return cause instanceof Error ? cause.message : String(cause);
 }
 
