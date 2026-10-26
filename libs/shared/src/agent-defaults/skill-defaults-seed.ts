@@ -20,7 +20,9 @@ export async function seedSkillDefaults(pool: PgPool): Promise<void> {
 async function processSkill(pool: PgPool, skillName: string): Promise<void> {
   const content = readSkillContent(skillName);
 
-  if (!content) {return;}
+  if (!content) {
+    return;
+  }
 
   const { body, result } = extractFrontmatter(content);
 
