@@ -870,7 +870,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
+  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6 and fix-ci on gemini-4-argon, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
@@ -881,10 +881,13 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect({
       tddRound: loop["loop-tdd-round"]?.settings.model,
+      fixCi: loop["loop-fix-ci"]?.settings.model,
       restOfLoop: [
         ...new Set(
           Object.entries(loop)
-            .filter(([name]) => name !== "loop-tdd-round")
+            .filter(
+              ([name]) => !["loop-tdd-round", "loop-fix-ci"].includes(name),
+            )
             .map(([, definition]) => definition.settings.model),
         ),
       ],
@@ -892,6 +895,7 @@ describe("the floor pipelines shipped in this folder", () => {
       reply: modelsOf(["code-review-reply"]),
     }).toEqual({
       tddRound: "claude-sonnet-4-6",
+      fixCi: "gemini-4-argon",
       restOfLoop: ["gemini-3.1-pro-preview"],
       reviewers: ["gemini-4-argon", "gemini-4-argon"],
       reply: ["claude-sonnet-4-6"],
