@@ -378,3 +378,23 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     expect(featurePlanning).toEqual(inline);
   });
 });
+
+describe("the agent stations a shipped pipeline is put with", () => {
+  it("carry resultRequired for loop-dod and loop-fix-ci, so the floor fails an agent that ends without a result line", () => {
+    const loop = pipelineOfText(
+      realFiles().find((file) => file.name === "implementation-loop.yaml")
+        ?.text ?? "",
+      FIXED_ENV,
+    );
+
+    expect(
+      ["loop-dod", "loop-fix-ci"].map(
+        (name) =>
+          (
+            loop.stations.find((station) => station.id === name)?.body as
+              { resultRequired?: boolean } | undefined
+          )?.resultRequired,
+      ),
+    ).toEqual([true, true]);
+  });
+});
