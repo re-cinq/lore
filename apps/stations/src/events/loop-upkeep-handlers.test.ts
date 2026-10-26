@@ -47,12 +47,17 @@ interface SceneInput {
   loopOn?: boolean;
   ticketLabels?: string[];
   loreReview?: "failure" | "neutral" | "success";
+  pastRuns?: ReturnType<typeof planRun>[];
+  ticketComments?: Array<{ created_at: string; body: string }>;
 }
 
 function scene(input: SceneInput = {}) {
   const pulls = input.pulls ?? [pull()];
-  const recorded = recordedPlanFloor({ runs: input.openRuns ?? [] });
+  const recorded = recordedPlanFloor({
+    runs: [...(input.openRuns ?? []), ...(input.pastRuns ?? [])],
+  });
   const judged: number[] = [];
+  const parked: Array<[string, number, string]> = [];
   const project: UpkeepProject = {
     pulls: {
       list: async () => pulls,
@@ -99,6 +104,18 @@ function scene(input: SceneInput = {}) {
         labels: input.ticketLabels ?? [],
         body: "Export.",
       }),
+      listComments: async () =>
+        (input.ticketComments ?? []).map((comment, id) => ({
+          id,
+          user: "lore-agent[bot]",
+          ...comment,
+        })),
+      addLabel: async (number, label) => {
+        parked.push(["label", number, label]);
+      },
+      comment: async (number, body) => {
+        parked.push(["comment", number, body]);
+      },
     },
     settings: {
       rawSettings: async () => ({
@@ -140,8 +157,19 @@ function scene(input: SceneInput = {}) {
       pr_numbers: numbers,
     });
 
-  return { push, suite, starts, judged, handlers };
+  return { push, suite, starts, judged, parked, handlers };
 }
+
+const gaveUp = (prNumber: number, createdAt: string) =>
+  planRun({
+    id: `run-${prNumber}-${createdAt}`,
+    lineId: "implementation-loop",
+    repo: "github.com/acme/widgets",
+    subjectKey: `backlog:upkeep-${prNumber}`,
+    createdAt,
+    finishedAt: createdAt,
+    outcome: "iteration_max",
+  });
 
 describe("loopUpkeepHandlers", () => {
   it("answers github.push and github.check_suite.completed, the two events it asks the bus for", () => {
@@ -307,5 +335,74 @@ describe("loop upkeep on a pull request Lore's review asked changes on", () => {
     expect(starts()).toEqual([
       ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
     ]);
+  });
+});
+
+describe("loop upkeep on a pull request whose upkeep keeps giving up", () => {
+  it("parks issue 7 with lore:blocked and a comment, and starts nothing, when settled pull request 12 behind main had its last two upkeep runs end iteration_max (lore #2879 got 25 runs, #2880 27, over the weekend of 2026-10-23)", async () => {
+    const { push, starts, parked } = scene({
+      mergeState: "behind",
+      pastRuns: [
+        gaveUp(12, "2026-10-25T12:00:00Z"),
+        gaveUp(12, "2026-10-25T13:00:00Z"),
+      ],
+    });
+
+    await push("main");
+
+    expect({
+      starts: starts(),
+      parked: parked.map(([what, issue, text]) => [
+        what,
+        issue,
+        text.slice(0, 59),
+      ]),
+    }).toEqual({
+      starts: [],
+      parked: [
+        ["label", 7, "lore:blocked"],
+        [
+          "comment",
+          7,
+          "Lore's implementation loop is parking this ticket: its last",
+        ],
+      ],
+    });
+  });
+
+  it("starts the upkeep run when only the newest of pull request 12's runs gave up, and when both give-ups are older than Lore's last parking comment, since a person took the label off to get one (the review of #3525)", async () => {
+    const unparked = {
+      created_at: "2026-10-25T13:00:30Z",
+      body: "Lore's implementation loop is parking this ticket: its last two upkeep runs gave up.",
+    };
+    const outcomes = [];
+
+    for (const input of [
+      { pastRuns: [gaveUp(12, "2026-10-25T13:00:00Z")] },
+      {
+        pastRuns: [
+          gaveUp(12, "2026-10-25T12:00:00Z"),
+          gaveUp(12, "2026-10-25T13:00:00Z"),
+        ],
+        ticketComments: [unparked],
+      },
+    ]) {
+      const { push, starts, parked } = scene({
+        mergeState: "behind",
+        ...input,
+      });
+
+      await push("main");
+      outcomes.push({ starts: starts(), parked });
+    }
+
+    expect(outcomes).toEqual(
+      Array(2).fill({
+        starts: [
+          ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+        ],
+        parked: [],
+      }),
+    );
   });
 });

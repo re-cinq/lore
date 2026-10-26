@@ -24,9 +24,11 @@ import {
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import { implementationLoopEnabled } from "@re-cinq/lore-shared/loops/implementation-loop-enabled.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
+import { freshOf, judgeExhaustion, parks } from "./loop-upkeep-exhaustion.js";
 import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type {
   CheckRun,
+  IssueComment,
   Mergeability,
   PullCommit,
   PullRef,
@@ -44,7 +46,12 @@ export interface UpkeepProject {
   repo: {
     defaultBranch(): Promise<string>;
   };
-  issues: { get(number: number): Promise<IssueRef | null> };
+  issues: {
+    get(number: number): Promise<IssueRef | null>;
+    listComments(number: number): Promise<IssueComment[]>;
+    addLabel(number: number, label: string): Promise<void>;
+    comment(number: number, body: string): Promise<void>;
+  };
   settings: { rawSettings(): Promise<unknown> };
 }
 
@@ -191,26 +198,43 @@ async function judgeOpenRun(scope: Scope, pull: PullRef): Promise<string> {
   return `#${pull.number} ${await scope.deps.judgeParked(scope.repo, pull.number)}`;
 }
 
-/** No run is working these branches: each is read, and a run is started for the oldest few that need a rebase or a fix. */
+/** No run is working these branches: each is read, a pull request whose upkeep is exhausted parks its ticket, and a run is started for the oldest few of the rest that need a rebase or a fix. */
 async function upkeepSettled(
   scope: Scope,
   pulls: PullRef[],
 ): Promise<string[]> {
+  const [needing, lineRuns] = await Promise.all([
+    needingUpkeep(scope, pulls),
+    loopRuns(scope),
+  ]);
+  const judged = await judgeExhaustion(scope.project, needing, lineRuns);
+  const due = upkeepOrder(freshOf(judged), lastUpkeepStarts(lineRuns));
+  const outcomes = await Promise.all([
+    ...parks(scope.project, judged),
+    ...starts(scope, due),
+  ]);
+
+  return [...outcomes, ...deferred(due)];
+}
+
+async function needingUpkeep(
+  scope: Scope,
+  pulls: readonly PullRef[],
+): Promise<PullRef[]> {
   const needing = await Promise.all(
     pulls.map(async (pull) => ((await needsUpkeep(scope, pull)) ? pull : null)),
   );
-  const due = upkeepOrder(
-    needing.filter((pull): pull is PullRef => pull !== null),
-    lastUpkeepStarts(await loopRuns(scope)),
-  );
-  const started = await Promise.all(
-    due.slice(0, STARTS_PER_EVENT).map((pull) => startOutcome(scope, pull)),
-  );
 
-  return [
-    ...started,
-    ...due.slice(STARTS_PER_EVENT).map((pull) => `#${pull.number} deferred`),
-  ];
+  return needing.filter((pull): pull is PullRef => pull !== null);
+}
+function deferred(due: readonly PullRef[]): string[] {
+  return due.slice(STARTS_PER_EVENT).map((pull) => `#${pull.number} deferred`);
+}
+
+function starts(scope: Scope, due: readonly PullRef[]): Promise<string>[] {
+  return due
+    .slice(0, STARTS_PER_EVENT)
+    .map((pull) => startOutcome(scope, pull));
 }
 
 /** The loop line's runs of the repository, open and finished, newest first: where each pull request's last upkeep run is read from. */

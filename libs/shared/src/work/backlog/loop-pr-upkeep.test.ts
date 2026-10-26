@@ -9,6 +9,10 @@ import {
   isLoopPull,
   openRunOnBranch,
   startUpkeepRun,
+  lastParkedAt,
+  upkeepExhausted,
+  upkeepExhaustedComment,
+  UPKEEP_RUNS_PER_PULL,
   type UpkeepFacts,
 } from "./loop-pr-upkeep.js";
 
@@ -161,5 +165,128 @@ describe("decideUpkeep on a pull request Lore's review asked changes on", () => 
         facts: { ...ON_MAIN, review: "changes_requested" },
       }),
     ).toEqual("start");
+  });
+});
+
+const upkeepRun = (
+  prNumber: number,
+  createdAt: string,
+  outcome: string | null,
+) =>
+  planRun({
+    id: `run-${prNumber}-${createdAt}`,
+    lineId: "implementation-loop",
+    subjectKey: `backlog:upkeep-${prNumber}`,
+    createdAt,
+    finishedAt: outcome === null ? null : createdAt,
+    outcome,
+  });
+
+describe("upkeepExhausted", () => {
+  it("is gave_up after pull request 12's two newest upkeep runs both ended iteration_max, whatever an older one did", () => {
+    const runs = [
+      upkeepRun(12, "2026-10-25T10:00:00Z", "success"),
+      upkeepRun(12, "2026-10-25T13:00:00Z", "iteration_max"),
+      upkeepRun(12, "2026-10-25T12:00:00Z", "iteration_max"),
+    ];
+
+    expect(upkeepExhausted(12, runs)).toEqual({ kind: "gave_up", runs: 3 });
+  });
+
+  it("is null after one run that gave up, after a give-up followed by a success, and for a pull request with no upkeep run", () => {
+    expect([
+      upkeepExhausted(12, [
+        upkeepRun(12, "2026-10-25T12:00:00Z", "iteration_max"),
+      ]),
+      upkeepExhausted(12, [
+        upkeepRun(12, "2026-10-25T12:00:00Z", "iteration_max"),
+        upkeepRun(12, "2026-10-25T13:00:00Z", "success"),
+      ]),
+      upkeepExhausted(12, []),
+    ]).toEqual([null, null, null]);
+  });
+
+  it("is lifetime at pull request 12's 10th upkeep run, however each ended, and counts no other pull request's runs nor the backlog run", () => {
+    const own = Array.from({ length: UPKEEP_RUNS_PER_PULL }, (_, i) =>
+      upkeepRun(12, `2026-10-2${i % 2}T0${i % 10}:00:00Z`, "success"),
+    );
+    const others = [
+      ...Array.from({ length: UPKEEP_RUNS_PER_PULL }, (_, i) =>
+        upkeepRun(13, `2026-10-25T0${i % 10}:00:00Z`, "iteration_max"),
+      ),
+      planRun({ subjectKey: "backlog:tickets", outcome: "iteration_max" }),
+    ];
+
+    expect([
+      upkeepExhausted(12, [...own, ...others]),
+      upkeepExhausted(12, [...own.slice(1), ...others]),
+    ]).toEqual([{ kind: "lifetime", runs: UPKEEP_RUNS_PER_PULL }, null]);
+  });
+});
+
+describe("upkeepExhausted since the ticket's last park", () => {
+  it("counts no run that started before the park, so a ticket a person unparked gets its upkeep again instead of being parked at once on the same two give-ups", () => {
+    const runs = [
+      upkeepRun(12, "2026-10-25T12:00:00Z", "iteration_max"),
+      upkeepRun(12, "2026-10-25T13:00:00Z", "iteration_max"),
+    ];
+
+    expect([
+      upkeepExhausted(12, runs, "2026-10-25T13:30:00Z"),
+      upkeepExhausted(12, runs, "2026-10-25T12:30:00Z"),
+      upkeepExhausted(12, runs, null),
+    ]).toEqual([null, null, { kind: "gave_up", runs: 2 }]);
+  });
+});
+
+describe("lastParkedAt", () => {
+  it("is the newest of Lore's parking comments, whichever park wrote it, and null when none did", () => {
+    const comments = [
+      {
+        id: 1,
+        user: "lore-agent[bot]",
+        created_at: "2026-10-24T23:40:33Z",
+        body: "Lore's implementation loop is parking this ticket: the run ended iteration_max.",
+      },
+      {
+        id: 2,
+        user: "gedaiu",
+        created_at: "2026-10-25T08:00:00Z",
+        body: "Lore's implementation loop is parking this ticket: no it is not, I am quoting it.",
+      },
+      {
+        id: 3,
+        user: "lore-agent[bot]",
+        created_at: "2026-10-25T09:54:48Z",
+        body: "Lore's implementation loop is parking this ticket: its last two upkeep runs gave up.",
+      },
+      {
+        id: 4,
+        user: "lore-agent[bot]",
+        created_at: "2026-10-25T14:22:57Z",
+        body: "Lore's implementation loop sees this ticket's pull request merged.",
+      },
+    ];
+
+    expect([lastParkedAt(comments), lastParkedAt([])]).toEqual([
+      "2026-10-25T09:54:48Z",
+      null,
+    ]);
+  });
+});
+
+describe("upkeepExhaustedComment", () => {
+  it("says the two give-ups, names the pull request and how to re-queue", () => {
+    expect(upkeepExhaustedComment(PULL, { kind: "gave_up", runs: 3 })).toEqual(
+      "Lore's implementation loop is parking this ticket: its last two upkeep runs on https://github.com/acme/widgets/pull/12 gave up (`iteration_max`), so starting another would end the same way.\n\nThe pull request stays open for a human. Remove the `lore:blocked` label to let the loop keep it up to date again.",
+    );
+  });
+
+  it("says the lifetime cap was reached", () => {
+    expect(
+      upkeepExhaustedComment(PULL, { kind: "lifetime", runs: 10 }),
+    ).toEqual(
+      "Lore's implementation loop is parking this ticket: https://github.com/acme/widgets/pull/12 has had 10 upkeep runs, the most the loop gives one pull request, so it is a person's to merge or close.\n\nThe pull request stays open for a human. Remove the `lore:blocked` label to let the loop keep it up to date again.",
+    );
   });
 });

@@ -13,6 +13,10 @@ export const DEFAULT_PRIORITY: PriorityLabel = "priority:medium";
 
 export const LORE_BLOCKED_LABEL = "lore:blocked";
 
+/** How every comment that parks a ticket begins, whichever park writes it: the upkeep counts a ticket's runs from the newest one. */
+export const LOOP_PARKING_PREFIX =
+  "Lore's implementation loop is parking this ticket:";
+
 /** Seed set for `createLabels` (create-or-ignore-existing) — onboarding. */
 export const BACKLOG_LABEL_SEED: Array<{
   name: string;
