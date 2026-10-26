@@ -25,8 +25,10 @@ describe("SkillsPage", () => {
       }),
     } as Response);
 
-    const Component = SkillsPage as unknown as () => Promise<JSX.Element>;
-    const ui = await Component();
+    const Component = SkillsPage as unknown as (
+      props: any,
+    ) => Promise<JSX.Element>;
+    const ui = await Component({ searchParams: Promise.resolve({}) });
 
     render(ui);
 

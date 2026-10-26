@@ -28,7 +28,7 @@ describe("Skills Management UI", () => {
     const Component = SkillsPage as unknown as (
       props: any,
     ) => Promise<JSX.Element> | JSX.Element;
-    const ui = await Component({});
+    const ui = await Component({ searchParams: Promise.resolve({}) });
 
     render(ui);
 
@@ -43,7 +43,7 @@ describe("Skills Management UI", () => {
     const Component = SkillsPage as unknown as (
       props: any,
     ) => Promise<JSX.Element> | JSX.Element;
-    const ui = await Component({});
+    const ui = await Component({ searchParams: Promise.resolve({}) });
 
     render(ui);
 
