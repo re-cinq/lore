@@ -6,10 +6,16 @@ import type {
   PullRef,
 } from "../../outbound/project/pulls/pull-requests-port.js";
 import {
-  carryApproval,
+  judgeRebase,
+  rebasedScope,
   type CarryChecks,
   type CarryReads,
 } from "./carry-approval.js";
+import {
+  planRecheck,
+  type RecheckPlan,
+  type RecheckReads,
+} from "./recheck-plan.js";
 import {
   fileItem,
   floorRepoOf,
@@ -19,7 +25,6 @@ import {
 } from "../../outbound/floor/floor-items.js";
 import { linkedIssueNumber } from "../../domain/pr-body.js";
 import {
-  decideRecheck,
   decideReviewOnOpen,
   decideReviewOnReply,
   recheckDescription,
@@ -34,8 +39,6 @@ import {
   hasReviewedPr,
   headShaOf,
   isOpen,
-  judgedRange,
-  lastJudgedSha,
   reviewRunsForPr,
 } from "./floor-review-runs.js";
 import { startLine } from "./floor-line-start.js";
@@ -52,7 +55,8 @@ export interface ReviewFloor {
   blobs: Pick<FloorClient["blobs"], "put">;
 }
 
-export interface ReviewPulls extends OpenFindingsReads, CarryReads {
+export interface ReviewPulls
+  extends OpenFindingsReads, CarryReads, RecheckReads {
   get(number: number): Promise<PullRef | null>;
   comment(number: number, body: string): Promise<void>;
   listCommits(number: number): Promise<PullCommit[]>;
@@ -152,43 +156,32 @@ export async function startRecheck(
   if (!decideReviewOnOpen({ ...target, pr, loreAppLogin }).start) {
     return null;
   }
-  const { range, decision } = await recheckDecision(deps, target, pr!);
+  const runs = await reviewRunsForPr(deps.floor, target);
+  const plan = await planRecheck(deps.pulls, pr!, runs);
 
-  if (!decision.start) {
-    return skipped(target.prNumber, decision.reason);
-  }
-
-  return carryOrRecheck(deps, target, pr!, range);
+  return plan.start
+    ? carryOrRecheck(deps, target, pr!, plan)
+    : skipped(target.prNumber, plan.reason);
 }
 
-/** A rebase that changed nothing Lore approved keeps the approval and starts nothing; anything else is re-checked. */
+/** A rebase that changed nothing Lore approved keeps the approval and starts nothing; one that changed some files is re-checked on those; anything else is re-checked on the range since the last verdict. */
 async function carryOrRecheck(
   deps: ReviewStartDeps,
   target: PullRequestTarget,
   pr: PullRef,
-  { judged, sinceSha }: { judged?: string; sinceSha?: string },
+  { judged, sinceSha }: RecheckPlan,
 ): Promise<string | null> {
-  const carried = await carryApproval(deps, pr, judged, sinceSha);
+  const rebase = await judgeRebase(deps, pr, judged, sinceSha);
 
-  return carried
-    ? skipped(target.prNumber, carried)
-    : supersedeAndRecheck(deps, target, pr, sinceSha);
-}
+  if ("carried" in rebase) {
+    return skipped(target.prNumber, rebase.carried);
+  }
+  const scope =
+    judged && rebase.differing
+      ? rebasedScope(judged, rebase.differing, pr.baseBranch ?? "main")
+      : "";
 
-async function recheckDecision(
-  deps: ReviewStartDeps,
-  target: PullRequestTarget,
-  pr: PullRef,
-) {
-  const runs = await reviewRunsForPr(deps.floor, target);
-  const range = await judgedRange(deps.pulls, target.prNumber, runs);
-  const decision = decideRecheck({
-    headSha: pr.headSha,
-    openReviewShas: runs.filter(isOpen).flatMap(headShaOf),
-    newCommitMessages: range.newCommitMessages,
-  });
-
-  return { range: { ...range, judged: lastJudgedSha(runs) }, decision };
+  return supersedeAndRecheck(deps, target, pr, { sinceSha, scope });
 }
 
 /** An open re-check of an older sha is judging code the branch no longer has, and its verdict would land beside the new one. One already judging the head sha is left alone: two deliveries of the same push can reach here together, and the second must join the first, not cancel it. */
@@ -196,7 +189,7 @@ async function supersedeAndRecheck(
   deps: ReviewStartDeps,
   target: PullRequestTarget,
   pr: PullRef,
-  sinceSha?: string,
+  range: RecheckRange,
 ): Promise<string> {
   const { floor } = deps;
   const runs = await reviewRunsForPr(floor, target);
@@ -211,7 +204,7 @@ async function supersedeAndRecheck(
     older.map((run) => floor.runs.cancel(run.id, "superseded")),
   );
 
-  return startRecheckLine(deps, target, pr, sinceSha);
+  return startRecheckLine(deps, target, pr, range);
 }
 
 /** A submitted request-changes review starts a reply; the line's own `read-review` station gathers what the review said, and the agent decides per comment whether it asks for a change or an answer. */
@@ -259,16 +252,21 @@ async function cancelOpenRuns(
   return open.map((run) => run.id);
 }
 
+/** What a re-check judges: the commits since the sha its last verdict judged, or after a rebase the files whose change differs. */
+interface RecheckRange {
+  sinceSha?: string;
+  scope: string;
+}
+
 async function startRecheckLine(
   deps: ReviewStartDeps,
   target: PullRequestTarget,
   pr: PullRef,
-  sinceSha?: string,
+  { sinceSha, scope }: RecheckRange,
 ): Promise<string> {
   const handOff = await readRecheckHandOff(deps.pulls, target.prNumber);
-  const description =
-    recheckDescription(target.repo, target.prNumber, pr.branch, sinceSha) +
-    handOff.brief;
+  const { repo, prNumber } = target;
+  const description = `${recheckDescription(repo, prNumber, pr.branch, sinceSha)}${scope}${handOff.brief}`;
   const { floor } = deps;
   const started = await startLine(floor.lines, RECHECK_LINE, {
     repo: floorRepoOf(target.repo),

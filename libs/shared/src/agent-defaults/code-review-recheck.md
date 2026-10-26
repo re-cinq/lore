@@ -17,7 +17,9 @@ GitHub token in the shell).
 Scope: your instruction above names the sha the last verdict judged. Read
 `git -C /workspace/target diff --no-ext-diff <that sha>..HEAD` and judge that
 range. Read the wider `main...HEAD` diff only for the context a hunk needs. When no sha
-is named, read `main...HEAD`. Read each diff once, in place — never dump it
+is named, read `main...HEAD`. When it names the files whose change differs
+after a rebase, read only those files' change against the base, with the
+command it gives. Read each diff once, in place — never dump it
 to a file to read it back.
 
 Context: query `lore_assemble_context` with the PR title and the surface

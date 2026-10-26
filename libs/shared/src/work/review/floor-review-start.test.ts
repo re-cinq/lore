@@ -688,3 +688,129 @@ describe("reviewOrRecheck after a rebase that changed nothing Lore reviewed", ()
     ]);
   });
 });
+
+const build = (status: string, conclusion: string | null): CheckRun => ({
+  id: 9,
+  name: "build",
+  status,
+  conclusion,
+});
+
+const PUSHED = {
+  runs: [run()],
+  commits: [
+    { sha: "sha-old", message: "Fix the login", date: "2026-09-30T09:00:00Z" },
+    { sha: "sha-new", message: "Guard the null", date: "2026-09-30T11:00:00Z" },
+  ],
+};
+
+describe("reviewOrRecheck waiting for CI", () => {
+  it("re-checks sha-new only once its CI is green, in a repository whose judged sha-old carried CI, and not while it runs or is red, since a red build brings another push", async () => {
+    const outcomes = [];
+
+    for (const head of [
+      build("in_progress", null),
+      build("completed", "failure"),
+      build("completed", "success"),
+    ]) {
+      const { deps, requests } = scene({
+        ...PUSHED,
+        checks: {
+          "sha-old": [build("completed", "success")],
+          "sha-new": [head],
+        },
+      });
+
+      await reviewOrRecheck(deps, TARGET);
+      outcomes.push(started(requests).length);
+    }
+
+    expect(outcomes).toEqual([0, 0, 1]);
+  });
+
+  it("waits for CI that has not started on sha-new when sha-old carried CI, and re-checks at once in a repository whose judged sha carried none", async () => {
+    const waits = scene({
+      ...PUSHED,
+      checks: { "sha-old": [build("completed", "success")] },
+    });
+    const noCi = scene(PUSHED);
+
+    await reviewOrRecheck(waits.deps, TARGET);
+    await reviewOrRecheck(noCi.deps, TARGET);
+
+    expect([
+      started(waits.requests).length,
+      started(noCi.requests).length,
+    ]).toEqual([0, 1]);
+  });
+
+  it("reads CI on the newest commit CI judged, not on a skip-ci commit at the head", async () => {
+    const { deps, requests } = scene({
+      runs: [run()],
+      pr: pull({ headSha: "sha-fmt" }),
+      commits: [
+        ...PUSHED.commits,
+        {
+          sha: "sha-fmt",
+          message: "style: prettier [skip ci]",
+          date: "2026-09-30T11:01:00Z",
+        },
+      ],
+      checks: {
+        "sha-old": [build("completed", "success")],
+        "sha-new": [build("completed", "success")],
+      },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests).length).toBe(1);
+  });
+
+  it("starts no second re-check of sha-new once a re-check of it finished, however many check suites complete on it", async () => {
+    const { deps, requests } = scene({
+      ...PUSHED,
+      runs: [
+        run(),
+        run({
+          id: "run-2",
+          lineId: "code-review-recheck",
+          startItems: judging("sha-new"),
+        }),
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests).length).toBe(0);
+  });
+});
+
+describe("reviewOrRecheck after a rebase that changed what Lore reviewed", () => {
+  it("names the one file whose change differs from what sha-old's verdict judged, so the re-check reads only it", async () => {
+    const { deps, requests } = scene({
+      ...REBASED,
+      checks: APPROVED_SHA_OLD,
+      netChanges: {
+        "sha-old": LOGIN_CHANGE,
+        "sha-new": [
+          ...LOGIN_CHANGE,
+          {
+            filename: "src/audit.ts",
+            status: "added",
+            patch: "@@ -0,0 +1 @@\n+log();",
+          },
+        ],
+      },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+    const body = started(requests)[0]?.body as {
+      startItems: { description: { ref: string } };
+    };
+
+    expect(body.startItems.description.ref).toContain(
+      "Lore's last verdict judged sha-old, which a rebase replaced. Since then the pull request's change differs only in `src/audit.ts`: read `git -C /workspace/target diff --no-ext-diff main...HEAD -- src/audit.ts` and judge only that.",
+    );
+  });
+});
