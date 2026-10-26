@@ -27,7 +27,6 @@ import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loo
 import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type {
   CheckRun,
-  CiConclusion,
   Mergeability,
   PullCommit,
   PullRef,
@@ -253,30 +252,27 @@ async function factsOf(
   { pulls }: UpkeepProject,
   pull: PullRef,
 ): Promise<UpkeepFacts> {
-  const [{ mergeable, state }, ci, headChecks] = await Promise.all([
+  const [{ mergeable, state }, checks] = await Promise.all([
     pulls.getMergeability(pull.number),
-    buildOf(pulls, pull.number),
-    pull.headSha ? pulls.listChecks(pull.headSha) : Promise.resolve([]),
+    judgedChecks(pulls, pull.number),
   ]);
 
   return {
     mergeState: state,
     mergeable,
-    ci,
-    review: loreReviewVerdict(headChecks),
+    ci: checks ? ciConclusionOf(externalCheckRuns(checks)) : "none",
+    review: loreReviewVerdict(checks ?? []),
   };
 }
 
-/** The repository's own checks on the commit CI judged, as the loop's waits read them: Lore's checks left out, and a `[skip ci]` commit on top never mistaken for a build that did not start. */
-async function buildOf(
+/** The check runs on the commit CI judged, as the loop's waits read them: a `[skip ci]` commit on top is never mistaken for a build that did not start, and Lore's review check is read from the same commit. Null when every commit skipped CI. */
+async function judgedChecks(
   pulls: UpkeepProject["pulls"],
   prNumber: number,
-): Promise<CiConclusion> {
+): Promise<CheckRun[] | null> {
   const judged = ciJudgedSha(await pulls.listCommits(prNumber));
 
-  return judged
-    ? ciConclusionOf(externalCheckRuns(await pulls.listChecks(judged)))
-    : "none";
+  return judged ? pulls.listChecks(judged) : null;
 }
 
 /** The ticket's text and task ride along as on any loop run; a pull request whose ticket or task cannot be found is left for the next event. */
