@@ -290,6 +290,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -310,6 +311,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -357,6 +359,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -405,6 +408,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -432,6 +436,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -503,6 +508,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git

@@ -29,6 +29,7 @@ interface Station {
   kind: string;
   description?: string;
   agent_definition?: string;
+  result_required?: boolean;
   outcomes: string[];
   needs: Need[];
   produces: Array<{ name: string; kind: string; path?: string }>;
@@ -1908,3 +1909,26 @@ describe("the re-check settles the findings it was handed", () => {
     ).toEqual({ name: "open_threads", kind: "value", optional: true });
   });
 });
+
+describe("the agent stations of every floor pipeline and their result line", () => {
+  it("require a result line exactly when their agent's prompt ends the visit with LORE_NODE_RESULT or REVIEW_RESULT (otto #467's dod read one file and passed; four reviews cut off mid-verdict passed)", () => {
+    const mismatched = [...PIPELINES.values()].flatMap((pipeline) =>
+      Object.entries(pipeline.stations)
+        .filter(([, station]) => station.kind === "agent")
+        .filter(
+          ([, station]) =>
+            (station.result_required ?? false) !==
+            endsWithResultLine(pipeline, station),
+        )
+        .map(([id]) => `${pipeline.line.id}: ${id}`),
+    );
+
+    expect(mismatched).toEqual([]);
+  });
+});
+
+function endsWithResultLine(pipeline: Pipeline, station: Station): boolean {
+  const agent = pipeline.agent_definitions?.[station.agent_definition ?? ""];
+
+  return /LORE_NODE_RESULT|REVIEW_RESULT/.test(agent?.settings.prompt ?? "");
+}

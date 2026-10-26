@@ -145,6 +145,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       # The first writer on the branch: no agent has written to it before this
       # node, so no human station has to precede it.
@@ -202,6 +203,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       # Write access after another writer: `await-ci`, a human station,
       # precedes this node on every path in.

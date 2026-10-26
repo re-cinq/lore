@@ -73,6 +73,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git

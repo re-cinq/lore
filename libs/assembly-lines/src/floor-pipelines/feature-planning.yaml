@@ -360,6 +360,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -434,6 +435,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -487,6 +489,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -515,6 +518,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       # Read-only: the pod returns a patch and commits nothing.
       - name: target
@@ -575,6 +579,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -608,6 +613,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -659,6 +665,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: plan_md
         kind: file
@@ -710,6 +717,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -729,6 +737,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
