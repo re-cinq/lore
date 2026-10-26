@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { FloorProblem } from "@re-cinq/floor-client";
 import {
   fileOf,
   pipelineOf,
@@ -127,6 +128,40 @@ describe("seedFloorPipelines", () => {
       failed: [{ name: "a.yaml", reason: "invalid station body" }],
     });
     expect(imported).toEqual(["lore-run-settled"]);
+  });
+
+  it("reports the floor's problem list with its title when the floor refuses a line body as invalid", async () => {
+    const { deps } = fakeFloor([]);
+    const refusal = new FloorProblem(
+      {
+        type: "about:blank",
+        title: "invalid line body",
+        status: 400,
+        errors: [
+          'node "plan-grounding" needs "target" (bound as "base") as kind "git", which nothing in the line seeds',
+          'node "validate" needs "target" (bound as "base") as kind "git", which nothing in the line seeds',
+        ],
+      },
+      { method: "POST", path: "/assembly-lines" },
+    );
+
+    deps.importPipeline = () => Promise.reject(refusal);
+
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: [],
+      failed: [
+        {
+          name: "a.yaml",
+          reason:
+            'the floor refused POST /assembly-lines with 400: invalid line body: node "plan-grounding" needs "target" (bound as "base") as kind "git", which nothing in the line seeds; node "validate" needs "target" (bound as "base") as kind "git", which nothing in the line seeds',
+        },
+        {
+          name: "b.yaml",
+          reason:
+            'the floor refused POST /assembly-lines with 400: invalid line body: node "plan-grounding" needs "target" (bound as "base") as kind "git", which nothing in the line seeds; node "validate" needs "target" (bound as "base") as kind "git", which nothing in the line seeds',
+        },
+      ],
+    });
   });
 
   it("names a station two pipelines share once", async () => {

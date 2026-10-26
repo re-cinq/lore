@@ -111,6 +111,7 @@ function scene(
   const deps: FloorPlanDeps = {
     floor: recorded.floor,
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
+    baseBranch: () => Promise.resolve("main"),
     specPrState: async (_repo, prNumber) => (
       specPrsRead.push(prNumber),
       given.specPrState ?? null
@@ -193,6 +194,11 @@ function started(entry?: string): FloorRequest {
         repo: {
           kind: "git",
           ref: "github.com/re-cinq/lore@lore/feature-planning/p1",
+          by: "lore",
+        },
+        base: {
+          kind: "git",
+          ref: "github.com/re-cinq/lore@main",
           by: "lore",
         },
         plan_id: { kind: "value", ref: "p1", by: "lore" },
