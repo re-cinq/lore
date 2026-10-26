@@ -703,7 +703,7 @@ _(Rewritten 2026-10-05.)_ A task has no page of its own: the run detail
 page at `/assembly-runs/[id]` is where a task is read, and the
 `/tasks/[id]` lifecycle shell, which only forwarded to a run Postgres
 held and so opened empty for a task whose run is on the external floor,
-is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L85))
+is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L114))
 
 - FR-19.1: `/assembly-runs/<id>` given a task id redirects to the task's
   newest run, so every link that knows only a task (a repository's recent
