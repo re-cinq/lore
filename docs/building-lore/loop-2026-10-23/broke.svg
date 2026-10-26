@@ -43,7 +43,7 @@ text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
 <text class="muted" x="331.8" y="347">2%  (3 of 140)</text>
 <text class="ink" x="290" y="377" text-anchor="end">Wait for the build and tests</text>
 <path class="s1" d="M300.0,364h5.5a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-5.5z"><title>Wait for the build and tests: 1%</title></path>
-<text class="muted" x="317.5" y="377">1%  (2 of 234)</text>
+<text class="muted" x="317.5" y="377">1%  (2 of 235)</text>
 <text class="ink" x="290" y="407" text-anchor="end">Write code, one round</text>
 <path class="s1" d="M300.0,394h0.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-0.8z"><title>Write code, one round: 0%</title></path>
 <text class="muted" x="312.8" y="407">0%  (1 of 234)</text>
