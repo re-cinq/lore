@@ -39,7 +39,11 @@ interface AgentSettings {
   model: string;
   prices?: Record<
     string,
-    { input_per_million: number; output_per_million: number }
+    {
+      input_per_million: number;
+      output_per_million: number;
+      cache_read_per_million?: number;
+    }
   >;
   prompt: string;
   config: {
@@ -172,7 +176,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs spec-tickets-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+  it("runs spec-tickets-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens, cache reads at 0.2", () => {
     const { settings } =
       pipelineOf("spec-tickets").agent_definitions!["spec-tickets-decompose"]!;
 
@@ -182,6 +186,7 @@ describe("the floor pipelines shipped in this folder", () => {
         "gemini-3.1-pro-preview": {
           input_per_million: 2,
           output_per_million: 12,
+          cache_read_per_million: 0.2,
         },
       },
     });
@@ -1475,7 +1480,7 @@ describe("the feature-planning pipeline", () => {
     ).toEqual(agents.map(() => true));
   });
 
-  it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+  it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens, cache reads at 0.2", () => {
     const agents = [
       "spec-draft",
       "spec-qa-generate",
@@ -1498,6 +1503,7 @@ describe("the feature-planning pipeline", () => {
           "gemini-3.1-pro-preview": {
             input_per_million: 2,
             output_per_million: 12,
+            cache_read_per_million: 0.2,
           },
         },
       })),
@@ -1814,6 +1820,34 @@ function settingsOf(name: string): AgentSettings {
 function promptOnOneLine(name: string): string {
   return settingsOf(name).prompt.replace(/\s+/g, " ");
 }
+
+describe("the prices the floor agents state", () => {
+  it("prices every Gemini model's cache reads at a tenth of its input price, since Gemini caches a repeated prefix by itself and bills it so", () => {
+    const geminiPrices = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.entries(pipeline.agent_definitions ?? {}))
+      .flatMap(([agent, definition]) =>
+        Object.entries(definition.settings.prices ?? {}).map(
+          ([model, price]) => ({ agent, model, price }),
+        ),
+      )
+      .filter(({ model }) => model.startsWith("gemini-"));
+
+    expect(
+      geminiPrices.map(({ agent, model, price }) => ({
+        agent,
+        model,
+        cache_read_per_million: price.cache_read_per_million,
+      })),
+    ).toEqual(
+      geminiPrices.map(({ agent, model, price }) => ({
+        agent,
+        model,
+        cache_read_per_million: price.input_per_million / 10,
+      })),
+    );
+    expect(geminiPrices.length).toBeGreaterThan(0);
+  });
+});
 
 describe("the files the floor agents produce", () => {
   it("lists no agent file under the target/ clone, so no git add in it can commit one", () => {

@@ -1118,6 +1118,56 @@
     },
     "showUnfilled": true
    }
+  },
+  {
+   "type": "timeseries",
+   "title": "Cache hit rate per step",
+   "description": "The share of everything each step's model read that came from its cache, per hour. Gemini bills a cached token at a tenth of a read one, so a low rate on a Gemini step is money. Empty until the floor reports cache reads as kind=\"cache_read\" on floor_tokens_total (#3495).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 65,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (node_id) (increase(floor_tokens_total{line_id=~\"$line\", repo=~\"(?i)$repo\", kind=\"cache_read\"}[1h])) / sum by (node_id) (increase(floor_tokens_total{line_id=~\"$line\", repo=~\"(?i)$repo\", kind=\"in\"}[1h]))",
+     "legendFormat": "{{node_id}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "min": 0,
+     "max": 1,
+     "custom": {
+      "fillOpacity": 10,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
   }
  ]
 }

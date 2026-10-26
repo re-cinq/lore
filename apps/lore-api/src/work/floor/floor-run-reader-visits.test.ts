@@ -161,7 +161,13 @@ describe("FloorRunReader visits", () => {
 
   it("reads visit-1's llm_call record as one model call", async () => {
     expect(await reader().visitModelCalls("run-1", "visit-1")).toMatchObject([
-      { model: "gemini-3.1-pro", costUsd: 0.02, tokensIn: 10, tokensOut: 2 },
+      {
+        model: "gemini-3.1-pro",
+        costUsd: 0.02,
+        tokensIn: 10,
+        cacheReadTokens: null,
+        tokensOut: 2,
+      },
     ]);
   });
 

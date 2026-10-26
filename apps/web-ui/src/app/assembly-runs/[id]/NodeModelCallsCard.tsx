@@ -40,7 +40,7 @@ export function ModelCallsView({
     <CollapsibleCard
       title="Model calls"
       defaultOpen
-      labels={[`${calls.length}`, dollars(total)]}
+      labels={[`${calls.length}`, dollars(total), cachedShare(calls)]}
     >
       <CallsTable calls={calls} />
     </CollapsibleCard>
@@ -53,7 +53,7 @@ function CallsTable({ calls }: { calls: readonly VisitModelCall[] }) {
       <thead>
         <tr>
           <th>Model</th>
-          <th>Tokens in / out</th>
+          <th>Tokens in (cached) / out</th>
           <th>Cost</th>
         </tr>
       </thead>
@@ -66,10 +66,35 @@ function callRow(call: VisitModelCall, place: number) {
   return (
     <tr key={`${call.seq}-${place}`}>
       <td className={styles.mono}>{call.model ?? "—"}</td>
-      <td>{`${call.tokensIn ?? "—"} / ${call.tokensOut ?? "—"}`}</td>
+      <td>{`${tokensIn(call)} / ${call.tokensOut ?? "—"}`}</td>
       <td>{call.costUsd === null ? "—" : dollars(call.costUsd)}</td>
     </tr>
   );
+}
+
+function tokensIn(call: VisitModelCall): string {
+  if (call.tokensIn === null) {
+    return "—";
+  }
+  const share = cachedShare([call]);
+
+  return share === null ? `${call.tokensIn}` : `${call.tokensIn} (${share})`;
+}
+
+/** The share of everything read that came from a cache, over the calls that said; null when none did. */
+function cachedShare(calls: readonly VisitModelCall[]): string | null {
+  const cached = calls.filter((call) => call.cacheReadTokens !== null);
+  const read = cached.reduce((sum, call) => sum + (call.tokensIn ?? 0), 0);
+
+  if (read === 0) {
+    return null;
+  }
+  const fromCache = cached.reduce(
+    (sum, call) => sum + (call.cacheReadTokens ?? 0),
+    0,
+  );
+
+  return `${Math.round((fromCache / read) * 100)}% cached`;
 }
 
 function dollars(amount: number): string {

@@ -989,6 +989,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
@@ -1012,6 +1013,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
@@ -1035,6 +1037,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
@@ -1058,6 +1061,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
