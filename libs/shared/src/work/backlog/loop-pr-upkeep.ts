@@ -1,8 +1,12 @@
 // A loop pull request stays the loop's to keep mergeable after its run has settled (specs/external-floor FR12.19): when main moves past it or its build goes red, the pull request's own events start the line again at `sync-pr`, keyed on the pull request, so the rebase and the fix run with the line's budgets and beside the repository's backlog run.
 import type { RunView } from "@re-cinq/floor-client";
-import type { CiConclusion } from "../../outbound/project/pulls/pull-requests-port.js";
+import type {
+  CiConclusion,
+  IssueComment,
+} from "../../outbound/project/pulls/pull-requests-port.js";
 import { parseGitRef } from "../../outbound/floor/floor-items.js";
 import { startLoopRun, type LoopFloor } from "./floor-loop.js";
+import { LOOP_PARKING_PREFIX, LORE_BLOCKED_LABEL } from "./labels.js";
 import { issueNumberFromLoopBranch } from "./loop-merge-success.js";
 import { implementationTicketDescription } from "./ticket-description.js";
 
@@ -39,6 +43,68 @@ function upkeepStartOf(
   const digits = UPKEEP_SUBJECT.exec(run.subjectKey ?? "")?.[1];
 
   return digits ? [{ number: Number(digits), createdAt: run.createdAt }] : [];
+}
+
+/** Upkeep runs in a row that ended `iteration_max` after which the loop stops starting them: a third would end the same way. */
+export const UPKEEP_GIVE_UPS_IN_A_ROW = 2;
+
+/** Upkeep runs one pull request gets in its life: past it the pull request is a person's to merge or close. */
+export const UPKEEP_RUNS_PER_PULL = 10;
+
+export type UpkeepExhaustion =
+  { kind: "gave_up"; runs: number } | { kind: "lifetime"; runs: number };
+
+/** Why the loop starts no further upkeep run on the pull request, or null while it still may: of its upkeep runs since the ticket's last park (`since`, null for all of them), the last `UPKEEP_GIVE_UPS_IN_A_ROW` all ended `iteration_max`, or there have been `UPKEEP_RUNS_PER_PULL`. Counting from the last park is what lets a person's removal of the label buy another go: the two give-ups before it would otherwise park the ticket again on the next event. Over the weekend of 2026-10-23 the loop started 77 more runs on pull requests whose last two had given up, $267 for 11 that got through (lore #2879 had 25 runs, #2880 27). */
+export function upkeepExhausted(
+  prNumber: number,
+  runs: readonly RunView[],
+  since: string | null = null,
+): UpkeepExhaustion | null {
+  const own = runs
+    .filter((run) => run.subjectKey === `backlog:${upkeepBacklog(prNumber)}`)
+    .filter((run) => since === null || run.createdAt > since)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const newest = own.slice(0, UPKEEP_GIVE_UPS_IN_A_ROW);
+
+  if (own.length >= UPKEEP_RUNS_PER_PULL) {
+    return { kind: "lifetime", runs: own.length };
+  }
+
+  return newest.length === UPKEEP_GIVE_UPS_IN_A_ROW &&
+    newest.every((run) => run.outcome === "iteration_max")
+    ? { kind: "gave_up", runs: own.length }
+    : null;
+}
+
+/** When Lore last parked the ticket, read off its own parking comments (a person quoting one is not a park), or null when it never did. */
+export function lastParkedAt(
+  comments: readonly Pick<IssueComment, "user" | "body" | "created_at">[],
+): string | null {
+  const parks = comments
+    .filter(
+      ({ user, body }) =>
+        user.endsWith("[bot]") && body.startsWith(LOOP_PARKING_PREFIX),
+    )
+    .map(({ created_at: at }) => at)
+    .sort();
+
+  return parks.at(-1) ?? null;
+}
+
+/** The comment that parks the ticket: why no further upkeep run starts, and that the label's removal lets one. */
+export function upkeepExhaustedComment(
+  pull: Pick<UpkeepPull, "url">,
+  exhaustion: UpkeepExhaustion,
+): string {
+  const why =
+    exhaustion.kind === "gave_up"
+      ? `its last two upkeep runs on ${pull.url} gave up (\`iteration_max\`), so starting another would end the same way`
+      : `${pull.url} has had ${exhaustion.runs} upkeep runs, the most the loop gives one pull request, so it is a person's to merge or close`;
+
+  return (
+    `${LOOP_PARKING_PREFIX} ${why}.\n\n` +
+    `The pull request stays open for a human. Remove the \`${LORE_BLOCKED_LABEL}\` label to let the loop keep it up to date again.`
+  );
 }
 
 /** The order upkeep runs start in: a pull request never upkept first, then the one upkept longest ago, then the oldest. Oldest first alone handed the same three failing pull requests every start on every push, and left the rest deferred for good (re-cinq/Otto, re-cinq/lore, 2026-10-24). */

@@ -4,7 +4,7 @@ import {
   type LoopTicketResult,
 } from "../../outbound/otel/metrics.js";
 import type { RunGraph } from "../../domain/run-graph.js";
-import { LORE_BLOCKED_LABEL } from "./labels.js";
+import { LOOP_PARKING_PREFIX, LORE_BLOCKED_LABEL } from "./labels.js";
 import {
   commentDeferral,
   erroredVerdict,
@@ -285,7 +285,7 @@ function blockedComment(run: ClosedLoopRun, verdict: ParkVerdict): string {
   const ask = verdict.askForRewrite ? REWRITE_ASK : "";
 
   return (
-    `Lore's implementation loop is parking this ticket: ${verdict.why}.` +
+    `${LOOP_PARKING_PREFIX} ${verdict.why}.` +
     `${prLine}${ask}\n\n${requeueLine(run)} Run: \`${run.id}\``
   );
 }
