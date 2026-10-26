@@ -107,13 +107,13 @@ describe("lore metrics", () => {
     });
   });
 
-  it("counts a parked loop ticket of re-cinq/otto", async () => {
-    recordLoopTicket("re-cinq/otto", "parked");
+  it("counts a parked loop ticket of re-cinq/Otto under the floor's repository github.com/re-cinq/otto", async () => {
+    recordLoopTicket("re-cinq/Otto", "parked");
 
     const [ticket] = points("lore.loop.tickets", await collected());
 
     expect(ticket).toMatchObject({
-      attributes: { repo: "re-cinq/otto", result: "parked" },
+      attributes: { repo: "github.com/re-cinq/otto", result: "parked" },
       value: 1,
     });
   });

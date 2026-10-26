@@ -476,7 +476,7 @@
      "refId": "A"
     }
    ],
-   "interval": "1h",
+   "interval": "1d",
    "fieldConfig": {
     "defaults": {
      "unit": "none",
