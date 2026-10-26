@@ -29,9 +29,18 @@ RULES:
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
-  wrote, if it has one, and nothing else from CI's checklist: CI runs
-  the linter and typecheck on every push, and the 1Gi pod does not fit
-  them (runs 112256d9 and 62c1ca5e were OOM-killed on exactly that).
+  wrote, if it has one,.
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - When the work is done, `git -C /workspace/target add` what you wrote and commit it with a
   short, factual message. Then
   `git -C /workspace/target push origin HEAD`. The clone carries

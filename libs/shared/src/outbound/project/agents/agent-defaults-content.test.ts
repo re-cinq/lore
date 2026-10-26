@@ -8,6 +8,19 @@ const LINTING_RECIPES: readonly string[] = [
   "loop-dod",
   "loop-tdd-round",
   "loop-fix-ci",
+  "loop-pr-ready",
+  "loop-sync",
+  "spec-draft",
+  "spec-rework",
+  "spec-upkeep-update-specs",
+  "spec-upkeep-fix-ci",
+  "onboard-author",
+  "onboard-fix-ci",
+  "code-review-refine",
+];
+const REVIEWING_RECIPES: readonly string[] = [
+  "code-review",
+  "code-review-recheck",
 ];
 
 function promptOf(name: string): string {
@@ -943,7 +956,7 @@ describe("the loop's branch sync", () => {
       neverMerges: prompt.includes("Rebase, never merge"),
       aborts: prompt.includes("git rebase --abort"),
       noChecks: prompt.includes(
-        "Do NOT run the linter, a typecheck, a build, or the test suite in this pod",
+        "Do NOT run a typecheck, a build, or the test suite in this pod",
       ),
     }).toEqual({
       rebases: true,
@@ -1008,26 +1021,53 @@ describe("the loop's branch sync keeps both sides' work", () => {
   });
 });
 
-describe("the loop's recipes that write code lint what they changed", () => {
-  it("tells loop-dod, loop-tdd-round and loop-fix-ci to run eslint --fix over the files they changed before committing, never over the whole repository", () => {
+describe("the recipes that write files lint what they changed", () => {
+  it("tells every recipe that writes files to run eslint --fix with a 3 GB heap over the files it changed, one package per call, never over the whole repository", () => {
     for (const name of LINTING_RECIPES) {
       const prompt = promptOnOneLine(name);
 
       expect(
         {
           lintsChanged: prompt.includes(
-            "timeout 300 npx --no-install eslint --fix <files>",
+            "`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`",
           ),
+          onePackage: prompt.includes("one package per call"),
           neverWholeRepo: prompt.includes("Never lint the whole repository"),
           installsFirst: prompt.includes("install the dependencies first"),
           runsNoTests: prompt.includes("Linting is not testing"),
+          forbidsLint: /(not|never) run (the|a) linter/i.test(prompt),
         },
         name,
       ).toEqual({
         lintsChanged: true,
+        onePackage: true,
         neverWholeRepo: true,
         installsFirst: true,
         runsNoTests: true,
+        forbidsLint: false,
+      });
+    }
+  });
+
+  it("lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict", () => {
+    for (const name of REVIEWING_RECIPES) {
+      const prompt = promptOnOneLine(name);
+
+      expect(
+        {
+          lints: prompt.includes(
+            "`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint <files>`",
+          ),
+          onePackage: prompt.includes("one package per call"),
+          neverFixes: prompt.includes("Never `--fix`"),
+          forbidsEslint: prompt.includes("do not run eslint"),
+        },
+        name,
+      ).toEqual({
+        lints: true,
+        onePackage: true,
+        neverFixes: true,
+        forbidsEslint: false,
       });
     }
   });

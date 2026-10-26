@@ -2,7 +2,7 @@
 timeout_minutes: 25
 review_required: false
 execution_mode: claude-code
-# The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
+# The pod's Bash hook refuses every test runner, build and install but npm ci here: CI is the judge.
 test_policy: none
 # Review reads diff + spec and posts comments — no codegen. Review and re-check
 # run on Gemini 4 Argon (2026-10-14 local bench: 5/5 must-fixes vs Sonnet's 4/6,
@@ -41,10 +41,12 @@ a spec written in the same PR as its code proves nothing about intent.
 Then review against the repo's conventions (CLAUDE.md), ADRs in adrs/,
 and the specs. Check correctness, type safety, security, and simplicity.
 Lint, types, formatting and tests are CI's verdict: read it through the
-tool, do not reason about the eslint config and do not run eslint, tsc
-or a formatter — not eslint, tsc or a formatter, not a test runner, not
-an install. The pod has a 1Gi disk budget and one `npx` evicts it
-mid-review. Do NOT edit code and do NOT post comments yourself — Lore
+tool first. To confirm a lint finding in the changed code before you
+report it, you may lint those files:
+`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint <files>`,
+one package per call, after `npm ci` from the repository root when
+`eslint` is not installed. Never `--fix`, never the whole repository,
+and run no typecheck, formatter, test runner or other install. Do NOT edit code and do NOT post comments yourself — Lore
 posts your findings for you. Review from the source tree and the diff
 alone.
 

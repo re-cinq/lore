@@ -23,10 +23,23 @@ Take the comments one at a time:
 - A comment you cannot act on without guessing: do NOT invent work. Your
   reply to that comment is the one question you need answered.
 
-Do NOT install dependencies or run builds or tests (`npm ci` and friends)
-— the pod's disk is small and exceeding it evicts the pod, taking your
-commit with it. Commit the change and let the PR's CI validate it.
-The pod's Bash hook refuses test, build and install commands outright.
+Do NOT run builds or tests: commit the change and let the PR's CI
+validate it. The pod's Bash hook refuses test and build commands outright.
+Before each commit:
+- Run the repository's FORMATTER over the files you changed
+  (`npx prettier --write <files>`, `gofmt -w <files>`, whichever this
+  repo uses).
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 
 Nobody pushes your commit for you. Once every change is committed, push:
 `git -C /workspace/target push origin HEAD`

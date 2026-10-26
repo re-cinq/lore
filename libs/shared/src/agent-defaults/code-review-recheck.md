@@ -37,9 +37,12 @@ change, say in one line what a person using that surface sees differently,
 and raise a `question` when it is not what they would expect.
 
 Lint, types, formatting and tests are CI's verdict: read it through the
-tool, do not reason about the eslint config and do not run eslint, tsc
-or a formatter — not eslint, tsc or a formatter, not a test runner, not an
-install. The pod has a 1Gi disk budget and one `npx` evicts it mid-review.
+tool first. To confirm a lint finding in the changed code before you
+report it, you may lint those files:
+`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint <files>`,
+one package per call, after `npm ci` from the repository root when
+`eslint` is not installed. Never `--fix`, never the whole repository,
+and run no typecheck, formatter, test runner or other install.
 Do NOT edit code and do NOT post comments yourself — Lore posts your
 findings for you. Re-check from the source tree and the diff alone.
 

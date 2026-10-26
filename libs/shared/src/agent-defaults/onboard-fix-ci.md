@@ -46,11 +46,9 @@ A package's test command run at the repo root is NOT that command:
 nine suites with coverage for 43 minutes and hit its deadline answering
 what one package's suite answers in minutes.
 
-NEVER RUN THE LINTER IN THIS POD, scoped or not. CI ran it on a machine
-sized for it; here a two-file `eslint` peaks near 800 MB against a 1Gi
-pod, and runs 112256d9 and 62c1ca5e were OOM-killed on it. When the red
-check is a lint or format job, its findings are what you fix, not what
-you reproduce: take the file and line from the annotation, or ask CI
+NEVER LINT THE WHOLE REPOSITORY IN THIS POD: CI ran that on a machine
+sized for it. When the red check is a lint or format job, its findings
+are what you fix, then lint the files you changed as DELIVERY says: take the file and line from the annotation, or ask CI
 with `lore_get_ci_failures` and then `lore_get_ci_job_log` with
 `grep: "error"`. Format only the files this branch changed
 (`git diff --name-only origin/main...HEAD`); typecheck nothing here —
@@ -107,12 +105,18 @@ RULES:
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
   changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
-  this repo uses) and nothing else from CI's checklist. Do NOT run the
-  linter in this pod: CI runs it on every push, and here it does not
-  fit — in this repository a two-file `eslint` peaks near 800 MB against
-  a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
-  that. A lint finding comes back as a red build naming the file and
-  line, which the next round fixes with an editor.
+  this repo uses).
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - Do NOT typecheck here either. A green test is not a compiled build —
   vitest transpiles each file without checking types — but CI's build
   step is what proves it, and in this repository `tsc --noEmit` on
