@@ -34,6 +34,10 @@ export interface Mergeability {
   state: string;
 }
 
+/** What GitHub answered a request to put a pull request's branch on its base: done, or why not (a conflict, a moved head, a pull request it cannot read). */
+export type BranchUpdate =
+  { updated: true } | { updated: false; reason: string };
+
 export interface PullRef {
   repo: string;
   number: number;
@@ -230,6 +234,12 @@ export interface PullRequestsPort {
   getStats(repo: string, number: number): Promise<PullStats>;
   getBranchRule(repo: string, branch: string): Promise<BranchRule>;
   getMergeability(repo: string, number: number): Promise<Mergeability>;
+  /** Has GitHub rebase the pull request's branch onto its base, only while its head is still `expectedHeadSha`; a refusal is an answer, never a throw. */
+  updateBranch(
+    repo: string,
+    number: number,
+    expectedHeadSha: string,
+  ): Promise<BranchUpdate>;
   /** Files differing between two refs; agent-watcher uses it for the no-changes vs PR decision (Agent.status carries no changedFiles). */
   changedFileCount(repo: string, base: string, head: string): Promise<number>;
   /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (D3). */

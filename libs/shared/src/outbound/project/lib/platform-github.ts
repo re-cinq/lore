@@ -39,6 +39,7 @@ import type {
   PullFileChange,
   BranchRule,
   FileChangeSummary,
+  BranchUpdate,
   Mergeability,
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
@@ -328,6 +329,19 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async getMergeability(repo: string, number: number): Promise<Mergeability> {
     return branchRule.getMergeability(await this.octo(), repo, number);
+  }
+
+  async updateBranch(
+    repo: string,
+    number: number,
+    expectedHeadSha: string,
+  ): Promise<BranchUpdate> {
+    return pullsWrite.updateBranch(
+      await this.octo(),
+      repo,
+      number,
+      expectedHeadSha,
+    );
   }
 
   async changedFileCount(

@@ -270,7 +270,7 @@ line:
       iteration_max: 1
 stations:
   loop-sync-check:
-    description: Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a branch behind it goes to the sync round.
+    description: Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a clean pull request GitHub calls behind is rebased by GitHub here; a conflict goes to the sync round.
     kind: service
     outcomes:
       - success
@@ -547,8 +547,6 @@ agent_definitions:
           limits:
             memory: 8Gi
             ephemeral-storage: 6Gi
-        skills:
-          - lore-context
         skills_source: ${LORE_SKILLS_URL}
         mcp_servers:
           - name: lore

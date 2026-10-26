@@ -17,6 +17,7 @@ import type {
   PullFileChange,
   BranchRule,
   FileChangeSummary,
+  BranchUpdate,
   Mergeability,
 } from "./pull-requests-port.js";
 
@@ -78,6 +79,10 @@ export class PullRequests {
 
   getMergeability(number: number): Promise<Mergeability> {
     return this.pulls.getMergeability(this.repo, number);
+  }
+
+  updateBranch(number: number, expectedHeadSha: string): Promise<BranchUpdate> {
+    return this.pulls.updateBranch(this.repo, number, expectedHeadSha);
   }
 
   merge(number: number, method?: MergeMethod): Promise<void> {

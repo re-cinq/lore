@@ -58,6 +58,7 @@ function fakePulls(
     }),
     getMergeability: async () => ({ mergeable: null, state: "unknown" }),
     netChange: async () => null,
+    updateBranch: async () => ({ updated: false, reason: "fake" }),
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
     },
