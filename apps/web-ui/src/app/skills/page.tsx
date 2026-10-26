@@ -94,7 +94,9 @@ async function fetchSkills(): Promise<SkillDefinition[]> {
       signal: AbortSignal.timeout(5000),
     });
 
-    if (!res.ok) {return [];}
+    if (!res.ok) {
+      return [];
+    }
     const payload = (await res.json()) as { skills?: SkillDefinition[] };
 
     return payload.skills ?? [];
