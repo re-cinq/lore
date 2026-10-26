@@ -66,6 +66,7 @@ describe("Workspace", () => {
       }),
       getMergeability: async () => ({ mergeable: null, state: "unknown" }),
       netChange: async () => null,
+      updateBranch: async () => ({ updated: false, reason: "fake" }),
       merge: async () => {},
       open: async (repo, branch, { title }) => {
         opened.push(`${repo}#${branch}`);

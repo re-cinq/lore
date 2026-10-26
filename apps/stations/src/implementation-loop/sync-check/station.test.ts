@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import type { Mergeability } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type {
+  BranchUpdate,
+  Mergeability,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { syncCheckHandle } from "./station.js";
 
 const TOOLS: Tools = {
@@ -23,14 +26,24 @@ function brief() {
 function checkWith(
   behindBy: number | undefined,
   pull: Mergeability | null = null,
+  rebase: BranchUpdate = { updated: false, reason: "no pull request" },
 ) {
-  return syncCheckHandle({
+  const rebased: string[] = [];
+  const handle = syncCheckHandle({
     behindBy: (repo, branch) =>
       repo === "re-cinq/app" && branch === BRANCH
         ? Promise.resolve(behindBy)
         : Promise.reject(new Error(`Not Found: ${repo}@${branch}`)),
-    pullMergeability: () => Promise.resolve(pull),
+    openPull: () =>
+      Promise.resolve(pull && { number: 12, headSha: "abc", ...pull }),
+    rebaseOnGitHub: (_repo, number, headSha) => {
+      rebased.push(`#${number}@${headSha}`);
+
+      return Promise.resolve(rebase);
+    },
   });
+
+  return Object.assign(handle, { rebased });
 }
 
 describe("loop-sync-check", () => {
@@ -54,7 +67,8 @@ describe("loop-sync-check", () => {
   it("reports failed with the error when the lookup throws", async () => {
     const handle = syncCheckHandle({
       behindBy: () => Promise.reject(new Error("Bad credentials")),
-      pullMergeability: () => Promise.resolve(null),
+      openPull: () => Promise.resolve(null),
+      rebaseOnGitHub: () => Promise.resolve({ updated: true }),
     });
 
     expect(await handle(brief(), TOOLS)).toEqual({
@@ -71,13 +85,70 @@ describe("loop-sync-check on a branch with an open pull request", () => {
     ).toEqual({ outcome: "success" });
   });
 
-  it("asks for a rebase when GitHub calls the pull request behind, and when it conflicts", async () => {
+  it("asks for a rebase when GitHub calls the pull request behind and cannot rebase it itself, and when it conflicts", async () => {
     expect([
       await checkWith(4, { mergeable: true, state: "behind" })(brief(), TOOLS),
       await checkWith(4, { mergeable: false, state: "dirty" })(brief(), TOOLS),
     ]).toEqual([
-      { outcome: "changes_requested" },
+      {
+        outcome: "changes_requested",
+        error: "GitHub could not rebase it: no pull request",
+      },
       { outcome: "changes_requested" },
     ]);
+  });
+});
+
+describe("loop-sync-check rebasing a pull request GitHub calls behind without a pod", () => {
+  it("has GitHub rebase clean pull request 12 at the head abc it read, and reports rebased with no sync round (502 sync-pr-rebase pods over the weekend of 2026-10-23, 129 of them failed, most with nothing to resolve)", async () => {
+    const check = checkWith(
+      4,
+      { mergeable: true, state: "behind" },
+      { updated: true },
+    );
+
+    expect({
+      verdict: await check(brief(), TOOLS),
+      rebased: check.rebased,
+    }).toEqual({
+      verdict: { outcome: "rebased" },
+      rebased: ["#12@abc"],
+    });
+  });
+
+  it("asks for the sync round when GitHub refuses the rebase, naming why", async () => {
+    const check = checkWith(
+      4,
+      { mergeable: true, state: "behind" },
+      { updated: false, reason: "merge conflict between base and head" },
+    );
+
+    expect({
+      verdict: await check(brief(), TOOLS),
+      rebased: check.rebased,
+    }).toEqual({
+      verdict: {
+        outcome: "changes_requested",
+        error:
+          "GitHub could not rebase it: merge conflict between base and head",
+      },
+      rebased: ["#12@abc"],
+    });
+  });
+
+  it("asks GitHub for no rebase of a pull request in conflict, which only the sync round settles", async () => {
+    const check = checkWith(
+      4,
+      { mergeable: false, state: "dirty" },
+      { updated: true },
+    );
+
+    expect({
+      verdict: await check(brief(), TOOLS),
+      rebased: check.rebased,
+    }).toEqual({
+      verdict: { outcome: "changes_requested" },
+      rebased: [],
+    });
   });
 });

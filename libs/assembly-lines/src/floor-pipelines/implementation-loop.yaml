@@ -96,6 +96,9 @@ line:
       to: dod
       on: success
     - from: sync-start
+      to: dod
+      on: rebased
+    - from: sync-start
       to: sync-start-rebase
       on: changes_requested
     - from: sync-start
@@ -194,6 +197,9 @@ line:
       to: mark-ready
       on: success
     - from: sync-final
+      to: mark-ready
+      on: rebased
+    - from: sync-final
       to: sync-final-rebase
       on: changes_requested
     - from: sync-final
@@ -236,6 +242,9 @@ line:
       on: success
       iteration_max: 8
     - from: sync-pr
+      to: await-pr
+      on: rebased
+    - from: sync-pr
       to: sync-pr-rebase
       on: changes_requested
       iteration_max: 6
@@ -270,10 +279,11 @@ line:
       iteration_max: 1
 stations:
   loop-sync-check:
-    description: Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a branch behind it goes to the sync round.
+    description: Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a clean pull request GitHub calls behind is rebased by GitHub here; a conflict goes to the sync round.
     kind: service
     outcomes:
       - success
+      - rebased
       - changes_requested
       - failed
     needs:
@@ -547,8 +557,6 @@ agent_definitions:
           limits:
             memory: 8Gi
             ephemeral-storage: 6Gi
-        skills:
-          - lore-context
         skills_source: ${LORE_SKILLS_URL}
         mcp_servers:
           - name: lore
