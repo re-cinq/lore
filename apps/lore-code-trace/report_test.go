@@ -225,3 +225,81 @@ func TestBuildReportRunsAndReportsOnlyTheFilesInScope(t *testing.T) {
 		t.Errorf("tests %v with %d results, want [a::1] with 1", ids, len(report.Results))
 	}
 }
+
+// run_many takes the whole scope on stdin and answers for every file at once,
+// so the suite boots one vitest per package instead of one per file.
+func TestBuildReportRunsTheWholeScopeThroughRunMany(t *testing.T) {
+	listJSON := `[{"id":"a::1","name":"1","file":"a_test.go"},{"id":"a::2","name":"2","file":"a_test.go"},{"id":"b::1","name":"1","file":"b_test.go"}]`
+	m := Manifest{
+		List: "printf '%s' '" + listJSON + "'",
+		Run:  `echo "run must not be called for {selector}" >&2; exit 1`,
+		// Echo the files read on stdin back as the answer, so the test proves the
+		// scope reached the command and each file's result fans onto its tests.
+		RunMany: `printf '{'; sep=; while read f; do p=false; [ "$f" = a_test.go ] && p=true; ` +
+			`printf '%s"%s":{"passed":%s,"covered":[{"file":"src/%s","startLine":1,"endLine":2}]}' "$sep" "$f" "$p" "${f%_test.go}.go"; sep=,; done; printf '}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{}, everyTest, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	byID := map[string]TaggedRunResult{}
+	for _, r := range report.Results {
+		byID[r.ID] = r
+	}
+	if len(byID) != 3 || !byID["a::1"].Passed || !byID["a::2"].Passed || byID["b::1"].Passed {
+		t.Fatalf("results = %+v", report.Results)
+	}
+	if byID["b::1"].Covered[0].File != "src/b.go" {
+		t.Errorf("b's coverage = %+v", byID["b::1"].Covered)
+	}
+}
+
+// A file run_many leaves out is skipped like a failed run, never reported as
+// covering nothing.
+func TestBuildReportSkipsAFileRunManyDidNotAnswerFor(t *testing.T) {
+	listJSON := `[{"id":"a::1","name":"1","file":"a_test.go"},{"id":"b::1","name":"1","file":"b_test.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `exit 1 # {selector}`,
+		RunMany:        `cat >/dev/null; printf '%s' '{"a_test.go":{"passed":true,"covered":[]}}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+	var logw strings.Builder
+
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{}, everyTest, 2, &logw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Results) != 1 || report.Results[0].ID != "a::1" {
+		t.Errorf("results = %+v", report.Results)
+	}
+	if !strings.Contains(logw.String(), "b_test.go") {
+		t.Errorf("the skipped file is not named in the log: %q", logw.String())
+	}
+}
+
+// A run_many that fails or prints garbage hands the scope to the per-file run,
+// so a broken batch runner costs time, not the report.
+func TestBuildReportFallsBackToRunPerFileWhenRunManyFails(t *testing.T) {
+	listJSON := `[{"id":"a::1","name":"1","file":"a_test.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `printf '%s' '{"passed":true,"covered":[]}' # {selector}`,
+		RunMany:        `cat >/dev/null; exit 3`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{}, everyTest, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Results) != 1 || !report.Results[0].Passed {
+		t.Errorf("results = %+v", report.Results)
+	}
+}

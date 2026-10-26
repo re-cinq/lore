@@ -60,10 +60,11 @@ type reportMeta struct {
 	Branch string
 }
 
-// buildReport runs the manifest's list, then runs the run command once per file
-// in scope (bounded by concurrency) and fans each file's RunResult onto every descriptor
-// id in that file — the file is the coverage granularity. A per-file run failure
-// is logged and skipped, never fatal.
+// buildReport runs the manifest's list, then runs every file in scope through
+// run_many in one go, or the run command once per file (bounded by concurrency)
+// when there is no run_many or it fails, and fans each file's RunResult onto
+// every descriptor id in that file — the file is the coverage granularity. A
+// per-file run failure is logged and skipped, never fatal.
 func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, scope testScope, concurrency int, logw io.Writer) (TestReport, error) {
 	runCwd := filepath.Join(cwd, m.Cwd)
 	timeout := traceTimeout()
@@ -100,6 +101,77 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, s
 		fmt.Fprintf(logw, "[lore-code-trace] run command has no {selector}; the same command runs once per file and every file gets identical results\n")
 	}
 
+	runByFile, err := runManyFiles(ctx, m, files, runCwd, timeout, logw)
+	if err != nil {
+		if m.RunMany != "" {
+			fmt.Fprintf(logw, "[lore-code-trace] run_many failed — running each file on its own: %v\n", err)
+		}
+		runByFile = runEachFile(ctx, m, files, runCwd, timeout, concurrency, logw)
+	}
+
+	results := make([]TaggedRunResult, 0, len(tests))
+	for _, f := range files {
+		rr := runByFile[f]
+		if rr == nil {
+			continue
+		}
+		covered := rr.Covered
+		if covered == nil {
+			covered = []CoveredChunk{}
+		}
+		for _, id := range idsByFile[f] {
+			results = append(results, TaggedRunResult{ID: id, Passed: rr.Passed, Covered: covered})
+		}
+	}
+
+	return TestReport{
+		Commit:  meta.Commit,
+		Branch:  meta.Branch,
+		Tests:   tests,
+		Results: results,
+	}, nil
+}
+
+// errNoRunMany says the manifest declares no batch runner for its files.
+var errNoRunMany = fmt.Errorf("no run_many")
+
+// runManyFiles hands every file to the manifest's run_many command at once: one
+// process that boots each package's test runner once, where the per-file run
+// paid that boot, and a whole-source coverage pass, for every file (96% of the
+// job's time on this repository). A file it leaves out is skipped, as a failed
+// run is. It answers errNoRunMany when the manifest has none, and an error when
+// the command fails or prints something else than {file: {passed, covered}}.
+func runManyFiles(ctx context.Context, m Manifest, files []string, runCwd string, timeout time.Duration, logw io.Writer) (map[string]*RunResult, error) {
+	if m.RunMany == "" || m.CoverageFormat != "json" {
+		return nil, errNoRunMany
+	}
+	// Each file had the whole per-file budget; the batch gets their sum.
+	out, err := runCommandWithInput(ctx, m.RunMany, runCwd, timeout*time.Duration(len(files)), strings.Join(files, "\n")+"\n")
+	if err != nil {
+		return nil, err
+	}
+	var answered map[string]*RunResult
+	if err := json.Unmarshal(out, &answered); err != nil {
+		return nil, fmt.Errorf("expected {file: {passed, covered}}: %w", err)
+	}
+	runByFile := make(map[string]*RunResult, len(files))
+	for _, file := range files {
+		rr := answered[file]
+		if rr == nil {
+			fmt.Fprintf(logw, "[lore-code-trace] run_many did not answer for %s — skipped\n", file)
+			continue
+		}
+		for i := range rr.Covered {
+			rr.Covered[i].File = stripPrefix(rr.Covered[i].File, m.PathPrefixStrip)
+		}
+		runByFile[file] = rr
+	}
+	return runByFile, nil
+}
+
+// runEachFile runs the manifest's run command once per file, bounded by
+// concurrency.
+func runEachFile(ctx context.Context, m Manifest, files []string, runCwd string, timeout time.Duration, concurrency int, logw io.Writer) map[string]*RunResult {
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -123,28 +195,7 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, s
 		}(f)
 	}
 	wg.Wait()
-
-	results := make([]TaggedRunResult, 0, len(tests))
-	for _, f := range files {
-		rr := runByFile[f]
-		if rr == nil {
-			continue
-		}
-		covered := rr.Covered
-		if covered == nil {
-			covered = []CoveredChunk{}
-		}
-		for _, id := range idsByFile[f] {
-			results = append(results, TaggedRunResult{ID: id, Passed: rr.Passed, Covered: covered})
-		}
-	}
-
-	return TestReport{
-		Commit:  meta.Commit,
-		Branch:  meta.Branch,
-		Tests:   tests,
-		Results: results,
-	}, nil
+	return runByFile
 }
 
 // runOneFile runs the manifest's run command for one file and parses its output
@@ -251,10 +302,15 @@ func parseRunResult(out []byte) (*RunResult, error) {
 }
 
 func runCommand(ctx context.Context, command, cwd string, timeout time.Duration) ([]byte, error) {
+	return runCommandWithInput(ctx, command, cwd, timeout, "")
+}
+
+func runCommandWithInput(ctx context.Context, command, cwd string, timeout time.Duration, input string) ([]byte, error) {
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, "sh", "-c", command)
 	cmd.Dir = cwd
+	cmd.Stdin = strings.NewReader(input)
 	var out, errb bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
