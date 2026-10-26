@@ -13,8 +13,8 @@
 
 ## Facets
 
-- [ ] Fetch skills from the `/api/skill-definitions` endpoint and render them in a list
-- [ ] Implement Create form with Name, Title, Model, Content fields and API submission
+- [x] Fetch skills from the `/api/skill-definitions` endpoint and render them in a list
+- [x] Implement Create form with Name, Title, Model, Content fields and API submission
 - [ ] Implement Edit form/modal that populates fields and saves changes via API
 - [ ] Implement Delete action to remove a skill via API
 
