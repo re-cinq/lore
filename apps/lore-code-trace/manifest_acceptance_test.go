@@ -23,11 +23,11 @@ func TestParseManifestAcceptsMultiEntryManifest(t *testing.T) {
 		t.Fatalf("failed to mkdir .lore: %v", err)
 	}
 	manifestData := []byte(`
-- list: "echo [\"api.test.js\"]"
+- list: "printf '%s' '[\"api.test.js\"]'"
   run: "echo {selector}"
   coverage_format: json
   cwd: "api"
-- list: "echo [\"web.test.js\"]"
+- list: "printf '%s' '[\"web.test.js\"]'"
   run: "echo {selector}"
   coverage_format: json
   cwd: "web"
@@ -51,6 +51,7 @@ func TestParseManifestAcceptsMultiEntryManifest(t *testing.T) {
 	// git requires at least one commit
 	exec.Command("git", "-C", dir, "config", "user.email", "test@example.com").Run()
 	exec.Command("git", "-C", dir, "config", "user.name", "Test").Run()
+	exec.Command("git", "-C", dir, "remote", "add", "origin", "git@github.com:o/r.git").Run()
 	if err := exec.Command("git", "-C", dir, "add", ".").Run(); err != nil {
 		t.Fatalf("failed to git add: %v", err)
 	}

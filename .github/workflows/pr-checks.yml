@@ -54,8 +54,16 @@ jobs:
 
       # --ignore-scripts (#1062): dep lifecycle scripts were the supply-chain
       # execution vector; nothing in the tree needs them.
+      # web-ui's dependencies matter only to the files the fix pass lints, so a
+      # pull request that leaves web-ui and the lint setup alone skips them.
       - name: Install deps
-        run: npm ci --ignore-scripts && npm ci --prefix apps/web-ui --ignore-scripts
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          npm ci --ignore-scripts
+          if [ -z "${BASE_REF}" ] || git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^(apps/web-ui/|eslint\.config\.mjs|eslint\.baseline\.|\.prettierrc|\.prettierignore|package-lock\.json)'; then
+            npm ci --prefix apps/web-ui --ignore-scripts
+          fi
 
       # Type-aware lint reads @re-cinq/lore-shared's compiled d.ts, so shared
       # must be built before any eslint run (the lint matrix job builds too;
@@ -134,9 +142,13 @@ jobs:
           # for the enriched run read's station resolution — so it must be built
           # here. lore-api also resolves the station registry for its maintenance
           # jobs, so @re-cinq/lore-stations must be COMPILED before it typechecks.
-          - name: lore-api
+          # Two halves of the suite run side by side: it was the longest job.
+          - name: lore-api (1/2)
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
-            test: npm test -w @re-cinq/lore-api
+            test: npm test -w @re-cinq/lore-api -- --shard=1/2
+          - name: lore-api (2/2)
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
+            test: npm test -w @re-cinq/lore-api -- --shard=2/2
           # An import rule reports nothing when the code is clean AND when it has
           # stopped looking, and three times the second was mistaken for the
           # first (#1797, #1801, #1811). This lints deliberately-wrong fixtures
@@ -275,6 +287,24 @@ jobs:
 
       - name: Run tests
         run: ${{ matrix.test }}
+
+  # The lore-code-trace binary is built into the lore-api image and downloaded by
+  # every other workflow here, so nothing else runs its tests. It needs no format
+  # commit and no Node.
+  lore-code-trace:
+    name: lore-code-trace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/lore-code-trace/go.mod
+          cache-dependency-path: apps/lore-code-trace/go.sum
+      - name: Vet and test
+        working-directory: apps/lore-code-trace
+        run: go vet ./... && go test ./...
 
   # Nothing else in CI renders or lints the Helm charts, so a broken template was
   # caught at deploy time — or by whoever happened to run `helm template` by hand.
