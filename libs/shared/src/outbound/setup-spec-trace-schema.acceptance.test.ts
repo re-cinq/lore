@@ -1,3 +1,4 @@
+import { enforceTrue } from "../lib/enforce.js";
 import { describe, it, expect, beforeAll } from "vitest";
 import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 import { createDgraphClient } from "./dgraph-client.js";
@@ -25,7 +26,7 @@ describe.skipIf(!reachable)("setup-spec-trace-schema applier (TS)", () => {
   beforeAll(async () => {
     const client = createDgraphClient({ LORE_DGRAPH_HTTP: DGRAPH_HTTP });
 
-    if (!client) throw new Error("Could not create client");
+    enforceTrue(client, Error, "Could not create client");
 
     await setupSpecTraceSchema(client);
   });
@@ -179,7 +180,7 @@ describe.skipIf(!reachable)("setup-spec-trace-schema applier (TS)", () => {
 
     const client = createDgraphClient({ LORE_DGRAPH_HTTP: DGRAPH_HTTP });
 
-    if (!client) throw new Error("Could not create client");
+    enforceTrue(client, Error, "Could not create client");
     await setupSpecTraceSchema(client);
 
     const after = sortByPred((await querySchema("schema {}")).schema);
