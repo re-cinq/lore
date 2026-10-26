@@ -103,11 +103,11 @@ agent_definitions:
         pod_resources:
           requests:
             cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 2Gi
-          limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
+          limits:
+            memory: 8Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
         skills_source: ${LORE_SKILLS_URL}

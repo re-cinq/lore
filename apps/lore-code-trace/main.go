@@ -45,6 +45,7 @@ type invocation struct {
 	post  bool
 	force bool
 	all   bool
+	full  bool
 	base  string
 }
 
@@ -62,6 +63,8 @@ func parseArgs(args []string) (invocation, error) {
 			parsed.force = true
 		case "--all":
 			parsed.all = true
+		case "--full":
+			parsed.full = true
 		case "--base":
 			if i+1 == len(args) {
 				return invocation{}, fmt.Errorf("--base needs the name of the branch the change targets")
@@ -103,10 +106,10 @@ func dispatch(parsed invocation, wd string) error {
 	if parsed.links {
 		return runLinks(wd, linksOptions{all: parsed.all, base: parsed.base}, os.Stdout)
 	}
-	return run(wd, parsed.post, os.Stdout)
+	return run(wd, parsed.post, parsed.full, os.Stdout)
 }
 
-func run(startDir string, post bool, stdout io.Writer) error {
+func run(startDir string, post, full bool, stdout io.Writer) error {
 	// Trust-boundary parity with the TS runner: never execute repo commands on the
 	// shared server (it sets LORE_DB_HOST); only CI / local sandboxes do.
 	if os.Getenv("LORE_DB_HOST") != "" {
@@ -130,16 +133,38 @@ func run(startDir string, post bool, stdout io.Writer) error {
 		return err
 	}
 
+	token := os.Getenv("LORE_INGEST_TOKEN")
+	if post && token == "" {
+		return fmt.Errorf("--post requires LORE_INGEST_TOKEN")
+	}
+	// A delta is projected IN-PROCESS by lore-api before it answers — a 900 KB
+	// chunk of tests plus coverage takes longer than the webhook's immediate
+	// 202 — so the delta path gets a client sized for the work rather than the
+	// 60 s that timed out a bootstrap full ingest on chunk 3/26.
+	deltaClient := &http.Client{Timeout: 5 * time.Minute}
+	apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/")
+
 	ctx := context.Background()
+	ingestedBase := ""
+	if post && !full && apiBase != "" {
+		ingestedBase = scopeBase(ctx, root, func(ctx context.Context) (*string, error) {
+			return fetchIngestState(ctx, apiBase, token, repo, testReportKind, deltaClient)
+		}, os.Stderr)
+	}
 	combined := TestReport{Commit: commit, Branch: branch}
+	reportIsScoped := full
+	everyManifestNarrowed := true
 	for _, m := range manifests {
-		report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch}, runConcurrency, os.Stderr)
+		scope := scopeFor(ctx, m, root, ingestedBase, os.Stderr)
+		everyManifestNarrowed = everyManifestNarrowed && !scope.all
+		report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch}, scope, runConcurrency, os.Stderr)
 		if err != nil {
 			return err
 		}
 		combined.Tests = append(combined.Tests, report.Tests...)
 		combined.Results = append(combined.Results, report.Results...)
 	}
+	reportIsScoped = reportIsScoped || everyManifestNarrowed
 
 	if !post {
 		enc := json.NewEncoder(stdout)
@@ -147,22 +172,13 @@ func run(startDir string, post bool, stdout io.Writer) error {
 		return enc.Encode(combined)
 	}
 
-	token := os.Getenv("LORE_INGEST_TOKEN")
-	if token == "" {
-		return fmt.Errorf("--post requires LORE_INGEST_TOKEN")
-	}
 	client := &http.Client{Timeout: 60 * time.Second}
-	// A delta is projected IN-PROCESS by lore-api before it answers — a 900 KB
-	// chunk of tests plus coverage takes longer than the webhook's immediate
-	// 202 — so the delta path gets a client sized for the work rather than the
-	// 60 s that timed out a bootstrap full ingest on chunk 3/26.
-	deltaClient := &http.Client{Timeout: 5 * time.Minute}
 
 	// The incremental handshake (FR5) is the primary path: lore-api projects the
 	// delta in-process, so a push costs a couple of HTTP calls and no pod. Only a
 	// lore-api that does not serve the route yet falls through to the chunked
 	// webhook below, which fans out one pod per chunk.
-	if apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/"); apiBase != "" {
+	if apiBase != "" {
 		err := runDeltaFlow(ctx, deltaDeps{
 			fetchState: func(ctx context.Context) (*string, error) {
 				return fetchIngestState(ctx, apiBase, token, repo, testReportKind, deltaClient)
@@ -172,6 +188,7 @@ func run(startDir string, post bool, stdout io.Writer) error {
 			post: func(ctx context.Context, d ingestDelta) error {
 				return postIngestDelta(ctx, apiBase, token, repo, d, deltaClient)
 			},
+			reportIsScoped: reportIsScoped,
 		}, combined)
 		if err == nil {
 			fmt.Fprintf(os.Stderr, "lore-code-trace: posted incremental test report for %s@%s\n",

@@ -491,18 +491,20 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(told).toHaveLength(6);
   });
 
-  it("tells the upkeep repair it cannot run tests, linters or builds, to read CI's verdict, and to leave a failure that is not a spec's alone", () => {
+  it("tells the upkeep repair it cannot run tests, typechecks or builds, to read CI's verdict, and to leave a failure that is not a spec's alone", () => {
     const { prompt } =
       pipelineOf("spec-upkeep").agent_definitions!["spec-upkeep-fix-ci"]
         .settings;
     const told = [
-      "YOU CANNOT RUN TESTS, LINTERS, TYPECHECKS, BUILDS OR INSTALLS HERE",
+      "YOU CANNOT RUN TESTS, TYPECHECKS OR BUILDS HERE",
       "/workspace/round-brief.md",
       "NEVER change code, tests, build files or workflows",
     ].filter((phrase) => prompt.includes(phrase));
 
     expect(told).toHaveLength(3);
-    expect(prompt).not.toMatch(/npm run|vitest|run only that step/);
+    expect(prompt).not.toMatch(
+      /npm run (test|build)|vitest|run only that step/,
+    );
   });
 
   it("lets neither upkeep agent run tests, installs or builds", () => {
@@ -1513,14 +1515,17 @@ describe("the code-review recipe reads the change as its user first", () => {
     }).toEqual({ asUser: true, neighbours: true, question: true });
   });
 
-  it("names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them", () => {
+  it("names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix", () => {
     const prompt = promptOnOneLine("code-review");
 
     expect({
       ciJudges: prompt.includes("CI's verdict"),
       tool: prompt.includes("`lore_get_ci_failures`"),
-      noEslint: prompt.includes("not eslint, tsc or a formatter"),
-    }).toEqual({ ciJudges: true, tool: true, noEslint: true });
+      noFix: prompt.includes("Never `--fix`"),
+      nothingElse: prompt.includes(
+        "run no typecheck, formatter, test runner or other install",
+      ),
+    }).toEqual({ ciJudges: true, tool: true, noFix: true, nothingElse: true });
   });
 
   it("reads the diff once in place and never dumps it to a file to re-read", () => {
@@ -1561,15 +1566,15 @@ describe("the code-review-recheck recipe judges the push, not the pull request",
     }).toEqual({ named: true, range: true, whole: true });
   });
 
-  it("carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either", () => {
+  it("carries the same CI-verdict and read-once rules as the deep review, so a re-check lints only to confirm a finding, never with --fix", () => {
     const prompt = promptOnOneLine("code-review-recheck");
 
     expect({
       ci: prompt.includes("CI's verdict"),
       tool: prompt.includes("`lore_get_ci_failures`"),
-      noEslint: prompt.includes("not eslint, tsc or a formatter"),
+      noFix: prompt.includes("Never `--fix`"),
       once: prompt.includes("Read each diff once, in place"),
-    }).toEqual({ ci: true, tool: true, noEslint: true, once: true });
+    }).toEqual({ ci: true, tool: true, noFix: true, once: true });
   });
 
   it("queries context with the PR title and the surface the new commits change", () => {
@@ -1657,16 +1662,33 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(told).toEqual([true, true, true]);
   });
 
-  it("keeps every review agent's pod at 500m CPU and 512Mi requested and 2Gi of memory at most, and raises its disk to 2Gi requested and 4Gi at most", () => {
-    const sizes = REVIEW_AGENTS.map(
-      ([, agent]) => settingsOf(agent).config.pod_resources,
-    );
+  it("sizes every agent that lints for eslint and npm ci: 500m CPU, 2Gi of memory requested and 8Gi at most, 6Gi of disk", () => {
+    const linting = [
+      "code-review",
+      "code-review-recheck",
+      "code-review-refine",
+      "loop-sync",
+      "loop-dod",
+      "loop-tdd-round",
+      "loop-pr-ready",
+      "loop-fix-ci",
+      "spec-draft",
+      "spec-rework",
+      "spec-upkeep-update-specs",
+      "spec-upkeep-fix-ci",
+      "onboard-author",
+      "onboard-fix-ci",
+    ];
     const size = {
-      requests: { cpu: "500m", memory: "512Mi", "ephemeral-storage": "2Gi" },
-      limits: { memory: "2Gi", "ephemeral-storage": "4Gi" },
+      requests: { cpu: "500m", memory: "2Gi", "ephemeral-storage": "6Gi" },
+      limits: { memory: "8Gi", "ephemeral-storage": "6Gi" },
     };
 
-    expect(sizes).toEqual([size, size, size]);
+    expect(
+      Object.fromEntries(
+        linting.map((agent) => [agent, settingsOf(agent).config.pod_resources]),
+      ),
+    ).toEqual(Object.fromEntries(linting.map((agent) => [agent, size])));
   });
 
   it("sends no failed outcome of a review line to the exit, where the run would settle as success", () => {

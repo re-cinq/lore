@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 398" width="970" height="398" role="img" aria-label="Almost all of the cost is reading, not writing">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="398" rx="8"/>
+<text class="ink title" x="16" y="28">Almost all of the cost is reading, not writing</text>
+<text class="muted sub" x="16" y="48">AI cost per step, split into what the model read (input) and what it wrote (output), at list prices.</text>
+<rect class="s1" x="16" y="62" width="12" height="12" rx="2"/><text class="muted" x="34" y="72">Input (read)</text>
+<rect class="s2" x="142" y="62" width="12" height="12" rx="2"/><text class="muted" x="160" y="72">Output (written)</text>
+<line class="grid" x1="300" x2="300" y1="82" y2="352" stroke-width="1"/>
+<text class="ink" x="290" y="101" text-anchor="end">dod</text>
+<path class="s1" d="M300.0,88h433.8v18h-433.8z"><title>dod: $890</title></path>
+<path class="s2" d="M735.8,88h0.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-0.2z"><title>dod: $9</title></path>
+<text class="muted" x="748.0" y="101">$899</text>
+<text class="ink" x="290" y="131" text-anchor="end">fix-ci</text>
+<path class="s1" d="M300.0,118h213.3v18h-213.3z"><title>fix-ci: $440</title></path>
+<path class="s2" d="M515.3,118h0.0a2.7020893131299646,2.7020893131299646 0 0 1 2.7020893131299646,2.7020893131299646v12.59582137374007a2.7020893131299646,2.7020893131299646 0 0 1 -2.7020893131299646,2.7020893131299646h-0.0z"><title>fix-ci: $6</title></path>
+<text class="muted" x="526.0" y="131">$445</text>
+<text class="ink" x="290" y="161" text-anchor="end">tdd-round</text>
+<path class="s1" d="M300.0,148h108.6v18h-108.6z"><title>tdd-round: $226</title></path>
+<path class="s2" d="M410.6,148h43.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-43.8z"><title>tdd-round: $98</title></path>
+<text class="muted" x="466.4" y="161">$324</text>
+<text class="ink" x="290" y="191" text-anchor="end">sync-pr-rebase</text>
+<path class="s1" d="M300.0,178h142.4v18h-142.4z"><title>sync-pr-rebase: $295</title></path>
+<path class="s2" d="M444.4,178h0.0a1.8209732327614976,1.8209732327614976 0 0 1 1.8209732327614976,1.8209732327614976v14.358053534477005a1.8209732327614976,1.8209732327614976 0 0 1 -1.8209732327614976,1.8209732327614976h-0.0z"><title>sync-pr-rebase: $4</title></path>
+<text class="muted" x="454.2" y="191">$299</text>
+<text class="ink" x="290" y="221" text-anchor="end">recheck</text>
+<path class="s1" d="M300.0,208h81.9v18h-81.9z"><title>recheck: $171</title></path>
+<path class="s2" d="M383.9,208h0.0a2.0069866275059516,2.0069866275059516 0 0 1 2.0069866275059516,2.0069866275059516v13.986026744988097a2.0069866275059516,2.0069866275059516 0 0 1 -2.0069866275059516,2.0069866275059516h-0.0z"><title>recheck: $4</title></path>
+<text class="muted" x="393.9" y="221">$175</text>
+<text class="ink" x="290" y="251" text-anchor="end">review</text>
+<path class="s1" d="M300.0,238h65.3v18h-65.3z"><title>review: $137</title></path>
+<path class="s2" d="M367.3,238h0.0a1,1 0 0 1 1,1v16a1,1 0 0 1 -1,1h-0.0z"><title>review: $2</title></path>
+<text class="muted" x="376.2" y="251">$139</text>
+<text class="ink" x="290" y="281" text-anchor="end">ready-for-review</text>
+<path class="s1" d="M300.0,268h39.5v18h-39.5z"><title>ready-for-review: $85</title></path>
+<path class="s2" d="M341.5,268h0.0a1,1 0 0 1 1,1v16a1,1 0 0 1 -1,1h-0.0z"><title>ready-for-review: $1</title></path>
+<text class="muted" x="350.0" y="281">$86</text>
+<text class="ink" x="290" y="311" text-anchor="end">sync-start-rebase</text>
+<path class="s1" d="M300.0,298h20.6v18h-20.6z"><title>sync-start-rebase: $46</title></path>
+<path class="s2" d="M322.6,298h0.0a1,1 0 0 1 1,1v16a1,1 0 0 1 -1,1h-0.0z"><title>sync-start-rebase: $1</title></path>
+<text class="muted" x="330.9" y="311">$47</text>
+<text class="ink" x="290" y="341" text-anchor="end">repair-build</text>
+<path class="s1" d="M300.0,328h0.0a1,1 0 0 1 1,1v16a1,1 0 0 1 -1,1h-0.0z"><title>repair-build: $1</title></path>
+<text class="muted" x="308.7" y="341">$1</text>
+<text class="muted sub" x="16" y="384">Gemini&#x27;s cache would bill most of the input at a tenth of the price; the floor does not count it yet.</text>
+</svg>

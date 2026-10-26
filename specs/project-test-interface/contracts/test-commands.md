@@ -25,6 +25,7 @@ run:  "npm run -s test:run-json -- {selector}"
 coverage_format: "lcov"          # optional; lcov | cobertura | json
 cwd: "."                         # optional; subdir for monorepo packages
 path_prefix_strip: ""            # optional; make coverage paths repo-relative
+related: "npm run -s test:related-json -- {base}"  # optional; affected test files
 ```
 
 `run` is the only required field. A suite that runs whole and cannot honestly
@@ -112,6 +113,15 @@ Effect: upserts one `Coverage` node (`xid = repo|test_file|test_name`) +
 overlapping `CodeChunk` — the **execution-verified** evidence tier — on
 demand, without a full-report upload. `passed: false` on a validating
 test raises the **`violated`** signal (after the flaky guard).
+
+## `tests.related` — name the test files a change affects (optional)
+
+`{base}` is the commit Lore last ingested. The command prints a JSON array of
+the test files (paths as `list` reports them) the change from `{base}` to
+`HEAD` affects, or `null` when it reaches every test. `lore-code-trace --post`
+then runs only those files; with no `related`, a non-zero exit, unparseable
+output, no recorded commit, one it cannot reach, or `--full`, it runs every
+file. A vitest repo answers with `vitest list --changed {base} --filesOnly --json`.
 
 ## Behaviour & guarantees
 
