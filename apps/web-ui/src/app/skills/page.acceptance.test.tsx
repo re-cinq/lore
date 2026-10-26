@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-// @ts-expect-error - SkillsPage is a placeholder
 import SkillsPage from "./page";
 
 describe("Skills Management UI", () => {
