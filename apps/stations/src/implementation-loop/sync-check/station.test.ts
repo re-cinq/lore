@@ -34,9 +34,10 @@ function checkWith(
       repo === "re-cinq/app" && branch === BRANCH
         ? Promise.resolve(behindBy)
         : Promise.reject(new Error(`Not Found: ${repo}@${branch}`)),
-    pullMergeability: () => Promise.resolve(pull),
-    rebaseOnGitHub: (_repo, branch) => {
-      rebased.push(branch);
+    openPull: () =>
+      Promise.resolve(pull && { number: 12, headSha: "abc", ...pull }),
+    rebaseOnGitHub: (_repo, number, headSha) => {
+      rebased.push(`#${number}@${headSha}`);
 
       return Promise.resolve(rebase);
     },
@@ -66,7 +67,7 @@ describe("loop-sync-check", () => {
   it("reports failed with the error when the lookup throws", async () => {
     const handle = syncCheckHandle({
       behindBy: () => Promise.reject(new Error("Bad credentials")),
-      pullMergeability: () => Promise.resolve(null),
+      openPull: () => Promise.resolve(null),
       rebaseOnGitHub: () => Promise.resolve({ updated: true }),
     });
 
@@ -99,7 +100,7 @@ describe("loop-sync-check on a branch with an open pull request", () => {
 });
 
 describe("loop-sync-check rebasing a pull request GitHub calls behind without a pod", () => {
-  it("has GitHub rebase a clean pull request a rule wants up to date, and reports success with no sync round (502 sync-pr-rebase pods over the weekend of 2026-10-23, 129 of them failed, most with nothing to resolve)", async () => {
+  it("has GitHub rebase clean pull request 12 at the head abc it read, and reports rebased with no sync round (502 sync-pr-rebase pods over the weekend of 2026-10-23, 129 of them failed, most with nothing to resolve)", async () => {
     const check = checkWith(
       4,
       { mergeable: true, state: "behind" },
@@ -110,8 +111,8 @@ describe("loop-sync-check rebasing a pull request GitHub calls behind without a 
       verdict: await check(brief(), TOOLS),
       rebased: check.rebased,
     }).toEqual({
-      verdict: { outcome: "success" },
-      rebased: [BRANCH],
+      verdict: { outcome: "rebased" },
+      rebased: ["#12@abc"],
     });
   });
 
@@ -131,7 +132,7 @@ describe("loop-sync-check rebasing a pull request GitHub calls behind without a 
         error:
           "GitHub could not rebase it: merge conflict between base and head",
       },
-      rebased: [BRANCH],
+      rebased: ["#12@abc"],
     });
   });
 

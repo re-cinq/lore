@@ -13,40 +13,46 @@ import type {
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
+/** The branch's open pull request as the station reads it once: what GitHub says of it, and the head a rebase must expect. */
+export interface OpenPull extends Mergeability {
+  number: number;
+  headSha?: string;
+}
+
 export interface SyncCheckDeps {
   /** How many commits of the default branch the branch lacks; undefined when GitHub cannot compare them. */
   behindBy(repo: string, branch: string): Promise<number | undefined>;
-  /** GitHub's mergeability for the open pull request on the branch, or null when it has none. */
-  pullMergeability(repo: string, branch: string): Promise<Mergeability | null>;
-  /** Has GitHub rebase the branch's open pull request onto its base, expecting the head it read. */
-  rebaseOnGitHub(repo: string, branch: string): Promise<BranchUpdate>;
-}
-
-/** The open pull request on the branch, read through the repository's facade, or undefined. */
-async function openPullOn(repo: string, branch: string) {
-  const { pulls } = await projectFor(repo);
-  const open = (await pulls.list()).find(
-    (pull) => pull.branch === branch && pull.state === "open",
-  );
-
-  return { pulls, open };
+  /** The open pull request on the branch with GitHub's mergeability, or null when it has none. */
+  openPull(repo: string, branch: string): Promise<OpenPull | null>;
+  /** Has GitHub rebase the pull request onto its base, expecting the head the station read. */
+  rebaseOnGitHub(
+    repo: string,
+    number: number,
+    headSha: string | undefined,
+  ): Promise<BranchUpdate>;
 }
 
 const productionDeps: SyncCheckDeps = {
   behindBy: async (repo, branch) =>
     (await projectFor(repo)).repo.branchBehindBy(branch),
-  pullMergeability: async (repo, branch) => {
-    const { pulls, open } = await openPullOn(repo, branch);
+  openPull: async (repo, branch) => {
+    const { pulls } = await projectFor(repo);
+    const open = (await pulls.list()).find(
+      (pull) => pull.branch === branch && pull.state === "open",
+    );
 
-    return open ? pulls.getMergeability(open.number) : null;
+    return open
+      ? {
+          number: open.number,
+          headSha: open.headSha,
+          ...(await pulls.getMergeability(open.number)),
+        }
+      : null;
   },
-  rebaseOnGitHub: async (repo, branch) => {
-    const { pulls, open } = await openPullOn(repo, branch);
-
-    return open?.headSha
-      ? pulls.updateBranch(open.number, open.headSha)
-      : { updated: false, reason: "no open pull request with a head" };
-  },
+  rebaseOnGitHub: async (repo, number, headSha) =>
+    headSha
+      ? (await projectFor(repo)).pulls.updateBranch(number, headSha)
+      : { updated: false, reason: "no head to expect" },
 };
 
 export function syncCheckHandle(deps: SyncCheckDeps): Handle {
@@ -54,10 +60,12 @@ export function syncCheckHandle(deps: SyncCheckDeps): Handle {
     const { repo, branch } = parseGitRef(needs.target);
 
     try {
-      const pull = await deps.pullMergeability(repo, branch);
+      const pull = await deps.openPull(repo, branch);
 
       return pull
-        ? await pullVerdict(pull, () => deps.rebaseOnGitHub(repo, branch))
+        ? await pullVerdict(pull, () =>
+            deps.rebaseOnGitHub(repo, pull.number, pull.headSha),
+          )
         : branchVerdict(await deps.behindBy(repo, branch), branch);
     } catch (err) {
       return { outcome: "failed", error: errorMessage(err) };
@@ -65,9 +73,9 @@ export function syncCheckHandle(deps: SyncCheckDeps): Handle {
   };
 }
 
-/** A conflict is the sync round's; a clean pull request GitHub calls behind is GitHub's to rebase, and the round's only when GitHub refuses. */
+/** A conflict is the sync round's; a clean pull request GitHub calls behind is GitHub's to rebase, `rebased` so the line waits for the new build, and the round's only when GitHub refuses. */
 async function pullVerdict(
-  { mergeable, state }: Mergeability,
+  { mergeable, state }: OpenPull,
   rebase: () => Promise<BranchUpdate>,
 ): Promise<{ outcome: string; error?: string }> {
   if (mergeable === false) {
@@ -80,7 +88,7 @@ async function pullVerdict(
   const rebased = await rebase();
 
   return rebased.updated
-    ? { outcome: "success" }
+    ? { outcome: "rebased" }
     : {
         outcome: "changes_requested",
         error: `GitHub could not rebase it: ${rebased.reason}`,

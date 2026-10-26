@@ -1849,6 +1849,19 @@ describe("the prices the floor agents state", () => {
   });
 });
 
+describe("the implementation loop after GitHub rebased its branch", () => {
+  it("goes from sync-start to dod, sync-final to mark-ready and sync-pr to await-pr on rebased, so a pull request GitHub rebased waits for its new build instead of reaching fix-ci", () => {
+    const { edges } = pipelineOf("implementation-loop").line;
+
+    expect(
+      ["sync-start", "sync-final", "sync-pr"].map(
+        (from) =>
+          edges.find((edge) => edge.from === from && edge.on === "rebased")?.to,
+      ),
+    ).toEqual(["dod", "mark-ready", "await-pr"]);
+  });
+});
+
 describe("the files the floor agents produce", () => {
   it("lists no agent file under the target/ clone, so no git add in it can commit one", () => {
     const insideClone = [...PIPELINES.values()]
