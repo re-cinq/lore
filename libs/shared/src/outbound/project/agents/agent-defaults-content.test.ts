@@ -8,7 +8,6 @@ const LINTING_RECIPES: readonly string[] = [
   "loop-dod",
   "loop-tdd-round",
   "loop-fix-ci",
-  "loop-pr-ready",
   "loop-sync",
   "spec-draft",
   "spec-rework",
@@ -55,12 +54,7 @@ describe("the delivering recipes", () => {
   });
 
   it("tells the loop's own recipes that CI judges the branch, so none re-runs the suite in a pod", () => {
-    for (const name of [
-      "loop-dod",
-      "loop-tdd-round",
-      "loop-fix-ci",
-      "loop-pr-ready",
-    ]) {
+    for (const name of ["loop-dod", "loop-tdd-round", "loop-fix-ci"]) {
       const prompt = promptOf(name);
 
       expect(prompt, name).toContain("CI is the judge of this branch");
@@ -82,7 +76,7 @@ describe("the delivering recipes", () => {
   });
 
   it("tells every recipe that writes tests to run the spec-link re-anchor script after the formatter, when the repository has one", () => {
-    for (const name of ["loop-dod", "loop-tdd-round", "loop-pr-ready"]) {
+    for (const name of ["loop-dod", "loop-tdd-round"]) {
       const prompt = promptOf(name);
 
       expect(prompt, name).toContain("node scripts/spec-links/reanchor.mjs");
@@ -178,55 +172,13 @@ describe("the delivering recipes", () => {
     expect(round).toContain("`mechanical`");
   });
 
-  it("has pr-ready report issue coverage, and leaves the footer to the Floor", () => {
-    const ready = promptOf("loop-pr-ready");
-
-    expect(ready).toContain('"issue_coverage"');
-    expect(ready).toContain("Refs");
-    expect(ready).not.toContain("Closes #");
-  });
-
-  it("writes the PR description beside the clone, where Lore reads it and git never sees it", () => {
-    const ready = promptOnOneLine("loop-pr-ready");
-
-    expect({
-      namesBodyBesideClone: ready.includes("WRITE `{pr_body_path}`"),
-      saysOutsideGit: ready.includes("beside the clone, outside git"),
-      namesOldInCloneBody: ready.includes(".lore/pr-body.md"),
-      pushesEverything: ready.includes("and all of it is pushed"),
-    }).toEqual({
-      namesBodyBesideClone: true,
-      saysOutsideGit: true,
-      namesOldInCloneBody: false,
-      pushesEverything: false,
-    });
-  });
-
-  it("has pr-ready write under the repository's PR-template headings, Why, What Changed and Testing without one", () => {
-    const ready = promptOf("loop-pr-ready");
-
-    expect(ready).toContain("`.github/PULL_REQUEST_TEMPLATE.md`");
-    expect(ready).toContain("`## Why`, `## What Changed` and `## Testing`");
-  });
-
-  it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
-    const ready = promptOf("loop-pr-ready");
-
-    expect(ready).toContain("rewrite the sentence");
-    expect(ready).toContain("never a comment or blank line");
-  });
-
-  it("has the loop's own recipes demand red before green, inline validated-by links, and the status flip", () => {
+  it("has the loop's own recipes demand red before green", () => {
     expect({
       redFirst: promptOf("loop-dod").includes("FAIL right now"),
       oneRedTest: promptOf("loop-tdd-round").includes(
         "one failing test for the smallest facet",
       ),
-      links: promptOf("loop-pr-ready").includes(
-        "([validated by name](path#Lnn))",
-      ),
-      status: promptOf("loop-pr-ready").includes("`| Status |` header row"),
-    }).toEqual({ redFirst: true, oneRedTest: true, links: true, status: true });
+    }).toEqual({ redFirst: true, oneRedTest: true });
   });
 
   it("has tdd-round ask which tests already cover a symbol before editing it", () => {
@@ -296,7 +248,7 @@ describe("the fix-ci recipe when the branch moved", () => {
 
 describe("test_policy", () => {
   it("declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
-    const readOnly = ["code-review", "loop-pr-ready"];
+    const readOnly = ["code-review"];
 
     expect(
       readOnly.map((name) => SHIPPED.get(name)?.config?.test_policy),
@@ -972,12 +924,7 @@ describe("the loop's branch sync", () => {
   });
 
   it("tells every agent that delivers a branch to rebase it onto main with a lease and never to merge main in", () => {
-    for (const name of [
-      "loop-dod",
-      "loop-tdd-round",
-      "loop-fix-ci",
-      "loop-pr-ready",
-    ]) {
+    for (const name of ["loop-dod", "loop-tdd-round", "loop-fix-ci"]) {
       const prompt = promptOf(name).replace(/\s+/g, " ");
 
       expect(prompt, name).toContain("git rebase origin/main");
