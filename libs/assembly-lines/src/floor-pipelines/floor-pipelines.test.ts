@@ -48,6 +48,7 @@ interface AgentSettings {
   prompt: string;
   config: {
     env: Record<string, string>;
+    max_turns?: number;
     pod_resources: {
       requests: Record<string, string>;
       limits: Record<string, string>;
@@ -1875,6 +1876,29 @@ describe("the implementation loop's already-done check", () => {
       to("done-check", "changes_requested"),
       to("done-check", "failed"),
     ]).toEqual(["done-check", "done-check", "dod", "done", "dod"]);
+  });
+});
+
+describe("the turn caps the loop and review agents carry", () => {
+  it("caps tdd-round at 300 turns, dod and fix-ci at 200, review at 150, reply at 100, sync and re-check at 60, each above the most any visit of theirs took in the week to 2026-10-26", () => {
+    const caps = {
+      "loop-tdd-round": 300,
+      "loop-dod": 200,
+      "loop-fix-ci": 200,
+      "code-review": 150,
+      "code-review-refine": 100,
+      "loop-sync": 60,
+      "code-review-recheck": 60,
+    };
+
+    expect(
+      Object.fromEntries(
+        Object.keys(caps).map((agent) => [
+          agent,
+          settingsOf(agent).config.max_turns,
+        ]),
+      ),
+    ).toEqual(caps);
   });
 });
 
