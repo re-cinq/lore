@@ -40,6 +40,13 @@ line:
       station: loop-sync
       bind:
         target: repo
+    # A small model first asks whether a merged pull request already did
+    # the ticket, before the most expensive pod does (#3497); off until a
+    # repository switches it on.
+    - id: done-check
+      station: loop-done-check
+      bind:
+        target: repo
     - id: dod
       station: loop-dod
       bind:
@@ -93,10 +100,10 @@ line:
     - id: done
   edges:
     - from: sync-start
-      to: dod
+      to: done-check
       on: success
     - from: sync-start
-      to: dod
+      to: done-check
       on: rebased
     - from: sync-start
       to: sync-start-rebase
@@ -106,7 +113,7 @@ line:
       on: failed
       iteration_max: 1
     - from: sync-start-rebase
-      to: dod
+      to: done-check
       on: success
     # A conflict nobody can settle by reading it: the run ends rather than
     # building on a branch that is not on main.
@@ -114,6 +121,17 @@ line:
       to: sync-start-rebase
       on: failed
       iteration_max: 1
+    - from: done-check
+      to: dod
+      on: success
+    # Already done by a merged pull request: the run ends and Lore closes the
+    # ticket with the pull request and the reason, as for dod's own verdict.
+    - from: done-check
+      to: done
+      on: changes_requested
+    - from: done-check
+      to: dod
+      on: failed
     - from: dod
       to: open-pr
       on: success
@@ -330,6 +348,27 @@ stations:
         kind: value
       - name: dod_blocked
         kind: value
+      - name: dod_resolved
+        kind: value
+  loop-done-check:
+    description: Asks a small model whether a merged pull request that names the ticket already does it. Done ends the run with the ticket closed; anything else goes on to the definition of done.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: ticket
+        kind: file
+        path: ticket.md
+      - name: issue_number
+        kind: value
+        optional: true
+    produces:
       - name: dod_resolved
         kind: value
   loop-open-pr:

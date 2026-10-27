@@ -1,4 +1,4 @@
-import type { IssueComment } from "../pulls/pull-requests-port.js";
+import type { IssueComment, PullRef } from "../pulls/pull-requests-port.js";
 import type { TrackedEntry } from "../../../domain/utopia/github/tracker-text.js";
 import type {
   ReleaseEntry,
@@ -164,6 +164,8 @@ export interface GitHubPort {
     branch: string,
     change: Omit<FileChange, "content">,
   ): Promise<boolean>;
+  /** The merged pull requests behind the newest default-branch commits that touched `path` (octokit only). */
+  mergedPullsTouching?(repo: string, path: string): Promise<PullRef[]>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */
   upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
 }

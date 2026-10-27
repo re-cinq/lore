@@ -1,5 +1,6 @@
 // The stations the external floor dispatches for the implementation-loop line. Each claims its own work from the floor's queue, so starting them is all the wiring there is.
 import type { RunningStation } from "@re-cinq/floor-station";
+import { startDoneCheckStation } from "./done-check/station.js";
 import { startMarkReadyStation } from "./mark-ready/station.js";
 import { startOpenLoopPrStation } from "./open-pr/station.js";
 import { startReadyForReviewStation } from "./ready-for-review/station.js";
@@ -11,5 +12,6 @@ export function startImplementationLoopStations(): RunningStation[] {
     startMarkReadyStation(),
     startSyncCheckStation(),
     startReadyForReviewStation(),
+    startDoneCheckStation(),
   ];
 }
