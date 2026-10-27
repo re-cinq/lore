@@ -204,11 +204,11 @@ The tool retrieves from all available sources:
 - FR-2.17: **Linked repos reach the context.** The default, implementation and
   review templates each carry a `Linked Repos` section on the `cross_repo`
   source, so a request for cross-repo context yields that section in the trace
-  instead of nothing. ([validated by `%s carries a cross_repo trace section when crossRepo is requested`](libs/server-core/src/work/context/context-assembly.test.ts#L377), [validated by `interleaves linked repos by rank, since each repo's scores are normalized on their own`](../../libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L729))
+  instead of nothing. ([validated by `%s carries a cross_repo trace section when crossRepo is requested`](libs/server-core/src/work/context/context-assembly.test.ts#L381), [validated by `interleaves linked repos by rank, since each repo's scores are normalized on their own`](../../libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L729))
 - FR-2.18: **No linked repos, no cross-repo search.** With no repo linked in
   settings the `cross_repo` section is `disabled` and no chunk query runs; the
   org is never searched. Chunks from a linked repo are not transfer-scored, since
-  linking is an explicit opt-in. ([validated by `%s marks cross_repo disabled and never searches chunks without linked repos`](libs/server-core/src/work/context/context-assembly.test.ts#L394))
+  linking is an explicit opt-in. ([validated by `%s marks cross_repo disabled and never searches chunks without linked repos`](libs/server-core/src/work/context/context-assembly.test.ts#L398))
 - FR-2.19: **The vector leg survives a sparse content type.** HNSW applies the
   repo/`content_type` filter after the index returns its `hnsw.ef_search`
   candidates, so a rare type (ADRs, specs) in a large shared schema could leave
