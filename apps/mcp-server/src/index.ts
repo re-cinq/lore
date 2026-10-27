@@ -1,5 +1,6 @@
 import { buildMcpServer } from "./transport/build-mcp-server.js";
 import { startHttpGatewayFromEnv } from "./transport/http-transport.js";
+import { startSkillsSync } from "./transport/skills-sync.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
@@ -31,6 +32,7 @@ async function startStdioAdapter(): Promise<void> {
   console.error(
     "[lore] Local MCP adapter ready (stdio) — proxying to LORE_API_URL",
   );
+  startSkillsSync();
 
   // Dump session log on exit (for the Stop hook to POST as an episode)
   const exitHandler = () => dumpSessionLog();
