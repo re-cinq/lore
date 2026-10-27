@@ -263,7 +263,7 @@ The thinking-tokens counter renders italic-dimmed as `thinking… ~N tokens`, an
 
 A short single-line tool result renders inline; a long or multiline one collapses into an expandable details block carrying the error class when is_error. ([validated by renders a short tool-result inline without a details element](apps/web-ui/src/components/LogEntriesView.test.tsx#L126), [validated by renders the multiline exit-127 tool-result as expandable details with the error class](apps/web-ui/src/components/LogEntriesView.test.tsx#L143))
 
-The terminal result renders a summary footer with duration, cost and turn count — or `✗ failed` carrying the error class — with the result text expandable. ([validated by renders '✓ finished — 3m 21s · $0.51 · 27 turns' for the sample result entry](apps/web-ui/src/components/LogEntriesView.test.tsx#L153), [validated by renders '✗ failed' with the error class for an is_error result](apps/web-ui/src/components/LogEntriesView.test.tsx#L162))
+The terminal result renders a summary footer with duration, cost and turn count — or `✗ failed` carrying the error class — with the result text expandable. ([validated by LogEntriesView.test.tsx:153](apps/web-ui/src/components/LogEntriesView.test.tsx#L153), [validated by renders '✗ failed' with the error class for an is_error result](apps/web-ui/src/components/LogEntriesView.test.tsx#L162))
 
 The user prompt renders as collapsed details prefixed `user:`. ([validated by `LogEntriesView.test.tsx:158`](apps/web-ui/src/components/LogEntriesView.test.tsx#L166))
 
