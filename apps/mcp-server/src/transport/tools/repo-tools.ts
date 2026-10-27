@@ -20,7 +20,6 @@ import {
 const NOT_CONFIGURED =
   "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.";
 
-// Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 const ONBOARD_REPO_INPUT = {
   full_name: z
     .string()
@@ -54,6 +53,7 @@ export function registerRepoTools(server: McpServer, mode: ServerMode) {
   registerListReposTool(server);
   registerOnboardRepoTool(server);
   registerIngestFilesTool(server, mode);
+  registerNextReadyIssueTool(server, mode);
 }
 
 function registerListReposTool(server: McpServer) {
@@ -80,7 +80,6 @@ function registerListReposTool(server: McpServer) {
   );
 }
 
-/** Walks every page. The API caps one response at 100, so an org with more repos than that would silently see only the first page; `total` ends the walk even when a page comes back exactly full. */
 async function walkRepoPages(): Promise<
   { repos: unknown[]; total: number } | { failure: ToolTextResult }
 > {
@@ -88,30 +87,30 @@ async function walkRepoPages(): Promise<
   const repos: unknown[] = [];
 
   for (let offset = 0; ; offset += pageSize) {
-    const fetched = await fetchRepoPage(offset, pageSize, repos.length);
+    const page = await fetchRepoPage(pageSize, offset, repos.length);
 
-    if ("failure" in fetched) {
-      return fetched;
+    if ("failure" in page) {
+      return page;
     }
-    const { page } = fetched;
 
-    repos.push(...page.repos);
+    repos.push(...page.pageRepos);
 
-    if (page.repos.length < pageSize || repos.length >= page.total) {
+    if (page.pageRepos.length < pageSize || repos.length >= page.total) {
       return { repos, total: page.total };
     }
   }
 }
 
+type RepoPageResult =
+  { pageRepos: unknown[]; total: number } | { failure: ToolTextResult };
+
 async function fetchRepoPage(
+  limit: number,
   offset: number,
-  pageSize: number,
-  bankedSoFar: number,
-): Promise<
-  { page: { repos: unknown[]; total: number } } | { failure: ToolTextResult }
-> {
+  curr: number,
+): Promise<RepoPageResult> {
   const proxied = await proxyGetApi(
-    `/api/repos?limit=${pageSize}&offset=${offset}`,
+    `/api/repos?limit=${limit}&offset=${offset}`,
   );
 
   if (!proxied.ok) {
@@ -120,25 +119,14 @@ async function fetchRepoPage(
     };
   }
 
-  return { page: repoPage(proxied.body, bankedSoFar) };
-}
-
-// One /api/repos page: repos plus the running total, computed against how many repos are banked so far.
-function repoPage(
-  body: string,
-  bankedSoFar: number,
-): { repos: unknown[]; total: number } {
-  const parsed = JSON.parse(body) as { repos?: unknown[]; total?: number };
-  const repos = Array.isArray(parsed.repos) ? parsed.repos : [];
+  const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
+  const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
   const total =
-    typeof parsed.total === "number"
-      ? parsed.total
-      : bankedSoFar + repos.length;
+    typeof parsed.total === "number" ? parsed.total : curr + pageRepos.length;
 
-  return { repos, total };
+  return { pageRepos, total };
 }
 
-// Maps a failed ProxyResult to the MCP text result callers surface — the same three reasons every proxying tool handles.
 function proxyFailure(
   toolName: string,
   unconfiguredText: string,
@@ -164,30 +152,20 @@ function registerOnboardRepoTool(server: McpServer) {
   );
 }
 
-async function onboardRepo({
-  full_name,
-  reonboard,
-}: {
-  full_name: string;
-  reonboard?: boolean;
-}): Promise<ToolTextResult> {
-  const proxied = await proxyToApi("/api/onboard", {
-    repo: full_name,
-    reonboard,
-  });
+type OnboardArgs = { full_name: string; reonboard?: boolean };
 
-  return proxied.ok ? textResult(proxied.body) : onboardFailure(proxied);
-}
+async function onboardRepo(args: OnboardArgs): Promise<ToolTextResult> {
+  const repo = args.full_name;
+  const reonboard = args.reonboard;
+  const proxied = await proxyToApi("/api/onboard", { repo, reonboard });
 
-// A 409 is the guard refusing a duplicate, not an outage — return the body verbatim so the caller keeps `blocked`/`task_id` to poll or pass reonboard.
-function onboardFailure(
-  proxied: Extract<ProxyResult, { ok: false }>,
-): ToolTextResult {
-  if (
-    proxied.reason === "unreachable" &&
-    proxied.status === 409 &&
-    proxied.body
-  ) {
+  if (proxied.ok) {
+    return textResult(proxied.body);
+  }
+
+  const isConflict = proxied.reason === "unreachable" && proxied.status === 409;
+
+  if (isConflict && proxied.body) {
     return textResult(proxied.body);
   }
 
@@ -211,7 +189,6 @@ function registerIngestFilesTool(server: McpServer, mode: ServerMode) {
   );
 }
 
-/** Ingests now rather than waiting for the nightly pass, then drops the assemble cache for that repo — a freshly merged ADR that the next bundle does not contain is the whole reason somebody reaches for this tool. */
 async function ingestFiles(
   files: string[],
   mode: ServerMode,
@@ -235,17 +212,11 @@ async function ingestFiles(
 }
 
 function ingestCredentials(): IngestCredentials | null {
-  const apiUrl = process.env.LORE_API_URL;
-  const apiToken = process.env.LORE_INGEST_TOKEN;
+  const { LORE_API_URL: apiUrl, LORE_INGEST_TOKEN: apiToken } = process.env;
 
-  if (!apiUrl || !apiToken) {
-    return null;
-  }
-
-  return { apiUrl, apiToken };
+  return apiUrl && apiToken ? { apiUrl, apiToken } : null;
 }
 
-// The local HEAD commit only stands in for the target repo when the caller's cwd git remote actually IS that repo; otherwise "HEAD" tells GitHub to resolve the default branch.
 async function resolveCommitSha(
   resolvedRepo: string,
   mode: ServerMode,
@@ -282,27 +253,77 @@ async function postIngest(
     body: JSON.stringify({ files, repo: resolvedRepo, commit }),
   });
 
-  return res.ok ? ingestSuccess(res, resolvedRepo) : ingestFailure(res);
+  return parseIngestResponse(res, resolvedRepo);
 }
 
-async function ingestSuccess(
+async function parseIngestResponse(
   res: Response,
   resolvedRepo: string,
 ): Promise<IngestOutcome> {
-  const result = (await res.json()) as { ingested?: number; errors?: number };
+  if (res.ok) {
+    const result = (await res.json()) as { ingested?: number; errors?: number };
 
-  return {
-    ingested: true,
-    message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
-  };
-}
-
-// An error body is not guaranteed to be JSON, so the status text is the fallback explanation.
-async function ingestFailure(res: Response): Promise<IngestOutcome> {
+    return {
+      ingested: true,
+      message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
+    };
+  }
   const err = await res.json().catch(() => ({ error: res.statusText }));
 
   return {
     ingested: false,
     message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
   };
+}
+
+function registerNextReadyIssueTool(server: McpServer, mode: ServerMode) {
+  server.tool(
+    "lore_next_ready_issue",
+    `Returns the issue the implementation loop would pick next for a repo: number, title, url, and a \`because\` field naming the rule that selected it. Returns { issue: null, reason } when nothing is ready — never an error. Use to preview which ticket the loop would start next without dispatching it.`,
+    { repo: repoParam(mode) },
+    (args: { repo?: string }) => withRepo(args, mode, fetchNextReadyIssue),
+  );
+}
+
+interface NextReadyResult {
+  issue: Record<string, unknown> | null;
+  because?: string;
+  reason?: string;
+}
+
+type LoopState = { next?: Array<Record<string, unknown>>; criteria?: string[] };
+async function fetchNextReadyIssue(args: {
+  repo: string;
+}): Promise<ToolTextResult> {
+  const proxied = await proxyGetApi(
+    `/api/repos/${args.repo}/implementation-loop`,
+  );
+
+  if (!proxied.ok) {
+    return textResult(
+      JSON.stringify({ issue: null, reason: "Could not reach Lore API." }),
+    );
+  }
+
+  return textResult(
+    JSON.stringify(nextReadyResult(JSON.parse(proxied.body) as LoopState)),
+  );
+}
+
+function nextReadyResult(loopState: {
+  next?: Array<Record<string, unknown>>;
+  criteria?: string[];
+}): NextReadyResult {
+  const issues = loopState.next || [];
+  const readyIssues = issues.filter((i) => !i.hold);
+
+  if (readyIssues.length === 0) {
+    return { issue: null, reason: "No issues ready in the backlog." };
+  }
+
+  const issue = readyIssues[0];
+  const rule = loopState.criteria?.[0] || "priority";
+  const because = `${rule} (unblocks: ${issue.unblocks_count || 0})`;
+
+  return { issue, because };
 }

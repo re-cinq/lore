@@ -28,6 +28,8 @@ export interface IssueRef {
   body?: string;
   /** How many blocked-by links the issue carries, open or closed (octokit list read only; absent when none). */
   blockedByCount?: number;
+  /** How many open issues this issue blocks (octokit list read only; absent when none). */
+  unblocksCount?: number;
   /** Assignee logins (octokit adapter only; empty when nobody is assigned). */
   assignees?: string[];
   /** ISO close time (octokit adapter only; absent while open). */

@@ -13298,6 +13298,12 @@
             "required": ["merged", "pr_url", "last_task"],
             "additionalProperties": false
           },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "current": {
             "type": "array",
             "items": {
@@ -13382,6 +13388,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13486,6 +13497,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13587,6 +13603,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13688,6 +13709,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13789,6 +13815,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
