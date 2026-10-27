@@ -53,27 +53,27 @@ describe("Lore Derived Code Graph", () => {
     await pool.end();
   });
 
-  it("emits a depends-on edge from the consumer to the library ([validated by](specs/lore-derived-code-graph/spec.md#L9))", async () => {
+  it("emits a depends-on edge from the consumer to the library", async () => {
     const edges = await queryLiveGraph(pool, { entity: "my-library" });
     const dependsOn = edges.find((e) => e.relation === "depends-on");
 
-    expect(dependsOn).toBeDefined();
-    expect(dependsOn?.entity).toBe("my-org/my-consumer");
-    expect(dependsOn?.related_entity).toBe("my-library");
+    expect(dependsOn).toMatchObject({
+      entity: "my-org/my-consumer",
+      related_entity: "my-library",
+      properties: { specifier: "github:my-org/my-library", pinned: false },
+    });
   });
 
-  it("returns the importing file for a used symbol ([validated by](specs/lore-derived-code-graph/spec.md#L10))", async () => {
+  it("returns the importing file for a used symbol", async () => {
     const edges = await queryLiveGraph(pool, {
       entity: "usedExport",
       relationType: "uses",
     });
 
-    expect(edges.some((e) => e.entity === "my-org/my-consumer/app.ts")).toBe(
-      true,
-    );
+    expect(edges.map((e) => e.entity)).toEqual(["my-org/my-consumer/app.ts"]);
   });
 
-  it("returns a none sentinel for an export with no importers ([validated by](specs/lore-derived-code-graph/spec.md#L10))", async () => {
+  it("returns a none sentinel for an export with no importers", async () => {
     const edges = await queryLiveGraph(pool, {
       entity: "unusedExport",
       relationType: "uses",
@@ -84,16 +84,33 @@ describe("Lore Derived Code Graph", () => {
     expect(edges[0].entity).toBe("none");
   });
 
-  it("lists each public export of the entry module in an exports edge set ([validated by](specs/lore-derived-code-graph/spec.md#L11))", async () => {
+  it("lists each public export of the entry module in an exports edge set", async () => {
     const edges = await queryLiveGraph(pool, {
       entity: "my-library",
       relationType: "exports",
     });
 
-    expect(edges.some((e) => e.related_entity === "BaseClass")).toBe(true);
+    expect(
+      edges.map((e) => ({ symbol: e.related_entity, ...e.properties })),
+    ).toEqual(
+      expect.arrayContaining([
+        { symbol: "BaseClass", kind: "class", path: "index.ts" },
+        { symbol: "usedExport", kind: "const", path: "index.ts" },
+        { symbol: "unusedExport", kind: "const", path: "index.ts" },
+      ]),
+    );
   });
 
-  it("per-repo import set contains used symbols and omits unused ones ([validated by](specs/lore-derived-code-graph/spec.md#L12))", async () => {
+  it("lists no exports from a module that is not the entry module", async () => {
+    const edges = await queryLiveGraph(pool, {
+      entity: "my-consumer",
+      relationType: "exports",
+    });
+
+    expect(edges).toEqual([]);
+  });
+
+  it("per-repo import set contains used symbols and omits unused ones", async () => {
     const edges = await queryLiveGraph(pool, {
       repo: "my-org/my-consumer",
       relationType: "uses",
@@ -103,15 +120,17 @@ describe("Lore Derived Code Graph", () => {
     expect(edges.some((e) => e.related_entity === "unusedExport")).toBe(false);
   });
 
-  it("emits an extends edge from the subclass to its base type ([validated by](specs/lore-derived-code-graph/spec.md#L13))", async () => {
+  it("emits an extends edge from the subclass to its base type", async () => {
     const edges = await queryLiveGraph(pool, { entity: "SubClass" });
     const extendsEdge = edges.find((e) => e.relation === "extends");
 
-    expect(extendsEdge).toBeDefined();
-    expect(extendsEdge?.related_entity).toBe("BaseClass");
+    expect(extendsEdge).toMatchObject({
+      related_entity: "BaseClass",
+      properties: { added_members: ["addedMethod"], path: "app.ts" },
+    });
   });
 
-  it("re-ingesting an unchanged repo produces an identical edge set ([validated by](specs/lore-derived-code-graph/spec.md#L14))", async () => {
+  it("re-ingesting an unchanged repo produces an identical edge set", async () => {
     const before = await queryLiveGraph(pool, {
       repo: "my-org/my-consumer",
     });

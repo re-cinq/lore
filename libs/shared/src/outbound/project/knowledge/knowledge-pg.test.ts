@@ -45,6 +45,7 @@ describe("PgKnowledge", () => {
             related_entity: "pgvector",
             related_type: "tech",
             direction: "outgoing",
+            properties: {},
             valid_from: "t",
           },
         ],
@@ -62,6 +63,7 @@ describe("PgKnowledge", () => {
         related_entity: "pgvector",
         related_type: "tech",
         direction: "outgoing",
+        properties: {},
         valid_from: "t",
       },
     ]);

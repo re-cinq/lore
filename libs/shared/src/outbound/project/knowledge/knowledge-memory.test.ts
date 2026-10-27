@@ -13,6 +13,7 @@ const graphRow = (
   related_entity: related,
   related_type: "service",
   direction: "outgoing",
+  properties: {},
   valid_from: "2026-08-01T00:00:00Z",
   ...overrides,
 });

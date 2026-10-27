@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { settleNoImporterSentinels, writeEdges } from "./code-graph-writes.js";
 
 export interface DerivedEdge {
   sourceName: string;
@@ -8,7 +9,7 @@ export interface DerivedEdge {
   targetType: string;
   targetRepo: string | null;
   relation: string;
-  pinned?: boolean;
+  properties: Record<string, unknown>;
 }
 
 interface ParsedFile {
@@ -17,29 +18,57 @@ interface ParsedFile {
 }
 
 interface PackageManifest {
+  name?: string;
+  main?: string;
+  module?: string;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 }
+
+const DEFAULT_ENTRY_MODULES = ["index.ts", "src/index.ts", "index.js"];
+const EXPORT_RE =
+  /^export\s+(?:declare\s+)?(?:abstract\s+)?(class|const|function\*?|interface|type|enum|let|var)\s+(\w+)/gm;
+const IMPORT_RE =
+  /^import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/gm;
+const EXTENDS_RE = /class\s+(\w+)\s+extends\s+(\w+)[^{]*\{/g;
+const MEMBER_RE =
+  /^(?:(?:public|private|protected|static|readonly|async|override|get|set)\s+)*#?(\w+)\s*[(:=;<?!]/;
 
 /** Parse a package.json to derive depends-on edges for each dependency. */
 export function parsePackageJsonEdges(
   content: string,
   repo: string,
 ): DerivedEdge[] {
-  try {
-    const pkg = JSON.parse(content) as PackageManifest;
-    const deps = allPackageDeps(pkg);
+  const pkg = parseManifest(content);
+  const deps = { ...pkg.dependencies, ...pkg.peerDependencies };
 
-    return Object.entries(deps)
-      .filter(([, specifier]) => typeof specifier === "string")
-      .map(([name, specifier]) => toDependsOnEdge(repo, name, specifier));
-  } catch {
-    return [];
-  }
+  return Object.entries(deps)
+    .filter(([, specifier]) => typeof specifier === "string")
+    .map(([name, specifier]) => toDependsOnEdge(repo, name, specifier));
 }
 
-function allPackageDeps(pkg: PackageManifest): Record<string, string> {
-  return { ...(pkg.dependencies ?? {}), ...(pkg.peerDependencies ?? {}) };
+/** Derive and write graph edges from a batch of ingested files. Called once per ingestFiles run. */
+export async function deriveCodeGraphEdges(
+  pool: Pool,
+  files: ParsedFile[],
+  repo: string,
+): Promise<void> {
+  const edges = collectFileEdges(files, repo);
+
+  if (edges.length === 0) {
+    return;
+  }
+
+  await writeEdges(pool, edges);
+  await settleNoImporterSentinels(pool, edges);
+}
+
+function parseManifest(content: string): PackageManifest {
+  try {
+    return JSON.parse(content) as PackageManifest;
+  } catch {
+    return {};
+  }
 }
 
 function toDependsOnEdge(
@@ -55,301 +84,154 @@ function toDependsOnEdge(
     targetType: "package",
     targetRepo: null,
     relation: "depends-on",
-    pinned: specifier.startsWith("github:")
-      ? specifier.includes("#")
-      : undefined,
+    properties: { specifier, pinned: isPinned(specifier) },
   };
 }
 
-/** Derive and write graph edges from a batch of ingested files. Called once per ingestFiles run. */
-export async function deriveCodeGraphEdges(
-  pool: Pool,
+/** A `github:` specifier is pinned only by a `#ref`; any other specifier resolves through a registry version. */
+function isPinned(specifier: string): boolean {
+  return !specifier.startsWith("github:") || specifier.includes("#");
+}
+
+function collectFileEdges(files: ParsedFile[], repo: string): DerivedEdge[] {
+  const manifestFile = files.find((f) => isManifest(f.path));
+  const manifest = parseManifest(manifestFile?.content ?? "{}");
+  const entryModule = resolveEntryModule(manifest, files);
+  const exportSource = manifest.name ?? repo;
+
+  return files.flatMap((file) => [
+    ...(isManifest(file.path) ? parsePackageJsonEdges(file.content, repo) : []),
+    ...(file.path === entryModule ? parseExportEdges(file, exportSource) : []),
+    ...(isScript(file.path) ? parseScriptEdges(file, repo) : []),
+  ]);
+}
+
+function isManifest(path: string): boolean {
+  return path === "package.json" || path.endsWith("/package.json");
+}
+
+/** The module a consumer gets from a bare import: the manifest's `module`/`main`, else the conventional index. */
+function resolveEntryModule(
+  manifest: PackageManifest,
   files: ParsedFile[],
-  repo: string,
-): Promise<void> {
-  if (files.length === 0) {
-    return;
+): string | undefined {
+  const declared = manifest.module ?? manifest.main;
+
+  if (declared) {
+    return declared.replace(/^\.\//, "");
   }
 
-  const packageName = resolvePackageName(files);
-  const allEdges = collectFileEdges(files, packageName, repo);
+  const paths = new Set(files.map((f) => f.path));
 
-  allEdges.push(...noneSentinels(allEdges));
-  await writeEdges(pool, allEdges);
-}
-
-/** Resolve the package name declared in any package.json in the file list. */
-function resolvePackageName(files: ParsedFile[]): string | null {
-  const pkgFile = files.find(
-    (f) => f.path === "package.json" || f.path.endsWith("/package.json"),
-  );
-
-  if (!pkgFile) {
-    return null;
-  }
-
-  try {
-    const pkg = JSON.parse(pkgFile.content) as { name?: string };
-
-    return pkg.name ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function collectFileEdges(
-  files: ParsedFile[],
-  packageName: string | null,
-  repo: string,
-): DerivedEdge[] {
-  const edges: DerivedEdge[] = [];
-
-  for (const file of files) {
-    if (file.path === "package.json" || file.path.endsWith("/package.json")) {
-      edges.push(...parsePackageJsonEdges(file.content, repo));
-    }
-
-    if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file.path)) {
-      edges.push(...parseTsEdges(file.path, file.content, repo, packageName));
-    }
-  }
-
-  return edges;
-}
-
-/** Parse a TypeScript/JavaScript file to derive exports, uses, and extends edges. */
-function parseTsEdges(
-  filePath: string,
-  content: string,
-  repo: string,
-  packageName: string | null,
-): DerivedEdge[] {
-  const fileEntity = `${repo}/${filePath}`;
-  const exportSource = packageName ?? repo;
-
-  return [
-    ...parseExportEdges(content, exportSource),
-    ...parseImportEdges(fileEntity, content, repo),
-    ...parseExtendsEdges(content),
-  ];
+  return DEFAULT_ENTRY_MODULES.find((p) => paths.has(p));
 }
 
 function parseExportEdges(
-  content: string,
+  file: ParsedFile,
   exportSource: string,
 ): DerivedEdge[] {
-  const edges: DerivedEdge[] = [];
-  const exportRe =
-    /^export\s+(?:abstract\s+)?(?:class|const|function\*?|interface|type|enum|let|var)\s+(\w+)/gm;
-
-  for (const m of content.matchAll(exportRe)) {
-    edges.push({
-      sourceName: exportSource,
-      sourceType: "package",
-      sourceRepo: null,
-      targetName: m[1],
-      targetType: "symbol",
-      targetRepo: null,
-      relation: "exports",
-    });
-  }
-
-  return edges;
-}
-
-function parseImportEdges(
-  fileEntity: string,
-  content: string,
-  repo: string,
-): DerivedEdge[] {
-  const edges: DerivedEdge[] = [];
-  const importRe = /^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/gm;
-
-  for (const m of content.matchAll(importRe)) {
-    edges.push(...parseImportSymbols(m[1], fileEntity, repo));
-  }
-
-  return edges;
-}
-
-function parseExtendsEdges(content: string): DerivedEdge[] {
-  const edges: DerivedEdge[] = [];
-  const extendsRe = /class\s+(\w+)\s+extends\s+(\w+)/gm;
-
-  for (const m of content.matchAll(extendsRe)) {
-    edges.push({
-      sourceName: m[1],
-      sourceType: "symbol",
-      sourceRepo: null,
-      targetName: m[2],
-      targetType: "symbol",
-      targetRepo: null,
-      relation: "extends",
-    });
-  }
-
-  return edges;
-}
-
-function parseImportSymbols(
-  importList: string,
-  fileEntity: string,
-  repo: string,
-): DerivedEdge[] {
-  return importList
-    .split(",")
-    .map((raw) => {
-      const trimmed = raw.trim();
-      const parts = trimmed.split(/\s+as\s+/);
-
-      return parts[0].trim();
-    })
-    .filter(Boolean)
-    .map((symbol) => importSymbolEdge(fileEntity, repo, symbol));
-}
-
-function importSymbolEdge(
-  fileEntity: string,
-  repo: string,
-  symbol: string,
-): DerivedEdge {
-  return {
-    sourceName: fileEntity,
-    sourceType: "file",
-    sourceRepo: repo,
-    targetName: symbol,
-    targetType: "symbol",
-    targetRepo: null,
-    relation: "uses",
-  };
-}
-
-function noneSentinels(edges: DerivedEdge[]): DerivedEdge[] {
-  const exported = new Set(
-    edges.filter((e) => e.relation === "exports").map((e) => e.targetName),
-  );
-  const used = new Set(
-    edges.filter((e) => e.relation === "uses").map((e) => e.targetName),
-  );
-
-  return [...exported].filter((sym) => !used.has(sym)).map(noneEdge);
-}
-
-function noneEdge(sym: string): DerivedEdge {
-  return {
-    sourceName: "none",
-    sourceType: "none",
+  return [...file.content.matchAll(EXPORT_RE)].map((m) => ({
+    sourceName: exportSource,
+    sourceType: "package",
     sourceRepo: null,
-    targetName: sym,
+    targetName: m[2],
     targetType: "symbol",
     targetRepo: null,
-    relation: "uses",
-  };
+    relation: "exports",
+    properties: { kind: m[1].replace("*", ""), path: file.path },
+  }));
 }
 
-async function writeEdges(pool: Pool, edges: DerivedEdge[]): Promise<void> {
-  if (edges.length === 0) {
-    return;
-  }
-
-  const entityMap = collectEntities(edges);
-  const idMap = await resolveEntityIds(pool, entityMap);
-
-  await persistEdges(pool, edges, idMap);
+function isScript(path: string): boolean {
+  return /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(path);
 }
 
-type EntityEntry = { name: string; type: string; repo: string | null };
-
-function collectEntities(edges: DerivedEdge[]): Map<string, EntityEntry> {
-  const entityMap = new Map<string, EntityEntry>();
-
-  for (const e of edges) {
-    entityMap.set(entityKey(e.sourceName, e.sourceType, e.sourceRepo), {
-      name: e.sourceName,
-      type: e.sourceType,
-      repo: e.sourceRepo,
-    });
-    entityMap.set(entityKey(e.targetName, e.targetType, e.targetRepo), {
-      name: e.targetName,
-      type: e.targetType,
-      repo: e.targetRepo,
-    });
-  }
-
-  return entityMap;
+function parseScriptEdges(file: ParsedFile, repo: string): DerivedEdge[] {
+  return [...parseImportEdges(file, repo), ...parseExtendsEdges(file)];
 }
 
-async function resolveEntityIds(
-  pool: Pool,
-  entityMap: Map<string, EntityEntry>,
-): Promise<Map<string, string>> {
-  const idMap = new Map<string, string>();
+function parseImportEdges(file: ParsedFile, repo: string): DerivedEdge[] {
+  const fileEntity = `${repo}/${file.path}`;
 
-  for (const [key, ent] of entityMap) {
-    idMap.set(key, await upsertEntity(pool, ent.name, ent.type, ent.repo));
-  }
-
-  return idMap;
+  return [...file.content.matchAll(IMPORT_RE)].flatMap((m) =>
+    importedSymbols(m[1]).map((symbol) => ({
+      sourceName: fileEntity,
+      sourceType: "file",
+      sourceRepo: repo,
+      targetName: symbol,
+      targetType: "symbol",
+      targetRepo: null,
+      relation: "uses",
+      properties: { repo, path: file.path, from: m[2] },
+    })),
+  );
 }
 
-async function persistEdges(
-  pool: Pool,
-  edges: DerivedEdge[],
-  idMap: Map<string, string>,
-): Promise<void> {
-  for (const e of edges) {
-    const sk = entityKey(e.sourceName, e.sourceType, e.sourceRepo);
-    const tk = entityKey(e.targetName, e.targetType, e.targetRepo);
-    const sourceId = idMap.get(sk);
-    const targetId = idMap.get(tk);
+function importedSymbols(importList: string): string[] {
+  return importList.split(",").map(importedName).filter(Boolean);
+}
 
-    if (sourceId && targetId) {
-      await upsertEdge(pool, sourceId, targetId, e.relation);
+/** `type Foo as Bar` imports `Foo`. */
+function importedName(specifier: string): string {
+  const unaliased = specifier.split(/\s+as\s+/)[0];
+
+  return unaliased.trim().replace(/^type\s+/, "");
+}
+
+function parseExtendsEdges(file: ParsedFile): DerivedEdge[] {
+  return [...file.content.matchAll(EXTENDS_RE)].map((m) => ({
+    sourceName: m[1],
+    sourceType: "symbol",
+    sourceRepo: null,
+    targetName: m[2],
+    targetType: "symbol",
+    targetRepo: null,
+    relation: "extends",
+    properties: {
+      added_members: classMembers(
+        classBody(file.content, m.index + m[0].length),
+      ),
+      path: file.path,
+    },
+  }));
+}
+
+/** The class body's own lines, with every nested block cut out, read from just past its opening brace. */
+function classBody(content: string, bodyStart: number): string {
+  let depth = 1;
+  let body = "";
+
+  for (const char of content.slice(bodyStart)) {
+    depth += braceDelta(char);
+
+    if (depth === 0) {
+      break;
     }
-  }
-}
 
-function entityKey(name: string, type: string, repo: string | null): string {
-  return `${name}\0${type}\0${repo ?? ""}`;
-}
-
-async function upsertEntity(
-  pool: Pool,
-  name: string,
-  type: string,
-  repo: string | null,
-): Promise<string> {
-  const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO memory.entities (name, entity_type, repo)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (name, entity_type, COALESCE(repo, ''))
-     DO UPDATE SET updated_at = now()
-     RETURNING id`,
-    [name, type, repo],
-  );
-
-  return rows[0].id;
-}
-
-async function upsertEdge(
-  pool: Pool,
-  sourceId: string,
-  targetId: string,
-  relation: string,
-): Promise<void> {
-  const { rows: existing } = await pool.query<{ id: string }>(
-    `SELECT id FROM memory.edges
-     WHERE source_id = $1 AND target_id = $2 AND relation_type = $3 AND valid_to IS NULL`,
-    [sourceId, targetId, relation],
-  );
-
-  if (existing.length > 0) {
-    return;
+    body += bodyChar(char, depth);
   }
 
-  await pool.query(
-    `INSERT INTO memory.edges (source_id, target_id, relation_type)
-     VALUES ($1, $2, $3)`,
-    [sourceId, targetId, relation],
-  );
+  return body;
+}
+
+function braceDelta(char: string): number {
+  return Number(char === "{") - Number(char === "}");
+}
+
+/** A nested block opening ends the member's line; everything inside the block is dropped. */
+function bodyChar(char: string, depth: number): string {
+  if (depth === 1 && char !== "}") {
+    return char;
+  }
+
+  return depth === 2 && char === "{" ? "\n" : "";
+}
+
+function classMembers(body: string): string[] {
+  const names = body
+    .split("\n")
+    .map((line) => MEMBER_RE.exec(line.trim())?.[1])
+    .filter((name): name is string => !!name && name !== "constructor");
+
+  return [...new Set(names)];
 }

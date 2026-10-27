@@ -194,7 +194,7 @@ The tool retrieves from all available sources:
   another repo's entities.
 - FR-2.14: **Repo-bound assembly.** Every source read threads the queried repo —
   the `KnowledgeView` facade and the Pg engine both bind the repo — so a task
-  assembles only its own repo's context. ([validated by `assembles context scoped to the repo`](libs/shared/src/outbound/project/knowledge/knowledge.test.ts#L27), [`knowledge-pg.test.ts:104`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L111))
+  assembles only its own repo's context. ([validated by `assembles context scoped to the repo`](libs/shared/src/outbound/project/knowledge/knowledge.test.ts#L28), [`knowledge-pg.test.ts:104`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L113))
 - FR-2.15: **Team-schema resolution.** Repo-scoped chunk reads (`repo`, `code`,
   `adrs`, `rules`) resolve the repo's chunk schema — its provisioned team schema,
   else `org_shared` — before querying, matching where reindex actually wrote the
