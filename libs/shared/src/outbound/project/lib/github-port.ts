@@ -158,6 +158,12 @@ export interface GitHubPort {
   branchBehindBy?(repo: string, branch: string): Promise<number | undefined>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
+  /** Deletes one file from the branch in its own commit; false when the branch has no such file (octokit only). */
+  deleteFile?(
+    repo: string,
+    branch: string,
+    change: Omit<FileChange, "content">,
+  ): Promise<boolean>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */
   upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
 }

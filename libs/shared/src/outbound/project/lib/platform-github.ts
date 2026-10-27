@@ -269,6 +269,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return repoContent.commitFile(await this.octo(), repo, branch, change);
   }
 
+  async deleteFile(
+    repo: string,
+    branch: string,
+    change: Omit<FileChange, "content">,
+  ): Promise<boolean> {
+    return repoContent.deleteFile(await this.octo(), repo, branch, change);
+  }
+
   async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {
     return repoConfig.upsertCheckRun(await this.octo(), repo, input);
   }

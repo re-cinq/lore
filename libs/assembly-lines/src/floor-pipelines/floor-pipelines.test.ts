@@ -367,7 +367,7 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(briefs).toEqual([ROUND_BRIEF, ROUND_BRIEF, ROUND_BRIEF]);
   });
 
-  it("has ready-for-review produce the description as pr-body.md with a title and coverage, each an optional need of mark-ready", () => {
+  it("has ready-for-review produce the description as a file with a title and coverage, each an optional need of mark-ready", () => {
     const { stations } = pipelineOf("implementation-loop");
     const produced = stations["loop-ready-for-review"].produces.map(
       (made) => made.name,
@@ -376,12 +376,7 @@ describe("the floor pipelines shipped in this folder", () => {
       .filter((need) => need.optional)
       .map((need) => need.name);
 
-    expect(produced).toEqual([
-      "pr_body",
-      "pr_title",
-      "issue_coverage",
-      "pr_blocked",
-    ]);
+    expect(produced).toEqual(["pr_body", "pr_title", "issue_coverage"]);
     expect(optional).toEqual([
       "issue_number",
       "pr_body",
@@ -410,19 +405,16 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(
       prompts.every((prompt) => prompt.includes("cd /workspace/target")),
     ).toBe(true);
-    expect(reported.filter((name) => !declared.includes(name))).toEqual([
-      "pr_ready",
-    ]);
+    expect(reported.filter((name) => !declared.includes(name))).toEqual([]);
   });
 
-  it("tells the round and the repair to read /workspace/round-brief.md for CI's verdict, and the ready agent to write the description at its produced path", () => {
+  it("tells the round and the repair to read /workspace/round-brief.md for CI's verdict", () => {
     const prompt = (agent: string) =>
       pipelineOf("implementation-loop").agent_definitions![agent].settings
         .prompt;
 
     expect(prompt("loop-tdd-round")).toContain("/workspace/round-brief.md");
     expect(prompt("loop-fix-ci")).toContain("/workspace/round-brief.md");
-    expect(prompt("loop-pr-ready")).toContain("WRITE `{pr_body_path}`");
   });
 
   it("walks spec-upkeep from detect-drift through detect-unlinked, update-specs, open-pr, await-ci and request-review to done", () => {
@@ -1681,7 +1673,6 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
       "loop-sync",
       "loop-dod",
       "loop-tdd-round",
-      "loop-pr-ready",
       "loop-fix-ci",
       "spec-draft",
       "spec-rework",

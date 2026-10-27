@@ -184,11 +184,6 @@ line:
     - from: ready-for-review
       to: sync-final
       on: success
-    # It wrote less than it was asked for; what it did write still goes on
-    # the pull request, and a person reads the rest there.
-    - from: ready-for-review
-      to: sync-final
-      on: changes_requested
     - from: ready-for-review
       to: ready-for-review
       on: failed
@@ -438,35 +433,32 @@ stations:
       - name: ci_blocked
         kind: value
   loop-ready-for-review:
-    description: An AI agent writes the pull request's title and description for human reviewers once CI is green on the finished ticket.
-    kind: agent
-    agent_definition: loop-pr-ready
-    conversation: new
+    description: Writes the pull request's title and description from its diff, the ticket and the definition of done with one small model call, and deletes the definition of done from the branch.
+    kind: service
     outcomes:
       - success
-      - changes_requested
       - failed
-    result_required: true
     needs:
       - name: target
         kind: git
         path: target
-        access: write
+        access: read
       - name: ticket
         kind: file
         path: ticket.md
+      - name: task_id
+        kind: value
+      - name: pr_url
+        kind: value
     produces:
       - name: pr_body
         kind: file
-        path: pr-body.md
       - name: pr_title
         kind: value
       - name: issue_coverage
         kind: value
-      - name: pr_blocked
-        kind: value
   loop-mark-ready:
-    description: Applies the agent's title and description and marks the draft pull request ready for review.
+    description: Applies the written title and description and marks the draft pull request ready for review.
     kind: service
     outcomes:
       - success
@@ -479,7 +471,7 @@ stations:
       - name: issue_number
         kind: value
         optional: true
-      # What the ready-for-review agent wrote; each is absent when it wrote none.
+      # What the ready-for-review step wrote; each is absent when it wrote none.
       - name: pr_body
         kind: file
         optional: true
@@ -621,36 +613,6 @@ agent_definitions:
         env:
           # A round runs the tests its branch created, acceptance tests included; main's tests are CI's.
           LORE_BRANCH_TESTS: /workspace/target
-  loop-pr-ready:
-    settings:
-      model: gemini-3.1-pro-preview
-      image: ${LORE_AGENT_IMAGE}
-      timeout_minutes: 20
-      prices:
-        gemini-3.1-pro-preview:
-          input_per_million: 2
-          output_per_million: 12
-          cache_read_per_million: 0.2
-      config:
-        pod_resources:
-          requests:
-            cpu: 500m
-            memory: 2Gi
-            ephemeral-storage: 6Gi
-          limits:
-            memory: 8Gi
-            ephemeral-storage: 6Gi
-        skills:
-          - lore-context
-          - tdd-loop
-        skills_source: ${LORE_SKILLS_URL}
-        mcp_servers:
-          - name: lore
-            transport: http
-            url: ${LORE_MCP_URL}
-            headers_secret: lore-mcp-auth
-        env:
-          LORE_TEST_POLICY: none
   loop-fix-ci:
     settings:
       # Gemini 4 Argon since 2026-10-26 (#3502): on loop-bench's medium and large

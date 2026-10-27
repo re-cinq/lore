@@ -102,7 +102,17 @@ export class RepoFiles {
     });
   }
 
+  /** Deletes one file from the branch in its own commit; false when it has none, or the adapter cannot. */
+  deleteFile(branch: string, path: string, message: string): Promise<boolean> {
+    return (
+      this.github.deleteFile?.(this.repo, branch, { path, message }) ??
+      NOTHING_DELETED
+    );
+  }
+
   upsertCheckRun(input: CheckRunInput): Promise<void> {
     return this.github.upsertCheckRun(this.repo, input);
   }
 }
+
+const NOTHING_DELETED = (async () => false)();
