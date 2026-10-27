@@ -22,7 +22,7 @@ The questions people really ask an agent are wider: why something was decided, w
 
 Score: correct 1, partial 0.5, wrong or "I don't know" 0. On an unanswerable question, saying it does not know, or that no such thing exists, scores 1. "Hallucinated" is the share of answers judged wrong, plus answers to an unanswerable question. Cost is the API price Claude Code reports; the runs were billed to a subscription.
 
-By repository, Utopia scored 0.91 on lore and 0.83 on Otto, against Lore's 0.52 and 0.62.
+By repository, Utopia scored 0.92 on lore and 0.81 on Otto, against Lore's 0.57 and 0.58.
 
 ### By kind of question
 
@@ -66,7 +66,7 @@ A second grading of the first ask gave the same verdict for 97% of the answers.
 - **Neither store is good at what changed since** (temporal: Utopia 0.58, Lore 0.53). Both find the current behaviour but rarely say that the documents disagree, and Utopia read draft ADR-039 as a rule that was once in force.
 - **Lore keeps a small edge on decisions,** 0.93 against 0.90. That is one question's worth, inside the noise.
 - **Both stores repeat stale documents.** Most wrong answers came from a text overtaken by an amendment or a later pull request. One of them was our own ADR-010, which still called the context evals nightly after #2823 removed the schedule. It is amended in the same change as this article.
-- **Lore's answers vary most.** Only 62% of questions got the same verdict all three times with Lore. Its score moved between 0.53 and 0.61 on the asks alone, so differences of under about 0.08 are noise. Most of the spread is the agent picking different tools on different asks.
+- **Lore's answers vary most.** Only 62% of questions got the same verdict all three times with Lore. Its score moved between 0.55 and 0.60 on the asks alone, so differences of under about 0.05 are noise. Most of the spread is the agent picking different tools on different asks.
 
 ## Utopia's search speed
 
