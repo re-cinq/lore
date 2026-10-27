@@ -22,7 +22,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L163)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L20)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim):
@@ -48,7 +48,7 @@ Returns one pipeline task's full record (status + ordered event timeline) as JSO
      on success return the pretty-printed (`JSON.stringify(…, null, 2)`) response body.
    - **DB mode (`LORE_DB_HOST` set)** — call `getTask(task_id)`
      ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L41)).
-2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L174)) — `SELECT * FROM
+2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L213)) — `SELECT * FROM
    pipeline.tasks WHERE id = $1`; if no row, return `null`; otherwise `SELECT *
    FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at` and return
    the task row spread with an `events` array.
@@ -88,7 +88,7 @@ against a live API. *(untested: the transport switch is inline in the handler
 closure — the success/not-found proxy responses need a live API; the shared CRUD
 is covered above.)*
 
-The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by GET /api/task/:id returns the task when found](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L46))
+The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by returns the task when found](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L46))
 
 ## Out of Scope
 

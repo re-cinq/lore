@@ -50,7 +50,7 @@ Stores one curated key/value memory (versioned, repo-scoped when a repo is given
 2. Compute `embedding = await getQueryEmbedding(value)` (Vertex; may be null).
 3. **DB path** — if `isMemoryDbAvailable()`:
    1. Call `writeMemory(key, value, agent_id, ttl, embedding || undefined, repo)`
-      ([handler](../../../libs/server-core/src/work/memory/memory.ts#L53)). Inside the handler:
+      ([handler](../../../libs/server-core/src/work/memory/memory.ts)). Inside the handler:
       - Resolve `agent = resolveAgentId(agent_id)`. Set `expiresAt` SQL to
         `now() + interval '{ttl} seconds'` when `ttl` is set, else null.
       - **Lookup scope**: when `repo` is present, match on `repo`; otherwise on
@@ -93,7 +93,7 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 ## Dependencies & side effects
 
 - `detectCurrentRepo()`, `getQueryEmbedding()` (Vertex), `isMemoryDbAvailable()`.
-- Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts#L53)); `extractFacts` (async).
+- Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts)); `extractFacts` (async).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L16)); `writeMemoryFile` (offline).
 - Tables: `memory.memories` (insert/update), `memory.memory_versions` (insert), `memory.audit_log` (insert), `memory.facts` (async via `extract_facts`).
 - Env: `LORE_DB_HOST` (DB availability), `LORE_API_URL` + `LORE_INGEST_TOKEN` (proxy).

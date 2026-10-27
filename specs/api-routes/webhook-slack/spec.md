@@ -25,7 +25,7 @@ All replies are Slack message JSON (`response_type` + `text`).
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/lore-api/src/app/build-server.ts#L123)).
+Registered in the route table ([registration](../../../apps/lore-api/src/app/build-server.ts)).
 
 - **Method + path**: `POST /api/webhook/slack`
 - **Auth**: HMAC SHA-256 + replay window. Handler reads

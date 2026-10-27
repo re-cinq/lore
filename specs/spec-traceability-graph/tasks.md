@@ -22,7 +22,7 @@ from [`memory-dgraph-migration`](../memory-dgraph-migration/tasks.md) T004.
 
 ## Phase 1 — Projection unit
 
-- [ ] T210 RED: `shared/src/spec-trace/__tests__/project-spec-file.test.ts` against real Dgraph — a spec with two statements and one `([validated by](t.test.ts#L42))` link projects `Spec`/`Section`/`Statement` nodes (deterministic `xid`) + a `TestChunk` with the right `test_name` + a `VALIDATED_BY` edge.
+- [ ] T210 RED: `shared/src/spec-trace/__tests__/project-spec-file.test.ts` against real Dgraph — a spec with two statements and one `([validated by](t.test.ts#L<line>))` link projects `Spec`/`Section`/`Statement` nodes (deterministic `xid`) + a `TestChunk` with the right `test_name` + a `VALIDATED_BY` edge.
 - [ ] T211 GREEN: implement `projectSpecFile()`; resolve links via `resolveTestLink`; test-name fallback chain (label → AST symbol → language pattern). REFACTOR.
 - [ ] T212 [P] Test: re-running on unchanged content (same `Spec.content_hash`) is a no-op; a reworded statement changes `Statement.text_hash`.
 - [ ] T213 [P] Test: zero LLM calls during projection (assert no LLM client invocation).

@@ -48,21 +48,21 @@ The projection and its wrapper live in
 
 A statement's signal is the highest-priority condition it meets, in the
 order `violated` > `drifted` > `untested` > `normal`.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
+([validated by ranks statements violated > drifted > untested > normal and dedups by xid](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 Statements are ranked by signal descending, so a `violated` statement
 precedes a `drifted` one and both precede an `untested` or `normal`
 statement.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
+([validated by ranks statements violated > drifted > untested > normal and dedups by xid](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 A `Statement` reachable through more than one seed appears once in the
 block, deduplicated by its `Statement.xid`.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
+([validated by ranks statements violated > drifted > untested > normal and dedups by xid](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 A testable statement carrying no `validated_by` test link has signal
 `untested`; an `untestable` statement is `normal` regardless of its
 links.
-([validated by `classifies an untestable statement as normal`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L95))
+([validated by classifies an untestable statement as normal regardless of links](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L95))
 
 The block exposes the distinct ADR file paths across all ranked
 statements as `adrRefs`, in first-appearance order after ranking.
@@ -74,7 +74,7 @@ statements as `testSelectors`.
 
 When the ranked statements exceed the budget limit, the block keeps the
 highest-signal `limit` statements and reports `truncated: true`.
-([validated by `keeps the highest-signal limit statements and reports truncated`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L167))
+([validated by keeps the highest-signal limit statements and reports truncated when over budget](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L167))
 
 An empty query result projects to an empty block with no statements, no
 refs, and `truncated: false`.

@@ -22,7 +22,7 @@ periods.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/usage-tools.ts#L54)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/usage-tools.ts)).
 
 - **name**: `lore_my_usage`
 - **description** (verbatim):

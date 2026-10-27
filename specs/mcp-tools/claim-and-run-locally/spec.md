@@ -42,7 +42,7 @@ Claims an EXISTING pending pipeline task by id and runs it on your local machine
 ## Behavior
 
 1. **Resolve the task** — search `listPendingTasks()` by exact id or prefix
-   ([reader](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L1300)).
+   ([reader](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)).
    On a miss, when `LORE_API_URL` + `LORE_INGEST_TOKEN` are set, `GET
    /api/task/{task_id}` and adopt it only when its `status === "pending"`.
 2. When still unresolved, return `"Task {task_id} not found or not in pending
@@ -53,7 +53,7 @@ Claims an EXISTING pending pipeline task by id and runs it on your local machine
    resolve the content source (`resolveContentSource` — cwd tree when it matches,
    else a cached `/tmp` clone), run `executeGraphIngestLocally` in-process (zero
    LLM, no worktree), `skipTask(task.id)`
-   ([remover](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L1309)),
+   ([remover](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)),
    and return the ingest result. A `resolveContentSource` failure returns
    `"Could not prepare repo source for {repo}: {message}"`.
 5. **Otherwise** — `spawnLocalTask(...)` (worktree + detached `claude`), then

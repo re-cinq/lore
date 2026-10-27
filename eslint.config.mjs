@@ -637,10 +637,7 @@ export default tseslint.config(
     files: ["specs/**/*.md", "adrs/**/*.md", ".specify/spec.md"],
     language: "markdown/gfm",
     plugins: { markdown, "re-lint": reLint },
-    // reportUnhealable is off while the queue drains: ~300 links name a title no test carries and ~250 sit on a blank or closing line, and the rule would raise them on any branch that touches their test file. Turn it on once `re-lint-reanchor --check --all` reports none.
-    rules: {
-      "re-lint/no-stale-spec-links": ["error", { reportUnhealable: false }],
-    },
+    rules: { "re-lint/no-stale-spec-links": "error" },
   },
   // Every markdown link to a repo file, wherever docs live. `require-spec-link`
   // resolves the validated-by form from the TEST's side — whether each test is

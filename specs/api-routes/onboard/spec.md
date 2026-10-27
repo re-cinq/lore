@@ -83,7 +83,7 @@ onboarding PR opens and cleared by the Floor's merge-check when that PR is close
 without merging, so a rejected onboarding does not refuse the repo forever. ([validated by nulls the onboarding PR url by row id when that PR closed unmerged](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L67))
 
 The web-ui onboard form and the repo-page re-onboard button take the same lock
-through their own mirror of the guard, which decides identically. ([validated by takes the per-repo advisory lock before reading the guard state](apps/web-ui/src/lib/onboard.test.ts#L50))
+through their own mirror of the guard, which decides identically.
 
 ## Output
 
@@ -112,7 +112,7 @@ A guard-blocked submission returns 409 carrying the reason, and `reonboard` is p
 
 A throwing `onboardRepo` returns 500. ([validated by returns 500 when onboardRepo throws](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L95))
 
-The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L122), [implemented by](../../../apps/lore-api/src/transport/routes/repos/onboard.ts#L22))
+The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts), [implemented by](../../../apps/lore-api/src/transport/routes/repos/onboard.ts#L22))
 
 `onboardRepo` ensures the Lore webhook (the public `/api/events` hook URL, served by lore-api) for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by repo-onboard.test.ts:67](apps/lore-api/src/work/repo/repo-onboard.test.ts#L67), [`repo-onboard.test.ts:79`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L84))
 

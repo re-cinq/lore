@@ -373,26 +373,26 @@ against it and declare only what they observed.
   a drop-in `EventReporter`. Three Floor ingress routes and two lore-api routes
   answer `202` only once the insert lands and turn a throw into a `500` so the
   sender redelivers; queueing underneath them would convert at-least-once
-  GitHub/CI delivery into best-effort. ([validated by delivers straight to the event sink](libs/shared/src/outbound/project/events/event-proxy.test.ts#L70), [propagates the sink's failure](libs/shared/src/outbound/project/events/event-proxy.test.ts#L80), [inserts straight through to the local queue, so an ingress route still sees the failure](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L6))
+  GitHub/CI delivery into best-effort. ([validated by delivers straight to the event sink without queueing, so a caller can answer 202](libs/shared/src/outbound/project/events/event-proxy.test.ts#L70), [propagates the sink's failure](libs/shared/src/outbound/project/events/event-proxy.test.ts#L80), [inserts straight through to the local queue, so an ingress route still sees the failure](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L6))
 - `emit` queues and resolves before delivery, for producers with nobody to
   return a status to — a watch callback, a sweep — where the choice was
-  previously between an inline ladder and silent loss. ([validated by resolves before the sink has delivered](libs/shared/src/outbound/project/events/event-proxy.test.ts#L93), [delivers queued messages once started](libs/shared/src/outbound/project/events/event-proxy.test.ts#L104), [queues an emitted message rather than delivering it inline](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L18))
+  previously between an inline ladder and silent loss. ([validated by resolves before the sink has delivered, so a producer is never held by the wire](libs/shared/src/outbound/project/events/event-proxy.test.ts#L93), [delivers queued messages once started](libs/shared/src/outbound/project/events/event-proxy.test.ts#L104), [queues an emitted message rather than delivering it inline](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L18))
 - A message is routed by its kind, so a telemetry passthrough never lands on the
   bus: `pipeline.events` is a dispatch queue with dedupe keys and handler
-  fan-out, and per-tool-call volume does not belong on it. ([validated by routes each message to the sink for its kind](libs/shared/src/outbound/project/events/event-proxy.test.ts#L117), [unwraps an event message into an insert](libs/shared/src/outbound/project/events/event-sink.test.ts#L6), [refuses a telemetry message](libs/shared/src/outbound/project/events/event-sink.test.ts#L19))
+  fan-out, and per-tool-call volume does not belong on it. ([validated by routes each message to the sink for its kind, so telemetry never lands on the bus](libs/shared/src/outbound/project/events/event-proxy.test.ts#L117), [unwraps an event message into an insert](libs/shared/src/outbound/project/events/event-sink.test.ts#L6), [refuses a telemetry message](libs/shared/src/outbound/project/events/event-sink.test.ts#L19))
 
 ### The queue is bounded and blocks, rather than growing or dropping
 
 - A full queue BLOCKS the producer. An unbounded queue in front of an
   unreachable router grows until the process dies, and a lossy one discards
   exactly what nobody is left to re-derive; blocking pushes the pressure back to
-  the only place that can decide to slow down. ([validated by blocks the producer once the queue is full](libs/shared/src/outbound/project/events/event-proxy.test.ts#L133), [leaves push pending once capacity is reached](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L21), [admits the waiting producer when a shift frees the slot](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L34))
+  the only place that can decide to slow down. ([validated by blocks the producer once the queue is full, rather than growing without bound](libs/shared/src/outbound/project/events/event-proxy.test.ts#L133), [leaves push pending once capacity is reached](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L21), [admits the waiting producer when a shift frees the slot](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L34))
 - Blocked producers are admitted in arrival order, so the drain stays FIFO end
   to end even while saturated. ([validated by resolves push immediately while a slot is free](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L11), [admits blocked producers in the order they arrived](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L49), [returns undefined from shift on an empty queue](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L64))
 - Backpressure only bites if the producer AWAITS the emit; a fire-and-forget
   caller accumulates pending promises instead of items and the bound becomes
   fiction. A zero-slot queue is refused for the same reason — it would block
-  forever rather than never. ([validated by rejects a capacity below 1](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L68))
+  forever rather than never. ([validated by rejects a capacity below 1, because a zero-slot queue blocks forever](libs/shared/src/outbound/project/events/bounded-queue.test.ts#L68))
 
 ### The ladder, and why rotation is separate from the retry
 
@@ -402,14 +402,14 @@ against it and declare only what they observed.
 - Only a `401`/`403` counts as a refusal. A timeout or a dead socket carries no
   status, and rotating the identity on every blip would churn it for nothing. *(superseded, see amendment)*
 - The last attempt drops and NAMES the message, because the symptom of a lost
-  report is otherwise silence; the Floor's reconcile cron remains the backstop. ([validated by drops after the last attempt and names the message](libs/shared/src/outbound/project/events/event-proxy.test.ts#L165), [drops after the last attempt, leaving the reconcile cron as the backstop](libs/shared/src/outbound/project/events/delivery-policy.test.ts#L11))
+  report is otherwise silence; the Floor's reconcile cron remains the backstop. ([validated by drops after the last attempt and names the message, because the symptom is otherwise silence](libs/shared/src/outbound/project/events/event-proxy.test.ts#L165), [drops after the last attempt, leaving the reconcile cron as the backstop](libs/shared/src/outbound/project/events/delivery-policy.test.ts#L11))
 - A refusal at the last attempt still rotates, even though this message is lost:
   retrying five times with a rotated-out token and then giving up is precisely
   how run `595d2b0b` lost its terminal event on 2026-08-28, and rotating there
   is what keeps the NEXT one. *(superseded, see amendment)*
 - A kind with no sink configured REFUSES rather than dropping quietly, so the
   ladder logs it by name — a passthrough wired on one end and not the other is
-  otherwise indistinguishable from no traffic. ([validated by refuses rather than dropping](libs/shared/src/outbound/project/events/event-sink.test.ts#L34))
+  otherwise indistinguishable from no traffic. ([validated by refuses rather than dropping, so the proxy logs the message it lost](libs/shared/src/outbound/project/events/event-sink.test.ts#L34))
 
 ### Adoption: the silent-loss sites stop being silent
 
@@ -440,11 +440,11 @@ now `emit`, so a router blip retries instead of dropping.
 ### Inputs, and a shutdown that says what it lost
 
 - An input is registered, started with an `emit` bound to the queue, and stopped
-  with the proxy, so a rollout does not leave a watch running. ([validated by starts every registered input](libs/shared/src/outbound/project/events/event-proxy.test.ts#L184), [stops every registered input on stop](libs/shared/src/outbound/project/events/event-proxy.test.ts#L209))
+  with the proxy, so a rollout does not leave a watch running. ([validated by starts every registered input with an emit bound to the queue](libs/shared/src/outbound/project/events/event-proxy.test.ts#L184), [stops every registered input on stop](libs/shared/src/outbound/project/events/event-proxy.test.ts#L209))
 - `stop` drains what is queued and returns what it could not deliver, bounded by
   a deadline so a wedged sink cannot hold a rollout open. The queue is in memory
   and dies with the process — it is survivable only because everything on it is
-  deduped and re-derivable, and it is NOT a durable outbox. ([validated by drains what is queued](libs/shared/src/outbound/project/events/event-proxy.test.ts#L230), [gives up at the deadline](libs/shared/src/outbound/project/events/event-proxy.test.ts#L243))
+  deduped and re-derivable, and it is NOT a durable outbox. ([validated by drains what is queued and reports nothing left behind](libs/shared/src/outbound/project/events/event-proxy.test.ts#L230), [gives up at the deadline](libs/shared/src/outbound/project/events/event-proxy.test.ts#L243))
 - The proxy resolves through the same `EVENT_ROUTER_URL` gate as the reporter it
   wraps, and never resolves the local pool when a router is configured — a
   pool-less process must be able to hold one. In local mode the event sink is

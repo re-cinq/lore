@@ -51,7 +51,7 @@ Shows unclaimed 'pending' backlog tasks grouped by repo — the 'what can I grab
       sections joined by a blank line.
 3. **Local fallback** — when the API is unconfigured or non-2xx, dynamically
    import `listPendingTasks` from `runner.local`
-   ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L1300)), which reads
+   ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)), which reads
    `~/.lore/pending-tasks.json` (returning `[]` if missing/unreadable). When `repo`
    was passed, filter to `t.target_repo === repo` (same as the API path). If empty →
    `"No pending tasks for {repo}."` (filtered) or `"No pending tasks."`. Else emit one

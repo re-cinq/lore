@@ -31,7 +31,7 @@ Registered as `exact("/api/session-summary", "POST")`
 
 - **Method + path**: `POST /api/session-summary`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/session-summary"] = "write"`
-  ([scope map](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts#L33)). Bearer required;
+  ([scope map](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts)). Bearer required;
   `admin` satisfies, `read`-only does not.
 - **Rate bucket**: `default` (200/min).
 

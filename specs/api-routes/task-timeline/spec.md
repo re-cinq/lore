@@ -26,14 +26,14 @@ an ordered timeline, and overlays PR state + lease state.
 
 Registered as `pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET")` →
 `handleTaskTimeline(req, res, pool)`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L109),
+([registration](../../../apps/lore-api/src/app/build-server.ts),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts#L66)). Placed
 **before** the broad `prefix("/api/tasks", "GET")` list route so the timeline
 regex wins.
 
 - **Method + path**: `GET /api/tasks/:id/timeline` (`:id` is `[^/]+`, URL-decoded).
 - **Auth scope**: `read`. No `SCOPE_OVERRIDES` match; first `ROUTE_SCOPES` prefix
-  is `/api/tasks` → `"read"` ([scope map](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts#L70)).
+  is `/api/tasks` → `"read"` ([scope map](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts)).
   Rate-limit bucket `task` (60/min).
 - **Request**: path param only; no body, no query (a `?…` suffix is tolerated by
   the matcher but ignored).

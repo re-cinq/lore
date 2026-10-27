@@ -83,7 +83,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   back from `GET /api/repos/:o/:r/events/:id/payload` (read scope, repo must match
   the row) and runs `ingestSpecTrace`; docs kinds need only `{commit, glob, force}`
   inline.
-  ([`event-payload.test.ts:29`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L29), [`event-payload.test.ts:42`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L42), [`event-payload.test.ts:52`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L52), `spec-trace-dispatch:193`; implemented by [`event-payload.ts:14`](apps/lore-api/src/transport/routes/ingest/event-payload.ts#L14))
+  ([`event-payload.test.ts:29`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L29), [`event-payload.test.ts:42`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L42), [`event-payload.test.ts:52`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L52), `spec-trace-dispatch:193`; implemented by [`event-payload.ts`](apps/lore-api/src/transport/routes/ingest/event-payload.ts))
 
 - **FR4 — network policy + pod providers.** A label-scoped NetworkPolicy
   (`ingest-station-egress`, selecting the `lore.re-cinq.com/dgraph-egress`
@@ -140,7 +140,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   force-pass self-chunking tree listing, and the spec_trace handler no longer
   needs a dgraph client at all (the `LORE_DGRAPH_HTTP` check remains only as
   the feature gate).
-  ([`drain-loop.test.ts:150`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L173); implemented by [`loop.ts:53`](libs/shared/src/outbound/project/events/drain-loop.ts#L174))
+  ([`drain-loop.test.ts:150`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L173); implemented by [`loop.ts`](libs/shared/src/outbound/project/events/drain-loop.ts))
 
 - **FR7 — catalog.** A `def-ingest` recipe is seeded like the other builtins
   (a `def-<type>` row in `lore.agent_definitions`, rendered by each cluster-agent's catalog sync), with

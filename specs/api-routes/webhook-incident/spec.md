@@ -25,7 +25,7 @@ handler** — the body shape is the only gate (`repo` must resolve).
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/lore-api/src/app/build-server.ts#L124)).
+Registered in the route table ([registration](../../../apps/lore-api/src/app/build-server.ts)).
 
 - **Method + path**: `POST /api/webhook/incident`
 - **Auth**: none at the handler. The router exempts `/api/webhook/*` from
@@ -74,7 +74,7 @@ Registered in the route table ([registration](../../../apps/lore-api/src/app/bui
 
 ## Acceptance Criteria
 
-A null pool returns 503 and an unresolvable repo returns 400. ([validated by `returns 503 when pool is null`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L150), [`returns 400 when no repo can be resolved`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L124))
+A null pool returns 503 and an unresolvable repo returns 400. ([validated by returns 503 when the pool is null](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L150), [`returns 400 when no repo can be resolved`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L124))
 
 A direct-format incident upserts and returns `{ok:true, repo}`. ([validated by `upserts a direct-format incident`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L196))
 

@@ -136,7 +136,7 @@ available to agents — the authoritative interface.
     asking for 5 episodes gets the 5 best episodes rather than whatever
     episodes happened to survive a mixed top-5. ([validated by `memory-search.test.ts:114`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L163))
   - Results are capped at 3 per (agent_id + source) combo to prevent
-    verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:116`](libs/shared/src/domain/memory-ranking.test.ts#L142), [validated by `keeps all items when each source is under the cap`](libs/shared/src/domain/memory-ranking.test.ts#L188))
+    verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:116`](libs/shared/src/domain/memory-ranking.test.ts#L142), [validated by keeps all results when each source is under the cap](libs/shared/src/domain/memory-ranking.test.ts#L188))
   - Every search call asynchronously increments `retrieval_count`,
     updates `last_retrieved_at`, and extends `half_life_days` (+2,
     cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:53`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L53))

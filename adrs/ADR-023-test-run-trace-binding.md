@@ -16,7 +16,7 @@ The spec-traceability pipeline has two halves that never meet.
 
 The **spec side** is the source of truth for *which* test validates a
 statement: each statement in `spec.md` carries an inline
-`([validated by `name`](path/to/test.ts#L42))` parenthetical
+`([validated by `name`](path/to/test.ts#L<line>))` parenthetical
 ([`spec-test-coverage` v3](../specs/spec-test-coverage/spec.md)), and
 [`projectSpecFile`](../libs/shared/src/work/spec-trace/project-spec-file.ts) turns it into
 a `Statement.validated_by` edge at ingest.

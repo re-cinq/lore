@@ -21,7 +21,7 @@ opening the web UI or querying Postgres by hand. `lore_list_repos` returns the f
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/repo-tools.ts#L19)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/repo-tools.ts)).
 
 - **name**: `lore_list_repos`
 - **description** (verbatim):
@@ -87,7 +87,7 @@ array carrying the reported `total`. ([validated by `pages through repos beyond 
 
 A proxy failure mid-page (not_configured or denied) short-circuits the pagination loop with the matching error, rather than losing it in a partial page. ([validated by `returns a config-required message when the proxy reports not_configured mid-page`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L259), [`returns a denied error when the proxy reports denied`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L272))
 
-The `/api/repos` HTTP route (the proxy source) pages the repo list: it returns 503 when no pool, defaults to `limit 100` / `offset 0` (clamping an over-max limit to 100 and applying the offset), rejects a negative offset with 400, and returns 500 when the query throws — echoing `total`/`limit`/`offset` alongside the rows. ([validated by GET /api/repos returns 503 when pool is null](apps/lore-api/src/transport/routes/repos/repos.test.ts#L30), [`repos.test.ts:36`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L36), [`repos.test.ts:87`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L87), [`repos.test.ts:99`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L99), [`repos.test.ts:105`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L105))
+The `/api/repos` HTTP route (the proxy source) pages the repo list: it returns 503 when no pool, defaults to `limit 100` / `offset 0` (clamping an over-max limit to 100 and applying the offset), rejects a negative offset with 400, and returns 500 when the query throws — echoing `total`/`limit`/`offset` alongside the rows. ([validated by returns 503 when pool is null](apps/lore-api/src/transport/routes/repos/repos.test.ts#L30), [`repos.test.ts:36`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L36), [`repos.test.ts:87`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L87), [`repos.test.ts:99`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L99), [`repos.test.ts:105`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L105))
 
 ## Out of Scope
 
