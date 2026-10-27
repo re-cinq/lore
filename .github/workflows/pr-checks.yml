@@ -47,11 +47,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web-ui/package-lock.json
 
       # --ignore-scripts (#1062): dep lifecycle scripts were the supply-chain
       # execution vector; nothing in the tree needs them.
+      # web-ui's dependencies matter only to the files the fix pass lints, so a
+      # pull request that leaves web-ui and the lint setup alone skips them.
       - name: Install deps
-        run: npm ci --ignore-scripts && npm ci --prefix apps/web-ui --ignore-scripts
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          npm ci --ignore-scripts
+          if [ -z "${BASE_REF}" ] || git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^(apps/web-ui/|eslint\.config\.mjs|eslint\.baseline\.|\.prettierrc|\.prettierignore|package-lock\.json)'; then
+            npm ci --prefix apps/web-ui --ignore-scripts
+          fi
 
       # Type-aware lint reads @re-cinq/lore-shared's compiled d.ts, so shared
       # must be built before any eslint run (the lint matrix job builds too;
@@ -59,8 +71,23 @@ jobs:
       - name: Build shared
         run: npm run build -w @re-cinq/lore-shared
 
+      # A pull request fixes the files it changed (the lint job still lints the
+      # whole repo); a dispatch has no base to diff against and formats it all.
+      # The fix is pushed even when lint stays red, and the job fails after the
+      # push: the findings name lines in the file eslint --fix produced, so a
+      # branch that never received it sent fix agents to lines one or two off
+      # (#2881's link moved L41 -> L40 -> L41 round after round).
       - name: Prettier + eslint --fix
-        run: npm run format
+        id: format
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "${BASE_REF}" ]; then
+            bash scripts/ci/format-changed.sh "origin/${BASE_REF}"
+          else
+            npm run format
+          fi
 
       # The write token enters the job only here — after every npm install and
       # every third-party tool run — and only for the auto-commit push. Both push
@@ -68,16 +95,20 @@ jobs:
       # sync PR (in scope now that any-base PRs trigger) or a dispatch on main —
       # since branch protection would reject the push and fail the whole needs-chain.
       - name: Authenticate push
-        if: github.head_ref != 'main' && github.ref != 'refs/heads/main'
+        if: ${{ !cancelled() && github.head_ref != 'main' && github.ref != 'refs/heads/main' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
 
       - name: Commit formatting
-        if: github.head_ref != 'main' && github.ref != 'refs/heads/main'
+        if: ${{ !cancelled() && github.head_ref != 'main' && github.ref != 'refs/heads/main' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "style: prettier [skip ci]"
+
+      - name: Fail on what eslint --fix could not fix
+        if: steps.format.outcome == 'failure'
+        run: exit 1
 
   test:
     name: ${{ matrix.name }}
@@ -121,9 +152,13 @@ jobs:
           # for the enriched run read's station resolution — so it must be built
           # here. lore-api also resolves the station registry for its maintenance
           # jobs, so @re-cinq/lore-stations must be COMPILED before it typechecks.
-          - name: lore-api
+          # Two halves of the suite run side by side: it was the longest job.
+          - name: lore-api (1/2)
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
-            test: npm test -w @re-cinq/lore-api
+            test: npm test -w @re-cinq/lore-api -- --shard=1/2
+          - name: lore-api (2/2)
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
+            test: npm test -w @re-cinq/lore-api -- --shard=2/2
           # An import rule reports nothing when the code is clean AND when it has
           # stopped looking, and three times the second was mistaken for the
           # first (#1797, #1801, #1811). This lints deliberately-wrong fixtures
@@ -180,6 +215,11 @@ jobs:
           # directly with the root-hoisted vitest.
           - name: vitest-workspace-source
             test: npx vitest run tools/vitest/workspace-source.test.ts
+          # Acceptance test for the agent runner image: builds the Docker image
+          # and verifies that gh CLI is available inside it. Runs on ubuntu-latest
+          # which has Docker installed. No workspace deps — no build step needed.
+          - name: agent-image
+            test: npx vitest run apps/agent-image/agent-image.acceptance.test.ts
           # Guard: fails if any *.test.* or *.spec.* file has no CI runner.
           # Pure node script — no build needed.
           - name: orphaned-tests
@@ -229,6 +269,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web-ui/package-lock.json
 
       # Booted before the install so the container warms up while npm ci runs.
       # Port 8081 is not a preference — it is the port dgraphReachable() probes.
@@ -258,6 +302,24 @@ jobs:
 
       - name: Run tests
         run: ${{ matrix.test }}
+
+  # The lore-code-trace binary is built into the lore-api image and downloaded by
+  # every other workflow here, so nothing else runs its tests. It needs no format
+  # commit and no Node.
+  lore-code-trace:
+    name: lore-code-trace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/lore-code-trace/go.mod
+          cache-dependency-path: apps/lore-code-trace/go.sum
+      - name: Vet and test
+        working-directory: apps/lore-code-trace
+        run: go vet ./... && go test ./...
 
   # Nothing else in CI renders or lints the Helm charts, so a broken template was
   # caught at deploy time — or by whoever happened to run `helm template` by hand.

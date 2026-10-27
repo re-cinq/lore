@@ -10,8 +10,9 @@ import {
   receiveDigestUpload,
 } from "./deliver-digest.js";
 
-const DRAFT = `Intro placeholder.\n\n*re-cinq/lore*\n• item\n\nEnding placeholder.\n\n${APPENDIX_MARKER}\n- intro: Old`;
-const REFINED = "Fresh intro.\n\n*re-cinq/lore*\n• item\n\nFresh ending!";
+const DRAFT = `Intro placeholder.\n\n*Daily digest · 2026-09-25*\n_item_\n\nEnding placeholder.\n\n${APPENDIX_MARKER}\n- intro: Old`;
+const REFINED =
+  "Fresh intro.\n\n*Daily digest · 2026-09-25*\n_item_\n\nFresh ending!";
 
 async function digestRun(
   assemblyRuns: InMemoryAssemblyRuns,
@@ -101,7 +102,7 @@ describe("receiveDigestUpload", () => {
     );
 
     expect(poster.posts[1]?.text).toBe(
-      "Intro placeholder.\n\n*re-cinq/lore*\n• item\n\nEnding placeholder.",
+      "Intro placeholder.\n\n*Daily digest · 2026-09-25*\n_item_\n\nEnding placeholder.",
     );
   });
 
@@ -136,6 +137,31 @@ describe("receiveDigestUpload", () => {
 
     expect(poster.posts).toEqual([
       { channel: "C1", text: REFINED, threadTs: "9.000" },
+    ]);
+  });
+
+  it("posts the digest's 3 people as 3 coloured attachments under the title in the week's thread", async () => {
+    const { assemblyRuns, poster, deps } = harness();
+    const people = ["alice", "bob", "carol"].map(
+      (name) => `*${name}*\n• did: work (#1)`,
+    );
+    const { agent } = await digestRun(assemblyRuns);
+
+    await receiveDigestUpload(
+      {
+        agentCrName: agent,
+        markdown: `*Daily digest · 2026-09-25*\n\n${people.join("\n\n")}`,
+        exitCode: 0,
+      },
+      deps,
+    );
+
+    expect(poster.posts.slice(1)).toMatchObject([
+      {
+        text: "*Daily digest · 2026-09-25*",
+        threadTs: "1.000",
+        attachments: people.map((text) => ({ text })),
+      },
     ]);
   });
 

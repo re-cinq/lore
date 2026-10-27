@@ -1,4 +1,4 @@
-import type { IssueComment } from "../pulls/pull-requests-port.js";
+import type { IssueComment, PullRef } from "../pulls/pull-requests-port.js";
 import type { TrackedEntry } from "../../../domain/utopia/github/tracker-text.js";
 import type {
   ReleaseEntry,
@@ -160,6 +160,14 @@ export interface GitHubPort {
   branchBehindBy?(repo: string, branch: string): Promise<number | undefined>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
+  /** Deletes one file from the branch in its own commit; false when the branch has no such file (octokit only). */
+  deleteFile?(
+    repo: string,
+    branch: string,
+    change: Omit<FileChange, "content">,
+  ): Promise<boolean>;
+  /** The merged pull requests behind the newest default-branch commits that touched `path` (octokit only). */
+  mergedPullsTouching?(repo: string, path: string): Promise<PullRef[]>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */
   upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
 }

@@ -40,6 +40,13 @@ line:
       station: loop-sync
       bind:
         target: repo
+    # A small model first asks whether a merged pull request already did
+    # the ticket, before the most expensive pod does (#3497); off until a
+    # repository switches it on.
+    - id: done-check
+      station: loop-done-check
+      bind:
+        target: repo
     - id: dod
       station: loop-dod
       bind:
@@ -93,8 +100,11 @@ line:
     - id: done
   edges:
     - from: sync-start
-      to: dod
+      to: done-check
       on: success
+    - from: sync-start
+      to: done-check
+      on: rebased
     - from: sync-start
       to: sync-start-rebase
       on: changes_requested
@@ -103,7 +113,7 @@ line:
       on: failed
       iteration_max: 1
     - from: sync-start-rebase
-      to: dod
+      to: done-check
       on: success
     # A conflict nobody can settle by reading it: the run ends rather than
     # building on a branch that is not on main.
@@ -111,6 +121,17 @@ line:
       to: sync-start-rebase
       on: failed
       iteration_max: 1
+    - from: done-check
+      to: dod
+      on: success
+    # Already done by a merged pull request: the run ends and Lore closes the
+    # ticket with the pull request and the reason, as for dod's own verdict.
+    - from: done-check
+      to: done
+      on: changes_requested
+    - from: done-check
+      to: dod
+      on: failed
     - from: dod
       to: open-pr
       on: success
@@ -181,11 +202,6 @@ line:
     - from: ready-for-review
       to: sync-final
       on: success
-    # It wrote less than it was asked for; what it did write still goes on
-    # the pull request, and a person reads the rest there.
-    - from: ready-for-review
-      to: sync-final
-      on: changes_requested
     - from: ready-for-review
       to: ready-for-review
       on: failed
@@ -193,6 +209,9 @@ line:
     - from: sync-final
       to: mark-ready
       on: success
+    - from: sync-final
+      to: mark-ready
+      on: rebased
     - from: sync-final
       to: sync-final-rebase
       on: changes_requested
@@ -236,6 +255,9 @@ line:
       on: success
       iteration_max: 8
     - from: sync-pr
+      to: await-pr
+      on: rebased
+    - from: sync-pr
       to: sync-pr-rebase
       on: changes_requested
       iteration_max: 6
@@ -270,10 +292,11 @@ line:
       iteration_max: 1
 stations:
   loop-sync-check:
-    description: Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a branch behind it goes to the sync round.
+    description: Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a clean pull request GitHub calls behind is rebased by GitHub here; a conflict goes to the sync round.
     kind: service
     outcomes:
       - success
+      - rebased
       - changes_requested
       - failed
     needs:
@@ -290,6 +313,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -310,6 +334,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -323,6 +348,27 @@ stations:
         kind: value
       - name: dod_blocked
         kind: value
+      - name: dod_resolved
+        kind: value
+  loop-done-check:
+    description: Asks a small model whether a merged pull request that names the ticket already does it. Done ends the run with the ticket closed; anything else goes on to the definition of done.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: ticket
+        kind: file
+        path: ticket.md
+      - name: issue_number
+        kind: value
+        optional: true
+    produces:
       - name: dod_resolved
         kind: value
   loop-open-pr:
@@ -357,6 +403,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -405,6 +452,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -424,34 +472,32 @@ stations:
       - name: ci_blocked
         kind: value
   loop-ready-for-review:
-    description: An AI agent writes the pull request's title and description for human reviewers once CI is green on the finished ticket.
-    kind: agent
-    agent_definition: loop-pr-ready
-    conversation: new
+    description: Writes the pull request's title and description from its diff, the ticket and the definition of done with one small model call, and deletes the definition of done from the branch.
+    kind: service
     outcomes:
       - success
-      - changes_requested
       - failed
     needs:
       - name: target
         kind: git
         path: target
-        access: write
+        access: read
       - name: ticket
         kind: file
         path: ticket.md
+      - name: task_id
+        kind: value
+      - name: pr_url
+        kind: value
     produces:
       - name: pr_body
         kind: file
-        path: pr-body.md
       - name: pr_title
         kind: value
       - name: issue_coverage
         kind: value
-      - name: pr_blocked
-        kind: value
   loop-mark-ready:
-    description: Applies the agent's title and description and marks the draft pull request ready for review.
+    description: Applies the written title and description and marks the draft pull request ready for review.
     kind: service
     outcomes:
       - success
@@ -464,7 +510,7 @@ stations:
       - name: issue_number
         kind: value
         optional: true
-      # What the ready-for-review agent wrote; each is absent when it wrote none.
+      # What the ready-for-review step wrote; each is absent when it wrote none.
       - name: pr_body
         kind: file
         optional: true
@@ -503,6 +549,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -531,17 +578,17 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
+        max_turns: 60
         pod_resources:
           requests:
             cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 2Gi
-          limits:
             memory: 2Gi
-            ephemeral-storage: 2Gi
-        skills:
-          - lore-context
+            ephemeral-storage: 6Gi
+          limits:
+            memory: 8Gi
+            ephemeral-storage: 6Gi
         skills_source: ${LORE_SKILLS_URL}
         mcp_servers:
           - name: lore
@@ -557,16 +604,18 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
+        max_turns: 200
         # Autopilot holds an ephemeral-storage limit to its request, so the limit
         # is what evicts: runs aa9c26e4's dod pods were evicted at 2Gi by npm ci.
         pod_resources:
           requests:
             cpu: 500m
-            memory: 512Mi
+            memory: 2Gi
             ephemeral-storage: 6Gi
           limits:
-            memory: 2Gi
+            memory: 8Gi
             ephemeral-storage: 6Gi
         skills:
           - lore-context
@@ -585,13 +634,14 @@ agent_definitions:
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 60
       config:
+        max_turns: 300
         pod_resources:
           requests:
             cpu: 500m
-            memory: 512Mi
+            memory: 2Gi
             ephemeral-storage: 6Gi
           limits:
-            memory: 2Gi
+            memory: 8Gi
             ephemeral-storage: 6Gi
         skills:
           - lore-context
@@ -603,54 +653,29 @@ agent_definitions:
             url: ${LORE_MCP_URL}
             headers_secret: lore-mcp-auth
         env:
-          # A round runs the test it writes; the definition of done's acceptance tests are CI's.
-          LORE_ACCEPTANCE_DOD: /workspace/target/.lore/dod.md
-  loop-pr-ready:
-    settings:
-      model: gemini-3.1-pro-preview
-      image: ${LORE_AGENT_IMAGE}
-      timeout_minutes: 20
-      prices:
-        gemini-3.1-pro-preview:
-          input_per_million: 2
-          output_per_million: 12
-      config:
-        pod_resources:
-          requests:
-            cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 2Gi
-          limits:
-            memory: 2Gi
-            ephemeral-storage: 4Gi
-        skills:
-          - lore-context
-          - tdd-loop
-        skills_source: ${LORE_SKILLS_URL}
-        mcp_servers:
-          - name: lore
-            transport: http
-            url: ${LORE_MCP_URL}
-            headers_secret: lore-mcp-auth
-        env:
-          LORE_TEST_POLICY: none
+          # A round runs the tests its branch created, acceptance tests included; main's tests are CI's.
+          LORE_BRANCH_TESTS: /workspace/target
   loop-fix-ci:
     settings:
-      model: gemini-3.1-pro-preview
+      # Gemini 4 Argon since 2026-10-26 (#3502): on loop-bench's medium and large
+      # tickets it left 38 of 68 repairs green, Gemini 3.1 Pro 18 of 66.
+      model: gemini-4-argon
       image: ${LORE_AGENT_IMAGE}
       timeout_minutes: 45
       prices:
-        gemini-3.1-pro-preview:
+        gemini-4-argon:
           input_per_million: 2
-          output_per_million: 12
+          output_per_million: 10
+          cache_read_per_million: 0.2
       config:
+        max_turns: 200
         pod_resources:
           requests:
             cpu: 500m
-            memory: 512Mi
+            memory: 2Gi
             ephemeral-storage: 6Gi
           limits:
-            memory: 2Gi
+            memory: 8Gi
             ephemeral-storage: 6Gi
         skills:
           - lore-context

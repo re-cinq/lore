@@ -14,9 +14,11 @@ describe("LORE_TESTS_INSTRUCTION", () => {
     expect(LORE_TESTS_INSTRUCTION).not.toMatch(languageOrRunner);
   });
 
-  it("instructs running on both push and pull_request", () => {
-    expect(LORE_TESTS_INSTRUCTION).toMatch(/\bpush\b/);
-    expect(LORE_TESTS_INSTRUCTION).toMatch(/\bpull_request\b/);
+  it("instructs running on push to the default branch and never on pull_request", () => {
+    expect(LORE_TESTS_INSTRUCTION).toMatch(
+      /runs only on `push` to the repository's default branch/,
+    );
+    expect(LORE_TESTS_INSTRUCTION).toMatch(/never on `pull_request`/);
   });
 
   it("instructs downloading and running the lore-code-trace orchestrator binary", () => {

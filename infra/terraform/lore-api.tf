@@ -36,6 +36,11 @@ resource "kubernetes_ingress_v1" "lore_api" {
       # the page is open; nginx's 60 s default would drop it mid-sentence.
       "nginx.ingress.kubernetes.io/proxy-read-timeout" = "3600"
       "nginx.ingress.kubernetes.io/proxy-send-timeout" = "3600"
+      # A CI ingest delta chunk holds one test file's tests whole, each carrying
+      # the file's coverage, so one chunk can be several MB (the largest 6.8 MB on
+      # 2026-10-26); nginx's 1m default answered 413. lore-api still caps every
+      # other route at 1 MiB itself (MAX_JSON_BODY_BYTES).
+      "nginx.ingress.kubernetes.io/proxy-body-size" = "16m"
     }
   }
 

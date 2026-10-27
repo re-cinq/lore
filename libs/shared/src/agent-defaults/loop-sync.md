@@ -58,9 +58,20 @@ STEPS:
    and dies with it: do NOT report success for one.
 
 RULES:
-- Do NOT run the linter, a typecheck, a build, or the test suite in this
-  pod. CI judges the rebased branch; a two-file `eslint` or a `tsc` overruns
-  the pod's memory. Format nothing: you changed no logic.
+- Do NOT run a typecheck, a build, or the test suite in this pod. CI
+  judges the rebased branch. The files you changed are the ones where you
+  resolved a conflict: a clean rebase formats and lints nothing.
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - If the branch is already on `origin/main` (the rebase says it is up to
   date), push nothing and report success.
 - Not being able to run the tests here is never a reason to abort: CI judges the push,

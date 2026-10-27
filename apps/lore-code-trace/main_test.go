@@ -53,7 +53,7 @@ coverage_format: json
 	gitRun(t, dir, "commit", "-q", "-m", "init")
 
 	var out bytes.Buffer
-	if err := run(dir, false, &out); err != nil {
+	if err := run(dir, false, false, &out); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 

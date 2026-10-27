@@ -29,6 +29,7 @@ interface Station {
   kind: string;
   description?: string;
   agent_definition?: string;
+  result_required?: boolean;
   outcomes: string[];
   needs: Need[];
   produces: Array<{ name: string; kind: string; path?: string }>;
@@ -38,11 +39,16 @@ interface AgentSettings {
   model: string;
   prices?: Record<
     string,
-    { input_per_million: number; output_per_million: number }
+    {
+      input_per_million: number;
+      output_per_million: number;
+      cache_read_per_million?: number;
+    }
   >;
   prompt: string;
   config: {
     env: Record<string, string>;
+    max_turns?: number;
     pod_resources: {
       requests: Record<string, string>;
       limits: Record<string, string>;
@@ -171,7 +177,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs spec-tickets-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+  it("runs spec-tickets-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens, cache reads at 0.2", () => {
     const { settings } =
       pipelineOf("spec-tickets").agent_definitions!["spec-tickets-decompose"]!;
 
@@ -181,6 +187,7 @@ describe("the floor pipelines shipped in this folder", () => {
         "gemini-3.1-pro-preview": {
           input_per_million: 2,
           output_per_million: 12,
+          cache_read_per_million: 0.2,
         },
       },
     });
@@ -194,7 +201,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ).toBe(true);
   });
 
-  it("walks implementation-loop from sync-start through dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
+  it("walks implementation-loop from sync-start through done-check, dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
     const { line } = pipelineOf("implementation-loop");
     const forward = line.edges
       .filter((edge) => edge.on === "success" && !REPAIRS.includes(edge.from))
@@ -202,8 +209,9 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect(line.entry).toBe("sync-start");
     expect(forward).toEqual([
-      "sync-start>dod",
-      "sync-start-rebase>dod",
+      "sync-start>done-check",
+      "sync-start-rebase>done-check",
+      "done-check>dod",
       "dod>open-pr",
       "open-pr>tdd-round",
       "tdd-round>await-ci",
@@ -252,7 +260,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("ends a loop run at done on a dod scoping verdict and on await-pr's unresolved threads, and retries every other failed station once", () => {
+  it("ends a loop run at done on an already-done verdict, a dod scoping verdict and await-pr's unresolved threads, and retries every other failed station once", () => {
     const { line } = pipelineOf("implementation-loop");
     const toExit = line.edges
       .filter((edge) => edge.to === "done" && edge.on !== "success")
@@ -261,7 +269,11 @@ describe("the floor pipelines shipped in this folder", () => {
       .filter((edge) => edge.on === "failed" && edge.from === edge.to)
       .map((edge) => `${edge.from}:${edge.iteration_max}`);
 
-    expect(toExit).toEqual(["dod on changes_requested", "await-pr on failed"]);
+    expect(toExit).toEqual([
+      "done-check on changes_requested",
+      "dod on changes_requested",
+      "await-pr on failed",
+    ]);
     expect(retried).toEqual([
       "sync-start:1",
       "sync-start-rebase:1",
@@ -361,7 +373,7 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(briefs).toEqual([ROUND_BRIEF, ROUND_BRIEF, ROUND_BRIEF]);
   });
 
-  it("has ready-for-review produce the description as pr-body.md with a title and coverage, each an optional need of mark-ready", () => {
+  it("has ready-for-review produce the description as a file with a title and coverage, each an optional need of mark-ready", () => {
     const { stations } = pipelineOf("implementation-loop");
     const produced = stations["loop-ready-for-review"].produces.map(
       (made) => made.name,
@@ -370,12 +382,7 @@ describe("the floor pipelines shipped in this folder", () => {
       .filter((need) => need.optional)
       .map((need) => need.name);
 
-    expect(produced).toEqual([
-      "pr_body",
-      "pr_title",
-      "issue_coverage",
-      "pr_blocked",
-    ]);
+    expect(produced).toEqual(["pr_body", "pr_title", "issue_coverage"]);
     expect(optional).toEqual([
       "issue_number",
       "pr_body",
@@ -404,19 +411,16 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(
       prompts.every((prompt) => prompt.includes("cd /workspace/target")),
     ).toBe(true);
-    expect(reported.filter((name) => !declared.includes(name))).toEqual([
-      "pr_ready",
-    ]);
+    expect(reported.filter((name) => !declared.includes(name))).toEqual([]);
   });
 
-  it("tells the round and the repair to read /workspace/round-brief.md for CI's verdict, and the ready agent to write the description at its produced path", () => {
+  it("tells the round and the repair to read /workspace/round-brief.md for CI's verdict", () => {
     const prompt = (agent: string) =>
       pipelineOf("implementation-loop").agent_definitions![agent].settings
         .prompt;
 
     expect(prompt("loop-tdd-round")).toContain("/workspace/round-brief.md");
     expect(prompt("loop-fix-ci")).toContain("/workspace/round-brief.md");
-    expect(prompt("loop-pr-ready")).toContain("WRITE `{pr_body_path}`");
   });
 
   it("walks spec-upkeep from detect-drift through detect-unlinked, update-specs, open-pr, await-ci and request-review to done", () => {
@@ -491,18 +495,20 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(told).toHaveLength(6);
   });
 
-  it("tells the upkeep repair it cannot run tests, linters or builds, to read CI's verdict, and to leave a failure that is not a spec's alone", () => {
+  it("tells the upkeep repair it cannot run tests, typechecks or builds, to read CI's verdict, and to leave a failure that is not a spec's alone", () => {
     const { prompt } =
       pipelineOf("spec-upkeep").agent_definitions!["spec-upkeep-fix-ci"]
         .settings;
     const told = [
-      "YOU CANNOT RUN TESTS, LINTERS, TYPECHECKS, BUILDS OR INSTALLS HERE",
+      "YOU CANNOT RUN TESTS, TYPECHECKS OR BUILDS HERE",
       "/workspace/round-brief.md",
       "NEVER change code, tests, build files or workflows",
     ].filter((phrase) => prompt.includes(phrase));
 
     expect(told).toHaveLength(3);
-    expect(prompt).not.toMatch(/npm run|vitest|run only that step/);
+    expect(prompt).not.toMatch(
+      /npm run (test|build)|vitest|run only that step/,
+    );
   });
 
   it("lets neither upkeep agent run tests, installs or builds", () => {
@@ -862,7 +868,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
+  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6 and fix-ci on gemini-4-argon, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
@@ -873,10 +879,13 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect({
       tddRound: loop["loop-tdd-round"]?.settings.model,
+      fixCi: loop["loop-fix-ci"]?.settings.model,
       restOfLoop: [
         ...new Set(
           Object.entries(loop)
-            .filter(([name]) => name !== "loop-tdd-round")
+            .filter(
+              ([name]) => !["loop-tdd-round", "loop-fix-ci"].includes(name),
+            )
             .map(([, definition]) => definition.settings.model),
         ),
       ],
@@ -884,6 +893,7 @@ describe("the floor pipelines shipped in this folder", () => {
       reply: modelsOf(["code-review-reply"]),
     }).toEqual({
       tddRound: "claude-sonnet-4-6",
+      fixCi: "gemini-4-argon",
       restOfLoop: ["gemini-3.1-pro-preview"],
       reviewers: ["gemini-4-argon", "gemini-4-argon"],
       reply: ["claude-sonnet-4-6"],
@@ -1472,7 +1482,7 @@ describe("the feature-planning pipeline", () => {
     ).toEqual(agents.map(() => true));
   });
 
-  it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens", () => {
+  it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens, cache reads at 0.2", () => {
     const agents = [
       "spec-draft",
       "spec-qa-generate",
@@ -1495,6 +1505,7 @@ describe("the feature-planning pipeline", () => {
           "gemini-3.1-pro-preview": {
             input_per_million: 2,
             output_per_million: 12,
+            cache_read_per_million: 0.2,
           },
         },
       })),
@@ -1513,14 +1524,17 @@ describe("the code-review recipe reads the change as its user first", () => {
     }).toEqual({ asUser: true, neighbours: true, question: true });
   });
 
-  it("names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them", () => {
+  it("names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures first, and lets the review lint only to confirm a finding, never with --fix", () => {
     const prompt = promptOnOneLine("code-review");
 
     expect({
       ciJudges: prompt.includes("CI's verdict"),
       tool: prompt.includes("`lore_get_ci_failures`"),
-      noEslint: prompt.includes("not eslint, tsc or a formatter"),
-    }).toEqual({ ciJudges: true, tool: true, noEslint: true });
+      noFix: prompt.includes("Never `--fix`"),
+      nothingElse: prompt.includes(
+        "run no typecheck, formatter, test runner or other install",
+      ),
+    }).toEqual({ ciJudges: true, tool: true, noFix: true, nothingElse: true });
   });
 
   it("reads the diff once in place and never dumps it to a file to re-read", () => {
@@ -1561,15 +1575,15 @@ describe("the code-review-recheck recipe judges the push, not the pull request",
     }).toEqual({ named: true, range: true, whole: true });
   });
 
-  it("carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either", () => {
+  it("carries the same CI-verdict and read-once rules as the deep review, so a re-check lints only to confirm a finding, never with --fix", () => {
     const prompt = promptOnOneLine("code-review-recheck");
 
     expect({
       ci: prompt.includes("CI's verdict"),
       tool: prompt.includes("`lore_get_ci_failures`"),
-      noEslint: prompt.includes("not eslint, tsc or a formatter"),
+      noFix: prompt.includes("Never `--fix`"),
       once: prompt.includes("Read each diff once, in place"),
-    }).toEqual({ ci: true, tool: true, noEslint: true, once: true });
+    }).toEqual({ ci: true, tool: true, noFix: true, once: true });
   });
 
   it("queries context with the PR title and the surface the new commits change", () => {
@@ -1657,16 +1671,32 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(told).toEqual([true, true, true]);
   });
 
-  it("keeps every review agent's pod at 500m CPU and 512Mi requested and 2Gi of memory at most, and raises its disk to 2Gi requested and 4Gi at most", () => {
-    const sizes = REVIEW_AGENTS.map(
-      ([, agent]) => settingsOf(agent).config.pod_resources,
-    );
+  it("sizes every agent that lints for eslint and npm ci: 500m CPU, 2Gi of memory requested and 8Gi at most, 6Gi of disk", () => {
+    const linting = [
+      "code-review",
+      "code-review-recheck",
+      "code-review-refine",
+      "loop-sync",
+      "loop-dod",
+      "loop-tdd-round",
+      "loop-fix-ci",
+      "spec-draft",
+      "spec-rework",
+      "spec-upkeep-update-specs",
+      "spec-upkeep-fix-ci",
+      "onboard-author",
+      "onboard-fix-ci",
+    ];
     const size = {
-      requests: { cpu: "500m", memory: "512Mi", "ephemeral-storage": "2Gi" },
-      limits: { memory: "2Gi", "ephemeral-storage": "4Gi" },
+      requests: { cpu: "500m", memory: "2Gi", "ephemeral-storage": "6Gi" },
+      limits: { memory: "8Gi", "ephemeral-storage": "6Gi" },
     };
 
-    expect(sizes).toEqual([size, size, size]);
+    expect(
+      Object.fromEntries(
+        linting.map((agent) => [agent, settingsOf(agent).config.pod_resources]),
+      ),
+    ).toEqual(Object.fromEntries(linting.map((agent) => [agent, size])));
   });
 
   it("sends no failed outcome of a review line to the exit, where the run would settle as success", () => {
@@ -1792,6 +1822,86 @@ function promptOnOneLine(name: string): string {
   return settingsOf(name).prompt.replace(/\s+/g, " ");
 }
 
+describe("the prices the floor agents state", () => {
+  it("prices every Gemini model's cache reads at a tenth of its input price, since Gemini caches a repeated prefix by itself and bills it so", () => {
+    const geminiPrices = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.entries(pipeline.agent_definitions ?? {}))
+      .flatMap(([agent, definition]) =>
+        Object.entries(definition.settings.prices ?? {}).map(
+          ([model, price]) => ({ agent, model, price }),
+        ),
+      )
+      .filter(({ model }) => model.startsWith("gemini-"));
+
+    expect(
+      geminiPrices.map(({ agent, model, price }) => ({
+        agent,
+        model,
+        cache_read_per_million: price.cache_read_per_million,
+      })),
+    ).toEqual(
+      geminiPrices.map(({ agent, model, price }) => ({
+        agent,
+        model,
+        cache_read_per_million: price.input_per_million / 10,
+      })),
+    );
+    expect(geminiPrices.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the implementation loop after GitHub rebased its branch", () => {
+  it("goes from sync-start to done-check, sync-final to mark-ready and sync-pr to await-pr on rebased, so a pull request GitHub rebased waits for its new build instead of reaching fix-ci", () => {
+    const { edges } = pipelineOf("implementation-loop").line;
+
+    expect(
+      ["sync-start", "sync-final", "sync-pr"].map(
+        (from) =>
+          edges.find((edge) => edge.from === from && edge.on === "rebased")?.to,
+      ),
+    ).toEqual(["done-check", "mark-ready", "await-pr"]);
+  });
+});
+
+describe("the implementation loop's already-done check", () => {
+  it("puts done-check between both sync steps and dod, ends the run at done when it finds the ticket resolved, and goes to dod otherwise", () => {
+    const { edges } = pipelineOf("implementation-loop").line;
+    const to = (from: string, on: string) =>
+      edges.find((edge) => edge.from === from && edge.on === on)?.to;
+
+    expect([
+      to("sync-start", "success"),
+      to("sync-start-rebase", "success"),
+      to("done-check", "success"),
+      to("done-check", "changes_requested"),
+      to("done-check", "failed"),
+    ]).toEqual(["done-check", "done-check", "dod", "done", "dod"]);
+  });
+});
+
+describe("the turn caps the loop and review agents carry", () => {
+  it("caps tdd-round at 300 turns, dod and fix-ci at 200, review at 150, reply at 100, sync and re-check at 60, each above the most any visit of theirs took in the week to 2026-10-26", () => {
+    const caps = {
+      "loop-tdd-round": 300,
+      "loop-dod": 200,
+      "loop-fix-ci": 200,
+      "code-review": 150,
+      "code-review-refine": 100,
+      "loop-sync": 60,
+      "code-review-recheck": 60,
+    };
+
+    expect(
+      Object.fromEntries(
+        Object.keys(caps).map((agent) => [
+          agent,
+          settingsOf(agent).config.max_turns,
+        ]),
+      ),
+    ).toEqual(caps);
+  });
+});
+
 describe("the files the floor agents produce", () => {
   it("lists no agent file under the target/ clone, so no git add in it can commit one", () => {
     const insideClone = [...PIPELINES.values()]
@@ -1886,3 +1996,26 @@ describe("the re-check settles the findings it was handed", () => {
     ).toEqual({ name: "open_threads", kind: "value", optional: true });
   });
 });
+
+describe("the agent stations of every floor pipeline and their result line", () => {
+  it("require a result line exactly when their agent's prompt ends the visit with LORE_NODE_RESULT or REVIEW_RESULT (otto #467's dod read one file and passed; four reviews cut off mid-verdict passed)", () => {
+    const mismatched = [...PIPELINES.values()].flatMap((pipeline) =>
+      Object.entries(pipeline.stations)
+        .filter(([, station]) => station.kind === "agent")
+        .filter(
+          ([, station]) =>
+            (station.result_required ?? false) !==
+            endsWithResultLine(pipeline, station),
+        )
+        .map(([id]) => `${pipeline.line.id}: ${id}`),
+    );
+
+    expect(mismatched).toEqual([]);
+  });
+});
+
+function endsWithResultLine(pipeline: Pipeline, station: Station): boolean {
+  const agent = pipeline.agent_definitions?.[station.agent_definition ?? ""];
+
+  return /LORE_NODE_RESULT|REVIEW_RESULT/.test(agent?.settings.prompt ?? "");
+}

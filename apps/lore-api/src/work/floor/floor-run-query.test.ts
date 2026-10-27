@@ -117,13 +117,21 @@ describe("matchesFloorQuery", () => {
 });
 
 describe("floorPageFilter", () => {
-  it("narrows a page to the code-review runs of github.com/re-cinq/lore, open ones for status running", () => {
+  it("narrows a page to the code-review runs of github.com/re-cinq/lore, open ones for status running, one pull request's by subject", () => {
     expect({
       line: floorPageFilter({ repo: "re-cinq/lore", line: "code-review" }),
       open: floorPageFilter({ line: "code-review", status: "running" }),
       every: floorPageFilter({}),
+      pull: floorPageFilter({
+        line: "code-review",
+        subject: "pr_url:https://github.com/re-cinq/lore/pull/7",
+      }),
     }).toEqual({
       line: { repo: "github.com/re-cinq/lore", line: "code-review" },
+      pull: {
+        line: "code-review",
+        subject: "pr_url:https://github.com/re-cinq/lore/pull/7",
+      },
       open: { line: "code-review", open: true },
       every: { since: new Date(0).toISOString() },
     });

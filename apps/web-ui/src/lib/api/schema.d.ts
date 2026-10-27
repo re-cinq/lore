@@ -293,6 +293,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/assembly-runs/{id}/cancel */
+    post: operations["post_api_assembly-runs_id_cancel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/dod": {
     parameters: {
       query?: never;
@@ -2766,6 +2783,10 @@ export interface components {
       text: string | null;
       sections?: unknown;
       trace?: unknown;
+    };
+    AssemblyRunCancelled: {
+      cancelled: boolean;
+      run_id: string;
     };
     AssemblyRunDetail: {
       id: string;
@@ -5577,6 +5598,7 @@ export interface components {
         model: string | null;
         costUsd: number | null;
         tokensIn: number | null;
+        cacheReadTokens: number | null;
         tokensOut: number | null;
       }[];
     };
@@ -6118,6 +6140,42 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs_id_cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          requested_by?: string;
+        } | null;
+      };
+    };
+    responses: {
+      /** @description The floor cancelled the open run, with a reason naming who asked when the body says. 404 for a run the floor does not have, 409 for a run already finished */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunCancelled"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

@@ -1,15 +1,15 @@
 import type { DigestChange, PersonWork } from "./group.js";
 
-/** The digest as Slack mrkdwn (specs/daily-digest FR6): one line per person saying what they did and what is next; the draft the refine agent receives carries a marker where its intro goes and an appendix of what it must not repeat. */
+/** The digest as Slack mrkdwn (specs/daily-digest FR6): one paragraph per person, their name on its own line over a bullet for what they did and one for what is next; the draft the refine agent receives carries a marker where its intro goes and an appendix of what it must not repeat. */
 
 export const INTRO_MARKER = "<!-- lore-digest:intro -->";
 export const APPENDIX_MARKER = "<!-- lore-digest:appendix -->";
-/** How many titles one list of a person's line shows before it counts the rest. */
+/** How many titles a person's next shows before it counts the rest; their did shows every title, so the refine agent can sum up all of it. */
 export const LIST_CAP = 3;
 
 const NOTHING = "_Nothing merged, closed or planned since the last digest._";
 
-/** Every person's line, sorted by the name it shows: the Slack display name where one is known, the GitHub login otherwise. */
+/** Every person's block, sorted by the name it shows: the Slack display name where one is known, the GitHub login otherwise. */
 export function renderPeople(
   people: PersonWork[],
   names: Record<string, string>,
@@ -17,26 +17,30 @@ export function renderPeople(
   return people
     .map((person) => ({ ...person, name: names[person.login] ?? person.login }))
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map(renderPersonLine);
+    .map(renderPersonBlock);
 }
 
-function renderPersonLine(person: PersonWork & { name: string }): string {
+function renderPersonBlock(person: PersonWork & { name: string }): string {
   const lists = [
-    renderList("did", person.did),
-    renderList("next", person.next),
+    renderList("did", person.did, person.did.length),
+    renderList("next", person.next, LIST_CAP),
   ].filter(Boolean);
 
-  return `*${person.name}* — ${lists.join(" · ")}`;
+  return [`*${person.name}*`, ...lists].join("\n");
 }
 
-function renderList(label: string, changes: DigestChange[]): string {
+function renderList(
+  label: string,
+  changes: DigestChange[],
+  cap: number,
+): string {
   if (changes.length === 0) {
     return "";
   }
-  const shown = changes.slice(0, LIST_CAP).map(renderChange);
+  const shown = changes.slice(0, cap).map(renderChange);
   const rest = changes.length - shown.length;
 
-  return `${label}: ${[...shown, ...(rest > 0 ? [`+${rest} more`] : [])].join(", ")}`;
+  return `• ${label}: ${[...shown, ...(rest > 0 ? [`+${rest} more`] : [])].join(", ")}`;
 }
 
 function renderChange(change: DigestChange): string {
@@ -61,9 +65,9 @@ export function renderChangelogLinks(uiUrl: string, repos: string[]): string {
 
 export interface DigestDraftInput {
   header: { weekKey: string; date: string };
-  /** One line per person, then one per repo that could not be read. */
+  /** One block per person, then one line per repo that could not be read; each its own paragraph. */
   lines: string[];
-  /** The changelog links, under the lines in the same paragraph. */
+  /** The changelog links, the last paragraph. */
   footer?: string;
   wantsIntro: boolean;
   recentIntros: string[];
@@ -77,9 +81,10 @@ export function renderDigestDraft(input: DigestDraftInput): string {
     ...(wantsIntro ? [INTRO_MARKER] : []),
     [
       `*Daily digest · ${header.date}*`,
-      ...(lines.length > 0 ? lines : [NOTHING]),
-      ...(input.footer ? [input.footer] : []),
+      ...(lines.length > 0 ? [] : [NOTHING]),
     ].join("\n"),
+    ...lines,
+    ...(input.footer ? [input.footer] : []),
     renderAppendix(input.recentIntros, input.voice ?? ""),
   ];
 

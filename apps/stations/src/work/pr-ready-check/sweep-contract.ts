@@ -47,8 +47,8 @@ export interface PrReadyCheckDeps {
   failedJob(repo: string, jobId: number): Promise<JobFailure | null>;
   /** GitHub's mergeability for the PR: false when it conflicts (and so gets no workflow run at all), null while GitHub computes it. */
   prMergeable(repo: string, number: number): Promise<boolean | null>;
-  /** Commits of the default branch the PR's branch lacks, the same count `loop-sync-check` reads; undefined when GitHub cannot compare. */
-  prBehindBy(repo: string, number: number): Promise<number | undefined>;
+  /** GitHub's `mergeable_state` for the PR. It is `behind` only when a branch rule asks the PR to be up to date with its base, which is the one case a branch behind main must be rebased before it can merge. */
+  prMergeState(repo: string, number: number): Promise<string>;
   /** Does this repo run checks at all? A repo fact, not a clock. */
   hasCiHistory(repo: string): Promise<boolean>;
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;

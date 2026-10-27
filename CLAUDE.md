@@ -69,6 +69,8 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
+**Changelogs**: Repos with a shipped surface must keep a `CHANGELOG.md` following Keep a Changelog 1.1.0, with an `[Unreleased]` section requiring an entry for user-visible changes (checked at PR time). This repo (Lore) currently does not keep a changelog.
+
 **Helm charts** for K8s deployments. All five service workloads ship as
 ONE umbrella chart, `lore-platform` (vendoring
 lore-api/lore-mcp/stations/ui/lore-db subcharts under `charts/`); one

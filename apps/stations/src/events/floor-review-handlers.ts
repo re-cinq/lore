@@ -9,10 +9,12 @@ import {
 import {
   closeReviewsForPr,
   reviewOrRecheck,
+  startRecheck,
   startReply,
   startReview,
   type ReviewStartDeps,
 } from "@re-cinq/lore-shared/review/floor-review-start.js";
+import { hasReviewedPr } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 
 export interface FloorReviewDeps {
   autoReview(repo: string): Promise<boolean>;
@@ -49,11 +51,14 @@ interface ReviewParams extends PullRequestParams {
   review_author_association?: string;
 }
 
+const CI_FINISHED = "github.check_suite.completed";
+
 export const FLOOR_REVIEW_EVENTS: readonly string[] = [
   ...PUSHED_OR_OPENED,
   ...COMMENTED,
   "github.pull_request.closed",
   "github.pull_request_review.submitted",
+  CI_FINISHED,
 ];
 
 export function floorReviewHandlers(
@@ -64,7 +69,36 @@ export function floorReviewHandlers(
     ...COMMENTED.map((name) => [name, onComment(deps)] as const),
     ["github.pull_request.closed", onClose(deps)],
     ["github.pull_request_review.submitted", onReviewSubmitted(deps)],
+    [CI_FINISHED, onCiFinished(deps)],
   ]);
+}
+
+/** A check suite finished on a pull request's head: a re-check that waited for CI may start now. Only a pull request a review already ran on is re-checked; the first review starts from the pull request's own events. */
+function onCiFinished(deps: FloorReviewDeps): EventHandler {
+  return async (params) => {
+    const { repo, pr_numbers: numbers } = params as {
+      repo: string;
+      pr_numbers?: number[];
+    };
+
+    if ((numbers ?? []).length === 0 || !(await deps.autoReview(repo))) {
+      return;
+    }
+    const review = await deps.review(repo);
+
+    for (const prNumber of numbers ?? []) {
+      await recheckReviewed(review, { repo, prNumber, autoReview: true });
+    }
+  };
+}
+
+async function recheckReviewed(
+  review: ReviewStartDeps,
+  target: { repo: string; prNumber: number; autoReview: boolean },
+): Promise<void> {
+  if (await hasReviewedPr(review.floor, target)) {
+    await startRecheck(review, target);
+  }
 }
 
 function onPush(deps: FloorReviewDeps): EventHandler {

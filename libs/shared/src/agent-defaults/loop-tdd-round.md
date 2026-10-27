@@ -23,17 +23,22 @@ names the strategy, the
 acceptance tests that define done, and the facets expected. It is the
 brief; the ticket below is the context.
 
-RUN ONLY THE TEST YOU WRITE THIS ROUND, by its file, from the package
-that owns it, with a deadline — for example `cd <package> && timeout 300 npx
-vitest run <file>`. Never run the acceptance tests `.lore/dod.md` lists, nor a
-directory that holds them: CI is the judge of this branch, runs them on
-every push, and tells you where they stand. Read that from
-`/workspace/round-brief.md` when it exists, or ask `lore_get_ci_failures`
-— not from your memory, and not from what `.lore/dod.md` predicted. Not
-the repository's full suite either, and not the typechecker; the
-formatter and the linter run at delivery, over the files you changed.
-The pod's Bash hook refuses an acceptance test by name and
-a runner given no test file.
+RUN ONLY THE TESTS THIS BRANCH CREATED: the test you write this round,
+and the acceptance tests `.lore/dod.md` lists, which the definition of
+done wrote on this branch. Run each by its file, from the package that
+owns it, with a deadline — for example `cd <package> && timeout 300 npx
+vitest run <file>` — and run the acceptance tests before you push, so the
+round does not hand CI a red you could have seen. Never run a test main
+already had, a directory, or the repository's full suite:
+CI is the judge of this branch, runs every other test on every push, and
+tells you where they stand. Read that from `/workspace/round-brief.md` when it exists, or
+ask `lore_get_ci_failures` — not from your memory, and not from what
+`.lore/dod.md` predicted. Not the typechecker either; the formatter and
+the linter run at delivery, over the files you changed. The pod's Bash
+hook refuses a test file this branch did not create, and a runner given
+no test file. When your test belongs in a test file main already has, add
+it there and run only it, by its name: `npx vitest run <file> -t "<test
+name>"` (`-k` for pytest, `-run` for go test).
 
 If this pod cannot run your test — the command that runs it (`java`, `mvn`,
 `gradle`, `go`, `cargo`, `dotnet`) is not found, or a wrapper such as
@@ -124,20 +129,20 @@ RULES:
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
-  changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
-  this repo uses), then the repository's LINTER over the same files:
-  `timeout 300 npx --no-install eslint --fix <files>` (or the repo's own
-  linter, such as `ruff` or `golangci-lint`, scoped the same way), every
-  file you changed, spec and ADR markdown included. Fix what it still
-  reports, then commit what `--fix` changed with your work. CI's format
-  job runs `eslint --fix` before it lints and reports line numbers in the
-  file it fixed, so a branch that skipped the fix sends you chasing a
-  spec-link line that moves by one each round. When `eslint` is not
-  installed in the checkout, install the dependencies first (`npm ci`
-  from the repository root); never reach for a linter `npx` would
-  download. Never lint the whole repository (`eslint .`, `npm run lint`):
-  a two-file `eslint` here peaks near 800 MB, and a repo-wide one does not
-  fit the pod. Linting is not testing: the test rules above still hold.
+  changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`, whichever
+  this repo uses).
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - Do NOT typecheck here either. A green test is not a compiled build —
   vitest transpiles each file without checking types — but CI's build
   step is what proves it, and in this repository `tsc --noEmit` on

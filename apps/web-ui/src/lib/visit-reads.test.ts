@@ -9,6 +9,7 @@ const CALL = {
   model: "gemini-3.1-pro",
   costUsd: 0.02,
   tokensIn: 1000,
+  cacheReadTokens: 800,
   tokensOut: 120,
 };
 

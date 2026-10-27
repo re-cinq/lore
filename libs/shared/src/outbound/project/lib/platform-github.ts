@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- one class implementing two ports, one delegating method per port method: the length IS the port surface, and splitting the class would put half of GitHub in one file and half in another. */
+import { mergedPullsTouching } from "./platform-github-pulls-touching.js";
 import type { Octokit } from "octokit";
 import type {
   BranchHistoryOptions,
@@ -38,6 +39,8 @@ import type {
   ReviewThread,
   PullFileChange,
   BranchRule,
+  FileChangeSummary,
+  BranchUpdate,
   Mergeability,
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
@@ -267,6 +270,18 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return repoContent.commitFile(await this.octo(), repo, branch, change);
   }
 
+  async deleteFile(
+    repo: string,
+    branch: string,
+    change: Omit<FileChange, "content">,
+  ): Promise<boolean> {
+    return repoContent.deleteFile(await this.octo(), repo, branch, change);
+  }
+
+  async mergedPullsTouching(repo: string, path: string): Promise<PullRef[]> {
+    return mergedPullsTouching(await this.octo(), repo, path);
+  }
+
   async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {
     return repoConfig.upsertCheckRun(await this.octo(), repo, input);
   }
@@ -329,6 +344,19 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return branchRule.getMergeability(await this.octo(), repo, number);
   }
 
+  async updateBranch(
+    repo: string,
+    number: number,
+    expectedHeadSha: string,
+  ): Promise<BranchUpdate> {
+    return pullsWrite.updateBranch(
+      await this.octo(),
+      repo,
+      number,
+      expectedHeadSha,
+    );
+  }
+
   async changedFileCount(
     repo: string,
     base: string,
@@ -346,6 +374,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
   ): Promise<PullFileChange[]> {
     return pullsRead.listFileChanges(await this.octo(), repo, number);
+  }
+
+  async netChange(
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<FileChangeSummary[] | null> {
+    return pullsRead.netChange(await this.octo(), repo, base, head);
   }
 
   // ── PullRequestsPort: reviews/comments/CI ───────────────────────────

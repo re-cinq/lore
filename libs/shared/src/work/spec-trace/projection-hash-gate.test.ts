@@ -1,5 +1,5 @@
 import { enforceTrue } from "../../lib/enforce.js";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
@@ -36,6 +36,15 @@ interface FakeDgraph {
   mutations: Array<Record<string, unknown>>;
   nodeByXid: (xid: string) => Record<string, unknown> | undefined;
   failMutation: (n: number | null) => void;
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+async function exhaustRetries(expectation: Promise<void>): Promise<void> {
+  await vi.runAllTimersAsync();
+  await expectation;
 }
 
 function fakeDgraph(): FakeDgraph {
@@ -129,18 +138,21 @@ describe("projectSpecFile hash gate (fake port)", () => {
   it("a spec projection that dies mid-file leaves no content_hash and the retry re-projects", async () => {
     const fake = fakeDgraph();
 
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
     fake.failMutation(4);
-    await expect(
-      projectSpecFile(
-        {
-          repo: "re-cinq/lore",
-          filePath: "specs/hash-gate/spec.md",
-          content: SPEC_CONTENT,
-        },
-        fake.port,
-        { embed: stubEmbed },
-      ),
-    ).rejects.toThrow("Transaction has been aborted. Please retry");
+    await exhaustRetries(
+      expect(
+        projectSpecFile(
+          {
+            repo: "re-cinq/lore",
+            filePath: "specs/hash-gate/spec.md",
+            content: SPEC_CONTENT,
+          },
+          fake.port,
+          { embed: stubEmbed },
+        ),
+      ).rejects.toThrow("Transaction has been aborted. Please retry"),
+    );
     expect(fake.nodeByXid(xid)?.["Spec.content_hash"]).toBeUndefined();
 
     fake.failMutation(null);
@@ -227,17 +239,20 @@ describe("projectAdrFile hash gate (fake port)", () => {
   it("an ADR projection that dies mid-file leaves no content_hash and the retry re-projects", async () => {
     const fake = fakeDgraph();
 
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
     fake.failMutation(4);
-    await expect(
-      projectAdrFile(
-        {
-          repo: "re-cinq/lore",
-          filePath: "adrs/ADR-999-hash-gate.md",
-          content: ADR_CONTENT,
-        },
-        fake.port,
-      ),
-    ).rejects.toThrow("Transaction has been aborted. Please retry");
+    await exhaustRetries(
+      expect(
+        projectAdrFile(
+          {
+            repo: "re-cinq/lore",
+            filePath: "adrs/ADR-999-hash-gate.md",
+            content: ADR_CONTENT,
+          },
+          fake.port,
+        ),
+      ).rejects.toThrow("Transaction has been aborted. Please retry"),
+    );
     expect(fake.nodeByXid(xid)?.["ADR.content_hash"]).toBeUndefined();
 
     fake.failMutation(null);

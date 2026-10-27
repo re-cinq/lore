@@ -12,6 +12,14 @@ line:
     plan_id:
       kind: value
       subject: true
+    # The repository at its default branch, which plan-grounding and validate
+    # clone: a git item carrying no sha clones the branch as it stands when the
+    # visit opens. `repo` is the spec branch, cut from main when the run started,
+    # so a Validate days later would read deleted code from it. #2886 removed
+    # this arg with the ticketing tail that also read it, and the floor refused
+    # the line on every boot until #3487 put it back.
+    base:
+      kind: git
   nodes:
     - id: analyze
       station: plan-analyze
@@ -352,6 +360,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -426,6 +435,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -479,6 +489,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -507,6 +518,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       # Read-only: the pod returns a patch and commits nothing.
       - name: target
@@ -567,6 +579,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -600,6 +613,7 @@ stations:
       - success
       - changes_requested
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -651,6 +665,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: plan_md
         kind: file
@@ -702,6 +717,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -721,6 +737,7 @@ stations:
     outcomes:
       - success
       - failed
+    result_required: true
     needs:
       - name: target
         kind: git
@@ -948,11 +965,11 @@ agent_definitions:
         pod_resources:
           requests:
             cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 2Gi
-          limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
+          limits:
+            memory: 8Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
         skills_source: ${LORE_SKILLS_URL}
@@ -972,15 +989,16 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
             cpu: 500m
-            memory: 512Mi
-            ephemeral-storage: 2Gi
-          limits:
             memory: 2Gi
-            ephemeral-storage: 4Gi
+            ephemeral-storage: 6Gi
+          limits:
+            memory: 8Gi
+            ephemeral-storage: 6Gi
         skills:
           - lore-context
         skills_source: ${LORE_SKILLS_URL}
@@ -995,6 +1013,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
@@ -1018,6 +1037,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:
@@ -1041,6 +1061,7 @@ agent_definitions:
         gemini-3.1-pro-preview:
           input_per_million: 2
           output_per_million: 12
+          cache_read_per_million: 0.2
       config:
         pod_resources:
           requests:

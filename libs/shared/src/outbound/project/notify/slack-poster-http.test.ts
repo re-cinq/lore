@@ -41,6 +41,27 @@ describe("SlackPosterHttp", () => {
     ]);
   });
 
+  it("sends alice's block as a blue mrkdwn attachment", async () => {
+    const sent = slackAnswers({ ok: true, ts: "2.000" });
+
+    await poster().post({
+      channel: "C1",
+      text: "title",
+      attachments: [{ color: "#2f6fdd", text: "*alice*" }],
+    });
+
+    expect(sent).toEqual([
+      {
+        channel: "C1",
+        text: "title",
+        unfurl_links: true,
+        attachments: [
+          { color: "#2f6fdd", text: "*alice*", mrkdwn_in: ["text"] },
+        ],
+      },
+    ]);
+  });
+
   it("returns the message ts on ok", async () => {
     slackAnswers({ ok: true, ts: "2.000" });
 

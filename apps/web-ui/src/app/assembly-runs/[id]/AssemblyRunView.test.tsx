@@ -82,6 +82,35 @@ describe("AssemblyRunView", () => {
     expect(screen.queryByRole("button", { name: "Cancel Task" })).toBeNull();
   });
 
+  it("offers Cancel run on a running floor run with no task", () => {
+    render(
+      <RunFacts
+        run={run({ taskId: null, status: "running", engine: "floor" })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Cancel run" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a finished floor run", { status: "finished", engine: "floor" }],
+    ["a failed floor run", { status: "failed", engine: "floor" }],
+    [
+      "a running run with task-9 that Lore's own engine walked",
+      { taskId: "task-9", status: "running", engine: "lore" },
+    ],
+    [
+      "a running run Lore's own engine walked",
+      { status: "running", engine: "lore" },
+    ],
+  ] as const)("offers no Cancel run on %s", (_name, over) => {
+    render(<RunFacts run={run(over)} />);
+
+    expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
+  });
+
   it("links to no task page", () => {
     render(<RunFacts run={run({ taskId: "task-9" })} />);
 
@@ -234,5 +263,21 @@ describe("AssemblyRunView", () => {
         'a[href="/repos/re-cinq/lore/implementation-loop"]',
       ),
     ).toBeNull();
+  });
+});
+
+describe("RunFacts on a floor run that has a task", () => {
+  it("offers Cancel run and no Cancel Task on a running floor run with task-9, since cancelling the task leaves the floor run running", () => {
+    render(
+      <RunFacts
+        run={run({ taskId: "task-9", status: "running", engine: "floor" })}
+      />,
+    );
+
+    expect({
+      cancelRun: screen.queryByRole("button", { name: "Cancel run" }) !== null,
+      cancelTask:
+        screen.queryByRole("button", { name: "Cancel Task" }) !== null,
+    }).toEqual({ cancelRun: true, cancelTask: false });
   });
 });

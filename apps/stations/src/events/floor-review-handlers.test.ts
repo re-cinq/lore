@@ -55,8 +55,11 @@ function scene(
           listReviews: () => Promise.resolve([]),
           listComments: () => Promise.resolve([]),
           listReviewThreads: () => Promise.resolve([]),
+          listChecks: () => Promise.resolve([]),
+          netChange: () => Promise.resolve(null),
         },
         issues: { get: () => Promise.resolve(null) },
+        checks: { upsertCheckRun: () => Promise.resolve() },
       }),
   });
   const deliver = (eventName: string, params: Record<string, unknown>) =>
@@ -238,5 +241,45 @@ describe("floorReviewHandlers", () => {
     });
 
     expect(requests).toEqual([]);
+  });
+});
+
+const FINISHED_REVIEW_RUN = {
+  ...OPEN_REVIEW_RUN,
+  id: "done-1",
+  outcome: "success",
+  finishedAt: "2026-10-26T10:00:00.000Z",
+};
+
+describe("floorReviewHandlers on a completed check suite", () => {
+  it("starts code-review-recheck for pull request 412 when a check suite completes on its head after a review finished, since a re-check waits for CI", async () => {
+    const { deliver, requests } = scene({ runs: [FINISHED_REVIEW_RUN] });
+
+    await deliver("github.check_suite.completed", {
+      head_sha: "sha-new",
+      pr_numbers: [412],
+    });
+
+    expect(writes(requests)).toEqual([
+      "/assembly-lines/code-review-recheck/start",
+    ]);
+  });
+
+  it("starts no first review from a check suite on a pull request no review ran on, and nothing when the suite names no pull request or auto_review is off", async () => {
+    const unreviewed = scene();
+    const unnamed = scene({ runs: [FINISHED_REVIEW_RUN] });
+    const off = scene({ runs: [FINISHED_REVIEW_RUN], autoReview: false });
+
+    await unreviewed.deliver("github.check_suite.completed", {
+      pr_numbers: [412],
+    });
+    await unnamed.deliver("github.check_suite.completed", { pr_numbers: [] });
+    await off.deliver("github.check_suite.completed", { pr_numbers: [412] });
+
+    expect([
+      writes(unreviewed.requests),
+      writes(unnamed.requests),
+      writes(off.requests),
+    ]).toEqual([[], [], []]);
   });
 });

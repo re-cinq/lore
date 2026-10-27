@@ -4,11 +4,16 @@ name: Lore test-report
 # lore-code-trace binary — the same orchestrator onboarded repos download. CI sets
 # up the toolchain (the manifest's list/run use node+vitest), fetches the binary
 # from lore-api's /dist route, and runs it --post, which POSTs the report to
-# lore-api's delta route. Runs on push to main (the merged state) only.
+# lore-api's delta route. It runs on main only: coverage is ingested for the
+# merged state, and a pull request's own CI already runs its tests. A push runs
+# only the test files the change affects (the manifest's `related`); the weekly
+# run and a dispatch run the whole suite, which heals anything the module graph
+# missed.
 on:
   push:
     branches: [main]
-  pull_request:
+  schedule:
+    - cron: "0 3 * * 0"
   workflow_dispatch:
 
 concurrency:
@@ -21,12 +26,16 @@ permissions:
 jobs:
   test-report:
     runs-on: ubuntu-latest
-    # The suite plus the per-file coverage runs took ~24 minutes when 45 was
+    # The whole suite with per-file coverage took ~24 minutes when 45 was
     # chosen; by 2026-10-02 it took 40 on a quiet runner and was cancelled at 45
-    # when a merge started nine other workflows beside it. A cancelled run posts
-    # nothing, and the next one has the same work to do, so the limit has to sit
-    # well above the slow case rather than at it.
-    timeout-minutes: 90
+    # when a merge started nine other workflows beside it. A push now runs only
+    # the affected files, but the weekly full run, and a push that changes a
+    # lockfile or the vitest setup, still run everything. Every run gets GitHub's
+    # 6-hour maximum: a run uploads the whole difference since the commit Lore
+    # last recorded, an upload cut short advances nothing, and a recorded commit
+    # that fell far behind made every push upload the whole suite and be cut off
+    # at 90 minutes (2026-10-27). A run that is caught up still takes minutes.
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v5
         with:
@@ -39,6 +48,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web-ui/package-lock.json
 
       # The manifest's list/run scripts (node shared/scripts/trace/*.mjs) need the
       # deps + the built shared dist. mcp no longer builds here — the Go binary
@@ -81,5 +94,6 @@ jobs:
           # Cold CI runners are slower than dev machines; give the full-suite list +
           # per-file coverage runs headroom over the 120s default.
           LORE_TRACE_TIMEOUT_MS: "600000"
+          FULL: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '--full' || '' }}
         run: |
-          ./lore-code-trace --post || echo "::warning::Lore test ingest failed"
+          ./lore-code-trace --post ${FULL} || echo "::warning::Lore test ingest failed"
