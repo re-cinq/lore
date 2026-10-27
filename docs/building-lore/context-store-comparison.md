@@ -59,28 +59,29 @@ The runs above ask questions a model writes from one ADR or spec, answered by a 
 | Arm | Score | Hallucinated | Tokens p50 | Cost per question | Time p50 / p95 |
 |---|---|---|---|---|---|
 | no MCP | 0.07 | 0% | 2,731 | $0.011 | 2.6 s / 8.1 s |
-| Lore | 0.57 | 11% | 49,421 | $0.080 | 16.3 s / 42.8 s |
-| Utopia | **0.87** | 7% | 17,794 | $0.036 | 24.8 s / 70.9 s |
+| Lore | 0.57 | 10% | 49,421 | $0.080 | 16.3 s / 42.8 s |
+| Utopia | **0.86** | 7% | 17,794 | $0.036 | 24.8 s / 70.9 s |
 | Utopia, after that evening's search fix | 0.85 | 9% | 17,813 | $0.034 | 14.4 s / 51.3 s |
+| Utopia, at the night's search speed | 0.84 | 8% | 17,800 | **$0.023** | **8.8 s / 30.6 s** |
 
 | Kind | Lore | Utopia |
 |---|---|---|
 | decision (ADRs) | **0.93** | 0.90 |
 | requirement (specs) | 0.52 | **0.87** |
-| code location | 0.56 | **0.67** |
-| commit history | 0.44 | **0.88** |
+| code location | 0.48 | **0.69** |
+| commit history | 0.54 | **0.96** |
 | issues and pull requests | 0.04 | **1.00** |
 | learned gotchas | 0.78 | **0.89** |
-| superseded decisions | 0.50 | **0.83** |
+| superseded decisions | 0.53 | **0.58** |
 | unanswerable | 0.92 | **1.00** |
 
-- **Utopia answered more, for less.** Paired on the same questions, Utopia was better on 33, worse on 8 and level on 19 (exact McNemar p < 0.001). It used about a third of Lore's tokens and was more consistent: 85% of questions got the same verdict all three times, against 62% for Lore.
+- **Utopia answered more, for less.** Paired on the same questions, Utopia was better on 32, worse on 7 and level on 21 (exact McNemar p < 0.001). It used about a third of Lore's tokens and was more consistent: 85% of questions got the same verdict all three times, against 62% for Lore.
 - **The widest gaps are data Lore's tools cannot reach.** Utopia's `github` and `git-history` sources answer "which pull request" and "when did this change" in one search. Lore's agent finds the decision and then says, correctly, that nothing it can search names the pull request.
 - **Both stores repeat stale documents.** Most wrong answers came from a text overtaken by an amendment or a later pull request. One of them was this repository's own ADR-010, which still called the context evals nightly after #2823; it is amended in the same change as this section.
 - **Utopia's search was the cost.** At first a search on lore's base took 83–118 s: the Utopia database had no approximate-nearest-neighbour index, and its 3072-dimension embeddings are above pgvector's HNSW limit. That run needed `MCP_TOOL_TIMEOUT` raised to 5 minutes. After the evening fix, searches took about 12 s and the default timeout sufficed.
 - **Limits:** one run on one day with one answering model, 4–10 questions per kind, the Lore arm on the laptop's installed adapter, and the arms run hours apart.
 
-Harness, question banks, every answer and the full write-up: re-cinq/loop-bench `results/context-qa/2026-10-27/` (`RESULTS.md`, `ANSWERS.md`), from re-cinq/loop-bench#1.
+The full write-up, with every question and every ask as raw data: [context-store-agent-questions.md](context-store-agent-questions.md). Harness and transcripts: re-cinq/loop-bench `results/context-qa/2026-10-27/`, from re-cinq/loop-bench#1.
 
 ## What we read in it (2026-10-16)
 
