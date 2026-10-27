@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -64,6 +65,21 @@ type retryExhaustedError struct{ cause error }
 
 func (e retryExhaustedError) Error() string {
 	return fmt.Sprintf("%v (after %d attempts)", e.cause, deltaPostAttempts)
+}
+
+// deltaRequestTimeout is how long one delta post waits for lore-api, which
+// projects the chunk before it answers. Timing out does not stop that
+// projection, so the timeout must outlast the slowest chunk: at 5 minutes, on
+// 2026-10-27, every attempt at chunk 1 timed out while the ones before it were
+// still running. The lore-api ingress allows an hour.
+const deltaRequestTimeout = 30 * time.Minute
+
+// isClientTimeout says the post gave up waiting, while lore-api may still be
+// projecting the chunk: another attempt would start the same projection beside
+// it, so it is never retried.
+func isClientTimeout(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 // deltaPostAttempts outlasts a lore-api rollout: lore-api runs one replica, a
@@ -176,7 +192,7 @@ func sendIngestDelta(ctx context.Context, apiBase, token, repo string, body []by
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("posting delta: %w", err), true
+		return fmt.Errorf("posting delta: %w", err), !isClientTimeout(err)
 	}
 	defer resp.Body.Close()
 	switch {

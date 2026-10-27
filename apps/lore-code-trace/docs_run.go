@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type docsOptions struct {
@@ -47,7 +46,7 @@ func runDocs(startDir string, opts docsOptions, stdout io.Writer) error {
 	ctx := context.Background()
 	// A chunk is projected in-process before lore-api answers, the same reason
 	// the test report's delta client waits five minutes.
-	client := &http.Client{Timeout: 5 * time.Minute}
+	client := &http.Client{Timeout: deltaRequestTimeout}
 	failures := []error{}
 	for _, kind := range docKinds {
 		run := docsRun{kind: kind, commit: commit, patterns: patterns[kind], force: opts.force}
