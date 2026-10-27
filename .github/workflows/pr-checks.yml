@@ -265,6 +265,10 @@ jobs:
         with:
           ref: ${{ github.head_ref }} # re-checkout head so tests see the format commit
           persist-credentials: false
+          # `re-lint/no-stale-spec-links` needs the merge base with main; on a
+          # shallow clone it finds none and says nothing, leaving only
+          # `require-spec-link` to fail on the test. Only the lint job runs it.
+          fetch-depth: ${{ matrix.name == 'lint' && 0 || 1 }}
 
       - uses: actions/setup-node@v4
         with:
