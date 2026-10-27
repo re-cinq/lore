@@ -102,7 +102,7 @@ Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/
 
 Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L67))
 
-When nothing matches, a no-results message is returned. ([validated by `returns a no-results message when nothing matches`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L74))
+When nothing matches, a no-results message is returned.
 
 The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L86))
 

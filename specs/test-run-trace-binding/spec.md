@@ -31,7 +31,7 @@ single highest-value thing the coupling source ranks on, is structurally
 starved.**
 
 Meanwhile the *spec* side already encodes the link: each statement carries an
-inline `([validated by `name`](path/to/test.ts#L42))` parenthetical that
+inline `([validated by `name`](path/to/test.ts#L<line>))` parenthetical that
 [`projectSpecFile`](../../libs/shared/src/work/spec-trace/project-spec-file.ts) turns into
 a `VALIDATED_BY` edge. The two halves never meet: the static link says *which*
 test should validate a statement; the dynamic run knows *whether it passed* —

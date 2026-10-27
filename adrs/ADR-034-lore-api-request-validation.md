@@ -58,7 +58,7 @@ finish the job ADR-033 deferred.
    a precondition rather than an if-return (`lore/prefer-api-error` enforces it).
 
 - A refusal carries the status hapi renders ([validated by carries the status on a boom hapi renders](apps/lore-api/src/transport/http/api-error.test.ts#L6)).
-- Its payload is the house `{ error }` envelope, not Boom's default ([validated by payload is the house error envelope, not boom's default](apps/lore-api/src/transport/http/api-error.test.ts#L13)).
+- Its payload is the house `{ error }` envelope, not Boom's default ([validated by payload is the house { error } envelope, not boom's default](apps/lore-api/src/transport/http/api-error.test.ts#L13)).
 - A refusal that carries more than prose merges that data alongside the message ([validated by extra data rides alongside the message](apps/lore-api/src/transport/http/api-error.test.ts#L19)).
 - A stray `error` key in that data never shadows why the guard fired ([validated by a data key named error does not override the message](apps/lore-api/src/transport/http/api-error.test.ts#L31)).
 

@@ -72,7 +72,7 @@ day-old data.
    day: the consequence below makes a cron outage surface as staleness, and
    a line hardcoded to "yesterday — + today" reported a one-day gap through
    an outage of any length, quietly stranding whole days of spend between
-   the two figures. ([validated by `SpendView.test.tsx:329`](apps/web-ui/src/app/spend/SpendView.test.tsx#L379), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L388), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L394))
+   the two figures. ([validated by brings the billed card current with today's Lore-computed spend, labeled](apps/web-ui/src/app/spend/SpendView.test.tsx#L377), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L386), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L392))
 
 ## Consequences
 

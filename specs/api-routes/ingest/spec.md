@@ -104,11 +104,11 @@ A result with no `results` array still answers 200. ([validated by returns 200 w
 A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L78))
 
 
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L118), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L23))
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L23))
 
-A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/work/spec-trace/ingest.test.ts#L62), [`ingest.test.ts:57`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L71))
+A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by distinguishes path strings from content objects](apps/lore-api/src/work/spec-trace/ingest.test.ts#L62), [`ingest.test.ts:57`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L71))
 
-When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/work/spec-trace/ingest.test.ts#L84), [`ingest.test.ts:80`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L94), [`ingest.test.ts:90`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L104), [`ingest.test.ts:97`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L111))
+When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by should use HEAD when commit is from a different repo](apps/lore-api/src/work/spec-trace/ingest.test.ts#L84), [`ingest.test.ts:80`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L94), [`ingest.test.ts:90`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L104), [`ingest.test.ts:97`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L111))
 
 ### ingestFiles content resolution and per-file outcomes
 

@@ -13,7 +13,7 @@ The `lore-query-trace` MCP tool proxies a read to the remote `/trace/document` r
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace-tools.ts#L40)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace-tools.ts#L107)).
 
 - **name**: `lore-query-trace`
 - **description** (verbatim):
@@ -56,7 +56,7 @@ the projection itself is a pure function
 the GET proxy reuses the shared retry/config machinery
 ([`proxyGetApi`](../../apps/mcp-server/src/transport/tools/deps.ts#L17)); the tool is
 registered read-only on the shared surface
-([`lore-query-trace` registration](apps/mcp-server/src/transport/tools/spec-trace-tools.ts#L40)).
+([`lore-query-trace` registration](apps/mcp-server/src/transport/tools/spec-trace-tools.ts#L107)).
 
 ## Acceptance Criteria
 

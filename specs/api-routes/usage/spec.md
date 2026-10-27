@@ -83,7 +83,7 @@ A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agen
 
 A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/transport/routes/analytics/usage.test.ts#L79))
 
-The route is registered as `GET /api/usage`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L147), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/usage.ts#L17))
+The route is registered as `GET /api/usage`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/usage.ts#L17))
 
 ## Out of Scope
 

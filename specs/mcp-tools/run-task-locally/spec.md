@@ -49,10 +49,10 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
    `cd` suggestion — no worktree is created.
 3. **Task id** — generate a UUID. The run is free-form local work: it files no pipeline task and is tracked on this machine only (`~/.lore/local-tasks.json`). The tool takes no task type since 2026-10-02: the API creates no task from a description, so there is nothing to file a `runbook` or `gap-fill` run under.
 4. Spawn via `spawnLocalTask({taskId, prompt, repo, taskType, model, repoRoot})`
-   ([spawn](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L862)):
+   ([spawn](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)):
    1. `ensureDirs()` for `~/.lore/worktrees` and `~/.lore/task-logs`.
    2. `validateRepoMatch(repo, detectRepo())`
-      ([guard](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L161)) —
+      ([guard](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)) —
       throws if the cwd is a checkout of a different repo than `target_repo`.
    3. Build branch `lore/<taskType>/<slug>-<shortId>`; refuse if the worktree dir
       already exists (idempotency).
@@ -96,7 +96,7 @@ The repo-mismatch error names both repos and suggests a `cd`.
 ([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L213))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
-([validated by `passes when cwd repo cannot be detected (null)`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L224))
+([validated by passes when cwd repo cannot be detected (null), leaving the later worktree-creation error to spawnLocalTask](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L224))
 
 The `<slug>` segment normalizes the description: lowercased, every run of
 non-alphanumeric characters collapsed to a single dash, truncated to 40 chars,

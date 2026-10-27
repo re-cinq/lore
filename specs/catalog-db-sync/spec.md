@@ -29,7 +29,7 @@ recipe in a shared cluster.
 
 ## FR1 — The change log
 
-- FR1.1: Every `lore.agent_definitions` create, update and delete appends one row to the append-only `lore.catalog_events` log in the same SQL statement, so a definition can never exist without the event that fans it out. ([validated by create, update and delete each append a lore.catalog_events row in the same statement](../../libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L127))
+- FR1.1: Every `lore.agent_definitions` create, update and delete appends one row to the append-only `lore.catalog_events` log in the same SQL statement, so a definition can never exist without the event that fans it out. ([validated by create and update write the row and return its columns from the same statement](../../libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L124))
 - FR1.2: The log is multi-reader and cursor-addressed: `listSince(cursor, limit)` returns only events past the cursor, ascending, capped at the batch limit.
 - FR1.3: A snapshot read returns every current `(name, project_id)` definition together with the max event id at read time, cursor first, so an event appended mid-snapshot is re-applied by the first tail rather than skipped.
 - FR1.4 *(added 2026-09-22, #1737)*: An org-level (`project_id IS NULL`) event fans out to the resolution tree's dependents: the tail serves it followed by one upsert for every project row of that name, under the same event id, so an `/agents` org save re-renders the project-qualified CR pairs (`<name>--r<projectId8>`) that dispatch uses instead of leaving them baked with the previous recipe. A project-level event serves only itself.

@@ -25,12 +25,12 @@ write-once-extract-async endpoint.
 ## Interface
 
 Registered as `exact("/api/episode", "POST")`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L116)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/episode`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/episode"] = "write"`
-  ([scope map](../../../apps/lore-api/src/transport/routes/memory/episode.ts#L31)). Bearer required;
+  ([scope map](../../../apps/lore-api/src/transport/routes/memory/episode.ts)). Bearer required;
   `admin` satisfies, `read`-only does not.
 - **Rate bucket**: `default` (200/min).
 
@@ -156,4 +156,4 @@ contract.)*
 - Token issuance and the scope schema.
 
 Code: handler [`handleEpisode`](../../../apps/lore-api/src/transport/routes/memory/episode.ts#L26)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L116).
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts).

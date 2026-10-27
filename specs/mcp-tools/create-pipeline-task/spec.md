@@ -28,7 +28,7 @@ the task will be picked up.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L125)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts)).
 
 - **name**: `lore_create_pipeline_task`
 - **description** (verbatim):
@@ -69,7 +69,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
      `resolvedType = task_type`; a missing or removed type is refused (`namedTaskType`).
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
      ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L71)).
-4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L114)) — rejects descriptions
+4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L82)) — rejects descriptions
    over 32000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
    and enforce the trust gate (`settings.trust.level` → allowed task types; a
    disallowed type throws `Task type "{t}" not allowed at trust level "{level}" for {repo}. Allowed: …`,
@@ -132,7 +132,7 @@ pickup hint; a 401 is reported as a denied error.
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
-auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by refuses an implementation-loop task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 
 `buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string.
 

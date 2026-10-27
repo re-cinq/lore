@@ -26,7 +26,7 @@ dedup.
 ## Interface
 
 Registered in `routeList`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L152),
+([registration](../../../apps/lore-api/src/app/build-server.ts),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-turns.ts#L65)).
 
 - **Method + path**: `POST /api/task-turns/{taskId}`; `taskId` must be a UUID.
@@ -109,13 +109,13 @@ entirely).
    silently; a line whose JSON breaks under redaction is dropped and counted. ([validated by keeps parseable stream-json lines untouched](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L290), [validated by skips non-JSON lines without counting them as dropped](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L302), [validated by redacts a secret inside a line and keeps the still-parseable result](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L314), [validated by drops and counts a line whose JSON breaks under redaction](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L327))
 2. `batchTurnLines` splits the relay into batches capped by utf-8 bytes
    (~700KB, under lore-api's 1MB body limit) and line count (2000, under the
-   Floor's 10k-turns-per-batch cap). ([validated by splits on the line cap](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L339), [validated by splits on the byte cap measured with Buffer.byteLength](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L349), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L358))
+   Floor's 10k-turns-per-batch cap). ([validated by splits on the line cap](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L339), [validated by splits on the byte cap using each line's utf-8 byte length, not char count (ü = 2 bytes)](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L349), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L358))
 3. A line that can never fit one relay request (its own bytes exceed the batch
    cap) is dropped BEFORE batching, with a counted warning — shipping it would
    413 and cost the batches behind it. A failed batch is likewise counted and
    skipped, never allowed to abandon the rest: the terminal result line rides
    last, so aborting mid-relay would silently lose the cost row and the
-   transcript tail. ([validated by keeps lines at or under the byte cap and counts the rest](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L370), [validated by measures utf-8 bytes plus the join newline, not characters](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L380))
+   transcript tail. ([validated by keeps lines at or under the byte cap and counts the rest](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L370), [validated by measures utf-8 bytes not characters: 10 chars of ü is 20 bytes, over a 15-byte cap](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L380))
 4. *(Added by #1389:)* `ingestTurns` sends each batch's cumulative line offset
    in `x-turn-offset`, advancing it past failed batches too — a batch consumes
    its transcript positions whether or not it relayed, so a later retry of the
