@@ -37,7 +37,7 @@ description: Does a sample thing.
 `;
 
 describe("seedSkillDefaults", () => {
-  it("upserts the whole skill file verbatim as content when the skill has a valid Help block", async () => {
+  it("inserts the whole skill file verbatim as content when the skill has a valid Help block", async () => {
     const { pool, queries } = recordingPool();
 
     await seedSkillDefaults(pool, [parseSkillFile("sample", VALID_SKILL)]);
@@ -66,5 +66,17 @@ describe("seedSkillDefaults", () => {
       new Error("Skill bare is missing a valid ## Help block"),
     );
     expect(queries).toEqual([]);
+  });
+
+  it("leaves an existing row untouched when the skill is seeded again", async () => {
+    const { pool, queries } = recordingPool();
+
+    await seedSkillDefaults(pool, [parseSkillFile("sample", VALID_SKILL)]);
+
+    expect(queries.map((query) => query.sql)).toEqual([
+      expect.stringContaining(
+        "ON CONFLICT (name) WHERE project_id IS NULL DO NOTHING",
+      ),
+    ]);
   });
 });

@@ -3,15 +3,10 @@ import type { PgPool } from "../domain/memory-store-types.js";
 import type { SkillFile } from "./skill-file.js";
 import { hasValidHelpBlock } from "./skill-help-block.js";
 
-const UPSERT_SKILL_SQL = `
+const INSERT_MISSING_SKILL_SQL = `
     INSERT INTO lore.skill_definitions (name, title, description, model, content, enabled, project_id)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
-      title = EXCLUDED.title,
-      description = EXCLUDED.description,
-      model = EXCLUDED.model,
-      content = EXCLUDED.content,
-      enabled = EXCLUDED.enabled
+    ON CONFLICT (name) WHERE project_id IS NULL DO NOTHING
     `;
 
 export async function seedSkillDefaults(
@@ -26,14 +21,16 @@ export async function seedSkillDefaults(
     ),
   );
 
-  await Promise.all(skills.map((skill) => upsertSkillDefinition(pool, skill)));
+  await Promise.all(
+    skills.map((skill) => insertMissingSkillDefinition(pool, skill)),
+  );
 }
 
-async function upsertSkillDefinition(
+async function insertMissingSkillDefinition(
   pool: PgPool,
   skill: SkillFile,
 ): Promise<void> {
-  await pool.query(UPSERT_SKILL_SQL, [
+  await pool.query(INSERT_MISSING_SKILL_SQL, [
     skill.name,
     skill.title,
     skill.description,

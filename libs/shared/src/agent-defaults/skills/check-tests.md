@@ -2,7 +2,7 @@
 name: check-tests
 description: Run tests only for files changed in current branch
 argument-hint: "[base-branch]"
-model: haiku
+model: claude-haiku-4-5-20251001
 context: fork
 ---
 

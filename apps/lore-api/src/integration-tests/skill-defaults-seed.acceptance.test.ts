@@ -43,4 +43,19 @@ describe("seedSkillDefaults (Acceptance)", () => {
     }).toEqual({ names: skillNames, withoutValidHelp: [] });
     expect(skillNames).toHaveLength(22);
   });
+
+  it("keeps an edited and disabled skill when the shipped skills are seeded again", async () => {
+    await seedSkillDefaults(pool, skills);
+    await pool.query(
+      `UPDATE lore.skill_definitions SET content = 'edited by an admin', enabled = false WHERE project_id IS NULL AND name = 'testing'`,
+    );
+
+    await seedSkillDefaults(pool, skills);
+
+    const { rows } = await pool.query<{ content: string; enabled: boolean }>(
+      `SELECT content, enabled FROM lore.skill_definitions WHERE project_id IS NULL AND name = 'testing'`,
+    );
+
+    expect(rows).toEqual([{ content: "edited by an admin", enabled: false }]);
+  });
 });
