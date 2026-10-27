@@ -417,4 +417,33 @@ describe("taskIssueBody", () => {
       end: "\n\n*Cut short: GitHub holds 65,536 characters.*\n",
     });
   });
+
+  it("says what a person must do, and to remove lore:blocked after, before the task's context", () => {
+    const body = taskIssueBody({
+      repo: REPO,
+      storyNumber: 2260,
+      dependsOn: [],
+      task: {
+        id: "T004",
+        description: "Store the Slack token",
+        depends_on: [],
+        parallelizable: false,
+        phase: 1,
+        context: "The digest posts with it.",
+        needs_person: "Add lore-slack-token to GSM.",
+      },
+    });
+
+    expect(body.split("\n").slice(0, 9)).toEqual([
+      "Part of #2260.",
+      "",
+      "## Needs a person",
+      "",
+      "Add lore-slack-token to GSM.",
+      "",
+      "The implementation loop skips this ticket while it carries `lore:blocked`; remove the label once this is done.",
+      "",
+      "## Context",
+    ]);
+  });
 });

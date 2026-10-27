@@ -1033,3 +1033,23 @@ describe("the formatter and linter commands every recipe names", () => {
     expect(downloading).toEqual([]);
   });
 });
+
+describe("the spec tickets decompose on work outside the repository", () => {
+  it("has spec-tickets-decompose set needs_person only on a task the loop cannot do from a checkout of the repo, in a task of its own", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      field: prompt.includes('"needs_person": "<'),
+      outsideRepo: prompt.includes(
+        "only on a task the implementation loop cannot do from a checkout of this repository",
+      ),
+      codeIsLoops: prompt.includes("Never set it on code, tests, docs"),
+      ownTask: prompt.includes("Give that step a task of its own"),
+    }).toEqual({
+      field: true,
+      outsideRepo: true,
+      codeIsLoops: true,
+      ownTask: true,
+    });
+  });
+});

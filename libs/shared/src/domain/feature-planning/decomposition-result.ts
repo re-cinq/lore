@@ -22,6 +22,8 @@ export interface DecompTask {
   spec_lines?: SpecLine[];
   /** The approved plan's passages the task comes from, quoted as written: the plan is not in the repository. */
   plan_quotes?: string[];
+  /** What a person must do because the implementation loop cannot from a checkout of the repo; its issue is filed parked. */
+  needs_person?: string;
 }
 
 /** A line of the spec the plan is chiefly about, or of `file` when the plan's spec PR wrote it in another spec. */
@@ -213,6 +215,7 @@ export type TaskIssueDetail = Pick<
   | "test_plan"
   | "references"
   | "plan_quotes"
+  | "needs_person"
 >;
 
 export function taskIssueDetail(source: object): TaskIssueDetail {
@@ -229,6 +232,7 @@ export function taskIssueDetail(source: object): TaskIssueDetail {
     ),
     ...listField("references", t.references),
     ...listField("plan_quotes", t.plan_quotes),
+    ...textField("needs_person", t.needs_person),
   };
 }
 
