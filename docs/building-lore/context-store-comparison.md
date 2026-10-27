@@ -1,6 +1,6 @@
 # Which store answers context questions best
 
-**For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first, run on 2026-10-16, and the re-runs of 2026-10-19 (below), and what they say about the switch.
+**For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first, run on 2026-10-16, the re-runs of 2026-10-19, the agent-question experiment of 2026-10-27 (below), and what they say about the switch.
 
 ## Why we measured
 
@@ -51,6 +51,36 @@ By 2026-10-19 every onboarded repository had a Utopia base at ontology version 5
 - **Capping a document at its best three statements hurt** (answered 117 to 111): the statement that answers a question is often not among those that matched it best. Reverted (#2817).
 - **Scoping the search before recall made it time out.** For a big repository the allowed set is nearly every document of its statements source, which the vector channel cannot filter cheaply. Reverted on Lore's side (#2820); re.15 without the scope fields searches as re.14 did.
 - **Lore's own misses on re-cinq/lore are mostly not retrieval misses.** Twice it answered from current code (a third theme family) that the reference documents never mention, and once it cut ADR-039 before the amendment that reverses it.
+
+## Agent questions on 2026-10-27: Utopia ahead on every kind but one
+
+The runs above ask questions a model writes from one ADR or spec, answered by a lore-api model from one assembled block. On 2026-10-27 a different experiment asked a real agent the questions people ask: why a decision was made, which file does something, which pull request changed it, what changed since. There were 60 questions with hand-checked gold answers, 30 about re-cinq/lore and 30 about re-cinq/Otto. Each was asked three times of a fresh Claude (`claude-sonnet-5-5`) that had no instructions, no file access and only one MCP server: none, Lore's adapter, or Utopia's MCP route for the repository's base. A second fresh Claude (`claude-opus-5-5`) judged each answer against the gold answer.
+
+| Arm | Score | Hallucinated | Tokens p50 | Cost per question | Time p50 / p95 |
+|---|---|---|---|---|---|
+| no MCP | 0.07 | 0% | 2,731 | $0.011 | 2.6 s / 8.1 s |
+| Lore | 0.57 | 11% | 49,421 | $0.080 | 16.3 s / 42.8 s |
+| Utopia | **0.87** | 7% | 17,794 | $0.036 | 24.8 s / 70.9 s |
+| Utopia, after that evening's search fix | 0.85 | 9% | 17,813 | $0.034 | 14.4 s / 51.3 s |
+
+| Kind | Lore | Utopia |
+|---|---|---|
+| decision (ADRs) | **0.93** | 0.90 |
+| requirement (specs) | 0.52 | **0.87** |
+| code location | 0.56 | **0.67** |
+| commit history | 0.44 | **0.88** |
+| issues and pull requests | 0.04 | **1.00** |
+| learned gotchas | 0.78 | **0.89** |
+| superseded decisions | 0.50 | **0.83** |
+| unanswerable | 0.92 | **1.00** |
+
+- **Utopia answered more, for less.** Paired on the same questions, Utopia was better on 33, worse on 8 and level on 19 (exact McNemar p < 0.001). It used about a third of Lore's tokens and was more consistent: 85% of questions got the same verdict all three times, against 62% for Lore.
+- **The widest gaps are data Lore's tools cannot reach.** Utopia's `github` and `git-history` sources answer "which pull request" and "when did this change" in one search. Lore's agent finds the decision and then says, correctly, that nothing it can search names the pull request.
+- **Both stores repeat stale documents.** Most wrong answers came from a text overtaken by an amendment or a later pull request. One of them was this repository's own ADR-010, which still called the context evals nightly after #2823; it is amended in the same change as this section.
+- **Utopia's search was the cost.** At first a search on lore's base took 83–118 s: the Utopia database had no approximate-nearest-neighbour index, and its 3072-dimension embeddings are above pgvector's HNSW limit. That run needed `MCP_TOOL_TIMEOUT` raised to 5 minutes. After the evening fix, searches took about 12 s and the default timeout sufficed.
+- **Limits:** one run on one day with one answering model, 4–10 questions per kind, the Lore arm on the laptop's installed adapter, and the arms run hours apart.
+
+Harness, question banks, every answer and the full write-up: re-cinq/loop-bench `results/context-qa/2026-10-27/` (`RESULTS.md`, `ANSWERS.md`), from re-cinq/loop-bench#1.
 
 ## What we read in it (2026-10-16)
 
