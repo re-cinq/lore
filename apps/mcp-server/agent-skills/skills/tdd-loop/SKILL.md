@@ -176,8 +176,3 @@ pushed.
 
 Report: the facet you closed, the facet you would take next, the post-refactor test
 result, and the `future_improvements` list.
-
-<!-- lore-help:begin -->
-## Help
-This skill sets up the TDD loop behavior.
-<!-- lore-help:end -->

@@ -332,8 +332,9 @@
     }
   },
   "scripts": {
-    "build": "tsc && npm run copy:agent-defaults && npm run copy:ontology",
+    "build": "tsc && npm run copy:agent-defaults && npm run copy:skill-defaults && npm run copy:ontology",
     "copy:agent-defaults": "mkdir -p dist/agent-defaults && cp -f src/agent-defaults/*.md dist/agent-defaults/",
+    "copy:skill-defaults": "rm -rf dist/agent-defaults/skills && mkdir -p dist/agent-defaults/skills && cp -f src/agent-defaults/skills/*.md dist/agent-defaults/skills/",
     "dev": "tsc --watch",
     "test": "LORE_SKIP_DGRAPH_TESTS=1 vitest run",
     "test:dgraph": "vitest run",

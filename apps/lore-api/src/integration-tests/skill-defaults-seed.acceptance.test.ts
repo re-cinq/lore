@@ -1,8 +1,12 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
+import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
+import { hasValidHelpBlock } from "@re-cinq/lore-shared/agent-defaults/skill-help-block.js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 
 describe("seedSkillDefaults (Acceptance)", () => {
+  const skills = loadSkillDefaults();
+  const skillNames = skills.map((skill) => skill.name);
   let pool: pg.Pool;
 
   beforeAll(async () => {
@@ -17,34 +21,26 @@ describe("seedSkillDefaults (Acceptance)", () => {
 
   afterAll(async () => {
     await pool.query(
-      `DELETE FROM lore.skill_definitions WHERE name IN ('lore-context', 'tdd-loop', 'legacy-characterize')`,
+      `DELETE FROM lore.skill_definitions WHERE project_id IS NULL AND name = ANY($1)`,
+      [skillNames],
     );
     await pool.end();
   });
 
-  it("seeds the three static skills with a Help block into lore.skill_definitions", async () => {
-    const mod =
-      await import("@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js").catch(
-        () => null,
-      );
+  it("seeds the 22 shipped skills with a valid Help block into lore.skill_definitions", async () => {
+    await seedSkillDefaults(pool, skills);
 
-    const seedModule = mod;
-
-    expect(seedModule, "Skill seed module must be implemented").not.toBeNull();
-    enforceTrue(seedModule, Error, "Skill seed module must be implemented");
-
-    await seedModule.seedSkillDefaults(pool);
-
-    const { rows } = await pool.query(
-      `SELECT name, content FROM lore.skill_definitions WHERE name IN ('lore-context', 'tdd-loop', 'legacy-characterize')`,
+    const { rows } = await pool.query<{ name: string; content: string }>(
+      `SELECT name, content FROM lore.skill_definitions WHERE project_id IS NULL AND name = ANY($1) ORDER BY name`,
+      [skillNames],
     );
 
-    expect(
-      rows.map((r) => ({
-        hasHelp:
-          r.content.includes("<!-- lore-help:begin -->") &&
-          r.content.includes("<!-- lore-help:end -->"),
-      })),
-    ).toEqual([{ hasHelp: true }, { hasHelp: true }, { hasHelp: true }]);
+    expect({
+      names: rows.map((row) => row.name),
+      withoutValidHelp: rows
+        .filter((row) => !hasValidHelpBlock(row.content))
+        .map((row) => row.name),
+    }).toEqual({ names: skillNames, withoutValidHelp: [] });
+    expect(skillNames).toHaveLength(22);
   });
 });

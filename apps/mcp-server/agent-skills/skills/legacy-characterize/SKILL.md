@@ -61,8 +61,3 @@ Characterization tests are a scaffold with a real cost: they pin behaviour that 
 wrong, and a later intentional change has to update them deliberately. Say in your
 commit message which tests are characterization tests, so the next reader knows they
 document what the code *does* rather than what it *should* do.
-
-<!-- lore-help:begin -->
-## Help
-This skill is used for characterizing legacy code.
-<!-- lore-help:end -->

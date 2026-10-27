@@ -1,93 +1,45 @@
 import { enforceTrue } from "../lib/enforce.js";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { parse } from "yaml";
 import type { PgPool } from "../domain/memory-store-types.js";
+import type { SkillFile } from "./skill-file.js";
+import { hasValidHelpBlock } from "./skill-help-block.js";
 
-const SKILLS_DIR = fileURLToPath(
-  new URL("../../../../apps/mcp-server/agent-skills/skills", import.meta.url),
-);
-
-export async function seedSkillDefaults(pool: PgPool): Promise<void> {
-  const skills = ["lore-context", "tdd-loop", "legacy-characterize"];
-
-  for (const skillName of skills) {
-    await processSkill(pool, skillName);
-  }
-}
-
-async function processSkill(pool: PgPool, skillName: string): Promise<void> {
-  const content = readSkillContent(skillName);
-
-  if (!content) {
-    return;
-  }
-
-  const { body, result } = extractFrontmatter(content);
-
-  enforceTrue(
-    body.includes("<!-- lore-help:begin -->") &&
-      body.includes("<!-- lore-help:end -->"),
-    Error,
-    `Skill ${skillName} is missing a ## Help block`,
-  );
-
-  await insertSkillDefinition(pool, {
-    name: result.name || skillName,
-    title: result.title || skillName,
-    description: result.description || "",
-    body,
-  });
-}
-
-function readSkillContent(skillName: string): string | undefined {
-  try {
-    return readFileSync(join(SKILLS_DIR, skillName, "SKILL.md"), "utf-8");
-  } catch {
-    return undefined;
-  }
-}
-
-function extractFrontmatter(content: string) {
-  let body = content;
-  const result: Record<string, string> = {};
-
-  if (!content.startsWith("---")) {
-    return { body, result };
-  }
-
-  const endIdx = content.indexOf("---", 3);
-
-  if (endIdx === -1) {
-    return { body, result };
-  }
-
-  const frontmatter = content.slice(3, endIdx);
-
-  body = content.slice(endIdx + 3).trim();
-  const parsed = parse(frontmatter);
-
-  return {
-    body,
-    result: (parsed as Record<string, string> | null) ?? {},
-  };
-}
-
-async function insertSkillDefinition(
-  pool: PgPool,
-  skill: { name: string; title: string; description: string; body: string },
-) {
-  await pool.query(
-    `
+const UPSERT_SKILL_SQL = `
     INSERT INTO lore.skill_definitions (name, title, description, model, content, enabled, project_id)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
       title = EXCLUDED.title,
       description = EXCLUDED.description,
+      model = EXCLUDED.model,
       content = EXCLUDED.content,
       enabled = EXCLUDED.enabled
-    `,
-    [skill.name, skill.title, skill.description, null, skill.body, true, null],
+    `;
+
+export async function seedSkillDefaults(
+  pool: PgPool,
+  skills: SkillFile[] = [],
+): Promise<void> {
+  skills.forEach((skill) =>
+    enforceTrue(
+      hasValidHelpBlock(skill.content),
+      Error,
+      `Skill ${skill.name} is missing a valid ## Help block`,
+    ),
   );
+
+  await Promise.all(skills.map((skill) => upsertSkillDefinition(pool, skill)));
+}
+
+async function upsertSkillDefinition(
+  pool: PgPool,
+  skill: SkillFile,
+): Promise<void> {
+  await pool.query(UPSERT_SKILL_SQL, [
+    skill.name,
+    skill.title,
+    skill.description,
+    skill.model,
+    skill.content,
+    true,
+    null,
+  ]);
 }

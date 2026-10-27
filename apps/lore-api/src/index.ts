@@ -12,6 +12,7 @@ import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
 import { seedFloor } from "./app/seed-floor.js";
 import { seedAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-seed.js";
+import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
 import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
 
@@ -79,7 +80,7 @@ async function seedShippedAgents(pool: Pool): Promise<void> {
 
 async function seedShippedSkills(pool: Pool): Promise<void> {
   try {
-    await seedSkillDefaults(pool);
+    await seedSkillDefaults(pool, loadSkillDefaults());
     console.error(`[lore-api] skill defaults seeded`);
   } catch (err) {
     console.error(`[lore-api] failed to seed skill defaults:`, err);
