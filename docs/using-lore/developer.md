@@ -74,6 +74,33 @@ The implementation loop (`specs/implementation-loop/spec.md`) orders its backlog
 
 An issue carrying more than one `priority:*` label is skipped rather than resolved to the highest, so the ambiguity surfaces to a human.
 
+#### How the loop picks the next ticket
+
+A ticket is in the queue when it is open, carries exactly one `priority:*` label and has no `lore:blocked` label. A ticket with two priority labels, or a parked one, is held: the Loops tab lists it with the reason, and the loop leaves it alone.
+
+The loop sorts the queue by a list of criteria. It compares two tickets on the first criterion, and only when they tie does it look at the next one. The default list is `priority`, then `age`: every `priority:high` ticket comes before any `priority:medium` one, and within a priority the oldest ticket goes first.
+
+| Criterion  | Order                                                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `priority` | `priority:high`, then `priority:medium`, then `priority:low`                                                            |
+| `age`      | oldest issue first; an issue with no creation date goes last                                                            |
+| `unblocks` | the issue that blocks the most other issues first, counted from GitHub's issue dependencies ("blocked by" / "blocking") |
+| `size`     | `size:S`, then `size:M`, then `size:L`, then issues with no size label                                                  |
+
+A repo changes the list in its settings, under `backlog_ranking.criteria` (`PUT /api/repos/:owner/:repo/settings`), with no code change:
+
+```json
+{ "backlog_ranking": { "criteria": ["priority", "unblocks", "size", "age"] } }
+```
+
+That repo still works high priority first, but among tickets of equal priority it starts with the one that unblocks the most others, then the smallest, then the oldest. When you set it:
+
+- Unknown names are dropped. A list that ends up empty, or a value that is not a list, falls back to the default.
+- A criterion you leave out is not used at all. Leave out `priority` and the label only lets a ticket into the queue; it no longer decides the order.
+- Tickets that tie on every criterion keep the order GitHub listed them in, so end the list with `age` to make the pick predictable.
+
+To see what the loop would start next without starting it, call the `lore_next_ready_issue` MCP tool with `{ "repo": "owner/name" }`. It returns the issue and a `because` field naming the first ranking criterion and the issue's unblocks count, or `{ "issue": null, "reason": … }` when nothing is ready. The loop also skips a ticket a task is already working on, and starts the next one in line instead.
+
 A `lore:triage` or `triage: needs-triage` label starts issue triage instead.
 
 If a task is already working the Issue, Lore comments with that task's ID instead of queueing it again. Onboarding adds three issue templates ("Lore: Implementation", "Lore: Review", "Lore: General Task"); each one carries the `lore` label, so filing any of them queues the Issue for the loop.

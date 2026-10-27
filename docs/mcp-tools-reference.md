@@ -648,6 +648,21 @@ One-line purpose: fetch specific repo files from GitHub, embed them, and write t
 - **Where it runs:** runs locally in stdio mode and **proxies the embed work** to the GKE `/api/ingest` route over `LORE_API_URL` (requires `LORE_INGEST_TOKEN`); does not touch Postgres in this process. The ingested commit is local `HEAD` only when the resolved repo matches the cwd repo; otherwise GitHub's default branch is used.
 - **Cache/mutation:** WRITE (the GKE route owns chunking + Vertex embedding + chunk inserts). Invalidates the `lore_assemble_context` read cache for the repo.
 
+#### `lore_next_ready_issue`
+
+One-line purpose: preview the backlog ticket the implementation loop would start next for a repo.
+
+- **When to use:** check what the loop will pick, or whether a repo's `backlog_ranking.criteria` setting orders the backlog the way you meant, without dispatching anything.
+- **When not to use:** to start work on a ticket → label it `priority:*` and let the loop take it, or `lore_run_task_locally`.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `repo` | yes | — | Target repo in `owner/repo` format. |
+
+- **Returns:** JSON `{issue, because}`, where `because` names the repo's first ranking criterion and the issue's unblocks count, e.g. `priority (unblocks: 2)`. `{issue: null, reason}` when nothing is ready or the API is unreachable, never an error. How the queue is ranked: `docs/using-lore/developer.md`, "How the loop picks the next ticket".
+- **Where it runs:** proxies `GET /api/repos/:o/:r/implementation-loop` over `LORE_API_URL`.
+- **Cache/mutation:** read-only.
+
 ### Usage & analytics
 
 #### `lore_my_usage`
