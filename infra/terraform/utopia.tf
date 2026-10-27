@@ -310,9 +310,13 @@ resource "kubernetes_deployment_v1" "utopia" {
             name  = "UTOPIA_DATA_DIR"
             value = "/app/data"
           }
+          # One pool serves both requests and the job worker. At 16 with the worker at
+          # its default 64, a search waited behind ingestion jobs for a connection: 11-16 s
+          # a search on 2026-10-27 though its own queries took under a second. 32 is
+          # Utopia's default; keep the worker concurrency (system settings) well below it.
           env {
             name  = "UTOPIA_DB_MAX_CONNECTIONS"
-            value = "16"
+            value = "32"
           }
           # Closed: a re-cinq.com Google sign-in opens the account (UTOPIA_OIDC_ALLOWED_DOMAINS
           # below), and lore-api reaches the pod around the gate (utopia_ingress_only), where
