@@ -20,7 +20,7 @@ func TestBuildReportFansFileResultOntoEveryDescriptor(t *testing.T) {
 		Cwd:            ".",
 	}
 
-	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c1", Branch: "main"}, 2, io.Discard)
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c1", Branch: "main"}, everyTest, 2, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestBuildReportParsesLcovRunOutput(t *testing.T) {
 		CoverageFormat: "lcov",
 		Cwd:            ".",
 	}
-	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, everyTest, 2, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestBuildReportPostsEmptyCoveredArrayWhenRunReportsNoCoverage(t *testing.T)
 		CoverageFormat: "lcov",
 		Cwd:            ".",
 	}
-	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, everyTest, 2, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestBuildReportErrorsWhenListMissing(t *testing.T) {
 		Run:  "npm run consumer",
 		Cwd:  ".",
 	}
-	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, everyTest, 2, io.Discard)
 	if err == nil {
 		t.Fatal("expected an error when the manifest has no list command")
 	}
@@ -128,7 +128,7 @@ func TestBuildReportRunsListBearingEntryWithEmptyCoverageFormat(t *testing.T) {
 		CoverageFormat: "",
 		Cwd:            ".",
 	}
-	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, everyTest, 2, io.Discard)
 	if err != nil {
 		t.Fatalf("an unknown coverage_format should skip coverage, not error: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestBuildReportWarnsWhenRunLacksSelectorAcrossFiles(t *testing.T) {
 		Cwd:            ".",
 	}
 	var logw strings.Builder
-	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, &logw)
+	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, everyTest, 2, &logw)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestBuildReportSilentWhenRunLacksSelectorForOneFile(t *testing.T) {
 		Cwd:            ".",
 	}
 	var logw strings.Builder
-	if _, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, &logw); err != nil {
+	if _, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, everyTest, 2, &logw); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if strings.Contains(logw.String(), "no {selector}") {
@@ -189,7 +189,7 @@ func TestBuildReportSkipsFileWhenRunCommandFails(t *testing.T) {
 		CoverageFormat: "json",
 		Cwd:            ".",
 	}
-	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, everyTest, 2, io.Discard)
 	if err != nil {
 		t.Fatalf("a failing run should be skipped, not error: %v", err)
 	}
@@ -198,5 +198,108 @@ func TestBuildReportSkipsFileWhenRunCommandFails(t *testing.T) {
 	}
 	if len(report.Results) != 0 {
 		t.Errorf("results: got %d, want 0 (file skipped)", len(report.Results))
+	}
+}
+
+// A scoped run neither runs nor reports the files outside the scope: an unrun
+// test posted without a result would read as "covers nothing".
+func TestBuildReportRunsAndReportsOnlyTheFilesInScope(t *testing.T) {
+	listJSON := `[{"id":"a::1","name":"1","file":"a_test.go"},{"id":"b::1","name":"1","file":"b_test.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `[ {selector} = a_test.go ] && printf '%s' '{"passed":true,"covered":[]}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{}, onlyFiles([]string{"a_test.go"}), 2, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ids := []string{}
+	for _, test := range report.Tests {
+		ids = append(ids, test.ID)
+	}
+	if strings.Join(ids, ",") != "a::1" || len(report.Results) != 1 {
+		t.Errorf("tests %v with %d results, want [a::1] with 1", ids, len(report.Results))
+	}
+}
+
+// run_many takes the whole scope on stdin and answers for every file at once,
+// so the suite boots one vitest per package instead of one per file.
+func TestBuildReportRunsTheWholeScopeThroughRunMany(t *testing.T) {
+	listJSON := `[{"id":"a::1","name":"1","file":"a_test.go"},{"id":"a::2","name":"2","file":"a_test.go"},{"id":"b::1","name":"1","file":"b_test.go"}]`
+	m := Manifest{
+		List: "printf '%s' '" + listJSON + "'",
+		Run:  `echo "run must not be called for {selector}" >&2; exit 1`,
+		// Echo the files read on stdin back as the answer, so the test proves the
+		// scope reached the command and each file's result fans onto its tests.
+		RunMany: `printf '{'; sep=; while read f; do p=false; [ "$f" = a_test.go ] && p=true; ` +
+			`printf '%s"%s":{"passed":%s,"covered":[{"file":"src/%s","startLine":1,"endLine":2}]}' "$sep" "$f" "$p" "${f%_test.go}.go"; sep=,; done; printf '}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{}, everyTest, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	byID := map[string]TaggedRunResult{}
+	for _, r := range report.Results {
+		byID[r.ID] = r
+	}
+	if len(byID) != 3 || !byID["a::1"].Passed || !byID["a::2"].Passed || byID["b::1"].Passed {
+		t.Fatalf("results = %+v", report.Results)
+	}
+	if byID["b::1"].Covered[0].File != "src/b.go" {
+		t.Errorf("b's coverage = %+v", byID["b::1"].Covered)
+	}
+}
+
+// A file run_many leaves out is skipped like a failed run, never reported as
+// covering nothing.
+func TestBuildReportSkipsAFileRunManyDidNotAnswerFor(t *testing.T) {
+	listJSON := `[{"id":"a::1","name":"1","file":"a_test.go"},{"id":"b::1","name":"1","file":"b_test.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `exit 1 # {selector}`,
+		RunMany:        `cat >/dev/null; printf '%s' '{"a_test.go":{"passed":true,"covered":[]}}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+	var logw strings.Builder
+
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{}, everyTest, 2, &logw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Results) != 1 || report.Results[0].ID != "a::1" {
+		t.Errorf("results = %+v", report.Results)
+	}
+	if !strings.Contains(logw.String(), "b_test.go") {
+		t.Errorf("the skipped file is not named in the log: %q", logw.String())
+	}
+}
+
+// A run_many that fails or prints garbage hands the scope to the per-file run,
+// so a broken batch runner costs time, not the report.
+func TestBuildReportFallsBackToRunPerFileWhenRunManyFails(t *testing.T) {
+	listJSON := `[{"id":"a::1","name":"1","file":"a_test.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `printf '%s' '{"passed":true,"covered":[]}' # {selector}`,
+		RunMany:        `cat >/dev/null; exit 3`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{}, everyTest, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Results) != 1 || !report.Results[0].Passed {
+		t.Errorf("results = %+v", report.Results)
 	}
 }

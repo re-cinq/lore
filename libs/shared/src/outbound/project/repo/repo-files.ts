@@ -1,3 +1,4 @@
+import type { PullRef } from "../pulls/pull-requests-port.js";
 import type {
   BranchHistoryOptions,
   CheckRunInput,
@@ -102,7 +103,22 @@ export class RepoFiles {
     });
   }
 
+  /** Deletes one file from the branch in its own commit; false when it has none, or the adapter cannot. */
+  deleteFile(branch: string, path: string, message: string): Promise<boolean> {
+    return (
+      this.github.deleteFile?.(this.repo, branch, { path, message }) ??
+      NOTHING_DELETED
+    );
+  }
+
+  /** The merged pull requests that touched `path`; none when the adapter cannot say. */
+  async mergedPullsTouching(path: string): Promise<PullRef[]> {
+    return (await this.github.mergedPullsTouching?.(this.repo, path)) ?? [];
+  }
+
   upsertCheckRun(input: CheckRunInput): Promise<void> {
     return this.github.upsertCheckRun(this.repo, input);
   }
 }
+
+const NOTHING_DELETED = (async () => false)();

@@ -26,8 +26,8 @@ diff's changed ranges and returns the `ImpactReport` plus pre-shaped Checks-API
 
 - **Method + path**: `POST /api/repos/:owner/:repo/impact`
   (regex `^/api/repos/[^/]+/[^/]+/impact(\?|$)`).
-  Implemented by the [route registration](../../../apps/lore-api/src/app/build-server.ts#L134)
-  dispatching to the [`handleImpactRoute` handler](../../../apps/lore-api/src/transport/routes/impact/impact.ts#L48).
+  Implemented by the [route registration](../../../apps/lore-api/src/app/build-server.ts)
+  dispatching to the [`handleImpactRoute` handler](../../../apps/lore-api/src/transport/routes/impact/impact.ts#L55).
 - **Auth scope**: `write`. Matched by `SCOPE_OVERRIDES`
   (`/api/repos/[^/]+/[^/]+/impact(\?|$|/)` → `write`). The write scope reflects
   the privileged ingest surface, **not** test execution — a graph read is not
@@ -158,7 +158,7 @@ A client that does not declare `protocol: 2` has its findings suppressed and is 
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised against a live Dgraph, which PR Checks now
-provides. ([validated by `trace-impact:254`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L300), [validated by `trace-impact:325`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L371), [validated by `trace-impact:404`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L450), [validated by `trace-impact:539`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L649))
+provides. ([validated by `trace-impact:254`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L300), [validated by `trace-impact:325`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L371), [validated by `trace-impact:404`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L450), [validated by couples a spec-only diff with no changed code to the statement whose text it edited, per #1076](libs/shared/src/work/spec-trace/trace-impact.test.ts#L647))
 
 A 400 for a URL that does not resolve to `owner/repo` cannot be reached through
 the dispatcher (the route regex already requires two path segments before

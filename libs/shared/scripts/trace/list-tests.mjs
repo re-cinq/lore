@@ -13,18 +13,9 @@ import { join } from "node:path";
 import { descriptorsFromVitestList } from "../../dist/domain/spec-trace/trace-descriptors.js";
 import { bindDescriptorsToSpecLinks } from "../../dist/work/spec-trace/bind-descriptors-to-spec-links.js";
 import { resolveTestLines } from "../../dist/work/spec-trace/resolve-test-lines.js";
+import { PKGS, SCOPE } from "./trace-packages.mjs";
 
 const ROOT = process.cwd(); // manifest cwd == repo root
-// Packages whose `src/` tests feed the graph. Override to narrow scope, e.g.
-// LORE_TRACE_PKGS=libs/shared LORE_TRACE_SCOPE=src/spec-trace for the old behavior.
-const PKGS = (
-  process.env.LORE_TRACE_PKGS ||
-  "libs/shared,libs/runner,libs/server-core,apps/lore-api,apps/mcp-server,apps/web-ui"
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-const SCOPE = process.env.LORE_TRACE_SCOPE || "src"; // all src tests per package
 
 function listPkg(pkg) {
   // Write vitest's JSON to a FILE, not stdout: CI node runtimes prepend stdout

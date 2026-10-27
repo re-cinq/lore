@@ -1,6 +1,14 @@
 import { enforceTrue } from "./enforce.js";
 import { describe, it, expect, vi } from "vitest";
-import { withBackoff } from "./backoff.js";
+import { withBackoff, backoffDelay } from "./backoff.js";
+
+describe("backoffDelay", () => {
+  it("returns baseMs * 2^attempts capped at maxMs, flooring a negative attempt count at the base delay", () => {
+    expect([0, 1, 3, 4, -1].map((a) => backoffDelay(100, a, 1000))).toEqual([
+      100, 200, 800, 1000, 100,
+    ]);
+  });
+});
 
 describe("withBackoff", () => {
   it("returns the result on the first try without sleeping", async () => {

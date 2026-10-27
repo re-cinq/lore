@@ -32,7 +32,7 @@ Registered as the first entry in the route table, matched on path only
   `/healthz` dispatches here).
 - **Auth**: none. The dispatcher exempts `/healthz` from both the rate limiter
   (`url !== "/healthz"` gate) and the bearer-token gate (`authExempt`)
-  ([dispatch gates](../../../apps/lore-api/src/app/build-server.ts#L164)).
+  ([dispatch gates](../../../apps/lore-api/src/app/build-server.ts)).
 - **Request**: no body, no required query params. An optional
   `Authorization: Bearer <token>` header upgrades the response.
 - **Response**:
@@ -87,7 +87,7 @@ Registered as the first entry in the route table, matched on path only
 
 ## Dependencies & side effects
 
-- Handler: `handleHealthz` ([code](../../../apps/lore-api/src/transport/routes/healthz/healthz.ts#L14)).
+- Handler: `handleHealthz` ([code](../../../apps/lore-api/src/transport/routes/healthz/healthz.ts)).
 - `getHealthStatus()` from `platform/db.ts` (read-only connectivity probe).
 - `validateClientToken(pool, bearer, "read")` from `auth.ts` (a *successful* DB
   validation issues an `UPDATE pipeline.api_tokens SET last_used = now()` as a

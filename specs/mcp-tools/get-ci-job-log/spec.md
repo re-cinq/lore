@@ -18,7 +18,7 @@ A failed job's account from `lore_get_ci_failures` is bounded: a few annotations
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/transport/tools/ci-tools.ts#L127)), in `registerSharedTools`, so the agent-mode gateway serves it.
+Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/transport/tools/ci-tools.ts)), in `registerSharedTools`, so the agent-mode gateway serves it.
 
 ### Input schema (Zod)
 

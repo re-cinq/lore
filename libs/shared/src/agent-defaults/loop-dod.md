@@ -33,12 +33,13 @@ THE CONTRACT, NON-NEGOTIABLE:
   appended to an existing test file. Its name MUST end in
   `.acceptance.test.<ext>` — `repo-settings.acceptance.test.ts`,
   `Plan.acceptance.test.tsx` — so a reader and the tooling can tell an
-  acceptance test from a round's own at a glance. Later rounds write their own tests and run
-  only those; the pod's Bash hook refuses the files listed under "Done
-  when these pass" by name, so an acceptance test sharing a file with
-  theirs would lock them out of their own test.
+  acceptance test from a round's own at a glance. Later rounds run them
+  by file, beside their own tests; the pod's Bash hook lets a round run
+  only the test files its branch created, so an acceptance test appended
+  to a file main already had could be run only by its name.
 - RUN them — those, and nothing else. Not the repository's full suite,
-  not lint, not the typechecker, not the formatter.
+  and not the typechecker; the formatter and the linter run at delivery,
+  over the files you changed.
   CI is the judge of this branch and runs all of it on every push.
   Name the test files you run: the pod's Bash hook refuses a bare
   `npm test` or a `vitest run` with no path.
@@ -177,13 +178,20 @@ RULES:
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
-  changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
-  this repo uses) and nothing else from CI's checklist. Do NOT run the
-  linter in this pod: CI runs it on every push, and here it does not
-  fit — in this repository a two-file `eslint` peaks near 800 MB against
-  a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
-  that. A lint finding comes back as a red build naming the file and
-  line, which the next round fixes with an editor.
+  changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`, whichever
+  this repo uses).
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - Do NOT typecheck here either. A green test is not a compiled build —
   vitest transpiles each file without checking types — but CI's build
   step is what proves it, and in this repository `tsc --noEmit` on
@@ -196,6 +204,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   SOURCE, so nothing needs building for a test to see your change, and
   the build is the 950 MB step that OOM-killed run abac6ee9 while it
   rebuilt libs/shared for a test that never needed it.
+- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git -C /workspace/target add` what you changed and commit it with a
   short, factual message. Then `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token

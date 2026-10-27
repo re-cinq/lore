@@ -80,6 +80,7 @@ function subject(
     floorDeps: {
       floor: recorded.floor,
       specBranch: async (plan) => specBranchOf(plan),
+      baseBranch: () => Promise.resolve("main"),
       specPrState: () => Promise.resolve(null),
       recordRefineAsk: () => Promise.resolve(),
       pulls: {

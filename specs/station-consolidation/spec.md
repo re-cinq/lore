@@ -114,7 +114,7 @@ subscribe" has no expressible meaning on the current substrate.
   HTTP front door. A deduplicated event insert produces no deliveries, because it
   produces no event. A test fails the build when an event-insert site neither
   lives in the shared writer nor composes the shared clause.
-  ([validated by inserts one delivery per subscriber of the named event](libs/shared/src/outbound/project/events/fan-out.test.ts#L5), [`fan-out.test.ts:15`](libs/shared/src/outbound/project/events/fan-out.test.ts#L15), [`fan-out.test.ts:19`](libs/shared/src/outbound/project/events/fan-out.test.ts#L19), [`events-fan-out.test.ts:6`](libs/shared/src/outbound/events-fan-out.test.ts#L6), [`events-fan-out.test.ts:20`](libs/shared/src/outbound/events-fan-out.test.ts#L20), [`events-fan-out.test.ts:35`](libs/shared/src/outbound/events-fan-out.test.ts#L35), [`assembly-runs-fan-out.test.ts:6`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L6), [`assembly-runs-fan-out.test.ts:19`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L19), [`fan-out-writers.test.ts:34`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L34), [`fan-out-writers.test.ts:38`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L38))
+  ([validated by inserts one delivery per subscriber of the named event, reading the CTE it is given](libs/shared/src/outbound/project/events/fan-out.test.ts#L5), [`fan-out.test.ts:15`](libs/shared/src/outbound/project/events/fan-out.test.ts#L15), [`fan-out.test.ts:19`](libs/shared/src/outbound/project/events/fan-out.test.ts#L19), [`events-fan-out.test.ts:6`](libs/shared/src/outbound/events-fan-out.test.ts#L6), [`events-fan-out.test.ts:20`](libs/shared/src/outbound/events-fan-out.test.ts#L20), [`events-fan-out.test.ts:35`](libs/shared/src/outbound/events-fan-out.test.ts#L35), [`assembly-runs-fan-out.test.ts:6`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L6), [`assembly-runs-fan-out.test.ts:19`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L19), [`fan-out-writers.test.ts:34`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L34), [`fan-out-writers.test.ts:38`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L38))
 
 - **FR8 — a subscriber registers before it drains.** Each process upserts its
   subscription set at startup and fails to start if that upsert fails. An event
@@ -133,7 +133,7 @@ subscribe" has no expressible meaning on the current substrate.
   Under a single global ten-minute timeout, a longer handler is re-queued while
   still running and executes concurrently with itself until its attempts are
   exhausted.
-  ([validated by stamps the subscriber's declared timeout on the delivery](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L191), [`event-deliveries.contract.test.ts:203`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L203))
+  ([validated by stamps the subscriber's declared timeout on the delivery, not the global default](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L191), [`event-deliveries.contract.test.ts:203`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L203))
 
 - **FR10 — a pooled node reports through the path a person already uses.** A
   node dispatched to the pooled service reports its outcome over the same resume
@@ -332,7 +332,7 @@ subscribe" has no expressible meaning on the current substrate.
   once per tick, for as long as the sweep runs longer than its interval, which
   is exactly when the system is busiest. A real failure and an unknown station
   still raise, so a broken station is never silently green.
-  ([validated by reports an overlapping tick as a skip, not a failure](libs/shared/src/outbound/project/stations/station-client.test.ts#L21), [`station-client.test.ts:15`](libs/shared/src/outbound/project/stations/station-client.test.ts#L15), [`station-client.test.ts:27`](libs/shared/src/outbound/project/stations/station-client.test.ts#L27), [`station-client.test.ts:33`](libs/shared/src/outbound/project/stations/station-client.test.ts#L33))
+  ([validated by reports an overlapping tick as a skip, not a failure, so it doesn't burn the retry ladder into a dead letter](libs/shared/src/outbound/project/stations/station-client.test.ts#L21), [`station-client.test.ts:15`](libs/shared/src/outbound/project/stations/station-client.test.ts#L15), [`station-client.test.ts:27`](libs/shared/src/outbound/project/stations/station-client.test.ts#L27), [`station-client.test.ts:33`](libs/shared/src/outbound/project/stations/station-client.test.ts#L33))
 
 ## Non-goals
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -62,7 +63,31 @@ var (
 
 type retryExhaustedError struct{ cause error }
 
-func (e retryExhaustedError) Error() string { return fmt.Sprintf("%v (after %d attempts)", e.cause, postAttempts) }
+func (e retryExhaustedError) Error() string {
+	return fmt.Sprintf("%v (after %d attempts)", e.cause, deltaPostAttempts)
+}
+
+// deltaRequestTimeout is how long one delta post waits for lore-api, which
+// projects the chunk before it answers. Timing out does not stop that
+// projection, so the timeout must outlast the slowest chunk: at 5 minutes, on
+// 2026-10-27, every attempt at chunk 1 timed out while the ones before it were
+// still running. The lore-api ingress allows an hour.
+const deltaRequestTimeout = 30 * time.Minute
+
+// isClientTimeout says the post gave up waiting, while lore-api may still be
+// projecting the chunk: another attempt would start the same projection beside
+// it, so it is never retried.
+func isClientTimeout(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+// deltaPostAttempts outlasts a lore-api rollout: lore-api runs one replica, a
+// deploy refuses requests for the minute or two the new pod takes to start, and
+// it was deployed 20 times on 2026-10-26. The webhook path's 3 attempts gave up
+// after 10 s, so a chunk in flight during any deploy failed the whole upload;
+// 7 attempts on the same n*n*2s backoff wait about 3 minutes in all.
+const deltaPostAttempts = 7
 func (e retryExhaustedError) Unwrap() []error { return []error{errRetryExhausted, e.cause} }
 
 func repoURL(apiBase, repo, tail string) string {
@@ -126,7 +151,7 @@ func postIngestDelta(ctx context.Context, apiBase, token, repo string, d any, cl
 // retryTransient runs one attempt at a time under the webhook path's budget and
 // backoff. An attempt answers its error and whether another try could help.
 func retryTransient(attempt func() (error, bool)) error {
-	return retryWithExhaustion(attempt, func(lastErr error) error {
+	return retryWithExhaustion(postAttempts, attempt, func(lastErr error) error {
 		return fmt.Errorf("%w (after %d attempts)", lastErr, postAttempts)
 	})
 }
@@ -134,14 +159,14 @@ func retryTransient(attempt func() (error, bool)) error {
 // retryIngestTransient marks an exhausted request so the CLI can distinguish a
 // retryable graph-projection failure from an ordinary command failure.
 func retryIngestTransient(attempt func() (error, bool)) error {
-	return retryWithExhaustion(attempt, func(lastErr error) error {
+	return retryWithExhaustion(deltaPostAttempts, attempt, func(lastErr error) error {
 		return retryExhaustedError{cause: lastErr}
 	})
 }
 
-func retryWithExhaustion(attempt func() (error, bool), exhausted func(error) error) error {
+func retryWithExhaustion(attempts int, attempt func() (error, bool), exhausted func(error) error) error {
 	var lastErr error
-	for n := 1; n <= postAttempts; n++ {
+	for n := 1; n <= attempts; n++ {
 		if n > 1 {
 			failed := n - 1
 			retrySleep(time.Duration(failed*failed) * 2 * time.Second)
@@ -167,7 +192,7 @@ func sendIngestDelta(ctx context.Context, apiBase, token, repo string, body []by
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("posting delta: %w", err), true
+		return fmt.Errorf("posting delta: %w", err), !isClientTimeout(err)
 	}
 	defer resp.Body.Close()
 	switch {
@@ -199,6 +224,9 @@ type deltaDeps struct {
 	post         func(context.Context, ingestDelta) error
 	// Body budget per post; zero means deltaChunkBytes.
 	maxChunkBytes int
+	// The report holds only what the change affects (or, under --full, all of
+	// it), so the diff names the deleted paths and filters nothing.
+	reportIsScoped bool
 }
 
 // runDeltaFlow is FR5 end to end. No state ⇒ full ingest against null. A state
@@ -219,7 +247,9 @@ func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error 
 			if err != nil {
 				return err
 			}
-			delta.Report = selectDelta(report, changed)
+			if !deps.reportIsScoped {
+				delta.Report = selectDelta(report, changed)
+			}
 			delta.Deleted = deleted
 		}
 		return postDeltaChunked(ctx, deps, delta)

@@ -38,7 +38,7 @@ Stops a locally-running background worktree task: kills the process, removes the
 ## Behavior
 
 1. Call `cancelLocalTask(task_id)`
-   ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L995)):
+   ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)):
    1. Read `~/.lore/local-tasks.json` and find the task by `taskId`.
    2. When not found, return `{cancelled: false, error: "Task not found"}`.
    3. When found but `status !== "running"`, return

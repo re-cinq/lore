@@ -5,11 +5,15 @@ import {
   type UtopiaBackfillSummary,
 } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 
+import {
+  askFor,
+  counted,
+  refusedLine,
+  type RepoAnswer,
+} from "../lib/repo-sweep.js";
+
 /** What lore-api answered one backfill with, read whole. */
-export interface BackfillAnswer {
-  status: number;
-  body: string;
-}
+export type BackfillAnswer = RepoAnswer;
 
 export interface UtopiaBackfillTickDeps {
   repos: () => Promise<string[]>;
@@ -38,7 +42,8 @@ export async function utopiaBackfillTick(
   };
 
   for (const repo of await deps.repos()) {
-    const outcome = judgeAnswer(repo, await askFor(deps, repo), deps.log);
+    const answer = await askFor(deps.backfill, repo);
+    const outcome = judgeAnswer(repo, answer, deps.log);
 
     if (outcome === "unavailable") {
       return NO_UTOPIA;
@@ -47,16 +52,6 @@ export async function utopiaBackfillTick(
   }
 
   return `utopia backfill: ${counted(tally, "done")}, ${counted(tally, "skipped")}, ${counted(tally, "failed")}`;
-}
-
-/** A dropped socket or a timeout is that repo's failure, never the sweep's: the next repo still gets its turn. */
-function askFor(
-  deps: UtopiaBackfillTickDeps,
-  repo: string,
-): Promise<BackfillAnswer> {
-  return deps
-    .backfill(repo)
-    .catch((err: unknown) => ({ status: 0, body: (err as Error).message }));
 }
 
 const mirrored: Judge = (repo, answer, log) => {
@@ -93,11 +88,7 @@ const skipped: Judge = (repo, answer, log) => {
 };
 
 const refused: Judge = (repo, answer, log) => {
-  log(
-    answer.status === 0
-      ? `${repo}: ${answer.body}`
-      : `${repo}: HTTP ${answer.status} ${answer.body.slice(0, 300)}`,
-  );
+  log(refusedLine(repo, answer));
 
   return "failed";
 };
@@ -116,15 +107,4 @@ function judgeAnswer(
   const judge = JUDGES[answer.status] ?? refused;
 
   return judge(repo, answer, log);
-}
-
-function counted(
-  tally: Record<RepoOutcome, string[]>,
-  outcome: RepoOutcome,
-): string {
-  const repos = tally[outcome];
-
-  return repos.length === 0
-    ? `0 ${outcome}`
-    : `${repos.length} ${outcome} (${repos.join(", ")})`;
 }

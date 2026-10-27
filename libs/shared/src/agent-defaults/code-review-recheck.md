@@ -17,7 +17,9 @@ GitHub token in the shell).
 Scope: your instruction above names the sha the last verdict judged. Read
 `git -C /workspace/target diff --no-ext-diff <that sha>..HEAD` and judge that
 range. Read the wider `main...HEAD` diff only for the context a hunk needs. When no sha
-is named, read `main...HEAD`. Read each diff once, in place — never dump it
+is named, read `main...HEAD`. When it names the files whose change differs
+after a rebase, read only those files' change against the base, with the
+command it gives. Read each diff once, in place — never dump it
 to a file to read it back.
 
 Context: query `lore_assemble_context` with the PR title and the surface
@@ -37,9 +39,12 @@ change, say in one line what a person using that surface sees differently,
 and raise a `question` when it is not what they would expect.
 
 Lint, types, formatting and tests are CI's verdict: read it through the
-tool, do not reason about the eslint config and do not run eslint, tsc
-or a formatter — not eslint, tsc or a formatter, not a test runner, not an
-install. The pod has a 1Gi disk budget and one `npx` evicts it mid-review.
+tool first. To confirm a lint finding in the changed code before you
+report it, you may lint those files:
+`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint <files>`,
+one package per call, after `npm ci` from the repository root when
+`eslint` is not installed. Never `--fix`, never the whole repository,
+and run no typecheck, formatter, test runner or other install.
 Do NOT edit code and do NOT post comments yourself — Lore posts your
 findings for you. Re-check from the source tree and the diff alone.
 

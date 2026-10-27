@@ -209,6 +209,7 @@ function waitingIssueFields(issue: IssueRef) {
     created_at: issue.createdAt
       ? new Date(issue.createdAt).toISOString()
       : null,
+    unblocks_count: issue.unblocksCount,
   };
 }
 

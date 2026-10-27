@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 374" width="970" height="374" role="img" aria-label="Where the AI money went, by step">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="374" rx="8"/>
+<text class="ink title" x="16" y="28">Where the AI money went, by step</text>
+<text class="muted sub" x="16" y="48">AI cost of each step on loop tickets, split by repository. $2,415 in all (a lower bound).</text>
+<rect class="s1" x="16" y="62" width="12" height="12" rx="2"/><text class="muted" x="34" y="72">Otto</text>
+<rect class="s2" x="78" y="62" width="12" height="12" rx="2"/><text class="muted" x="96" y="72">HALEngine</text>
+<rect class="s3" x="180" y="62" width="12" height="12" rx="2"/><text class="muted" x="198" y="72">lore</text>
+<line class="grid" x1="300" x2="300" y1="82" y2="352" stroke-width="1"/>
+<text class="ink" x="290" y="101" text-anchor="end">Decide what &quot;done&quot; means</text>
+<path class="s1" d="M300.0,88h144.5v18h-144.5z"><title>Decide what &quot;done&quot; means: $299</title></path>
+<path class="s2" d="M446.5,88h68.0v18h-68.0z"><title>Decide what &quot;done&quot; means: $143</title></path>
+<path class="s3" d="M516.4,88h219.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-219.6z"><title>Decide what &quot;done&quot; means: $457</title></path>
+<text class="muted" x="748.0" y="101">$899</text>
+<text class="ink" x="290" y="131" text-anchor="end">Fix the build or review comments</text>
+<path class="s1" d="M300.0,118h64.0v18h-64.0z"><title>Fix the build or review comments: $135</title></path>
+<path class="s3" d="M366.0,118h147.9a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-147.9z"><title>Fix the build or review comments: $310</title></path>
+<text class="muted" x="526.0" y="131">$445</text>
+<text class="ink" x="290" y="161" text-anchor="end">Write code, one round</text>
+<path class="s1" d="M300.0,148h59.0v18h-59.0z"><title>Write code, one round: $125</title></path>
+<path class="s2" d="M361.0,148h34.9v18h-34.9z"><title>Write code, one round: $75</title></path>
+<path class="s3" d="M398.0,148h56.4a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-56.4z"><title>Write code, one round: $123</title></path>
+<text class="muted" x="466.4" y="161">$324</text>
+<text class="ink" x="290" y="191" text-anchor="end">Bring the pull request up to date</text>
+<path class="s1" d="M300.0,178h36.0v18h-36.0z"><title>Bring the pull request up to date: $78</title></path>
+<path class="s3" d="M338.0,178h104.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-104.2z"><title>Bring the pull request up to date: $221</title></path>
+<text class="muted" x="454.2" y="191">$299</text>
+<text class="ink" x="290" y="221" text-anchor="end">Re-check new commits</text>
+<path class="s1" d="M300.0,208h31.9v18h-31.9z"><title>Re-check new commits: $69</title></path>
+<path class="s3" d="M333.9,208h48.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-48.0z"><title>Re-check new commits: $106</title></path>
+<text class="muted" x="393.9" y="221">$175</text>
+<text class="ink" x="290" y="251" text-anchor="end">First code review</text>
+<path class="s1" d="M300.0,238h37.6v18h-37.6z"><title>First code review: $81</title></path>
+<path class="s2" d="M339.6,238h1.0v18h-1.0z"><title>First code review: $6</title></path>
+<path class="s3" d="M342.3,238h21.9a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-21.9z"><title>First code review: $53</title></path>
+<text class="muted" x="376.2" y="251">$139</text>
+<text class="ink" x="290" y="281" text-anchor="end">Write the pull request description</text>
+<path class="s1" d="M300.0,268h22.6v18h-22.6z"><title>Write the pull request description: $50</title></path>
+<path class="s2" d="M324.6,268h1.8v18h-1.8z"><title>Write the pull request description: $8</title></path>
+<path class="s3" d="M328.4,268h9.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-9.6z"><title>Write the pull request description: $28</title></path>
+<text class="muted" x="350.0" y="281">$86</text>
+<text class="ink" x="290" y="311" text-anchor="end">Bring the new branch up to date</text>
+<path class="s1" d="M300.0,298h10.6v18h-10.6z"><title>Bring the new branch up to date: $26</title></path>
+<path class="s2" d="M312.6,298h1.0v18h-1.0z"><title>Bring the new branch up to date: $3</title></path>
+<path class="s3" d="M314.1,298h4.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-4.8z"><title>Bring the new branch up to date: $18</title></path>
+<text class="muted" x="330.9" y="311">$47</text>
+<text class="ink" x="290" y="341" text-anchor="end">Fix a build that stays red</text>
+<path class="s3" d="M300.0,328h0.0a1,1 0 0 1 1,1v16a1,1 0 0 1 -1,1h-0.0z"><title>Fix a build that stays red: $1</title></path>
+<text class="muted" x="308.7" y="341">$1</text>
+</svg>

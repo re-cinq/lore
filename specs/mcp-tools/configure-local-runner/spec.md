@@ -21,7 +21,7 @@ provided fields, and persists.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L208)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L241)).
 
 - **name**: `lore_configure_local_runner`
 - **description** (verbatim):

@@ -75,6 +75,8 @@ export interface RecheckInput {
   headSha?: string;
   /** Review-family runs still open on this PR, with the sha each was started for. */
   openReviewShas: readonly string[];
+  /** The shas a review or re-check already finished judging. */
+  judgedShas?: readonly string[];
   /** The commit messages pushed since the last verdict, newest last; empty when the last judged sha is unknown. */
   newCommitMessages: readonly string[];
 }
@@ -84,11 +86,10 @@ export function decideRecheck(input: RecheckInput): {
   start: boolean;
   reason: string;
 } {
-  if (
-    input.headSha !== undefined &&
-    input.openReviewShas.includes(input.headSha)
-  ) {
-    return { start: false, reason: "a review of this sha is already running" };
+  const covered = shaCovered(input);
+
+  if (covered) {
+    return { start: false, reason: covered };
   }
 
   if (skipsCiOnly(input.newCommitMessages)) {
@@ -96,6 +97,23 @@ export function decideRecheck(input: RecheckInput): {
   }
 
   return { start: true, reason: "new commits to judge" };
+}
+
+/** Why the head needs no run of its own: one is judging it now, or one judged it already. */
+function shaCovered({
+  headSha,
+  openReviewShas,
+  judgedShas = [],
+}: RecheckInput): string | null {
+  if (headSha === undefined) {
+    return null;
+  }
+
+  if (openReviewShas.includes(headSha)) {
+    return "a review of this sha is already running";
+  }
+
+  return judgedShas.includes(headSha) ? "this sha was judged already" : null;
 }
 
 /** True when there ARE new commits and every one of them tells CI to skip it — the `style: prettier [skip ci]` the format job pushes onto the branch. No new commits is not this case: that is a re-trigger of the same head, which the sha guard above owns. */

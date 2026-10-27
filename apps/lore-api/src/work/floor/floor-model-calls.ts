@@ -1,4 +1,4 @@
-// A visit's model calls, from its `llm_call` records (run-viz FR4.1i). An agent's result names each model it called with that model's own counts; a service station's `modelCall` records one call. Tokens in count the cache reads and writes, as the floor's own cost sums do.
+// A visit's model calls, from its `llm_call` records (run-viz FR4.1i). An agent's result names each model it called with that model's own counts; a service station's `modelCall` records one call. Tokens in count the cache reads and writes, as the floor's own cost sums do; the cache reads are also told apart, since a cached token costs a tenth of a read one.
 import type { StationRunRecordView } from "@re-cinq/floor-client";
 
 export interface ModelCall {
@@ -7,6 +7,7 @@ export interface ModelCall {
   model: string | null;
   costUsd: number | null;
   tokensIn: number | null;
+  cacheReadTokens: number | null;
   tokensOut: number | null;
 }
 
@@ -52,16 +53,18 @@ function namedModelCalls(
 
 function usageTokens(
   counts: Counts,
-): Pick<ModelCall, "tokensIn" | "tokensOut"> {
+): Pick<ModelCall, "tokensIn" | "cacheReadTokens" | "tokensOut"> {
   const input = numberOf(counts.input_tokens);
+  const cacheRead = numberOf(counts.cache_read_input_tokens);
 
   return {
     tokensIn:
       input === null
         ? null
         : input +
-          (numberOf(counts.cache_read_input_tokens) ?? 0) +
+          (cacheRead ?? 0) +
           (numberOf(counts.cache_creation_input_tokens) ?? 0),
+    cacheReadTokens: cacheRead,
     tokensOut: numberOf(counts.output_tokens),
   };
 }

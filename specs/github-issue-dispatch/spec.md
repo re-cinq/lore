@@ -75,12 +75,13 @@ For webhook-dispatched tasks, the originating issue IS the task's issue
 
 During `lore_onboard_repo`, configure the GitHub webhook on the target repo:
 - URL: `https://LORE_EVENTS_DOMAIN/api/events` (the public URL the ingress rewrites onto lore-api's `POST /api/webhook/github`)
-- Events: `issues`
+- Events: `REQUIRED_EVENTS` in `apps/lore-api/src/work/webhook/webhook-status.ts` (`issues` among them; `check_suite` since 2026-10-23)
 - Secret: from `LORE_WEBHOOK_SECRET` env var
 - Content type: `json` (GitHub webhook API `content_type` value; set by `ensureRepoWebhook` in `apps/lore-api/src/work/webhook/webhook-manage.ts`)
 
-For already-onboarded repos, add webhook via the settings UI or
-`gh` CLI manually.
+For already-onboarded repos, `POST /api/repos/:o/:r/webhook/ensure` widens
+the hook, and the weekly `webhook-ensure-tick` sweep does it for every one
+(`specs/external-floor` FR12.19c, 2026-10-26).
 
 **4. Duplicate prevention**
 

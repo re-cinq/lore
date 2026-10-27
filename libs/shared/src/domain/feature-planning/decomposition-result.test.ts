@@ -252,4 +252,27 @@ describe("parseDecomposition", () => {
       plan_quotes: ["Reproduction runs before any diagnosis."],
     });
   });
+
+  it("keeps the step a person must take on a task, and drops a blank one", () => {
+    const [kept, blank] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "Store the Slack token",
+              needs_person: "Add lore-slack-token to GSM.",
+            },
+            { id: "T002", description: "d", needs_person: "  " },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect([kept.needs_person, blank.needs_person]).toEqual([
+      "Add lore-slack-token to GSM.",
+      undefined,
+    ]);
+  });
 });

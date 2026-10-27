@@ -330,3 +330,29 @@ describe("withoutTrailingLinkGroup", () => {
     );
   });
 });
+
+describe("a statement whose test link sits in an earlier trailing group", () => {
+  const statement =
+    "The run settles once. ([validated by settles once](a.test.ts#L3)) ([from plan](https://lore.example/p#b-1))";
+
+  it("reads a.test.ts#L3 from the group before a from-plan group", () => {
+    expect(parseTestLinksInStatement(statement)).toEqual([
+      { label: "validated by settles once", path: "a.test.ts", line: 3 },
+    ]);
+  });
+
+  it("reports no misplaced link for it, and cuts both groups off the statement", () => {
+    expect({
+      misplaced: findMisplacedCoverageLinks(statement),
+      quoted: withoutTrailingLinkGroup(statement),
+    }).toEqual({ misplaced: [], quoted: "The run settles once." });
+  });
+
+  it("still reads no link from a prose aside before the last group", () => {
+    expect(
+      parseTestLinksInStatement(
+        "The run settles (see [the test](a.test.ts#L3) for the case) ([from plan](https://lore.example/p#b-1))",
+      ),
+    ).toEqual([]);
+  });
+});

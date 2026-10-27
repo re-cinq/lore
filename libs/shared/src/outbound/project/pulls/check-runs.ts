@@ -93,90 +93,11 @@ export function externalCheckRuns(checks: readonly CheckRun[]): CheckRun[] {
   return checks.filter((run) => !run.name.startsWith(LORE_CHECK_PREFIX));
 }
 
-/** How much of a CI report the next prompt carries, matching the failure-feedback cap the launcher already applies. */
-const MAX_SUMMARY_CHARS = 2500;
-
-/** The failed check NAMES (the reliable signal — a job's output is often just "Process completed with exit code 1") and their rendered detail, capped. Grouped by NAME because two workflows may each publish a job called `build`, and "build, build" names nothing a reader can act on. */
-export function summarizeFailedChecks(
-  checks: readonly CheckRun[],
-  maxChars: number = MAX_SUMMARY_CHARS,
-): { names: string[]; summary: string } {
-  const byName = groupByName(failedCheckRuns(checks));
-  const summary = [...byName]
-    .map(([name, runs]) => failureBlock(name, runs))
-    .filter((block) => block.length > 0)
-    .join("\n\n");
-
-  return {
-    names: [...byName.keys()],
-    summary:
-      summary.length > maxChars
-        ? `${summary.substring(0, maxChars)}\n...(truncated)`
-        : summary,
-  };
-}
-
-/** Failed runs keyed by check name, insertion-ordered so the first failure GitHub listed stays first. */
-function groupByName(runs: readonly CheckRun[]): Map<string, CheckRun[]> {
-  const byName = new Map<string, CheckRun[]>();
-
-  for (const run of runs) {
-    byName.set(run.name, [...(byName.get(run.name) ?? []), run]);
-  }
-
-  return byName;
-}
-
 /** The newest commit a CI verdict can be read from, or null when every commit skipped CI. Not simply the head: the repo's own format job commits `style: prettier [skip ci]` onto the branch, and checks never appear on that sha — reading the head would leave a run waiting forever. Commits arrive oldest-first, as GitHub lists them. */
 export function ciJudgedSha(commits: readonly PullCommit[]): string | null {
   const judged = [...commits].reverse().find((c) => !skipsCi(c.message));
 
   return judged ? judged.sha : null;
-}
-
-/** Everything the jobs of one check name reported, or "" when they reported nothing — which is the ordinary case for an Actions job, and why a heading alone is not worth rendering. */
-function failureBlock(name: string, runs: readonly CheckRun[]): string {
-  const reported = runs
-    .flatMap(reportedParts)
-    .filter((part): part is string => typeof part === "string" && part !== "");
-
-  return reported.length === 0
-    ? ""
-    : [`### ${name} (${runs[0].conclusion})`, ...reported].join("\n\n");
-}
-
-/** Everything one run says about its failure: what it reported in its check run, then what its job's own log says. */
-function reportedParts(run: CheckRun): Array<string | null | undefined> {
-  return [
-    run.output?.title,
-    run.output?.summary,
-    ...jobFailureParts(run.jobFailure),
-  ];
-}
-
-/** An Actions job's own account of its failure: where (its failure annotations), then the step that failed and the npm script it ran, then what it printed. */
-function jobFailureParts(failure: JobFailure | undefined): string[] {
-  return failure
-    ? [
-        failure.annotations.join("\n"),
-        failedStepLine(failure.steps),
-        ranAsLine(npmScriptOf(failure.tail)),
-        failure.tail.join("\n"),
-        refusedReadsLine(failure.unreadable ?? []),
-      ]
-    : [];
-}
-
-/** The steps that failed, or nothing when the job could not be read — an empty `Failed step:` would read as a job with no failing step. */
-function failedStepLine(steps: readonly string[]): string {
-  return steps.length === 0 ? "" : `Failed step: ${steps.join(", ")}`;
-}
-
-/** The reads GitHub refused, said out loud: without it a refused log reads as a job that printed nothing, and an agent goes looking for a failure it was never shown. */
-function refusedReadsLine(unreadable: readonly string[]): string {
-  return unreadable.length === 0
-    ? ""
-    : `GitHub refused: ${unreadable.join(", ")}`;
 }
 
 /** The npm script a failed step ran, as the package and script name npm printed for it. */
@@ -207,13 +128,6 @@ export function npmScriptOf(tail: readonly string[]): NpmScript | null {
   return null;
 }
 
-/** The verdict's line naming where CI ran the step, or nothing when it did not run through npm. */
-function ranAsLine(npmScript: NpmScript | null): string {
-  return npmScript
-    ? `Ran as: npm script \`${npmScript.script}\` of package \`${npmScript.package}\``
-    : "";
-}
-
 /** True when this commit message tells GitHub to run nothing for it. */
 function skipsCi(message: string): boolean {
   const lower = message.toLowerCase();
@@ -239,7 +153,12 @@ export function failureTail(log: string): string[] {
 
   return lines
     .slice(header + 1, exit)
-    .map((line) => line.replace(/^##\[error\]/, "").trim())
+    .map((line) =>
+      line
+        .replace(ANSI, "")
+        .replace(/^##\[error\]/, "")
+        .trim(),
+    )
     .filter((line) => line !== "");
 }
 

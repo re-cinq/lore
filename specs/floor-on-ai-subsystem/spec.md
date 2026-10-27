@@ -184,7 +184,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     double-wrapped `{source, event: {source, event}}` lines observed on this sink — one further
     level, merging the two `source` objects with outer precedence so the terminal result at
     `.event.event` still yields its cost row. That peel MUST be bounded at two levels rather than
-    looping, so a third envelope layer is left intact as the event and yields no row. (`agent-events.test.ts:187`; implemented by [`agent-output.ts:80`](libs/assembly-lines/src/agent-output.ts#L113))
+    looping, so a third envelope layer is left intact as the event and yields no row. (`agent-events.test.ts:187`; implemented by [`agent-output.ts`](libs/assembly-lines/src/agent-output.ts))
 
 11. *(restated late 2026-07)* A node CR's terminal status maps to a node outcome
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
@@ -226,7 +226,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `is_error:true` so the CR fails, and MUST refuse (enforce-throw) to wrap a payload that is
     already a wrapped agent output line — the envelope is applied exactly once, never nested.
     `eventLine` emits the non-terminal log events the result scan skips over.
-    ([`agent-output.test.ts:328`](libs/assembly-lines/src/agent-output.test.ts#L136); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177), [validated by reassembles the final assistant message when the result line carries no text](libs/assembly-lines/src/agent-output.test.ts#L159), [validated by stops at the first non-assistant event, so a marker mentioned in an earlier turn cannot shadow the block actually written](libs/assembly-lines/src/agent-output.test.ts#L167), [validated by falls back to the raw output when a text-less result has no assistant chunks before it](libs/assembly-lines/src/agent-output.test.ts#L178), [validated by still prefers the claude-style result text when both shapes appear](libs/assembly-lines/src/agent-output.test.ts#L184))
+    ([`agent-output.test.ts:328`](libs/assembly-lines/src/agent-output.test.ts#L136); implemented by [`agent-output.ts`](libs/assembly-lines/src/agent-output.ts), [validated by reassembles the final assistant message when the result line carries no text](libs/assembly-lines/src/agent-output.test.ts#L159), [validated by stops at the first non-assistant event, so a marker mentioned in an earlier turn cannot shadow the block actually written](libs/assembly-lines/src/agent-output.test.ts#L167), [validated by falls back to the raw output when a text-less result has no assistant chunks before it](libs/assembly-lines/src/agent-output.test.ts#L178), [validated by still prefers the claude-style result text when both shapes appear](libs/assembly-lines/src/agent-output.test.ts#L184))
 
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
@@ -274,7 +274,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `model`), and the sink maps that line to a `pipeline.llm_calls` row correlated to the
     assembly-line attempt via the CR name — which is how the run list's Cost column covers
     station-only lines. The usage rides the envelope only, never the `LORE_NODE_RESULT` payload; a
-    usage-less terminal line stays byte-identical to the pre-usage envelope. (`agent-events.test.ts:263`; implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177))
+    usage-less terminal line stays byte-identical to the pre-usage envelope. (`agent-events.test.ts:263`; implemented by [`agent-output.ts`](libs/assembly-lines/src/agent-output.ts))
 
 24. *(added 2026-07-31)* Station LLM usage is captured **generically**: `runStation` wraps the
     process-wide `Llm` in a usage-tracking decorator around every runner, so a station whose model

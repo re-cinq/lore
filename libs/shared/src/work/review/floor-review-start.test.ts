@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { RunView } from "@re-cinq/floor-client";
-import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import type {
+  CheckRunInput,
+  IssueRef,
+} from "../../outbound/project/lib/github-port.js";
+import type {
+  CheckRun,
+  FileChangeSummary,
   PullCommit,
   PullRef,
   PullReview,
@@ -78,10 +83,13 @@ interface Scene {
   reviews?: PullReview[];
   inlineComments?: ReviewComment[];
   threads?: ReviewThread[];
+  checks?: Record<string, CheckRun[]>;
+  netChanges?: Record<string, FileChangeSummary[] | null>;
 }
 
 function scene(given: Scene = {}) {
   const comments: string[] = [];
+  const published: CheckRunInput[] = [];
   const reads: RunView[][] = [...(given.runsByRead ?? [])];
   const recorded = recordedFloor((request) =>
     answerOf(request, {
@@ -102,12 +110,22 @@ function scene(given: Scene = {}) {
       listReviews: () => Promise.resolve(given.reviews ?? []),
       listComments: () => Promise.resolve(given.inlineComments ?? []),
       listReviewThreads: () => Promise.resolve(given.threads ?? []),
+      listChecks: (ref) => Promise.resolve(given.checks?.[ref] ?? []),
+      netChange: (_base, head) =>
+        Promise.resolve(given.netChanges?.[head] ?? null),
+    },
+    checks: {
+      upsertCheckRun: (input) => {
+        published.push(input);
+
+        return Promise.resolve();
+      },
     },
     issues: { get: () => Promise.resolve(given.issue ?? null) },
     uiUrl: "https://lore.test/",
   };
 
-  return { deps, requests: recorded.requests, comments };
+  return { deps, requests: recorded.requests, comments, published };
 }
 
 function answerOf(request: FloorRequest, given: Scene): unknown {
@@ -588,5 +606,279 @@ describe("issueMarkdown", () => {
         labels: [],
       }),
     ).toBe("# Empty (#3)\n\n\n");
+  });
+});
+
+const APPROVED_SHA_OLD = {
+  "sha-old": [
+    {
+      id: 1,
+      name: "lore/code-review",
+      status: "completed",
+      conclusion: "success",
+    },
+  ],
+};
+
+const LOGIN_CHANGE = [
+  {
+    filename: "src/login.ts",
+    status: "modified",
+    patch: "@@ -1,1 +1,2 @@\n ok\n+audit();",
+  },
+];
+
+const REBASED = {
+  runs: [run()],
+  commits: [
+    { sha: "sha-new", message: "Fix the login", date: "2026-09-30T11:00:00Z" },
+  ],
+};
+
+describe("reviewOrRecheck after a rebase that changed nothing Lore reviewed", () => {
+  it("carries sha-old's approval to sha-new as lore/code-review and starts no re-check, when the pull request changes the same lines at both (170 re-checks after a rebase-only push over the weekend of 2026-10-23, 149 with the same verdict)", async () => {
+    const { deps, requests, published } = scene({
+      ...REBASED,
+      checks: APPROVED_SHA_OLD,
+      netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect({
+      started: started(requests).length,
+      published: published.map(({ headSha, name, conclusion }) => ({
+        headSha,
+        name,
+        conclusion,
+      })),
+    }).toEqual({
+      started: 0,
+      published: [
+        { headSha: "sha-new", name: "lore/code-review", conclusion: "success" },
+      ],
+    });
+  });
+
+  it("starts the re-check and carries nothing when the rebase changed a line, or when Lore did not approve sha-old", async () => {
+    const outcomes = [];
+
+    for (const given of [
+      {
+        checks: APPROVED_SHA_OLD,
+        netChanges: {
+          "sha-old": LOGIN_CHANGE,
+          "sha-new": [{ ...LOGIN_CHANGE[0], patch: "@@ -1 +1 @@\n+other();" }],
+        },
+      },
+      { netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE } },
+    ]) {
+      const { deps, requests, published } = scene({ ...REBASED, ...given });
+
+      await reviewOrRecheck(deps, TARGET);
+      outcomes.push({
+        started: started(requests).length,
+        published: published.length,
+      });
+    }
+
+    expect(outcomes).toEqual([
+      { started: 1, published: 0 },
+      { started: 1, published: 0 },
+    ]);
+  });
+});
+
+const build = (status: string, conclusion: string | null): CheckRun => ({
+  id: 9,
+  name: "build",
+  status,
+  conclusion,
+});
+
+const PUSHED = {
+  runs: [run()],
+  commits: [
+    { sha: "sha-old", message: "Fix the login", date: "2026-09-30T09:00:00Z" },
+    { sha: "sha-new", message: "Guard the null", date: "2026-09-30T11:00:00Z" },
+  ],
+};
+
+describe("reviewOrRecheck waiting for CI", () => {
+  it("re-checks sha-new only once its CI is green, in a repository whose judged sha-old carried CI, and not while it runs or is red, since a red build brings another push", async () => {
+    const outcomes = [];
+
+    for (const head of [
+      build("in_progress", null),
+      build("completed", "failure"),
+      build("completed", "success"),
+    ]) {
+      const { deps, requests } = scene({
+        ...PUSHED,
+        checks: {
+          "sha-old": [build("completed", "success")],
+          "sha-new": [head],
+        },
+      });
+
+      await reviewOrRecheck(deps, TARGET);
+      outcomes.push(started(requests).length);
+    }
+
+    expect(outcomes).toEqual([0, 0, 1]);
+  });
+
+  it("waits for CI that has not started on sha-new when sha-old carried CI, and re-checks at once in a repository whose judged sha carried none", async () => {
+    const waits = scene({
+      ...PUSHED,
+      checks: { "sha-old": [build("completed", "success")] },
+    });
+    const noCi = scene(PUSHED);
+
+    await reviewOrRecheck(waits.deps, TARGET);
+    await reviewOrRecheck(noCi.deps, TARGET);
+
+    expect([
+      started(waits.requests).length,
+      started(noCi.requests).length,
+    ]).toEqual([0, 1]);
+  });
+
+  it("reads CI on the newest commit CI judged, not on a skip-ci commit at the head", async () => {
+    const { deps, requests } = scene({
+      runs: [run()],
+      pr: pull({ headSha: "sha-fmt" }),
+      commits: [
+        ...PUSHED.commits,
+        {
+          sha: "sha-fmt",
+          message: "style: prettier [skip ci]",
+          date: "2026-09-30T11:01:00Z",
+        },
+      ],
+      checks: {
+        "sha-old": [build("completed", "success")],
+        "sha-new": [build("completed", "success")],
+      },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests).length).toBe(1);
+  });
+
+  it("starts no second re-check of sha-new once a re-check of it finished, however many check suites complete on it", async () => {
+    const { deps, requests } = scene({
+      ...PUSHED,
+      runs: [
+        run(),
+        run({
+          id: "run-2",
+          lineId: "code-review-recheck",
+          startItems: judging("sha-new"),
+        }),
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests).length).toBe(0);
+  });
+});
+
+describe("reviewOrRecheck after a rebase that changed what Lore reviewed", () => {
+  it("names the one file whose change differs from what sha-old's verdict judged, so the re-check reads only it", async () => {
+    const { deps, requests } = scene({
+      ...REBASED,
+      checks: APPROVED_SHA_OLD,
+      netChanges: {
+        "sha-old": LOGIN_CHANGE,
+        "sha-new": [
+          ...LOGIN_CHANGE,
+          {
+            filename: "src/audit.ts",
+            status: "added",
+            patch: "@@ -0,0 +1 @@\n+log();",
+          },
+        ],
+      },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+    const body = started(requests)[0]?.body as {
+      startItems: { description: { ref: string } };
+    };
+
+    expect(body.startItems.description.ref).toContain(
+      "Lore's last verdict judged sha-old, which a rebase replaced. Since then the pull request's change differs only in `src/audit.ts`: read `git -C /workspace/target diff --no-ext-diff main...HEAD -- src/audit.ts` and judge only that.",
+    );
+  });
+});
+
+describe("reviewOrRecheck carrying an approval in a repository with CI", () => {
+  it("carries sha-old's approval to sha-new while sha-new's CI still runs, since a rebase that changed nothing needs no wait, and does nothing again once the carried check stands on sha-new", async () => {
+    const carry = scene({
+      ...REBASED,
+      checks: {
+        "sha-old": [
+          ...APPROVED_SHA_OLD["sha-old"],
+          build("completed", "success"),
+        ],
+        "sha-new": [build("in_progress", null)],
+      },
+      netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE },
+    });
+    const again = scene({
+      ...REBASED,
+      checks: {
+        "sha-old": [
+          ...APPROVED_SHA_OLD["sha-old"],
+          build("completed", "success"),
+        ],
+        "sha-new": [
+          {
+            id: 7,
+            name: "lore/code-review",
+            status: "completed",
+            conclusion: "success",
+          },
+          build("completed", "success"),
+        ],
+      },
+      netChanges: { "sha-old": LOGIN_CHANGE, "sha-new": LOGIN_CHANGE },
+    });
+
+    await reviewOrRecheck(carry.deps, TARGET);
+    await reviewOrRecheck(again.deps, TARGET);
+
+    expect({
+      carried: carry.published.map((check) => check.headSha),
+      again: [again.published.length, started(again.requests).length],
+    }).toEqual({ carried: ["sha-new"], again: [0, 0] });
+  });
+
+  it("reads whether the repository runs CI from the commit CI judged at the last verdict, not from the skip-ci commit the last re-check ran on", async () => {
+    const { deps, requests } = scene({
+      runs: [run({ startItems: judging("sha-fmt") })],
+      pr: pull({ headSha: "sha-next" }),
+      commits: [
+        {
+          sha: "sha-new",
+          message: "Guard the null",
+          date: "2026-09-30T11:00:00Z",
+        },
+        {
+          sha: "sha-fmt",
+          message: "style: prettier [skip ci]",
+          date: "2026-09-30T11:01:00Z",
+        },
+        { sha: "sha-next", message: "Log it", date: "2026-09-30T12:00:00Z" },
+      ],
+      checks: { "sha-new": [build("completed", "success")] },
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests).length).toBe(0);
   });
 });

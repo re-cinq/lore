@@ -137,17 +137,20 @@ resource "kubectl_manifest" "utopia_db_cluster" {
       # test runs and code held it at its 2-CPU limit, waiting on disk reads:
       # entity resolution reads every entity's embedding per pushed item, and the
       # default 128MB of shared_buffers could not keep them. Two cores and 4Gi
-      # requested (Autopilot bills requests), four cores to burst into.
+      # requested (Autopilot bills requests), four cores to burst into. On
+      # 2026-10-27 it sat at four cores scanning 3072-dim vectors with no index
+      # (re.25 adds halfvec HNSW indexes for them); 8Gi lets the name and profile
+      # indexes stay in memory instead of being read from disk per search.
       resources = {
-        requests = { cpu = "2", memory = "4Gi" }
-        limits   = { cpu = "4", memory = "4Gi" }
+        requests = { cpu = "2", memory = "8Gi" }
+        limits   = { cpu = "4", memory = "8Gi" }
       }
 
       postgresql = {
         shared_preload_libraries = ["vector"]
         parameters = {
-          shared_buffers       = "1GB"
-          effective_cache_size = "3GB"
+          shared_buffers       = "2GB"
+          effective_cache_size = "6GB"
           work_mem             = "16MB"
         }
       }
@@ -307,9 +310,13 @@ resource "kubernetes_deployment_v1" "utopia" {
             name  = "UTOPIA_DATA_DIR"
             value = "/app/data"
           }
+          # One pool serves both requests and the job worker. At 16 with the worker at
+          # its default 64, a search waited behind ingestion jobs for a connection: 11-16 s
+          # a search on 2026-10-27 though its own queries took under a second. 32 is
+          # Utopia's default; keep the worker concurrency (system settings) well below it.
           env {
             name  = "UTOPIA_DB_MAX_CONNECTIONS"
-            value = "16"
+            value = "32"
           }
           # Closed: a re-cinq.com Google sign-in opens the account (UTOPIA_OIDC_ALLOWED_DOMAINS
           # below), and lore-api reaches the pod around the gate (utopia_ingress_only), where

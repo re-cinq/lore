@@ -25,7 +25,7 @@ API and parses the trailer out of the PR body, then the head commit.
 
 Registered as `pattern(/^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/, "GET")`
 → `handleTaskByPr(req, res, pool)`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L110),
+([registration](../../../apps/lore-api/src/app/build-server.ts),
 [handler](../../../apps/lore-api/src/transport/routes/tasks/task-by-pr.ts#L9)). Placed
 **before** the broad `/api/tasks` GET list route. `:n` is constrained to digits.
 

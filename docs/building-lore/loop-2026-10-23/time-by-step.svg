@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 350" width="970" height="350" role="img" aria-label="How long each AI step takes">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="350" rx="8"/>
+<text class="ink title" x="16" y="28">How long each AI step takes</text>
+<text class="muted sub" x="16" y="48">Typical (median) time of one run of the step; the label adds the time 9 in 10 runs stay within.</text>
+<line class="grid" x1="300" x2="300" y1="58" y2="328" stroke-width="1"/>
+<text class="ink" x="290" y="77" text-anchor="end">Write code, one round</text>
+<path class="s1" d="M300.0,64h436.0a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-436.0z"><title>Write code, one round: 7.0 min</title></path>
+<text class="muted" x="748.0" y="77">7 min, 9 in 10 within 23 min</text>
+<text class="ink" x="290" y="107" text-anchor="end">First code review</text>
+<path class="s1" d="M300.0,94h250.1a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-250.1z"><title>First code review: 4.0 min</title></path>
+<text class="muted" x="562.1" y="107">4 min, 9 in 10 within 9 min</text>
+<text class="ink" x="290" y="137" text-anchor="end">Fix a build that stays red</text>
+<path class="s1" d="M300.0,124h214.3a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-214.3z"><title>Fix a build that stays red: 3.5 min</title></path>
+<text class="muted" x="526.3" y="137">3 min, 9 in 10 within 5 min</text>
+<text class="ink" x="290" y="167" text-anchor="end">Fix the build or review comments</text>
+<path class="s1" d="M300.0,154h194.4a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-194.4z"><title>Fix the build or review comments: 3.1 min</title></path>
+<text class="muted" x="506.4" y="167">3 min, 9 in 10 within 11 min</text>
+<text class="ink" x="290" y="197" text-anchor="end">Decide what &quot;done&quot; means</text>
+<path class="s1" d="M300.0,184h183.3a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-183.3z"><title>Decide what &quot;done&quot; means: 3.0 min</title></path>
+<text class="muted" x="495.3" y="197">3 min, 9 in 10 within 7 min</text>
+<text class="ink" x="290" y="227" text-anchor="end">Write the pull request description</text>
+<path class="s1" d="M300.0,214h153.3a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-153.3z"><title>Write the pull request description: 2.5 min</title></path>
+<text class="muted" x="465.3" y="227">2 min, 9 in 10 within 4 min</text>
+<text class="ink" x="290" y="257" text-anchor="end">Bring the new branch up to date</text>
+<path class="s1" d="M300.0,244h134.9a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-134.9z"><title>Bring the new branch up to date: 2.2 min</title></path>
+<text class="muted" x="446.9" y="257">2 min, 9 in 10 within 4 min</text>
+<text class="ink" x="290" y="287" text-anchor="end">Re-check new commits (re-check)</text>
+<path class="s1" d="M300.0,274h120.4a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-120.4z"><title>Re-check new commits (re-check): 2.0 min</title></path>
+<text class="muted" x="432.4" y="287">2 min, 9 in 10 within 5 min</text>
+<text class="ink" x="290" y="317" text-anchor="end">Bring the pull request up to date</text>
+<path class="s1" d="M300.0,304h92.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-92.8z"><title>Bring the pull request up to date: 1.5 min</title></path>
+<text class="muted" x="404.8" y="317">2 min, 9 in 10 within 3 min</text>
+</svg>

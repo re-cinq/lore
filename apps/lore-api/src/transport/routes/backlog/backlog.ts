@@ -1,3 +1,4 @@
+import { cappedBacklog, projectBacklog } from "./backlog-project.js";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -5,7 +6,7 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { heldBacklog, orderBacklog } from "@re-cinq/lore-shared";
+import { rankingCriteriaFor } from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import {
   floorClient,
@@ -16,27 +17,17 @@ import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";
+import { ImplementationLoopSchema, type Onboarding } from "./backlog-schema.js";
 import {
-  ImplementationLoopSchema,
-  type Onboarding,
-  type Ticket,
-} from "./backlog-schema.js";
-import {
-  guardsIssue,
-  isAwaitingMerge,
-  isCurrentTask,
   LOOP_TASK_COLUMNS,
-  taskTicket,
-  waitingTicket,
   type LoopRunRow,
   type LoopTaskRow,
   type NodeRow,
 } from "./backlog-ticket.js";
 import { fetchRunContext, fillFromFloor } from "./backlog-run-context.js";
 import { withPool } from "../with-pool.js";
-import { onboardingOf, readRepoRow } from "./backlog-repo.js";
+import { onboardingOf, readRepoRow, type RepoRead } from "./backlog-repo.js";
 import {
-  capSections,
   recentWindow,
   SectionLimitsQuery,
   type SectionLimits,
@@ -104,11 +95,11 @@ async function serveReadBacklog(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const limits = request.query as SectionLimits;
-  const state = await loadBacklogState(
+  const state = await loadBacklogState({
     reads,
-    repoOf(request.params),
-    recentWindow(limits, RECENT_LIMIT),
-  );
+    repo: repoOf(request.params),
+    recentLimit: recentWindow(limits, RECENT_LIMIT),
+  });
 
   return h
     .response({
@@ -120,11 +111,12 @@ async function serveReadBacklog(
     .code(200);
 }
 
-interface BacklogState extends BacklogIssues {
+export interface BacklogState extends BacklogIssues {
   /** How many settled tickets Recently addressed gathers. */
   recentLimit: number;
   enabled: boolean;
   onboarding: Onboarding;
+  criteria?: import("@re-cinq/lore-shared/backlog/select-next-issue.js").RankingCriterion[];
   taskRows: LoopTaskRow[];
   currentRunId: string | null;
   runByTask: Map<string, LoopRunRow>;
@@ -132,24 +124,53 @@ interface BacklogState extends BacklogIssues {
 }
 
 /** Everything the view needs, read in one place: the toggle and onboarding state, the loop's task rows, the repo's open issues, and the run each task belongs to. */
+interface LoadBacklogStateArgs {
+  reads: BacklogReads;
+  repo: string;
+  recentLimit: number;
+}
 async function loadBacklogState(
-  { pool, queuedIssues }: BacklogReads,
-  repo: string,
-  recentLimit: number,
+  args: LoadBacklogStateArgs,
 ): Promise<BacklogState> {
-  const read = await readRepoRow(pool, repo);
-  const issues = await readIssues(repo, queuedIssues, (openIssueNumbers) =>
-    readLoopTasks(pool, { repo, recentLimit, openIssueNumbers }),
+  const read = await readRepoRow(args.reads.pool, args.repo);
+  const issues = await readIssues(
+    args.repo,
+    args.reads.queuedIssues,
+    buildLoopTasksReader(args),
+    rankingCriteriaFor(read.repo.settings),
   );
 
-  return {
-    recentLimit,
+  return assembleBacklogState(args, read, issues, {
+    currentId: await readCurrentRunId(args.reads.pool, args.repo),
+    index: await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
+  });
+}
+
+function assembleBacklogState(
+  args: LoadBacklogStateArgs,
+  read: RepoRead,
+  issues: BacklogIssues & Pick<BacklogState, "taskRows">,
+  runs: {
+    index: Pick<BacklogState, "runByTask" | "nodeRows">;
+    currentId: string | null;
+  },
+): BacklogState {
+  return Object.assign(issues, runs.index, {
+    recentLimit: args.recentLimit,
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
-    ...issues,
-    currentRunId: await readCurrentRunId(pool, repo),
-    ...(await readRunIndex(pool, repo, issues.taskRows)),
-  };
+    criteria: rankingCriteriaFor(read.repo.settings),
+    currentRunId: runs.currentId,
+  });
+}
+
+function buildLoopTasksReader(args: LoadBacklogStateArgs) {
+  return (openIssueNumbers: readonly number[]) =>
+    readLoopTasks(args.reads.pool, {
+      repo: args.repo,
+      recentLimit: args.recentLimit,
+      openIssueNumbers,
+    });
 }
 
 interface LoopTasksQuery {
@@ -232,95 +253,4 @@ async function readRunIndex(
     : [];
 
   return { runByTask, nodeRows: [...nodeRows, ...extraNodeRows] };
-}
-
-interface BacklogBuckets {
-  current: Ticket[];
-  next: Ticket[];
-  parked: Ticket[];
-  recent: Ticket[];
-  awaiting_merge: Ticket[];
-}
-
-function projectBacklog(state: BacklogState): BacklogBuckets {
-  const currentRows = currentTaskRows(state);
-  const currentIds = new Set(currentRows.map((t) => t.id));
-  const parkedIssues = heldBacklog(state.openIssues);
-  const parkedIssueNumbers = new Set(parkedIssues.map((issue) => issue.number));
-
-  return {
-    current: currentRows
-      .map((t) => taskTicket(t, state))
-      .filter((t): t is Ticket => t !== null),
-    next: nextTickets(state),
-    parked: parkedIssues.map((issue) => waitingTicket(issue, "parked", state)),
-    recent: recentTickets(state, currentIds, parkedIssueNumbers),
-    awaiting_merge: awaitingMergeTickets(state, currentIds),
-  };
-}
-
-/** Every task being worked right now — the loop's own pick, and any ticket a human revived by hand. More than one can be true at once. */
-function currentTaskRows(state: BacklogState): LoopTaskRow[] {
-  return state.taskRows.filter((t) => isCurrentTask(t, state.runByTask));
-}
-
-/** A settled ticket whose loop branch still has an open pull request. Its own bucket, uncapped, so a ticket a human has not merged yet stays visible no matter how much other work settles behind it — `recentTickets` would otherwise push it off after `RECENT_LIMIT` newer tasks settle. */
-function awaitingMergeTickets(
-  state: BacklogState,
-  currentIds: ReadonlySet<string>,
-): Ticket[] {
-  return settledTaskRows(state, currentIds)
-    .filter((t) => isAwaitingMerge(t, state.openPrBranches))
-    .map((t) => taskTicket(t, state))
-    .filter((t): t is Ticket => t !== null);
-}
-
-/** What is queued behind the current work. An issue a task still holds is EXCLUDED, and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
-function nextTickets(state: BacklogState): Ticket[] {
-  const { taskRows, openIssues, runByTask, openPrBranches } = state;
-  const guardedIssues = new Set(
-    taskRows
-      .filter((t) => guardsIssue(t, runByTask, openPrBranches))
-      .map((t) => t.issue_number),
-  );
-
-  return orderBacklog(openIssues)
-    .filter((i) => !guardedIssues.has(i.number))
-    .map((issue) => waitingTicket(issue, "queued", state));
-}
-
-/** Settled work, newest first and capped. Any currently-worked task (the loop's pick, or a by-hand revival) is excluded by id rather than by status, so it does not appear twice. A ticket still awaiting a merge lives in its own uncapped bucket instead (`awaitingMergeTickets`), so it is excluded here to avoid showing twice. A ticket still parked (its issue carries `lore:blocked`) is excluded too — Parked wins, so a failed task whose issue got blocked doesn't show in both buckets at once. */
-function recentTickets(
-  state: BacklogState,
-  currentIds: ReadonlySet<string>,
-  parkedIssueNumbers: ReadonlySet<number>,
-): Ticket[] {
-  return settledTaskRows(state, currentIds)
-    .filter((t) => !isAwaitingMerge(t, state.openPrBranches))
-    .filter((t) => !parkedIssueNumbers.has(t.issue_number ?? -1))
-    .slice(0, state.recentLimit)
-    .map((t) => taskTicket(t, state))
-    .filter((t): t is Ticket => t !== null);
-}
-
-/** Every task not currently being worked — `currentIds` already covers every open-status task and every by-hand revival, so excluding by id alone is enough. Shared ordering for `recentTickets` and `awaitingMergeTickets`. */
-function settledTaskRows(
-  state: BacklogState,
-  currentIds: ReadonlySet<string>,
-): LoopTaskRow[] {
-  return state.taskRows.filter((t) => !currentIds.has(t.id));
-}
-
-/** The buckets cut to the page's limits: the shared sections call the queue `backlog`, this route calls it `next`. */
-function cappedBacklog(
-  buckets: BacklogBuckets,
-  limits: SectionLimits,
-): BacklogBuckets {
-  const { next, ...rest } = buckets;
-  const { backlog, ...capped } = capSections(
-    { ...rest, backlog: next },
-    limits,
-  );
-
-  return { ...capped, next: backlog };
 }

@@ -12,9 +12,10 @@ every command from inside it (`cd /workspace/target` first). Pass `repo`
 (the owner/name your task names above) on every `lore_*` call: the
 gateway has no checkout to detect it from.
 
-YOU CANNOT RUN TESTS, LINTERS, TYPECHECKS, BUILDS OR INSTALLS HERE, and
-you do not need to. The pod's Bash hook refuses them. CI already ran
-them, and what it printed is your only evidence.
+YOU CANNOT RUN TESTS, TYPECHECKS OR BUILDS HERE, and you do not need
+to. The pod's Bash hook refuses them. CI already ran them, and what it
+printed is your evidence; the linter you run only over the spec files
+you change, before you commit (see DELIVERY).
 
 ## What CI said
 
@@ -55,7 +56,18 @@ nothing and report `changes_requested` below, naming the check.
 
 DELIVERY, NON-NEGOTIABLE: the next step runs in a DIFFERENT container.
 - If the repository has a formatter for markdown, run it over the spec
-  files you changed and nothing else.
+  files you changed.
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - `git -C /workspace/target add` what you changed and commit it with a short, factual
   message. Then `git -C /workspace/target push origin HEAD`. The clone carries its own
   credentials, so a plain push authenticates; you need no token and

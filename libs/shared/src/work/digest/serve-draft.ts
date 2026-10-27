@@ -91,7 +91,7 @@ function footerOf(digest: DigestRun, uiUrl: string | undefined) {
     : undefined;
 }
 
-/** One line per person across every repo read, then one per repo that could not be read. */
+/** One block per person across every repo read, then one line per repo that could not be read. */
 function linesOf(reads: RepoRead[]): string[] {
   const people = groupPeople(reads.flatMap((read) => read.work ?? []));
   const names = Object.assign({}, ...reads.map((read) => read.names));

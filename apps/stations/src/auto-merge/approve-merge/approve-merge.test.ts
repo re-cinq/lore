@@ -18,6 +18,7 @@ function scene(opts: {
   state?: "open" | "closed" | "merged";
   autoMerge?: boolean;
   loopOn?: boolean;
+  codeOwnersReview?: boolean;
 }) {
   const steps: string[] = [];
   const project: MergeProject = {
@@ -31,6 +32,7 @@ function scene(opts: {
       }),
       getBranchRule: async () => ({
         requiredApprovals: opts.requiredApprovals ?? 1,
+        codeOwnersReview: opts.codeOwnersReview ?? false,
       }),
       enableAutoMerge: async (nodeId, method) => {
         steps.push(`arm:${nodeId}:${method}`);
@@ -39,7 +41,14 @@ function scene(opts: {
         steps.push(`merge:${number}:${method}`);
       },
     },
-    sensitivePaths: async () => opts.sensitive ?? [],
+    codeOwners: async () =>
+      (opts.sensitive ?? []).map((path) => ({
+        path,
+        owners: ["@acme/platform"],
+      })),
+    askCodeOwners: async (number, owned, ask) => {
+      steps.push(`ask-owners:${number}:${owned.length}:${ask}`);
+    },
     loopOn: async () => opts.loopOn ?? true,
     audit: {
       write: async (row) => {
@@ -95,7 +104,7 @@ describe("approveAndMerge", () => {
     });
   });
 
-  it("parks a PR on an unprotected branch that changes a CODEOWNERS path, merging nothing", async () => {
+  it("parks a PR on an unprotected branch that changes a CODEOWNERS path, merging nothing and asking its code owners", async () => {
     const { project, approver, steps } = scene({
       requiredApprovals: 0,
       sensitive: [".github/workflows/ci.yml"],
@@ -106,7 +115,7 @@ describe("approveAndMerge", () => {
       steps,
     }).toEqual({
       step: { outcome: "failed", reason: NEEDS_CODE_OWNER },
-      steps: [],
+      steps: ["ask-owners:7:1:approve and merge"],
     });
   });
 
@@ -165,6 +174,22 @@ describe("approveAndMerge", () => {
     ]).toEqual([
       { outcome: "success", state: "merged" },
       { outcome: "failed", reason: "the pull request is closed" },
+    ]);
+  });
+
+  it("arms, approves and asks the code owners of a PR that changes an owned path on a branch whose rule wants a code owner's review, and asks nobody without one, since lore's approve step refused 17 times over the weekend of 2026-10-23", async () => {
+    const owned = scene({
+      codeOwnersReview: true,
+      sensitive: ["infra/main.tf"],
+    });
+    const unowned = scene({ codeOwnersReview: true });
+
+    await approveAndMerge(owned.project, owned.approver(LORE), 7);
+    await approveAndMerge(unowned.project, unowned.approver(LORE), 7);
+
+    expect([owned.steps.at(-1), unowned.steps.at(-1)]).toEqual([
+      "ask-owners:7:1:approve",
+      "audit:auto_merge_approved",
     ]);
   });
 });

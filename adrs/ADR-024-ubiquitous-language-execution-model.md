@@ -405,7 +405,7 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
 - The in-memory composition supplies a working double behind every field
   ([validated by carries a working double behind every field](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L7)).
 - Its `overrides` bag swaps one field and leaves the other seven doubles standing
-  ([validated by replaces only the overridden field](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L30)).
+  ([validated by replaces only the overridden field, leaving the other seven doubles](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L30)).
 - *(Amended 2026-08: these eight were originally eight independent `queues.ts`
   accessors. That shape only ever described Floor — lore-api, which reaches
   ports through `Project`, had no route to `eventReporter`, `jobRuns`,

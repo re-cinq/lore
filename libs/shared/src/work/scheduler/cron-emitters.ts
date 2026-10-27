@@ -65,6 +65,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "batch sweep that starts one issue-triage floor run per qualifying triage: needs-triage issue per repo, oldest first, up to the per-repo concurrency cap (specs/issue-triage FR9)",
   },
   {
+    name: "webhook_ensure",
+    schedule: "0 3 * * 1",
+    note: "every onboarded repo's GitHub webhook pointed at Lore with every required event again, Mondays, so a repo onboarded before an event was required (check_suite, 2026-10-23) still delivers it (specs/external-floor FR12.19c)",
+  },
+  {
     name: "utopia_backfill",
     schedule: "30 2 * * 0",
     note: "every onboarded repo's specs and ADRs mirrored into Utopia again, one repo at a time, Sundays, so a missed ingest mirror heals within the week (specs/utopia-graph-mirror FR7.7)",

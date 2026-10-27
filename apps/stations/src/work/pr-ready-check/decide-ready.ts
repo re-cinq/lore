@@ -30,8 +30,8 @@ export interface PrReadyInput {
   hasCiHistory: boolean;
   /** GitHub's mergeability: false on a conflict, null while GitHub computes it. */
   mergeable: boolean | null;
-  /** Commits of the default branch the branch lacks; undefined when GitHub could not compare. */
-  behindBy: number | undefined;
+  /** GitHub's `mergeable_state`: `behind` only when a branch rule asks the pull request to be up to date with its base. */
+  mergeState: string;
   /** Lore's review verdict on the head, from its `lore/code-review` check. */
   review: "approved" | "changes_requested" | "none";
 }
@@ -53,15 +53,15 @@ export function decidePrReady(input: PrReadyInput): PrReadyVerdict {
   return threadVerdict(unresolved.length, input.openReviewRunCount);
 }
 
-/** A conflict or a branch behind main goes to the sync, which rebases it and returns to the wait; null when the branch is on current main. */
+/** A conflict, or a branch GitHub calls behind, goes to the sync, which rebases it and returns to the wait; null otherwise. A branch merely behind main is not rebased: GitHub merges it as it is unless a branch rule asks it to be up to date, and rebasing it on every move of main kept a busy repository's pull requests rebasing instead of merging (lore #2876, six rebases in one run). */
 function syncVerdict(
-  input: Pick<PrReadyInput, "mergeable" | "behindBy">,
+  input: Pick<PrReadyInput, "mergeable" | "mergeState">,
 ): PrReadyVerdict | null {
   if (input.mergeable === false) {
     return blocked("pr_conflicting");
   }
 
-  return (input.behindBy ?? 0) > 0 ? blocked("pr_behind") : null;
+  return input.mergeState === "behind" ? blocked("pr_behind") : null;
 }
 
 function blocked(

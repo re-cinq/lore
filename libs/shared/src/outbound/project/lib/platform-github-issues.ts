@@ -21,7 +21,10 @@ interface OctokitIssue {
   body?: string | null;
   assignees?: Array<{ login: string }> | null;
   closed_at?: string | null;
-  issue_dependencies_summary?: { total_blocked_by: number } | null;
+  issue_dependencies_summary?: {
+    total_blocked_by: number;
+    blocking: number;
+  } | null;
 }
 
 export async function listIssues(
@@ -61,11 +64,13 @@ function toListedIssueRef(
   issue: OctokitIssue & { created_at: string },
 ): IssueRef {
   const blockedByCount = issue.issue_dependencies_summary?.total_blocked_by;
+  const unblocksCount = issue.issue_dependencies_summary?.blocking;
 
   return {
     ...toIssueRef(repo, issue),
     createdAt: issue.created_at,
     ...(blockedByCount ? { blockedByCount } : {}),
+    ...(unblocksCount ? { unblocksCount } : {}),
   };
 }
 

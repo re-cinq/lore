@@ -38,9 +38,10 @@ export async function ingestCoverageReport(
   }>,
 ): Promise<{ coverageNodes: number; coversEdges: number; unmatched: number }> {
   let coversEdges = 0;
+  const fileUids: FileUids = new Map();
 
   for (const record of records) {
-    coversEdges += await ingestOneCoverage(dgraph, meta, record);
+    coversEdges += await ingestOneCoverage(dgraph, meta, record, fileUids);
   }
 
   // Ranges expressed in this commit's line numbering; stamp once per report for pre-merge query alignment. An overlay stamps its OWN anchor instead — a branch push must never move main's coordinate system.
@@ -52,14 +53,21 @@ export async function ingestCoverageReport(
   return { coverageNodes: records.length, coversEdges, unmatched: 0 };
 }
 
+/** The File uid of every xid this report has already upserted. Every test of a file covers the same files, and a File node holds only its repo and path, so one upsert per File per report is enough: re-upserting it for each of a file's tests was most of a report's Dgraph round trips. */
+type FileUids = Map<string, string>;
+
 async function ingestOneCoverage(
   dgraph: DgraphClientPort,
   meta: CoverageMeta,
   record: { testFile: string; testName: string; covered: CoveredChunk[] },
+  knownFiles: FileUids,
 ): Promise<number> {
   const { scope } = meta;
   const coverageUid = await upsertCoverageNode(dgraph, meta, record);
-  const fileUids = await replaceCovers(dgraph, scope, coverageUid, record);
+  const fileUids = await replaceCovers(dgraph, coverageUid, record, {
+    scope,
+    knownFiles,
+  });
 
   await attachCoverageToScopeRoot(dgraph, scope, coverageUid, fileUids);
   await linkTestChunkCoverage(dgraph, scope, record, coverageUid);
@@ -101,12 +109,17 @@ async function findTestChunkUid(
 /** Points this coverage at the files it now covers. The previous targets are read BEFORE the replace: after it, there is no record of what this coverage used to own. */
 async function replaceCovers(
   dgraph: DgraphClientPort,
-  scope: TraceScope,
   coverageUid: string,
   record: { covered: CoveredChunk[] },
+  { scope, knownFiles }: { scope: TraceScope; knownFiles: FileUids },
 ): Promise<string[]> {
   const previousCovers = await readCoversUids(dgraph, coverageUid);
-  const fileTargets = await upsertCoveredFiles(dgraph, scope, record.covered);
+  const fileTargets = await upsertCoveredFiles(
+    dgraph,
+    scope,
+    record.covered,
+    knownFiles,
+  );
 
   await replaceCoverTargets(dgraph, coverageUid, previousCovers, fileTargets);
 
@@ -155,15 +168,20 @@ async function upsertCoveredFiles(
   dgraph: DgraphClientPort,
   scope: TraceScope,
   covered: CoveredChunk[],
+  knownFiles: FileUids,
 ): Promise<FacetedTarget[]> {
   const targets: FacetedTarget[] = [];
 
   for (const [file, ranges] of groupRangesByFile(covered)) {
-    const uid = await upsertByXid(dgraph, "File", scopedXid(scope, file), {
-      "File.repo": scope.key,
-      "File.path": file,
-    });
+    const xid = scopedXid(scope, file);
+    const uid =
+      knownFiles.get(xid) ??
+      (await upsertByXid(dgraph, "File", xid, {
+        "File.repo": scope.key,
+        "File.path": file,
+      }));
 
+    knownFiles.set(xid, uid);
     targets.push({ uid, facets: { ranges: serializeRanges(ranges) } });
   }
 

@@ -21,7 +21,7 @@ accumulates many memories. Expired and soft-deleted memories must not appear.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L151)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts)).
 
 - **name**: `lore_list_memories`
 - **description** (verbatim):

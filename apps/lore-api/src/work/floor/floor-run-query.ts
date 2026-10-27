@@ -151,12 +151,14 @@ const EVERY_RUN_SINCE = new Date(0).toISOString();
 export function floorPageFilter(query: {
   repo?: string;
   line?: string;
+  subject?: string;
   status?: AssemblyRunStatus;
 }): RunFilter {
-  const { repo, line, status } = query;
+  const { repo, line, subject, status } = query;
   const narrowed: Partial<RunFilter> = {
     ...(repo !== undefined ? { repo: floorRepoOf(repo) } : {}),
     ...(line !== undefined ? { line } : {}),
+    ...(subject !== undefined ? { subject } : {}),
     ...(status !== undefined ? { open: isOpenStatus(status) } : {}),
   };
 

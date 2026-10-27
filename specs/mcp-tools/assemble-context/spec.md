@@ -24,7 +24,7 @@ LLM consumes directly.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts#L115)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts)).
 
 - **name**: `lore_assemble_context`
 - **description** (verbatim):
@@ -68,7 +68,7 @@ records latency + success into `memory.audit_log` and an OTEL span.
    non-fatal (stays disabled).
 4. Delegate to the engine
    `assembleContext(pool, query, template, max_tokens, repo, agent_id, enableCrossRepo)`
-   ([engine](../../../libs/shared/src/outbound/project/knowledge/context-assembly.ts#L288), re-exported
+   ([engine](../../../libs/shared/src/outbound/project/knowledge/context-assembly.ts), re-exported
    [here](../../../libs/server-core/src/work/context/context-assembly.ts#L10)). The engine
    returns `{ text, sections: { tokens, … }[] }` — its retrieval/ranking/XML-emission
    contract is owned by [`context-assembly`](../../context-assembly/spec.md).
@@ -96,19 +96,19 @@ context" text, the "requires PostgreSQL or LORE_API_URL" text, or the
 ## Acceptance Criteria
 
 The engine returns empty text and an empty section list when no source returns
-rows. ([validated by `returns empty text when no sources return data`](libs/server-core/src/work/context/context-assembly.test.ts#L71))
+rows. ([validated by `returns empty text when no sources return data`](libs/server-core/src/work/context/context-assembly.test.ts#L76))
 
 A repo source returning a `doc` chunk yields a Conventions section containing
-that chunk's content. ([validated by `assembles context from repo source`](libs/server-core/src/work/context/context-assembly.test.ts#L89))
+that chunk's content. ([validated by `assembles context from repo source`](libs/server-core/src/work/context/context-assembly.test.ts#L94))
 
 Content exceeding the budget is truncated so the assembled text stays within the
-token budget and the section is marked truncated. ([validated by `respects token budget`](libs/server-core/src/work/context/context-assembly.test.ts#L125))
+token budget and the section is marked truncated. ([validated by `respects token budget`](libs/server-core/src/work/context/context-assembly.test.ts#L130))
 
 Retrieved documents are emitted as XML tags carrying source/type/relevance
-provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](libs/server-core/src/work/context/context-assembly.test.ts#L154))
+provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](libs/server-core/src/work/context/context-assembly.test.ts#L159))
 
 The debug trace reports per-section inclusion status and an omit reason for empty
-sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](libs/server-core/src/work/context/context-assembly.test.ts#L285))
+sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](libs/server-core/src/work/context/context-assembly.test.ts#L290))
 
 On the proxy path, a reachable backend response is authoritative over any cached
 copy: an empty-but-reachable context is returned as-is (never a stale cache), and
@@ -126,7 +126,7 @@ stdio adapter still reads its checkout's git remote.
 
 *(added 2026-10-01, #2344)* An explicit `repo` must be an owner/name (letters, digits, dots, dashes, underscores, no `..`, one slash) or the tool answers "Invalid repo" before any API call, so a caller-supplied value can never reshape the API path it is interpolated into; this holds for every tool that takes `repo`. On a laptop outside a checkout the call is answered with "Could not detect repo" instead of proxying an empty repo.
 
-*(added 2026-10-11, #2344)* A pod has no checkout to name its repo from, so the brief that starts or resumes a planning run leads with `repo: "owner/name"` on its own line, the repo its prompt tells it to pass on every Lore call. ([validated by `leads the brief with repo: "re-cinq/lore", the repo the agent passes to Lore's tools`](apps/lore-api/src/work/plans/floor-plan-line.test.ts#L656))
+*(added 2026-10-11, #2344)* A pod has no checkout to name its repo from, so the brief that starts or resumes a planning run leads with `repo: "owner/name"` on its own line, the repo its prompt tells it to pass on every Lore call. ([validated by `leads the brief with repo: "re-cinq/lore", the repo the agent passes to Lore's tools`](apps/lore-api/src/work/plans/floor-plan-line.test.ts#L662))
 
 The local task runner pre-fetched none of this: `withLoreWorkflowPreamble` opens
 every locally-run task with `lore_assemble_context` as step 1 and ends with the

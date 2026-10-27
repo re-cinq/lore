@@ -22,7 +22,7 @@ pending cache.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-notifications.ts#L52)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-notifications.ts#L74)).
 
 - **name**: `lore_skip_task`
 - **description** (verbatim):
@@ -40,7 +40,7 @@ Removes one task from the local ~/.lore/pending-tasks.json notification cache so
 ## Behavior
 
 1. Dynamically import `skipTask` from `runner.local`
-   ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L1309)) and call it
+   ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)) and call it
    with `task_id`. `skipTask` reads `~/.lore/pending-tasks.json` via
    `listPendingTasks`, filters out the entry whose `id === task_id`, and writes
    the remaining array back to the same file. The task stays `pending` on the

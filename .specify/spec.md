@@ -49,7 +49,7 @@ The system has two deployment modes. For developers, a lightweight local MCP ada
 
 ### Spec-Traceability Graph
 
-- Specs link to tests inline: `Statement. ([validated by name](path/to/test.ts#L42))`
+- Specs link to tests inline: `Statement. ([validated by name](path/to/test.ts#L<line>))`
 - The `lore-code-trace` binary runs the test suite in CI, collects per-test coverage, and POSTs the traceability report to Lore
 - `lore-ingest.yml` ingests specs and ADRs on every push to main
 - Web UI shows per-statement coverage, confidence, and validation status

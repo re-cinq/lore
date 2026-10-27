@@ -37,7 +37,7 @@ The tool takes **no input** — the Zod shape is the empty object `{}`.
 ## Behavior
 
 1. Call `listLocalTasks()`
-   ([reader](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L976)):
+   ([reader](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)):
    read `~/.lore/local-tasks.json`; for every task whose `status === "running"`
    but whose PID is no longer alive (`process.kill(pid, 0)` throws), set
    `status = "failed"` and `error = "Process exited unexpectedly"`; persist if any

@@ -26,7 +26,7 @@ creation, and listing returns metadata only.
 
 Registered with a path-only matcher (`url === "/api/tokens"`, both verbs route
 here; method is resolved inside the handler)
-([registration](../../../apps/lore-api/src/app/build-server.ts#L128)).
+([registration](../../../apps/lore-api/src/app/build-server.ts)).
 
 - **Auth**: `admin` scope, enforced by the dispatcher *before* the handler runs.
   `getRequiredScope("/api/tokens")` returns `"admin"` from the `ROUTE_SCOPES`

@@ -26,6 +26,12 @@ interface AssembleContextExtraArgs {
   backend?: KnowledgeBackend;
 }
 
+interface AssembleContextArgs extends AssembleContextExtraArgs {
+  query: string;
+  template: string;
+  repo: string;
+}
+
 export const ASSEMBLE_CONTEXT_INPUT = {
   query: z
     .string()
@@ -79,36 +85,34 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
 }
 
 async function assembleForMode(
-  args: Omit<Parameters<typeof assembleContext>[0], "repo"> & {
-    repo?: string;
-  },
+  args: Omit<AssembleContextArgs, "repo"> & { repo?: string },
   mode: ServerMode,
 ) {
   return withRepo(args, mode, assembleContext);
 }
 
-/** The mandatory first call, served entirely by the API — the adapter holds no pool, so with no LORE_API_URL there is nothing to degrade to and it says so instead of returning an empty bundle. */
-async function assembleContext(args: {
-  query: string;
-  template: string;
-  max_tokens?: number;
-  repo: string;
-  agent_id?: string;
-  cross_repo?: boolean;
-  backend?: KnowledgeBackend;
-}) {
-  const { query, template, repo } = args;
-
+/** The mandatory first call: proxies entirely to the API — without LORE_API_URL there is nothing to degrade to. */
+async function assembleContext(args: AssembleContextArgs) {
   if (!process.env.LORE_API_URL || !process.env.LORE_INGEST_TOKEN) {
     return textResult(
       "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
     );
   }
-  const extras = buildAssembleExtras(args);
-
-  return interpretProxiedContext(
-    await cachedAssemble({ query, template, repo }, extras),
+  const { query, template, repo } = args;
+  const proxied = await cachedAssemble(
+    { query, template, repo },
+    buildAssembleExtras(args),
   );
+
+  if (proxied.ok) {
+    const { text, sections } = parseAssembleBody(proxied.body);
+
+    logAssembleAudit(query, template, sections);
+
+    return interpretProxiedContext({ ok: true, body: text });
+  }
+
+  return interpretProxiedContext(proxied);
 }
 
 function buildAssembleExtras(
@@ -148,6 +152,7 @@ async function cachedAssemble(
       ttlSeconds: 600,
     },
     () => fetchAssembledContext(new URLSearchParams({ ...key, ...extras })),
+    { label: false },
   );
 }
 
@@ -159,10 +164,44 @@ async function fetchAssembledContext(
   if (!r.ok) {
     return r;
   }
-  const body = JSON.parse(r.body) as { text?: string };
 
-  // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
-  return { ok: true as const, body: body.text ?? "" };
+  // A reachable backend returning empty context is a real result — return as-is so the caller sees the trace for the audit log.
+  return r;
+}
+
+interface AssembleSection {
+  header: string;
+  tokens: number;
+  truncated: boolean;
+}
+
+function parseAssembleBody(body: string): {
+  text: string;
+  sections?: AssembleSection[];
+} {
+  try {
+    const parsed = JSON.parse(body) as {
+      text?: string;
+      sections?: AssembleSection[];
+    };
+
+    return { text: parsed.text ?? "", sections: parsed.sections };
+  } catch {
+    return { text: body };
+  }
+}
+
+function logAssembleAudit(
+  query: string,
+  template: string,
+  sections: AssembleSection[] | undefined,
+): void {
+  const sources = sections?.map((s) => s.header).join(", ") || "none";
+  const tokens = sections?.reduce((sum, s) => sum + s.tokens, 0) ?? 0;
+
+  console.error(
+    `[lore] lore_assemble_context: query: ${query}, template: ${template}, sources hit: ${sources}, tokens: ${tokens}`,
+  );
 }
 
 async function interpretProxiedContext(

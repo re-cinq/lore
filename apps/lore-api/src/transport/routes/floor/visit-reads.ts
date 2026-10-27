@@ -16,6 +16,7 @@ const ModelCallSchema = z.object({
   model: z.string().nullable(),
   costUsd: z.number().nullable(),
   tokensIn: z.number().nullable(),
+  cacheReadTokens: z.number().nullable(),
   tokensOut: z.number().nullable(),
 });
 

@@ -163,6 +163,7 @@ export {
 
 export { auditDgraphAcl } from "./outbound/dgraph-acl-policy.js";
 export { createDgraphClient } from "./outbound/dgraph-client.js";
+export { setupSpecTraceSchema } from "./outbound/setup-spec-trace-schema.js";
 export {
   classifyFile,
   dropIngestExcluded,
@@ -195,9 +196,9 @@ export {
   ciJudgedSha,
   externalCheckRuns,
   failedCheckRuns,
-  summarizeFailedChecks,
   SKIP_CI_MARKERS,
 } from "./outbound/project/pulls/check-runs.js";
+export { summarizeFailedChecks } from "./outbound/project/pulls/failure-summary.js";
 export {
   decideOnboard,
   onboardLockKey,

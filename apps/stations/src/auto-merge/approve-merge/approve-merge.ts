@@ -1,4 +1,5 @@
 // The auto-merge loop's last step (specs/protected-branch-merge): a green, reviewed pull request old enough to merge is approved and handed to GitHub, or merged by Lore where no rule asks for an approval.
+import type { OwnedPath, OwnerAsk } from "./code-owner-ping.js";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import type {
   BranchRule,
@@ -23,12 +24,18 @@ export interface MergeProject {
     > | null>;
     getBranchRule(
       branch: string,
-    ): Promise<Pick<BranchRule, "requiredApprovals">>;
+    ): Promise<Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">>;
     enableAutoMerge(nodeId: string, method: MergeMethod): Promise<void>;
     merge(number: number, method: MergeMethod): Promise<void>;
   };
-  /** The changed files a CODEOWNERS row gives an owner. */
-  sensitivePaths(prNumber: number): Promise<string[]>;
+  /** The changed files a CODEOWNERS row gives an owner, each with its owners. */
+  codeOwners(prNumber: number): Promise<OwnedPath[]>;
+  /** Tells the owners of those files, once per pull request, what only they can still do. */
+  askCodeOwners(
+    prNumber: number,
+    owned: readonly OwnedPath[],
+    ask: OwnerAsk,
+  ): Promise<void>;
   /** The repository's auto-merge switch, read again at the last step: it may have been switched off while the run waited. */
   loopOn(): Promise<boolean>;
   audit: { write(entry: Omit<AuditLogEntry, "repo">): Promise<void> };
@@ -59,10 +66,19 @@ export async function approveAndMerge(
     return { outcome: "failed", reason: LOOP_OFF };
   }
   const usable = approverFor(approver, pull.author);
+  const rule = await ruleOf(project, pull.baseBranch);
 
-  return (await approvalRequired(project, pull.baseBranch))
-    ? approveProtected(project, usable, { prNumber, pull })
+  return rule.requiredApprovals > 0
+    ? approveProtected(project, usable, { prNumber, pull, rule })
     : mergeUnprotected(project, usable, prNumber);
+}
+
+type Rule = Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">;
+
+interface ProtectedTarget {
+  prNumber: number;
+  pull: Pick<PullRef, "nodeId" | "autoMerge">;
+  rule: Rule;
 }
 
 export const LOOP_OFF =
@@ -72,7 +88,7 @@ export const LOOP_OFF =
 async function approveProtected(
   project: MergeProject,
   approver: Approver | null,
-  target: { prNumber: number; pull: Pick<PullRef, "nodeId" | "autoMerge"> },
+  target: ProtectedTarget,
 ): Promise<MergeStep> {
   return approver
     ? armAndApprove(project, approver, target)
@@ -105,25 +121,19 @@ function approverFor(
     : approver;
 }
 
-async function approvalRequired(
+const NO_RULE: Rule = { requiredApprovals: 0, codeOwnersReview: false };
+
+async function ruleOf(
   project: MergeProject,
   baseBranch: string | undefined,
-): Promise<boolean> {
-  if (!baseBranch) {
-    return false;
-  }
-  const rule = await project.pulls.getBranchRule(baseBranch);
-
-  return rule.requiredApprovals > 0;
+): Promise<Rule> {
+  return baseBranch ? project.pulls.getBranchRule(baseBranch) : NO_RULE;
 }
 
 async function armAndApprove(
   project: MergeProject,
   approver: Approver,
-  {
-    prNumber,
-    pull,
-  }: { prNumber: number; pull: Pick<PullRef, "nodeId" | "autoMerge"> },
+  { prNumber, pull, rule }: ProtectedTarget,
 ): Promise<MergeStep> {
   if (!pull.autoMerge && pull.nodeId) {
     await project.pulls.enableAutoMerge(pull.nodeId, SQUASH);
@@ -131,6 +141,10 @@ async function armAndApprove(
   }
   await approver.approve(prNumber, APPROVAL_BODY);
   await project.audit.write(auditRow(approvalEvent(approver), prNumber));
+
+  if (rule.codeOwnersReview) {
+    await askOwnersIfAny(project, prNumber, "approve");
+  }
 
   return { outcome: "success", state: "armed" };
 }
@@ -141,7 +155,7 @@ async function mergeUnprotected(
   approver: Approver | null,
   prNumber: number,
 ): Promise<MergeStep> {
-  if ((await project.sensitivePaths(prNumber)).length > 0) {
+  if (await askOwnersIfAny(project, prNumber, "approve and merge")) {
     return { outcome: "failed", reason: NEEDS_CODE_OWNER };
   }
   await approver?.approve(prNumber, APPROVAL_BODY);
@@ -149,6 +163,21 @@ async function mergeUnprotected(
   await project.audit.write(auditRow("auto_merge_merged", prNumber));
 
   return { outcome: "success", state: "merged" };
+}
+
+/** Asks the owners of the changed paths CODEOWNERS assigns, read once; true when there were any. */
+async function askOwnersIfAny(
+  project: MergeProject,
+  prNumber: number,
+  ask: OwnerAsk,
+): Promise<boolean> {
+  const owned = await project.codeOwners(prNumber);
+
+  if (owned.length > 0) {
+    await project.askCodeOwners(prNumber, owned, ask);
+  }
+
+  return owned.length > 0;
 }
 
 /** lore-reviewer's approval is the row the merged-without-a-click KPI counts (`pipeline.v_auto_merge_kpis`); Lore's own App approves only a person's pull request. */

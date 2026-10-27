@@ -4,6 +4,7 @@ import type {
   DecompTask,
   UserStory,
 } from "../../domain/feature-planning/decomposition-result.js";
+import { LORE_BLOCKED_LABEL } from "../backlog/labels.js";
 
 export interface StoryIssueInput {
   repo: string;
@@ -132,9 +133,9 @@ function taskIssueLines({
   specStatements,
 }: TaskIssueInput): string[] {
   return [
-    ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
-    ...dependencyLine(dependsOn),
+    ...placeLines(storyNumber, dependsOn),
     ...implementsSection(specStatements),
+    ...needsPersonSection(task.needs_person),
     ...section("Context", task.context),
     ...quotes("From the plan", task.plan_quotes),
     ...section("What to change", task.changes ?? task.description),
@@ -151,6 +152,27 @@ function withinLimit(body: string): string {
   return body.length <= GITHUB_BODY_LIMIT
     ? body
     : body.slice(0, GITHUB_BODY_LIMIT - CUT_NOTE.length) + CUT_NOTE;
+}
+
+/** Where the task sits: the story it is part of, then the tasks it waits on. */
+function placeLines(
+  storyNumber: number | undefined,
+  dependsOn: readonly (number | string)[],
+): string[] {
+  return [
+    ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
+    ...dependencyLine(dependsOn),
+  ];
+}
+
+function needsPersonSection(step: string | undefined): string[] {
+  return step
+    ? [
+        ...section("Needs a person", step),
+        `The implementation loop skips this ticket while it carries \`${LORE_BLOCKED_LABEL}\`; remove the label once this is done.`,
+        "",
+      ]
+    : [];
 }
 
 function dependencyLine(dependsOn: readonly (number | string)[]): string[] {

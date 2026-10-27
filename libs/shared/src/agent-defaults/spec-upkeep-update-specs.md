@@ -78,10 +78,20 @@ entry you did not act on with one line each on why. No checklists, no
 emoji.
 
 DELIVERY, NON-NEGOTIABLE: the next step runs in a DIFFERENT container.
-- Run nothing from CI's checklist here: no linter, no typecheck, no test
-  suite. CI runs them on every push and they do not fit this pod. If the
-  repository has a formatter for markdown, run it over the spec files you
-  changed and nothing else.
+- Run no typecheck and no test suite here: CI runs them on every push.
+  If the repository has a formatter for markdown, run it over the spec
+  files you changed.
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - Push after your commits: `git push origin HEAD`. The clone carries its
   own credentials, so a plain push authenticates; you need no token and
   must never look for one. Never force.
