@@ -1,7 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
 
 // A computed self-join projection over memory.entities + memory.edges (entity/related_entity/direction are query-time aliases) — not one table's row; returns the snake_case shape lore_query_graph + context-assembly already consume.
-// eslint-disable-next-line re-lint/no-row-types-outside-models
+
 export interface LiveGraphResult {
   entity: string;
   entity_type: string;
@@ -9,6 +9,7 @@ export interface LiveGraphResult {
   related_entity: string;
   related_type: string;
   direction: "outgoing" | "incoming";
+  properties: Record<string, unknown>;
   valid_from: string;
 }
 
@@ -38,33 +39,33 @@ function emptyToNull(value: string | undefined): string | null {
 }
 
 function entityGraphQuery(validFilter: string): string {
-  return `${edgesFrom("s", "t", "outgoing", validFilter)}
+  return `${edgesMatching("s", "outgoing", validFilter)}
      UNION ALL
-     ${edgesFrom("t", "s", "incoming", validFilter)}
+     ${edgesMatching("t", "incoming", validFilter)}
      ORDER BY valid_from DESC
      LIMIT 50`;
 }
 
-/** One direction of the entity's edges: `near` is the side matched against the queried name, `far` the neighbor reported back. Both halves of the UNION are this same shape with the sides swapped — an edge is stored once, but the entity at either end wants to see it. */
-function edgesFrom(
-  near: "s" | "t",
-  far: "s" | "t",
+/** The entity's edges where it is the `matched` end. Every row reads source→target whichever end matched, so `entity` is always the edge's source. */
+function edgesMatching(
+  matched: "s" | "t",
   direction: "outgoing" | "incoming",
   validFilter: string,
 ): string {
   return `SELECT
-       ${near}.name as entity, ${near}.entity_type,
+       s.name as entity, s.entity_type,
        e.relation_type as relation,
-       ${far}.name as related_entity, ${far}.entity_type as related_type,
+       t.name as related_entity, t.entity_type as related_type,
        '${direction}' as direction,
+       e.properties,
        e.valid_from
      FROM memory.edges e
      JOIN memory.entities s ON s.id = e.source_id
      JOIN memory.entities t ON t.id = e.target_id
-     WHERE LOWER(${near}.name) = LOWER($1)
+     WHERE LOWER(${matched}.name) = LOWER($1)
        ${validFilter}
        AND ($2::text IS NULL OR e.relation_type = $2)
-       AND ($3::text IS NULL OR ${near}.repo = $3)`;
+       AND ($3::text IS NULL OR s.repo = $3)`;
 }
 
 function allGraphQuery(validFilter: string): string {
@@ -73,6 +74,7 @@ function allGraphQuery(validFilter: string): string {
      e.relation_type as relation,
      t.name as related_entity, t.entity_type as related_type,
      'outgoing' as direction,
+     e.properties,
      e.valid_from
    FROM memory.edges e
    JOIN memory.entities s ON s.id = e.source_id

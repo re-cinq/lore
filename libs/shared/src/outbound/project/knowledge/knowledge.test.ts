@@ -13,6 +13,7 @@ function fakeKnowledge(): KnowledgePort {
         related_entity: "pgvector",
         related_type: "technology",
         direction: "outgoing",
+        properties: {},
         valid_from: "t",
       },
     ],

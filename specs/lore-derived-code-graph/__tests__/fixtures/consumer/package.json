@@ -1,0 +1,6 @@
+{
+  "name": "my-consumer",
+  "dependencies": {
+    "my-library": "github:my-org/my-library"
+  }
+}

@@ -2190,6 +2190,42 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/skill-definitions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/skill-definitions */
+    get: operations["get_api_skill-definitions"];
+    put?: never;
+    /** POST /api/skill-definitions */
+    post: operations["post_api_skill-definitions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/skill-definitions/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/skill-definitions/{name} */
+    put: operations["put_api_skill-definitions_name"];
+    post?: never;
+    /** DELETE /api/skill-definitions/{name} */
+    delete: operations["delete_api_skill-definitions_name"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/spec-links/parse": {
     parameters: {
       query?: never;
@@ -4896,6 +4932,48 @@ export interface components {
         created_at: string;
         entry_count: number;
         agent_count: number;
+      }[];
+    };
+    SkillDefinitionCreated: {
+      /** @constant */
+      ok: true;
+      skill: {
+        name: string;
+        title: string;
+        description: string;
+        model: string | null;
+        content: string;
+        enabled: boolean;
+        projectId: string | null;
+      };
+    };
+    SkillDefinitionDeleted: {
+      /** @constant */
+      ok: true;
+      deleted: string;
+    };
+    SkillDefinitionUpdated: {
+      /** @constant */
+      ok: true;
+      skill: {
+        name: string;
+        title: string;
+        description: string;
+        model: string | null;
+        content: string;
+        enabled: boolean;
+        projectId: string | null;
+      };
+    };
+    SkillDefinitionsList: {
+      skills: {
+        name: string;
+        title: string;
+        description: string;
+        model: string | null;
+        content: string;
+        enabled: boolean;
+        projectId: string | null;
       }[];
     };
     SlackAck: {
@@ -9776,6 +9854,138 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_skill-definitions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The org-level skill definitions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SkillDefinitionsList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_skill-definitions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title: string;
+          /** @default  */
+          description?: string;
+          /** @default null */
+          model?: string | null;
+          content: string;
+          enabled?: boolean;
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Create an org-level skill definition */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SkillDefinitionCreated"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "put_api_skill-definitions_name": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title: string;
+          /** @default  */
+          description?: string;
+          /** @default null */
+          model?: string | null;
+          content: string;
+          enabled?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Replace an org-level skill definition */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SkillDefinitionUpdated"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "delete_api_skill-definitions_name": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Delete an org-level skill definition */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SkillDefinitionDeleted"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

@@ -5,7 +5,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { FloorLineBody } from "./floor-run-mapping.js";
 
 /** The parts of a line a start by hand reads. */
-export type HandStartLine = Pick<FloorLineBody, "exit" | "fail" | "nodes">;
+export type HandStartLine = Pick<
+  FloorLineBody,
+  "exit" | "fail" | "nodes" | "edges"
+>;
 
 export interface NodeAsk {
   event: string;
@@ -46,16 +49,56 @@ const FLOOR_PATIENCE: FloorPatience = {
 
 /** The event that starts the node: the one it declares, or the floor's default. Exit and fail end the run, so they have no station to run. */
 export function startEventFor(line: HandStartLine, nodeId: string): string {
-  const node = line.nodes.find((candidate) => candidate.id === nodeId);
+  const startId = nodeToStart(line, nodeId);
+  const node = line.nodes.find((candidate) => candidate.id === startId);
 
-  enforceTrue(node, apiError(400), `the line has no node ${nodeId}`);
+  enforceTrue(node, apiError(400), `the line has no node ${startId}`);
   enforceTrue(
-    nodeId !== line.exit && nodeId !== line.fail,
+    startId !== line.exit && startId !== line.fail,
     apiError(400),
-    `${nodeId} ends the run; there is no station to run`,
+    `${startId} ends the run; there is no station to run`,
   );
 
-  return node.start ?? `node.${nodeId}.start`;
+  return node.start ?? `node.${startId}.start`;
+}
+
+const CI_WAIT = /-await-(ci|pr)$/;
+
+/** The node a start by hand runs: a node only a red CI wait leads to is reached through that wait, so the retry re-reads the verdict instead of the run's stale ci_* args. */
+function nodeToStart(line: HandStartLine, nodeId: string): string {
+  return ciWaitFeeding(line, nodeId, new Set([nodeId])) ?? nodeId;
+}
+
+/** The CI wait the node is the repair of: its one feeding node, when that is a wait whose red outcome leads here, or a step the same wait feeds. */
+function ciWaitFeeding(
+  line: HandStartLine,
+  nodeId: string,
+  seen: Set<string>,
+): string | undefined {
+  const feeds = line.edges.filter(
+    (edge) => edge.to === nodeId && edge.from !== nodeId,
+  );
+  const feeders = new Set(feeds.map((edge) => edge.from));
+  const [feeder] = feeders;
+
+  if (feeders.size !== 1 || seen.has(feeder)) {
+    return undefined;
+  }
+
+  return isCiWait(line, feeder)
+    ? redFeederOf(feeds, feeder)
+    : ciWaitFeeding(line, feeder, seen.add(feeder));
+}
+
+function isCiWait({ nodes }: HandStartLine, nodeId: string): boolean {
+  return CI_WAIT.test(nodes.find((node) => node.id === nodeId)?.station ?? "");
+}
+
+function redFeederOf(
+  feeds: HandStartLine["edges"],
+  feeder: string,
+): string | undefined {
+  return feeds.every((edge) => edge.on !== "success") ? feeder : undefined;
 }
 
 /** Posts a node's start by hand: no iteration, so the floor opens the node's next one in the run. */

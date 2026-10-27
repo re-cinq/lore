@@ -59,6 +59,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/platform\//, "Analytics"],
   [/\/plans\b/, "Plans"],
   [/\/agent-definitions\b/, "Agents"],
+  [/\/skill-definitions\b/, "Agents"],
   // The floor asks for a git credential on a pod's behalf: the GitHub App's, so it sits with the repositories.
   [/^\/api\/floor\/git-credential$/, "Repositories"],
   // A review started by hand is a run started, the same as any other.
