@@ -29,7 +29,11 @@ echo "[lore] formatting ${#CHANGED[@]} changed file(s) against ${BASE}"
 
 mapfile -t LINTABLE < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.(ts|tsx|mts|cts|js|mjs|cjs)$' || true)
 if ((${#LINTABLE[@]})); then
-  npx eslint --fix --no-warn-ignored "${LINTABLE[@]}"
+  # require-spec-link is detect-only and reads the anchors the spec pass below
+  # has not repointed yet: left on, it fails every branch that moved a test and
+  # set -e ends the script before prettier and the spec pass run. The lint job
+  # still runs it, on the tree this script leaves.
+  npx eslint --fix --no-warn-ignored --rule "re-lint/require-spec-link: off" "${LINTABLE[@]}"
 fi
 
 # The same globs `npm run format` hands prettier.
