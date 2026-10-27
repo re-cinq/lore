@@ -8637,7 +8637,7 @@
       "get": {
         "operationId": "get_api_skill-definitions",
         "summary": "GET /api/skill-definitions",
-        "tags": ["Other"],
+        "tags": ["Agents"],
         "security": [
           {
             "bearerAuth": []
@@ -8673,7 +8673,7 @@
       "post": {
         "operationId": "post_api_skill-definitions",
         "summary": "POST /api/skill-definitions",
-        "tags": ["Other"],
+        "tags": ["Agents"],
         "security": [
           {
             "bearerAuth": []
@@ -8756,7 +8756,7 @@
       "put": {
         "operationId": "put_api_skill-definitions_name",
         "summary": "PUT /api/skill-definitions/{name}",
-        "tags": ["Other"],
+        "tags": ["Agents"],
         "security": [
           {
             "bearerAuth": []
@@ -8843,7 +8843,7 @@
       "delete": {
         "operationId": "delete_api_skill-definitions_name",
         "summary": "DELETE /api/skill-definitions/{name}",
-        "tags": ["Other"],
+        "tags": ["Agents"],
         "security": [
           {
             "bearerAuth": []
