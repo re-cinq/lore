@@ -32,7 +32,7 @@ columns that the prod migration never created:
 
 **The graph is anaemic.** The knowledge graph (`entities` + `edges`)
 only ever does **1-hop** lookups (`queryLiveGraph()` —
-[`shared/src/project/knowledge/live-graph.ts:19`](libs/shared/src/outbound/project/knowledge/live-graph.ts#L19)).
+[`shared/src/project/knowledge/live-graph.ts:19`](libs/shared/src/outbound/project/knowledge/live-graph.ts#L20)).
 Multi-hop traversal in Postgres means recursive CTEs the team has not
 written; relationship modelling is bolted onto a relational store.
 
