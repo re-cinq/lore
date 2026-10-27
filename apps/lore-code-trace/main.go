@@ -141,7 +141,7 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 	// chunk of tests plus coverage takes longer than the webhook's immediate
 	// 202 — so the delta path gets a client sized for the work rather than the
 	// 60 s that timed out a bootstrap full ingest on chunk 3/26.
-	deltaClient := &http.Client{Timeout: 5 * time.Minute}
+	deltaClient := &http.Client{Timeout: deltaRequestTimeout}
 	apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/")
 
 	ctx := context.Background()

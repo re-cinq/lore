@@ -504,3 +504,26 @@ func TestPostIngestDeltaWaitsOutALoreApiRollout(t *testing.T) {
 		t.Fatalf("waited %v between attempts, want at least 2m to outlast a rollout", waited)
 	}
 }
+
+// A timed-out post leaves lore-api still projecting the chunk: retrying started
+// the same projection again beside it, and on 2026-10-27 seven of them on chunk
+// 1 kept Dgraph busy until every attempt timed out.
+func TestPostIngestDeltaNeverRetriesItsOwnTimeout(t *testing.T) {
+	noRetrySleep(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		time.Sleep(200 * time.Millisecond)
+		json.NewEncoder(w).Encode(map[string]any{"state": "advanced"})
+	}))
+	defer srv.Close()
+	client := srv.Client()
+	client.Timeout = 50 * time.Millisecond
+
+	err := postIngestDelta(context.Background(), srv.URL, "tok", "re-cinq/lore",
+		ingestDelta{Kind: "test-report", Commit: "abc123", Report: report()}, client)
+
+	if err == nil || calls != 1 {
+		t.Fatalf("err = %v after %d calls, want the timeout after exactly one", err, calls)
+	}
+}
