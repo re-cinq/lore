@@ -200,7 +200,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ).toBe(true);
   });
 
-  it("walks implementation-loop from sync-start through dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
+  it("walks implementation-loop from sync-start through done-check, dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
     const { line } = pipelineOf("implementation-loop");
     const forward = line.edges
       .filter((edge) => edge.on === "success" && !REPAIRS.includes(edge.from))
@@ -208,8 +208,9 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect(line.entry).toBe("sync-start");
     expect(forward).toEqual([
-      "sync-start>dod",
-      "sync-start-rebase>dod",
+      "sync-start>done-check",
+      "sync-start-rebase>done-check",
+      "done-check>dod",
       "dod>open-pr",
       "open-pr>tdd-round",
       "tdd-round>await-ci",
@@ -258,7 +259,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("ends a loop run at done on a dod scoping verdict and on await-pr's unresolved threads, and retries every other failed station once", () => {
+  it("ends a loop run at done on an already-done verdict, a dod scoping verdict and await-pr's unresolved threads, and retries every other failed station once", () => {
     const { line } = pipelineOf("implementation-loop");
     const toExit = line.edges
       .filter((edge) => edge.to === "done" && edge.on !== "success")
@@ -267,7 +268,11 @@ describe("the floor pipelines shipped in this folder", () => {
       .filter((edge) => edge.on === "failed" && edge.from === edge.to)
       .map((edge) => `${edge.from}:${edge.iteration_max}`);
 
-    expect(toExit).toEqual(["dod on changes_requested", "await-pr on failed"]);
+    expect(toExit).toEqual([
+      "done-check on changes_requested",
+      "dod on changes_requested",
+      "await-pr on failed",
+    ]);
     expect(retried).toEqual([
       "sync-start:1",
       "sync-start-rebase:1",
@@ -1845,7 +1850,7 @@ describe("the prices the floor agents state", () => {
 });
 
 describe("the implementation loop after GitHub rebased its branch", () => {
-  it("goes from sync-start to dod, sync-final to mark-ready and sync-pr to await-pr on rebased, so a pull request GitHub rebased waits for its new build instead of reaching fix-ci", () => {
+  it("goes from sync-start to done-check, sync-final to mark-ready and sync-pr to await-pr on rebased, so a pull request GitHub rebased waits for its new build instead of reaching fix-ci", () => {
     const { edges } = pipelineOf("implementation-loop").line;
 
     expect(
@@ -1853,7 +1858,23 @@ describe("the implementation loop after GitHub rebased its branch", () => {
         (from) =>
           edges.find((edge) => edge.from === from && edge.on === "rebased")?.to,
       ),
-    ).toEqual(["dod", "mark-ready", "await-pr"]);
+    ).toEqual(["done-check", "mark-ready", "await-pr"]);
+  });
+});
+
+describe("the implementation loop's already-done check", () => {
+  it("puts done-check between both sync steps and dod, ends the run at done when it finds the ticket resolved, and goes to dod otherwise", () => {
+    const { edges } = pipelineOf("implementation-loop").line;
+    const to = (from: string, on: string) =>
+      edges.find((edge) => edge.from === from && edge.on === on)?.to;
+
+    expect([
+      to("sync-start", "success"),
+      to("sync-start-rebase", "success"),
+      to("done-check", "success"),
+      to("done-check", "changes_requested"),
+      to("done-check", "failed"),
+    ]).toEqual(["done-check", "done-check", "dod", "done", "dod"]);
   });
 });
 

@@ -1,3 +1,4 @@
+import type { PullRef } from "../pulls/pull-requests-port.js";
 import type {
   BranchHistoryOptions,
   CheckRunInput,
@@ -108,6 +109,11 @@ export class RepoFiles {
       this.github.deleteFile?.(this.repo, branch, { path, message }) ??
       NOTHING_DELETED
     );
+  }
+
+  /** The merged pull requests that touched `path`; none when the adapter cannot say. */
+  async mergedPullsTouching(path: string): Promise<PullRef[]> {
+    return (await this.github.mergedPullsTouching?.(this.repo, path)) ?? [];
   }
 
   upsertCheckRun(input: CheckRunInput): Promise<void> {

@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- one class implementing two ports, one delegating method per port method: the length IS the port surface, and splitting the class would put half of GitHub in one file and half in another. */
+import { mergedPullsTouching } from "./platform-github-pulls-touching.js";
 import type { Octokit } from "octokit";
 import type {
   BranchHistoryOptions,
@@ -275,6 +276,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     change: Omit<FileChange, "content">,
   ): Promise<boolean> {
     return repoContent.deleteFile(await this.octo(), repo, branch, change);
+  }
+
+  async mergedPullsTouching(repo: string, path: string): Promise<PullRef[]> {
+    return mergedPullsTouching(await this.octo(), repo, path);
   }
 
   async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {
