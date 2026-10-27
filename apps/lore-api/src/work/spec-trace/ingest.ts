@@ -15,6 +15,7 @@ import {
   type IngestFile,
   type GithubFetchContext,
 } from "./ingest-github-fetch.js";
+import { deriveCodeGraphEdges } from "./derive-code-graph.js";
 
 export type { IngestFile } from "./ingest-github-fetch.js";
 
@@ -53,6 +54,7 @@ interface IngestOneFileContext {
   commit: string;
   githubCtx: GithubFetchContext | null;
   landed: LandedFiles;
+  onContent: (path: string, content: string) => void;
 }
 
 export interface IngestCounts {
@@ -82,6 +84,7 @@ export async function ingestFiles(
 
   enforceTrue(SCHEMA_RE.test(schema), Error, `Invalid schema name: ${schema}`);
 
+  const resolvedContents: Array<{ path: string; content: string }> = [];
   const results = await ingestEach(files, {
     pool,
     schema,
@@ -89,7 +92,20 @@ export async function ingestFiles(
     commit,
     githubCtx: await resolveGithubFetchContext(files, repo),
     landed,
+    onContent: (path, content) => resolvedContents.push({ path, content }),
   });
+
+  await deriveCodeGraphEdges(pool, resolvedContents, repo);
+
+  return buildSummary(repo, commit, schema, results);
+}
+
+function buildSummary(
+  repo: string,
+  commit: string,
+  schema: string,
+  results: IngestResult[],
+): IngestFilesSummary {
   const counts = tallyIngestResults(results);
 
   logIngestSummary(repo, commit, schema, counts);
@@ -173,6 +189,9 @@ async function ingestResolved(
   if (!content) {
     return skippedResult(filePath, "not a file (directory?)");
   }
+
+  ctx.onContent(filePath, content);
+
   const contentType = classifyFile(filePath);
 
   if (!contentType) {
