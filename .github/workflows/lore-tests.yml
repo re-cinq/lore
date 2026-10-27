@@ -30,10 +30,12 @@ jobs:
     # chosen; by 2026-10-02 it took 40 on a quiet runner and was cancelled at 45
     # when a merge started nine other workflows beside it. A push now runs only
     # the affected files, but the weekly full run, and a push that changes a
-    # lockfile or the vitest setup, still run everything. A dispatched run gets
-    # GitHub's 6-hour maximum: it is how a recorded commit that fell far behind
-    # catches up, and an upload cut short advances nothing.
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 360 || 90 }}
+    # lockfile or the vitest setup, still run everything. Every run gets GitHub's
+    # 6-hour maximum: a run uploads the whole difference since the commit Lore
+    # last recorded, an upload cut short advances nothing, and a recorded commit
+    # that fell far behind made every push upload the whole suite and be cut off
+    # at 90 minutes (2026-10-27). A run that is caught up still takes minutes.
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v5
         with:
