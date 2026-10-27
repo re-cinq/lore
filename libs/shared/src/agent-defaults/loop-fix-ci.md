@@ -152,6 +152,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   SOURCE, so nothing needs building for a test to see your change, and
   the build is the 950 MB step that OOM-killed run abac6ee9 while it
   rebuilt libs/shared for a test that never needed it.
+- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git -C /workspace/target add` what you changed and commit it with a
   short, factual message. Then `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token

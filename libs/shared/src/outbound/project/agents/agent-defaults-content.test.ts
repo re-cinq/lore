@@ -39,6 +39,19 @@ describe("the delivering recipes", () => {
     }
   });
 
+  it("tells every delivering recipe to configure the pod's git identity to match the Floor", () => {
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = promptOf(name);
+
+      expect(prompt, name).toContain(
+        "git config --global user.name 'Lore Agent'",
+      );
+      expect(prompt, name).toContain(
+        "git config --global user.email 'lore-agent@re-cinq.com'",
+      );
+    }
+  });
+
   it("tells every delivering recipe to format the files it changed, and the ones that do not write code never to run the linter", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name).replace(/\s+/g, " ");

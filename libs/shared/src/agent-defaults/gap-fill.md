@@ -25,6 +25,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   step proves compilation, and `tsc --noEmit` on `libs/shared` peaks near
   950 MB against the 1Gi pod. Read your imports and signatures twice
   instead.
+- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git add` what you changed and commit it with a
   short, factual message. Then `git push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token
