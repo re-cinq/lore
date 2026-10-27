@@ -49,26 +49,32 @@ const FLOOR_PATIENCE: FloorPatience = {
 
 /** The event that starts the node: the one it declares, or the floor's default. Exit and fail end the run, so they have no station to run. */
 export function startEventFor(line: HandStartLine, nodeId: string): string {
-  const ciEdge = line.edges.find((edge) => {
-    if (edge.to !== nodeId) {
-      return false;
-    }
-    const fromNode = line.nodes.find((n) => n.id === edge.from);
+  const startId = nodeToStart(line, nodeId);
+  const node = line.nodes.find((candidate) => candidate.id === startId);
 
-    return fromNode?.station === "loop-await-ci";
-  });
-  const targetNodeId = ciEdge ? ciEdge.from : nodeId;
-
-  const node = line.nodes.find((candidate) => candidate.id === targetNodeId);
-
-  enforceTrue(node, apiError(400), `the line has no node ${targetNodeId}`);
+  enforceTrue(node, apiError(400), `the line has no node ${startId}`);
   enforceTrue(
-    targetNodeId !== line.exit && targetNodeId !== line.fail,
+    startId !== line.exit && startId !== line.fail,
     apiError(400),
-    `${targetNodeId} ends the run; there is no station to run`,
+    `${startId} ends the run; there is no station to run`,
   );
 
-  return node.start ?? `node.${targetNodeId}.start`;
+  return node.start ?? `node.${startId}.start`;
+}
+
+/** The node a start by hand runs: a node CI feeds is reached through its CI wait, so the retry re-reads the verdict instead of the run's stale ci_* args. */
+function nodeToStart(line: HandStartLine, nodeId: string): string {
+  const { nodes, edges } = line;
+  const ciWaits = new Set(
+    nodes
+      .filter((node) => node.station === "loop-await-ci")
+      .map((node) => node.id),
+  );
+  const fedByCi = edges.find(
+    (edge) => edge.to === nodeId && ciWaits.has(edge.from),
+  );
+
+  return fedByCi?.from ?? nodeId;
 }
 
 /** Posts a node's start by hand: no iteration, so the floor opens the node's next one in the run. */
