@@ -1,0 +1,185 @@
+export const SPEC_TRACE_TYPES = `type Repo {
+  Repo.xid
+  Repo.name
+  Repo.trace_commit
+  Repo.trace_commit_at
+  Repo.specs
+  Repo.adrs
+  Repo.code_chunks
+  Repo.test_chunks
+  Repo.test_suites
+  Repo.coverage
+  Repo.files
+  Repo.failures
+}
+type Failure {
+  Failure.xid
+  Failure.repo
+  Failure.assembly_run_id
+  Failure.station_run_id
+  Failure.node_id
+  Failure.iteration
+  Failure.failure_class
+  Failure.failure_detail
+  Failure.commit
+  Failure.occurred_at
+  Failure.resolved_by_commit
+  Failure.files
+  Failure.chunks
+}
+type Overlay {
+  Overlay.xid
+  Overlay.repo
+  Overlay.branch
+  Overlay.head_commit
+  Overlay.written_at
+  Overlay.code_chunks
+  Overlay.test_chunks
+  Overlay.test_suites
+  Overlay.coverage
+  Overlay.files
+}
+type Spec {
+  Spec.xid
+  Spec.repo
+  Spec.file_path
+  Spec.content_hash
+  Spec.title
+  Spec.feature
+  Spec.sections
+  Spec.acceptance_criteria
+}
+type Feature {
+  Feature.xid
+  Feature.repo
+  Feature.path
+  Feature.title
+}
+type Section {
+  Section.xid
+  Section.spec
+  Section.heading
+  Section.level
+  Section.ordinal
+  Section.statements
+}
+type AcceptanceCriterion {
+  AcceptanceCriterion.xid
+  AcceptanceCriterion.repo
+  AcceptanceCriterion.spec
+  AcceptanceCriterion.ordinal
+  AcceptanceCriterion.label
+  AcceptanceCriterion.text
+  AcceptanceCriterion.text_hash
+  AcceptanceCriterion.embedding
+  AcceptanceCriterion.validated_by
+  AcceptanceCriterion.implemented_by
+  AcceptanceCriterion.decided_by
+  AcceptanceCriterion.drifted
+  AcceptanceCriterion.drift_reason
+  AcceptanceCriterion.drift_severity
+  AcceptanceCriterion.violated
+  AcceptanceCriterion.violation_reason
+  AcceptanceCriterion.trace_links
+}
+type Block {
+  Block.xid
+  Block.spec
+  Block.repo
+  Block.file_path
+  Block.ordinal
+  Block.kind
+  Block.text
+  Block.level
+}
+type ADR {
+  ADR.xid
+  ADR.repo
+  ADR.number
+  ADR.title
+  ADR.status
+  ADR.file_path
+  ADR.content_hash
+  ADR.embedding
+  ADR.supersedes
+}
+type Statement {
+  Statement.xid
+  Statement.repo
+  Statement.spec
+  Statement.section
+  Statement.ordinal
+  Statement.text
+  Statement.text_hash
+  Statement.kind
+  Statement.testability
+  Statement.category
+  Statement.embedding
+  Statement.validated_by
+  Statement.implemented_by
+  Statement.decided_by
+  Statement.drifted
+  Statement.drift_reason
+  Statement.drift_severity
+  Statement.violated
+  Statement.violation_reason
+  Statement.trace_links
+}
+type CodeChunk {
+  CodeChunk.xid
+  CodeChunk.repo
+  CodeChunk.file_path
+  CodeChunk.symbol_name
+  CodeChunk.start_line
+  CodeChunk.end_line
+  CodeChunk.content_hash
+  CodeChunk.embedding
+  CodeChunk.references
+  CodeChunk.imports
+}
+type TestChunk {
+  TestChunk.xid
+  TestChunk.repo
+  TestChunk.file_path
+  TestChunk.test_name
+  TestChunk.symbol_name
+  TestChunk.link_label
+  TestChunk.start_line
+  TestChunk.end_line
+  TestChunk.content_hash
+  TestChunk.embedding
+  TestChunk.coverage
+  TestChunk.suite
+}
+type TestSuite {
+  TestSuite.xid
+  TestSuite.repo
+  TestSuite.name
+  TestSuite.file_path
+  TestSuite.parent
+  TestSuite.spec
+}
+type Coverage {
+  Coverage.xid
+  Coverage.test
+  Coverage.repo
+  Coverage.tool
+  Coverage.commit
+  Coverage.generated_at
+  Coverage.line_count
+  Coverage.covers
+}
+type File {
+  File.xid
+  File.repo
+  File.path
+}
+type TraceLink {
+  TraceLink.xid
+  TraceLink.repo
+  TraceLink.statement
+  TraceLink.target
+  TraceLink.kind
+  TraceLink.evidence
+}
+`;
