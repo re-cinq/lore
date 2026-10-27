@@ -80,7 +80,7 @@ The runs above ask questions a model writes from one ADR or spec, answered by a 
 - **Utopia's search was the cost.** At first a search on lore's base took 83–118 s: the Utopia database had no approximate-nearest-neighbour index, and its 3072-dimension embeddings are above pgvector's HNSW limit. That run needed `MCP_TOOL_TIMEOUT` raised to 5 minutes. After the evening fix, searches took about 12 s and the default timeout sufficed.
 - **Limits:** one run on one day with one answering model, 4–10 questions per kind, the Lore arm on the laptop's installed adapter, and the arms run hours apart.
 
-Harness, question banks, every answer and the full write-up: re-cinq/loop-bench `results/context-qa/2026-10-27/` (`RESULTS.md`, `ANSWERS.md`), from re-cinq/loop-bench#1.
+The full write-up, with every question and every ask as raw data: [context-store-agent-questions.md](context-store-agent-questions.md). Harness and transcripts: re-cinq/loop-bench `results/context-qa/2026-10-27/`, from re-cinq/loop-bench#1.
 
 ## What we read in it (2026-10-16)
 
