@@ -1,7 +1,7 @@
 ---
 adr_number: 45
 title: "npm publishing convention for re:cinq product packages"
-status: accepted
+status: draft
 date: 2026-08-24
 deciders: ["Loredana Moanga"]
 domains: [build, ci, packaging, security]
@@ -81,6 +81,25 @@ Third-party actions are pinned by full commit SHA with a version comment, as `pu
 npm provenance attestation requires a public source repository. `re-cinq/bowman-ui` was decided private at scaffold time (decider: Loredana Moanga, 2026-08-24), so its release workflow omits `--provenance` and carries a comment naming that decision. Everything else in this convention still applies to it. If the repo is later made public, `--provenance` is restored in the same PR that flips visibility, and this exception paragraph shrinks to a historical note.
 
 Downstream repos (`hal-engine`, `bowman-ui`, `support-agent`) copy the manifest shape and workflow from the reference implementation rather than deriving them independently. The version guard converts npm's duplicate-version silent rejection into a named, fixable CI failure. New workflows ship with PA-17 hardening from the first commit rather than accruing it later under incident pressure.
+
+
+## Amendment (2026-10-24)
+
+Accepted by Loredana Moanga.
+
+This amendment widens the scope of this ADR to bind any re:cinq repo with a shipped surface, a published package or a deployed product. The changelog contract follows the values already shipped in the org (e.g., in the `re-cinq/ai-agent-subsystem` repo):
+- A `CHANGELOG.md` file must be kept at the repo root, following Keep a Changelog 1.1.0 and including the SemVer preamble.
+- The first section heading must be `## [Unreleased]`.
+- An entry is required under `Unreleased` for anything user-visible.
+- At the release step, the `## [Unreleased]` heading becomes `## [X.Y.Z] - YYYY-MM-DD` in the same commit as the `package.json` bump that the version guard compares against the tag.
+- The GitHub Release body is that section. The changelog is repo-facing and is not included in the published package's `files` list.
+- Release notes are not derived from the commit log because machine-authored housekeeping commits dominate.
+
+A PR-time enforcement check is required to fail any change to shipped code that carries no changelog entry, unless a named escape label is deliberately applied by a human. The reference implementation for this check is the existing workflow step in `re-cinq/ai-agent-subsystem`.
+
+This repo (Lore) keeps no `CHANGELOG.md` today; whether it adopts one is undecided and it is not silently bound by this convention.
+
+What this amendment does not decide: whether to use one file or one per package in a multi-package monorepo.
 
 ## Out of scope
 
