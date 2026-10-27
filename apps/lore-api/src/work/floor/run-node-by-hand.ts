@@ -62,19 +62,43 @@ export function startEventFor(line: HandStartLine, nodeId: string): string {
   return node.start ?? `node.${startId}.start`;
 }
 
-/** The node a start by hand runs: a node CI feeds is reached through its CI wait, so the retry re-reads the verdict instead of the run's stale ci_* args. */
-function nodeToStart(line: HandStartLine, nodeId: string): string {
-  const { nodes, edges } = line;
-  const ciWaits = new Set(
-    nodes
-      .filter((node) => node.station === "loop-await-ci")
-      .map((node) => node.id),
-  );
-  const fedByCi = edges.find(
-    (edge) => edge.to === nodeId && ciWaits.has(edge.from),
-  );
+const CI_WAIT = /-await-(ci|pr)$/;
 
-  return fedByCi?.from ?? nodeId;
+/** The node a start by hand runs: a node only a red CI wait leads to is reached through that wait, so the retry re-reads the verdict instead of the run's stale ci_* args. */
+function nodeToStart(line: HandStartLine, nodeId: string): string {
+  return ciWaitFeeding(line, nodeId, new Set([nodeId])) ?? nodeId;
+}
+
+/** The CI wait the node is the repair of: its one feeding node, when that is a wait whose red outcome leads here, or a step the same wait feeds. */
+function ciWaitFeeding(
+  line: HandStartLine,
+  nodeId: string,
+  seen: Set<string>,
+): string | undefined {
+  const feeds = line.edges.filter(
+    (edge) => edge.to === nodeId && edge.from !== nodeId,
+  );
+  const feeders = new Set(feeds.map((edge) => edge.from));
+  const [feeder] = feeders;
+
+  if (feeders.size !== 1 || seen.has(feeder)) {
+    return undefined;
+  }
+
+  return isCiWait(line, feeder)
+    ? redFeederOf(feeds, feeder)
+    : ciWaitFeeding(line, feeder, seen.add(feeder));
+}
+
+function isCiWait({ nodes }: HandStartLine, nodeId: string): boolean {
+  return CI_WAIT.test(nodes.find((node) => node.id === nodeId)?.station ?? "");
+}
+
+function redFeederOf(
+  feeds: HandStartLine["edges"],
+  feeder: string,
+): string | undefined {
+  return feeds.every((edge) => edge.on !== "success") ? feeder : undefined;
 }
 
 /** Posts a node's start by hand: no iteration, so the floor opens the node's next one in the run. */

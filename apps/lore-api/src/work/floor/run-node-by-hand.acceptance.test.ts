@@ -20,10 +20,23 @@ const LINE = {
     { id: "start" },
     { id: "await-ci", station: "loop-await-ci" },
     { id: "repair-build", station: "loop-repair-build" },
+    { id: "tdd-round", station: "loop-tdd-round" },
+    { id: "ready-for-review", station: "loop-ready-for-review" },
+    { id: "await-pr", station: "loop-await-pr" },
+    { id: "sync-pr", station: "loop-sync-check" },
+    { id: "fix-ci", station: "loop-fix-ci" },
     { id: "done" },
     { id: "gave-up" },
   ],
-  edges: [{ from: "await-ci", to: "repair-build", on: "failed" }],
+  edges: [
+    { from: "start", to: "tdd-round", on: "success" },
+    { from: "await-ci", to: "tdd-round", on: "changes_requested" },
+    { from: "await-ci", to: "repair-build", on: "failed" },
+    { from: "repair-build", to: "repair-build", on: "failed" },
+    { from: "await-ci", to: "ready-for-review", on: "success" },
+    { from: "await-pr", to: "sync-pr", on: "changes_requested" },
+    { from: "sync-pr", to: "fix-ci", on: "success" },
+  ],
 } as unknown as LineBody & HandStartLine;
 
 const POSTED: FloorEventView = {
@@ -86,6 +99,14 @@ const ask = (nodeId: string, runId = "run-1") => ({
 const posts = (requests: FloorRequest[]) =>
   requests.filter((request) => request.method === "POST");
 
+const startedEvent = async (nodeId: string) => {
+  const { floor, requests } = scene([POSTED]);
+
+  await runNodeByHand(floor, ask(nodeId), NO_WAIT);
+
+  return posts(requests).map((request) => request.body);
+};
+
 describe("runNodeByHand", () => {
   it("routes a retry of a node fed by CI (repair-build) through await-ci so CI re-judges the branch", async () => {
     const { floor, requests } = scene([POSTED]);
@@ -105,5 +126,32 @@ describe("runNodeByHand", () => {
         },
       ],
     });
+  });
+
+  it("routes a retry of fix-ci behind await-pr through await-pr", async () => {
+    expect(await startedEvent("fix-ci")).toEqual([
+      {
+        name: "node.await-pr.start",
+        payload: { runId: "run-1", requestedBy: "gedaiu" },
+      },
+    ]);
+  });
+
+  it("starts ready-for-review itself when CI's green outcome feeds it", async () => {
+    expect(await startedEvent("ready-for-review")).toEqual([
+      {
+        name: "node.ready-for-review.start",
+        payload: { runId: "run-1", requestedBy: "gedaiu" },
+      },
+    ]);
+  });
+
+  it("starts tdd-round itself when a step besides the CI wait feeds it", async () => {
+    expect(await startedEvent("tdd-round")).toEqual([
+      {
+        name: "node.tdd-round.start",
+        payload: { runId: "run-1", requestedBy: "gedaiu" },
+      },
+    ]);
   });
 });
