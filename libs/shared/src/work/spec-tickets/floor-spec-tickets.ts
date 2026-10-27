@@ -58,7 +58,7 @@ export function mergedSpecPaths(files: readonly ChangedFile[]): string[] {
     .map(({ path }) => path);
 }
 
-const TEST_LINK = /\(?\[validated by [^\]]*\]\([^)]*\)\)?/g;
+const TEST_LINK = /\(?\[validated by(?: [^\]]*)?\]\([^)]*\)\)?/g;
 
 /** True when every removed line has an added line that differs from it by test links alone, and the other way round. */
 export function onlyLinksChanged(patch: string | null): boolean {

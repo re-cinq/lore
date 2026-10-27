@@ -72,6 +72,12 @@ const REWORDED_PATCH = [
   "+- **FR1**: It works always. ([validated by works](a.test.ts#L10))",
 ].join("\n");
 
+const BARE_RELINKED_PATCH = [
+  "@@ -7,1 +7,1 @@",
+  "-- **SC-001**: A CI grep fails the job. (#33) ([validated by](../../.github/workflows/ci.yml#L559)).",
+  "+- **SC-001**: A CI grep fails the job. (#33) ([validated by](../../.github/workflows/ci.yml#L594)).",
+].join("\n");
+
 describe("onlyLinksChanged", () => {
   it("is true when a patch only moves a validated-by link to another line", () => {
     expect(onlyLinksChanged(RELINKED_PATCH)).toBe(true);
@@ -83,6 +89,10 @@ describe("onlyLinksChanged", () => {
 
   it("is false for a patch GitHub left out, since nothing says the change is links only", () => {
     expect(onlyLinksChanged(null)).toBe(false);
+  });
+
+  it("is true when a patch only moves a bare validated-by link with no test name from ci.yml#L559 to ci.yml#L594", () => {
+    expect(onlyLinksChanged(BARE_RELINKED_PATCH)).toBe(true);
   });
 });
 
