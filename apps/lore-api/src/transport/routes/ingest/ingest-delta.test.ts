@@ -870,3 +870,27 @@ describe("POST /api/repos/{owner}/{repo}/ingest from a branch", () => {
     ]);
   });
 });
+
+describe("POST /api/repos/{owner}/{repo}/ingest body size", () => {
+  it("accepts a test-report delta of one test file over 1 MiB", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+    const covered = Array.from({ length: 40_000 }, (_, i) => ({
+      file: `apps/lore-api/src/routes/file-${i % 250}.ts`,
+      startLine: i,
+      endLine: i + 1,
+    }));
+    const res = await post(server, {
+      kind: "test-report",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      report: {
+        commit: SHA_B,
+        tests: [{ id: "a.test.ts::t", name: "t", file: "a.test.ts" }],
+        results: [{ id: "a.test.ts::t", passed: true, covered }],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+});

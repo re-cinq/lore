@@ -1,6 +1,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { overlayBranchOf } from "@re-cinq/lore-shared";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { MAX_INGEST_DELTA_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { z } from "zod";
@@ -67,6 +68,7 @@ const IngestDeltaResultSchema = z.object({
 const INGEST_DELTA_OPTIONS = zodResponse(
   {
     ...bearerScope("write"),
+    payload: { maxBytes: MAX_INGEST_DELTA_BODY_BYTES },
     validate: { payload: zodValidate(IngestDeltaBody) },
   },
   IngestDeltaResultSchema,

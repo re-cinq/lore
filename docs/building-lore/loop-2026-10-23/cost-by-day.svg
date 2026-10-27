@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 224" width="970" height="224" role="img" aria-label="AI cost per day">
+<style>
+.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.muted{fill:#52514e}.grid{stroke:#e4e3df}
+.s1{fill:#2a78d6}.s2{fill:#eb6834}.s3{fill:#1baf7a}.s4{fill:#eda100}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.title{font-size:16px;font-weight:600}.sub{font-size:12.5px}
+@media (prefers-color-scheme: dark){.surface{fill:#1a1a19}.ink{fill:#f0efec}.muted{fill:#c3c2b7}.grid{stroke:#3a3a37}
+.s1{fill:#3987e5}.s2{fill:#d95926}.s3{fill:#199e70}.s4{fill:#c98500}}
+</style>
+<rect class="surface" width="970" height="224" rx="8"/>
+<text class="ink title" x="16" y="28">AI cost per day</text>
+<text class="muted sub" x="16" y="48">Split by repository. The loop works through the weekend.</text>
+<rect class="s1" x="16" y="62" width="12" height="12" rx="2"/><text class="muted" x="34" y="72">Otto</text>
+<rect class="s2" x="78" y="62" width="12" height="12" rx="2"/><text class="muted" x="96" y="72">HALEngine</text>
+<rect class="s3" x="180" y="62" width="12" height="12" rx="2"/><text class="muted" x="198" y="72">lore</text>
+<line class="grid" x1="300" x2="300" y1="82" y2="202" stroke-width="1"/>
+<text class="ink" x="290" y="101" text-anchor="end">Friday 23 Oct</text>
+<path class="s1" d="M300.0,88h104.7v18h-104.7z"><title>Friday 23 Oct: $211</title></path>
+<path class="s2" d="M406.7,88h71.1v18h-71.1z"><title>Friday 23 Oct: $144</title></path>
+<path class="s3" d="M479.8,88h222.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-222.2z"><title>Friday 23 Oct: $447</title></path>
+<text class="muted" x="714.1" y="101">$801</text>
+<text class="ink" x="290" y="131" text-anchor="end">Saturday 24 Oct</text>
+<path class="s1" d="M300.0,118h93.2v18h-93.2z"><title>Saturday 24 Oct: $188</title></path>
+<path class="s2" d="M395.2,118h43.8v18h-43.8z"><title>Saturday 24 Oct: $90</title></path>
+<path class="s3" d="M441.0,118h141.6a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-141.6z"><title>Saturday 24 Oct: $287</title></path>
+<text class="muted" x="594.6" y="131">$566</text>
+<text class="ink" x="290" y="161" text-anchor="end">Sunday 25 Oct</text>
+<path class="s1" d="M300.0,148h173.2v18h-173.2z"><title>Sunday 25 Oct: $346</title></path>
+<path class="s3" d="M475.2,148h260.8a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-260.8z"><title>Sunday 25 Oct: $523</title></path>
+<text class="muted" x="748.0" y="161">$868</text>
+<text class="ink" x="290" y="191" text-anchor="end">Monday 26 Oct (to 08:04)</text>
+<path class="s1" d="M300.0,178h57.9v18h-57.9z"><title>Monday 26 Oct (to 08:04): $118</title></path>
+<path class="s3" d="M359.9,178h27.2a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h-27.2z"><title>Monday 26 Oct (to 08:04): $62</title></path>
+<text class="muted" x="399.1" y="191">$180</text>
+</svg>

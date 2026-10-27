@@ -95,10 +95,8 @@ import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
 import { runNodeRoute } from "./routes/floor/run-node.js";
-import {
-  upgradeStateRoute,
-  upgradeRunRoute,
-} from "./routes/floor/upgrade-run.js";
+import { upgradeRoutes } from "./routes/floor/upgrade-run.js";
+import { cancelRunRoute } from "./routes/floor/cancel-run.js";
 import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
 import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
@@ -146,8 +144,8 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
     floorGitCredentialRoute(getPool),
     reviewStartRoute(),
     runNodeRoute(getPool),
-    upgradeStateRoute(),
-    upgradeRunRoute(),
+    ...upgradeRoutes(),
+    cancelRunRoute(),
     floorRunsRoute(floorRunPages),
     ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),

@@ -13,14 +13,24 @@
 #                     test files or a path, a workspace package or a Go package
 #                     path, or follows a cd into a subdirectory. Bare suite
 #                     runs are refused.
-#   none              no runner, no dependency install, no build, and no
-#                     linter/formatter/typechecker: CI publishes that verdict.
+#   none              no runner, no build, and no install but the lockfile one
+#                     (npm ci) a linter needs.
 #   any               guard off.
 #
-# LORE_ACCEPTANCE_DOD, set on the implementation loop's rounds: the path of the
-# branch's .lore/dod.md. Its "Done when these pass" tests are CI's to run, so a
-# runner naming one is refused, and so is one naming no test file at all, which
-# would sweep them in. Unset, or the file not written yet, changes nothing.
+# Under scoped and none alike a linter or formatter runs only over the files or
+# paths it names: a whole-repository lint, a lint script and a linter npx would
+# download are refused. In this repository a two-file eslint holds ~1.2 GB and
+# seven packages in one call over 2 GB.
+#
+# LORE_BRANCH_TESTS, set on the implementation loop's rounds to the clone's
+# path: a runner may run only the tests this branch created, and must name
+# them. A test file the branch added (committed since it left main, staged, or
+# new and untracked) runs whole, the acceptance tests the definition of done
+# wrote among them; a test file main already had and the branch edited runs
+# only by a test-name filter, so main's tests in it stay CI's, as does every
+# other test. The clone is the shell's directory when that is inside it, the
+# variable's path otherwise. A clone that cannot tell where its branch left
+# main runs none until main is fetched.
 #
 # The command is judged one segment at a time (split on ; & | and newlines,
 # parentheses and braces) so a test-file name in a comment or in a neighbouring
@@ -56,9 +66,12 @@ RUNNER="$RUNNER|(^|$W)(cargo$W+test|go$W+test|deno$W+test|playwright$W+test|cypr
 SCRIPT="(^|$W)(npm|pnpm|yarn|bun)$W+((run|run-script)$W+)?(test|tst|t|coverage)(:$NW*)?($W|$)"
 INSTALL="^((npm|pnpm|bun)$W+(ci|install|i|add)|yarn($W+(install|add))?|pip3?$W+install|uv$W+(sync|pip$W+install)|poetry$W+install|go$W+mod$W+download)($W|$)"
 BUILD="^((npm|pnpm|yarn|bun)$W+(run$W+)?build(:$NW*)?|(npx$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?tsc|go$W+(build|install|generate)|cargo$W+(build|check)|make|docker$W+build)($W|$)"
-# Linters and formatters: CI publishes their verdict, and reaching one through npx
-# downloads it into the pod, which is how a review pod fetched eslint@10 (#2155).
-LINT="^((npx$W+|(pnpm|bun)$W+dlx$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?(eslint|prettier|biome|ruff|black|golangci-lint)|(npm|pnpm|yarn|bun)$W+(run$W+)?(lint|format|fmt|typecheck|type-check|check)(:$NW*)?)($W|$)"
+LOCKFILE_INSTALL="^(npm$W+ci|(pnpm|yarn|bun)($W+install)?($W+-$NW+)*$W+--(frozen-lockfile|immutable))($W|$)"
+# Linters and formatters run over named files only. Reaching one through npx without
+# --no-install downloads it into the pod, which is how a review pod fetched eslint@10 (#2155).
+LINT="^((npx|bunx)$W+(-$NW+$W+)*|(pnpm|yarn|bun)$W+(dlx|exec|x)$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?(eslint|prettier|biome|ruff|black|golangci-lint)($W|$)"
+LINT_DOWNLOAD="^((pnpm|yarn|bun)$W+(dlx|x)|bunx)$W"
+LINT_SCRIPT="^(npm|pnpm|yarn|bun)$W+(run$W+)?(lint|format|fmt|typecheck|type-check|check)(:$NW*)?($W|$)"
 TEST_FILE="\.(test|spec)\.[cm]?[jt]sx?($W|:|$)|_test\.go($W|$)|(^|$W|/)test_[A-Za-z0-9_]+\.py"
 WORKSPACE="(^|$W)(-w|--workspace|--filter|--project)(=|$W+)[^-[:space:]]"
 GO_PACKAGE="go$W+test($W+-$NW+)*$W+\./[A-Za-z0-9_][A-Za-z0-9_/.-]*($W|$)"
@@ -125,6 +138,40 @@ names_path() (
   return 1
 )
 
+# True when a linter's positional arguments name a file or a path other than the
+# repository root, skipping subcommands and the values of flags that take one.
+lint_names_path() (
+  IFS=' '
+  seen=0
+  skip=0
+  for tok in $1; do
+    if [ "$seen" = 0 ]; then
+      case "${tok##*/}" in
+        eslint|prettier|biome|ruff|black|golangci-lint) seen=1;;
+      esac
+      continue
+    fi
+    if [ "$skip" = 1 ]; then
+      skip=0
+      continue
+    fi
+    case "$tok" in
+      -c|--config|--ext|--rule|-f|--format|-o|--output-file|--plugin|--parser|--parser-options|--resolve-plugins-relative-to|--max-warnings|--ignore-pattern|--ignore-path|--cache-location|--rulesdir|--env|--global|--log-level|--select|--ignore|--extend-select|--line-length|--target-version|--timeout|-E|--enable|-D|--disable|--out-format|--new-from-rev)
+        skip=1;;
+      -*|check|run|format|lint|fmt|.|./|./...|...|"$cwd"|"$cwd/") ;;
+      *) return 0;;
+    esac
+  done
+  return 1
+)
+
+downloads_linter() {
+  matches "$1" "$LINT_DOWNLOAD" && return 0
+  matches "$1" "^npx$W" && ! matches "$1" "$W--no(-install)?($W|$)"
+}
+
+LINT_HOW="Lint the files you changed, one package per call: \`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>\`, after \`npm ci\` when eslint is not installed."
+
 scoped_runner() {
   if matches "$1" "$EXCLUDE"; then
     return 1
@@ -133,26 +180,48 @@ scoped_runner() {
     || matches "$1" "$CARGO_PACKAGE" || names_path "$1"
 }
 
-# Basenames of the test files under "## Done when these pass", dots escaped for grep -E.
+# Basenames of the test files this branch created, for LORE_BRANCH_TESTS.
 # Basenames, not paths: after a `cd` the runner names the file relative to the
-# package, so a full-path match would let the same file through.
-acceptance=''
-if [ -n "$LORE_ACCEPTANCE_DOD" ] && [ -r "$LORE_ACCEPTANCE_DOD" ]; then
-  acceptance=$(sed -n '/^## Done when these pass/,/^## /p' "$LORE_ACCEPTANCE_DOD" \
-    | grep -oE '`[^`]+`' | tr -d '`' | grep -E "$TEST_FILE" \
-    | sed -E 's:.*/::; s/\./\\./g')
+# package. branch_known stays 0 when the clone cannot find where it left main.
+branch_tests=''
+branch_edited=''
+branch_known=0
+if [ -n "$LORE_BRANCH_TESTS" ]; then
+  repo="${cwd:-/}"
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || repo="$LORE_BRANCH_TESTS"
+  main_ref=$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)
+  if base=$(git -C "$repo" merge-base HEAD "$main_ref" 2>/dev/null); then
+    branch_known=1
+    branch_tests=$( {
+      git -C "$repo" diff --name-only --diff-filter=A "$base" HEAD
+      git -C "$repo" diff --name-only --diff-filter=A --cached
+      git -C "$repo" ls-files --others --exclude-standard
+    } 2>/dev/null | grep -E "$TEST_FILE" | sed -E 's:.*/::' | sort -u)
+    branch_edited=$( {
+      git -C "$repo" diff --name-only --diff-filter=M "$base" HEAD
+      git -C "$repo" diff --name-only --diff-filter=M HEAD
+    } 2>/dev/null | grep -E "$TEST_FILE" | sed -E 's:.*/::' | sort -u)
+  fi
 fi
 
-acceptance_check() {
-  [ -z "$acceptance" ] && return 0
-  for name in $acceptance; do
-    if matches "$1" "(^|$W|/)$name($W|:|$)"; then
-      refuse "acceptance tests are CI's to run, and the definition of done lists this one. Run the test you wrote this round and read CI's verdict on the acceptance tests with lore_get_ci_failures."
+NAME_FILTER="(^|$W)(-t|--testNamePattern|-k|-run|--grep)(=|$W)"
+
+branch_check() {
+  [ -z "$LORE_BRANCH_TESTS" ] && return 0
+  [ "$branch_known" = 1 ] \
+    || refuse "this clone cannot tell where its branch left main: run \`git fetch origin main\` first, then run the tests this branch created."
+  named=$(printf '%s' "$1" | tr ' ' '\n' | grep -E "$TEST_FILE" | sed -E 's/:.*$//; s:.*/::')
+  [ -n "$named" ] \
+    || refuse "name the test files this branch created, e.g. \`cd <package> && timeout 300 npx vitest run <file.test.ts>\`. A run over a directory or a package sweeps in tests main already had, which CI runs."
+  for name in $named; do
+    printf '%s\n' "$branch_tests" | grep -qxF "$name" && continue
+    if printf '%s\n' "$branch_edited" | grep -qxF "$name"; then
+      matches "$1" "$NAME_FILTER" \
+        || refuse "$name holds tests main already had; run only the one this branch added, by its name, e.g. \`npx vitest run $(printf '%s' "$1" | grep -oE "[^[:space:]]*$name" | head -n 1) -t \"<test name>\"\`."
+      continue
     fi
+    refuse "$name was not created on this branch. Run only the tests this branch created; CI runs every other test on each push, and lore_get_ci_failures reads its verdict."
   done
-  if ! matches "$1" "$TEST_FILE"; then
-    refuse "name the test file you wrote this round, e.g. \`cd <package> && timeout 300 npx vitest run <file.test.ts>\`. A run over a directory sweeps in the acceptance tests, which are CI's to run."
-  fi
 }
 
 segments=$(printf '%s' "$command" | tr ';|&(){}' '\n\n\n\n\n\n\n')
@@ -170,21 +239,30 @@ for seg in $segments; do
   fi
   matches "$head" "$READ_ONLY" && continue
 
+  if matches "$head" "$LINT_SCRIPT"; then
+    refuse "a lint script runs over the whole repository, which is CI's to lint: read its verdict with lore_get_ci_failures. $LINT_HOW"
+  fi
+  if matches "$head" "$LINT"; then
+    if downloads_linter "$head"; then
+      refuse "npx would download this linter into the pod (#2155); run the checkout's own with npx --no-install eslint <files>. $LINT_HOW"
+    fi
+    lint_names_path "$head" \
+      || refuse "the whole repository is CI's to lint: read its verdict with lore_get_ci_failures. $LINT_HOW"
+    continue
+  fi
+
   if [ "$policy" = "none" ]; then
     if matches "$seg" "$RUNNER" || matches "$seg" "$SCRIPT"; then
       refuse "this node does not run tests. CI runs the suite; review from the source tree and the diff alone."
     fi
-    if matches "$head" "$INSTALL" || matches "$head" "$BUILD"; then
-      refuse "this node does not install dependencies or build. The pod has a 1Gi disk budget and CI already builds the branch."
-    fi
-    if matches "$head" "$LINT"; then
-      refuse "lint, types and formatting are CI's verdict — read it with lore_get_ci_failures. Reaching a linter through npx also downloads it into a 1Gi pod."
+    if { matches "$head" "$INSTALL" && ! matches "$head" "$LOCKFILE_INSTALL"; } || matches "$head" "$BUILD"; then
+      refuse "this node does not build, and installs only the lockfile's dependencies (npm ci) a linter needs. CI already builds the branch."
     fi
     continue
   fi
 
   if matches "$seg" "$RUNNER" || matches "$seg" "$SCRIPT"; then
-    acceptance_check "$seg"
+    branch_check "$seg"
     if [ "$scope" = "sub" ] || scoped_runner "$seg"; then
       continue
     fi

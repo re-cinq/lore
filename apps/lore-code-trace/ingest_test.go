@@ -221,6 +221,27 @@ func TestDeltaFlowDiffsAgainstAReachableBaseAndSendsOnlyTheDelta(t *testing.T) {
 	}
 }
 
+// A report already narrowed to the files the change affects (by `related`, or
+// whole under --full) posts every test it holds: filtering it again by coverage
+// drops the dependents in other packages and leaves a --full run nothing to post.
+func TestDeltaFlowPostsEveryTestOfAnAlreadyScopedReport(t *testing.T) {
+	base := "base1234"
+	deps, posts := flowDeps([]*string{&base}, true,
+		[]string{"src/b.test.ts"}, []string{"src/gone.test.ts"}, []error{nil})
+	deps.reportIsScoped = true
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	got := (*posts)[0].delta
+	if want := []string{"t1", "t2", "t3"}; !reflect.DeepEqual(ids(got.Report.Tests), want) {
+		t.Fatalf("tests = %v, want %v", ids(got.Report.Tests), want)
+	}
+	if !reflect.DeepEqual(got.Deleted, []string{"src/gone.test.ts"}) {
+		t.Fatalf("deleted = %v", got.Deleted)
+	}
+}
+
 func TestDeltaFlowRefetchesAndRediffsOnceOnAStaleBase(t *testing.T) {
 	// Two merges landing together: the first POST loses the CAS with a 409 that
 	// names the current commit; the runner re-fetches, re-diffs and posts again.
@@ -393,11 +414,11 @@ func TestPostIngestDeltaGivesUpAfterTheAttemptBudget(t *testing.T) {
 	defer srv.Close()
 
 	err := deltaTo(srv)
-	if err == nil || !strings.Contains(err.Error(), "after 3 attempts") {
+	if err == nil || !strings.Contains(err.Error(), "after 7 attempts") {
 		t.Fatalf("err = %v, want the exhausted-budget error", err)
 	}
-	if calls != postAttempts {
-		t.Fatalf("calls = %d, want %d", calls, postAttempts)
+	if calls != deltaPostAttempts {
+		t.Fatalf("calls = %d, want %d", calls, deltaPostAttempts)
 	}
 }
 
@@ -455,5 +476,54 @@ func TestPostIngestDeltaNeverRetriesAConflictOrAClientError(t *testing.T) {
 		if _, isStale := err.(*staleStateError); tc.status == http.StatusConflict && !isStale {
 			t.Fatalf("409 must surface as *staleStateError, got %T", err)
 		}
+	}
+}
+
+// lore-api runs one replica and was deployed 20 times on 2026-10-26; a chunk
+// in flight during a deploy got 502s for the minute or two the new pod took to
+// start, and three attempts 10 s apart gave up long before it was back.
+func TestPostIngestDeltaWaitsOutALoreApiRollout(t *testing.T) {
+	var waited time.Duration
+	retrySleep = func(d time.Duration) { waited += d }
+	t.Cleanup(func() { retrySleep = time.Sleep })
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls < deltaPostAttempts {
+			http.Error(w, "<html>bad gateway</html>", http.StatusBadGateway)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"state": "advanced"})
+	}))
+	defer srv.Close()
+
+	if err := deltaTo(srv); err != nil {
+		t.Fatalf("err = %v, want success once lore-api is back", err)
+	}
+	if waited < 2*time.Minute {
+		t.Fatalf("waited %v between attempts, want at least 2m to outlast a rollout", waited)
+	}
+}
+
+// A timed-out post leaves lore-api still projecting the chunk: retrying started
+// the same projection again beside it, and on 2026-10-27 seven of them on chunk
+// 1 kept Dgraph busy until every attempt timed out.
+func TestPostIngestDeltaNeverRetriesItsOwnTimeout(t *testing.T) {
+	noRetrySleep(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		time.Sleep(200 * time.Millisecond)
+		json.NewEncoder(w).Encode(map[string]any{"state": "advanced"})
+	}))
+	defer srv.Close()
+	client := srv.Client()
+	client.Timeout = 50 * time.Millisecond
+
+	err := postIngestDelta(context.Background(), srv.URL, "tok", "re-cinq/lore",
+		ingestDelta{Kind: "test-report", Commit: "abc123", Report: report()}, client)
+
+	if err == nil || calls != 1 {
+		t.Fatalf("err = %v after %d calls, want the timeout after exactly one", err, calls)
 	}
 }

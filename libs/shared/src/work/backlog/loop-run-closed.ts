@@ -1,6 +1,10 @@
 import { dodResolvedReason } from "../../domain/dod-verdict.js";
+import {
+  recordLoopTicket,
+  type LoopTicketResult,
+} from "../../outbound/otel/metrics.js";
 import type { RunGraph } from "../../domain/run-graph.js";
-import { LORE_BLOCKED_LABEL } from "./labels.js";
+import { LOOP_PARKING_PREFIX, LORE_BLOCKED_LABEL } from "./labels.js";
 import {
   commentDeferral,
   erroredVerdict,
@@ -90,6 +94,7 @@ async function settleIssue(
   if (!verdict) {
     return;
   }
+  recordLoopTicket(run.repo, ticketResultOf(verdict));
 
   if (verdict.resolved) {
     await closeResolvedIssue(run, verdict.resolved, deps);
@@ -98,6 +103,15 @@ async function settleIssue(
   }
 
   await holdTicket(run, verdict, deps);
+}
+
+/** What a verdict does to the ticket, as the loop's ticket counter names it. */
+export function ticketResultOf(verdict: ParkVerdict): LoopTicketResult {
+  if (verdict.resolved) {
+    return "closed_done";
+  }
+
+  return verdict.deferral ? "deferred" : "parked";
 }
 
 /** The ticket stays open and unworked: its task keeps why, and the issue is either deferred to the next tick or parked for a human. */
@@ -271,7 +285,7 @@ function blockedComment(run: ClosedLoopRun, verdict: ParkVerdict): string {
   const ask = verdict.askForRewrite ? REWRITE_ASK : "";
 
   return (
-    `Lore's implementation loop is parking this ticket: ${verdict.why}.` +
+    `${LOOP_PARKING_PREFIX} ${verdict.why}.` +
     `${prLine}${ask}\n\n${requeueLine(run)} Run: \`${run.id}\``
   );
 }

@@ -60,8 +60,8 @@ const NON_REPO_PATH_RE = /^[a-z][a-z0-9+.-]*:|^path(\/|#|$)|[<>]/i;
 
 // Flags would-be VALIDATED_BY test links in a NON-trailing parenthetical (used by the validate cron); scans only text before the trailing paren, with inline code spans stripped first.
 export function findMisplacedCoverageLinks(statement: string): SpecLinkRef[] {
-  const span = findTrailingParenSpan(statement);
-  const trailingOpen = span ? span.open : statement.length;
+  const trailingOpen =
+    findTrailingParenSpans(statement).at(-1)?.open ?? statement.length;
   const scannable = statement.slice(0, trailingOpen).replace(/`[^`]*`/g, "");
 
   const refs: SpecLinkRef[] = [];
@@ -130,10 +130,10 @@ export function trailingLinkHrefs(statement: string): string[] {
 
 /** The statement as a reader quotes it: its trailing link group, when it has one, cut off. */
 export function withoutTrailingLinkGroup(statement: string): string {
-  const span = findTrailingParenSpan(statement);
+  const first = findTrailingParenSpans(statement).at(-1);
 
-  return span && trailingLinkMatches(statement).length > 0
-    ? statement.slice(0, span.open).trimEnd()
+  return first && trailingLinkMatches(statement).length > 0
+    ? statement.slice(0, first.open).trimEnd()
     : statement;
 }
 
@@ -147,29 +147,42 @@ function parseLinksInStatement(
 }
 
 function trailingLinkMatches(statement: string): RegExpMatchArray[] {
-  const span = findTrailingParenSpan(statement);
-
-  if (span === null) {
-    return [];
-  }
-
-  return [
-    ...statement
-      .slice(span.innerStart, span.innerEnd)
-      .matchAll(LINK_INSIDE_PAREN_RE),
-  ];
+  return findTrailingParenSpans(statement)
+    .reverse()
+    .flatMap((span) => [
+      ...statement
+        .slice(span.innerStart, span.innerEnd)
+        .matchAll(LINK_INSIDE_PAREN_RE),
+    ]);
 }
 
-function findTrailingParenSpan(
-  s: string,
-): { open: number; innerStart: number; innerEnd: number } | null {
-  const end = trimTrailingSpaceAndPeriod(s);
+type ParenSpan = { open: number; innerStart: number; innerEnd: number };
+
+/** The statement's last parenthetical, then every `([…](…))` link group run up against it, last first: `([validated by](a.test.ts#L1)) ([from plan](https://…))` carries its test link in the first group, which reading the last group alone dropped (re-lint 1.9.0 reads them the same way). A prose aside ends the walk. */
+function findTrailingParenSpans(s: string): ParenSpan[] {
+  const spans: ParenSpan[] = [];
+  let span = lastParenBefore(s, s.length);
+
+  while (span !== null && (spans.length === 0 || startsWithLink(s, span))) {
+    spans.push(span);
+    span = lastParenBefore(s, span.open);
+  }
+
+  return spans;
+}
+
+function lastParenBefore(s: string, before: number): ParenSpan | null {
+  const end = trimTrailingSpaceAndPeriod(s.slice(0, before));
 
   if (end === 0 || s[end - 1] !== ")") {
     return null;
   }
 
   return matchingOpenParen(s, end);
+}
+
+function startsWithLink(s: string, span: ParenSpan): boolean {
+  return s.slice(span.innerStart, span.innerEnd).trimStart().startsWith("[");
 }
 
 /** Turn a `[label](path#Lline)` regex match into a normalized link ref. */
@@ -193,10 +206,7 @@ function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
 }
 
 // Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`).
-function matchingOpenParen(
-  s: string,
-  end: number,
-): { open: number; innerStart: number; innerEnd: number } | null {
+function matchingOpenParen(s: string, end: number): ParenSpan | null {
   let depth = 1;
 
   for (let i = end - 2; i >= 0; i--) {

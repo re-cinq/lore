@@ -1,5 +1,6 @@
+import { errorMessage } from "../../../lib/error-classify.js";
 import type { Octokit } from "octokit";
-import type { PullDraft } from "../pulls/pull-requests-port.js";
+import type { PullDraft, BranchUpdate } from "../pulls/pull-requests-port.js";
 import type {
   PullRef,
   PRReviewEvent,
@@ -220,6 +221,46 @@ export async function markReady(
     }`,
     { pullRequestId: pr.id },
   );
+}
+
+/** GitHub rebases the branch onto its base itself when nothing conflicts, so no pod has to: `updateMethod: REBASE` is what the "Update with rebase" button sends. A conflict, a head that moved past `expectedHeadSha`, or a rule in the way come back as the refusal's reason. */
+export async function updateBranch(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  expectedHeadSha: string,
+): Promise<BranchUpdate> {
+  const pr = await pullRequestNode(ok, repo, number);
+
+  if (!pr) {
+    return { updated: false, reason: `pull request ${number} not found` };
+  }
+
+  return rebaseNode(ok, pr.id, expectedHeadSha);
+}
+
+const UPDATE_BRANCH = `mutation ($pullRequestId: ID!, $expectedHeadOid: GitObjectID!, $updateMethod: PullRequestBranchUpdateMethod!) {
+  updatePullRequestBranch(input: { pullRequestId: $pullRequestId, expectedHeadOid: $expectedHeadOid, updateMethod: $updateMethod }) {
+    pullRequest { id }
+  }
+}`;
+
+async function rebaseNode(
+  ok: Octokit,
+  pullRequestId: string,
+  expectedHeadOid: string,
+): Promise<BranchUpdate> {
+  try {
+    await ok.graphql(UPDATE_BRANCH, {
+      pullRequestId,
+      expectedHeadOid,
+      updateMethod: "REBASE",
+    });
+
+    return { updated: true };
+  } catch (err) {
+    return { updated: false, reason: errorMessage(err) };
+  }
 }
 
 /** Read first: the mutation needs the PR's NODE id (PullRef lacks it) and GitHub errors on an already-ready PR — treat "already ready" as success, not an error. */

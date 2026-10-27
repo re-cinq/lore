@@ -9,11 +9,9 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { coveredRanges } from "../../dist/domain/spec-trace/covered-ranges.js";
 
 const ROOT = process.cwd(); // manifest cwd == repo root
-// Covered code we keep: any traceability package's src (a test may cover code in
-// its own package; cross-package src is captured only if vitest reports it).
-const SRC_RE = /^(?:libs|apps)\/[^/]+\/src\//;
 
 const id = process.argv[2];
 
@@ -59,47 +57,13 @@ try {
   passed = false; // non-zero exit == a failing/erroring test, still report coverage
 }
 
-function repoRelative(absolutePath) {
-  return absolutePath.startsWith(`${ROOT}/`)
-    ? absolutePath.slice(ROOT.length + 1)
-    : absolutePath;
-}
-
-const covered = [];
+let covered = [];
 
 try {
-  const report = JSON.parse(
-    readFileSync(join(reportDir, "coverage-final.json"), "utf-8"),
+  covered = coveredRanges(
+    JSON.parse(readFileSync(join(reportDir, "coverage-final.json"), "utf-8")),
+    ROOT,
   );
-  const seen = new Set();
-
-  for (const entry of Object.values(report)) {
-    const file = repoRelative(entry.path);
-
-    if (!SRC_RE.test(file)) {
-      continue;
-    }
-
-    // COVERS targets real code, not the test itself
-    if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) {
-      continue;
-    }
-
-    for (const [statementId, range] of Object.entries(entry.statementMap)) {
-      if ((entry.s[statementId] ?? 0) <= 0) {
-        continue;
-      }
-      const startLine = range.start.line;
-      const endLine = range.end.line ?? startLine;
-      const key = `${file}:${startLine}:${endLine}`;
-
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      covered.push({ file, startLine, endLine });
-    }
-  }
 } catch {
   // no coverage file (e.g. vitest crashed before writing one) -> empty covered
 } finally {

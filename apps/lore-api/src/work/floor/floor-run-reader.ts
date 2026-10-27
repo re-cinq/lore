@@ -76,6 +76,8 @@ export interface FloorRunPageQuery {
   repo?: string;
   /** One line's runs only, by the line's name. */
   line?: string;
+  /** The runs keyed on one subject, such as `pr_url:<url>` for a pull request's reviews. */
+  subject?: string;
   status?: AssemblyRunStatus;
   cursor?: string;
   limit?: number;

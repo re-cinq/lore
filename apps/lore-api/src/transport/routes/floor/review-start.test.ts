@@ -31,8 +31,11 @@ function scene(pull: PullRef | null) {
         listReviews: () => Promise.resolve([]),
         listComments: () => Promise.resolve([]),
         listReviewThreads: () => Promise.resolve([]),
+        listChecks: () => Promise.resolve([]),
+        netChange: () => Promise.resolve(null),
       },
       issues: { get: () => Promise.resolve(null) },
+      checks: { upsertCheckRun: () => Promise.resolve() },
     });
 
   return { depsFor, requests: recorded.requests };

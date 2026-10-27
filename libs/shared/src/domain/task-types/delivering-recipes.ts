@@ -4,7 +4,6 @@ export const DELIVERING_PROMPT_REFS = [
   "loop-dod",
   "loop-tdd-round",
   "loop-fix-ci",
-  "loop-pr-ready",
   // The planning line: rework commits the specs and the push node is another pod, so an unpushed write reached push as an empty branch (plan b5ec0e24, 2026-09-23).
   "spec-rework",
   // The staged draft pushes for the same reason: split-sections and the writer are other pods.

@@ -1,0 +1,1173 @@
+{
+ "uid": "lore-implementation-loop",
+ "title": "Lore \u00b7 Implementation loop",
+ "description": "The implementation loop live: tickets it settled, steps by type per hour, each step's failures, times and AI cost, by repository. The weekend report of 2026-10-23 in docs/building-lore is the same view, after the fact.",
+ "tags": [
+  "lore"
+ ],
+ "timezone": "utc",
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-3d",
+  "to": "now"
+ },
+ "refresh": "1m",
+ "editable": true,
+ "graphTooltip": 1,
+ "annotations": {
+  "list": []
+ },
+ "templating": {
+  "list": [
+   {
+    "type": "query",
+    "name": "repo",
+    "label": "Repository",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "query": {
+     "query": "label_values(floor_visits_started_total, repo)",
+     "refId": "var"
+    },
+    "refresh": 2,
+    "includeAll": true,
+    "allValue": ".*",
+    "multi": true,
+    "sort": 1,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "options": []
+   },
+   {
+    "type": "custom",
+    "name": "line",
+    "label": "Assembly lines",
+    "query": "implementation-loop,code-review,code-review-recheck,auto-merge",
+    "includeAll": true,
+    "allValue": "implementation-loop|code-review|code-review-recheck|auto-merge",
+    "multi": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "options": []
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Tickets merged",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(lore_loop_tickets_total{result=\"merged\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Closed as already done",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(lore_loop_tickets_total{result=\"closed_done\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Parked",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(lore_loop_tickets_total{result=\"parked\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Loop runs that gave up",
+   "description": "Runs of the implementation loop that spent a step's retry budget. Not split by repository: the floor's run outcomes carry no repository label.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(floor_runs_settled_by_line_total{line_id=\"implementation-loop\", outcome=\"iteration_max\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   }
+  },
+  {
+   "type": "stat",
+   "title": "AI cost",
+   "description": "Model calls of every agent visit on the selected lines and repositories, as the floor priced them.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(floor_cost_usd_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Steps started",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(floor_visits_started_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   }
+  },
+  {
+   "type": "row",
+   "title": "When the work happens",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "Steps started per hour, by type",
+   "description": "Every visit the floor opened on the selected lines, by the kind of station: an AI agent, an automatic service step, or a wait for CI, a review or a merge.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (kind) (increase(floor_visits_started_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[1h]))",
+     "legendFormat": "{{kind}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "agent"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "AI steps"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#2a78d6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "service"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Automatic steps"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#eb6834"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "human"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Waiting steps"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1baf7a"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "none"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Markers"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#8a8984"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Tickets settled per day, by result",
+   "description": "How the loop left each ticket: merged, closed because the work was already on main, parked for a person, or deferred after an infrastructure failure.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 15,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (result) (increase(lore_loop_tickets_total{repo=~\"(?i)$repo\"}[1d]))",
+     "legendFormat": "{{result}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1d",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "bars"
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "merged"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Merged"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#2a78d6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "closed_done"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Already done, closed"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#1baf7a"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "parked"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Parked"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#eda100"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "deferred"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Deferred (infrastructure)"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#e87ba4"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Loop runs ended per hour, by outcome",
+   "description": "iteration_max: a step spent its retry budget and the run gave up.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 15,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (outcome) (increase(floor_runs_settled_by_line_total{line_id=\"implementation-loop\"}[1h]))",
+     "legendFormat": "{{outcome}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "row",
+   "title": "Steps",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 24,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "type": "table",
+   "title": "Each step: runs, failures and typical time",
+   "description": "Times run, share that broke, typical (median) and 9-in-10 time, and AI cost, over the dashboard's time range. Durations are not split by repository.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 25,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (line_id, node_id, kind) (increase(floor_visits_started_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "A",
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (line_id, node_id, kind) (increase(floor_visits_total{line_id=~\"$line\", repo=~\"(?i)$repo\", outcome=\"failed\"}[$__range])) / sum by (line_id, node_id, kind) (increase(floor_visits_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "B",
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.5, sum by (line_id, node_id, le) (increase(floor_visit_duration_seconds_bucket{line_id=~\"$line\"}[$__range])))",
+     "legendFormat": "",
+     "refId": "C",
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.9, sum by (line_id, node_id, le) (increase(floor_visit_duration_seconds_bucket{line_id=~\"$line\"}[$__range])))",
+     "legendFormat": "",
+     "refId": "D",
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (line_id, node_id) (increase(floor_cost_usd_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[$__range]))",
+     "legendFormat": "",
+     "refId": "E",
+     "instant": true,
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "merge"
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      },
+      "renameByName": {
+       "line_id": "Line",
+       "node_id": "Step",
+       "kind": "Kind",
+       "Value #A": "Times run",
+       "Value #B": "Broke",
+       "Value #C": "Typical time",
+       "Value #D": "9 in 10 within",
+       "Value #E": "AI cost"
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Broke"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percentunit"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Typical time"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "9 in 10 within"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "AI cost"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "currencyUSD"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Times run"
+      },
+      "properties": [
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "sortBy": []
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Steps finished per hour, by outcome",
+   "description": "changes_requested is the line's routing (not done yet, CI red, behind main), not an error; failed is an error.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 37,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (outcome) (increase(floor_visits_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[1h]))",
+     "legendFormat": "{{outcome}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Steps that broke per hour, by step",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 37,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (node_id) (increase(floor_visits_total{line_id=~\"$line\", repo=~\"(?i)$repo\", outcome=\"failed\"}[1h])) > 0",
+     "legendFormat": "{{node_id}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "row",
+   "title": "Money",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 46,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "AI cost per hour, by step",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 47,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (node_id) (increase(floor_cost_usd_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[1h]))",
+     "legendFormat": "{{node_id}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "AI cost per hour, by repository",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 47,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (repo) (increase(floor_cost_usd_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[1h]))",
+     "legendFormat": "{{repo}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "AI cost per hour, by model",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 56,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (model) (increase(floor_cost_usd_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[1h]))",
+     "legendFormat": "{{model}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 80,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "bargauge",
+   "title": "AI cost over the range, by repository",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 56,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sort_desc(sum by (repo) (increase(floor_cost_usd_total{line_id=~\"$line\", repo=~\"(?i)$repo\"}[$__range])))",
+     "legendFormat": "{{repo}}",
+     "refId": "A",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "#2a78d6"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "basic",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "showUnfilled": true
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Cache hit rate per step",
+   "description": "The share of everything each step's model read that came from its cache, per hour. Gemini bills a cached token at a tenth of a read one, so a low rate on a Gemini step is money. Empty until the floor reports cache reads as kind=\"cache_read\" on floor_tokens_total (#3495).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 65,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (node_id) (increase(floor_tokens_total{line_id=~\"$line\", repo=~\"(?i)$repo\", kind=\"cache_read\"}[1h])) / sum by (node_id) (increase(floor_tokens_total{line_id=~\"$line\", repo=~\"(?i)$repo\", kind=\"in\"}[1h]))",
+     "legendFormat": "{{node_id}}",
+     "refId": "A"
+    }
+   ],
+   "interval": "1h",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "min": 0,
+     "max": 1,
+     "custom": {
+      "fillOpacity": 10,
+      "lineWidth": 2,
+      "drawStyle": "line"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  }
+ ]
+}

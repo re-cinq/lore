@@ -1,8 +1,7 @@
 // POST /api/review/start — the manual "Trigger review" entry, the UI twin of an `@lore review` comment: a click is explicit intent, so it is forced past the auto_review gate.
-import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import { reviewStartDeps } from "@re-cinq/lore-shared/review/review-start-deps.js";
 import { z } from "zod";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   startReview,
   type ReviewStartDeps,
@@ -48,15 +47,7 @@ export function reviewStartRoute(
 }
 
 async function productionDeps(repo: string): Promise<ReviewStartDeps> {
-  const { pulls, issues } = await projectFor(repo);
-
-  return {
-    floor: floorClient(),
-    pulls,
-    issues,
-    uiUrl: process.env.LORE_UI_URL,
-    loreAppLogin: await loreAppLogin(),
-  };
+  return reviewStartDeps(await projectFor(repo));
 }
 
 async function serveReviewStart(

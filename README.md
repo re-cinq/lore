@@ -194,6 +194,7 @@ Pick the guide that matches what you're doing.
 - [Architecture](docs/building-lore/architecture.md) — topology, task lifecycle, scheduling, ingestion, memory, and execution modes
 - [Scheduled Jobs](docs/building-lore/scheduled-jobs.md) — the recurring job registry
 - [Contributing](docs/building-lore/contributing.md) — run the stack locally, project layout, tech stack, and design principles
+- [Alternatives to Lore](docs/building-lore/alternatives-to-lore.md) — what could replace each component, verdicts, and ideas to take (2026-10-26)
 
 ## Quickstart
 

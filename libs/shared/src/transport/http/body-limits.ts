@@ -9,5 +9,8 @@ export const MAX_AGENT_EVENTS_BODY_BYTES = 8 * 1024 * 1024;
 /** The REST default for lore-api: a JSON document, not a stream. */
 export const MAX_JSON_BODY_BYTES = 1_048_576;
 
+/** One chunk of a CI ingest delta. The runner packs a test file's tests into one chunk, and each test carries its file's coverage, so one test file alone can be several MB: 39 of this repository's were over 1 MB on 2026-10-26, the largest 6.8 MB. The lore-api ingress allows the same. */
+export const MAX_INGEST_DELTA_BODY_BYTES = 16 * 1_048_576;
+
 /** Writes that legitimately carry a document (spec bodies, feature payloads). */
 export const MAX_DOCUMENT_BODY_BYTES = 2 * 1_048_576;

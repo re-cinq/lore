@@ -28,6 +28,7 @@ export const TicketSchema = z.object({
   run_id: z.string().nullable(),
   /** Node states in graph order; null when no run exists yet. */
   pipeline: z.array(PipelineNodeSchema).nullable(),
+  unblocks_count: z.number().int().optional(),
 });
 
 /** Why the loop may not be picking. It never picks for a repo whose onboarding PR has not merged, so the page needs whether it merged, the open onboarding PR if there is one, and the newest onboard task with why it failed. */
@@ -51,6 +52,7 @@ export type Onboarding = z.infer<typeof OnboardingSchema>;
 export const ImplementationLoopSchema = z.object({
   enabled: z.boolean(),
   onboarding: OnboardingSchema,
+  criteria: z.array(z.string()).optional(),
   /** Every ticket being worked right now: the loop's own pick, and any ticket someone revived with "Run this station" — more than one can be true at once. */
   current: z.array(TicketSchema),
   /** The open backlog run's id — the live run view at /assembly-runs/{id}. */

@@ -34,6 +34,10 @@ export interface Mergeability {
   state: string;
 }
 
+/** What GitHub answered a request to put a pull request's branch on its base: done, or why not (a conflict, a moved head, a pull request it cannot read). */
+export type BranchUpdate =
+  { updated: true } | { updated: false; reason: string };
+
 export interface PullRef {
   repo: string;
   number: number;
@@ -149,6 +153,13 @@ export interface PullStats {
 }
 
 /** One changed file on a PR: what GitHub's files listing knows about it, patch included (null for binaries and files past GitHub's diff cap). */
+/** One file of a change as GitHub's compare reports it; no patch for a binary or very large file. */
+export interface FileChangeSummary {
+  filename: string;
+  status: string;
+  patch?: string;
+}
+
 export interface PullFileChange {
   filename: string;
   status: string;
@@ -223,6 +234,12 @@ export interface PullRequestsPort {
   getStats(repo: string, number: number): Promise<PullStats>;
   getBranchRule(repo: string, branch: string): Promise<BranchRule>;
   getMergeability(repo: string, number: number): Promise<Mergeability>;
+  /** Has GitHub rebase the pull request's branch onto its base, only while its head is still `expectedHeadSha`; a refusal is an answer, never a throw. */
+  updateBranch(
+    repo: string,
+    number: number,
+    expectedHeadSha: string,
+  ): Promise<BranchUpdate>;
   /** Files differing between two refs; agent-watcher uses it for the no-changes vs PR decision (Agent.status carries no changedFiles). */
   changedFileCount(repo: string, base: string, head: string): Promise<number>;
   /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (D3). */
@@ -231,6 +248,12 @@ export interface PullRequestsPort {
   listFiles(repo: string, number: number): Promise<string[]>;
   /** Every changed file with status, line counts and unified patch — the same paginated read as listFiles, kept whole. */
   listFileChanges(repo: string, number: number): Promise<PullFileChange[]>;
+  /** What `head` changes against `base` as of their merge base (GitHub's three-dot compare), file by file; null when GitHub cannot compare them. */
+  netChange(
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<FileChangeSummary[] | null>;
   /** Every check run for a ref, paginated raw — the gate predicate (stricter than ciConclusion) stays in the caller. */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
   /** How a failed GitHub Actions job failed, read from the job itself; null when GitHub will not say. */

@@ -21,6 +21,7 @@ import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { issueTriageTickStation } from "./issue-triage-tick/manifest.js";
 import { autoMergeTickStation } from "./auto-merge-tick/manifest.js";
 import { utopiaBackfillTickStation } from "./utopia-backfill-tick/manifest.js";
+import { webhookEnsureTickStation } from "./webhook-ensure-tick/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
@@ -44,6 +45,7 @@ export const STATION_NAMES = [
   "spec-upkeep-tick",
   "telemetry-prune",
   "utopia-backfill-tick",
+  "webhook-ensure-tick",
 ] as const;
 
 export type StationName = (typeof STATION_NAMES)[number];
@@ -69,4 +71,5 @@ export const STATIONS: Record<StationName, StationModule> = {
   "spec-upkeep-tick": specUpkeepTickStation,
   "telemetry-prune": telemetryPrune,
   "utopia-backfill-tick": utopiaBackfillTickStation,
+  "webhook-ensure-tick": webhookEnsureTickStation,
 };

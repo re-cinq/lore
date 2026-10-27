@@ -60,7 +60,7 @@ type PrReads = Pick<
   | "failedJob"
   | "listReviewThreads"
   | "prMergeable"
-  | "prBehindBy"
+  | "prMergeState"
   | "loreReviewFeedback"
 >;
 
@@ -77,8 +77,8 @@ export function prReads(
       (await projectOf(repo)).pulls.failedJob(jobId),
     prMergeable: async (repo, number) =>
       (await (await projectOf(repo)).pulls.get(number))?.mergeable ?? null,
-    prBehindBy: async (repo, number) =>
-      behindMain(await projectOf(repo), number),
+    prMergeState: async (repo, number) =>
+      (await (await projectOf(repo)).pulls.getMergeability(number)).state,
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
     loreReviewFeedback: async (repo, number) =>
@@ -96,14 +96,4 @@ async function loreReviewOf(
   ]);
 
   return loreReviewFeedbackOf(reviews, comments);
-}
-
-/** How far the pull request's branch is behind the default branch: what `loop-sync-check` reads too, so the wait and the sync agree. */
-async function behindMain(
-  project: Pick<Project, "pulls" | "repo">,
-  number: number,
-): Promise<number | undefined> {
-  const branch = (await project.pulls.get(number))?.branch;
-
-  return branch ? project.repo.branchBehindBy(branch) : undefined;
 }

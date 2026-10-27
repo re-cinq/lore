@@ -16,6 +16,8 @@ import type {
   ReviewThread,
   PullFileChange,
   BranchRule,
+  FileChangeSummary,
+  BranchUpdate,
   Mergeability,
 } from "./pull-requests-port.js";
 
@@ -77,6 +79,10 @@ export class PullRequests {
 
   getMergeability(number: number): Promise<Mergeability> {
     return this.pulls.getMergeability(this.repo, number);
+  }
+
+  updateBranch(number: number, expectedHeadSha: string): Promise<BranchUpdate> {
+    return this.pulls.updateBranch(this.repo, number, expectedHeadSha);
   }
 
   merge(number: number, method?: MergeMethod): Promise<void> {
@@ -148,6 +154,10 @@ export class PullRequests {
 
   listFileChanges(number: number): Promise<PullFileChange[]> {
     return this.pulls.listFileChanges(this.repo, number);
+  }
+
+  netChange(base: string, head: string): Promise<FileChangeSummary[] | null> {
+    return this.pulls.netChange(this.repo, base, head);
   }
 
   listChecks(ref: string): Promise<CheckRun[]> {

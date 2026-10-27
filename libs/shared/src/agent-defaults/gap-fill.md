@@ -13,7 +13,8 @@ ADR, or runbook as appropriate. Read existing files for format.
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
-  changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+  changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`, whichever
   this repo uses) and nothing else from CI's checklist. Do NOT run the
   linter in this pod: CI runs it on every push, and here it does not
   fit — in this repository a two-file `eslint` peaks near 800 MB against
@@ -24,6 +25,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   step proves compilation, and `tsc --noEmit` on `libs/shared` peaks near
   950 MB against the 1Gi pod. Read your imports and signatures twice
   instead.
+- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git add` what you changed and commit it with a
   short, factual message. Then `git push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token

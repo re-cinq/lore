@@ -1,4 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
+
+beforeAll(() => {
+  global.fetch = vi.fn().mockRejectedValue(new Error("Network Error"));
+});
+
 import { loadTemplates, assembleContext } from "./context-assembly.js";
 import { join } from "node:path";
 import { docDocument } from "@re-cinq/lore-shared/utopia/doc-text.js";

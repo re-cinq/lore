@@ -137,17 +137,20 @@ resource "kubectl_manifest" "utopia_db_cluster" {
       # test runs and code held it at its 2-CPU limit, waiting on disk reads:
       # entity resolution reads every entity's embedding per pushed item, and the
       # default 128MB of shared_buffers could not keep them. Two cores and 4Gi
-      # requested (Autopilot bills requests), four cores to burst into.
+      # requested (Autopilot bills requests), four cores to burst into. On
+      # 2026-10-27 it sat at four cores scanning 3072-dim vectors with no index
+      # (re.25 adds halfvec HNSW indexes for them); 8Gi lets the name and profile
+      # indexes stay in memory instead of being read from disk per search.
       resources = {
-        requests = { cpu = "2", memory = "4Gi" }
-        limits   = { cpu = "4", memory = "4Gi" }
+        requests = { cpu = "2", memory = "8Gi" }
+        limits   = { cpu = "4", memory = "8Gi" }
       }
 
       postgresql = {
         shared_preload_libraries = ["vector"]
         parameters = {
-          shared_buffers       = "1GB"
-          effective_cache_size = "3GB"
+          shared_buffers       = "2GB"
+          effective_cache_size = "6GB"
           work_mem             = "16MB"
         }
       }

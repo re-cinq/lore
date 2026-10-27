@@ -21,7 +21,7 @@ const NEEDS = {
   digest_draft: "https://floor.test/blobs/draft",
 };
 
-const DRAFT = "*re-cinq/lore*\n• one thing merged\n";
+const DRAFT = "*alice*\n• did: one thing merged (#1)\n";
 
 function scene(
   files: Record<string, string>,
@@ -47,7 +47,7 @@ describe("the digest-post station", () => {
   it("posts the refined message into channel C123 and records re-cinq/lore as posted", async () => {
     const { handle, tools, posts, poster } = scene({
       digest_draft: DRAFT,
-      digest_message: "A good day.\n\n*re-cinq/lore*\n• one thing merged\n",
+      digest_message: "A good day.\n\n*alice*\n• did: one thing merged (#1)\n",
     });
     const report = await handle(
       brief({ ...NEEDS, digest_message: "https://floor.test/blobs/message" }),
@@ -67,7 +67,9 @@ describe("the digest-post station", () => {
     const report = await handle(brief(NEEDS), tools);
 
     expect(report).toEqual({ outcome: "success" });
-    expect(poster.posts.at(-1)?.text).toContain("one thing merged");
+    expect(poster.posts.at(-1)?.attachments?.[0]?.text).toContain(
+      "one thing merged",
+    );
   });
 
   it("posts the draft when the refine agent's message is empty", async () => {
@@ -81,7 +83,9 @@ describe("the digest-post station", () => {
       tools,
     );
 
-    expect(poster.posts.at(-1)?.text).toContain("one thing merged");
+    expect(poster.posts.at(-1)?.attachments?.[0]?.text).toContain(
+      "one thing merged",
+    );
   });
 
   it("reports failed with Slack's reason and leaves re-cinq/lore without a posted digest when Slack refuses", async () => {

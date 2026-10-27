@@ -12,6 +12,7 @@ export type PipelineRule =
   | "undeclared-outcome"
   | "unkeyed-line"
   | "unreachable"
+  | "unseeded-need"
   | "unsupplied-input";
 
 export interface PipelineProblem {
@@ -21,7 +22,14 @@ export interface PipelineProblem {
   detail: string;
 }
 
-const bagItemSchema = z.object({ name: z.string().optional() }).loose();
+const bagItemSchema = z
+  .object({
+    name: z.string().optional(),
+    kind: z.string().optional(),
+    optional: z.boolean().optional(),
+    collect: z.unknown().optional(),
+  })
+  .loose();
 
 const stationSchema = z
   .object({
@@ -42,10 +50,16 @@ const pipelineSchema = z
         entry: z.string().default(""),
         exit: z.string().default(""),
         fail: z.string().optional(),
+        files: z.record(z.string(), z.unknown()).optional(),
         args: z
           .record(
             z.string(),
-            z.object({ subject: z.boolean().optional() }).loose(),
+            z
+              .object({
+                kind: z.string().optional(),
+                subject: z.boolean().optional(),
+              })
+              .loose(),
           )
           .default({}),
         nodes: z
@@ -56,6 +70,7 @@ const pipelineSchema = z
                 station: z.string().optional(),
                 // A node a person starts by hand needs no edge into it.
                 start: z.string().optional(),
+                bind: z.record(z.string(), z.string()).optional(),
               })
               .loose(),
           )
@@ -79,6 +94,7 @@ const pipelineSchema = z
 
 export type Checked = z.infer<typeof pipelineSchema>;
 export type Station = z.infer<typeof stationSchema>;
+export type BagItem = z.infer<typeof bagItemSchema>;
 export type Node = Checked["line"]["nodes"][number];
 
 /** The pipeline as the rules read it, or none when the text is not one. */

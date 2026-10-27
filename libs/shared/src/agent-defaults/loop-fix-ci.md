@@ -3,7 +3,7 @@
 timeout_minutes: 45
 review_required: false
 execution_mode: claude-code
-model: gemini-3.1-pro-preview
+model: gemini-4-argon
 ---
 The pull request for this ticket has a RED build, or Lore's review asked
 for changes on it. Your job is to make it green, or make the changes the
@@ -126,20 +126,20 @@ RULES:
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you
-  changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
-  this repo uses), then the repository's LINTER over the same files:
-  `timeout 300 npx --no-install eslint --fix <files>` (or the repo's own
-  linter, such as `ruff` or `golangci-lint`, scoped the same way), every
-  file you changed, spec and ADR markdown included. Fix what it still
-  reports, then commit what `--fix` changed with your work. CI's format
-  job runs `eslint --fix` before it lints and reports line numbers in the
-  file it fixed, so a branch that skipped the fix sends you chasing a
-  spec-link line that moves by one each round. When `eslint` is not
-  installed in the checkout, install the dependencies first (`npm ci`
-  from the repository root); never reach for a linter `npx` would
-  download. Never lint the whole repository (`eslint .`, `npm run lint`):
-  a two-file `eslint` here peaks near 800 MB, and a repo-wide one does not
-  fit the pod. Linting is not testing: the test rules above still hold.
+  changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`, whichever
+  this repo uses).
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
 - Do NOT typecheck here either. A green test is not a compiled build —
   vitest transpiles each file without checking types — but CI's build
   step is what proves it, and in this repository `tsc --noEmit` on
@@ -152,6 +152,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   SOURCE, so nothing needs building for a test to see your change, and
   the build is the 950 MB step that OOM-killed run abac6ee9 while it
   rebuilt libs/shared for a test that never needed it.
+- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git -C /workspace/target add` what you changed and commit it with a
   short, factual message. Then `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token

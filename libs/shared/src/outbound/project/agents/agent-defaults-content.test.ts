@@ -8,6 +8,18 @@ const LINTING_RECIPES: readonly string[] = [
   "loop-dod",
   "loop-tdd-round",
   "loop-fix-ci",
+  "loop-sync",
+  "spec-draft",
+  "spec-rework",
+  "spec-upkeep-update-specs",
+  "spec-upkeep-fix-ci",
+  "onboard-author",
+  "onboard-fix-ci",
+  "code-review-refine",
+];
+const REVIEWING_RECIPES: readonly string[] = [
+  "code-review",
+  "code-review-recheck",
 ];
 
 function promptOf(name: string): string {
@@ -27,6 +39,19 @@ describe("the delivering recipes", () => {
     }
   });
 
+  it("tells every delivering recipe to configure the pod's git identity to match the Floor", () => {
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = promptOf(name);
+
+      expect(prompt, name).toContain(
+        "git config --global user.name 'Lore Agent'",
+      );
+      expect(prompt, name).toContain(
+        "git config --global user.email 'lore-agent@re-cinq.com'",
+      );
+    }
+  });
+
   it("tells every delivering recipe to format the files it changed, and the ones that do not write code never to run the linter", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name).replace(/\s+/g, " ");
@@ -42,12 +67,7 @@ describe("the delivering recipes", () => {
   });
 
   it("tells the loop's own recipes that CI judges the branch, so none re-runs the suite in a pod", () => {
-    for (const name of [
-      "loop-dod",
-      "loop-tdd-round",
-      "loop-fix-ci",
-      "loop-pr-ready",
-    ]) {
+    for (const name of ["loop-dod", "loop-tdd-round", "loop-fix-ci"]) {
       const prompt = promptOf(name);
 
       expect(prompt, name).toContain("CI is the judge of this branch");
@@ -69,7 +89,7 @@ describe("the delivering recipes", () => {
   });
 
   it("tells every recipe that writes tests to run the spec-link re-anchor script after the formatter, when the repository has one", () => {
-    for (const name of ["loop-dod", "loop-tdd-round", "loop-pr-ready"]) {
+    for (const name of ["loop-dod", "loop-tdd-round"]) {
       const prompt = promptOf(name);
 
       expect(prompt, name).toContain("node scripts/spec-links/reanchor.mjs");
@@ -165,55 +185,13 @@ describe("the delivering recipes", () => {
     expect(round).toContain("`mechanical`");
   });
 
-  it("has pr-ready report issue coverage, and leaves the footer to the Floor", () => {
-    const ready = promptOf("loop-pr-ready");
-
-    expect(ready).toContain('"issue_coverage"');
-    expect(ready).toContain("Refs");
-    expect(ready).not.toContain("Closes #");
-  });
-
-  it("writes the PR description beside the clone, where Lore reads it and git never sees it", () => {
-    const ready = promptOnOneLine("loop-pr-ready");
-
-    expect({
-      namesBodyBesideClone: ready.includes("WRITE `{pr_body_path}`"),
-      saysOutsideGit: ready.includes("beside the clone, outside git"),
-      namesOldInCloneBody: ready.includes(".lore/pr-body.md"),
-      pushesEverything: ready.includes("and all of it is pushed"),
-    }).toEqual({
-      namesBodyBesideClone: true,
-      saysOutsideGit: true,
-      namesOldInCloneBody: false,
-      pushesEverything: false,
-    });
-  });
-
-  it("has pr-ready write under the repository's PR-template headings, Why, What Changed and Testing without one", () => {
-    const ready = promptOf("loop-pr-ready");
-
-    expect(ready).toContain("`.github/PULL_REQUEST_TEMPLATE.md`");
-    expect(ready).toContain("`## Why`, `## What Changed` and `## Testing`");
-  });
-
-  it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
-    const ready = promptOf("loop-pr-ready");
-
-    expect(ready).toContain("rewrite the sentence");
-    expect(ready).toContain("never a comment or blank line");
-  });
-
-  it("has the loop's own recipes demand red before green, inline validated-by links, and the status flip", () => {
+  it("has the loop's own recipes demand red before green", () => {
     expect({
       redFirst: promptOf("loop-dod").includes("FAIL right now"),
       oneRedTest: promptOf("loop-tdd-round").includes(
         "one failing test for the smallest facet",
       ),
-      links: promptOf("loop-pr-ready").includes(
-        "([validated by name](path#Lnn))",
-      ),
-      status: promptOf("loop-pr-ready").includes("`| Status |` header row"),
-    }).toEqual({ redFirst: true, oneRedTest: true, links: true, status: true });
+    }).toEqual({ redFirst: true, oneRedTest: true });
   });
 
   it("has tdd-round ask which tests already cover a symbol before editing it", () => {
@@ -223,23 +201,27 @@ describe("the delivering recipes", () => {
     expect(round).toContain("REGRESSION");
   });
 
-  it("has tdd-round run only the test it wrote and read the acceptance tests from CI", () => {
+  it("has tdd-round run only the tests its branch created, the acceptance tests among them, and leave every other test to CI", () => {
     const round = promptOnOneLine("loop-tdd-round");
 
     expect({
-      runsOwnTestOnly: round.includes("RUN ONLY THE TEST YOU WRITE THIS ROUND"),
-      acceptanceFromCi: round.includes(
+      branchTestsOnly: round.includes("RUN ONLY THE TESTS THIS BRANCH CREATED"),
+      acceptanceBeforePush: round.includes(
+        "run the acceptance tests before you push",
+      ),
+      neverMainTests: round.includes("Never run a test main already had"),
+      oldAcceptanceBan: round.includes(
         "Never run the acceptance tests `.lore/dod.md` lists",
       ),
-      oldRunAcceptance: round.includes("RUN the acceptance tests it names"),
     }).toEqual({
-      runsOwnTestOnly: true,
-      acceptanceFromCi: true,
-      oldRunAcceptance: false,
+      branchTestsOnly: true,
+      acceptanceBeforePush: true,
+      neverMainTests: true,
+      oldAcceptanceBan: false,
     });
   });
 
-  it("has dod write acceptance tests to files of their own, so a round's guard can refuse them by name", () => {
+  it("has dod write acceptance tests to files of their own, which the branch's rounds run by name", () => {
     expect(promptOnOneLine("loop-dod")).toContain(
       "in a NEW test file of their own",
     );
@@ -279,7 +261,7 @@ describe("the fix-ci recipe when the branch moved", () => {
 
 describe("test_policy", () => {
   it("declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
-    const readOnly = ["code-review", "loop-pr-ready"];
+    const readOnly = ["code-review"];
 
     expect(
       readOnly.map((name) => SHIPPED.get(name)?.config?.test_policy),
@@ -943,7 +925,7 @@ describe("the loop's branch sync", () => {
       neverMerges: prompt.includes("Rebase, never merge"),
       aborts: prompt.includes("git rebase --abort"),
       noChecks: prompt.includes(
-        "Do NOT run the linter, a typecheck, a build, or the test suite in this pod",
+        "Do NOT run a typecheck, a build, or the test suite in this pod",
       ),
     }).toEqual({
       rebases: true,
@@ -955,12 +937,7 @@ describe("the loop's branch sync", () => {
   });
 
   it("tells every agent that delivers a branch to rebase it onto main with a lease and never to merge main in", () => {
-    for (const name of [
-      "loop-dod",
-      "loop-tdd-round",
-      "loop-fix-ci",
-      "loop-pr-ready",
-    ]) {
+    for (const name of ["loop-dod", "loop-tdd-round", "loop-fix-ci"]) {
       const prompt = promptOf(name).replace(/\s+/g, " ");
 
       expect(prompt, name).toContain("git rebase origin/main");
@@ -1008,27 +985,84 @@ describe("the loop's branch sync keeps both sides' work", () => {
   });
 });
 
-describe("the loop's recipes that write code lint what they changed", () => {
-  it("tells loop-dod, loop-tdd-round and loop-fix-ci to run eslint --fix over the files they changed before committing, never over the whole repository", () => {
+describe("the recipes that write files lint what they changed", () => {
+  it("tells every recipe that writes files to run eslint --fix with a 3 GB heap over the files it changed, one package per call, never over the whole repository", () => {
     for (const name of LINTING_RECIPES) {
       const prompt = promptOnOneLine(name);
 
       expect(
         {
           lintsChanged: prompt.includes(
-            "timeout 300 npx --no-install eslint --fix <files>",
+            "`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`",
           ),
+          onePackage: prompt.includes("one package per call"),
           neverWholeRepo: prompt.includes("Never lint the whole repository"),
           installsFirst: prompt.includes("install the dependencies first"),
           runsNoTests: prompt.includes("Linting is not testing"),
+          forbidsLint: /(not|never) run (the|a) linter/i.test(prompt),
         },
         name,
       ).toEqual({
         lintsChanged: true,
+        onePackage: true,
         neverWholeRepo: true,
         installsFirst: true,
         runsNoTests: true,
+        forbidsLint: false,
       });
     }
+  });
+
+  it("lets the reviewers lint the changed files without --fix to confirm a finding, after reading CI's verdict", () => {
+    for (const name of REVIEWING_RECIPES) {
+      const prompt = promptOnOneLine(name);
+
+      expect(
+        {
+          lints: prompt.includes(
+            "`NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint <files>`",
+          ),
+          onePackage: prompt.includes("one package per call"),
+          neverFixes: prompt.includes("Never `--fix`"),
+          forbidsEslint: prompt.includes("do not run eslint"),
+        },
+        name,
+      ).toEqual({
+        lints: true,
+        onePackage: true,
+        neverFixes: true,
+        forbidsEslint: false,
+      });
+    }
+  });
+});
+
+describe("the formatter and linter commands every recipe names", () => {
+  it("names no formatter or linter through npx without --no-install, which the pod's guard refuses", () => {
+    const downloading = [...SHIPPED.keys()].filter((name) =>
+      /npx (prettier|eslint|biome|ruff|black)\b/.test(promptOf(name)),
+    );
+
+    expect(downloading).toEqual([]);
+  });
+});
+
+describe("the spec tickets decompose on work outside the repository", () => {
+  it("has spec-tickets-decompose set needs_person only on a task the loop cannot do from a checkout of the repo, in a task of its own", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      field: prompt.includes('"needs_person": "<'),
+      outsideRepo: prompt.includes(
+        "only on a task the implementation loop cannot do from a checkout of this repository",
+      ),
+      codeIsLoops: prompt.includes("Never set it on code, tests, docs"),
+      ownTask: prompt.includes("Give that step a task of its own"),
+    }).toEqual({
+      field: true,
+      outsideRepo: true,
+      codeIsLoops: true,
+      ownTask: true,
+    });
   });
 });

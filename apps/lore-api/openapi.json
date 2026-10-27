@@ -933,6 +933,90 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/cancel": {
+      "post": {
+        "operationId": "post_api_assembly-runs_id_cancel",
+        "summary": "POST /api/assembly-runs/{id}/cancel",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The floor cancelled the open run, with a reason naming who asked when the body says. 404 for a run the floor does not have, 409 for a run already finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunCancelled"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "requested_by": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/assembly-runs/{id}/dod": {
       "get": {
         "operationId": "get_api_assembly-runs_id_dod",
@@ -10436,6 +10520,19 @@
         "required": ["text"],
         "additionalProperties": false
       },
+      "AssemblyRunCancelled": {
+        "type": "object",
+        "properties": {
+          "cancelled": {
+            "type": "boolean"
+          },
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": ["cancelled", "run_id"],
+        "additionalProperties": false
+      },
       "AssemblyRunDetail": {
         "type": "object",
         "properties": {
@@ -13201,6 +13298,12 @@
             "required": ["merged", "pr_url", "last_task"],
             "additionalProperties": false
           },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "current": {
             "type": "array",
             "items": {
@@ -13285,6 +13388,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13389,6 +13497,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13490,6 +13603,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13591,6 +13709,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -13692,6 +13815,11 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unblocks_count": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -20974,6 +21102,9 @@
                 "tokensIn": {
                   "type": ["number", "null"]
                 },
+                "cacheReadTokens": {
+                  "type": ["number", "null"]
+                },
                 "tokensOut": {
                   "type": ["number", "null"]
                 }
@@ -20984,6 +21115,7 @@
                 "model",
                 "costUsd",
                 "tokensIn",
+                "cacheReadTokens",
                 "tokensOut"
               ],
               "additionalProperties": false

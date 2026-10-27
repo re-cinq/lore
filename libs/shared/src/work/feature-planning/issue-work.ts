@@ -1,7 +1,12 @@
 // What the `issues` station files, decided from the decomposition alone. Pure: the station does the IO, this decides.
 
-import { DEFAULT_PRIORITY, PRIORITY_LABELS } from "../backlog/labels.js";
+import {
+  DEFAULT_PRIORITY,
+  LORE_BLOCKED_LABEL,
+  PRIORITY_LABELS,
+} from "../backlog/labels.js";
 import type {
+  DecompTask,
   DecompositionResult,
   UserStory,
 } from "../../domain/feature-planning/decomposition-result.js";
@@ -126,29 +131,33 @@ function plannedStory(
 
 function plannedTasks(
   stories: DecompositionResult["stories"],
-  labelsOf: (chosen: readonly string[]) => string[],
+  labelsOf: (task: DecompTask) => string[],
 ): PlannedTask[] {
   return stories.flatMap((story, storyIndex) =>
     story.tasks.map((task) => ({
       title: `${task.id}: ${task.title ?? task.description}`,
       description: task.description,
-      labels: labelsOf(task.labels ?? []),
+      labels: labelsOf(task),
       storyIndex,
       task,
     })),
   );
 }
 
-/** A task issue's labels: its own, Lore's, and the priority label that queues it for the implementation loop — added only when the decomposition chose none, because `orderBacklog` holds back a ticket carrying two. */
-function taskLabels(chosen: readonly string[]): string[] {
+/** A task issue's labels: its own, Lore's, and the priority label that queues it for the implementation loop — added only when the decomposition chose none, because `orderBacklog` holds back a ticket carrying two — then `lore:blocked` on a task a person must do, so removing it is all that queues the ticket. */
+function taskLabels({
+  labels: chosen = [],
+  needs_person,
+}: DecompTask): string[] {
   const queued = PRIORITY_LABELS.some((p) => chosen.includes(p))
     ? []
     : [DEFAULT_PRIORITY];
+  const parked = needs_person ? [LORE_BLOCKED_LABEL] : [];
 
-  return distinct([...chosen, ...BASE_TASK_LABELS, ...queued]);
+  return distinct([...chosen, ...BASE_TASK_LABELS, ...queued, ...parked]);
 }
 
-function unqueuedLabels(chosen: readonly string[]): string[] {
+function unqueuedLabels({ labels: chosen = [] }: DecompTask): string[] {
   const unprioritized = chosen.filter(
     (label) => !(PRIORITY_LABELS as readonly string[]).includes(label),
   );

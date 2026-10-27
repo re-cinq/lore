@@ -26,6 +26,13 @@ const UPGRADE_RUN_OPTIONS = zodResponse(bearerScope("task"), UpgradedRun, {
   errors: [404, 409],
 });
 
+/** The two routes of the run page's "Upgrade assembly line": whether one is available, and the upgrade itself. */
+export function upgradeRoutes(
+  floorOf: () => UpgradeRunFloor = floorClient,
+): ServerRoute[] {
+  return [upgradeStateRoute(floorOf), upgradeRunRoute(floorOf)];
+}
+
 export function upgradeStateRoute(
   floorOf: () => UpgradeRunFloor = floorClient,
 ): ServerRoute {
