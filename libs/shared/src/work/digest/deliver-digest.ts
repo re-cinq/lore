@@ -8,7 +8,7 @@ import {
   splitDigestMessage,
   stripAppendix,
 } from "./render.js";
-import { splitForSlack } from "./split-for-slack.js";
+import { toSlackMessages, type SlackMessage } from "./slack-sections.js";
 import { digestRunOf, type DigestRun } from "./digest-run.js";
 
 /** A digest.md the supervisor uploaded after its agent exited; `exitCode` is null when the supervisor did not say. */
@@ -129,7 +129,7 @@ async function postClaimed(
   deps: DeliverDeps,
 ): Promise<DigestDelivery> {
   const progress: Progress = { threadTs: "", replies: 0 };
-  const chunks = splitForSlack(message);
+  const chunks = toSlackMessages(message);
 
   try {
     progress.threadTs = await threadOf(digest, deps);
@@ -187,14 +187,14 @@ async function threadOf(digest: DigestRun, deps: DeliverDeps): Promise<string> {
 /** Consecutive replies inside the thread, never broadcast: the channel shows only the week's parent (FR7). Sequential on purpose: Slack orders replies by arrival. */
 async function postChunks(
   digest: DigestRun,
-  chunks: string[],
+  chunks: SlackMessage[],
   progress: Progress,
   poster: SlackPosterPort,
 ): Promise<void> {
-  for (const text of chunks) {
+  for (const chunk of chunks) {
     await poster.post({
       channel: digest.channel,
-      text,
+      ...chunk,
       threadTs: progress.threadTs,
     });
     progress.replies += 1;

@@ -19,20 +19,20 @@ const alice = {
 };
 
 describe("renderPeople", () => {
-  it("writes one line per person with what they did and what is next", () => {
+  it("puts alice's name on its own line above her did and next bullets", () => {
     expect(renderPeople([alice], {})).toEqual([
-      "*alice* — did: <https://gh/pr/1|Add digest> (#1) · next: <https://gh/i/20|Roadmap> (#20)",
+      "*alice*\n• did: <https://gh/pr/1|Add digest> (#1)\n• next: <https://gh/i/20|Roadmap> (#20)",
     ]);
   });
 
   it("leaves out a list the person has nothing in", () => {
     expect(renderPeople([{ ...alice, next: [] }], {})).toEqual([
-      "*alice* — did: <https://gh/pr/1|Add digest> (#1)",
+      "*alice*\n• did: <https://gh/pr/1|Add digest> (#1)",
     ]);
   });
 
   it("lists a closed issue and an open PR with their numbers", () => {
-    const [line] = renderPeople(
+    const [block] = renderPeople(
       [
         {
           login: "carol",
@@ -43,23 +43,43 @@ describe("renderPeople", () => {
       {},
     );
 
-    expect(line).toBe(
-      "*carol* — did: <https://gh/i/12|Bug> (#12) · next: <https://gh/pr/30|Draft> (#30)",
+    expect(block).toBe(
+      "*carol*\n• did: <https://gh/i/12|Bug> (#12)\n• next: <https://gh/pr/30|Draft> (#30)",
     );
   });
 
-  it("shows 3 titles and counts the other 2 as +2 more", () => {
+  it("lists all 5 merged titles under did with no +N more", () => {
     const five = Array.from({ length: 5 }, (_, i) =>
-      mergedPr({ number: 100 + i, title: `PR ${i}` }),
+      mergedPr({
+        number: 100 + i,
+        title: `PR ${i}`,
+        url: `https://gh/pr/${100 + i}`,
+      }),
     );
-    const [line] = renderPeople([{ login: "bob", did: five, next: [] }], {});
+    const [block] = renderPeople([{ login: "bob", did: five, next: [] }], {});
 
-    expect(line).toContain("PR 2> (#102), +2 more");
-    expect(line).not.toContain("PR 3");
+    expect(block).toBe(
+      `*bob*\n• did: ${five.map((pr, i) => `<https://gh/pr/${100 + i}|PR ${i}> (#${pr.number})`).join(", ")}`,
+    );
+  });
+
+  it("shows 3 next titles and counts the other 2 as +2 more", () => {
+    const five = Array.from({ length: 5 }, (_, i) =>
+      openPr({
+        number: 100 + i,
+        title: `PR ${i}`,
+        url: `https://gh/pr/${100 + i}`,
+      }),
+    );
+    const [block] = renderPeople([{ login: "bob", did: [], next: five }], {});
+
+    expect(block).toBe(
+      "*bob*\n• next: <https://gh/pr/100|PR 0> (#100), <https://gh/pr/101|PR 1> (#101), <https://gh/pr/102|PR 2> (#102), +2 more",
+    );
   });
 
   it("shows Alice Smith for alice and sorts people by the name shown", () => {
-    const lines = renderPeople(
+    const blocks = renderPeople(
       [
         { ...alice, login: "zed" },
         { ...alice, login: "alice" },
@@ -67,7 +87,7 @@ describe("renderPeople", () => {
       { zed: "Ana" },
     );
 
-    expect(lines.map((line) => line.split(" — ")[0])).toEqual([
+    expect(blocks.map((block) => block.split("\n")[0])).toEqual([
       "*alice*",
       "*Ana*",
     ]);
@@ -86,15 +106,15 @@ describe("renderDigestDraft", () => {
   const draft = (overrides = {}) =>
     renderDigestDraft({
       header: { weekKey: "2026-W39", date: "2026-09-25" },
-      lines: ["*alice* — did: a", "*bob* — next: b"],
+      lines: ["*alice*\n• did: a", "*bob*\n• next: b"],
       wantsIntro: true,
       recentIntros: ["Old intro"],
       ...overrides,
     });
 
-  it("puts the intro marker, the dated title over the people lines, then the appendix", () => {
+  it("puts the intro marker, the dated title, a paragraph per person, then the appendix", () => {
     expect(draft().split(`\n\n${APPENDIX_MARKER}`)[0]).toBe(
-      `${INTRO_MARKER}\n\n*Daily digest · 2026-09-25*\n*alice* — did: a\n*bob* — next: b`,
+      `${INTRO_MARKER}\n\n*Daily digest · 2026-09-25*\n\n*alice*\n• did: a\n\n*bob*\n• next: b`,
     );
   });
 
@@ -140,6 +160,18 @@ describe("splitDigestMessage", () => {
     });
   });
 
+  it("keeps a message ending on a person block as body, not as an ending", () => {
+    expect(
+      splitDigestMessage(
+        "Hello team.\n\n*Daily digest · 2026-10-27*\n\n*alice*\n• did: a (#1)",
+      ),
+    ).toEqual({
+      intro: "Hello team.",
+      body: "*Daily digest · 2026-10-27*\n\n*alice*\n• did: a (#1)",
+      ending: "",
+    });
+  });
+
   it("returns empty intro and ending for a one-paragraph message", () => {
     expect(splitDigestMessage("*repo*\n• item")).toEqual({
       intro: "",
@@ -169,17 +201,17 @@ describe("renderChangelogLinks", () => {
     );
   });
 
-  it("puts the footer under the people lines in the same paragraph", () => {
+  it("puts the footer in its own paragraph under the people", () => {
     const text = renderDigestDraft({
       header: { weekKey: "2026-W43", date: "2026-10-23" },
-      lines: ["*alice* — did: a"],
+      lines: ["*alice*\n• did: a"],
       footer: "Full list: x",
       wantsIntro: false,
       recentIntros: [],
     });
 
     expect(text.split(`\n\n${APPENDIX_MARKER}`)[0]).toBe(
-      "*Daily digest · 2026-10-23*\n*alice* — did: a\nFull list: x",
+      "*Daily digest · 2026-10-23*\n\n*alice*\n• did: a\n\nFull list: x",
     );
   });
 });

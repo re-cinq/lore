@@ -179,9 +179,9 @@ describe("digestDraftOf", () => {
       (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
 
     expect(
-      draft.split("\n").filter((line) => line.startsWith("*alice*")),
+      draft.split("\n\n").filter((block) => block.startsWith("*alice*")),
     ).toEqual([
-      "*alice* — did: <https://gh/re-cinq/lore/pr/1|Merged in re-cinq/lore> (#1), <https://gh/re-cinq/otto/pr/1|Merged in re-cinq/otto> (#1)",
+      "*alice*\n• did: <https://gh/re-cinq/lore/pr/1|Merged in re-cinq/lore> (#1), <https://gh/re-cinq/otto/pr/1|Merged in re-cinq/otto> (#1)",
     ]);
   });
 
