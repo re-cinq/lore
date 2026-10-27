@@ -56,5 +56,13 @@ function wireBody(input: SlackPost): Record<string, unknown> {
     text: input.text,
     unfurl_links: input.unfurlLinks ?? true,
     ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
+    ...(input.attachments
+      ? {
+          attachments: input.attachments.map((attachment) => ({
+            ...attachment,
+            mrkdwn_in: ["text"],
+          })),
+        }
+      : {}),
   };
 }
