@@ -23,7 +23,7 @@ Context quality was static — no automated mechanism to detect knowledge gaps f
 
 ## Decision
 
-_(Amended 2026-10-02.)_ None of the three jobs runs any more. The nightly `eval_runner` and `context_core_builder` jobs were deleted with Lore's own Floor on 2026-10-02, and the weekly `autoresearch` job went with them. Context evals are a nightly GitHub Actions job that asks lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443). It keeps no stored baseline: the tables `pipeline.eval_runs` and `pipeline.context_core_history` were dropped by migration 0101, and `pipeline.research_attempts` with them. What follows is the original decision, kept as the record.
+_(Amended 2026-10-02.)_ None of the three jobs runs any more. The nightly `eval_runner` and `context_core_builder` jobs were deleted with Lore's own Floor on 2026-10-02, and the weekly `autoresearch` job went with them. Context evals ask lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443). _(Amended 2026-10-27.)_ They ran as a nightly GitHub Actions job until #2823 removed the schedule on 2026-10-19; they are now run by hand from a developer machine (`scripts/context-evals/run.mjs`). It keeps no stored baseline: the tables `pipeline.eval_runs` and `pipeline.context_core_history` were dropped by migration 0101, and `pipeline.research_attempts` with them. What follows is the original decision, kept as the record.
 
 The original decision implemented 3 Lore Agent scheduled jobs:
 
