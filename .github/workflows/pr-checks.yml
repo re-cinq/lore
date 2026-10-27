@@ -215,6 +215,11 @@ jobs:
           # directly with the root-hoisted vitest.
           - name: vitest-workspace-source
             test: npx vitest run tools/vitest/workspace-source.test.ts
+          # Acceptance test for the agent runner image: builds the Docker image
+          # and verifies that gh CLI is available inside it. Runs on ubuntu-latest
+          # which has Docker installed. No workspace deps — no build step needed.
+          - name: agent-image
+            test: npx vitest run apps/agent-image/agent-image.acceptance.test.ts
           # Guard: fails if any *.test.* or *.spec.* file has no CI runner.
           # Pure node script — no build needed.
           - name: orphaned-tests
