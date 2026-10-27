@@ -8633,6 +8633,263 @@
         }
       }
     },
+    "/api/skill-definitions": {
+      "get": {
+        "operationId": "get_api_skill-definitions",
+        "summary": "GET /api/skill-definitions",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The org-level skill definitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDefinitionsList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      },
+      "post": {
+        "operationId": "post_api_skill-definitions",
+        "summary": "POST /api/skill-definitions",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Create an org-level skill definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDefinitionCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "default": "",
+                    "type": "string"
+                  },
+                  "model": {
+                    "default": null,
+                    "type": ["string", "null"]
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  }
+                },
+                "required": ["title", "content", "name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skill-definitions/{name}": {
+      "put": {
+        "operationId": "put_api_skill-definitions_name",
+        "summary": "PUT /api/skill-definitions/{name}",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Replace an org-level skill definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDefinitionUpdated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "default": "",
+                    "type": "string"
+                  },
+                  "model": {
+                    "default": null,
+                    "type": ["string", "null"]
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["title", "content"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_api_skill-definitions_name",
+        "summary": "DELETE /api/skill-definitions/{name}",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Delete an org-level skill definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDefinitionDeleted"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/spec-links/parse": {
       "post": {
         "operationId": "post_api_spec-links_parse",
@@ -18232,6 +18489,160 @@
           }
         },
         "required": ["pools"],
+        "additionalProperties": false
+      },
+      "SkillDefinitionCreated": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "skill": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "model": {
+                "type": ["string", "null"]
+              },
+              "content": {
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "projectId": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "name",
+              "title",
+              "description",
+              "model",
+              "content",
+              "enabled",
+              "projectId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "skill"],
+        "additionalProperties": false
+      },
+      "SkillDefinitionDeleted": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "deleted": {
+            "type": "string"
+          }
+        },
+        "required": ["ok", "deleted"],
+        "additionalProperties": false
+      },
+      "SkillDefinitionUpdated": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "skill": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "model": {
+                "type": ["string", "null"]
+              },
+              "content": {
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "projectId": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "name",
+              "title",
+              "description",
+              "model",
+              "content",
+              "enabled",
+              "projectId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "skill"],
+        "additionalProperties": false
+      },
+      "SkillDefinitionsList": {
+        "type": "object",
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": ["string", "null"]
+                },
+                "content": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "projectId": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "name",
+                "title",
+                "description",
+                "model",
+                "content",
+                "enabled",
+                "projectId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["skills"],
         "additionalProperties": false
       },
       "SlackAck": {
