@@ -1,0 +1,501 @@
+---
+name: testing
+description: Testing patterns for behavior-driven tests. Use when writing tests, creating test factories, structuring test files, or deciding what to test. Do NOT use for UI-specific testing (see front-end-testing or react-testing skills).
+---
+
+# Testing Patterns
+
+For verifying test effectiveness through mutation analysis, load the `mutation-testing` skill. Use its mutator rules while planning and writing tests, not only after tests exist. For evaluating test quality against Dave Farley's properties, load the `test-design-reviewer` skill.
+
+## Core Principle
+
+**Test behavior, not implementation.** 100% coverage through business behavior, not implementation details.
+
+**Example:** Validation code in `payment-validator.ts` gets 100% coverage by testing `processPayment()` behavior, NOT by directly testing validator functions.
+
+---
+
+## Mutation-Aware Test Planning
+
+When planning or writing tests, automatically scan the intended behavior and changed production code against the mutator rules from the `mutation-testing` skill's `resources/mutator-rules.md` resource. A good test should fail if a realistic mutant changes the behavior.
+
+Load that resource when the code under test includes conditionals, arithmetic, equality, boolean logic, array/string operations, optional chaining, or meaningful side effects. Use it to identify likely surviving mutants before the Stryker run.
+
+When the scan finds an obvious gap, add or strengthen a behavior test immediately. When the gap depends on product or domain judgment, use the harness's ask-question facility before choosing a test. Ask one concise question with concrete choices, explain the potential mutant, and state the tradeoff.
+
+Example ask-question prompt:
+
+```markdown
+The discount rule uses `subtotal >= 100`, but current tests only cover `150`.
+Should the exact `100` boundary receive the discount?
+- Yes: add a boundary test for `100`
+- No: change/confirm the rule as `subtotal > 100`
+- Unspecified: document the behavior as intentionally not guaranteed
+```
+
+Do not ask when the gap is plainly a missing assertion, missing boundary, missing branch, or missing side-effect check. Fix those directly.
+
+---
+
+## Test Through Public API Only
+
+Never test implementation details. Test behavior through public APIs.
+
+**Why this matters:**
+- Tests remain valid when refactoring
+- Tests document intended behavior
+- Tests catch real bugs, not implementation changes
+
+### Examples
+
+❌ **WRONG - Testing implementation:**
+```typescript
+// ❌ Testing HOW (implementation detail)
+it('should call validateAmount', () => {
+  const spy = vi.spyOn(validator, 'validateAmount');
+  processPayment(payment);
+  expect(spy).toHaveBeenCalled(); // Tests HOW, not WHAT
+});
+
+// ❌ Testing private methods
+it('should validate CVV format', () => {
+  const result = validator._validateCVV('123'); // Private method!
+  expect(result).toBe(true);
+});
+
+// ❌ Testing internal state
+it('should set isValidated flag', () => {
+  processPayment(payment);
+  expect(processor.isValidated).toBe(true); // Internal state
+});
+```
+
+✅ **CORRECT - Testing behavior through public API:**
+```typescript
+it('should reject negative amounts', () => {
+  const payment = getMockPayment({ amount: -100 });
+  const result = processPayment(payment);
+  expect(result).toEqual({ success: false, error: expect.stringContaining('Amount must be positive') });
+});
+
+it('should reject invalid CVV', () => {
+  const payment = getMockPayment({ cvv: '12' }); // Only 2 digits
+  const result = processPayment(payment);
+  expect(result).toEqual({ success: false, error: expect.stringContaining('Invalid CVV') });
+});
+
+it('should process valid payments', () => {
+  const payment = getMockPayment({ amount: 100, cvv: '123' });
+  const result = processPayment(payment);
+  expect(result).toEqual({ success: true, data: { transactionId: expect.any(String) } });
+});
+```
+
+Assert on the whole `Result` value rather than reaching for `result.error`/`result.data` after a separate `expect(result.success)` — `expect(...).toBe(false)` does not narrow a discriminated union, so member access on the un-narrowed `Result` fails under strict TypeScript, and the whole-value assertion is stronger against mutants anyway.
+
+---
+
+## Coverage Through Behavior
+
+Validation code gets 100% coverage by testing the behavior it protects:
+
+```typescript
+// Tests covering validation WITHOUT testing validator directly
+describe('processPayment', () => {
+  it('should reject negative amounts', () => {
+    const payment = getMockPayment({ amount: -100 });
+    const result = processPayment(payment);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject amounts over 10000', () => {
+    const payment = getMockPayment({ amount: 15000 });
+    const result = processPayment(payment);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject invalid CVV', () => {
+    const payment = getMockPayment({ cvv: '12' });
+    const result = processPayment(payment);
+    expect(result.success).toBe(false);
+  });
+
+  it('should process valid payments', () => {
+    const payment = getMockPayment({ amount: 100, cvv: '123' });
+    const result = processPayment(payment);
+    expect(result.success).toBe(true);
+  });
+});
+
+// ✅ Result: payment-validator.ts has 100% coverage through behavior
+```
+
+**Key insight:** When coverage drops, ask **"What business behavior am I not testing?"** not "What line am I missing?"
+
+---
+
+## Don't Extract for Testability
+
+Never extract a function into its own file purely to give it its own unit test. Extract for readability (a descriptive name clarifies intent), for DRY (same **knowledge** used in multiple places — see the `refactoring` skill's "DRY = Knowledge, Not Code" rule), or for separation of concerns. Not for testability.
+
+If code is inline in a function, it gets coverage through that function's behavioral tests. Every layer has behavioral tests — domain functions have vitest unit tests, components have browser tests, pages have integration tests. There is no gap.
+
+The anti-pattern is creating a 1:1 mapping between extracted helpers and test files (see "No 1:1 Mapping" below). The extracted helper is an implementation detail of its consumer. Test the consumer's behavior.
+
+❌ **WRONG — Extracted single-use helper with its own test file:**
+```typescript
+// prepare-participant-data.ts (new file, one caller)
+export const prepareParticipantData = (items: Item[]) => ({
+  yourClaims: items.filter(i => i.isClaimed && i.isClaimedByCurrentUser),
+  available: items.filter(i => !i.isClaimedByCurrentUser),
+});
+
+// prepare-participant-data.test.ts (tests the helper directly)
+it('filters claims', () => { ... });
+```
+
+✅ **CORRECT — Inline in the consuming function, tested through its behavior:**
+```typescript
+// load-participant-view.ts
+export const loadParticipantView = async (db: Db, eventId: EventId, userId: UserId) => {
+  const items = await getItems(db, eventId, userId);
+  const yourClaims = items.filter(i => i.isClaimed && i.isClaimedByCurrentUser);
+  const available = items.filter(i => !i.isClaimedByCurrentUser);
+  return { yourClaims, available };
+};
+
+// The behavioral test for loadParticipantView covers the filtering:
+it('returns claimed gifts in yourClaims and unclaimed in available', async () => {
+  const result = await loadParticipantView(db, eventId, userId);
+  expect(result.yourClaims).toHaveLength(1);
+  expect(result.available).toHaveLength(2);
+});
+```
+
+**When extraction IS justified (DRY):** If the same filtering logic is used by multiple consumers with the same business meaning, extract it. But test it through each consumer's behavior, not as an isolated unit.
+
+---
+
+## Test Factory Pattern
+
+For test data, use factory functions with optional overrides.
+
+### Core Principles
+
+1. Return complete objects with sensible defaults
+2. Accept `Partial<T>` overrides for customization
+3. Validate with real schemas (don't redefine)
+4. NO `let`/`beforeEach` - use factories for fresh state
+
+### Basic Pattern
+
+```typescript
+const getMockUser = (overrides?: Partial<User>): User => {
+  return UserSchema.parse({
+    id: 'user-123',
+    name: 'Test User',
+    email: 'test@example.com',
+    role: 'user',
+    ...overrides,
+  });
+};
+
+// Usage
+it('creates user with custom email', () => {
+  const user = getMockUser({ email: 'custom@example.com' });
+  const result = createUser(user);
+  expect(result.success).toBe(true);
+});
+```
+
+### Complete Factory Example
+
+```typescript
+import { UserSchema } from '@/schemas'; // Import real schema
+
+const getMockUser = (overrides?: Partial<User>): User => {
+  return UserSchema.parse({
+    id: 'user-123',
+    name: 'Test User',
+    email: 'test@example.com',
+    role: 'user',
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    ...overrides,
+  });
+};
+```
+
+**Why validate with schema?**
+- Ensures test data is valid according to production schema
+- Catches breaking changes early (schema changes fail tests)
+- Single source of truth (no schema redefinition)
+
+**Tip:** For factories where only a subset of fields are relevant, use `Partial<Pick<T, 'field1' | 'field2'>>` for the overrides parameter to constrain what callers can customize (a bare `Pick` keeps every picked field required, so overriding just one field would not compile).
+
+### Factory Composition
+
+For nested objects, compose factories:
+
+```typescript
+const getMockItem = (overrides?: Partial<Item>): Item => {
+  return ItemSchema.parse({
+    id: 'item-1',
+    name: 'Test Item',
+    price: 100,
+    ...overrides,
+  });
+};
+
+const getMockOrder = (overrides?: Partial<Order>): Order => {
+  return OrderSchema.parse({
+    id: 'order-1',
+    items: [getMockItem()],      // ✅ Compose factories
+    customer: getMockCustomer(),  // ✅ Compose factories
+    payment: getMockPayment(),    // ✅ Compose factories
+    ...overrides,
+  });
+};
+
+// Usage - override nested objects
+it('calculates total with multiple items', () => {
+  const order = getMockOrder({
+    items: [
+      getMockItem({ price: 100 }),
+      getMockItem({ price: 200 }),
+    ],
+  });
+  expect(calculateTotal(order)).toBe(300);
+});
+```
+
+### Anti-Patterns
+
+❌ **WRONG: Using `let` and `beforeEach`**
+```typescript
+let user: User;
+beforeEach(() => {
+  user = { id: 'user-123', name: 'Test User', ... };  // Shared mutable state!
+});
+
+it('test 1', () => {
+  user.name = 'Modified User';  // Mutates shared state
+});
+
+it('test 2', () => {
+  expect(user.name).toBe('Test User');  // Fails! Modified by test 1
+});
+```
+
+✅ **CORRECT: Factory per test**
+```typescript
+it('test 1', () => {
+  const user = getMockUser({ name: 'Modified User' });  // Fresh state
+  // ...
+});
+
+it('test 2', () => {
+  const user = getMockUser();  // Fresh state, not affected by test 1
+  expect(user.name).toBe('Test User');  // ✅ Passes
+});
+```
+
+❌ **WRONG: Incomplete objects**
+```typescript
+const getMockUser = () => ({
+  id: 'user-123',  // Missing name, email, role!
+});
+```
+
+✅ **CORRECT: Complete objects**
+```typescript
+const getMockUser = (overrides?: Partial<User>): User => {
+  return UserSchema.parse({
+    id: 'user-123',
+    name: 'Test User',
+    email: 'test@example.com',
+    role: 'user',
+    ...overrides,  // All required fields present
+  });
+};
+```
+
+❌ **WRONG: Redefining schemas in tests**
+```typescript
+// ❌ Schema already defined in src/schemas/user.ts!
+const UserSchema = z.object({ ... });
+const getMockUser = () => UserSchema.parse({ ... });
+```
+
+✅ **CORRECT: Import real schema**
+```typescript
+import { UserSchema } from '@/schemas/user';
+
+const getMockUser = (overrides?: Partial<User>): User => {
+  return UserSchema.parse({
+    id: 'user-123',
+    name: 'Test User',
+    email: 'test@example.com',
+    ...overrides,
+  });
+};
+```
+
+---
+
+## Coverage Theater Detection
+
+Watch for these patterns that give fake 100% coverage:
+
+### Pattern 1: Mock the function being tested
+
+❌ **WRONG** - Gives 100% coverage but tests nothing:
+```typescript
+it('calls validator', () => {
+  const spy = vi.spyOn(validator, 'validate');
+  validator.validate(payment);
+  expect(spy).toHaveBeenCalled(); // Meaningless assertion
+});
+```
+
+✅ **CORRECT** - Test actual behavior:
+```typescript
+it('should reject invalid payment', () => {
+  const payment = getMockPayment({ amount: -100 });
+  const result = validate(payment);
+  expect(result).toEqual({ success: false, error: expect.stringContaining('Amount must be positive') });
+});
+```
+
+### Pattern 2: Test only that function was called
+
+❌ **WRONG** - No behavior validation:
+```typescript
+it('processes payment', () => {
+  const spy = vi.spyOn(processor, 'process');
+  handlePayment(payment);
+  expect(spy).toHaveBeenCalledWith(payment); // So what?
+});
+```
+
+✅ **CORRECT** - Verify the outcome:
+```typescript
+it('should process payment and return transaction ID', () => {
+  const payment = getMockPayment();
+  const result = handlePayment(payment);
+  expect(result).toEqual({ success: true, data: { transactionId: expect.any(String) } });
+});
+```
+
+**Exception**: asserting on a callback passed in through the public API is behavior testing, not coverage theater. When a component or function accepts a callback (e.g. an `onSubmit` prop), that callback contract IS the output — `expect(handleSubmit).toHaveBeenCalledWith(...)` verifies observable behavior. What this pattern forbids is spying on internal collaborators the caller never provided.
+
+### Pattern 3: Test trivial getters/setters
+
+❌ **WRONG** - Testing implementation, not behavior:
+```typescript
+it('sets amount', () => {
+  payment.setAmount(100);
+  expect(payment.getAmount()).toBe(100); // Trivial
+});
+```
+
+✅ **CORRECT** - Test meaningful behavior:
+```typescript
+it('should calculate total with tax', () => {
+  const order = createOrder({ items: [item1, item2] });
+  const total = order.calculateTotal();
+  expect(total).toBe(230); // 200 + 15% tax
+});
+```
+
+### Pattern 4: 100% line coverage, 0% branch coverage
+
+❌ **WRONG** - Missing edge cases:
+```typescript
+it('validates payment', () => {
+  const result = validate(getMockPayment());
+  expect(result.success).toBe(true); // Only happy path!
+});
+// Missing: negative amounts, invalid CVV, missing fields, etc.
+```
+
+✅ **CORRECT** - Test all branches:
+```typescript
+describe('validate payment', () => {
+  it('should reject negative amounts', () => {
+    const payment = getMockPayment({ amount: -100 });
+    expect(validate(payment).success).toBe(false);
+  });
+
+  it('should reject amounts over limit', () => {
+    const payment = getMockPayment({ amount: 15000 });
+    expect(validate(payment).success).toBe(false);
+  });
+
+  it('should reject invalid CVV', () => {
+    const payment = getMockPayment({ cvv: '12' });
+    expect(validate(payment).success).toBe(false);
+  });
+
+  it('should accept valid payments', () => {
+    const payment = getMockPayment();
+    expect(validate(payment).success).toBe(true);
+  });
+});
+```
+
+---
+
+## No 1:1 Mapping Between Tests and Implementation
+
+Don't create test files that mirror implementation files.
+
+❌ **WRONG:**
+```
+src/
+  payment-validator.ts
+  payment-processor.ts
+  payment-formatter.ts
+tests/
+  payment-validator.test.ts  ← 1:1 mapping
+  payment-processor.test.ts  ← 1:1 mapping
+  payment-formatter.test.ts  ← 1:1 mapping
+```
+
+✅ **CORRECT:**
+```
+src/
+  payment-validator.ts
+  payment-processor.ts
+  payment-formatter.ts
+tests/
+  process-payment.test.ts  ← Tests behavior, not implementation files
+```
+
+**Why:** Implementation details can be refactored without changing tests. Tests verify behavior remains correct regardless of how code is organized internally.
+
+---
+
+## Summary Checklist
+
+When writing tests, verify:
+
+- [ ] Testing behavior through public API (not implementation details)
+- [ ] No mocks of the function being tested
+- [ ] No tests of private methods or internal state
+- [ ] Factory functions return complete, valid objects
+- [ ] Factories validate with real schemas (not redefined in tests)
+- [ ] Using Partial<T> for type-safe overrides
+- [ ] No `let`/`beforeEach` - use factories for fresh state
+- [ ] Edge cases covered (not just happy path)
+- [ ] Tests would pass even if implementation is refactored
+- [ ] No 1:1 mapping between test files and implementation files
+
+## Help
+
+<!-- lore-help:begin -->
+**Summary.** Write behavior-driven tests with test factories and a clear file structure, and decide what is worth testing.
+**Usage:** `/testing`
+**Use when.** You are writing or restructuring tests and need to choose what to assert and how to build test data.
+**Related:** `/front-end-testing`, `/react-testing`, `/test-design-reviewer`
+<!-- lore-help:end -->

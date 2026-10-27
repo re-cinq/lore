@@ -206,6 +206,9 @@ layers:
     domain:
       - lib
     lib: []
+    agent-defaults:
+      - domain
+      - lib
     # In-memory doubles and fixtures. A leaf that only tests reach — listed so it
     # has an entry at all, since an unlisted folder may import nothing.
     test-helpers:
