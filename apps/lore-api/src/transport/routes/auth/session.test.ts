@@ -56,10 +56,10 @@ describe("GET /api/auth/access", () => {
     expect(JSON.parse(res.payload)).toEqual({ allowed: false });
   });
 
-  it("answers allowed true for an org admin on any repo", async () => {
+  it("answers allowed false for a repo outside the person's list even with the admin scope", async () => {
     const res = await ask("someone/else", asUser([], ["admin"]));
 
-    expect(JSON.parse(res.payload)).toEqual({ allowed: true });
+    expect(JSON.parse(res.payload)).toEqual({ allowed: false });
   });
 
   it("answers allowed true for a service token, which no person limits", async () => {
