@@ -444,16 +444,13 @@ All state is in terraform. Secrets are in the vault. Everything else is in the t
 
 ## Known rough edges
 
-What a non-re-cinq install hits today. Each is a ticket; the doc keeps the list until the fix lands.
+What a non-re-cinq install hits today. Each is an open issue; the doc keeps the list until the fix lands.
 
-1. **Helm-only install is assembled by hand.** The ingresses, the Dgraph StatefulSet, the ExternalSecrets and the floor NetworkPolicy exist only as terraform (`infra/terraform/*.tf`); no subchart renders an Ingress, and the umbrella values default the Postgres host to the CNPG Service and carry `GCP_PROJECT`. Section 4.1 lists what to apply by hand until the chart grows optional templates for them.
-2. **Embeddings are Vertex only** (1.6). A second `EmbeddingProvider` at 768 dimensions is the fix.
-3. The schema scripts `scripts/infra/setup-*.sh` reach Postgres through `kubectl exec` into a CNPG pod; a managed server needs the `psql` shim.
-4. `lore-stations` references `ghcr-pull-secret` but our terraform mirrors it only into `lore-api`, `lore-ui` and `utopia`; create it in `lore-stations` too.
-5. `lore-admin-token` is read by an ExternalSecret (`enable_ui_admin_token`) but `secrets.tf` creates no container for it.
-6. The ESO `ClusterSecretStore`, the allowed sign-in domain `re-cinq.com` (Grafana, Headlamp, Utopia), the terraform state bucket and the CI deployer service account are hardcoded to our environment in `infra/terraform/`.
-7. lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant, so traces are silently off even on GCP.
-8. `infra/terraform/modules/gke-mcp/main.tf` describes a cluster nothing creates (no `module` block calls it); only its `lore-platform/` chart is live.
+1. **Helm-only install is assembled by hand** ([#3902](https://github.com/re-cinq/lore/issues/3902)). The ingresses, the Dgraph StatefulSet, the ExternalSecrets and the floor NetworkPolicy exist only as terraform (`infra/terraform/*.tf`); no subchart renders an Ingress, and the umbrella values default the Postgres host to the CNPG Service and carry `GCP_PROJECT`. Section 4.1 lists what to apply by hand until the chart grows optional templates for them.
+2. **Embeddings are Vertex only** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). A second `EmbeddingProvider` at 768 dimensions is the fix.
+3. The schema scripts `scripts/infra/setup-*.sh` reach Postgres through `kubectl exec` into a CNPG pod; a managed server needs the `psql` shim ([#3904](https://github.com/re-cinq/lore/issues/3904)).
+4. Three terraform gaps ([#3905](https://github.com/re-cinq/lore/issues/3905)): `lore-stations` references `ghcr-pull-secret` but it is mirrored only into `lore-api`, `lore-ui` and `utopia`; `lore-admin-token` is read by an ExternalSecret but `secrets.tf` creates no container for it; lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant, so traces are silently off even on GCP.
+5. The ESO `ClusterSecretStore`, the allowed sign-in domain `re-cinq.com` (Grafana, Headlamp, Utopia), the terraform state bucket and the CI deployer service account are hardcoded to our environment, and `infra/terraform/modules/gke-mcp/main.tf` describes a cluster nothing creates ([#3906](https://github.com/re-cinq/lore/issues/3906)).
 
 ## Running on ARM64
 
