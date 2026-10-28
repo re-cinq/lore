@@ -1,4 +1,4 @@
-// Separate from client.ts on purpose: the planning poll runs in the BROWSER and needs this union without dragging `process.env.LORE_ADMIN_TOKEN` into the client bundle.
+// Separate from client.ts on purpose: the planning poll runs in the BROWSER and needs this union without dragging the session cookie reader (`next/headers`) into the client bundle.
 export type ApiResult<T = unknown> =
   | { status: "ok"; data: T }
   | { status: "unconfigured" }
@@ -30,7 +30,7 @@ export function enforceOk<T>(action: string, result: ApiResult<T>): T {
 
   throw new Error(
     result.status === "unconfigured"
-      ? `${action} is unavailable: the web UI has no LORE_API_URL plus LORE_ADMIN_TOKEN or LORE_INGEST_TOKEN configured.`
+      ? `${action} is unavailable: the web UI has no LORE_API_URL set or no signed-in session.`
       : `${action} failed: ${result.message}`,
   );
 }

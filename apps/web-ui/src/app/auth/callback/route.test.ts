@@ -41,6 +41,20 @@ describe("GET /auth/callback", () => {
     });
   });
 
+  it("sends the person on to the page they asked for", async () => {
+    const res = await callback("code=abc&next=%2Fassembly-runs%2Frun-1");
+
+    expect(res.headers.get("location")).toBe(
+      "https://lore.example/assembly-runs/run-1",
+    );
+  });
+
+  it("will not send the person to another site", async () => {
+    const res = await callback("code=abc&next=%2F%2Fevil.example%2Fx");
+
+    expect(res.headers.get("location")).toBe("https://lore.example/");
+  });
+
   it("swaps the code lore-api sent back", async () => {
     await callback("code=abc");
 

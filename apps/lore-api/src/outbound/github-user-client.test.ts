@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   exchangeCode,
-  fetchOrgRepos,
+  fetchUserRepos,
   fetchOrgRole,
   fetchViewer,
 } from "./github-user-client.js";
@@ -133,7 +133,7 @@ describe("fetchOrgRole", () => {
   });
 });
 
-describe("fetchOrgRepos", () => {
+describe("fetchUserRepos", () => {
   const repo = (name: string) => ({
     full_name: name,
     owner: { login: "re-cinq" },
@@ -150,7 +150,7 @@ describe("fetchOrgRepos", () => {
       )
       .mockResolvedValueOnce(jsonResponse([repo("re-cinq/b")]));
 
-    expect(await fetchOrgRepos("gho_abc", fetchImpl)).toEqual([
+    expect(await fetchUserRepos("gho_abc", fetchImpl)).toEqual([
       repo("re-cinq/a"),
       repo("re-cinq/b"),
     ]);
@@ -166,7 +166,7 @@ describe("fetchOrgRepos", () => {
       }),
     );
 
-    await fetchOrgRepos("gho_abc", fetchImpl);
+    await fetchUserRepos("gho_abc", fetchImpl);
 
     expect(fetchImpl).toHaveBeenCalledTimes(10);
   });
@@ -183,7 +183,7 @@ describe("fetchOrgRepos", () => {
       )
       .mockResolvedValueOnce(jsonResponse({}, { status: 500 }));
 
-    expect(await fetchOrgRepos("gho_abc", fetchImpl)).toEqual([
+    expect(await fetchUserRepos("gho_abc", fetchImpl)).toEqual([
       repo("re-cinq/a"),
     ]);
   });

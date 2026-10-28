@@ -52,12 +52,8 @@
       "description": "Usage, org-wide pipeline analytics, and agent statistics."
     },
     {
-      "name": "Auth",
-      "description": "The web UI's GitHub sign-in and the session tokens it yields."
-    },
-    {
       "name": "Tokens",
-      "description": "Scoped API token management."
+      "description": "Scoped API token management, and the web sign-in that mints a person's session token."
     },
     {
       "name": "Meta",
@@ -1764,7 +1760,7 @@
       "get": {
         "operationId": "get_api_auth_access",
         "summary": "GET /api/auth/access",
-        "tags": ["Auth"],
+        "tags": ["Tokens"],
         "security": [
           {
             "bearerAuth": []
@@ -1805,7 +1801,7 @@
       "get": {
         "operationId": "get_api_auth_callback",
         "summary": "GET /api/auth/callback",
-        "tags": ["Auth"],
+        "tags": ["Tokens"],
         "security": [],
         "x-rate-limit-bucket": "default",
         "responses": {
@@ -1832,7 +1828,7 @@
       "get": {
         "operationId": "get_api_auth_login",
         "summary": "GET /api/auth/login",
-        "tags": ["Auth"],
+        "tags": ["Tokens"],
         "security": [],
         "x-rate-limit-bucket": "default",
         "responses": {
@@ -1859,7 +1855,7 @@
       "post": {
         "operationId": "post_api_auth_logout",
         "summary": "POST /api/auth/logout",
-        "tags": ["Auth"],
+        "tags": ["Tokens"],
         "security": [
           {
             "bearerAuth": []
@@ -1903,7 +1899,7 @@
       "get": {
         "operationId": "get_api_auth_me",
         "summary": "GET /api/auth/me",
-        "tags": ["Auth"],
+        "tags": ["Tokens"],
         "security": [
           {
             "bearerAuth": []
@@ -1941,7 +1937,7 @@
       "post": {
         "operationId": "post_api_auth_redeem",
         "summary": "POST /api/auth/redeem",
-        "tags": ["Auth"],
+        "tags": ["Tokens"],
         "security": [],
         "x-rate-limit-bucket": "default",
         "responses": {

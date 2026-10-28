@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   authorizeUrl,
   errorRedirect,
-  orgRepoNames,
   redeemRedirect,
   repoAllowed,
   returnUrlAllowed,
@@ -78,24 +77,6 @@ describe("authorizeUrl", () => {
       scope: "read:user read:org repo",
       state: "state-1",
     });
-  });
-});
-
-describe("orgRepoNames", () => {
-  const repos = [
-    { full_name: "re-cinq/lore", owner: { login: "re-cinq" } },
-    { full_name: "someone/else", owner: { login: "someone" } },
-  ];
-
-  it("keeps only the org's repos when an org is set", () => {
-    expect(orgRepoNames(repos, "re-cinq")).toEqual(["re-cinq/lore"]);
-  });
-
-  it("keeps every repo when no org is set", () => {
-    expect(orgRepoNames(repos, undefined)).toEqual([
-      "re-cinq/lore",
-      "someone/else",
-    ]);
   });
 });
 

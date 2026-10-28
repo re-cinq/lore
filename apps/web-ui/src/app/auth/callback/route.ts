@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { redeemCode } from "@/lib/api/auth";
 import { requestOrigin } from "@/lib/request-origin";
+import { returnPathOf } from "@/lib/return-path";
 import {
   SESSION_COOKIE,
   sessionCookieOptions,
@@ -26,17 +27,25 @@ export async function GET(req: Request) {
     );
   }
 
-  return signedIn(action.code, origin);
+  return signedIn(
+    action.code,
+    origin,
+    new URL(req.url).searchParams.get("next"),
+  );
 }
 
-/** Home with the session cookie set, or the error page when lore-api would not redeem the code. */
-async function signedIn(code: string, origin: string): Promise<NextResponse> {
+/** The page the person asked for, with the session cookie set, or the error page when lore-api would not redeem the code. */
+async function signedIn(
+  code: string,
+  origin: string,
+  next: string | null,
+): Promise<NextResponse> {
   const session = await redeemCode(code);
 
   if (session.status !== "ok") {
     return NextResponse.redirect(`${origin}/auth/error?reason=state_expired`);
   }
-  const response = NextResponse.redirect(`${origin}/`);
+  const response = NextResponse.redirect(`${origin}${returnPathOf(next)}`);
 
   response.cookies.set(
     SESSION_COOKIE,
