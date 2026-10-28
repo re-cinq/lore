@@ -194,7 +194,7 @@ function settingsMerge(
 }
 
 /** The settings blocks that hold a loop's switch beside the settings page's own keys. */
-const SWITCHED_BLOCKS = ["auto_merge", "digest"];
+const SWITCHED_BLOCKS = ["auto_merge", "digest", "implementation_loop"];
 
 function isObject(value: unknown): boolean {
   return typeof value === "object" && value !== null;

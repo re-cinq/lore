@@ -16761,6 +16761,9 @@
                     "properties": {
                       "enabled": {
                         "type": "boolean"
+                      },
+                      "done_check": {
+                        "type": "boolean"
                       }
                     },
                     "additionalProperties": {}
@@ -17190,6 +17193,9 @@
                           "type": "object",
                           "properties": {
                             "enabled": {
+                              "type": "boolean"
+                            },
+                            "done_check": {
                               "type": "boolean"
                             }
                           },

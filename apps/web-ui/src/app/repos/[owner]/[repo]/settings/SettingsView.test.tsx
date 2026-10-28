@@ -103,4 +103,22 @@ describe("SettingsView (general only)", () => {
     expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
     expect(container.querySelector('select[name="model_select"]')).toBeNull();
   });
+
+  it("shows the implementation loop's done check under Run policy, unchecked when unset and checked once saved", () => {
+    const box = (settings: RepoSettingsShape) => {
+      const input = renderView(settings).container.querySelector(
+        'input[name="implementation_loop_done_check"]',
+      ) as HTMLInputElement;
+
+      return [input.closest("section")?.id, input.checked];
+    };
+
+    expect([
+      box({}),
+      box({ implementation_loop: { done_check: true } }),
+    ]).toEqual([
+      ["set-policy", false],
+      ["set-policy", true],
+    ]);
+  });
 });

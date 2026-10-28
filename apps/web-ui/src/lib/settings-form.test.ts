@@ -91,4 +91,16 @@ describe("parseSettingsForm", () => {
       undefined,
     ]);
   });
+
+  it("sends implementation_loop.done_check true for a ticked box and false for an unticked one, and never the loop's own enabled", () => {
+    const forms: Record<string, string>[] = [
+      { implementation_loop_done_check: "on" },
+      {},
+    ];
+    const parsed = forms.map(
+      (fields) => parseSettingsForm(form(fields)).implementation_loop,
+    );
+
+    expect(parsed).toEqual([{ done_check: true }, { done_check: false }]);
+  });
 });
