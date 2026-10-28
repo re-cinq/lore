@@ -40,7 +40,7 @@ const ContextQuery = z.object({
     .default(8000),
   agent_id: z.string().optional(),
   cross_repo: boolFlag,
-  // Unset → the repo's settings.context_backend, then "lore"; an unknown store is a 400, never a silent Lore read.
+  // Unset → the repo's settings.context_backend, then "utopia"; an unknown store is a 400, never a silent Lore read.
   backend: KnowledgeBackendSchema.optional(),
 });
 

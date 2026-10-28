@@ -112,7 +112,7 @@ export interface EvalTarget {
   path: string;
   /** Grade this question instead of writing one, so a rerun after a fix measures the same thing. */
   question?: string;
-  /** The store the assembly reads; unset follows the repo's setting, then Lore. */
+  /** The store the assembly reads; unset follows the repo's setting, then Utopia. */
   backend?: KnowledgeBackend;
 }
 

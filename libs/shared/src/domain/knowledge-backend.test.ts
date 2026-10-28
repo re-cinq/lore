@@ -10,8 +10,8 @@ describe("resolveBackend", () => {
     expect(resolveBackend(undefined, "both")).toBe("both");
   });
 
-  it("returns lore when neither the request nor the repo names a backend", () => {
-    expect(resolveBackend()).toBe("lore");
+  it("returns utopia when neither the request nor the repo names a backend", () => {
+    expect(resolveBackend()).toBe("utopia");
   });
 });
 

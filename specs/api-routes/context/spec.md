@@ -36,7 +36,7 @@ docs/ADRs/specs when no query is supplied. This is the read counterpart to the
 | `repo` | string | no | — | `owner/name`. Drives the no-query chunk-join path; passed to the engine when a query is present. |
 | `template` | string | no | `"default"` | Template name forwarded to `assembleContext`. |
 | `debug` | string | no | — | `"1"` or `"true"` enables the engine debug trace. Any other value → false. |
-| `backend` | string | no | repo's `settings.context_backend`, then `"lore"` | `lore`, `utopia` or `both` (ADR-052 amendment 2026-10-16); anything else → 400. |
+| `backend` | string | no | repo's `settings.context_backend`, then `"utopia"` | `lore`, `utopia` or `both` (ADR-052 amendment 2026-10-16); anything else → 400. |
 
 ### Response
 

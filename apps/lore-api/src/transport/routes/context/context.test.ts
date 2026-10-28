@@ -58,7 +58,7 @@ describe("GET /api/context", () => {
         crossRepo: false,
         debug: true,
         graph: null,
-        backend: "lore",
+        backend: "utopia",
         utopiaReads: null,
       },
     ]);

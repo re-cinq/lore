@@ -44,7 +44,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
 | `repo` | string | no | — | 'owner/repo'. Auto-detected from the git remote when omitted; in the agent gateway the description says it is required. |
 | `agent_id` | string | no | — | Overrides the ambient agent id used to scope memories/facts. |
 | `cross_repo` | boolean | no | `false` | When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false. |
-| `backend` | `"lore" \| "utopia" \| "both"` | no | — | lore (default), utopia, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. |
+| `backend` | `"lore" \| "utopia" \| "both"` | no | — | utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. |
 
 The whole handler body is wrapped in `trackLatency('lore_assemble_context', …)` which
 records latency + success into `memory.audit_log` and an OTEL span.
@@ -141,7 +141,7 @@ The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
 ([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L173), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L181))
 
-*(added 2026-10-16)* An optional `backend` param — "lore (default), utopia, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land" — accepts only those three values and is forwarded to `GET /api/context` as `backend`; left unset it is not sent, so the API applies the repo's `settings.context_backend`. ([validated by accepts backend both and refuses backend dgraph in the lore_assemble_context schema](apps/mcp-server/src/transport/tools/context-tools.test.ts#L267), [validated by forwards backend=utopia to GET /api/context](apps/mcp-server/src/transport/tools/context-tools.test.ts#L278))
+*(added 2026-10-16)* An optional `backend` param — "utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land" — accepts only those three values and is forwarded to `GET /api/context` as `backend`; left unset it is not sent, so the API applies the repo's `settings.context_backend`. ([validated by accepts backend both and refuses backend dgraph in the lore_assemble_context schema](apps/mcp-server/src/transport/tools/context-tools.test.ts#L267), [validated by forwards backend=utopia to GET /api/context](apps/mcp-server/src/transport/tools/context-tools.test.ts#L278))
 
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a

@@ -214,7 +214,7 @@ describe("POST /api/memory", () => {
   it("searches via DB", async () => {
     memoryDbUp();
     vi.mocked(searchMemories).mockResolvedValue([{ m: 1 }] as any);
-    const res = await post({ action: "search", query: "q" });
+    const res = await post({ action: "search", query: "q", backend: "lore" });
 
     expect(res.result).toEqual([{ m: 1 }]);
     expect(getQueryEmbedding).toHaveBeenCalledWith("q");
@@ -229,6 +229,7 @@ describe("POST /api/memory", () => {
       limit: 5,
       include_invalidated: true,
       graph_augment: true,
+      backend: "lore",
     });
 
     expect(vi.mocked(searchMemories).mock.calls[0].slice(1)).toEqual([
@@ -246,7 +247,7 @@ describe("POST /api/memory", () => {
   it("defaults include_invalidated and graph_augment to false", async () => {
     memoryDbUp();
     vi.mocked(searchMemories).mockResolvedValue([] as never);
-    await post({ action: "search", query: "q" });
+    await post({ action: "search", query: "q", backend: "lore" });
 
     expect(vi.mocked(searchMemories).mock.calls[0][2]).toMatchObject({
       includeInvalidated: false,
@@ -257,7 +258,7 @@ describe("POST /api/memory", () => {
   it("searches via file fallback", async () => {
     memoryDbDown();
     vi.mocked(searchMemoryFile).mockReturnValue([] as any);
-    await post({ action: "search", query: "q" });
+    await post({ action: "search", query: "q", backend: "lore" });
     expect(searchMemoryFile).toHaveBeenCalledWith("q", undefined, 10);
   });
 
@@ -469,6 +470,19 @@ describe("POST /api/memory search backend", () => {
   afterEach(() => {
     process.env = { ...originalEnv };
     vi.clearAllMocks();
+  });
+
+  it("answers no hits and a no-reader note when the search names no backend, without searching Lore", async () => {
+    memoryDbUp();
+    const res = await post({ action: "search", query: "q" });
+
+    expect({
+      body: res.result,
+      searched: vi.mocked(searchMemories).mock.calls.length,
+    }).toEqual({
+      body: { results: [], notes: ["search_memory: no Utopia reader yet"] },
+      searched: 0,
+    });
   });
 
   it("answers no hits and a no-reader note for backend utopia, without searching Lore", async () => {

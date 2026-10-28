@@ -98,7 +98,7 @@ const GENERAL_FIELDS = [
   {
     label: "Dispatch Label",
     name: "dispatch_label",
-    placeholder: "lore (default)",
+    placeholder: "utopia (default)",
   },
 ];
 

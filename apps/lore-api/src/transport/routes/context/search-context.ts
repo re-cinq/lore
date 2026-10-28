@@ -35,7 +35,7 @@ const SearchContextQuery = z.object({
   query: z.string().min(1),
   team: z.string().optional(),
   limit: clampedLimit.default(8),
-  backend: KnowledgeBackendSchema.default("lore"),
+  backend: KnowledgeBackendSchema.default("utopia"),
 });
 
 type SearchContextQuery = z.infer<typeof SearchContextQuery>;
