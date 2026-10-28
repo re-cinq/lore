@@ -20,7 +20,7 @@ function enforceRemoved(action: string, result: AgentSaveResult): void {
 
   if (result.status === "unconfigured") {
     throw new Error(
-      `${action} is unavailable: the web UI has no LORE_API_URL plus LORE_ADMIN_TOKEN or LORE_INGEST_TOKEN configured.`,
+      `${action} is unavailable: the web UI has no LORE_API_URL set or no signed-in session.`,
     );
   }
 

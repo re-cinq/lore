@@ -12,6 +12,7 @@ export default async function SignInError({ searchParams }: ErrorPageProps) {
     <SignInPanel
       message={signInFailureMessage(failureOf(reason ?? ""))}
       action="Try again"
+      href="/auth/start"
     />
   );
 }

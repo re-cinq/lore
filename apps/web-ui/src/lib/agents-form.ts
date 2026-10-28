@@ -47,7 +47,9 @@ export function saveResultToState(r: AgentSaveResult): AgentFormState {
   }
 
   if (r.status === "unconfigured") {
-    return { error: "LORE_API_URL / LORE_ADMIN_TOKEN not set" };
+    return {
+      error: "LORE_API_URL is not set, or there is no signed-in session",
+    };
   }
 
   if (r.status === "codeowners_failed") {

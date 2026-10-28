@@ -37,12 +37,12 @@ describe("removeAgentOverrideAction", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("throws naming the missing LORE_API_URL and token when the web UI is unconfigured", async () => {
+  it("throws naming the missing LORE_API_URL or session when the web UI is unconfigured", async () => {
     deleteAgent.mockResolvedValue({ status: "unconfigured" });
 
     await expect(
       removeAgentOverrideAction("re-cinq/lore", "review"),
-    ).rejects.toThrow(/has no LORE_API_URL plus LORE_ADMIN_TOKEN/);
+    ).rejects.toThrow(/has no LORE_API_URL set or no signed-in session/);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

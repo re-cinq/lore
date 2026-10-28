@@ -13,7 +13,7 @@ export default async function middleware(req: NextRequest) {
 
   if (!token) {
     return NextResponse.redirect(
-      new URL("/auth/signin", requestOrigin(req.headers)),
+      new URL(signInPath(req), requestOrigin(req.headers)),
     );
   }
   const destination = await repoCanonicalRedirect(req, token);
@@ -39,6 +39,13 @@ async function repoCanonicalRedirect(
   const fullName = result.status === "ok" ? result.data.full_name : null;
 
   return canonicalRepoRedirect(pathname, search, fullName);
+}
+
+/** The sign-in page, told which page the person asked for. */
+function signInPath(req: NextRequest): string {
+  const { pathname, search } = req.nextUrl;
+
+  return `/auth/signin?next=${encodeURIComponent(pathname + search)}`;
 }
 
 export const config = {
