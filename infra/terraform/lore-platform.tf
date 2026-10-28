@@ -102,6 +102,9 @@ resource "helm_release" "lore_platform" {
       }
       webhookSecret       = { name = "lore-webhook-secret", key = "secret" }
       internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
+      # The OAuth app lore-api signs people in with for the web UI (ADR-053); the
+      # ExternalSecret that fills it lives in external-secrets.tf.
+      githubOAuthSecret = { name = "lore-github-oauth" }
       # The cost-sync maintenance job's org admin key (#1348). The es_mcp_anthropic
       # ExternalSecret only carries the anthropic-admin-key entry when
       # var.enable_anthropic_admin_key is true; the env stays optional either way.
