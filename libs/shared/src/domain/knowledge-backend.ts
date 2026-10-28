@@ -18,13 +18,19 @@ export function noUtopiaReader(source: string): string {
   return `${source}: no Utopia reader yet`;
 }
 
-/** A search's answer for a backend: Lore's hits unless only Utopia was asked for (Lore is then never read), plus a note for the source while Utopia has no reader for it. */
+/** A search's answer for a backend. Lore is read unless only Utopia was asked for; Utopia is read through the arm when one is given, else the source says it has no Utopia reader yet. */
 export async function searchBackend<T>(
   backend: KnowledgeBackend,
   source: string,
   searchLore: () => Promise<T[]>,
+  searchUtopia: (() => Promise<T[]>) | null = null,
 ): Promise<{ results: T[]; notes: string[] }> {
-  const results = backend === "utopia" ? [] : await searchLore();
+  const [lore, utopia] = await Promise.all([
+    backend === "utopia" ? [] : searchLore(),
+    backend === "lore" || !searchUtopia ? [] : searchUtopia(),
+  ]);
+  const notes =
+    backend !== "lore" && !searchUtopia ? [noUtopiaReader(source)] : [];
 
-  return { results, notes: backend === "lore" ? [] : [noUtopiaReader(source)] };
+  return { results: [...lore, ...utopia], notes };
 }
