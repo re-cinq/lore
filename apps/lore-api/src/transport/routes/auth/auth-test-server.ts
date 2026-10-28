@@ -28,7 +28,7 @@ export function fakeGithub(overrides: Partial<GithubUser> = {}): GithubUser {
       avatar_url: "https://a/1",
     }),
     fetchOrgRole: async () => "member",
-    fetchOrgRepos: async () => [
+    fetchUserRepos: async () => [
       { full_name: "re-cinq/lore", owner: { login: "re-cinq" } },
       { full_name: "someone/else", owner: { login: "someone" } },
     ],

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { callbackRoute } from "./callback.js";
 import { serve, testDeps } from "./auth-test-server.js";
 
@@ -17,7 +17,7 @@ async function signIn(deps: ReturnType<typeof testDeps>) {
 }
 
 describe("GET /api/auth/callback", () => {
-  it("sends a member back with a redeem code that carries their org repos", async () => {
+  it("sends a member back with a redeem code that carries every repo GitHub shows them", async () => {
     const deps = testDeps();
     const { res, location } = await signIn(deps);
     const redeemed = await deps.handoffs.take(
@@ -39,7 +39,7 @@ describe("GET /api/auth/callback", () => {
           name: "Bogdan",
           avatarUrl: "https://a/1",
           scopes: ["read", "write", "task"],
-          repos: ["re-cinq/lore"],
+          repos: ["re-cinq/lore", "someone/else"],
         },
       },
     });
@@ -92,6 +92,25 @@ describe("GET /api/auth/callback", () => {
       scopes: ["read", "write", "task"],
       repos: ["re-cinq/lore", "someone/else"],
     });
+  });
+
+  it("sends a person who cancelled on GitHub back with auth_error=github_denied", async () => {
+    const exchanged = vi.fn();
+    const deps = testDeps({ github: { exchangeCode: exchanged } });
+    const state = await deps.handoffs.put("state", {
+      returnUrl: RETURN,
+      grant: null,
+    });
+    const res = await serve([callbackRoute(deps)]).inject(
+      `/api/auth/callback?error=access_denied&state=${state}`,
+    );
+
+    expect({
+      location: new URL(res.headers.location as string).searchParams.get(
+        "auth_error",
+      ),
+      exchanged: exchanged.mock.calls.length,
+    }).toEqual({ location: "github_denied", exchanged: 0 });
   });
 
   it("answers 400 for a state that was already used", async () => {

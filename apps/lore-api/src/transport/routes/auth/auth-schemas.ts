@@ -2,8 +2,10 @@ import { z } from "zod";
 
 export const LoginQuery = z.object({ return: z.string().min(1) });
 
+/** GitHub comes back without a code, and with `error`, when the person cancels on its consent screen. */
 export const CallbackQuery = z.object({
-  code: z.string().min(1),
+  code: z.string().min(1).optional(),
+  error: z.string().optional(),
   state: z.string().min(1),
 });
 

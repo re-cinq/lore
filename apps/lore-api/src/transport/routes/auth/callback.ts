@@ -11,7 +11,6 @@ import type {
 } from "../../../outbound/github-user-client.js";
 import {
   errorRedirect,
-  orgRepoNames,
   redeemRedirect,
   scopesForRole,
 } from "../../../work/auth/login-grant.js";
@@ -60,10 +59,10 @@ export function callbackRoute(deps: AuthDeps): ServerRoute {
 async function signInOutcome(
   deps: AuthDeps,
   config: OAuthConfig,
-  code: string,
+  code: string | undefined,
   returnUrl: string,
 ): Promise<string> {
-  const session = await githubSession(deps, config, code);
+  const session = code ? await githubSession(deps, config, code) : null;
 
   if (!session) {
     return errorRedirect(returnUrl, "github_denied");
@@ -112,13 +111,13 @@ async function grantFor(
   { token, viewer }: GithubSession,
   role: OrgRole,
 ): Promise<UserGrant> {
-  const repos = await deps.github.fetchOrgRepos(token);
+  const repos = await deps.github.fetchUserRepos(token);
 
   return {
     login: viewer.login,
     name: viewer.name ?? viewer.login,
     avatarUrl: viewer.avatar_url,
     scopes: scopesForRole(role),
-    repos: orgRepoNames(repos, config.org),
+    repos: repos.map((repo) => repo.full_name),
   };
 }

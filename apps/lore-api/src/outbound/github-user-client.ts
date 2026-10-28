@@ -77,7 +77,7 @@ export async function fetchOrgRole(
 }
 
 /** Every repo the person can open, up to ten pages; a failing page ends the read with what came before. */
-export function fetchOrgRepos(
+export function fetchUserRepos(
   token: string,
   fetchImpl: FetchLike = fetch,
 ): Promise<GithubRepo[]> {
