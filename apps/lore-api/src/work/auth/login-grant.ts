@@ -59,18 +59,14 @@ function withQuery(returnUrl: string, key: string, value: string): string {
   return url.toString();
 }
 
-/** Whether a token may open a repo: a person's session only the repos GitHub showed at sign-in (an admin any), any other token every repo. */
+/** Whether a token may open a repo: a person's session only the repos GitHub showed at sign-in, whatever its scope, and any other token every repo. */
 export function repoAllowed(
-  principal: { scopes: string[]; user: { repos: string[] } | null },
+  principal: { user: { repos: string[] } | null },
   repo: string,
 ): boolean {
   const { user } = principal;
 
-  return (
-    user === null ||
-    principal.scopes.includes("admin") ||
-    listsRepo(user.repos, repo)
-  );
+  return user === null || listsRepo(user.repos, repo);
 }
 
 function listsRepo(repos: string[], repo: string): boolean {
