@@ -14,7 +14,10 @@ interface StoredSource {
   cursor: null;
 }
 
-type Held = Record<string, Partial<Record<"memories" | "episodes", StoredSource>>>;
+type Held = Record<
+  string,
+  Partial<Record<"memories" | "episodes", StoredSource>>
+>;
 
 const stored = (id: string, kbId: string): StoredSource => ({
   id,
@@ -37,11 +40,13 @@ const REPO_AND_ORG_HELD: Held = {
 function poolHolding(held: Held) {
   const pool = makePool();
 
-  pool.query.mockImplementation(async (_sql: string, [base, kind]: string[]) => {
-    const source = held[base]?.[kind as "memories" | "episodes"];
+  pool.query.mockImplementation(
+    async (_sql: string, [base, kind]: string[]) => {
+      const source = held[base]?.[kind as "memories" | "episodes"];
 
-    return { rows: source ? [source] : [] };
-  });
+      return { rows: source ? [source] : [] };
+    },
+  );
 
   return pool as unknown as Pool;
 }
@@ -119,7 +124,12 @@ describe("searchUtopiaMemories", () => {
   it("searches only the org base when the search names no repo", async () => {
     const { reads, searched } = readsAnswering({});
 
-    await searchUtopiaMemories(poolHolding(REPO_AND_ORG_HELD), reads, ask(), ENV);
+    await searchUtopiaMemories(
+      poolHolding(REPO_AND_ORG_HELD),
+      reads,
+      ask(),
+      ENV,
+    );
 
     expect(searched).toEqual([{ kbId: "kb-org", q: "gotchas" }]);
   });
