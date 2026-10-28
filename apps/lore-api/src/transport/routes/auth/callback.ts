@@ -12,7 +12,7 @@ import type {
 import {
   errorRedirect,
   redeemRedirect,
-  scopesForRole,
+  SESSION_SCOPES,
 } from "../../../work/auth/login-grant.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -72,7 +72,7 @@ async function signInOutcome(
   if (!role) {
     return errorRedirect(returnUrl, "not_in_org");
   }
-  const grant = await grantFor(deps, config, session, role);
+  const grant = await grantFor(deps, session);
 
   return redeemRedirect(
     returnUrl,
@@ -107,9 +107,7 @@ async function roleIn(
 
 async function grantFor(
   deps: AuthDeps,
-  config: OAuthConfig,
   { token, viewer }: GithubSession,
-  role: OrgRole,
 ): Promise<UserGrant> {
   const repos = await deps.github.fetchUserRepos(token);
 
@@ -117,7 +115,7 @@ async function grantFor(
     login: viewer.login,
     name: viewer.name ?? viewer.login,
     avatarUrl: viewer.avatar_url,
-    scopes: scopesForRole(role),
+    scopes: SESSION_SCOPES,
     repos: repos.map((repo) => repo.full_name),
   };
 }
