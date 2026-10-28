@@ -50,6 +50,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/utopia/memory",
   // The org base is the deployment's GITHUB_ORG; where to start is the cursor each of its memory sources holds.
   "POST /api/utopia/memory",
+  // The session to end is the bearer token the request carries.
+  "POST /api/auth/logout",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

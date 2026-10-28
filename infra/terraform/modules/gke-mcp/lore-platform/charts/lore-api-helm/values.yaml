@@ -87,6 +87,14 @@ webhookSecret:
   name: lore-webhook-secret
   key: secret
 
+# The GitHub OAuth app lore-api signs people in with for the web UI
+# (/api/auth/*, ADR-053). An empty name leaves the sign-in off: the routes
+# answer 503 and the UI cannot start a session.
+githubOAuthSecret:
+  name: ""
+  clientIdKey: client-id
+  clientSecretKey: client-secret
+
 # The service-to-service token lore-api accepts from the stations service and
 # the cluster agents.
 internalTokenSecret:

@@ -33,7 +33,11 @@ export const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     name: "Analytics",
     description: "Usage, org-wide pipeline analytics, and agent statistics.",
   },
-  { name: "Tokens", description: "Scoped API token management." },
+  {
+    name: "Tokens",
+    description:
+      "Scoped API token management, and the web sign-in that mints a person's session token.",
+  },
   { name: "Meta", description: "The OpenAPI document and its reference UI." },
 ];
 
@@ -71,7 +75,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/embeddings$/, "Ingestion"],
   [/\/events\/\{id\}\/payload$/, "Ingestion"],
   [/\/webhook/, "Webhooks"],
-  [/^\/api\/tokens\b/, "Tokens"],
+  [/^\/api\/(tokens|auth)\b/, "Tokens"],
   // Connecting GitHub decides which orgs' repos Lore can serve.
   [/^\/api\/github\/installations\b/, "Repositories"],
   [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],

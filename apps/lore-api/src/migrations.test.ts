@@ -79,3 +79,24 @@ describe("ui-helm migrations — hippo-memory + audit_log backfill", () => {
     expect(sql).toMatch(/create table if not exists pipeline\.audit_log/);
   });
 });
+
+describe("ui-helm migrations — 0121 user sessions", () => {
+  const sql = allMigrationSql();
+
+  it("adds the user token columns and kind check to pipeline.api_tokens", () => {
+    for (const fragment of [
+      "add column if not exists kind text not null default 'service'",
+      "api_tokens_kind_check",
+      "add column if not exists login text",
+      "add column if not exists display_name text",
+      "add column if not exists avatar_url text",
+      "add column if not exists repos text[] not null default '{}'",
+    ]) {
+      expect(sql).toContain(fragment);
+    }
+  });
+
+  it("creates lore.login_handoffs for the one-time state and redeem codes", () => {
+    expect(sql).toMatch(/create table if not exists lore\.login_handoffs/);
+  });
+});

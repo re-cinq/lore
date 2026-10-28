@@ -101,6 +101,22 @@ spec:
                   name: {{ .Values.webhookSecret.name }}
                   key: {{ .Values.webhookSecret.key }}
             {{- end }}
+            {{- if .Values.githubOAuthSecret.name }}
+            # optional: a Secret that has not synced yet leaves the sign-in
+            # answering 503; it must never keep the whole API from starting.
+            - name: GITHUB_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.githubOAuthSecret.name }}
+                  key: {{ .Values.githubOAuthSecret.clientIdKey }}
+                  optional: true
+            - name: GITHUB_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.githubOAuthSecret.name }}
+                  key: {{ .Values.githubOAuthSecret.clientSecretKey }}
+                  optional: true
+            {{- end }}
             {{- if .Values.internalTokenSecret }}
             - name: LORE_AGENT_INTERNAL_TOKEN
               valueFrom:

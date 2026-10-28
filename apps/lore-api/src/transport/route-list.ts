@@ -5,6 +5,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { healthzRoute } from "./routes/healthz/healthz.js";
 import { llmStatusRoute } from "./routes/platform/llm-status.js";
 import { distRoute } from "./routes/dist/dist.js";
+import { authRoutes } from "./routes/auth/auth-routes.js";
 import { repoStatusRoute } from "./routes/repos/repo-status.js";
 import { reposRoute } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
@@ -70,12 +71,7 @@ import {
   agentsPutRoute,
   agentsDeleteRoute,
 } from "./routes/agent-definitions/agents.js";
-import { usageRoute } from "./routes/analytics/usage.js";
-import { analyticsRoute } from "./routes/analytics/analytics.js";
-import { activityRoutes } from "./routes/analytics/activity.js";
-import { analyticsOverviewRoute } from "./routes/analytics/spend.js";
-import { spendWindowRoute } from "./routes/analytics/spend-window.js";
-import { agentStatsRoute } from "./routes/analytics/agent-stats.js";
+import { analyticsRoutes } from "./routes/analytics/analytics-routes.js";
 import { impactRoute } from "./routes/impact/impact.js";
 import { impactBaseRoute } from "./routes/impact/impact-base.js";
 import { traceRoute } from "./routes/trace/trace.js";
@@ -127,6 +123,7 @@ export function routeList(
 ): ServerRoute[] {
   return [
     ...platformRoutes(getPool),
+    ...authRoutes(getPool),
     ...repoRoutes(getPool),
     ...taskRoutes(getPool, plans),
     ...memoryRoutes(getPool),
@@ -287,18 +284,6 @@ function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),
     agentsDeleteRoute(getPool),
-  ];
-}
-
-/** What the platform cost and what it did. */
-function analyticsRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [
-    usageRoute(getPool),
-    analyticsRoute(getPool),
-    ...activityRoutes(getPool),
-    spendWindowRoute(getPool),
-    analyticsOverviewRoute(getPool),
-    agentStatsRoute(getPool),
   ];
 }
 
