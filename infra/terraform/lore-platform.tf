@@ -222,5 +222,8 @@ resource "helm_release" "lore_platform" {
     kubernetes_namespace.lore_stations,
     kubernetes_service_account.lore_ui,
     kubectl_manifest.lore_db_cluster,
+    # The OAuth pair lore-api mounts for the web UI's sign-in: created before the
+    # pods that read it, so one apply does not roll them ahead of their Secret.
+    kubectl_manifest.es_mcp_github_oauth,
   ]
 }
