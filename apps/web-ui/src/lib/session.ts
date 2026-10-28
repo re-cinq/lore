@@ -1,23 +1,19 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
+import { getMe } from "@/lib/api/auth";
 
-export async function getSession() {
-  return getServerSession(authOptions);
+/** The signed-in person as the UI shows and names them. */
+export interface Session {
+  login: string;
+  user: { name: string; image: string | null };
 }
 
-export async function getUserRepos(accessToken: string): Promise<string[]> {
-  try {
-    const res = await fetch(
-      "https://api.github.com/user/repos?per_page=100&sort=updated",
-      {
-        signal: AbortSignal.timeout(10_000),
-        headers: { Authorization: `Bearer ${accessToken}` },
-      },
-    );
-    const repos = await res.json();
+/** The person behind the session cookie, or null when there is no session or lore-api does not know the token. */
+export async function getSession(): Promise<Session | null> {
+  const me = await getMe();
 
-    return repos.map((r: { full_name: string }) => r.full_name);
-  } catch {
-    return [];
-  }
+  return me.status === "ok"
+    ? {
+        login: me.data.login,
+        user: { name: me.data.name, image: me.data.avatar_url },
+      }
+    : null;
 }

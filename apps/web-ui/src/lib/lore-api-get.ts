@@ -1,9 +1,9 @@
 // IO glue for lore-api reads (excluded from coverage like trace-api.ts / webhook-api.ts).
 import { resolveLoreApiConfig } from "@/lib/lore-api-config";
 
-/** A read from lore-api with the web-ui's own token. Null covers both an unconfigured deployment and a refusing endpoint — the page has nothing to show either way. */
+/** A read from lore-api with the signed-in person's token. Null covers both an unconfigured deployment and a refusing endpoint — the page has nothing to show either way. */
 export async function loreApiGet<T>(pathAndQuery: string): Promise<T | null> {
-  const config = resolveLoreApiConfig();
+  const config = await resolveLoreApiConfig();
 
   if (!config) {
     return null;

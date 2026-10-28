@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+const sessionToken = vi.fn();
+
+vi.mock("@/lib/session-token", () => ({ sessionToken }));
+
 const { apiFetch } = await import("./client");
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -10,8 +14,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_ADMIN_TOKEN = "admin";
-  process.env.LORE_INGEST_TOKEN = "ingest";
+  sessionToken.mockResolvedValue("session-1");
   fetchMock = vi
     .fn()
     .mockResolvedValue(new Response(JSON.stringify({ ok: true })));
@@ -20,21 +23,25 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.LORE_ADMIN_TOKEN;
 });
 
 const init = () => fetchMock.mock.calls[0][1];
 
 describe("apiFetch", () => {
-  it("prefers the admin token for lore-api, since the UI performs privileged writes the ingest token cannot", async () => {
+  it("sends the signed-in person's session token to lore-api", async () => {
     await apiFetch("lore-api", "/api/x");
-    expect(init().headers.authorization).toBe("Bearer admin");
+    expect(init().headers.authorization).toBe("Bearer session-1");
   });
 
-  it("falls back to the ingest token when no admin token is set", async () => {
-    delete process.env.LORE_ADMIN_TOKEN;
-    await apiFetch("lore-api", "/api/x");
-    expect(init().headers.authorization).toBe("Bearer ingest");
+  it("sends the token a caller brings when it has no request to read the cookie from", async () => {
+    await apiFetch("lore-api", "/api/x", { token: "from-middleware" });
+    expect(init().headers.authorization).toBe("Bearer from-middleware");
+  });
+
+  it("sends no bearer to a public route and needs none", async () => {
+    sessionToken.mockResolvedValue(null);
+    await apiFetch("lore-api", "/api/x", { anonymous: true });
+    expect(init().headers).not.toHaveProperty("authorization");
   });
 
   it("reports unconfigured when the base URL is missing", async () => {
@@ -44,9 +51,8 @@ describe("apiFetch", () => {
     });
   });
 
-  it("reports unconfigured when no token is available", async () => {
-    delete process.env.LORE_ADMIN_TOKEN;
-    delete process.env.LORE_INGEST_TOKEN;
+  it("reports unconfigured when there is no session", async () => {
+    sessionToken.mockResolvedValue(null);
     expect(await apiFetch("lore-api", "/api/x")).toEqual({
       status: "unconfigured",
     });

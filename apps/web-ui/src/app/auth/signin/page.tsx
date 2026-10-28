@@ -1,5 +1,3 @@
-"use client";
-import { signIn } from "next-auth/react";
 import BrandLockup from "@/components/BrandLockup";
 import styles from "./page.module.css";
 
@@ -11,12 +9,9 @@ export default function SignIn() {
           <BrandLockup />
         </h1>
         <p className={styles.subtitle}>Sign in to access the platform</p>
-        <button
-          onClick={() => void signIn("github", { callbackUrl: "/" })}
-          className={styles.button}
-        >
+        <a href="/auth/start" className={styles.button}>
           Sign in with GitHub
-        </button>
+        </a>
       </div>
     </div>
   );

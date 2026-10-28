@@ -1,5 +1,5 @@
 import "server-only";
-import { apiFetch } from "./client";
+import { apiFetch, type FetchOptions } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
@@ -10,8 +10,11 @@ export type RepoRecord = components["schemas"]["Repo"];
 export type RepoWithCounts = components["schemas"]["RepoList"]["repos"][number];
 
 /** One repo row; no row is a 404 result, not a throw — pages render "not found" rather than crashing the route. */
-export function getRepo(fullName: string): Promise<ApiResult<RepoRecord>> {
-  return apiFetch("lore-api", `/api/repos/${fullName}`);
+export function getRepo(
+  fullName: string,
+  options?: FetchOptions,
+): Promise<ApiResult<RepoRecord>> {
+  return apiFetch("lore-api", `/api/repos/${fullName}`, options);
 }
 
 /** ONE page of onboarded repos, newest first, at most `MAX_PAGE_LIMIT` rows — see {@link listAllRepos}. */

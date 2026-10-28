@@ -1,63 +1,24 @@
-// Gate for log/timeline proxy routes; distinct from checkRepoAccess (App vs user token).
+// Gate for log/timeline proxy routes: whether the signed-in person may open a repo, answered by lore-api from the list GitHub gave it at sign-in (ADR-053).
+import { repoAccess } from "@/lib/api/auth";
 
-type FetchLike = typeof fetch;
+export async function userCanAccessRepo(repo: string): Promise<boolean> {
+  const result = await repoAccess(repo);
+  const allowed = result.status === "ok" && result.data.allowed;
 
-export async function userCanAccessRepo(
-  accessToken: string,
-  repo: string,
-  fetchImpl: FetchLike = fetch,
-): Promise<boolean> {
-  try {
-    const res = await fetchImpl(`https://api.github.com/repos/${repo}`, {
-      signal: AbortSignal.timeout(30_000),
-      headers: authHeaders(accessToken),
-    });
-
-    if (!res.ok) {
-      warnDenied(repo, res.status);
-    }
-
-    return res.ok;
-  } catch (err) {
-    warnUnreachable(repo, err);
-
-    return false;
-  }
-}
-
-function authHeaders(accessToken: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    Accept: "application/vnd.github+json",
-  };
-}
-
-/** Never the token, only the repo and the status. */
-function warnDenied(repo: string, status: number): void {
-  console.warn(
-    `[repo-access] denied ${repo}: GitHub answered ${status} (${denialReason(status)})`,
-  );
-}
-
-function warnUnreachable(repo: string, err: unknown): void {
-  console.warn(
-    `[repo-access] denied ${repo}: could not reach GitHub — ${err instanceof Error ? err.message : String(err)}`,
-  );
-}
-
-/** Why GitHub denied access (distinction must survive for operator visibility). */
-function denialReason(status: number): string {
-  if (status === 404) {
-    return "a 404 here usually means the OAuth app has no access to the org, not that the repo is missing";
+  if (!allowed) {
+    console.warn(`[repo-access] denied ${repo}: ${reasonOf(result)}`);
   }
 
-  if (status === 401) {
-    return "the session's token is stale or revoked — signing out and back in mints a new one";
+  return allowed;
+}
+
+/** Why access was denied, for the operator's log: never a token, only what lore-api answered. */
+function reasonOf(result: Awaited<ReturnType<typeof repoAccess>>): string {
+  if (result.status === "ok") {
+    return "the repo is not in the person's list from sign-in";
   }
 
-  if (status === 403) {
-    return "rate-limited or blocked by the org's OAuth app policy";
-  }
-
-  return "unexpected status";
+  return result.status === "error"
+    ? `lore-api answered ${result.code ?? "nothing"}: ${result.message}`
+    : "lore-api is not configured";
 }

@@ -3,7 +3,6 @@ import Link from "next/link";
 import AppShell from "./AppShell";
 import BrandLockup from "@/components/BrandLockup";
 import SidebarNav from "./SidebarNav";
-import SessionWrapper from "./SessionWrapper";
 import UserMenu from "./UserMenu";
 import { RailToggle, SidebarSearch } from "@/components/shell/SidebarTools";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
@@ -18,6 +17,7 @@ import {
   gohu,
 } from "@/lib/theme/fonts";
 import { THEME_SCRIPT } from "@/lib/theme/theme-script";
+import { getSession } from "@/lib/session";
 import "./theme.css";
 import "highlight.js/styles/github.css";
 import "./globals.css";
@@ -35,11 +35,15 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+type SidebarUser = Parameters<typeof UserMenu>[0]["user"];
+
 interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
+  const session = await getSession();
+
   return (
     // THEME_SCRIPT hydrates before React; suppressHydrationWarning suppresses expected mismatch.
     <html
@@ -50,11 +54,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
-          <SessionWrapper>
-            <LiveSocketProvider url={liveSocketUrl(process.env)}>
-              <AppShell sidebar={<Sidebar />}>{children}</AppShell>
-            </LiveSocketProvider>
-          </SessionWrapper>
+          <LiveSocketProvider url={liveSocketUrl(process.env)}>
+            <AppShell sidebar={<Sidebar user={session?.user ?? null} />}>
+              {children}
+            </AppShell>
+          </LiveSocketProvider>
         </ThemeProvider>
       </body>
     </html>
@@ -62,7 +66,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
 }
 
 /** Brand and the rail toggle, the palette's search pill, the nav, and at the foot the signed-in user beside the deployed build (what someone reads when working out whether what they see is what was merged). */
-function Sidebar() {
+function Sidebar({ user }: { user: SidebarUser }) {
   return (
     <>
       <div className="sidebar-head">
@@ -77,7 +81,7 @@ function Sidebar() {
         grafanaUrl={grafanaUrl(process.env)}
         utopiaUrl={utopiaUrl(process.env)}
       />
-      <UserMenu version={process.env.LORE_UI_VERSION ?? "dev"} />
+      <UserMenu user={user} version={process.env.LORE_UI_VERSION ?? "dev"} />
     </>
   );
 }

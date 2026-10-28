@@ -2,12 +2,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const getServerSession = vi.fn();
+const sessionToken = vi.fn();
 const fetchAssemblyRun = vi.fn();
 const userCanAccessRepo = vi.fn();
 
-vi.mock("next-auth", () => ({ getServerSession }));
-vi.mock("@/lib/auth-options", () => ({ authOptions: {} }));
+vi.mock("@/lib/session-token", () => ({ sessionToken }));
 vi.mock("@/lib/assembly-runs", () => ({ fetchAssemblyRun }));
 vi.mock("@/lib/user-repo-access", () => ({ userCanAccessRepo }));
 
@@ -22,7 +21,6 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_INGEST_TOKEN = "tok";
   fetchMock = vi
     .fn()
     .mockResolvedValue(
@@ -37,7 +35,7 @@ afterEach(() => {
 
 describe("GET /api/assembly-runs/[id]/blob-previews", () => {
   it("asks lore-api for the issue and plan previews of run-1", async () => {
-    getServerSession.mockResolvedValue({ accessToken: "gho_x" });
+    sessionToken.mockResolvedValue("tok");
     fetchAssemblyRun.mockResolvedValue({ id: "run-1", repo: "re-cinq/lore" });
     userCanAccessRepo.mockResolvedValue(true);
 
@@ -53,7 +51,7 @@ describe("GET /api/assembly-runs/[id]/blob-previews", () => {
   });
 
   it("returns 403, asking lore-api nothing, for a caller without access to the run's repo", async () => {
-    getServerSession.mockResolvedValue({ accessToken: "gho_x" });
+    sessionToken.mockResolvedValue("tok");
     fetchAssemblyRun.mockResolvedValue({ id: "run-1", repo: "other/repo" });
     userCanAccessRepo.mockResolvedValue(false);
 

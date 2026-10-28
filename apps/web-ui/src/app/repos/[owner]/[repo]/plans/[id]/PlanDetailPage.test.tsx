@@ -8,12 +8,10 @@ const { default: PlanDetailPage } = await import("./PlanDetailPage");
 
 beforeEach(() => {
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_ADMIN_TOKEN = "admin";
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.LORE_ADMIN_TOKEN;
 });
 
 describe("PlanDetailPage", () => {

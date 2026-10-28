@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { resolveSessionAccessToken } from "@/lib/session-access-token";
+import { sessionToken } from "@/lib/session-token";
 import { authorizeRepoUpstreamAccess } from "@/lib/floor-access";
 import { serverError } from "@/lib/api-error";
 
@@ -38,9 +38,7 @@ export async function POST(req: Request) {
 async function authorizeTrigger(
   req: Request,
 ): Promise<TriggerAuth | NextResponse> {
-  const accessToken = await resolveSessionAccessToken();
-
-  if (!accessToken) {
+  if (!(await sessionToken())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -51,7 +49,7 @@ async function authorizeTrigger(
   }
 
   const { repo } = trigger;
-  const upstream = await authorizeRepoUpstreamAccess(accessToken, repo, API);
+  const upstream = await authorizeRepoUpstreamAccess(repo, API);
 
   return upstream instanceof NextResponse
     ? upstream

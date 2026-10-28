@@ -2,12 +2,13 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const getServerSession = vi.fn();
+const sessionToken = vi.fn();
+const getSession = vi.fn();
 const fetchAssemblyRun = vi.fn();
 const userCanAccessRepo = vi.fn();
 
-vi.mock("next-auth", () => ({ getServerSession }));
-vi.mock("@/lib/auth-options", () => ({ authOptions: {} }));
+vi.mock("@/lib/session-token", () => ({ sessionToken }));
+vi.mock("@/lib/session", () => ({ getSession }));
 vi.mock("@/lib/assembly-runs", () => ({ fetchAssemblyRun }));
 vi.mock("@/lib/user-repo-access", () => ({ userCanAccessRepo }));
 
@@ -18,7 +19,8 @@ const params = Promise.resolve({ id: "plan-run" });
 let fetchMock: ReturnType<typeof vi.fn>;
 
 function signedIn(session: object) {
-  getServerSession.mockResolvedValue({ accessToken: "gho_x", ...session });
+  sessionToken.mockResolvedValue("tok");
+  getSession.mockResolvedValue(session);
   fetchAssemblyRun.mockResolvedValue({ id: "plan-run", repo: "re-cinq/Otto" });
   userCanAccessRepo.mockResolvedValue(true);
 }
@@ -34,7 +36,6 @@ function cancel() {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_INGEST_TOKEN = "tok";
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
 });

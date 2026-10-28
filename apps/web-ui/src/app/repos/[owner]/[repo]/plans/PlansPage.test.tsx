@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const { default: PlansPage } = await import("./PlansPage");
+const { sessionToken } = await import("@/lib/session-token");
 
 const PLAN = {
   id: "p1",
@@ -17,12 +18,10 @@ const PLAN = {
 
 beforeEach(() => {
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_ADMIN_TOKEN = "admin";
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.LORE_ADMIN_TOKEN;
 });
 
 describe("PlansPage", () => {
@@ -60,8 +59,8 @@ describe("PlansPage", () => {
     });
   });
 
-  it("shows an unconfigured message rather than an empty plan list when lore-api has no admin token", async () => {
-    delete process.env.LORE_ADMIN_TOKEN;
+  it("shows an unconfigured message rather than an empty plan list when there is no session to call lore-api with", async () => {
+    vi.mocked(sessionToken).mockResolvedValueOnce(null);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ plans: [PLAN] }))),

@@ -37,7 +37,7 @@ export async function getWebhookSecret(repo: string): Promise<string | null> {
 export async function ensureWebhook(
   repo: string,
 ): Promise<WebhookStatus | { error: string }> {
-  const config = resolveLoreApiConfig();
+  const config = await resolveLoreApiConfig();
 
   if (!config) {
     return { error: "web-ui is not configured to reach the Lore API" };

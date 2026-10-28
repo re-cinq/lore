@@ -1,110 +1,64 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { userCanAccessRepo } from "./user-repo-access";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-function fetchReturning(status: number): typeof fetch {
-  return (() => Promise.resolve(new Response("", { status }))) as typeof fetch;
-}
+const repoAccess = vi.fn();
+
+vi.mock("@/lib/api/auth", () => ({ repoAccess }));
+
+const { userCanAccessRepo } = await import("./user-repo-access");
+
+let warn: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  warn.mockRestore();
+});
 
 describe("userCanAccessRepo", () => {
-  it("returns true when GitHub returns 200 for the repo", async () => {
-    const result = await userCanAccessRepo(
-      "tok",
-      "re-cinq/lore",
-      fetchReturning(200),
-    );
+  it("returns true when lore-api says the repo is in the person's list", async () => {
+    repoAccess.mockResolvedValue({ status: "ok", data: { allowed: true } });
 
-    expect(result).toBe(true);
+    expect(await userCanAccessRepo("re-cinq/lore")).toBe(true);
   });
 
-  it("returns false when GitHub returns 404 for the repo", async () => {
-    const result = await userCanAccessRepo(
-      "tok",
-      "re-cinq/secret",
-      fetchReturning(404),
-    );
+  it("asks lore-api about the repo that was named", async () => {
+    repoAccess.mockResolvedValue({ status: "ok", data: { allowed: true } });
+    await userCanAccessRepo("re-cinq/lore");
 
-    expect(result).toBe(false);
+    expect(repoAccess).toHaveBeenCalledWith("re-cinq/lore");
   });
 
-  it("returns false when the request throws", async () => {
-    const throwing = (() =>
-      Promise.reject(new Error("network"))) as typeof fetch;
+  it("returns false and logs why when the repo is not in the person's list", async () => {
+    repoAccess.mockResolvedValue({ status: "ok", data: { allowed: false } });
 
-    const result = await userCanAccessRepo("tok", "re-cinq/lore", throwing);
-
-    expect(result).toBe(false);
-  });
-});
-
-describe("what a denial reports to the server log", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("names the repo and GitHub's status when access is refused", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await userCanAccessRepo("tok", "re-cinq/lore", fetchReturning(404));
-
-    expect(warn.mock.calls[0]?.[0]).toEqual(
-      "[repo-access] denied re-cinq/lore: GitHub answered 404 (a 404 here usually means the OAuth app has no access to the org, not that the repo is missing)",
+    expect(await userCanAccessRepo("re-cinq/secret")).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      "[repo-access] denied re-cinq/secret: the repo is not in the person's list from sign-in",
     );
   });
 
-  it("distinguishes a stale token from a repo the token cannot see", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("returns false and logs the status when lore-api refuses the token", async () => {
+    repoAccess.mockResolvedValue({
+      status: "error",
+      code: 403,
+      message: "insufficient scope",
+    });
 
-    await userCanAccessRepo("tok", "re-cinq/lore", fetchReturning(401));
-
-    expect(warn.mock.calls[0]?.[0]).toEqual(
-      "[repo-access] denied re-cinq/lore: GitHub answered 401 (the session's token is stale or revoked — signing out and back in mints a new one)",
+    expect(await userCanAccessRepo("re-cinq/lore")).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      "[repo-access] denied re-cinq/lore: lore-api answered 403: insufficient scope",
     );
   });
 
-  it("reports the transport failure when the request never lands", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const throwing = (() =>
-      Promise.reject(new Error("getaddrinfo ENOTFOUND"))) as typeof fetch;
+  it("returns false and says so when lore-api is not configured", async () => {
+    repoAccess.mockResolvedValue({ status: "unconfigured" });
 
-    await userCanAccessRepo("tok", "re-cinq/lore", throwing);
-
-    expect(warn.mock.calls[0]?.[0]).toEqual(
-      "[repo-access] denied re-cinq/lore: could not reach GitHub — getaddrinfo ENOTFOUND",
+    expect(await userCanAccessRepo("re-cinq/lore")).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      "[repo-access] denied re-cinq/lore: lore-api is not configured",
     );
-  });
-
-  it("says nothing at all when access is granted", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await userCanAccessRepo("tok", "re-cinq/lore", fetchReturning(200));
-
-    expect(warn).not.toHaveBeenCalled();
-  });
-
-  it("never writes the token to the log", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await userCanAccessRepo(
-      "gho_supersecret",
-      "re-cinq/lore",
-      fetchReturning(404),
-    );
-
-    expect(JSON.stringify(warn.mock.calls)).not.toContain("gho_supersecret");
-  });
-});
-
-describe("deadline", () => {
-  it("sends an abort signal so a hung GitHub call cannot pin the caller", async () => {
-    let init: RequestInit | undefined;
-    const capturing = ((_url: unknown, requestInit?: RequestInit) => {
-      init = requestInit;
-
-      return Promise.resolve(new Response("", { status: 200 }));
-    }) as typeof fetch;
-
-    await userCanAccessRepo("tok", "re-cinq/lore", capturing);
-
-    expect(init?.signal).toBeInstanceOf(AbortSignal);
   });
 });
