@@ -4423,6 +4423,7 @@ export interface components {
             auto_review?: boolean;
             implementation_loop?: {
               enabled?: boolean;
+              done_check?: boolean;
             } & {
               [key: string]: unknown;
             };
@@ -4555,6 +4556,7 @@ export interface components {
               auto_review?: boolean;
               implementation_loop?: {
                 enabled?: boolean;
+                done_check?: boolean;
               } & {
                 [key: string]: unknown;
               };

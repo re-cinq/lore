@@ -147,6 +147,7 @@ function selectFieldDefaults(settings: RepoSettingsShape) {
   return {
     trustLevel: settings.trust?.level ?? "implementation",
     minAgeHours: settings.auto_merge?.min_age_hours ?? DEFAULT_MIN_AGE_HOURS,
+    doneCheck: settings.implementation_loop?.done_check === true,
   };
 }
 
@@ -178,11 +179,12 @@ const DEFAULT_MIN_AGE_HOURS = 24;
 interface RunPolicyFieldsProps {
   trustLevel: string;
   minAgeHours: number;
+  doneCheck: boolean;
 }
 
 /** Trust level decides which task types this repo accepts at all; the minimum age is how long the auto-merge loop waits. The loops' switches (code review, auto merge, …) live on the Loops tab. */
 function RunPolicyFields(props: RunPolicyFieldsProps) {
-  const { trustLevel, minAgeHours } = props;
+  const { trustLevel, minAgeHours, doneCheck } = props;
 
   return (
     <SettingsCard
@@ -193,6 +195,7 @@ function RunPolicyFields(props: RunPolicyFieldsProps) {
     >
       <TrustLevelField trustLevel={trustLevel} />
       <MinAgeField minAgeHours={minAgeHours} />
+      <DoneCheckField doneCheck={doneCheck} />
     </SettingsCard>
   );
 }
@@ -214,6 +217,28 @@ function MinAgeField({ minAgeHours }: { minAgeHours: number }) {
       />
       <span className={styles.hint}>
         Switch the auto-merge loop on or off on the Loops tab.
+      </span>
+    </div>
+  );
+}
+
+/** The implementation loop's "already done?" check (FR12.20). Its on/off switch for the loop itself is on the Loops tab. */
+function DoneCheckField({ doneCheck }: { doneCheck: boolean }) {
+  return (
+    <div className={styles.field}>
+      <label className={styles.choice}>
+        <input
+          type="checkbox"
+          id="setting-implementation_loop_done_check"
+          name="implementation_loop_done_check"
+          defaultChecked={doneCheck}
+        />{" "}
+        Implementation loop: close a ticket a merged pull request already did,
+        before the definition-of-done agent runs
+      </label>
+      <span className={styles.hint}>
+        A small model reads the merged pull requests that touched the files the
+        ticket names. Switch the loop itself on or off on the Loops tab.
       </span>
     </div>
   );

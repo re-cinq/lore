@@ -267,4 +267,28 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
       result: { error: "context_backend must be lore, utopia or both" },
     });
   });
+
+  it("merges the implementation_loop block key by key, so saving done_check keeps the Loops tab's enabled switch", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await put(
+      { settings: { implementation_loop: { done_check: true } } },
+      pool,
+    );
+    const updateSql = pool.query.mock.calls
+      .map(([sql]) => String(sql))
+      .find((sql) => sql.includes("UPDATE lore.repos"));
+
+    expect({
+      status: res.statusCode,
+      mergesBlock: updateSql?.includes(
+        "jsonb_build_object('implementation_loop'",
+      ),
+    }).toEqual({ status: 200, mergesBlock: true });
+  });
 });

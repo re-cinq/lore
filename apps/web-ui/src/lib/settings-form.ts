@@ -11,6 +11,7 @@ export function parseSettingsForm(formData: FormData) {
     dispatch_default_type: optionalText(formData, "dispatch_default_type"),
     digest: parseDigestBlock(formData),
     auto_merge: minAgeBlock(formData),
+    implementation_loop: doneCheckBlock(formData),
   };
 
   const trustLevel = formData.get("trust_level") as string;
@@ -33,6 +34,13 @@ function minAgeBlock(
   const wholeHours = Number.isInteger(hours) && hours >= 0;
 
   return raw !== "" && wholeHours ? { min_age_hours: hours } : undefined;
+}
+
+/** The implementation loop's done check, a checkbox, so an unticked box is an absent field and means false. The loop's on/off switch lives on the Loops tab, and lore-api merges this block into the stored one. */
+function doneCheckBlock(formData: FormData): { done_check: boolean } {
+  return {
+    done_check: formData.get("implementation_loop_done_check") === "on",
+  };
 }
 
 /** A comma-separated field as its non-empty, trimmed parts. */

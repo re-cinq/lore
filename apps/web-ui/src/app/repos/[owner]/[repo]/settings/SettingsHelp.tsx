@@ -13,7 +13,7 @@ export default function SettingsHelp() {
   );
 }
 
-/** The three things a reader most often gets wrong about this page. */
+/** The things a reader most often gets wrong about this page. */
 function SettingsHelpPoints() {
   return (
     <ul>
@@ -21,6 +21,7 @@ function SettingsHelpPoints() {
         <strong>Trust level</strong> controls which task types are allowed, and
         auto-promotes after 3 successful merges.
       </li>
+      <DoneCheckHelpPoint />
       <li>
         <strong>Cross-repo</strong> links are bidirectional — adding a repo here
         adds this repo to theirs.
@@ -30,5 +31,15 @@ function SettingsHelpPoints() {
         tab.
       </li>
     </ul>
+  );
+}
+
+function DoneCheckHelpPoint() {
+  return (
+    <li>
+      <strong>Done check</strong> lets the implementation loop close a ticket a
+      merged pull request already did, before its costliest agent runs. It is
+      off until ticked here.
+    </li>
   );
 }

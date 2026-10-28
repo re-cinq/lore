@@ -49,8 +49,12 @@ export const RepoSettingsSchema = z
     trust: TrustSettingsSchema.optional(),
     task_types: z.array(z.string()).optional(),
     auto_review: z.boolean().optional(),
+    // The implementation loop's switch, and beside it the "already done?" check before its definition-of-done agent (specs/external-floor FR12.20); both off by omission.
     implementation_loop: z
-      .object({ enabled: z.boolean().optional() })
+      .object({
+        enabled: z.boolean().optional(),
+        done_check: z.boolean().optional(),
+      })
       .passthrough()
       .optional(),
     // The issue-triage loop's switch (specs/issue-triage FR33); on when the block is absent.
