@@ -5,18 +5,7 @@ import {
   redeemRedirect,
   repoAllowed,
   returnUrlAllowed,
-  scopesForRole,
 } from "./login-grant.js";
-
-describe("scopesForRole", () => {
-  it("grants admin scope to an org admin", () => {
-    expect(scopesForRole("admin")).toEqual(["admin"]);
-  });
-
-  it("grants read, write and task to an org member", () => {
-    expect(scopesForRole("member")).toEqual(["read", "write", "task"]);
-  });
-});
 
 describe("returnUrlAllowed", () => {
   const env = { LORE_UI_URL: "https://lore.gcp.re-cinq.com" };

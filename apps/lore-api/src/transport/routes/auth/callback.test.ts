@@ -38,11 +38,22 @@ describe("GET /api/auth/callback", () => {
           login: "gedaiu",
           name: "Bogdan",
           avatarUrl: "https://a/1",
-          scopes: ["read", "write", "task"],
+          scopes: ["admin"],
           repos: ["re-cinq/lore", "someone/else"],
         },
       },
     });
+  });
+
+  it("gives a plain org member the admin scope too, until Lore has roles of its own", async () => {
+    const deps = testDeps({ github: { fetchOrgRole: async () => "member" } });
+    const { location } = await signIn(deps);
+    const redeemed = await deps.handoffs.take(
+      location.searchParams.get("code") as string,
+      "redeem",
+    );
+
+    expect(redeemed?.grant?.scopes).toEqual(["admin"]);
   });
 
   it("gives an org admin the admin scope", async () => {
@@ -89,7 +100,7 @@ describe("GET /api/auth/callback", () => {
     );
 
     expect(redeemed?.grant).toMatchObject({
-      scopes: ["read", "write", "task"],
+      scopes: ["admin"],
       repos: ["re-cinq/lore", "someone/else"],
     });
   });
