@@ -79,6 +79,25 @@ describe("GET /auth/callback", () => {
     });
   });
 
+  it("keeps the page they asked for on the error page of a failed sign-in", async () => {
+    const res = await callback(
+      "auth_error=github_denied&next=%2Fassembly-runs%2Frun-1",
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "https://lore.example/auth/error?reason=github_denied&next=%2Fassembly-runs%2Frun-1",
+    );
+  });
+
+  it("keeps the page they asked for when the code does not redeem", async () => {
+    redeemCode.mockResolvedValue({ status: "error", code: 401, message: "no" });
+    const res = await callback("code=spent&next=%2Fassembly-runs%2Frun-1");
+
+    expect(res.headers.get("location")).toBe(
+      "https://lore.example/auth/error?reason=state_expired&next=%2Fassembly-runs%2Frun-1",
+    );
+  });
+
   it("tells the person to start again when the code does not redeem", async () => {
     redeemCode.mockResolvedValue({ status: "error", code: 401, message: "no" });
     const res = await callback("code=spent");
