@@ -22,17 +22,6 @@ variable "cluster_name" {
 # is deployment topology, not a credential, and so belongs in a committed
 # tfvars where the whole team can see it.
 
-# Gates the web-ui admin-token ExternalSecret. The web-ui calls the mcp-server's
-# two-key-gated dark-factory settings endpoint with an admin-scoped token. Mint
-# the token via the mcp `/api/tokens` endpoint (scope: admin), store it in GCP
-# Secret Manager as `lore-admin-token`, then set this true and re-apply. Until
-# then the UI's LORE_ADMIN_TOKEN env is unset (optional) and privileged settings
-# saves surface an "API not configured" notice — general settings still persist.
-variable "enable_ui_admin_token" {
-  type    = bool
-  default = false
-}
-
 # Gates the org-admin Anthropic key used by the cost-sync maintenance job
 # (#1348). When true, the anthropic ExternalSecrets carry an extra
 # `anthropic-admin-key` entry sourced from `lore-anthropic-admin-api-key`.

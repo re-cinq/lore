@@ -457,10 +457,10 @@ terraform plan
 ```
 
 Then rename your local `secrets.tfvars` to `terraform.tfvars` and delete every
-secret variable from it; what remains is identifiers and hostnames. Set the two
-`enable_*` gates to match what you had (`enable_anthropic_admin_key`,
-`enable_ui_admin_token`) — these replaced the old "is this variable non-empty"
-checks.
+secret variable from it; what remains is identifiers and hostnames. Set the
+`enable_*` gates to match what you had (for example
+`enable_anthropic_admin_key`) — these replaced the old "is this variable
+non-empty" checks.
 
 **Land the whole change before anyone applies.** In the window between step 1 and
 the merge, a stale checkout running the old code will rewrite the versions from

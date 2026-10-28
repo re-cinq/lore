@@ -51,10 +51,6 @@ headlamp_hostname = "headlamp.example.com"
 # These decide whether a resource EXISTS. They are deployment topology, not
 # credentials — the secret each one gates is seeded in GCP Secret Manager.
 
-# Mirrors `lore-admin-token` into lore-ui so the settings page can make
-# privileged (two-key) dark-factory writes.
-enable_ui_admin_token = false
-
 # Adds the `anthropic-admin-key` entry (from `lore-anthropic-admin-api-key`) to
 # the anthropic ExternalSecrets, for the cost-sync maintenance job.
 enable_anthropic_admin_key = false

@@ -40,12 +40,10 @@ REQUIRED=(
   lore-slack-bot-token
   lore-github-oauth-client-id
   lore-github-oauth-client-secret
-  lore-nextauth-secret
   lore-ghcr-pull-secret
 )
 OPTIONAL=(
   lore-anthropic-admin-api-key
-  lore-admin-token
   # Behind enable_gemini: the Generative Language API key gemini-model agent
   # runs read as GEMINI_API_KEY (docs/managing-secrets.md has the creation
   # commands).
