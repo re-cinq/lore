@@ -7,6 +7,7 @@ import {
 import {
   rateLimit,
   rateWindowCount,
+  resolvePrincipal,
   resolveTokenScopes,
   validateClientToken,
 } from "./auth.js";
@@ -156,5 +157,70 @@ describe("validateClientToken", () => {
     expect(await validateClientToken(pool as never, "unknown", "read")).toBe(
       false,
     );
+  });
+});
+
+describe("resolvePrincipal", () => {
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = "legacy-full-access";
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("resolves the legacy ingest token to every scope and no person", async () => {
+    expect(
+      await resolvePrincipal(makePool() as never, "legacy-full-access"),
+    ).toEqual({ scopes: ALL_SCOPES, user: null, tokenHash: null });
+  });
+
+  it("resolves a user token to its scopes, the person and its hash", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [
+        {
+          scopes: ["read", "write"],
+          kind: "user",
+          login: "gedaiu",
+          displayName: "Bogdan",
+          avatarUrl: "https://a/1",
+          repos: ["re-cinq/lore"],
+        },
+      ],
+    });
+
+    expect(await resolvePrincipal(pool as never, "user-token")).toEqual({
+      scopes: ["read", "write"],
+      user: {
+        login: "gedaiu",
+        name: "Bogdan",
+        avatarUrl: "https://a/1",
+        repos: ["re-cinq/lore"],
+      },
+      tokenHash: sha256("user-token"),
+    });
+  });
+
+  it("resolves a service token to its scopes and no person", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ scopes: ["read"], kind: "service", login: null, repos: [] }],
+    });
+
+    expect(await resolvePrincipal(pool as never, "ci-token")).toEqual({
+      scopes: ["read"],
+      user: null,
+      tokenHash: sha256("ci-token"),
+    });
+  });
+
+  it("returns null when the token matches no active row", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    expect(await resolvePrincipal(pool as never, "revoked")).toBeNull();
   });
 });

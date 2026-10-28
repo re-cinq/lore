@@ -40,41 +40,20 @@ const newCode = (): string => randomBytes(32).toString("base64url");
 
 export function pgLoginHandoffs(db: () => Pool): LoginHandoffs {
   return {
-    async put(phase, { returnUrl, grant }) {
-      const code = newCode();
-
-      await db().query(SWEEP_EXPIRED);
-      await db().query(INSERT, [
-        hashOf(code),
-        phase,
-        returnUrl,
-        JSON.stringify(grant),
-        new Date(Date.now() + HANDOFF_TTL_MS),
-      ]);
-
-      return code;
-    },
-    async take(code, phase) {
-      const { rows } = await db().query<HandoffContent>(TAKE, [
-        hashOf(code),
-        phase,
-      ]);
-
-      return rows[0] ?? null;
-    },
+    put: (phase, content) => putRow(db, phase, content),
+    take: (code, phase) => takeRow(db, code, phase),
   };
 }
 
 /** The in-memory store: what was put in comes out once, until its time is up. */
-export function memoryLoginHandoffs(options: { now?: () => number } = {}) {
+export function memoryLoginHandoffs(
+  options: { now?: () => number } = {},
+): LoginHandoffs {
   const now = options.now ?? Date.now;
-  const stored = new Map<
-    string,
-    HandoffContent & { phase: HandoffPhase; expiresAt: number }
-  >();
+  const stored = new Map<string, MemoryRow>();
 
   return {
-    async put(phase: HandoffPhase, content: HandoffContent) {
+    async put(phase, content) {
       const code = newCode();
 
       stored.set(hashOf(code), {
@@ -85,18 +64,59 @@ export function memoryLoginHandoffs(options: { now?: () => number } = {}) {
 
       return code;
     },
-    async take(code: string, phase: HandoffPhase) {
-      const key = hashOf(code);
-      const row = stored.get(key);
+    take: async (code, phase) => takeMemoryRow(stored, now(), code, phase),
+  };
+}
 
-      if (!row || row.phase !== phase) {
-        return null;
-      }
-      stored.delete(key);
+type MemoryRow = HandoffContent & { phase: HandoffPhase; expiresAt: number };
 
-      return row.expiresAt > now()
-        ? { returnUrl: row.returnUrl, grant: row.grant }
-        : null;
-    },
-  } satisfies LoginHandoffs;
+async function putRow(
+  db: () => Pool,
+  phase: HandoffPhase,
+  { returnUrl, grant }: HandoffContent,
+): Promise<string> {
+  const code = newCode();
+
+  await db().query(SWEEP_EXPIRED);
+  await db().query(INSERT, [
+    hashOf(code),
+    phase,
+    returnUrl,
+    JSON.stringify(grant),
+    new Date(Date.now() + HANDOFF_TTL_MS),
+  ]);
+
+  return code;
+}
+
+async function takeRow(
+  db: () => Pool,
+  code: string,
+  phase: HandoffPhase,
+): Promise<HandoffContent | null> {
+  const { rows } = await db().query<HandoffContent>(TAKE, [
+    hashOf(code),
+    phase,
+  ]);
+
+  return rows[0] ?? null;
+}
+
+function takeMemoryRow(
+  stored: Map<string, MemoryRow>,
+  now: number,
+  code: string,
+  phase: HandoffPhase,
+): HandoffContent | null {
+  const key = hashOf(code);
+  const row = stored.get(key);
+
+  if (!row || row.phase !== phase) {
+    return null;
+  }
+  stored.delete(key);
+
+  return row.expiresAt > now
+    ? { returnUrl: row.returnUrl, grant: row.grant }
+    : null;
 }

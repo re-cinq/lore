@@ -22,19 +22,27 @@ describe("returnUrlAllowed", () => {
   const env = { LORE_UI_URL: "https://lore.gcp.re-cinq.com" };
 
   it("allows a page on the configured UI origin", () => {
-    expect(returnUrlAllowed("https://lore.gcp.re-cinq.com/auth/callback", env)).toBe(true);
+    expect(
+      returnUrlAllowed("https://lore.gcp.re-cinq.com/auth/callback", env),
+    ).toBe(true);
   });
 
   it("allows a localhost page over http on any port", () => {
-    expect(returnUrlAllowed("http://localhost:3000/auth/callback", env)).toBe(true);
+    expect(returnUrlAllowed("http://localhost:3000/auth/callback", env)).toBe(
+      true,
+    );
   });
 
   it("rejects another host", () => {
-    expect(returnUrlAllowed("https://evil.example/auth/callback", env)).toBe(false);
+    expect(returnUrlAllowed("https://evil.example/auth/callback", env)).toBe(
+      false,
+    );
   });
 
   it("rejects a host that only starts with the UI hostname", () => {
-    expect(returnUrlAllowed("https://lore.gcp.re-cinq.com.evil.example/x", env)).toBe(false);
+    expect(
+      returnUrlAllowed("https://lore.gcp.re-cinq.com.evil.example/x", env),
+    ).toBe(false);
   });
 
   it("rejects a non-http scheme", () => {
@@ -60,7 +68,9 @@ describe("authorizeUrl", () => {
       }),
     );
 
-    expect(`${url.origin}${url.pathname}`).toBe("https://github.com/login/oauth/authorize");
+    expect(`${url.origin}${url.pathname}`).toBe(
+      "https://github.com/login/oauth/authorize",
+    );
     expect(Object.fromEntries(url.searchParams)).toEqual({
       client_id: "client-1",
       redirect_uri: "https://api.example/api/auth/callback",
@@ -81,20 +91,23 @@ describe("orgRepoNames", () => {
   });
 
   it("keeps every repo when no org is set", () => {
-    expect(orgRepoNames(repos, undefined)).toEqual(["re-cinq/lore", "someone/else"]);
+    expect(orgRepoNames(repos, undefined)).toEqual([
+      "re-cinq/lore",
+      "someone/else",
+    ]);
   });
 });
 
 describe("redirects back to the page that signed in", () => {
   it("adds the redeem code and keeps the existing query", () => {
-    expect(redeemRedirect("http://localhost:3000/auth/callback?x=1", "code-1")).toBe(
-      "http://localhost:3000/auth/callback?x=1&code=code-1",
-    );
+    expect(
+      redeemRedirect("http://localhost:3000/auth/callback?x=1", "code-1"),
+    ).toBe("http://localhost:3000/auth/callback?x=1&code=code-1");
   });
 
   it("adds the failure reason", () => {
-    expect(errorRedirect("http://localhost:3000/auth/callback", "not_in_org")).toBe(
-      "http://localhost:3000/auth/callback?auth_error=not_in_org",
-    );
+    expect(
+      errorRedirect("http://localhost:3000/auth/callback", "not_in_org"),
+    ).toBe("http://localhost:3000/auth/callback?auth_error=not_in_org");
   });
 });

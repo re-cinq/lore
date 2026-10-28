@@ -11,7 +11,12 @@ function poolReturning(row: Record<string, unknown>) {
 
 describe("mintApiToken", () => {
   it("stores the sha256 of the raw token it returns", async () => {
-    const { query, pool } = poolReturning({ id: "id-1", name: "ci", scopes: ["read"], created_at: "now" });
+    const { query, pool } = poolReturning({
+      id: "id-1",
+      name: "ci",
+      scopes: ["read"],
+      created_at: "now",
+    });
 
     const minted = await mintApiToken(pool, {
       name: "ci",
@@ -29,7 +34,12 @@ describe("mintApiToken", () => {
   it("stores a service token with no person on it", async () => {
     const { query, pool } = poolReturning({ id: "id-1" });
 
-    await mintApiToken(pool, { name: "ci", scopes: ["read"], createdBy: "admin", expiresAt: null });
+    await mintApiToken(pool, {
+      name: "ci",
+      scopes: ["read"],
+      createdBy: "admin",
+      expiresAt: null,
+    });
 
     expect(query.mock.calls[0][1]).toEqual([
       "ci",
@@ -55,7 +65,12 @@ describe("mintApiToken", () => {
       createdBy: "gedaiu",
       expiresAt,
       kind: "user",
-      user: { login: "gedaiu", displayName: "Bogdan", avatarUrl: "https://a/1", repos: ["re-cinq/lore"] },
+      user: {
+        login: "gedaiu",
+        displayName: "Bogdan",
+        avatarUrl: "https://a/1",
+        repos: ["re-cinq/lore"],
+      },
     });
 
     expect(query.mock.calls[0][1]).toEqual([
@@ -76,7 +91,12 @@ describe("mintApiToken", () => {
     const row = { id: "id-1", name: "ci", scopes: ["read"], created_at: "now" };
     const { pool } = poolReturning(row);
 
-    const minted = await mintApiToken(pool, { name: "ci", scopes: ["read"], createdBy: "admin", expiresAt: null });
+    const minted = await mintApiToken(pool, {
+      name: "ci",
+      scopes: ["read"],
+      createdBy: "admin",
+      expiresAt: null,
+    });
 
     expect(minted.row).toEqual(row);
   });
@@ -89,7 +109,9 @@ describe("revokeTokenByHash", () => {
     await revokeTokenByHash({ query } as unknown as Pool, "hash-1");
 
     expect(query).toHaveBeenCalledWith(
-      expect.stringMatching(/UPDATE pipeline\.api_tokens SET revoked_at = now\(\)[\s\S]*token_hash = \$1/),
+      expect.stringMatching(
+        /UPDATE pipeline\.api_tokens SET revoked_at = now\(\)[\s\S]*token_hash = \$1/,
+      ),
       ["hash-1"],
     );
   });

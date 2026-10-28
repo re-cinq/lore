@@ -1,5 +1,3 @@
-import type { TokenScope } from "../../transport/http/auth.js";
-
 export const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 export const HANDOFF_TTL_MS = 10 * 60 * 1000;
 
@@ -8,7 +6,7 @@ export type LoginFailure = "not_in_org" | "github_denied" | "state_expired";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
-export function scopesForRole(role: OrgRole): TokenScope[] {
+export function scopesForRole(role: OrgRole): string[] {
   return role === "admin" ? ["admin"] : ["read", "write", "task"];
 }
 
@@ -18,17 +16,18 @@ export function returnUrlAllowed(
   env: { LORE_UI_URL?: string },
 ): boolean {
   const target = URL.parse(returnUrl);
-  const uiOrigin = env.LORE_UI_URL ? URL.parse(env.LORE_UI_URL)?.origin : undefined;
 
-  if (!target) {
-    return false;
-  }
+  return target !== null && (isConfiguredUi(target, env) || isLocalUi(target));
+}
 
-  const isConfiguredUi = uiOrigin !== undefined && target.origin === uiOrigin;
-  const isLocalUi =
-    target.protocol === "http:" && LOCAL_HOSTS.has(target.hostname);
+function isConfiguredUi(target: URL, env: { LORE_UI_URL?: string }): boolean {
+  const uiOrigin = env.LORE_UI_URL ? URL.parse(env.LORE_UI_URL)?.origin : null;
 
-  return isConfiguredUi || isLocalUi;
+  return uiOrigin === target.origin;
+}
+
+function isLocalUi(target: URL): boolean {
+  return target.protocol === "http:" && LOCAL_HOSTS.has(target.hostname);
 }
 
 export function authorizeUrl(input: {

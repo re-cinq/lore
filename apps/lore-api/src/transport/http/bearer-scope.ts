@@ -11,7 +11,12 @@ import type {
   ResponseToolkit,
 } from "@hapi/hapi";
 import type { Pool } from "pg";
-import { resolveTokenScopes, type TokenScope } from "./auth.js";
+import {
+  resolvePrincipal,
+  type Principal,
+  type TokenScope,
+  type UserIdentity,
+} from "./auth.js";
 
 const STRATEGY = "bearer-scope";
 
@@ -35,19 +40,49 @@ async function authenticateBearer(
 
   enforceTrue(bearer, (message) => denied(401, message), "unauthorized");
 
-  let scopes: TokenScope[] | null;
+  const principal = await principalFor(request, pool, bearer);
 
+  enforceTrue(
+    principal,
+    (message) => denied(403, message),
+    "insufficient scope",
+  );
+  enforceRouteScope(request, principal.scopes);
+
+  return h.authenticated({ credentials: credentialsOf(principal) });
+}
+
+function credentialsOf(principal: Principal) {
+  return {
+    scope: principal.scopes,
+    user: principal.user ?? undefined,
+    app: { tokenHash: principal.tokenHash },
+  };
+}
+
+/** The principal an authenticated request carries; read it only in a route guarded by `bearerScope`. */
+export function principalOf(request: Request): Principal {
+  const { scope, user, app } = request.auth.credentials;
+
+  return {
+    scopes: (scope ?? []) as TokenScope[],
+    user: (user as UserIdentity | undefined) ?? null,
+    tokenHash:
+      (app as { tokenHash: string | null } | undefined)?.tokenHash ?? null,
+  };
+}
+
+async function principalFor(
+  request: Request,
+  pool: Pool | null,
+  bearer: string,
+): Promise<Principal | null> {
   try {
-    scopes = await resolveTokenScopes(pool, bearer);
+    return await resolvePrincipal(pool, bearer);
   } catch (err) {
     request.log(["error", "db"], err as Error);
     throw apiError(503)("database unavailable");
   }
-
-  enforceTrue(scopes, (message) => denied(403, message), "insufficient scope");
-  enforceRouteScope(request, scopes);
-
-  return h.authenticated({ credentials: { scope: scopes } });
 }
 
 // hapi types the header as string | string[]; only the first value can carry the credential.

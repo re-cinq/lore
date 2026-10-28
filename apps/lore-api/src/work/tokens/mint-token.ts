@@ -2,7 +2,6 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import type { Pool } from "pg";
-import type { TokenScope } from "../../transport/http/auth.js";
 
 export interface TokenUser {
   login: string;
@@ -13,7 +12,7 @@ export interface TokenUser {
 
 export interface MintInput {
   name: string;
-  scopes: TokenScope[];
+  scopes: string[];
   createdBy: string;
   expiresAt: Date | null;
   kind?: "service" | "user";
@@ -45,13 +44,18 @@ export async function mintApiToken(
     input.createdBy,
     input.expiresAt,
     input.kind ?? "service",
-    input.user?.login ?? null,
-    input.user?.displayName ?? null,
-    input.user?.avatarUrl ?? null,
-    input.user?.repos ?? [],
+    ...userColumns(input.user),
   ]);
 
   return { token, row: rows[0] };
+}
+
+const NO_USER_COLUMNS = [null, null, null, []] as const;
+
+function userColumns(user: TokenUser | undefined) {
+  return user
+    ? [user.login, user.displayName, user.avatarUrl, user.repos]
+    : NO_USER_COLUMNS;
 }
 
 export async function revokeTokenByHash(
