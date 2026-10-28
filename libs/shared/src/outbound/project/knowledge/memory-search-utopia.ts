@@ -60,45 +60,59 @@ function addHit(
   sources: MemorySourceIds,
   filter: MemoryHitFilter,
 ): void {
-  const kept = keptHit(hit, sources, filter);
+  const id = hit.externalId;
+  const parsed = id ? memoryExternalId(id) : null;
+  const kept = parsed && keptHit(hit, parsed, sources, filter);
 
-  if (!kept || !hit.externalId) {
+  if (!id || !kept) {
     return;
   }
-  const found = byId.get(hit.externalId) ?? { hit: kept, chunks: [] };
+  const found = byId.get(id) ?? { hit: kept, chunks: [] };
 
-  byId.set(hit.externalId, found);
+  byId.set(id, found);
   found.chunks.push({ seq: hit.seq, text: hit.text });
 }
 
 /** The hit as a memory hit when it is a chunk of this base's memories or episodes source, of an agent the filter allows; the value is filled in once every chunk is known. */
 function keptHit(
   hit: SearchHit,
+  parsed: MemoryExternalId,
   sources: MemorySourceIds,
   filter: MemoryHitFilter,
 ): MemorySearchResult | null {
-  const parsed = hit.externalId ? memoryExternalId(hit.externalId) : null;
+  return parsed.kind === "memory"
+    ? memoryHit(hit, parsed, sources.memories, filter)
+    : episodeHit(hit, parsed, sources.episodes, filter);
+}
 
-  if (!parsed) {
-    return null;
-  }
-  if (parsed.kind === "memory") {
-    const ownSource = hit.sourceId === sources.memories;
-    const ownAgent = !filter.agentId || filter.agentId === parsed.agentId;
+function memoryHit(
+  hit: SearchHit,
+  parsed: Extract<MemoryExternalId, { kind: "memory" }>,
+  memoriesSourceId: string | null,
+  filter: MemoryHitFilter,
+): MemorySearchResult | null {
+  const ownAgent = !filter.agentId || filter.agentId === parsed.agentId;
 
-    return ownSource && ownAgent
-      ? {
-          key: parsed.key,
-          value: "",
-          score: hit.score,
-          agent_id: parsed.agentId,
-          source: "memory",
-          backend: "utopia",
-        }
-      : null;
-  }
+  return hit.sourceId === memoriesSourceId && ownAgent
+    ? {
+        key: parsed.key,
+        value: "",
+        score: hit.score,
+        agent_id: parsed.agentId,
+        source: "memory",
+        backend: "utopia",
+      }
+    : null;
+}
 
-  return hit.sourceId === sources.episodes && !filter.agentId
+/** An episode has no agent, so a search scoped to one agent holds none. */
+function episodeHit(
+  hit: SearchHit,
+  parsed: Extract<MemoryExternalId, { kind: "episode" }>,
+  episodesSourceId: string | null,
+  filter: MemoryHitFilter,
+): MemorySearchResult | null {
+  return hit.sourceId === episodesSourceId && !filter.agentId
     ? {
         key: `episode-${parsed.id}`,
         id: parsed.id,

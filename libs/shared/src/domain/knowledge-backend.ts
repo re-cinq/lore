@@ -23,14 +23,15 @@ export async function searchBackend<T>(
   backend: KnowledgeBackend,
   source: string,
   searchLore: () => Promise<T[]>,
-  searchUtopia: (() => Promise<T[]>) | null = null,
+  searchUtopia?: (() => Promise<T[]>) | null,
 ): Promise<{ results: T[]; notes: string[] }> {
+  const readsLore = backend !== "utopia";
+  const readsUtopia = backend !== "lore";
   const [lore, utopia] = await Promise.all([
-    backend === "utopia" ? [] : searchLore(),
-    backend === "lore" || !searchUtopia ? [] : searchUtopia(),
+    readsLore ? searchLore() : [],
+    readsUtopia && searchUtopia ? searchUtopia() : [],
   ]);
-  const notes =
-    backend !== "lore" && !searchUtopia ? [noUtopiaReader(source)] : [];
+  const notes = readsUtopia && !searchUtopia ? [noUtopiaReader(source)] : [];
 
   return { results: [...lore, ...utopia], notes };
 }

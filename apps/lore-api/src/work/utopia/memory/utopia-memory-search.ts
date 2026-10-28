@@ -9,7 +9,10 @@ import {
   utopiaMemoryHits,
   type MemorySourceIds,
 } from "@re-cinq/lore-shared/project/knowledge/memory-search-utopia.js";
-import { memorySourceFor } from "../../../outbound/utopia-memory-sources.js";
+import {
+  memorySourceFor,
+  type StoredMemorySource,
+} from "../../../outbound/utopia-memory-sources.js";
 import { orgMemoryBase } from "./utopia-memory-base.js";
 
 export interface UtopiaMemoryQuery {
@@ -33,32 +36,41 @@ export async function searchUtopiaMemories(
   asked: UtopiaMemoryQuery,
   env: UtopiaEnv = process.env,
 ): Promise<MemorySearchResult[] | null> {
-  const bases = await Promise.all(
+  const stored = await Promise.all(
     baseNames(asked.repo, env).map((base) => storedSources(pool, base)),
   );
-  const searchable = bases.filter(
-    (base): base is SearchableBase => base !== null,
-  );
+  const bases = stored.filter((base): base is SearchableBase => base !== null);
 
-  if (searchable.length === 0) {
+  if (bases.length === 0) {
     return null;
   }
-  const perBase = await Promise.all(
-    searchable.map(async (base) => {
-      const page = await reads.search(base.kbId, asked.query, PAGE);
-
-      return utopiaMemoryHits(page.hits, base.sources, {
-        agentId: asked.agentId,
-        limit: asked.limit,
-      });
-    }),
+  const hits = await Promise.all(
+    bases.map((base) => searchBase(reads, base, asked)),
   );
 
+  return rankedHits(hits.flat(), asked.limit);
+}
+
+async function searchBase(
+  reads: UtopiaReads,
+  base: SearchableBase,
+  asked: UtopiaMemoryQuery,
+): Promise<MemorySearchResult[]> {
+  const page = await reads.search(base.kbId, asked.query, PAGE);
+
+  return utopiaMemoryHits(page.hits, base.sources, {
+    agentId: asked.agentId,
+    limit: asked.limit,
+  });
+}
+
+/** The bases' hits ranked together by Utopia's own scores, cut to the limit, and only then scaled so the best is 1. */
+function rankedHits(
+  hits: MemorySearchResult[],
+  limit: number,
+): MemorySearchResult[] {
   return normalizeHitScores(
-    perBase
-      .flat()
-      .sort((a, b) => b.score - a.score)
-      .slice(0, asked.limit),
+    [...hits].sort((a, b) => b.score - a.score).slice(0, limit),
   );
 }
 
@@ -71,6 +83,9 @@ function baseNames(repo: string | undefined, env: UtopiaEnv): string[] {
   ];
 }
 
+const idOf = (source: StoredMemorySource | null): string | null =>
+  source?.id ?? null;
+
 /** The base's stored sources and the knowledge base they are in; null when neither kind was ever pushed. */
 async function storedSources(
   pool: Pool,
@@ -80,15 +95,9 @@ async function storedSources(
     memorySourceFor(pool, base, "memories"),
     memorySourceFor(pool, base, "episodes"),
   ]);
-  const either = memories ?? episodes;
+  const kbId = (memories ?? episodes)?.kbId;
 
-  return either
-    ? {
-        kbId: either.kbId,
-        sources: {
-          memories: memories?.id ?? null,
-          episodes: episodes?.id ?? null,
-        },
-      }
+  return kbId
+    ? { kbId, sources: { memories: idOf(memories), episodes: idOf(episodes) } }
     : null;
 }
