@@ -33,20 +33,6 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
-            - name: LORE_INGEST_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.ingestTokenSecret.name }}
-                  key: {{ .Values.ingestTokenSecret.key }}
-            # Optional: present only once the admin-token ExternalSecret is
-            # enabled (var.enable_ui_admin_token). optional: true keeps the
-            # rollout from stalling on a missing secret.
-            - name: LORE_ADMIN_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.adminTokenSecret.name }}
-                  key: {{ .Values.adminTokenSecret.key }}
-                  optional: true
             - name: LORE_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -67,21 +53,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.githubAppSecret.name }}
                   key: {{ .Values.githubAppSecret.installationIdKey }}
-            - name: GITHUB_OAUTH_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.oauthSecret.name }}
-                  key: {{ .Values.oauthSecret.clientIdKey }}
-            - name: GITHUB_OAUTH_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.oauthSecret.name }}
-                  key: {{ .Values.oauthSecret.clientSecretKey }}
-            - name: NEXTAUTH_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.oauthSecret.name }}
-                  key: {{ .Values.oauthSecret.nextauthSecretKey }}
           livenessProbe:
             httpGet:
               path: /

@@ -3,7 +3,6 @@ import Link from "next/link";
 import AppShell from "./AppShell";
 import BrandLockup from "@/components/BrandLockup";
 import SidebarNav from "./SidebarNav";
-import SessionWrapper from "./SessionWrapper";
 import UserMenu from "./UserMenu";
 import { RailToggle, SidebarSearch } from "@/components/shell/SidebarTools";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
@@ -18,6 +17,7 @@ import {
   gohu,
 } from "@/lib/theme/fonts";
 import { THEME_SCRIPT } from "@/lib/theme/theme-script";
+import { getSession } from "@/lib/session";
 import "./theme.css";
 import "highlight.js/styles/github.css";
 import "./globals.css";
@@ -50,11 +50,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
-          <SessionWrapper>
-            <LiveSocketProvider url={liveSocketUrl(process.env)}>
-              <AppShell sidebar={<Sidebar />}>{children}</AppShell>
-            </LiveSocketProvider>
-          </SessionWrapper>
+          <LiveSocketProvider url={liveSocketUrl(process.env)}>
+            <AppShell sidebar={<Sidebar />}>{children}</AppShell>
+          </LiveSocketProvider>
         </ThemeProvider>
       </body>
     </html>
@@ -77,7 +75,19 @@ function Sidebar() {
         grafanaUrl={grafanaUrl(process.env)}
         utopiaUrl={utopiaUrl(process.env)}
       />
-      <UserMenu version={process.env.LORE_UI_VERSION ?? "dev"} />
+      <SidebarFoot />
     </>
+  );
+}
+
+/** The signed-in person beside the deployed build; read here so the rest of the sidebar renders without waiting for lore-api to name them. */
+async function SidebarFoot() {
+  const session = await getSession();
+
+  return (
+    <UserMenu
+      user={session?.user ?? null}
+      version={process.env.LORE_UI_VERSION ?? "dev"}
+    />
   );
 }

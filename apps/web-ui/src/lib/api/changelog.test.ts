@@ -10,14 +10,12 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_ADMIN_TOKEN = "admin";
   fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({})));
   vi.stubGlobal("fetch", fetchMock);
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.LORE_ADMIN_TOKEN;
 });
 
 describe("getChangelog", () => {

@@ -1,4 +1,5 @@
 import { KNOWN_MODELS } from "@/lib/agents-mirror";
+import { bearerHeaders, resolveLoreApiConfig } from "@/lib/lore-api-config";
 import { SubmitButton } from "@/components/SubmitButton";
 import { createSkill, deleteSkill, updateSkill } from "./actions";
 
@@ -167,10 +168,10 @@ function Field(p: {
 
 async function fetchSkills(): Promise<SkillDefinition[]> {
   try {
-    const { url, tk } = getApiConfig();
-    const res = await fetch(`${url}/api/skill-definitions`, {
+    const config = await resolveLoreApiConfig();
+    const res = await fetch(`${config?.apiUrl ?? ""}/api/skill-definitions`, {
       signal: AbortSignal.timeout(5000),
-      headers: tk ? { authorization: `Bearer ${tk}` } : undefined,
+      headers: bearerHeaders(config),
       cache: "no-store",
     });
 
@@ -183,10 +184,4 @@ async function fetchSkills(): Promise<SkillDefinition[]> {
   } catch {
     return [];
   }
-}
-
-function getApiConfig() {
-  const tk = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
-
-  return { url: process.env.LORE_API_URL || "", tk };
 }

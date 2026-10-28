@@ -36,4 +36,5 @@
   border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: var(--fs-base);
+  text-decoration: none;
 }

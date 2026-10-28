@@ -85,7 +85,7 @@ To re-test this path end to end, tear the local stack down:
 
 ```bash
 docker rm -f lore-postgres lore-dgraph
-rm -f .env.local .lore-nextauth-secret
+rm -f .env.local
 docker run --rm -v "$PWD:/work" alpine:3.20 \
   sh -c 'rm -rf /work/.lore-pgdata /work/.lore-dgraphdata /work/.lore-archive'
 ```
@@ -94,22 +94,22 @@ The data dirs are written by the containers as root, so a plain `rm -rf` hits `P
 
 ### Logging into the web UI
 
-The web UI (`:3000`) is gated by NextAuth with GitHub OAuth, so a one-time OAuth app is required before you can sign in:
+The web UI (`:3000`) signs people in through lore-api (`:3001`), which runs the GitHub OAuth dance, so a one-time OAuth app is required before you can sign in:
 
 1. Create a GitHub OAuth app at https://github.com/settings/developers → **New OAuth App**:
    - **Homepage URL:** `http://localhost:3000`
-   - **Authorization callback URL:** `http://localhost:3000/api/auth/callback/github`
+   - **Authorization callback URL:** `http://localhost:3001/api/auth/callback`
 2. Register it, copy the **Client ID**, and **Generate a new client secret**.
-3. Put both in `apps/web-ui/.env.local` (gitignored, auto-loaded by `next dev`):
+3. Put both in the root `.env.local` (gitignored, sourced by `npm start`; lore-api reads them, the web UI needs none):
 
    ```
    GITHUB_OAUTH_CLIENT_ID=...
    GITHUB_OAUTH_CLIENT_SECRET=...
    ```
 
-4. Restart `npm start` so the web-ui reloads `.env.local`, then **Sign in with GitHub**.
+4. Restart `npm start`, then **Sign in with GitHub**.
 
-Optionally set `GITHUB_ALLOWED_ORG` in the same file to restrict login to one org's members (unset = any GitHub account). The callback URL must match exactly, or GitHub returns a `redirect_uri` error.
+Optionally set `GITHUB_ORG` in the same file to restrict login to one org's members (unset = any GitHub account). The callback URL must match exactly, or GitHub returns a `redirect_uri` error.
 
 ## Project structure
 
@@ -121,7 +121,7 @@ lore/
 │   ├── stations/               # Service stations, the cron ticks + event drain, Lore's floor stations
 │   ├── mcp-server/             # Local stdio MCP adapter (+ the in-cluster lore-mcp HTTP gateway)
 │   ├── lore-code-trace/        # Go binary — runs a repo's test suite in CI and posts the trace
-│   ├── web-ui/                 # Next.js dashboard (repo-centric UI, GitHub OAuth)
+│   ├── web-ui/                 # Next.js dashboard (repo-centric UI; signs in through lore-api)
 │   └── vscode-extension/       # VS Code extension (spec ↔ code highlighting)
 ├── libs/                       # shared libraries (consumed by apps)
 │   ├── shared/                 # @re-cinq/lore-shared — chunker, redact, Project facade, types
@@ -152,7 +152,7 @@ Each app and library carries its own README with its responsibilities, boundarie
 | Lore API | TypeScript, `@hapi/hapi` (REST), Zod, `pg`, Octokit, tree-sitter |
 | Floor | TypeScript, `@anthropic-ai/sdk`, Claude Code (headless) |
 | stations | TypeScript, `@hapi/hapi`, Zod, `pg` |
-| Web UI | Next.js 15, NextAuth v4 (GitHub OAuth) |
+| Web UI | Next.js 15, a session cookie minted by lore-api (GitHub OAuth) |
 | Database | PostgreSQL 16 + pgvector (CloudNativePG) |
 | Embeddings | Vertex AI `text-embedding-005` (768 dim) |
 | Search | Hybrid: HNSW vector + BM25 keyword, RRF fusion. AST-based code chunking via tree-sitter |

@@ -1,6 +1,7 @@
 import type { AgentDefinition } from "./agents-mirror";
+import { resolveLoreApiConfig } from "./lore-api-config";
 
-// Server-to-server client for the mcp-server agents API — image changes need the CODEOWNERS approval-PR header; admin token never reaches the browser.
+// Server-to-server client for the mcp-server agents API — image changes need the CODEOWNERS approval-PR header; the person's session token (an admin session for these routes) never reaches the browser.
 export const DEFAULT_EXECUTION_IMAGE =
   "ghcr.io/re-cinq/lore-claude-runner:latest";
 
@@ -37,7 +38,7 @@ interface AgentUsageBody {
 }
 
 export async function fetchAgentUsage(): Promise<AgentUsage | null> {
-  const c = cfg();
+  const c = await resolveLoreApiConfig();
 
   if (!c) {
     return null;
@@ -82,7 +83,7 @@ export function updateAgent(
 export async function saveOrgAgent(
   def: Partial<AgentDefinition> & { name: string },
 ): Promise<AgentSaveResult> {
-  const c = cfg();
+  const c = await resolveLoreApiConfig();
 
   if (!c) {
     return { status: "unconfigured" };
@@ -100,7 +101,7 @@ export async function deleteAgent(
   repo: string,
   name: string,
 ): Promise<AgentSaveResult> {
-  const c = cfg();
+  const c = await resolveLoreApiConfig();
 
   if (!c) {
     return { status: "unconfigured" };
@@ -111,7 +112,7 @@ export async function deleteAgent(
 
 /** A catalog read: an unreachable or unhappy endpoint reads as an empty catalog, never as a thrown render. */
 async function fetchAgentList(path: string): Promise<AgentDefinition[]> {
-  const c = cfg();
+  const c = await resolveLoreApiConfig();
 
   if (!c) {
     return [];
@@ -149,7 +150,7 @@ async function writeAgent(
   target: { name: string | undefined; method: "POST" | "PUT" },
   approvalPr?: string,
 ): Promise<AgentSaveResult> {
-  const c = cfg();
+  const c = await resolveLoreApiConfig();
 
   if (!c) {
     return { status: "unconfigured" };
@@ -182,14 +183,6 @@ async function deleteDefinition(
   }
 
   return res.ok ? deletedResult(name) : await readErrorBody(res);
-}
-
-function cfg(): { apiUrl: string; token: string } | null {
-  const apiUrl = process.env.LORE_API_URL;
-  // Prefer the admin token; the legacy full-access ingest token (local dev default) also satisfies the mcp route's admin-scope check.
-  const token = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
-
-  return apiUrl && token ? { apiUrl, token } : null;
 }
 
 interface WriteRequest {

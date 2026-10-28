@@ -238,15 +238,13 @@ async function inUsersName(
 
 // Every action is bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.
 async function allowedUser(fullName: string): Promise<Allowed> {
-  const session = (await getSession()) as
-    (PlanSession & { accessToken?: string }) | null;
-  const user = planUserOf(session);
+  const user = planUserOf((await getSession()) as PlanSession | null);
 
-  if (!user || !session?.accessToken) {
+  if (!user) {
     return { error: "Sign in to open this plan." };
   }
 
-  return (await userCanAccessRepo(session.accessToken, fullName))
+  return (await userCanAccessRepo(fullName))
     ? { user }
     : { error: "You do not have access to this repo." };
 }

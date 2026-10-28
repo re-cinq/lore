@@ -47,7 +47,6 @@ const answer = (status: number, body: object) =>
 
 beforeEach(() => {
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_ADMIN_TOKEN = "admin";
   session.mockResolvedValue(GEDAIU);
   canAccess.mockResolvedValue(true);
   fetchMock = vi.fn();
@@ -57,7 +56,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.LORE_ADMIN_TOKEN;
 });
 
 describe("openPlanSocketAction", () => {

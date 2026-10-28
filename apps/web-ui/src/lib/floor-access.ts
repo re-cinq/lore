@@ -8,18 +8,17 @@ import {
 
 /** The repo-access then upstream-env tail every proxied route shares: a caller without access to the repo, and a deployment with the upstream unconfigured, are refused the same way everywhere. */
 export async function authorizeRepoUpstreamAccess(
-  accessToken: string,
   repo: string,
   upstream: RunUpstream,
 ): Promise<UpstreamConfig | NextResponse> {
-  if (!(await userCanAccessRepo(accessToken, repo))) {
+  if (!(await userCanAccessRepo(repo))) {
     return NextResponse.json(
       { error: "Access denied — you do not have access to this repo" },
       { status: 403 },
     );
   }
 
-  const config = resolveUpstreamConfig(upstream);
+  const config = await resolveUpstreamConfig(upstream);
 
   if (!config) {
     return NextResponse.json(

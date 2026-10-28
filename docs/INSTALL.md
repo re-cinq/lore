@@ -107,7 +107,7 @@ Who generates what: the infra team or the client's security team holds the vault
 | `lore-api` | `lore-api-db-password` | `password` | `lore-db-password` | the `lore` Postgres role's password |
 | `lore-ui` | `lore-db-password` | `password` | same | |
 | `lore-stations` | `lore-stations-db-password` | `password` | same | |
-| `lore-api`, `lore-ui`, `lore-stations` | `lore-ingest-token` | `token` | `lore-ingest-token` | the shared API bearer token (`openssl rand -hex 32`). Laptops and CI use it too |
+| `lore-api`, `lore-stations` | `lore-ingest-token` | `token` | `lore-ingest-token` | the shared API bearer token (`openssl rand -hex 32`). Laptops and CI use it too |
 | `lore-api`, `lore-stations` | `lore-agent-internal-token` | `token` | `lore-agent-internal-token` | the token stations present to lore-api |
 | `lore-api`, `lore-ui` | `github-app-credentials` | `app-id`, `private-key`, `installation-id` | `lore-github-app-*` | the GitHub App (1.6) |
 | `lore-stations` | `lore-stations-github-app` | same three | same | |
@@ -116,7 +116,7 @@ Who generates what: the infra team or the client's security team holds the vault
 | `lore-stations` | `lore-stations-anthropic-key` | same | same | |
 | `lore-api` | `lore-slack-credentials` | `signing-secret`, `bot-token` | `lore-slack-*` | the Slack app (1.6). Optional: the charts tolerate its absence |
 | `lore-stations` | `lore-stations-slack` | `bot-token` | `lore-slack-bot-token` | |
-| `lore-ui` | `lore-ui-oauth` | `client-id`, `client-secret`, `nextauth-secret` | `lore-github-oauth-*`, `lore-nextauth-secret` | the GitHub OAuth App for UI sign-in, and a random NextAuth string |
+| `lore-api` | `lore-github-oauth` | `client-id`, `client-secret` | `lore-github-oauth-*` | the GitHub OAuth App for UI sign-in, which lore-api runs (ADR-053) |
 | `lore-api`, `lore-ui`, `lore-stations` | `ghcr-pull-secret` | `.dockerconfigjson` | `lore-ghcr-pull-secret` | a GitHub token with `read:packages` for the private `ghcr.io/re-cinq/lore-*` images |
 
 **Lore with the floor** (always, on a client install):
@@ -134,14 +134,14 @@ Who generates what: the infra team or the client's security team holds the vault
 | `floor-postgres` | `connectionString` | `postgres://user:password@host:5432/floor` |
 | `agent-secrets` | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, optionally `GEMINI_API_KEY`; plus `lore-mcp-auth` = `Bearer <lore-ingest-token>` | the model credential every agent pod runs with, and the header the pod's Lore MCP server is called with. The cluster agent also writes per-visit tokens here |
 
-**Optional:** `lore-ui/lore-admin-token` (privileged settings writes), `lore-stations/lore-reviewer-app` (a second GitHub App that approves pull requests for auto-merge), `lore-gemini-api-key`, and the OAuth + cookie secrets of Grafana, Headlamp and Utopia (cookie secrets are exactly 16, 24 or 32 bytes).
+**Optional:** `lore-stations/lore-reviewer-app` (a second GitHub App that approves pull requests for auto-merge), `lore-gemini-api-key`, and the OAuth + cookie secrets of Grafana, Headlamp and Utopia (cookie secrets are exactly 16, 24 or 32 bytes).
 
 ### 1.6 External accounts
 
 | Account | Who creates it | What Lore needs |
 | ------- | -------------- | --------------- |
 | **GitHub App**, installed on the organization | the client's GitHub org owner | permissions: Contents read/write, Issues read/write, Pull requests read/write, Checks read, Metadata read, Webhooks (repository hooks) read/write. Subscribe to no events on the App itself: lore-api installs a hook per repository (`POST /api/repos/:o/:r/webhook/ensure`) for `pull_request`, `pull_request_review`, `pull_request_review_comment`, `issue_comment`, `issues`, `repository`, `push`, `release`, `create`, `check_suite` (`apps/lore-api/src/work/webhook/webhook-status.ts`). Values: App ID, installation ID, private key PEM, the App's slug |
-| **GitHub OAuth App** for UI sign-in | same | callback `https://<lore_ui_hostname>/api/auth/callback/github`; sign-in is restricted to members of `GITHUB_ALLOWED_ORG` |
+| **GitHub OAuth App** for UI sign-in | same | callback `https://<lore_api host>/api/auth/callback` (lore-api's, not the UI's); sign-in is restricted to members of `GITHUB_ORG` |
 | lore-reviewer GitHub App (optional) | same | Pull requests read/write, Contents read, Checks read, Metadata read; no webhook. Lets the auto-merge loop approve the pull requests Lore's main App opened |
 | **Slack app** (optional) | a Slack admin | from `scripts/slack-app-manifest.yaml`: bot scopes `chat:write`, `commands`, `users:read`, `users:read.email`, `reactions:read`; slash command `/lore` and events at `https://<lore_api_url>/api/webhook/slack` and `/slack-events` |
 | **ghcr.io read token** | the Lore team (re-cinq) | a `read:packages` token for the private images `ghcr.io/re-cinq/{lore-api,lore-mcp,lore-ui,lore-stations}`. The floor and subsystem images (`ghcr.io/re-cinq/{floor,ai-agent-controller,ai-agent}`) and the third-party ones (`ghcr.io/cloudnative-pg/postgresql`, `dgraph/standalone`, `curlimages/curl`, `alpine`) are public |
@@ -273,18 +273,19 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
        LORE_WEBHOOK_URL: https://<lore_event_router_hostname>/api/events
        LORE_API_URL: https://<lore_api host>
        LORE_UI_URL: https://<lore_ui_hostname>
-       GITHUB_ORG: <org>
+       GITHUB_ORG: <org>                       # also the org whose members may sign in
        LORE_EVAL_LLM_PROVIDER: anthropic       # vertex only on GCP
        LORE_EVAL_LLM_MODEL: <model>
+     githubOAuthSecret:
+       name: lore-github-oauth
      floor:
        enabled: true
        skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
    lore-ui:
      env:
        LORE_DB_HOST: <postgres host>
-       GITHUB_ALLOWED_ORG: <org>
        GITHUB_APP_SLUG: <app slug>
-       NEXTAUTH_URL: https://<lore_ui_hostname>
+       LORE_API_PUBLIC_URL: https://<lore_api host>   # where the browser reaches lore-api: the sign-in redirects there
        LORE_WS_URL: wss://<lore_api host>/api/ws
    lore-stations:
      env:

@@ -1,23 +1,18 @@
-"use client";
-import { signIn } from "next-auth/react";
-import BrandLockup from "@/components/BrandLockup";
-import styles from "./page.module.css";
+import { signInStartHref } from "@/lib/return-path";
+import SignInPanel from "../SignInPanel";
 
-export default function SignIn() {
+interface SignInProps {
+  searchParams: Promise<{ next?: string }>;
+}
+
+export default async function SignIn({ searchParams }: SignInProps) {
+  const { next } = await searchParams;
+
   return (
-    <div className={styles.wrap}>
-      <div className={styles.panel}>
-        <h1 className={styles.title} aria-label="Lore">
-          <BrandLockup />
-        </h1>
-        <p className={styles.subtitle}>Sign in to access the platform</p>
-        <button
-          onClick={() => void signIn("github", { callbackUrl: "/" })}
-          className={styles.button}
-        >
-          Sign in with GitHub
-        </button>
-      </div>
-    </div>
+    <SignInPanel
+      message="Sign in to access the platform"
+      action="Sign in with GitHub"
+      href={signInStartHref(next ?? null)}
+    />
   );
 }

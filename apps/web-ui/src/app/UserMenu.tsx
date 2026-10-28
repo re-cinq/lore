@@ -1,19 +1,16 @@
-"use client";
-
-import { useSession, signOut } from "next-auth/react";
 import Icon from "@/components/Icon";
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./UserMenu.module.css";
 
 interface UserMenuProps {
   /** The deployed build (git SHA), what someone reads to tell whether what they see is what was merged. */
   version: string;
+  /** The signed-in person, or null when no one is. */
+  user: { name: string; image: string | null } | null;
 }
 
 /** The sidebar's foot: who is signed in, the build they are looking at, and the way out. The build shows even when no one is signed in. */
-export default function UserMenu({ version }: UserMenuProps) {
-  const { data: session } = useSession();
-  const user = session?.user;
-
+export default function UserMenu({ version, user }: UserMenuProps) {
   if (!user) {
     return (
       <div className={`${styles.menu} rail-hidden`}>
@@ -21,12 +18,11 @@ export default function UserMenu({ version }: UserMenuProps) {
       </div>
     );
   }
-  const name = user.name || user.email;
 
   return (
     <div className={`${styles.menu} rail-hidden`}>
-      <Avatar image={user.image} name={name} />
-      <Identity name={name} version={version} />
+      <Avatar image={user.image} name={user.name} />
+      <Identity name={user.name} version={version} />
       <SignOutButton />
     </div>
   );
@@ -85,14 +81,14 @@ export function initials(name?: string | null): string {
 
 function SignOutButton() {
   return (
-    <button
-      type="button"
-      onClick={() => void signOut()}
-      className={styles.signOut}
-      aria-label="Sign out"
-      title="Sign out"
-    >
-      <Icon name="signOut" size={16} />
-    </button>
+    <form method="post" action="/auth/signout">
+      <SubmitButton
+        className={styles.signOut}
+        aria-label="Sign out"
+        title="Sign out"
+      >
+        <Icon name="signOut" size={16} />
+      </SubmitButton>
+    </form>
   );
 }

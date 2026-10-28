@@ -2,12 +2,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const getServerSession = vi.fn();
+const sessionToken = vi.fn();
 const fetchAssemblyRun = vi.fn();
 const userCanAccessRepo = vi.fn();
 
-vi.mock("next-auth", () => ({ getServerSession }));
-vi.mock("@/lib/auth-options", () => ({ authOptions: {} }));
+vi.mock("@/lib/session-token", () => ({ sessionToken }));
 vi.mock("@/lib/assembly-runs", () => ({ fetchAssemblyRun }));
 vi.mock("@/lib/user-repo-access", () => ({ userCanAccessRepo }));
 
@@ -18,7 +17,7 @@ const params = Promise.resolve({ id: "old-run" });
 let fetchMock: ReturnType<typeof vi.fn>;
 
 function signedIn() {
-  getServerSession.mockResolvedValue({ accessToken: "gho_x", login: "gedaiu" });
+  sessionToken.mockResolvedValue("tok");
   fetchAssemblyRun.mockResolvedValue({ id: "old-run", repo: "re-cinq/lore" });
   userCanAccessRepo.mockResolvedValue(true);
 }
@@ -30,7 +29,6 @@ function lore(status: number, body: object) {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_INGEST_TOKEN = "tok";
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
 });

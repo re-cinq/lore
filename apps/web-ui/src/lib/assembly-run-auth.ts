@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchAssemblyRun, type AssemblyRun } from "@/lib/assembly-runs";
-import { resolveSessionAccessToken } from "@/lib/session-access-token";
+import { sessionToken } from "@/lib/session-token";
 import type { RunUpstream, UpstreamConfig } from "@/lib/floor-config";
 import { authorizeRepoUpstreamAccess } from "@/lib/floor-access";
 import { serverError } from "@/lib/api-error";
@@ -21,29 +21,21 @@ export async function authorizeAssemblyRunAccess(
   id: string,
   upstream: RunUpstream = "lore-api",
 ): Promise<AssemblyRunAuth | NextResponse> {
-  const session = await resolveSessionRun(id);
+  const run = await resolveSessionRun(id);
 
-  if (session instanceof NextResponse) {
-    return session;
+  if (run instanceof NextResponse) {
+    return run;
   }
-  const config = await authorizeRepoUpstreamAccess(
-    session.accessToken,
-    session.run.repo,
-    upstream,
-  );
+  const config = await authorizeRepoUpstreamAccess(run.repo, upstream);
 
-  return config instanceof NextResponse
-    ? config
-    : { run: session.run, ...config };
+  return config instanceof NextResponse ? config : { run, ...config };
 }
 
 /** The first two rungs: a signed-in caller, and a run that exists. */
 async function resolveSessionRun(
   id: string,
-): Promise<{ accessToken: string; run: AssemblyRun } | NextResponse> {
-  const accessToken = await resolveSessionAccessToken();
-
-  if (!accessToken) {
+): Promise<AssemblyRun | NextResponse> {
+  if (!(await sessionToken())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const run = await fetchAssemblyRun(id);
@@ -52,7 +44,7 @@ async function resolveSessionRun(
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  return { accessToken, run };
+  return run;
 }
 
 /** What a run proxy needs once the ladder has passed: the run id, the run the ladder resolved, the caller's request, and the upstream to ask. */

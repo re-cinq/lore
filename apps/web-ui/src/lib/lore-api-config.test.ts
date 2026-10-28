@@ -1,38 +1,39 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { resolveLoreApiConfig } from "./lore-api-config";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const sessionToken = vi.fn();
+
+vi.mock("@/lib/session-token", () => ({ sessionToken }));
+
+const { resolveLoreApiConfig } = await import("./lore-api-config");
 
 describe("resolveLoreApiConfig", () => {
-  const original = {
-    apiUrl: process.env.LORE_API_URL,
-    token: process.env.LORE_INGEST_TOKEN,
-  };
+  const original = process.env.LORE_API_URL;
 
   beforeEach(() => {
     process.env.LORE_API_URL = "https://lore-api.example";
-    process.env.LORE_INGEST_TOKEN = "tok";
+    sessionToken.mockResolvedValue("session-1");
   });
 
   afterEach(() => {
-    process.env.LORE_API_URL = original.apiUrl;
-    process.env.LORE_INGEST_TOKEN = original.token;
+    process.env.LORE_API_URL = original;
   });
 
-  it("returns the URL and token when both are set", () => {
-    expect(resolveLoreApiConfig()).toEqual({
+  it("returns the URL and the person's session token when both are there", async () => {
+    expect(await resolveLoreApiConfig()).toEqual({
       apiUrl: "https://lore-api.example",
-      token: "tok",
+      token: "session-1",
     });
   });
 
-  it("returns null when LORE_API_URL is unset", () => {
+  it("returns null when LORE_API_URL is unset", async () => {
     delete process.env.LORE_API_URL;
 
-    expect(resolveLoreApiConfig()).toBeNull();
+    expect(await resolveLoreApiConfig()).toBeNull();
   });
 
-  it("returns null when LORE_INGEST_TOKEN is unset", () => {
-    delete process.env.LORE_INGEST_TOKEN;
+  it("returns null when there is no session", async () => {
+    sessionToken.mockResolvedValue(null);
 
-    expect(resolveLoreApiConfig()).toBeNull();
+    expect(await resolveLoreApiConfig()).toBeNull();
   });
 });

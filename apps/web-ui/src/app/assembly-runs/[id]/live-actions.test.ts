@@ -1,13 +1,14 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const getServerSession = vi.fn();
+const sessionToken = vi.fn();
+const getSession = vi.fn();
 const fetchAssemblyRun = vi.fn();
 const userCanAccessRepo = vi.fn();
 const mintRunStreamToken = vi.fn();
 
-vi.mock("next-auth", () => ({ getServerSession }));
-vi.mock("@/lib/auth-options", () => ({ authOptions: {} }));
+vi.mock("@/lib/session-token", () => ({ sessionToken }));
+vi.mock("@/lib/session", () => ({ getSession }));
 vi.mock("@/lib/assembly-runs", () => ({ fetchAssemblyRun }));
 vi.mock("@/lib/user-repo-access", () => ({ userCanAccessRepo }));
 vi.mock("@/lib/api/assembly-run-stream", () => ({ mintRunStreamToken }));
@@ -15,11 +16,8 @@ vi.mock("@/lib/api/assembly-run-stream", () => ({ mintRunStreamToken }));
 const { openRunChannelAction } = await import("./live-actions");
 
 function signedIn() {
-  getServerSession.mockResolvedValue({
-    accessToken: "gho_x",
-    login: "gedaiu",
-    user: { name: "Bogdan" },
-  });
+  sessionToken.mockResolvedValue("tok");
+  getSession.mockResolvedValue({ login: "gedaiu", user: { name: "Bogdan" } });
   fetchAssemblyRun.mockResolvedValue({ id: "run-1", repo: "re-cinq/lore" });
   userCanAccessRepo.mockResolvedValue(true);
   mintRunStreamToken.mockResolvedValue({
@@ -31,12 +29,10 @@ function signedIn() {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_INGEST_TOKEN = "tok";
 });
 
 afterEach(() => {
   delete process.env.LORE_API_URL;
-  delete process.env.LORE_INGEST_TOKEN;
 });
 
 describe("openRunChannelAction", () => {
@@ -53,7 +49,7 @@ describe("openRunChannelAction", () => {
   });
 
   it("asks a visitor without a session to sign in, minting nothing", async () => {
-    getServerSession.mockResolvedValue(null);
+    sessionToken.mockResolvedValue(null);
 
     expect({
       grant: await openRunChannelAction("run-1"),

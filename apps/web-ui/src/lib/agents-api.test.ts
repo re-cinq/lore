@@ -9,6 +9,7 @@ import {
   deleteAgent,
 } from "./agents-api";
 import type { AgentDefinition } from "./agents-mirror";
+import { sessionToken } from "./session-token";
 
 const realFetch = global.fetch;
 
@@ -34,12 +35,10 @@ const mockFetch = (status: number, body: unknown) => {
 
 beforeEach(() => {
   process.env.LORE_API_URL = "https://lore-api.test";
-  process.env.LORE_ADMIN_TOKEN = "admin-tok";
 });
 afterEach(() => {
   global.fetch = realFetch;
   delete process.env.LORE_API_URL;
-  delete process.env.LORE_ADMIN_TOKEN;
   vi.restoreAllMocks();
 });
 
@@ -54,9 +53,7 @@ describe("listAgents", () => {
     expect(await listAgents("o/r")).toEqual([]);
   });
 
-  it("falls back to the legacy ingest token when no admin token is set (local dev)", async () => {
-    delete process.env.LORE_ADMIN_TOKEN;
-    process.env.LORE_INGEST_TOKEN = "ingest-tok";
+  it("sends the signed-in person's session token to lore-api", async () => {
     const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({
       ok: true,
       status: 200,
@@ -69,10 +66,8 @@ describe("listAgents", () => {
     const init = spy.mock.calls[0][1] as RequestInit;
 
     expect((init.headers as Record<string, string>).authorization).toBe(
-      "Bearer ingest-tok",
+      "Bearer session-token",
     );
-
-    delete process.env.LORE_INGEST_TOKEN;
   });
 
   it("returns [] on a non-ok response", async () => {
@@ -200,8 +195,8 @@ describe("saveOrgAgent", () => {
     });
   });
 
-  it("returns unconfigured when env is missing", async () => {
-    delete process.env.LORE_ADMIN_TOKEN;
+  it("returns unconfigured when there is no session to save an org default with", async () => {
+    vi.mocked(sessionToken).mockResolvedValueOnce(null);
     expect(await saveOrgAgent({ name: "general" })).toEqual({
       status: "unconfigured",
     });
@@ -209,8 +204,8 @@ describe("saveOrgAgent", () => {
 });
 
 describe("createAgent and updateAgent", () => {
-  it("returns unconfigured when env is missing", async () => {
-    delete process.env.LORE_ADMIN_TOKEN;
+  it("returns unconfigured when there is no session to create an agent with", async () => {
+    vi.mocked(sessionToken).mockResolvedValueOnce(null);
     expect(await createAgent("o/r", { name: "general" })).toEqual({
       status: "unconfigured",
     });
