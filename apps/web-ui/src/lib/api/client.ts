@@ -26,6 +26,8 @@ export interface FetchOptions {
   token?: string;
   /** The route is public (the sign-in's own): send no bearer, and do not need one. */
   anonymous?: boolean;
+  /** Abort the call after this long; a gate that polled routes depend on must not wait for ever. */
+  timeoutMs?: number;
 }
 
 /** Never throws: transport failure is a result, not an exception, so the caller decides whether it is fatal (see `enforceOk`). */
@@ -57,6 +59,7 @@ function buildRequestInit(
 ): RequestInit {
   return {
     method: options.method ?? "GET",
+    ...deadlineOf(options),
     headers: {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
@@ -68,4 +71,11 @@ function buildRequestInit(
       ? { cache: "no-store" as const }
       : { next: { revalidate: options.revalidate } }),
   };
+}
+
+/** The abort signal for a call that asked for a deadline; none otherwise. */
+function deadlineOf(options: FetchOptions): { signal?: AbortSignal } {
+  return options.timeoutMs === undefined
+    ? {}
+    : { signal: AbortSignal.timeout(options.timeoutMs) };
 }

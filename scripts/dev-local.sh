@@ -74,14 +74,11 @@ export LORE_DB_PASSWORD=lore
 # read/write the local Dgraph (published on :8081 by docker compose).
 export LORE_DGRAPH_HTTP="${LORE_DGRAPH_HTTP:-http://localhost:8081}"
 
-# 2a. Internal API token shared by the web-ui ↔ mcp-server proxy routes.
-#     The web-ui proxies /api/pipeline/.../timeline and /api/repos/.../context-preview
-#     to the mcp-server; both sides must present the SAME LORE_INGEST_TOKEN, which
-#     the mcp-server accepts via its legacy full-access path. Without this the
-#     proxy routes return "LORE_API_URL/LORE_INGEST_TOKEN not configured".
-#     A fixed localhost-only token keeps the backend (here) and the Next.js
-#     web-ui (apps/web-ui/.env.local) in sync without a generation/copy step; both
-#     honour any pre-set value so you can override for a real backend.
+# 2a. lore-api's address and its legacy full-access token. The web-ui holds no
+#     token: it signs a person in through lore-api (ADR-053) and sends their
+#     session token. LORE_INGEST_TOKEN is for the services that call lore-api
+#     (stations, mcp-server); it is also what lore-api accepts as a full-access
+#     bearer. Both honour any pre-set value so you can override for a real backend.
 export LORE_API_URL="${LORE_API_URL:-http://localhost:3001}"
 export LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
 
@@ -124,24 +121,14 @@ export LORE_FLOOR_POD_URL="${LORE_FLOOR_POD_URL:-http://host.minikube.internal:8
 export LORE_ARCHIVE_DIR="${LORE_ARCHIVE_DIR:-$ROOT/.lore-archive}"
 
 
-# 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret
-#     once and persist it (gitignored) so sessions survive restarts.
-export NEXTAUTH_URL="http://localhost:3000"
-SECRET_FILE="$ROOT/.lore-nextauth-secret"
-if [ ! -s "$SECRET_FILE" ]; then
-  (openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64) > "$SECRET_FILE"
-fi
-export NEXTAUTH_SECRET="$(cat "$SECRET_FILE")"
-
-# web-ui login uses GitHub OAuth (apps/web-ui/src/lib/auth-options.ts). The creds
-# live in apps/web-ui/.env.local, which `next dev` loads directly — so check there,
-# not just the shell env, to avoid a false alarm once they're set.
-if ! grep -qE '^GITHUB_OAUTH_CLIENT_ID=.+' "$ROOT/apps/web-ui/.env.local" 2>/dev/null \
-   && [ -z "${GITHUB_OAUTH_CLIENT_ID:-}" ]; then
+# 2b. web-ui login. lore-api runs the GitHub OAuth dance (ADR-053), so the OAuth
+#     app's credentials belong to lore-api, which reads them from this shell: put
+#     them in the root .env.local, which is sourced above. The web-ui needs none.
+if [ -z "${GITHUB_OAUTH_CLIENT_ID:-}" ] || [ -z "${GITHUB_OAUTH_CLIENT_SECRET:-}" ]; then
   log "GitHub OAuth not configured — web-ui login will fail until you set it up:"
   log "  1. Create an OAuth app: https://github.com/settings/developers (New OAuth App)"
-  log "     Homepage http://localhost:3000  ·  Callback http://localhost:3000/api/auth/callback/github"
-  log "  2. Put GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET in apps/web-ui/.env.local, then restart."
+  log "     Homepage http://localhost:3000  ·  Callback http://localhost:3001/api/auth/callback"
+  log "  2. Put GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET in .env.local, then restart."
 fi
 
 # 3. web-ui deps live outside the workspace — install on first run.

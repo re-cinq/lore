@@ -195,7 +195,7 @@ describe("saveOrgAgent", () => {
     });
   });
 
-  it("returns unconfigured when there is no session", async () => {
+  it("returns unconfigured when there is no session to save an org default with", async () => {
     vi.mocked(sessionToken).mockResolvedValueOnce(null);
     expect(await saveOrgAgent({ name: "general" })).toEqual({
       status: "unconfigured",
@@ -204,7 +204,7 @@ describe("saveOrgAgent", () => {
 });
 
 describe("createAgent and updateAgent", () => {
-  it("returns unconfigured when there is no session", async () => {
+  it("returns unconfigured when there is no session to create an agent with", async () => {
     vi.mocked(sessionToken).mockResolvedValueOnce(null);
     expect(await createAgent("o/r", { name: "general" })).toEqual({
       status: "unconfigured",

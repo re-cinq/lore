@@ -19,7 +19,7 @@ own lockfile, not an npm-workspace member.
 - **Cross-repo** — global specs viewer, semantic search, knowledge-graph
   explorer, episodes, gaps, analytics/spend, audit log, memory pools.
 - **API routes** (`src/app/api/`) — pipeline actions, repo context/settings,
-  onboarding, GitHub-App-backed PR status, NextAuth.
+  onboarding, GitHub-App-backed PR status, the sign-in routes.
 
 ## Layout
 
@@ -38,7 +38,7 @@ src/
 The web UI holds **no database pool** — `pg` is not a dependency, and the
 `lore/no-sql-in-web-ui` lint rule runs at `error`. All data access goes through
 the typed clients in [`src/lib/api/`](./src/lib/api) over the lore-api `/api/*`
-routes. Auth is NextAuth (GitHub).
+routes. Auth is a session cookie: lore-api runs the GitHub sign-in and mints the token the cookie holds (ADR-053).
 
 ## Develop
 

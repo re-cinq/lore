@@ -8,6 +8,9 @@ export type SessionUser = components["schemas"]["AuthMe"];
 export type RepoAccess = components["schemas"]["AuthAccess"];
 export type RedeemedSession = components["schemas"]["LoginRedeem"];
 
+/** The access question gates polled proxy routes, so a hung lore-api must not pin them. */
+const ACCESS_DEADLINE_MS = 30_000;
+
 export function getMe(): Promise<ApiResult<SessionUser>> {
   return apiFetch("lore-api", "/api/auth/me");
 }
@@ -16,6 +19,7 @@ export function repoAccess(repo: string): Promise<ApiResult<RepoAccess>> {
   return apiFetch(
     "lore-api",
     `/api/auth/access?repo=${encodeURIComponent(repo)}`,
+    { timeoutMs: ACCESS_DEADLINE_MS },
   );
 }
 

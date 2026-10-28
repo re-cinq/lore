@@ -6,6 +6,23 @@ import { SESSION_COOKIE } from "./lib/session-cookie-options";
 
 const REPO_PATH = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/;
 
+// A request without a session cookie goes to sign in; the cookie expires with the token it holds, and lore-api judges the token itself on every call.
+export default async function middleware(req: NextRequest) {
+  const cookie = req.cookies.get(SESSION_COOKIE);
+  const token = cookie?.value;
+
+  if (!token) {
+    return NextResponse.redirect(
+      new URL("/auth/signin", requestOrigin(req.headers)),
+    );
+  }
+  const destination = await repoCanonicalRedirect(req, token);
+
+  return destination
+    ? NextResponse.redirect(new URL(destination, req.url), 307)
+    : NextResponse.next();
+}
+
 /** The redirect target for a wrong-case /repos/{owner}/{repo}... URL, or null when the path isn't repo-scoped or already matches lore-api's canonical casing. */
 async function repoCanonicalRedirect(
   req: NextRequest,
@@ -22,22 +39,6 @@ async function repoCanonicalRedirect(
   const fullName = result.status === "ok" ? result.data.full_name : null;
 
   return canonicalRepoRedirect(pathname, search, fullName);
-}
-
-// A request without a session cookie goes to sign in; the cookie expires with the token it holds, and lore-api judges the token itself on every call.
-export default async function middleware(req: NextRequest) {
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
-
-  if (!token) {
-    return NextResponse.redirect(
-      new URL("/auth/signin", requestOrigin(req.headers)),
-    );
-  }
-  const destination = await repoCanonicalRedirect(req, token);
-
-  return destination
-    ? NextResponse.redirect(new URL(destination, req.url), 307)
-    : NextResponse.next();
 }
 
 export const config = {

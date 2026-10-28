@@ -35,15 +35,11 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-type SidebarUser = Parameters<typeof UserMenu>[0]["user"];
-
 interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-export default async function RootLayout({ children }: RootLayoutProps) {
-  const session = await getSession();
-
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     // THEME_SCRIPT hydrates before React; suppressHydrationWarning suppresses expected mismatch.
     <html
@@ -55,9 +51,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
           <LiveSocketProvider url={liveSocketUrl(process.env)}>
-            <AppShell sidebar={<Sidebar user={session?.user ?? null} />}>
-              {children}
-            </AppShell>
+            <AppShell sidebar={<Sidebar />}>{children}</AppShell>
           </LiveSocketProvider>
         </ThemeProvider>
       </body>
@@ -66,7 +60,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 }
 
 /** Brand and the rail toggle, the palette's search pill, the nav, and at the foot the signed-in user beside the deployed build (what someone reads when working out whether what they see is what was merged). */
-function Sidebar({ user }: { user: SidebarUser }) {
+function Sidebar() {
   return (
     <>
       <div className="sidebar-head">
@@ -81,7 +75,19 @@ function Sidebar({ user }: { user: SidebarUser }) {
         grafanaUrl={grafanaUrl(process.env)}
         utopiaUrl={utopiaUrl(process.env)}
       />
-      <UserMenu user={user} version={process.env.LORE_UI_VERSION ?? "dev"} />
+      <SidebarFoot />
     </>
+  );
+}
+
+/** The signed-in person beside the deployed build; read here so the rest of the sidebar renders without waiting for lore-api to name them. */
+async function SidebarFoot() {
+  const session = await getSession();
+
+  return (
+    <UserMenu
+      user={session?.user ?? null}
+      version={process.env.LORE_UI_VERSION ?? "dev"}
+    />
   );
 }

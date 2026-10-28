@@ -1,4 +1,5 @@
 import Icon from "@/components/Icon";
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./UserMenu.module.css";
 
 interface UserMenuProps {
@@ -17,6 +18,7 @@ export default function UserMenu({ version, user }: UserMenuProps) {
       </div>
     );
   }
+
   return (
     <div className={`${styles.menu} rail-hidden`}>
       <Avatar image={user.image} name={user.name} />
@@ -80,14 +82,13 @@ export function initials(name?: string | null): string {
 function SignOutButton() {
   return (
     <form method="post" action="/auth/signout">
-      <button
-        type="submit"
+      <SubmitButton
         className={styles.signOut}
         aria-label="Sign out"
         title="Sign out"
       >
         <Icon name="signOut" size={16} />
-      </button>
+      </SubmitButton>
     </form>
   );
 }

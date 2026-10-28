@@ -58,6 +58,16 @@ describe("apiFetch", () => {
     });
   });
 
+  it("gives a call the deadline it asks for, so a hung lore-api cannot pin the caller", async () => {
+    await apiFetch("lore-api", "/api/x", { timeoutMs: 30_000 });
+    expect(init().signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("sets no deadline on a call that asks for none", async () => {
+    await apiFetch("lore-api", "/api/x");
+    expect(init().signal).toBeUndefined();
+  });
+
   it("sends a JSON body on a write", async () => {
     await apiFetch("lore-api", "/api/x", { method: "POST", body: { a: 1 } });
     expect(init()).toMatchObject({ method: "POST", body: '{"a":1}' });

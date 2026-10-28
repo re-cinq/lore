@@ -25,7 +25,13 @@ export async function GET(req: Request) {
       `${origin}/auth/error?reason=${action.reason}`,
     );
   }
-  const session = await redeemCode(action.code);
+
+  return signedIn(action.code, origin);
+}
+
+/** Home with the session cookie set, or the error page when lore-api would not redeem the code. */
+async function signedIn(code: string, origin: string): Promise<NextResponse> {
+  const session = await redeemCode(code);
 
   if (session.status !== "ok") {
     return NextResponse.redirect(`${origin}/auth/error?reason=state_expired`);
@@ -35,10 +41,7 @@ export async function GET(req: Request) {
   response.cookies.set(
     SESSION_COOKIE,
     session.data.token,
-    sessionCookieOptions(
-      new Date(session.data.expires_at),
-      origin.startsWith("https:"),
-    ),
+    sessionCookieOptions(new Date(session.data.expires_at), origin),
   );
 
   return response;

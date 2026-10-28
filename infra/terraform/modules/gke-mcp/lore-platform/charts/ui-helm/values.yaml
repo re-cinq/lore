@@ -56,27 +56,12 @@ dbPasswordSecret:
   name: lore-db-password
   key: password
 
-ingestTokenSecret:
-  name: lore-ingest-token
-  key: token
-
-# Admin-scoped token for server-to-server calls to the mcp-server's two-key-gated
-# dark-factory settings endpoint (privileged per-repo settings writes). Optional:
-# the deployment references it with optional: true, so a missing secret (before
-# the operator mints the token + enables the ExternalSecret) does not stall the
-# rollout — privileged saves just surface an "API not configured" notice.
-adminTokenSecret:
-  name: lore-admin-token
-  key: token
-
 githubAppSecret:
   name: github-app-credentials
   appIdKey: app-id
   privateKeyKey: private-key
   installationIdKey: installation-id
 
-oauthSecret:
-  name: lore-ui-oauth
-  clientIdKey: client-id
-  clientSecretKey: client-secret
-  nextauthSecretKey: nextauth-secret
+# The UI holds no service token and no OAuth secret: a person signs in through
+# lore-api, which keeps the GitHub OAuth app (ADR-053), and the UI sends that
+# person's session token with every call.

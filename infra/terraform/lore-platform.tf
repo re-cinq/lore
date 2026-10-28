@@ -128,15 +128,20 @@ resource "helm_release" "lore_platform" {
     "lore-ui" = {
       replicaCount = 1
       env = {
-        LORE_DB_HOST       = "lore-db-rw.lore-db.svc.cluster.local"
-        LORE_DB_PORT       = "5432"
-        LORE_DB_NAME       = "lore"
-        LORE_DB_USER       = "lore"
-        GITHUB_ALLOWED_ORG = var.github_org
+        LORE_DB_HOST = "lore-db-rw.lore-db.svc.cluster.local"
+        LORE_DB_PORT = "5432"
+        LORE_DB_NAME = "lore"
+        LORE_DB_USER = "lore"
+        # Sign-in moved to lore-api (ADR-053). This release is applied with
+        # reuse_values = true, so a key dropped from this map would be carried
+        # forward rather than removed: blank the two the UI no longer reads.
+        GITHUB_ALLOWED_ORG = ""
+        NEXTAUTH_URL       = ""
         GITHUB_APP_SLUG    = var.github_app_slug
-        NEXTAUTH_URL       = var.lore_ui_url
         LORE_LOG_BUCKET    = "lore-task-logs-${var.project_id}"
         LORE_API_URL       = local.lore_api_in_cluster
+        # Where the BROWSER reaches lore-api: the sign-in redirects there.
+        LORE_API_PUBLIC_URL = var.lore_api_url
         # The tab's live socket (runs + plan editor) is opened by the BROWSER,
         # so it needs lore-api's public address, not the in-cluster one above
         # (ADR-047, ADR-048).
@@ -156,10 +161,8 @@ resource "helm_release" "lore_platform" {
         # Utopia's address, under the same rule (utopia.tf).
         UTOPIA_URL = var.enable_utopia ? "https://${var.utopia_hostname}" : ""
       }
-      dbPasswordSecret  = { name = "lore-db-password", key = "password" }
-      ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
-      githubAppSecret   = { name = "github-app-credentials" }
-      oauthSecret       = { name = "lore-ui-oauth" }
+      dbPasswordSecret = { name = "lore-db-password", key = "password" }
+      githubAppSecret  = { name = "github-app-credentials" }
     }
 
     # ---- lore-db ownership-reconciler add-on (lore-db namespace) ----

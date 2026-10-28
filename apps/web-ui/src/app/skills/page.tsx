@@ -1,5 +1,5 @@
 import { KNOWN_MODELS } from "@/lib/agents-mirror";
-import { resolveLoreApiConfig } from "@/lib/lore-api-config";
+import { bearerHeaders, resolveLoreApiConfig } from "@/lib/lore-api-config";
 import { SubmitButton } from "@/components/SubmitButton";
 import { createSkill, deleteSkill, updateSkill } from "./actions";
 
@@ -171,7 +171,7 @@ async function fetchSkills(): Promise<SkillDefinition[]> {
     const config = await resolveLoreApiConfig();
     const res = await fetch(`${config?.apiUrl ?? ""}/api/skill-definitions`, {
       signal: AbortSignal.timeout(5000),
-      headers: config ? { authorization: `Bearer ${config.token}` } : undefined,
+      headers: bearerHeaders(config),
       cache: "no-store",
     });
 

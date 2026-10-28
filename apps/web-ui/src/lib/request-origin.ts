@@ -6,6 +6,9 @@ export function requestOrigin(headers: Headers): string {
   return `${proto}://${host}`;
 }
 
+/** The first of a comma-separated list, which is the one the client itself asked for. */
 function firstOf(value: string | null): string | null {
-  return value?.split(",")[0].trim() || null;
+  const [first = ""] = (value ?? "").split(",");
+
+  return first.trim() || null;
 }

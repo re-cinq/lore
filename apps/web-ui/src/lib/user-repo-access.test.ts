@@ -24,6 +24,13 @@ describe("userCanAccessRepo", () => {
     expect(await userCanAccessRepo("re-cinq/lore")).toBe(true);
   });
 
+  it("logs nothing when the repo is in the person's list", async () => {
+    repoAccess.mockResolvedValue({ status: "ok", data: { allowed: true } });
+    await userCanAccessRepo("re-cinq/lore");
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("asks lore-api about the repo that was named", async () => {
     repoAccess.mockResolvedValue({ status: "ok", data: { allowed: true } });
     await userCanAccessRepo("re-cinq/lore");

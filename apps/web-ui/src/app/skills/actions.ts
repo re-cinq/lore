@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { resolveLoreApiConfig } from "@/lib/lore-api-config";
+import { bearerHeaders, resolveLoreApiConfig } from "@/lib/lore-api-config";
 
 export async function deleteSkill(name: string) {
   await sendSkill("DELETE", `/${encodeURIComponent(name)}`);
@@ -35,7 +35,7 @@ async function sendSkill(
     signal: AbortSignal.timeout(5000),
     headers: {
       "Content-Type": "application/json",
-      ...(config ? { authorization: `Bearer ${config.token}` } : {}),
+      ...bearerHeaders(config),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
