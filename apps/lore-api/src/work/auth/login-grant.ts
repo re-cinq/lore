@@ -1,7 +1,8 @@
+import type { OrgRole } from "../../outbound/github-user-client.js";
+
 export const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 export const HANDOFF_TTL_MS = 10 * 60 * 1000;
 
-export type OrgRole = "admin" | "member";
 export type LoginFailure = "not_in_org" | "github_denied" | "state_expired";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
