@@ -159,7 +159,7 @@ describe("utopiaMemoryHits", () => {
     ).toEqual(["one", "two"]);
   });
 
-  it("answers [] when the base has no sources yet", () => {
+  it("answers no hits when the base has no sources yet", () => {
     const hits = [hit("memory:a/k", "k\n\nv", 0.9)];
 
     expect(
