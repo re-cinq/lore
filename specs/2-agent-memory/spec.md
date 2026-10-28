@@ -107,7 +107,7 @@ available to agents — the authoritative interface.
   preserved in history but excluded from search). ([validated by `memory.test.ts:242`](libs/server-core/src/work/memory/memory.test.ts#L242))
 
 - **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
-  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/work/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L223))
+  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/work/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L231))
 
 ### Semantic Search
 
@@ -450,7 +450,7 @@ Decision: the following capabilities were added beyond the original spec:
   returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:51`](libs/shared/src/outbound/project/memory/memory.test.ts#L51), [`memory-store-bridge.test.ts:49`](libs/shared/src/outbound/project/memory/memory-store-bridge.test.ts#L49))
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
-  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13), [`memory.test.ts:367`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L413), [`session-summary.test.ts:153`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L186))
+  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13), [`memory.test.ts:367`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L421), [`session-summary.test.ts:153`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L186))
 - Audit trail is immutable. ([validated by `memory.test.ts:258`](libs/server-core/src/work/memory/memory.test.ts#L258))
 
 ## Operational Targets (Background)

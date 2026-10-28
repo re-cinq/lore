@@ -21,7 +21,7 @@ specific past version of a memory that has since changed.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L99)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L84)).
 
 - **name**: `lore_read_memory`
 - **description** (verbatim):

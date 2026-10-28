@@ -6,21 +6,19 @@ import {
   readMemoryFile,
   deleteMemoryFile,
   listMemoriesFile,
-  searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
-import { proxyMemory, withReadCache, textResult } from "./deps.js";
+import { proxyMemory, textResult } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 import {
   writeMemoryInput,
   READ_MEMORY_INPUT,
   DELETE_MEMORY_INPUT,
   LIST_MEMORIES_INPUT,
-  SEARCH_MEMORY_INPUT,
 } from "./memory-tools-schemas.js";
 import { registerGraphEpisodeTools } from "./graph-episode-tools.js";
+import { cachedMemoryRead } from "./memory-cached-read.js";
+import { registerSearchMemoryTool } from "./memory-search-tool.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
-import { backendNeedsApi, readsUtopia } from "./backend-param.js";
-import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 import {
   invalidRepoRefusal,
   NO_REPO_GIVEN,
@@ -52,25 +50,12 @@ interface WriteMemoryArgs extends KeyedMemoryArgs {
   repo?: string;
 }
 
-/** What these tools resolve to. `textResult` returns a one-element tuple and the proxy interpreter returns an array; naming the wider shape lets both flow out of one function. */
-type ToolText = { content: Array<{ type: "text"; text: string }> };
-
-interface SearchMemoryArgs {
-  query: string;
-  agent_id?: string;
-  pool?: string;
-  limit: number;
-  include_invalidated?: boolean;
-  graph_augment?: boolean;
-  backend?: KnowledgeBackend;
-}
-
 export function registerMemoryTools(server: McpServer, mode: ServerMode) {
   registerWriteMemoryTool(server, mode);
   registerReadMemoryTool(server);
   registerDeleteMemoryTool(server);
   registerListMemoriesTool(server, mode);
-  registerSearchMemoryTool(server);
+  registerSearchMemoryTool(server, mode);
   registerGraphEpisodeTools(server);
 }
 
@@ -151,29 +136,6 @@ async function readMemory(args: {
     },
     () => readMemoryFromFile(key, agent_id, version),
   );
-}
-
-/** Every memory read answers the same way: the cached proxy first, the server's own answer when it has one, and the local `~/.lore/memory` store when it does not. That fallback is why these tools still answer on a laptop with no API configured. */
-async function cachedMemoryRead(
-  spec: {
-    tool: string;
-    op: "read" | "list" | "search";
-    args: Record<string, unknown>;
-    repo?: string;
-  },
-  fromFile: () => ToolText,
-): Promise<ToolText> {
-  const proxied = await withReadCache(
-    {
-      tool: spec.tool,
-      args: spec.args,
-      repo: spec.repo,
-      ttlSeconds: 300,
-    },
-    () => proxyMemory(spec.op, spec.args),
-  );
-
-  return interpretMemoryProxy(spec.tool, proxied) ?? fromFile();
 }
 
 // The offline read. A miss is reported as a miss rather than an error — asking for a key that is not there is an ordinary answer.
@@ -301,48 +263,4 @@ function listFromFile(
   return textResult(
     JSON.stringify(listMemoriesFile(agent_id, limit, offset), null, 2),
   );
-}
-
-function registerSearchMemoryTool(server: McpServer) {
-  server.tool(
-    "lore_search_memory",
-    `Semantic (vector + keyword) search across org-wide memories and extracted facts; returns {results: [...]}, a relevance-ranked list of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
-    SEARCH_MEMORY_INPUT,
-    async (args) => {
-      try {
-        return await searchMemory(args);
-      } catch (err) {
-        return textResult(`Error searching memories: ${errorMessage(err)}`);
-      }
-    },
-  );
-}
-
-async function searchMemory(args: SearchMemoryArgs): Promise<ToolText> {
-  const { query, agent_id, limit, backend } = args;
-
-  return cachedMemoryRead(
-    { tool: "lore_search_memory", op: "search", args: searchProxyArgs(args) },
-    () =>
-      readsUtopia(backend)
-        ? textResult(backendNeedsApi(backend))
-        : textResult(
-            JSON.stringify(searchMemoryFile(query, agent_id, limit), null, 2),
-          ),
-  );
-}
-
-// The search as the API takes it — `pool` becomes `pool_name`, and an empty agent is dropped rather than sent as "".
-function searchProxyArgs(args: SearchMemoryArgs) {
-  return {
-    query: args.query,
-    agent_id: args.agent_id || undefined,
-    // Always sent, even when the search is org-wide: `agent_id` says what to search, this says who asked.
-    actor_id: resolveAgentId(),
-    pool_name: args.pool,
-    limit: args.limit,
-    include_invalidated: args.include_invalidated,
-    graph_augment: args.graph_augment,
-    backend: args.backend,
-  };
 }
