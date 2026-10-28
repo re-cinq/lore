@@ -39,9 +39,8 @@ All secrets consolidated into GCP Secret Manager:
 | `lore-db-password` | agent, mcp, ui | `lore-db-password` |
 | `lore-ingest-token` | agent, mcp | `lore-ingest-token` |
 | `lore-webhook-secret` | mcp | `lore-webhook-secret` |
-| `lore-github-oauth-client-id` | ui | `lore-ui-oauth` |
-| `lore-github-oauth-client-secret` | ui | `lore-ui-oauth` |
-| `lore-nextauth-secret` | ui | `lore-ui-oauth` |
+| `lore-github-oauth-client-id` | mcp | `lore-github-oauth` |
+| `lore-github-oauth-client-secret` | mcp | `lore-github-oauth` |
 | `lore-ghcr-pull-secret` | agent, mcp, ui | `ghcr-pull-secret` |
 
 ### Architecture
@@ -71,11 +70,11 @@ ESO (in-cluster)
 │   ├── lore-db-password
 │   ├── lore-ingest-token
 │   ├── lore-webhook-secret
+│   ├── lore-github-oauth (2 keys)
 │   └── ghcr-pull-secret
 ├── ExternalSecret (lore-ui ns) → K8s Secrets
 │   ├── github-app-credentials
 │   ├── lore-db-password
-│   ├── lore-ui-oauth (3 keys)
 │   └── ghcr-pull-secret
 └── Refresh: every 1h (auto-rotation)
 ```

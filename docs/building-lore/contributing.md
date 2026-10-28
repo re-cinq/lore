@@ -90,7 +90,7 @@ docker run --rm -v "$PWD:/work" alpine:3.20 \
   sh -c 'rm -rf /work/.lore-pgdata /work/.lore-dgraphdata /work/.lore-archive'
 ```
 
-The data dirs are written by the containers as root, so a plain `rm -rf` hits `Permission denied` — the throwaway container removes them without sudo. Back up `.env.local` first if the credentials in it are not easily re-minted. `.lore-nextauth-secret` is regenerated automatically on the next `npm start`.
+The data dirs are written by the containers as root, so a plain `rm -rf` hits `Permission denied` — the throwaway container removes them without sudo. Back up `.env.local` first if the credentials in it are not easily re-minted.
 
 ### Logging into the web UI
 
