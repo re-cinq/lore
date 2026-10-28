@@ -7318,7 +7318,7 @@ export interface operations {
               /** @default false */
               graph_augment?: boolean;
               /**
-               * @default lore
+               * @default utopia
                * @enum {string}
                */
               backend?: "lore" | "utopia" | "both";

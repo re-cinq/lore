@@ -77,7 +77,7 @@ const MemoryBody = z.discriminatedUnion("action", [
     // Carried from lore_search_memory, which has no pool of its own to honor them with (ADR-032).
     include_invalidated: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
     graph_augment: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
-    backend: KnowledgeBackendSchema.default("lore"),
+    backend: KnowledgeBackendSchema.default("utopia"),
   }),
   z.object({
     action: z.literal("delete"),

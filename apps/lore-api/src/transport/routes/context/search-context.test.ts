@@ -47,7 +47,7 @@ describe("GET /api/search-context", () => {
     ]);
 
     const res = await get(
-      "/api/search-context?query=how%20does%20auto-merge%20decide%20to%20squash",
+      "/api/search-context?query=how%20does%20auto-merge%20decide%20to%20squash&backend=lore",
     );
 
     expect({ status: res.statusCode, body: res.result }).toEqual({
@@ -74,7 +74,7 @@ describe("GET /api/search-context", () => {
       },
     ]);
 
-    const res = await get("/api/search-context?query=auto-merge");
+    const res = await get("/api/search-context?query=auto-merge&backend=lore");
     const [first] = (res.result as { results: { score: number }[] }).results;
 
     expect(typeof first.score).toBe("number");
@@ -86,7 +86,7 @@ describe("GET /api/search-context", () => {
       .mockResolvedValueOnce([hit("org-wide convention", 0.02)]);
 
     const res = await get(
-      "/api/search-context?query=conventions&team=platform",
+      "/api/search-context?query=conventions&team=platform&backend=lore",
     );
 
     expect({
@@ -109,6 +109,18 @@ describe("GET /api/search-context", () => {
       status: res.statusCode,
       searched: vi.mocked(hybridSearch).mock.calls.length,
     }).toEqual({ status: 400, searched: 0 });
+  });
+
+  it("answers no passages and a no-reader note when the request names no backend, without searching Lore", async () => {
+    const res = await get("/api/search-context?query=deploys");
+
+    expect({
+      body: res.result,
+      searched: vi.mocked(hybridSearch).mock.calls.length,
+    }).toEqual({
+      body: { results: [], notes: ["search_context: no Utopia reader yet"] },
+      searched: 0,
+    });
   });
 
   it("answers no passages and a no-reader note for backend=utopia, without searching Lore", async () => {

@@ -3,9 +3,9 @@ import {
   type KnowledgeBackend,
 } from "@re-cinq/lore-shared/knowledge-backend.js";
 
-// Optional, not defaulted: an unset backend lets the API apply the repo's settings.context_backend before falling back to Lore.
+// Optional, not defaulted: an unset backend lets the API apply the repo's settings.context_backend before falling back to Utopia.
 export const backendParam = KnowledgeBackendSchema.optional().describe(
-  "lore (default), utopia, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land.",
+  "utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land.",
 );
 
 /** Only the API reads Utopia; a search the adapter answers offline reads Lore alone, so it refuses a Utopia read rather than answer it with Lore's data. */

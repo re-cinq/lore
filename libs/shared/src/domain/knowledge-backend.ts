@@ -5,12 +5,12 @@ export const KnowledgeBackendSchema = z.enum(["lore", "utopia", "both"]);
 
 export type KnowledgeBackend = z.infer<typeof KnowledgeBackendSchema>;
 
-/** The request's choice wins, then the repo's `settings.context_backend`, then Lore. */
+/** The request's choice wins, then the repo's `settings.context_backend`, then Utopia. */
 export function resolveBackend(
   requested?: KnowledgeBackend,
   repoSetting?: KnowledgeBackend,
 ): KnowledgeBackend {
-  return requested ?? repoSetting ?? "lore";
+  return requested ?? repoSetting ?? "utopia";
 }
 
 /** What a source with no Utopia reader answers in its place: said out loud, never Lore's data under Utopia's name. */

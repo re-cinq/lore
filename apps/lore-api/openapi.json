@@ -3040,7 +3040,7 @@
                         "type": "boolean"
                       },
                       "backend": {
-                        "default": "lore",
+                        "default": "utopia",
                         "type": "string",
                         "enum": ["lore", "utopia", "both"]
                       }

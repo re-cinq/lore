@@ -36,7 +36,7 @@ docs/ADRs/specs when no query is supplied. This is the read counterpart to the
 | `repo` | string | no | — | `owner/name`. Drives the no-query chunk-join path; passed to the engine when a query is present. |
 | `template` | string | no | `"default"` | Template name forwarded to `assembleContext`. |
 | `debug` | string | no | — | `"1"` or `"true"` enables the engine debug trace. Any other value → false. |
-| `backend` | string | no | repo's `settings.context_backend`, then `"lore"` | `lore`, `utopia` or `both` (ADR-052 amendment 2026-10-16); anything else → 400. |
+| `backend` | string | no | repo's `settings.context_backend`, then `"utopia"` | `lore`, `utopia` or `both` (ADR-052 amendment 2026-10-16); anything else → 400. |
 
 ### Response
 
@@ -103,7 +103,7 @@ An unknown `template` name is rejected with 400. ([validated by `context.test.ts
 
 *(added 2026-10-16)* An optional `backend` (`lore`, `utopia`, `both`) is forwarded to `assembleContext`; an unknown backend is rejected with 400. ([validated by returns 400 for a backend of dgraph](apps/lore-api/src/transport/routes/context/context.test.ts#L216), [validated by assembles from utopia when the request names backend=utopia over a repo set to both](apps/lore-api/src/transport/routes/context/context.test.ts#L222))
 
-With no `backend` param the repo's `settings.context_backend` decides, read in the same settings lookup as `cross_repo`, and `lore` when the repo names none. ([validated by assembles from both when the request names no backend and the repo's context_backend is both](apps/lore-api/src/transport/routes/context/context.test.ts#L234))
+With no `backend` param the repo's `settings.context_backend` decides, read in the same settings lookup as `cross_repo`, and `utopia` when the repo names none. ([validated by assembles from both when the request names no backend and the repo's context_backend is both](apps/lore-api/src/transport/routes/context/context.test.ts#L234))
 
 `debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `context.test.ts:41`](apps/lore-api/src/transport/routes/context/context.test.ts#L41))
 

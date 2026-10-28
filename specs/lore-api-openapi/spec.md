@@ -25,7 +25,7 @@ converted route **declares** its request contract as a zod schema. ADR-034's own
 consequences call this out — *"Declarative schemas are the substrate an OpenAPI
 document is generated from — this unblocks that follow-on feature."* This is that
 follow-on. It was explicitly parked in
-[hapi-request-validation's Out of Scope](../hapi-request-validation/spec.md#L162).
+[hapi-request-validation's Out of Scope](../hapi-request-validation/spec.md#L161).
 
 Two facts make the generation tractable and shape the design:
 

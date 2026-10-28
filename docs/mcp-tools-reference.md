@@ -57,7 +57,7 @@ One-line purpose: assemble ONE token-budgeted, template-ordered context block fr
 | `repo` | no | auto-detect | Target repo as `owner/repo`; auto-detected from the git remote when omitted. |
 | `agent_id` | no | ambient | Overrides the agent id used to scope memories/facts. **Direct-DB path only; ignored when proxying.** |
 | `cross_repo` | no | `false` | Also pull context from linked repos. If `false` but the repo's `settings.cross_repo` is true, cross-repo is still enabled. **Direct-DB path only; ignored when proxying.** |
-| `backend` | no | repo's `settings.context_backend`, then `lore` | `lore` (default), `utopia`, or `both` — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. Under `utopia` each section reads `<source>: no Utopia reader yet`; under `both` Lore's block comes first and Utopia's second, each on half the budget (ADR-052 amendment 2026-10-16). |
+| `backend` | no | repo's `settings.context_backend`, then `utopia` | `utopia` (default), `lore`, or `both` — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. Under `utopia` each section reads `<source>: no Utopia reader yet`; under `both` Lore's block comes first and Utopia's second, each on half the budget (ADR-052 amendment 2026-10-16). |
 
 - **Returns:** on the direct-DB path, a single text block prefixed with an HTML comment carrying `template/sections/tokens` metadata; `No relevant context found for this query.` when every source is empty. On the proxy path, the API text as-is (no metadata comment), optionally prefixed with a `<!-- lore-cache: HIT/STALE -->` marker.
 - **Where it runs:** direct Postgres when `LORE_DB_HOST` is set; otherwise proxies `GET /api/context` to `LORE_API_URL`.
