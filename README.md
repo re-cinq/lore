@@ -187,7 +187,7 @@ Pick the guide that matches what you're doing.
 - [Developer Guide](docs/using-lore/developer.md) — org context in Claude Code, the MCP tool catalog, the local task runner, and GitHub/Slack dispatch
 - [Product Manager Guide](docs/using-lore/product-manager.md) — turn a plain-language idea into a spec and a merged PR
 - [Platform Engineer Guide](docs/using-lore/platform-engineer.md) — onboard repos, tune settings, monitor the pipeline, analytics, and API security
-- [Installation & Deployment](docs/INSTALL.md) — deploy the Lore backend on GKE
+- [Installation & Deployment](docs/INSTALL.md) — deploy the Lore backend on a Kubernetes cluster
 
 ### Building Lore
 
@@ -203,7 +203,7 @@ git clone git@github.com:re-cinq/lore.git
 cd lore && scripts/install.sh
 ```
 
-This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally over stdio but proxies all operations to the GKE backend — so the backend must be deployed first. See [docs/INSTALL.md](docs/INSTALL.md) for the complete deployment guide.
+This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally over stdio but proxies all operations to the remote backend — so the backend must be deployed first. See [docs/INSTALL.md](docs/INSTALL.md) for the complete deployment guide.
 
 Then open Claude Code and type **`/lore-help`** — what Lore does, how a session works, every skill, and which one fits the job you're on.
 
