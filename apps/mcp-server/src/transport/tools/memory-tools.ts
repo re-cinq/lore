@@ -63,6 +63,7 @@ interface SearchMemoryArgs {
   include_invalidated?: boolean;
   graph_augment?: boolean;
   backend?: KnowledgeBackend;
+  repo?: string;
 }
 
 export function registerMemoryTools(server: McpServer, mode: ServerMode) {
@@ -70,7 +71,7 @@ export function registerMemoryTools(server: McpServer, mode: ServerMode) {
   registerReadMemoryTool(server);
   registerDeleteMemoryTool(server);
   registerListMemoriesTool(server, mode);
-  registerSearchMemoryTool(server);
+  registerSearchMemoryTool(server, mode);
   registerGraphEpisodeTools(server);
 }
 
@@ -303,14 +304,14 @@ function listFromFile(
   );
 }
 
-function registerSearchMemoryTool(server: McpServer) {
+function registerSearchMemoryTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_search_memory",
-    `Semantic (vector + keyword) search across org-wide memories and extracted facts; returns {results: [...]}, a relevance-ranked list of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
+    `Semantic (vector + keyword) search across org-wide memories and extracted facts. A lore search returns a bare relevance-ranked list of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph); utopia (the default) or both return {results: [...], notes: [...]}, each hit carrying backend: lore|utopia and notes naming a store that could not answer. The given or detected repo chooses which Utopia base is searched beside the org's. Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
     SEARCH_MEMORY_INPUT,
     async (args) => {
       try {
-        return await searchMemory(args);
+        return await searchMemory(args, mode);
       } catch (err) {
         return textResult(`Error searching memories: ${errorMessage(err)}`);
       }
@@ -318,11 +319,25 @@ function registerSearchMemoryTool(server: McpServer) {
   );
 }
 
-async function searchMemory(args: SearchMemoryArgs): Promise<ToolText> {
+async function searchMemory(
+  args: SearchMemoryArgs,
+  mode: ServerMode,
+): Promise<ToolText> {
   const { query, agent_id, limit, backend } = args;
+  const refusal = invalidRepoRefusal(args.repo);
+
+  if (refusal) {
+    return textResult(refusal);
+  }
+  const repo = resolveRepo(args.repo, mode) || undefined;
 
   return cachedMemoryRead(
-    { tool: "lore_search_memory", op: "search", args: searchProxyArgs(args) },
+    {
+      tool: "lore_search_memory",
+      op: "search",
+      args: searchProxyArgs(args, repo),
+      repo,
+    },
     () =>
       readsUtopia(backend)
         ? textResult(backendNeedsApi(backend))
@@ -332,8 +347,8 @@ async function searchMemory(args: SearchMemoryArgs): Promise<ToolText> {
   );
 }
 
-// The search as the API takes it — `pool` becomes `pool_name`, and an empty agent is dropped rather than sent as "".
-function searchProxyArgs(args: SearchMemoryArgs) {
+// The search as the API takes it — `pool` becomes `pool_name`, and an empty agent is dropped rather than sent as "". `repo` is the resolved one, so a search from a checkout names the repo it is in.
+function searchProxyArgs(args: SearchMemoryArgs, repo: string | undefined) {
   return {
     query: args.query,
     agent_id: args.agent_id || undefined,
@@ -344,5 +359,6 @@ function searchProxyArgs(args: SearchMemoryArgs) {
     include_invalidated: args.include_invalidated,
     graph_augment: args.graph_augment,
     backend: args.backend,
+    repo,
   };
 }
