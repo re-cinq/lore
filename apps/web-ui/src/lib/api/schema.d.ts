@@ -4096,6 +4096,8 @@ export interface components {
           source: "memory" | "fact" | "episode" | "graph";
           id?: string;
           confidence?: string;
+          /** @enum {string} */
+          backend?: "lore" | "utopia";
         }[]
       | {
           results: {
@@ -4107,6 +4109,8 @@ export interface components {
             source: "memory" | "fact" | "episode" | "graph";
             id?: string;
             confidence?: string;
+            /** @enum {string} */
+            backend?: "lore" | "utopia";
           }[];
           notes: string[];
         }
@@ -7310,6 +7314,7 @@ export interface operations {
               action: "search";
               query: string;
               agent_id?: string;
+              repo?: string;
               actor_id?: string;
               pool_name?: string;
               limit?: number;
@@ -7317,10 +7322,7 @@ export interface operations {
               include_invalidated?: boolean;
               /** @default false */
               graph_augment?: boolean;
-              /**
-               * @default utopia
-               * @enum {string}
-               */
+              /** @enum {string} */
               backend?: "lore" | "utopia" | "both";
             }
           | {

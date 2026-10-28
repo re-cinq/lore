@@ -23,7 +23,7 @@ edges must be temporally invalidated as new episodes arrive.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L297)). The handler body is wrapped in
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L259)). The handler body is wrapped in
 `trackLatency('lore_query_graph', …)` (records latency into `memory.audit_log` +
 OTEL span).
 

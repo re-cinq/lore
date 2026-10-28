@@ -451,3 +451,68 @@ describe("lore_search_memory backend param", () => {
     );
   });
 });
+
+describe("lore_search_memory repo scope in the agent gateway", () => {
+  let searchInGateway: ToolHandler;
+
+  beforeAll(async () => {
+    const { registerMemoryTools } = await import("./memory-tools.js");
+
+    searchInGateway = toolHandlers(registerMemoryTools, "agent")[
+      "lore_search_memory"
+    ];
+  });
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [], notes: [] }),
+    });
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  const sentBody = () =>
+    JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
+
+  it("forwards the repo re-cinq/lore the call names with the search to POST /api/memory", async () => {
+    await searchInGateway({
+      query: "egress policies",
+      limit: 10,
+      repo: "re-cinq/lore",
+    });
+
+    expect(sentBody()).toMatchObject({
+      action: "search",
+      query: "egress policies",
+      repo: "re-cinq/lore",
+    });
+  });
+
+  it("searches org-wide when the gateway call names no repo", async () => {
+    await searchInGateway({ query: "gateway only query", limit: 10 });
+
+    expect(sentBody()).not.toHaveProperty("repo");
+  });
+
+  it("refuses the repo ../lore before any API call", async () => {
+    const result = await searchInGateway({
+      query: "q",
+      limit: 10,
+      repo: "../lore",
+    });
+
+    expect({
+      text: result.content[0].text,
+      proxied: fetchMock.mock.calls.length,
+    }).toEqual({
+      text: "Invalid repo '../lore'. Pass repo as owner/name (e.g. 're-cinq/lore').",
+      proxied: 0,
+    });
+  });
+});
