@@ -23,11 +23,21 @@ import {
   listMemoriesFile,
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
-import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
+import {
+  searchMemories,
+  type MemorySearchResult,
+} from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import {
   KnowledgeBackendSchema,
+  resolveBackend,
   searchBackend,
 } from "@re-cinq/lore-shared/knowledge-backend.js";
+import {
+  utopiaReadsFrom,
+  type UtopiaReads,
+} from "@re-cinq/lore-shared/utopia/utopia-reads.js";
+import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import { searchUtopiaMemories } from "../../../work/utopia/memory/utopia-memory-search.js";
 import {
   scheduleFactExtraction,
   scheduleMemoryMirror,
@@ -70,6 +80,8 @@ const MemoryBody = z.discriminatedUnion("action", [
     action: z.literal("search"),
     query: z.string(),
     agent_id: z.string().optional(),
+    /** The repo whose Utopia base is searched beside the org's, and whose `settings.context_backend` applies when no backend is named. */
+    repo: z.string().optional(),
     /** Who is asking. Narrows nothing — it only attributes the search in the audit trail. */
     actor_id: z.string().optional(),
     pool_name: z.string().optional(),
@@ -77,7 +89,8 @@ const MemoryBody = z.discriminatedUnion("action", [
     // Carried from lore_search_memory, which has no pool of its own to honor them with (ADR-032).
     include_invalidated: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
     graph_augment: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
-    backend: KnowledgeBackendSchema.default("utopia"),
+    // Unset lets the repo's settings.context_backend choose before the Utopia default (resolveBackend).
+    backend: KnowledgeBackendSchema.optional(),
   }),
   z.object({
     action: z.literal("delete"),
@@ -124,6 +137,7 @@ const MemorySearchHitSchema = z.object({
   source: z.enum(["memory", "fact", "episode", "graph"]),
   id: z.string().optional(),
   confidence: z.string().optional(),
+  backend: z.enum(["lore", "utopia"]).optional(),
 });
 
 // One POST multiplexes write/read/search/delete/list as a named union (not split into 5 routes: the action rides in the BODY); memory-contract.test.ts is what actually holds it to that shape since zodResponse doesn't validate at runtime.
@@ -164,7 +178,10 @@ export const MemoryOperationSchema = z.union([
   }),
 ]);
 
-export function memoryRoute(getPool: () => Pool | null): ServerRoute {
+export function memoryRoute(
+  getPool: () => Pool | null,
+  utopiaReads: UtopiaReads | null = utopiaReadsFrom(process.env),
+): ServerRoute {
   return {
     method: "POST",
     path: "/api/memory",
@@ -180,13 +197,15 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400, 404],
       },
     ),
-    handler: (request, h) => serveMemoryAction(getPool, request, h),
+    handler: (request, h) =>
+      serveMemoryAction(getPool, utopiaReads, request, h),
   };
 }
 
 /** The memory verbs behind one POST: read, write, delete and list share a route because the MCP adapter proxies them as one action field. */
 async function serveMemoryAction(
   getPool: () => Pool | null,
+  utopiaReads: UtopiaReads | null,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
@@ -194,7 +213,7 @@ async function serveMemoryAction(
   const body = redactedBody(request.payload as MemoryBody);
 
   try {
-    return h.response(await memoryActionResult(pool, body));
+    return h.response(await memoryActionResult(pool, body, utopiaReads));
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }
@@ -210,8 +229,9 @@ function redactedBody(body: MemoryBody): MemoryBody {
 async function memoryActionResult(
   pool: Pool | null,
   body: MemoryBody,
+  utopiaReads: UtopiaReads | null,
 ): Promise<object> {
-  // Only the two actions that carry text to match on pay for an embedding.
+  // A write embeds its value; a search embeds its query once its backend is known.
   const embedding = await embeddingFor(body);
 
   if (body.action === "write") {
@@ -223,7 +243,7 @@ async function memoryActionResult(
   }
 
   if (body.action === "search") {
-    return searchAction(pool, body);
+    return searchAction(pool, body, utopiaReads);
   }
 
   if (body.action === "delete") {
@@ -233,15 +253,9 @@ async function memoryActionResult(
   return listAction(body);
 }
 
-/** A write embeds its value and a search its query; every other action needs none. */
+/** Only a write needs its value embedded up front; a search embeds its query once its backend is known. */
 async function embeddingFor(body: MemoryBody): Promise<number[] | null> {
-  if (body.action === "write") {
-    return getQueryEmbedding(body.value);
-  }
-
-  return body.action === "search" && body.backend !== "utopia"
-    ? getQueryEmbedding(body.query)
-    : null;
+  return body.action === "write" ? getQueryEmbedding(body.value) : null;
 }
 
 type MemoryWriteBody = Extract<MemoryBody, { action: "write" }>;
@@ -293,18 +307,60 @@ function requestedVersion(
 
 type MemorySearchBody = Extract<MemoryBody, { action: "search" }>;
 
-/** Lore's hits as they always were for a Lore search; for utopia or both, `{results, notes}` so the missing Utopia reader is said, not skipped. */
+/** Lore's hits as they always were for a Lore search; for utopia or both, `{results, notes}`: Utopia's hits through the reader, or the note that it has none. A repo pinned to a backend in settings.context_backend is honoured when the search names none. */
 async function searchAction(
   pool: Pool | null,
   body: MemorySearchBody,
+  utopiaReads: UtopiaReads | null,
 ): Promise<object> {
-  const { results, notes } = await searchBackend(
-    body.backend,
+  const settings = await repoContextSettings(pool, body.repo);
+  const backend = resolveBackend(body.backend, settings.contextBackend);
+
+  if (backend !== "utopia") {
+    await getQueryEmbedding(body.query);
+  }
+  if (backend === "lore") {
+    return searchLoreMemories(pool, body);
+  }
+  const arm = utopiaMemoryArm(pool, utopiaReads, body);
+  const utopiaHits = arm ? await arm() : null;
+  const { results, notes } = await searchBackend<object>(
+    backend,
     "search_memory",
-    () => searchLoreMemories(pool, body),
+    () => searchLabelled(pool, body),
+    utopiaHits ? async () => utopiaHits : null,
   );
 
-  return notes.length > 0 ? { results, notes } : results;
+  return { results, notes };
+}
+
+/** Utopia's arm when the deployment can read it and the memory DB holds the sources; its null answer means no base has a memory source yet. */
+function utopiaMemoryArm(
+  pool: Pool | null,
+  reads: UtopiaReads | null,
+  body: MemorySearchBody,
+): (() => Promise<MemorySearchResult[] | null>) | null {
+  if (!pool || !reads || !isMemoryDbAvailable()) {
+    return null;
+  }
+
+  return () =>
+    searchUtopiaMemories(pool, reads, {
+      query: body.query,
+      agentId: body.agent_id,
+      repo: body.repo,
+      limit: body.limit || 10,
+    });
+}
+
+/** Lore's hits labelled with their store, for an answer that also holds Utopia's. */
+async function searchLabelled(
+  pool: Pool | null,
+  body: MemorySearchBody,
+): Promise<object[]> {
+  const hits = await searchLoreMemories(pool, body);
+
+  return hits.map((hit) => ({ ...hit, backend: "lore" }));
 }
 
 async function searchLoreMemories(

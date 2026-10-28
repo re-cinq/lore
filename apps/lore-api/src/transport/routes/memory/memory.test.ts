@@ -35,8 +35,16 @@ vi.mock("../../../work/memory/fact-extraction.js", () => ({
 vi.mock("../../../work/utopia/memory/utopia-memory-push.js", () => ({
   mirrorMemory: vi.fn(),
 }));
+vi.mock("../../../work/utopia/memory/utopia-memory-search.js", () => ({
+  searchUtopiaMemories: vi.fn(),
+}));
+vi.mock("@re-cinq/lore-server-core/features/context/cross-repo.js", () => ({
+  repoContextSettings: vi.fn(async () => ({ crossRepo: false })),
+}));
 
 import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
+import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import { searchUtopiaMemories } from "../../../work/utopia/memory/utopia-memory-search.js";
 import {
   isMemoryDbAvailable,
   writeMemory,
@@ -466,6 +474,8 @@ describe("POST /api/memory search backend", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    delete process.env.UTOPIA_API_URL;
+    delete process.env.UTOPIA_TOKEN;
   });
   afterEach(() => {
     process.env = { ...originalEnv };
@@ -504,7 +514,7 @@ describe("POST /api/memory search backend", () => {
     const res = await post({ action: "search", query: "q", backend: "both" });
 
     expect(res.result).toEqual({
-      results: [{ m: 1 }],
+      results: [{ m: 1, backend: "lore" }],
       notes: ["search_memory: no Utopia reader yet"],
     });
   });
@@ -513,5 +523,99 @@ describe("POST /api/memory search backend", () => {
     const res = await post({ action: "search", query: "q", backend: "dgraph" });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  describe("with a deployment that reads Utopia", () => {
+    const utopiaHit = {
+      key: "gotchas",
+      value: "v",
+      score: 1,
+      agent_id: "a",
+      source: "memory",
+      backend: "utopia",
+    };
+
+    beforeEach(() => {
+      process.env.UTOPIA_API_URL = "https://utopia.example";
+      process.env.UTOPIA_TOKEN = "utp_pat_1";
+    });
+
+    it("answers Utopia's memory hits and no note for backend utopia when the deployment reads Utopia", async () => {
+      memoryDbUp();
+      vi.mocked(searchUtopiaMemories).mockResolvedValueOnce([
+        utopiaHit,
+      ] as never);
+      const res = await post({
+        action: "search",
+        query: "q",
+        backend: "utopia",
+      });
+
+      expect({
+        body: res.result,
+        searched: vi.mocked(searchMemories).mock.calls.length,
+      }).toEqual({ body: { results: [utopiaHit], notes: [] }, searched: 0 });
+    });
+
+    it("answers Lore's hits labelled lore then Utopia's for backend both", async () => {
+      memoryDbUp();
+      vi.mocked(searchMemories).mockResolvedValue([{ m: 1 }] as never);
+      vi.mocked(searchUtopiaMemories).mockResolvedValueOnce([
+        utopiaHit,
+      ] as never);
+      const res = await post({ action: "search", query: "q", backend: "both" });
+
+      expect(res.result).toEqual({
+        results: [{ m: 1, backend: "lore" }, utopiaHit],
+        notes: [],
+      });
+    });
+
+    it("keeps the no-reader note when the Utopia arm finds no base with a memory source", async () => {
+      memoryDbUp();
+      vi.mocked(searchUtopiaMemories).mockResolvedValueOnce(null);
+      const res = await post({
+        action: "search",
+        query: "q",
+        backend: "utopia",
+      });
+
+      expect(res.result).toEqual({
+        results: [],
+        notes: ["search_memory: no Utopia reader yet"],
+      });
+    });
+
+    it("forwards repo, agent_id and limit to the Utopia arm", async () => {
+      memoryDbUp();
+      vi.mocked(searchUtopiaMemories).mockResolvedValueOnce([]);
+      await post({
+        action: "search",
+        query: "q",
+        agent_id: "a",
+        repo: "o/r",
+        limit: 5,
+        backend: "utopia",
+      });
+
+      expect(vi.mocked(searchUtopiaMemories).mock.calls[0][2]).toEqual({
+        query: "q",
+        agentId: "a",
+        repo: "o/r",
+        limit: 5,
+      });
+    });
+
+    it("answers Lore's bare hit list when the repo o/r pins context_backend lore and the search names no backend", async () => {
+      memoryDbUp();
+      vi.mocked(searchMemories).mockResolvedValue([{ m: 1 }] as never);
+      vi.mocked(repoContextSettings).mockResolvedValueOnce({
+        crossRepo: false,
+        contextBackend: "lore",
+      });
+      const res = await post({ action: "search", query: "q", repo: "o/r" });
+
+      expect(res.result).toEqual([{ m: 1 }]);
+    });
   });
 });
