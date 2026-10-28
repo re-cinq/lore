@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import styles from "./Panel.module.css";
+import styles from "./Panel.module.scss";
 
 interface PanelProps {
   title: string;

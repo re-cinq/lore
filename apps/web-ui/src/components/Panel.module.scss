@@ -33,19 +33,19 @@
 .tableWrap {
   margin: 0;
   overflow-x: auto;
-}
 
-.tableWrap table {
-  margin: 0;
+  table {
+    margin: 0;
+  }
 }
 
 /* The context-files card sits on the brand's soft fill, as in the design. */
 :global([data-theme-family="lore"]) .soft {
   background: var(--bg-hover);
   border-color: transparent;
-}
 
-:global([data-theme-family="lore"]) .soft .head {
-  border-bottom: none;
-  padding-bottom: 0;
+  .head {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
 }
