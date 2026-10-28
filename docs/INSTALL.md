@@ -107,7 +107,7 @@ Who generates what: the infra team or the client's security team holds the vault
 | `lore-api` | `lore-api-db-password` | `password` | `lore-db-password` | the `lore` Postgres role's password |
 | `lore-ui` | `lore-db-password` | `password` | same | |
 | `lore-stations` | `lore-stations-db-password` | `password` | same | |
-| `lore-api`, `lore-ui`, `lore-stations` | `lore-ingest-token` | `token` | `lore-ingest-token` | the shared API bearer token (`openssl rand -hex 32`). Laptops and CI use it too |
+| `lore-api`, `lore-stations` | `lore-ingest-token` | `token` | `lore-ingest-token` | the shared API bearer token (`openssl rand -hex 32`). Laptops and CI use it too |
 | `lore-api`, `lore-stations` | `lore-agent-internal-token` | `token` | `lore-agent-internal-token` | the token stations present to lore-api |
 | `lore-api`, `lore-ui` | `github-app-credentials` | `app-id`, `private-key`, `installation-id` | `lore-github-app-*` | the GitHub App (1.6) |
 | `lore-stations` | `lore-stations-github-app` | same three | same | |

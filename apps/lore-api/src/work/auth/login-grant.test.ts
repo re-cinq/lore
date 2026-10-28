@@ -84,30 +84,17 @@ describe("redirects back to the page that signed in", () => {
 });
 
 describe("repoAllowed", () => {
-  const person = (scopes: string[], repos: string[]) => ({
-    scopes,
-    user: { repos },
-  });
+  const person = (repos: string[]) => ({ user: { repos } });
 
   it("allows a repo in the person's list, whatever its case", () => {
-    expect(
-      repoAllowed(person(["read"], ["re-cinq/lore"]), "Re-Cinq/Lore"),
-    ).toBe(true);
+    expect(repoAllowed(person(["re-cinq/lore"]), "Re-Cinq/Lore")).toBe(true);
   });
 
   it("refuses a repo outside the person's list", () => {
-    expect(
-      repoAllowed(person(["read"], ["re-cinq/lore"]), "someone/else"),
-    ).toBe(false);
-  });
-
-  it("allows any repo to an admin", () => {
-    expect(repoAllowed(person(["admin"], []), "someone/else")).toBe(true);
+    expect(repoAllowed(person(["re-cinq/lore"]), "someone/else")).toBe(false);
   });
 
   it("allows any repo to a token that is no person's session", () => {
-    expect(repoAllowed({ scopes: ["read"], user: null }, "someone/else")).toBe(
-      true,
-    );
+    expect(repoAllowed({ user: null }, "someone/else")).toBe(true);
   });
 });

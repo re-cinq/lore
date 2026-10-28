@@ -50,7 +50,7 @@ Terraform removes the second source of truth, which removes the failure.
    |---|---|
    | Anthropic key | `lore-api`, `lore-stations` |
    | DB password | `lore-api`, `lore-ui`, `lore-stations` |
-   | Ingest / internal token | `lore-api`, `lore-ui`, `lore-stations` |
+   | Ingest / internal token | `lore-api`, `lore-stations` |
    | Slack credentials | `lore-api`, `lore-stations` |
    | GitHub OAuth app (UI sign-in) | `lore-api` |
    | GitHub App | `lore-api`, `lore-ui`, `lore-stations` |
