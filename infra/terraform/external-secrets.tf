@@ -284,6 +284,44 @@ resource "kubectl_manifest" "es_mcp_slack" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+# The GitHub OAuth app lore-api signs people in with for the web UI (ADR-053).
+resource "kubectl_manifest" "es_mcp_github_oauth" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-github-oauth"
+      namespace = "lore-api"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-github-oauth"
+      }
+      data = [
+        {
+          secretKey = "client-id"
+          remoteRef = {
+            key = "lore-github-oauth-client-id"
+          }
+        },
+        {
+          secretKey = "client-secret"
+          remoteRef = {
+            key = "lore-github-oauth-client-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 # ===== lore-ui namespace ====================================================
 
 resource "kubectl_manifest" "es_ui_github_app" {
@@ -463,44 +501,6 @@ resource "kubectl_manifest" "es_ui_oauth" {
           secretKey = "nextauth-secret"
           remoteRef = {
             key = "lore-nextauth-secret"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-# The GitHub OAuth app lore-api signs people in with (the web UI holds no copy).
-resource "kubectl_manifest" "es_mcp_github_oauth" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-github-oauth"
-      namespace = "lore-api"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-github-oauth"
-      }
-      data = [
-        {
-          secretKey = "client-id"
-          remoteRef = {
-            key = "lore-github-oauth-client-id"
-          }
-        },
-        {
-          secretKey = "client-secret"
-          remoteRef = {
-            key = "lore-github-oauth-client-secret"
           }
         },
       ]
