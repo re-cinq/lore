@@ -1,5 +1,3 @@
-import type { OrgRole } from "../../outbound/github-user-client.js";
-
 export const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 export const HANDOFF_TTL_MS = 10 * 60 * 1000;
 
@@ -7,9 +5,8 @@ export type LoginFailure = "not_in_org" | "github_denied" | "state_expired";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
-export function scopesForRole(role: OrgRole): string[] {
-  return role === "admin" ? ["admin"] : ["read", "write", "task"];
-}
+/** Until Lore has roles of its own, a signed-in person can do what the web UI's shared admin token let everyone do: sign-in only checks that they belong to the org. */
+export const SESSION_SCOPES = ["admin"];
 
 /** The UI page the person returns to: the configured UI origin, or a local UI over http. */
 export function returnUrlAllowed(
