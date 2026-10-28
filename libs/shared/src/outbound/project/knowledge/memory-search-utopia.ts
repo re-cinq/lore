@@ -38,7 +38,7 @@ interface DocumentHits {
   chunks: { seq: number; text: string }[];
 }
 
-/** The memories and episodes the hits name, one hit per document in the rank of its best chunk, scored so the best is 1 as Lore's are, every chunk of a document joined in the order it stands in it. A memory's value is its content without the key line it was pushed under. */
+/** The memories and episodes the hits name, one hit per document in the rank of its best chunk and scored by it, every chunk of a document joined in the order it stands in it. A memory's value is its content without the key line it was pushed under. Scores stay Utopia's own so hits of several bases can be ranked together before `normalizeHitScores`. */
 export function utopiaMemoryHits(
   hits: SearchHit[],
   sources: MemorySourceIds,
@@ -51,7 +51,7 @@ export function utopiaMemoryHits(
   }
   const documents = [...byId.values()].slice(0, filter.limit).map(withValue);
 
-  return normalizeHitScores(documents);
+  return documents;
 }
 
 function addHit(
@@ -133,8 +133,11 @@ function withoutKeyLine(content: string, key: string): string {
     : content;
 }
 
-function normalizeHitScores(hits: MemorySearchResult[]): MemorySearchResult[] {
-  const best = hits[0]?.score ?? 0;
+/** The hits scored so the best is 1, as Lore's are. */
+export function normalizeHitScores(
+  hits: MemorySearchResult[],
+): MemorySearchResult[] {
+  const best = Math.max(0, ...hits.map((hit) => hit.score));
 
   return best > 0
     ? hits.map((hit) => ({ ...hit, score: hit.score / best }))

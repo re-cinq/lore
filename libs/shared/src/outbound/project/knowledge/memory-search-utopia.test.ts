@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { SearchHit } from "../../../domain/utopia/read-shapes.js";
-import { memoryExternalId, utopiaMemoryHits } from "./memory-search-utopia.js";
+import {
+  memoryExternalId,
+  normalizeHitScores,
+  utopiaMemoryHits,
+} from "./memory-search-utopia.js";
 
 const MEMORIES = "11111111-1111-1111-1111-111111111111";
 const EPISODES = "22222222-2222-2222-2222-222222222222";
@@ -76,7 +80,7 @@ describe("utopiaMemoryHits", () => {
         key: "gotchas",
         agent_id: "claude-bogdan",
         value: "GKE egress must open node-local-dns.",
-        score: 1,
+        score: 0.8,
         source: "memory",
         backend: "utopia",
       },
@@ -96,7 +100,7 @@ describe("utopiaMemoryHits", () => {
         id: "e-1",
         agent_id: "",
         value: "Session in re-cinq/lore",
-        score: 1,
+        score: 0.5,
         source: "episode",
         backend: "utopia",
       },
@@ -124,7 +128,7 @@ describe("utopiaMemoryHits", () => {
     ).toMatchObject([{ key: "mine" }]);
   });
 
-  it("joins two chunks of one memory in seq order and scores documents so the best is 1", () => {
+  it("joins two chunks of one memory in seq order and scores the document by its best-ranked chunk", () => {
     const hits = [
       hit("memory:a/long", "second chunk", 0.8, { seq: 1 }),
       hit("memory:a/long", "long\n\nfirst chunk", 0.6, { seq: 0 }),
@@ -138,8 +142,8 @@ describe("utopiaMemoryHits", () => {
         score,
       })),
     ).toEqual([
-      { key: "long", value: "first chunk\nsecond chunk", score: 1 },
-      { key: "short", value: "v", score: 0.5 },
+      { key: "long", value: "first chunk\nsecond chunk", score: 0.8 },
+      { key: "short", value: "v", score: 0.4 },
     ]);
   });
 
@@ -161,5 +165,26 @@ describe("utopiaMemoryHits", () => {
     expect(
       utopiaMemoryHits(hits, { memories: null, episodes: null }, filter),
     ).toEqual([]);
+  });
+});
+
+describe("normalizeHitScores", () => {
+  it("scales scores 0.9 and 0.45 to 1 and 0.5", () => {
+    const hits = utopiaMemoryHits(
+      [
+        hit("memory:a/one", "one\n\nv", 0.9),
+        hit("memory:a/two", "two\n\nv", 0.45),
+      ],
+      SOURCES,
+      { limit: 10 },
+    );
+
+    expect(normalizeHitScores(hits).map(({ score }) => score)).toEqual([
+      1, 0.5,
+    ]);
+  });
+
+  it("leaves no hits as no hits", () => {
+    expect(normalizeHitScores([])).toEqual([]);
   });
 });
