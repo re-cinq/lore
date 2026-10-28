@@ -3250,6 +3250,9 @@
                       "agent_id": {
                         "type": "string"
                       },
+                      "repo": {
+                        "type": "string"
+                      },
                       "actor_id": {
                         "type": "string"
                       },
@@ -3268,7 +3271,6 @@
                         "type": "boolean"
                       },
                       "backend": {
-                        "default": "utopia",
                         "type": "string",
                         "enum": ["lore", "utopia", "both"]
                       }
@@ -15951,6 +15953,10 @@
                 },
                 "confidence": {
                   "type": "string"
+                },
+                "backend": {
+                  "type": "string",
+                  "enum": ["lore", "utopia"]
                 }
               },
               "required": ["key", "value", "score", "agent_id", "source"],
@@ -15986,6 +15992,10 @@
                     },
                     "confidence": {
                       "type": "string"
+                    },
+                    "backend": {
+                      "type": "string",
+                      "enum": ["lore", "utopia"]
                     }
                   },
                   "required": ["key", "value", "score", "agent_id", "source"],

@@ -42,4 +42,41 @@ describe("searchBackend", () => {
       notes: ["search_context: no Utopia reader yet"],
     });
   });
+
+  const searchUtopia = async () => ["utopia hit"];
+
+  it("returns Utopia's hits and no notes for backend utopia with a Utopia arm", async () => {
+    const neverRead = async (): Promise<string[]> => {
+      throw new Error("Lore was read");
+    };
+
+    expect(
+      await searchBackend("utopia", "search_memory", neverRead, searchUtopia),
+    ).toEqual({
+      results: ["utopia hit"],
+      notes: [],
+    });
+  });
+
+  it("returns Lore's hits then Utopia's and no notes for backend both with a Utopia arm", async () => {
+    expect(
+      await searchBackend("both", "search_memory", searchLore, searchUtopia),
+    ).toEqual({
+      results: ["lore hit", "utopia hit"],
+      notes: [],
+    });
+  });
+
+  it("returns Lore's hits only and never reads the Utopia arm for backend lore", async () => {
+    const neverRead = async (): Promise<string[]> => {
+      throw new Error("Utopia was read");
+    };
+
+    expect(
+      await searchBackend("lore", "search_memory", searchLore, neverRead),
+    ).toEqual({
+      results: ["lore hit"],
+      notes: [],
+    });
+  });
 });

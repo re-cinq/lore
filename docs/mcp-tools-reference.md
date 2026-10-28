@@ -169,9 +169,10 @@ One-line purpose: semantic (vector + keyword) search across org-wide memories an
 | `limit` | no | `10` | Maximum number of fused results after rank fusion and diversification. |
 | `include_invalidated` | no | `false` | Also return facts superseded by newer facts (historical queries). **Not forwarded over the proxy.** |
 | `graph_augment` | no | `false` | Enrich results with 1-hop knowledge-graph neighbors of detected entities. **Not forwarded over the proxy.** |
-| `backend` | no | `lore` | `lore`, `utopia`, or `both`. For `utopia` the API answers `{results: [], notes: ["search_memory: no Utopia reader yet"]}`, for `both` Lore's hits with that note; without an API, `utopia`/`both` are refused rather than answered from the `~/.lore` file store. |
+| `repo` | no | detected | `owner/repo` whose Utopia memory base is searched beside the org's. Detected from the git remote on a laptop; the shared gateway searches org-wide when it is omitted. |
+| `backend` | no | repo setting, then `utopia` | `lore`, `utopia`, or `both`. `utopia` answers `{results, notes}` from the mirrored memories and episodes (each hit carries `backend: utopia`), or the `search_memory: no Utopia reader yet` note when the deployment cannot read Utopia or no base holds a memory source; `both` adds Lore's hits labelled `lore` first. Without an API, `utopia`/`both` are refused rather than answered from the `~/.lore` file store. |
 
-- **Returns:** a relevance-ranked JSON array of `{key, value, score, agent_id, source, id?, confidence?}` where `source` is `memory|fact|episode|graph`. Only currently-valid facts unless `include_invalidated`.
+- **Returns:** `{results: [...]}`, a relevance-ranked list of `{key, value, score, agent_id, source, id?, confidence?}` where `source` is `memory|fact|episode|graph`; only currently-valid facts unless `include_invalidated`. With `utopia` or `both` the answer also carries `notes`, and each hit carries `backend: lore|utopia`; Utopia's hits are memories and episodes only (no facts, pools, `include_invalidated` or `graph_augment`). The adapter wraps the API's bare list for a `lore` search in `{results}`.
 - **Where it runs:** local DB when `LORE_DB_HOST` is set; else a ~5min cached proxy to `/api/memory` (read scope; `pool` maps to `pool_name`); `~/.lore` file fallback when no API is configured.
 - **Cache/mutation:** read with a retrieval-strengthening side effect — fire-and-forget bump of `retrieval_count` / `half_life_days` on returned items.
 

@@ -80,6 +80,12 @@ export const SEARCH_MEMORY_INPUT = {
     .describe(
       "Restrict to a named shared pool; non-existent pool name returns empty.",
     ),
+  repo: z
+    .string()
+    .optional()
+    .describe(
+      "'owner/repo' whose Utopia memory base is searched beside the org's. Auto-detected from the git remote on a laptop; omit in the shared gateway for an org-wide search.",
+    ),
   limit: z.number().default(10),
   include_invalidated: z
     .boolean()
