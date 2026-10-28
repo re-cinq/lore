@@ -31,6 +31,8 @@ export interface MemorySearchResult {
   confidence?: string;
   /** Cosine similarity to the query, or the most it can be for a hit only the keyword leg found; absent when nothing measured it. */
   similarity?: number;
+  /** Which store answered the hit when a search read more than one; absent on Lore's own answer. */
+  backend?: "lore" | "utopia";
 }
 
 // ── Main entry point ────────────────────────────────────────────────
