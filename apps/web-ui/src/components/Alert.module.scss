@@ -1,7 +1,7 @@
 .alert {
   margin: 0;
   padding: var(--space-4) var(--space-5);
-  border: 1px solid;
+  border: none;
   border-radius: var(--radius);
   font-size: var(--fs-sm);
 }
@@ -9,21 +9,14 @@
 .info {
   color: var(--info);
   background: var(--info-bg);
-  border-color: var(--info);
 }
 
 .secondary {
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  border-color: var(--border);
+  color: var(--warning);
+  background: var(--warning-bg);
 }
 
 :global([data-theme-family="lore"]) .alert {
-  border: none;
   border-radius: var(--radius-lg);
   padding: var(--space-4) var(--space-6);
-}
-
-:global([data-theme-family="lore"]) .secondary {
-  background: var(--bg-hover);
 }
