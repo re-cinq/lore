@@ -4,7 +4,6 @@ import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
-import { createHash } from "node:crypto";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
   ApiTokenSchema,
@@ -20,6 +19,7 @@ import {
   offsetParam,
 } from "../common-schemas.js";
 import { OkSchema } from "../../http/ok-schema.js";
+import { mintApiToken } from "../../../work/tokens/mint-token.js";
 
 interface TokensPostBody {
   action?: string;
@@ -188,21 +188,17 @@ async function createToken(
   body: TokensPostBody,
 ) {
   enforceTrue(body.name, apiError(400), "name required");
-  const { randomBytes } = await import("node:crypto");
-  const rawToken = `lore_${randomBytes(32).toString("hex")}`;
-  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-  const resolvedScopes = resolveScopes(body.scopes);
-  const expiresAt = expiryIso(body.expires_in_days);
-
-  const { rows } = await pool.query(
-    `INSERT INTO pipeline.api_tokens (name, token_hash, scopes, created_by, expires_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
-    [body.name, tokenHash, resolvedScopes, "admin", expiresAt],
-  );
+  const expiresAt = expiryDate(body.expires_in_days);
+  const { token, row } = await mintApiToken(pool, {
+    name: body.name,
+    scopes: resolveScopes(body.scopes),
+    createdBy: "admin",
+    expiresAt,
+  });
 
   // Return the raw token ONCE — it cannot be retrieved again
   return h
-    .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
+    .response({ ...row, token, expires_at: expiresAt?.toISOString() ?? null })
     .code(201);
 }
 
@@ -214,12 +210,10 @@ function isTokenScope(scope: string): scope is TokenScope {
   return VALID_TOKEN_SCOPES.includes(scope as TokenScope);
 }
 
-function expiryIso(expiresInDays: number | undefined): string | null {
-  if (!expiresInDays) {
-    return null;
-  }
-
-  return new Date(Date.now() + expiresInDays * 86400000).toISOString();
+function expiryDate(expiresInDays: number | undefined): Date | null {
+  return expiresInDays
+    ? new Date(Date.now() + expiresInDays * 86400000)
+    : null;
 }
 
 // Fallback only — a concrete verb above always wins in hapi.
