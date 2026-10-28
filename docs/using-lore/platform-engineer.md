@@ -142,7 +142,7 @@ Two things outlived it. Every Lore-authored commit still carries the `Lore-Task:
 
 ## See also
 
-- [Installation & Deployment](../INSTALL.md) — deploy the Lore backend on GKE (do this first).
+- [Installation & Deployment](../INSTALL.md) — deploy the Lore backend on a Kubernetes cluster (do this first).
 - [Developer Guide](developer.md) — what your developers experience once a repo is onboarded.
 - [Architecture](../building-lore/architecture.md) and [Scheduled Jobs](../building-lore/scheduled-jobs.md) — how the platform works internally.
 - [Back to README](../../README.md)
