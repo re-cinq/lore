@@ -1,6 +1,7 @@
 // POST /api/auth/redeem — the web UI swaps the one-time code from the sign-in redirect for the person's session token. A code works once; the token lasts eight hours and carries the person and the repos they can open.
 
-import type { ServerRoute } from "@hapi/hapi";
+import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type { Pool } from "pg";
 import type { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
@@ -31,28 +32,30 @@ export function redeemRoute(deps: AuthDeps): ServerRoute {
     method: "POST",
     path: "/api/auth/redeem",
     options: OPTIONS,
-    handler: withPool(deps.getPool, async (pool, request, h) => {
-      const { code } = request.payload as z.infer<typeof RedeemBody>;
-      const grant = (await deps.handoffs.take(code, "redeem"))?.grant;
-
-      enforceTrue(grant, apiError(401), "invalid or used code");
-      const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-      const { token } = await mintApiToken(
-        pool,
-        sessionToken(grant, expiresAt),
-      );
-
-      return h.response({
-        token,
-        expires_at: expiresAt,
-        user: {
-          login: grant.login,
-          name: grant.name,
-          avatar_url: grant.avatarUrl,
-        },
-      });
-    }),
+    handler: withPool(deps.getPool, (pool, request, h) =>
+      startSession(deps, pool, request, h),
+    ),
   };
+}
+
+async function startSession(
+  deps: AuthDeps,
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+) {
+  const { code } = request.payload as z.infer<typeof RedeemBody>;
+  const grant = (await deps.handoffs.take(code, "redeem"))?.grant;
+
+  enforceTrue(grant, apiError(401), "invalid or used code");
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const { token } = await mintApiToken(pool, sessionToken(grant, expiresAt));
+
+  return h.response({
+    token,
+    expires_at: expiresAt,
+    user: { login: grant.login, name: grant.name, avatar_url: grant.avatarUrl },
+  });
 }
 
 function sessionToken(grant: UserGrant, expiresAt: Date): MintInput {

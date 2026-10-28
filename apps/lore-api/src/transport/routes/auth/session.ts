@@ -1,6 +1,6 @@
 // What the web UI asks lore-api about the person behind its session token: who they are, whether they can open a repo, and ending the session.
 
-import type { ServerRoute } from "@hapi/hapi";
+import type { Request, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import type { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -23,18 +23,20 @@ export function meRoute(): ServerRoute {
       description: "The person behind a web session token",
       errors: [403],
     }),
-    handler: (request) => {
-      const { user, scopes } = principalOf(request);
+    handler: (request) => whoAmI(request),
+  };
+}
 
-      enforceTrue(user, apiError(403), "not a user session");
+function whoAmI(request: Request) {
+  const { user, scopes } = principalOf(request);
 
-      return {
-        login: user.login,
-        name: user.name,
-        avatar_url: user.avatarUrl,
-        scopes,
-      };
-    },
+  enforceTrue(user, apiError(403), "not a user session");
+
+  return {
+    login: user.login,
+    name: user.name,
+    avatar_url: user.avatarUrl,
+    scopes,
   };
 }
 

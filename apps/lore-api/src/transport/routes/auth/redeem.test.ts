@@ -76,6 +76,7 @@ describe("POST /api/auth/redeem", () => {
       returnUrl: "http://localhost:3000/x",
       grant,
     });
+
     await redeemWith(code, serve([redeemRoute(deps)]));
 
     expect(deps.query.mock.calls[0][1]).toEqual([

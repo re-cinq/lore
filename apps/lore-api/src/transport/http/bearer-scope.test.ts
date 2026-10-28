@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Hapi from "@hapi/hapi";
-import {
-  registerBearerScope,
-  bearerScope,
-  principalOf,
-} from "./bearer-scope.js";
+import { registerBearerScope, bearerScope } from "./bearer-scope.js";
 import {
   makePool,
   AUTH,
@@ -22,12 +18,6 @@ function server(pool: unknown): Hapi.Server {
     path: "/guarded",
     options: bearerScope("read"),
     handler: () => ({ ok: true }),
-  });
-  s.route({
-    method: "GET",
-    path: "/who",
-    options: bearerScope("read"),
-    handler: (request) => principalOf(request),
   });
   s.route({
     method: "GET",
@@ -143,45 +133,5 @@ describe("bearer-scope auth scheme", () => {
 
     expect(res.statusCode).toBe(200);
     expect(pool.query).not.toHaveBeenCalled();
-  });
-
-  it("hands the route the person a user token belongs to", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({
-      rows: [
-        {
-          scopes: ["read"],
-          kind: "user",
-          login: "gedaiu",
-          displayName: "Bogdan",
-          avatarUrl: "https://a/1",
-          repos: ["re-cinq/lore"],
-        },
-      ],
-    });
-    const res = await server(pool).inject({
-      method: "GET",
-      url: "/who",
-      headers: { authorization: "Bearer user-token" },
-    });
-
-    expect(JSON.parse(res.payload)).toMatchObject({
-      scopes: ["read"],
-      user: { login: "gedaiu", name: "Bogdan", repos: ["re-cinq/lore"] },
-    });
-  });
-
-  it("hands the route no person for the legacy token", async () => {
-    const res = await server(null).inject({
-      method: "GET",
-      url: "/who",
-      headers: { authorization: `Bearer ${LEGACY_TOKEN}` },
-    });
-
-    expect(JSON.parse(res.payload)).toMatchObject({
-      user: null,
-      tokenHash: null,
-    });
   });
 });

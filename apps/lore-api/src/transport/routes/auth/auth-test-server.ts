@@ -63,26 +63,31 @@ export function serve(routes: ServerRoute[]): Hapi.Server {
   });
 
   server.auth.scheme("stub", () => ({
-    authenticate: (request, h) => {
-      const header = request.headers[PRINCIPAL_HEADER];
-      const principal: Principal =
-        typeof header === "string"
-          ? JSON.parse(header)
-          : { scopes: ["admin"], user: null, tokenHash: null };
-
-      return h.authenticated({
-        credentials: {
-          scope: principal.scopes,
-          user: principal.user ?? undefined,
-          app: { tokenHash: principal.tokenHash },
-        },
-      });
-    },
+    authenticate: (request, h) =>
+      h.authenticated({
+        credentials: credentialsOf(
+          principalNamedBy(request.headers[PRINCIPAL_HEADER]),
+        ),
+      }),
   }));
   server.auth.strategy("bearer-scope", "stub");
   server.route(routes);
 
   return server;
+}
+
+const LEGACY: Principal = { scopes: ["admin"], user: null, tokenHash: null };
+
+function principalNamedBy(header: string | string[] | undefined): Principal {
+  return typeof header === "string" ? JSON.parse(header) : LEGACY;
+}
+
+function credentialsOf(principal: Principal) {
+  return {
+    scope: principal.scopes,
+    user: principal.user ?? undefined,
+    app: { tokenHash: principal.tokenHash },
+  };
 }
 
 export const userPrincipal = (

@@ -76,13 +76,17 @@ export function repoAllowed(
   principal: { scopes: string[]; user: { repos: string[] } | null },
   repo: string,
 ): boolean {
-  if (!principal.user) {
-    return true;
-  }
-  const wanted = repo.toLowerCase();
+  const { user } = principal;
 
   return (
+    user === null ||
     principal.scopes.includes("admin") ||
-    principal.user.repos.some((name) => name.toLowerCase() === wanted)
+    listsRepo(user.repos, repo)
   );
+}
+
+function listsRepo(repos: string[], repo: string): boolean {
+  const wanted = repo.toLowerCase();
+
+  return repos.some((name) => name.toLowerCase() === wanted);
 }

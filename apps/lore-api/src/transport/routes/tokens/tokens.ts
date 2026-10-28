@@ -77,8 +77,7 @@ const VALID_TOKEN_SCOPES: TokenScope[] = [
   "admin",
 ];
 
-/** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). */
-/** The listing NEVER serves the hash — it is the only stored form of a token, and serving it would make the store as good as the token itself. */
+/** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). The listing NEVER serves the hash — it is the only stored form of a token, and serving it would make the store as good as the token itself. */
 const LIST_OPTIONS = zodResponse(
   {
     ...bearerScope("admin"),
@@ -211,9 +210,7 @@ function isTokenScope(scope: string): scope is TokenScope {
 }
 
 function expiryDate(expiresInDays: number | undefined): Date | null {
-  return expiresInDays
-    ? new Date(Date.now() + expiresInDays * 86400000)
-    : null;
+  return expiresInDays ? new Date(Date.now() + expiresInDays * 86400000) : null;
 }
 
 // Fallback only — a concrete verb above always wins in hapi.
