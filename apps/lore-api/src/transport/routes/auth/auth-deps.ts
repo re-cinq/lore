@@ -5,7 +5,7 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import {
   exchangeCode,
-  fetchOrgRepos,
+  fetchUserRepos,
   fetchOrgRole,
   fetchViewer,
   type GithubRepo,
@@ -24,7 +24,7 @@ export interface GithubUser {
   exchangeCode(exchange: OAuthExchange): Promise<string | null>;
   fetchViewer(token: string): Promise<GithubViewer | null>;
   fetchOrgRole(token: string, org: string): Promise<OrgRole | null>;
-  fetchOrgRepos(token: string): Promise<GithubRepo[]>;
+  fetchUserRepos(token: string): Promise<GithubRepo[]>;
 }
 
 export interface AuthDeps {
@@ -44,7 +44,7 @@ export function authDeps(
       exchangeCode,
       fetchViewer,
       fetchOrgRole,
-      fetchOrgRepos,
+      fetchUserRepos,
     },
     config: injected.config ?? (() => oauthConfigFrom(process.env)),
     getPool,

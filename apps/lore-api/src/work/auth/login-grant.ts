@@ -46,15 +46,6 @@ export function authorizeUrl(input: {
   return `https://github.com/login/oauth/authorize?${query}`;
 }
 
-export function orgRepoNames(
-  repos: { full_name: string; owner: { login: string } }[],
-  org: string | undefined,
-): string[] {
-  return repos
-    .filter((repo) => org === undefined || repo.owner.login === org)
-    .map((repo) => repo.full_name);
-}
-
 export function redeemRedirect(returnUrl: string, code: string): string {
   return withQuery(returnUrl, "code", code);
 }
