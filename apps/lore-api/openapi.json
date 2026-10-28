@@ -52,6 +52,10 @@
       "description": "Usage, org-wide pipeline analytics, and agent statistics."
     },
     {
+      "name": "Auth",
+      "description": "The web UI's GitHub sign-in and the session tokens it yields."
+    },
+    {
       "name": "Tokens",
       "description": "Scoped API token management."
     },
@@ -1754,6 +1758,234 @@
           }
         },
         "x-required-scope": "read"
+      }
+    },
+    "/api/auth/access": {
+      "get": {
+        "operationId": "get_api_auth_access",
+        "summary": "GET /api/auth/access",
+        "tags": ["Auth"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether the token's person can open a repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthAccess"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/auth/callback": {
+      "get": {
+        "operationId": "get_api_auth_callback",
+        "summary": "GET /api/auth/callback",
+        "tags": ["Auth"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "302": {
+            "description": "Redirects to the UI page that began the sign-in, with a code to redeem or the reason it failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginCallbackRedirect"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "get": {
+        "operationId": "get_api_auth_login",
+        "summary": "GET /api/auth/login",
+        "tags": ["Auth"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "302": {
+            "description": "Redirects to GitHub's consent page for the sign-in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRedirect"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "post_api_auth_logout",
+        "summary": "POST /api/auth/logout",
+        "tags": ["Auth"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Ends the web session: its token stops working at once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLogout"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "get_api_auth_me",
+        "summary": "GET /api/auth/me",
+        "tags": ["Auth"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The person behind a web session token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMe"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/auth/redeem": {
+      "post": {
+        "operationId": "post_api_auth_redeem",
+        "summary": "POST /api/auth/redeem",
+        "tags": ["Auth"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A web session token for the person who just signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRedeem"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["code"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/chunk-types": {
@@ -11096,6 +11328,49 @@
         "required": ["entries"],
         "additionalProperties": false
       },
+      "AuthAccess": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["allowed"],
+        "additionalProperties": false
+      },
+      "AuthLogout": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "AuthMe": {
+        "type": "object",
+        "properties": {
+          "login": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": ["string", "null"]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["login", "name", "avatar_url", "scopes"],
+        "additionalProperties": false
+      },
       "AutoMerge": {
         "type": "object",
         "properties": {
@@ -15447,6 +15722,42 @@
             "additionalProperties": false
           }
         ]
+      },
+      "LoginCallbackRedirect": {
+        "type": "null"
+      },
+      "LoginRedeem": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "login": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "avatar_url": {
+                "type": "string"
+              }
+            },
+            "required": ["login", "name", "avatar_url"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["token", "expires_at", "user"],
+        "additionalProperties": false
+      },
+      "LoginRedirect": {
+        "type": "null"
       },
       "LoopSwitch": {
         "type": "object",

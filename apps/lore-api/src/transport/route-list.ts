@@ -5,6 +5,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { healthzRoute } from "./routes/healthz/healthz.js";
 import { llmStatusRoute } from "./routes/platform/llm-status.js";
 import { distRoute } from "./routes/dist/dist.js";
+import { authRoutes } from "./routes/auth/auth-routes.js";
 import { repoStatusRoute } from "./routes/repos/repo-status.js";
 import { reposRoute } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
@@ -127,6 +128,7 @@ export function routeList(
 ): ServerRoute[] {
   return [
     ...platformRoutes(getPool),
+    ...authRoutes(getPool),
     ...repoRoutes(getPool),
     ...taskRoutes(getPool, plans),
     ...memoryRoutes(getPool),

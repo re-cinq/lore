@@ -70,3 +70,19 @@ function withQuery(returnUrl: string, key: string, value: string): string {
 
   return url.toString();
 }
+
+/** Whether a token may open a repo: a person's session only the repos GitHub showed at sign-in (an admin any), any other token every repo. */
+export function repoAllowed(
+  principal: { scopes: string[]; user: { repos: string[] } | null },
+  repo: string,
+): boolean {
+  if (!principal.user) {
+    return true;
+  }
+  const wanted = repo.toLowerCase();
+
+  return (
+    principal.scopes.includes("admin") ||
+    principal.user.repos.some((name) => name.toLowerCase() === wanted)
+  );
+}

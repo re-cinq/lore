@@ -4,6 +4,7 @@ import {
   errorRedirect,
   orgRepoNames,
   redeemRedirect,
+  repoAllowed,
   returnUrlAllowed,
   scopesForRole,
 } from "./login-grant.js";
@@ -109,5 +110,34 @@ describe("redirects back to the page that signed in", () => {
     expect(
       errorRedirect("http://localhost:3000/auth/callback", "not_in_org"),
     ).toBe("http://localhost:3000/auth/callback?auth_error=not_in_org");
+  });
+});
+
+describe("repoAllowed", () => {
+  const person = (scopes: string[], repos: string[]) => ({
+    scopes,
+    user: { repos },
+  });
+
+  it("allows a repo in the person's list, whatever its case", () => {
+    expect(
+      repoAllowed(person(["read"], ["re-cinq/lore"]), "Re-Cinq/Lore"),
+    ).toBe(true);
+  });
+
+  it("refuses a repo outside the person's list", () => {
+    expect(
+      repoAllowed(person(["read"], ["re-cinq/lore"]), "someone/else"),
+    ).toBe(false);
+  });
+
+  it("allows any repo to an admin", () => {
+    expect(repoAllowed(person(["admin"], []), "someone/else")).toBe(true);
+  });
+
+  it("allows any repo to a token that is no person's session", () => {
+    expect(repoAllowed({ scopes: ["read"], user: null }, "someone/else")).toBe(
+      true,
+    );
   });
 });
