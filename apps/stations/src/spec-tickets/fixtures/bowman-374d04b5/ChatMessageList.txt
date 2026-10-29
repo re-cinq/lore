@@ -1,0 +1,353 @@
+"use client";
+
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type ReactNode,
+  type UIEvent,
+} from "react";
+import { useReducedMotion } from "../hooks/useReducedMotion.js";
+import { resolveLabels } from "../labels.js";
+import type { MarkdownPolicy } from "../markdown/urlPolicy.js";
+import type {
+  AssistantChatEntry,
+  CardChatEntry,
+  ChatEntry,
+  ToolChatEntry,
+  UserChatEntry,
+} from "../types/chat.js";
+import { ChatCard, defaultChatCardLabels, type ChatCardLabels } from "./ChatCard.js";
+import { ChatMessage, defaultChatMessageLabels, type ChatMessageLabels } from "./ChatMessage.js";
+import {
+  ThinkingIndicator,
+  defaultThinkingIndicatorLabels,
+  type ThinkingIndicatorLabels,
+} from "./ThinkingIndicator.js";
+import {
+  ThinkingTrace,
+  defaultThinkingTraceLabels,
+  type ThinkingTraceLabels,
+} from "./ThinkingTrace.js";
+import {
+  ToolActivity,
+  defaultToolActivityLabels,
+  type ToolActivityLabels,
+} from "./ToolActivity.js";
+import { BORDER, TEXT_MUTED } from "../theme/tokens.js";
+
+export interface ChatMessageListLabels
+  extends
+    ChatMessageLabels,
+    ThinkingIndicatorLabels,
+    ThinkingTraceLabels,
+    ToolActivityLabels,
+    ChatCardLabels {
+  /** EU AI Act disclosure, outside the scroll region in every state; no default (design-notes § Labels decision 5). */
+  aiDisclosure: string;
+  /** The scroll region's accessible name. */
+  transcript: string;
+}
+
+export const defaultChatMessageListLabels: Readonly<
+  Required<Omit<ChatMessageListLabels, "aiDisclosure">>
+> = Object.freeze({
+  ...defaultChatMessageLabels,
+  ...defaultThinkingIndicatorLabels,
+  ...defaultThinkingTraceLabels,
+  ...defaultToolActivityLabels,
+  card: defaultChatCardLabels.card,
+  cardUnavailable: defaultChatCardLabels.cardUnavailable,
+  transcript: "Conversation",
+});
+
+/** One persona's chrome - a name and an avatar node, consumer-owned, no customer data (design-notes § Attribution). */
+export interface ChatAttribution {
+  name?: string;
+  avatar?: ReactNode;
+}
+
+export interface ChatMessageListProps {
+  /** The conversation in order, all five entry roles; a delta must arrive as a new array. */
+  entries: ReadonlyArray<ChatEntry>;
+  userInitials: string;
+  /** Required, unlike sibling components' labels: aiDisclosure has no default, so the prop cannot be omitted. */
+  labels: Partial<ChatMessageListLabels> & Required<Pick<ChatMessageListLabels, "aiDisclosure">>;
+  /** Persona id to chrome; a table so it crosses the RSC boundary, and an unknown id gets assistantAvatar, no name. */
+  attribution?: Readonly<Record<string, ChatAttribution>>;
+  /** Fills the avatar circle of every ChatMessage and the busy indicator. */
+  assistantAvatar?: ReactNode;
+  /** Renders one ThinkingIndicator after the last entry. Default false. */
+  busy?: boolean;
+  /** Empty state only, centred in place of the transcript column. */
+  greeting?: ReactNode;
+  /** Empty state only, rendered under the greeting. */
+  prompts?: ReactNode;
+  /** Footer under every entry's action row, user rows too; typed explicitly so widening entries cannot widen it. */
+  renderEntryFooter?: (entry: UserChatEntry | AssistantChatEntry) => ReactNode;
+  showFeedback?: boolean;
+  arrowKeyFeedback?: boolean;
+  markdown?: MarkdownPolicy;
+  /** Forces instant scrolling; undefined tracks the OS preference. */
+  reducedMotion?: boolean;
+  /** Replaces a tool entry's default sentence; forwarded to ToolActivity with the same pending this list derives. */
+  describeTool?: (entry: ToolChatEntry, pending: boolean) => ReactNode;
+  /** Reveals each tool entry's `toolName`. Default false. */
+  showToolName?: boolean;
+  /** Reveals each tool entry's `toolInput` as JSON. Default false. */
+  showToolInput?: boolean;
+  /** Fills the icon slot of every `ToolActivity`. */
+  toolIcon?: ReactNode;
+  /** Draws a card entry's body; the list frames it, rates it per card and never prints entry.data itself. */
+  describeCard?: (entry: CardChatEntry) => ReactNode;
+  /** Mounts a ThinkingTrace per thinking entry; off by default, see design-notes § Thinking trace. */
+  showThinking?: boolean;
+  onCopy?: (text: string, entryId: string) => void;
+  onFeedback?: (entryId: string, type: "up" | "down") => void;
+}
+
+export interface ChatMessageListHandle {
+  scrollToBottom(): void;
+  isPinnedToBottom(): boolean;
+}
+
+// User entries carry no persona, and an id the table lacks (a retired persona, replayed) resolves to nothing.
+const attributionFor = (
+  entry: UserChatEntry | AssistantChatEntry,
+  attribution: Readonly<Record<string, ChatAttribution>> | undefined
+): ChatAttribution | undefined => {
+  if (entry.role !== "assistant" || !entry.persona) {
+    return undefined;
+  }
+
+  return attribution?.[entry.persona];
+};
+
+const PINNED_THRESHOLD_PX = 32;
+
+const isNearBottom = (node: HTMLElement | null): boolean => {
+  if (!node) {
+    return false;
+  }
+
+  return node.scrollHeight - node.scrollTop - node.clientHeight <= PINNED_THRESHOLD_PX;
+};
+
+// scrollTo with a scrollTop fallback (jsdom); never the element-walking method, which scrolls outside ancestors.
+const scrollRegionToBottom = (node: HTMLElement | null, behavior: ScrollBehavior) => {
+  if (!node) {
+    return;
+  }
+
+  if (typeof node.scrollTo === "function") {
+    node.scrollTo({ top: node.scrollHeight, behavior });
+
+    return;
+  }
+  node.scrollTop = node.scrollHeight;
+};
+
+export const ChatMessageList = forwardRef<ChatMessageListHandle, ChatMessageListProps>(
+  function ChatMessageList(
+    {
+      entries,
+      userInitials,
+      labels,
+      attribution,
+      assistantAvatar,
+      busy = false,
+      greeting,
+      prompts,
+      renderEntryFooter,
+      showFeedback,
+      arrowKeyFeedback,
+      markdown,
+      reducedMotion,
+      describeTool,
+      showToolName,
+      showToolInput,
+      toolIcon,
+      describeCard,
+      showThinking = false,
+      onCopy,
+      onFeedback,
+    },
+    ref
+  ) {
+    const resolved = {
+      ...resolveLabels(defaultChatMessageListLabels, labels),
+      aiDisclosure: labels.aiDisclosure,
+    };
+    const prefersReducedMotion = useReducedMotion(reducedMotion);
+    const regionRef = useRef<HTMLDivElement>(null);
+    const pinnedRef = useRef(true);
+    const smoothScrollInFlightRef = useRef(false);
+    const lastScrollTopRef = useRef(0);
+    const previousLengthRef = useRef<number | null>(null);
+
+    useEffect(() => {
+      const previousLength = previousLengthRef.current;
+
+      previousLengthRef.current = entries.length;
+
+      if (previousLength === null) {
+        smoothScrollInFlightRef.current = false;
+        scrollRegionToBottom(regionRef.current, "auto");
+
+        return;
+      }
+
+      if (!pinnedRef.current) {
+        return;
+      }
+      const grew = entries.length > previousLength;
+      const behavior: ScrollBehavior = prefersReducedMotion || !grew ? "auto" : "smooth";
+
+      smoothScrollInFlightRef.current = behavior === "smooth";
+      scrollRegionToBottom(regionRef.current, behavior);
+    }, [entries, busy, prefersReducedMotion]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        scrollToBottom: () => {
+          const behavior: ScrollBehavior = prefersReducedMotion ? "auto" : "smooth";
+
+          pinnedRef.current = true;
+          smoothScrollInFlightRef.current = behavior === "smooth";
+          scrollRegionToBottom(regionRef.current, behavior);
+        },
+        isPinnedToBottom: () => isNearBottom(regionRef.current),
+      }),
+      [prefersReducedMotion]
+    );
+
+    // Our smooth scroll's own downward events must not unpin the reader; the bottom or an upward move settles it.
+    const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+      const node = event.currentTarget;
+      const previousTop = lastScrollTopRef.current;
+
+      lastScrollTopRef.current = node.scrollTop;
+
+      if (isNearBottom(node)) {
+        pinnedRef.current = true;
+        smoothScrollInFlightRef.current = false;
+
+        return;
+      }
+
+      if (smoothScrollInFlightRef.current && node.scrollTop > previousTop) {
+        return;
+      }
+      pinnedRef.current = false;
+      smoothScrollInFlightRef.current = false;
+    };
+
+    const showEmptyState = entries.length === 0 && !busy;
+
+    // One row per entry by role; showThinking gates the mount itself, so unreviewed reasoning never reaches the DOM.
+    const renderRow = (entry: ChatEntry, index: number) => {
+      if (entry.role === "tool") {
+        return (
+          <ToolActivity
+            key={entry.id}
+            entry={entry}
+            describeTool={describeTool}
+            pending={busy && index === entries.length - 1}
+            showToolName={showToolName}
+            showToolInput={showToolInput}
+            icon={toolIcon}
+            labels={{
+              activity: resolved.activity,
+              activityDone: resolved.activityDone,
+              details: resolved.details,
+              toolInputUnavailable: resolved.toolInputUnavailable,
+            }}
+          />
+        );
+      }
+
+      if (entry.role === "thinking") {
+        return showThinking ? (
+          <ThinkingTrace
+            key={entry.id}
+            entry={entry}
+            reducedMotion={reducedMotion}
+            labels={{ thinkingTrace: resolved.thinkingTrace }}
+          />
+        ) : null;
+      }
+
+      if (entry.role === "card") {
+        return (
+          <ChatCard
+            key={entry.id}
+            entry={entry}
+            describeCard={describeCard}
+            showFeedback={showFeedback}
+            labels={resolved}
+            onFeedback={onFeedback}
+          />
+        );
+      }
+      const attributed = attributionFor(entry, attribution);
+
+      return (
+        <ChatMessage
+          key={entry.id}
+          entry={entry}
+          userInitials={userInitials}
+          assistantAvatar={attributed?.avatar ?? assistantAvatar}
+          assistantName={attributed?.name}
+          showFeedback={showFeedback}
+          arrowKeyFeedback={arrowKeyFeedback}
+          footer={renderEntryFooter?.(entry)}
+          markdown={markdown}
+          labels={resolved}
+          onCopy={onCopy}
+          onFeedback={onFeedback}
+        />
+      );
+    };
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <p
+          className={`flex min-h-14 items-center justify-center border-b ${BORDER} px-4 py-2 text-center text-xs ${TEXT_MUTED}`}
+        >
+          {resolved.aiDisclosure}
+        </p>
+        <div
+          ref={regionRef}
+          role="log"
+          aria-live="off"
+          aria-label={resolved.transcript}
+          onScroll={handleScroll}
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
+          {showEmptyState ? (
+            <div className="flex h-full flex-col items-center justify-center gap-6 px-4">
+              {greeting}
+              {prompts}
+            </div>
+          ) : (
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
+              {entries.map(renderRow)}
+              {busy && (
+                <ThinkingIndicator
+                  assistantAvatar={assistantAvatar}
+                  labels={{
+                    thinking: resolved.thinking,
+                    thinkingRegion: resolved.thinkingRegion,
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+

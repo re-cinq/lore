@@ -28,7 +28,15 @@ anything. Then emit JSON only. Write that JSON to `decomposition.json`
 at exactly `{decomposition_path}`; the file is the deliverable:
 
 {
-  "spec_commit": "<the commit you read the spec at: git -C /workspace/target rev-parse HEAD>",
+  "spec_commit": "{merge_sha}",
+  "statements": [
+    {
+      "file": "specs/<slug>/spec.md",
+      "line": 42,
+      "status": "partial",
+      "evidence": [{ "path": "src/component.ts", "start": 10, "end": 20, "text": "Component" }]
+    }
+  ],
   "stories": [
     {
       "title": "<short user-facing story title>",
@@ -49,6 +57,8 @@ at exactly `{decomposition_path}`; the file is the deliverable:
           "test_plan": "<which tests to write or run, and what they show>",
           "references": ["specs/<slug>/spec.md#<section>"],
           "spec_lines": { "specs/<slug>/spec.md": [42, 57] },
+          "in_place": [{ "file": "specs/<slug>/spec.md", "line": 42, "path": "src/component.ts", "start": 10, "end": 20, "text": "Component" }],
+          "remaining": "<the missing behaviour only; omit for fully missing tasks>",
           "needs_person": "<only when a person must do it: what they do, and why the loop cannot>"
         }
       ]
@@ -56,7 +66,40 @@ at exactly `{decomposition_path}`; the file is the deliverable:
   ]
 }
 
-## When the spec was ticketed before
+## Check implementation before planning work
+
+Read the spec, tasks.md, plan.md, implementation and tests at exactly
+`{merge_sha}`, using `git -C /workspace/target show {merge_sha}:<path>`;
+the checkout's HEAD may have advanced. Set `spec_commit` to `{merge_sha}`.
+For EVERY testable statement, emit one `statements` entry using its exact
+starting line and spec path. Classify it as `missing`, `partial` or
+`present` after searching the repository, even when there are no existing
+tickets or tasks.md already supplies a breakdown. Old tasks.md describes
+identity and grouping, not proof that work remains.
+
+Every partial or present claim needs evidence: a repository-relative path,
+inclusive 1-based start/end lines and nonempty exact symbol or literal
+text within that range. Inspect the behaviour requested by the statement,
+not just a similarly named file. Tests linked by validated_by are useful
+corroboration, not a requirement and not proof on their own.
+
+Keep existing task IDs for completed work with their spec_lines, so their
+issues can close as completed rather than not planned. A task is complete
+only when ALL its statements are present. New fully present statements
+need no task. An entirely implemented spec may have `stories: []`.
+For partial tasks, include `in_place` evidence tied to the assessed spec
+file and statement line, and `remaining` describing the gap. Write the
+title, description, changes, acceptance_criteria and test_plan for that
+gap alone. Never drop partial work.
+
+When `/workspace/implementation-report.md` exists, act on its objections
+first. Rejected evidence makes the statement missing: restore its FULL
+task scope and full changes, acceptance criteria and test plan, or supply
+correct evidence from the merge commit. Merely deleting rejected evidence
+while retaining a narrowed task silently loses work. Keep unrelated IDs
+and tasks stable. A correction may change assessments and task scope.
+
+## Preserve ticket identity
 
 Each ticket in `{existing_tickets_path}` is matched to your tasks by task
 id, and a matched ticket is REWRITTEN, not filed again. So:
@@ -108,7 +151,7 @@ Rules:
   clear description, the ids it `depends_on`, a `phase` number (setup
   and data model first, then build, then wiring and tests) and
   `parallelizable` true when it can run beside its phase-peers.
-- **Every task becomes its own GitHub issue**, a sub-issue of one story
+- **Every task becomes its own GitHub issue** when work remains, a sub-issue of one story
   issue for the spec, and a developer implements it from that issue
   alone. So write, for every task: `title` (short, imperative);
   `context` (why it exists, what it is part of, what depends on it);
@@ -121,7 +164,7 @@ Rules:
   a paragraph's first line). A testable statement is every one outside
   the intro and the narrative sections (Background, Rationale, Problem
   Statement, Open Questions). Name every testable statement in at least
-  one task.
+  one task unless its assessment is present with implementation evidence.
 - **Set `needs_person` only on a task the implementation loop cannot do
   from a checkout of this repository.** The loop's agent works in a pod
   with the repository and its CI, nothing else. So a task needs a person

@@ -30,6 +30,10 @@ import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { specFilingKey } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
+import {
+  actionableDecomposition,
+  presentStatements,
+} from "@re-cinq/lore-shared/spec-tickets/implementation-tasks.js";
 import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import {
   decomposedSpecs,
@@ -86,19 +90,37 @@ async function coverageOfDecomposition(
   brief: Brief,
   tools: Tools,
 ): Promise<CountedDecomposition | undefined> {
-  const { repo, branch } = parseGitRef(brief.needs.target);
-  const decomposition = await decompositionOf(tools);
+  const verified = Boolean(brief.needs.verified_decomposition);
+  const decomposition = await decompositionOf(tools, brief.needs);
   const spec = await specOf(deps, brief, tools, decomposition);
 
   if (!spec) {
     return undefined;
   }
-  const tree = await deps.listTree(repo, branch);
-  const grounded = await groundedTasks(decomposition, tree, (path) =>
-    deps.readSpec(repo, path, branch),
-  );
+  const actionable = verified
+    ? actionableDecomposition(decomposition, brief.needs.spec_path)
+    : decomposition;
+  const grounded = await groundDecomposition(deps, brief, actionable);
 
-  return countedIn(spec, decomposition, grounded);
+  return countedIn(spec, actionable, grounded, {
+    implementationVerified: verified,
+  });
+}
+
+async function groundDecomposition(
+  deps: CoverageDeps,
+  brief: Brief,
+  decomposition: DecompositionResult,
+): Promise<GroundedFile[]> {
+  const { repo, branch } = parseGitRef(brief.needs.target);
+  const ref = brief.needs.verified_decomposition
+    ? decomposition.spec_commit!
+    : branch;
+  const tree = await deps.listTree(repo, ref);
+
+  return groundedTasks(decomposition, tree, (path) =>
+    deps.readSpec(repo, path, ref),
+  );
 }
 
 /** Every spec the plan's spec PR wrote, at the commit the decomposition read, or at the branch when it names none. */
@@ -152,8 +174,15 @@ function taskText(task: DecompTask): string {
     .join("\n");
 }
 
-async function decompositionOf(tools: Tools): Promise<DecompositionResult> {
-  const raw = (await tools.read("decomposition")).toString("utf8");
+async function decompositionOf(
+  tools: Tools,
+  needs: Record<string, string>,
+): Promise<DecompositionResult> {
+  const raw = (
+    await tools.read(
+      needs.verified_decomposition ? "verified_decomposition" : "decomposition",
+    )
+  ).toString("utf8");
 
   return parseDecomposition(parseModelJson(raw));
 }
@@ -162,13 +191,15 @@ function countedIn(
   spec: DecomposedSpecs,
   decomposition: DecompositionResult,
   grounded: readonly GroundedFile[],
+  options: { implementationVerified: boolean },
 ): CountedDecomposition {
   const counted = issueCoverage(
     spec.specs,
     decomposition.stories.flatMap((story) => story.tasks),
+    options.implementationVerified ? presentStatements(decomposition) : [],
   );
 
-  const coverage = issueCoverageBrief(counted, spec.linkOf);
+  const coverage = issueCoverageBrief(counted, spec.linkOf, options);
 
   return {
     missing: storyCoverageOf(coverage, [], ""),

@@ -5,6 +5,7 @@ import {
   type Handle,
   type Report,
   type RunningStation,
+  type Tools,
 } from "@re-cinq/floor-station";
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
@@ -17,6 +18,7 @@ import {
   runIssuesStation,
   type IssuesStationDeps,
 } from "../../planning/file-issues/issues.js";
+import { runVerifiedIssuesStation } from "./verified-issues.js";
 
 export interface SpecTicketsIssuesDeps {
   /** The visit's own run, which the station input identifies itself by. */
@@ -33,13 +35,17 @@ const productionDeps: SpecTicketsIssuesDeps = {
 export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
   return async (brief, tools) => {
     try {
-      const decomposition = (await tools.read("decomposition")).toString(
-        "utf8",
-      );
+      const verified = Boolean(brief.needs.verified_decomposition);
+      const artifact = verified ? "verified_decomposition" : "decomposition";
+      const decomposition = (await tools.read(artifact)).toString("utf8");
       const input = await stationInputOf(deps, brief, decomposition);
       const project = await deps.project(input.repo);
 
-      return reportOf(await runIssuesStation(input, { project }));
+      return reportOf(
+        await (verified
+          ? verifiedIssues(input, project, tools)
+          : runIssuesStation(input, { project })),
+      );
     } catch (err) {
       const message = (err as Error).message;
 
@@ -48,6 +54,21 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       return { outcome: "failed", error: message };
     }
   };
+}
+
+async function verifiedIssues(
+  input: StationInput,
+  project: NonNullable<IssuesStationDeps["project"]>,
+  tools: Tools,
+): Promise<NodeResult> {
+  const result = await runVerifiedIssuesStation(input, project);
+
+  await tools.produce(
+    "ticketing_result",
+    JSON.stringify({ outcome: result.outcome, ...result.extras }),
+  );
+
+  return result;
 }
 
 async function stationInputOf(

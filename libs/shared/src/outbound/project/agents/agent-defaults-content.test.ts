@@ -859,7 +859,7 @@ describe("the planning recipes check a plan against what the platform has (issue
       lines: prompt.includes(
         '"spec_lines": { "specs/<slug>/spec.md": [42, 57] }',
       ),
-      commit: prompt.includes("git -C /workspace/target rev-parse HEAD"),
+      commit: prompt.includes("git -C /workspace/target show {merge_sha}"),
       everyStatement: prompt.includes(
         "Name every testable statement in at least one task",
       ),

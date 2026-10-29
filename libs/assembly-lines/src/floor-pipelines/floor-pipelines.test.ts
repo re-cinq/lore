@@ -134,13 +134,13 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(line.entry).toBe("load-tickets");
     expect(forward).toEqual([
       "load-tickets>decompose",
-      "decompose>issues",
+      "decompose>verify-implementation",
+      "verify-implementation>issues",
       "issues>issue-coverage",
       "issue-coverage>done",
     ]);
     expect(line.args["key"]).toMatchObject({ subject: true });
   });
-
   it("hands spec-tickets-decompose its last decomposition, the coverage round and the tickets filed before as files its prompt names", () => {
     const decompose =
       pipelineOf("spec-tickets").stations["spec-tickets-decompose"];
@@ -2019,3 +2019,38 @@ function endsWithResultLine(pipeline: Pipeline, station: Station): boolean {
 
   return /LORE_NODE_RESULT|REVIEW_RESULT/.test(agent?.settings.prompt ?? "");
 }
+
+it("routes rejected implementation evidence back three times and gives filing and coverage only the verified artifact", () => {
+  const { line, stations } = pipelineOf("spec-tickets");
+
+  expect({
+    verification: line.edges.filter(
+      (edge) => edge.from === "verify-implementation",
+    ),
+    correction: needOf(
+      stations["spec-tickets-decompose"],
+      "implementation_report",
+    ),
+    filing: needOf(stations["spec-tickets-issues"], "verified_decomposition"),
+    coverage: needOf(
+      stations["spec-tickets-coverage"],
+      "verified_decomposition",
+    ),
+    summary: stations["spec-tickets-issues"].produces,
+  }).toMatchObject({
+    verification: [
+      { from: "verify-implementation", to: "issues", on: "success" },
+      {
+        from: "verify-implementation",
+        to: "decompose",
+        on: "changes_requested",
+        iteration_max: 3,
+      },
+      { from: "verify-implementation", to: "failed", on: "failed" },
+    ],
+    correction: { name: "implementation_report", optional: true },
+    filing: { name: "verified_decomposition" },
+    coverage: { name: "verified_decomposition" },
+    summary: [{ name: "ticketing_result", kind: "file" }],
+  });
+});
