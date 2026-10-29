@@ -100,8 +100,8 @@ func TestBuildReportPostsEmptyCoveredArrayWhenRunReportsNoCoverage(t *testing.T)
 }
 
 // A whole-suite entry (relaxed parser keeps it with no list) cannot enumerate
-// tests; the sole list consumer must fail loudly here rather than run sh -c ""
-// and emit a misleading empty report.
+// tests. buildCombinedReport skips one first (#3958); the sole list consumer still
+// fails loudly here rather than run sh -c "" and emit a misleading empty report.
 func TestBuildReportErrorsWhenListMissing(t *testing.T) {
 	m := Manifest{
 		List: "",

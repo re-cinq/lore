@@ -21,6 +21,12 @@ type Manifest struct {
 	PathPrefixStrip string `yaml:"path_prefix_strip"`
 }
 
+// runsWhole reports an honest run-whole entry: it declares no list, so it has no
+// tests to enumerate and nothing a report could attribute to one of them.
+func (m Manifest) runsWhole() bool {
+	return strings.TrimSpace(m.List) == ""
+}
+
 var validCoverageFormats = map[string]bool{"lcov": true, "cobertura": true, "json": true}
 
 // parseManifest decodes and validates a test-commands manifest. A polyglot repo

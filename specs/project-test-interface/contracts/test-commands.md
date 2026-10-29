@@ -41,7 +41,12 @@ run: "npm run consumer"
 Such an entry is kept as a run-whole entry rather than rejected; an unknown
 `coverage_format` is ignored rather than dropping the entry, and an entry with
 no usable `run` is skipped without discarding its valid siblings. Polyglot
-monorepos may declare a list of manifests, each with its own `cwd`. ([validated by TestParseManifestAcceptsMultiEntryManifest](apps/lore-code-trace/manifest_acceptance_test.go#L9))
+monorepos may declare a list of manifests, each with its own `cwd`. ([validated by TestParseManifestAcceptsMultiEntryManifest](apps/lore-code-trace/manifest_acceptance_test.go#L13))
+
+`lore-code-trace` reports every entry of such a list in one report, and nothing
+for a run-whole entry: with no `list` it has no tests to enumerate, so the
+binary skips it with a log line and never runs it, and every sibling's tests and
+results are reported as before. ([validated by TestRunReportsTheSiblingsOfARunWholeEntry](apps/lore-code-trace/main_test.go#L59), [validated by TestBuildCombinedReportSkipsARunWholeEntryWithoutRunningIt](apps/lore-code-trace/main_test.go#L77))
 
 ## `tests.list` — enumerate available tests
 

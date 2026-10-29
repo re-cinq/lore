@@ -16,11 +16,13 @@ and [ADR-023](../../adrs/ADR-023-ci-driven-doc-and-test-projection.md).
 
 1. Resolves the git root, commit, branch, and `owner/repo` (from
    `remote.origin.url`).
-2. Loads `.lore/test-commands.yml` and validates it: `list` and `run` are
-   required, `run` must contain the `{selector}` placeholder,
-   `coverage_format` must be `lcov|cobertura|json`. Optional: `cwd` (monorepo
-   subdir, default `.`) and `path_prefix_strip`. A polyglot repo may declare a
-   YAML array — **only the first entry is used**.
+2. Loads `.lore/test-commands.yml` and validates it: `run` is the only
+   required field, and an unknown `coverage_format` is cleared rather than
+   rejected. Optional: `list`, `coverage_format` (`lcov|cobertura|json`), `cwd`
+   (monorepo subdir, default `.`) and `path_prefix_strip`. A polyglot repo may
+   declare a YAML array; every entry's tests go into one report. An entry with
+   no `list` runs whole and has no tests to enumerate, so it is skipped with a
+   log line rather than failing the report.
 3. Runs `list` (a JSON array of `{id, name, file, startLine, endLine, suite?,
    spec?}` descriptors), then runs the `run` command **once per file** (4-way
    concurrent), substituting the file path for `{selector}`.
@@ -135,7 +137,8 @@ rebuild + redeploy lore-api, or CI keeps downloading the old binary
 - Runs the **whole suite** — no diff-scoped or single-test mode; per-file runs
   are the finest granularity, so every descriptor in a file shares that file's
   pass/fail + coverage.
-- Only the **first** manifest entry of a polyglot list is honoured.
+- A run-whole entry (no `list`) is skipped and never run: it reports nothing
+  per test, and its siblings report as usual.
 - Requires a git checkout with an `origin` remote (that is where the `repo`
   slug comes from) and a `sh` on PATH (commands run via `sh -c`).
 - It orchestrates and normalizes only: descriptor↔spec binding, graph writes,
