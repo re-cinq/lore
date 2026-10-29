@@ -39,6 +39,11 @@ func parseNameStatus(out string) (changed, deleted []string) {
 // ranges of everything below it in the same file, so a test covering that file
 // has stale ranges even when its own source did not move.
 //
+// A test whose run reported no coverage at all is kept as well. Nothing then
+// says which paths it depends on — a browser suite answers `covered: []` — so a
+// change anywhere may have affected it, and leaving it out of every delta would
+// keep its last result in the graph until its own file next changed.
+//
 // Commit and branch survive: they identify the delta, not its contents.
 func selectDelta(report TestReport, changed []string) TestReport {
 	changedSet := make(map[string]struct{}, len(changed))
@@ -81,6 +86,9 @@ func affected(
 	}
 	if !hasResult {
 		return false
+	}
+	if len(result.Covered) == 0 {
+		return true
 	}
 	for _, covered := range result.Covered {
 		if _, ok := changed[covered.File]; ok {
