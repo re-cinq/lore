@@ -159,7 +159,6 @@ describe("startSpecTicketRuns", () => {
             by: "lore",
           },
           merge_sha: { kind: "value", ref: "abc123", by: "lore" },
-          queue: { kind: "value", ref: "true", by: "lore" },
           key: {
             kind: "value",
             ref: `acme/widgets:specs/${name}/spec.md@abc123`,

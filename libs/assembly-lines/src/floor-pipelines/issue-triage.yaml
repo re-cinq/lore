@@ -1,6 +1,6 @@
 line:
   id: issue-triage
-  entry: reconcile-implementation
+  entry: load-implementation
   exit: done
   args:
     # One run per issue: the webhook starts a run the moment the label lands and the
@@ -18,8 +18,12 @@ line:
     target:
       kind: git
   nodes:
-    - id: reconcile-implementation
-      station: triage-reconcile-implementation
+    - id: load-implementation
+      station: triage-load-implementation
+    - id: assess-implementation
+      station: triage-assess-implementation
+    - id: verify-implementation
+      station: triage-verify-implementation
     - id: reproduce
       station: triage-reproduce
     - id: label-reproduced
@@ -50,13 +54,38 @@ line:
       station: human-gate
     - id: done
   edges:
-    - from: reconcile-implementation
-      to: reproduce
-      on: not-generated
-    - from: reconcile-implementation
+    - from: load-implementation
+      to: assess-implementation
+      on: success
+    - from: load-implementation
       to: done
-      on: delegated
-    - from: reconcile-implementation
+      on: closed
+    - from: load-implementation
+      to: label-failed
+      on: failed
+    - from: assess-implementation
+      to: verify-implementation
+      on: success
+    - from: assess-implementation
+      to: label-failed
+      on: failed
+    - from: verify-implementation
+      to: close-obsolete
+      on: implemented
+    - from: verify-implementation
+      to: reproduce
+      on: partial
+    - from: verify-implementation
+      to: reproduce
+      on: missing
+    - from: verify-implementation
+      to: reproduce
+      on: unproven
+    - from: verify-implementation
+      to: assess-implementation
+      on: changes_requested
+      iteration_max: 3
+    - from: verify-implementation
       to: label-failed
       on: failed
     - from: reproduce
@@ -132,7 +161,13 @@ line:
       iteration_max: 3
     - from: close-obsolete
       to: done
-      on: always
+      on: success
+    - from: close-obsolete
+      to: human-gate
+      on: unproven
+    - from: close-obsolete
+      to: label-failed
+      on: failed
     - from: label-not-actionable
       to: done
       on: success
@@ -143,19 +178,79 @@ line:
       to: done
       on: success
 stations:
-  triage-reconcile-implementation:
-    description: Hands generated implementation tasks to the existing evidence verifier at a pinned main revision; bug reports continue to reproduction.
+  triage-load-implementation:
+    description: Pins every issue report and main revision and supplies its matching recorded CI test outcomes for assessment.
     kind: service
     outcomes:
-      - not-generated
-      - delegated
+      - success
+      - closed
       - failed
     needs:
       - name: repo
         kind: value
       - name: issue_number
         kind: value
-    produces: []
+    produces:
+      - name: implementation_scope
+        kind: file
+      - name: issue_scope
+        kind: file
+  triage-assess-implementation:
+    description: Assesses the whole issue report against source and relevant recorded test behavior without changing the repository or GitHub.
+    kind: agent
+    agent_definition: triage-assess-implementation
+    conversation: new
+    outcomes:
+      - success
+      - failed
+    result_required: true
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: implementation_scope
+        kind: file
+        path: implementation-scope.json
+      - name: issue_scope
+        kind: file
+        path: issue-scope.md
+      - name: implementation_report
+        kind: file
+        path: implementation-report.md
+        optional: true
+      - name: implementation_assessment
+        kind: file
+        path: implementation-assessment.json
+        optional: true
+    produces:
+      - name: implementation_assessment
+        kind: file
+        path: implementation-assessment.json
+  triage-verify-implementation:
+    description: Reuses the shared implementation verifier and requires matching passing CI test evidence before narrowing or completing any issue.
+    kind: service
+    outcomes:
+      - implemented
+      - partial
+      - missing
+      - unproven
+      - changes_requested
+      - failed
+    needs:
+      - name: repo
+        kind: value
+      - name: issue_number
+        kind: value
+      - name: implementation_scope
+        kind: file
+      - name: implementation_assessment
+        kind: file
+    produces:
+      - name: implementation_report
+        kind: file
+      - name: verified_completion
+        kind: file
   triage-verify:
     description: An AI agent checks the issue against the repository's specs and docs and decides whether it is a genuine bug, obsolete, or not actionable, with a short verdict for the reporter.
     kind: agent
@@ -256,10 +351,12 @@ stations:
         kind: value
     produces: []
   close-issue:
-    description: Posts the agent's verdict on the issue and closes it, because the behaviour it reports no longer exists or was already addressed.
+    description: Closes only an unchanged issue with verified implementation and CI behavior evidence; unsupported obsolete verdicts wait for human review.
     kind: service
     outcomes:
       - success
+      - unproven
+      - failed
     needs:
       - name: repo
         kind: value
@@ -267,6 +364,10 @@ stations:
         kind: value
       - name: verdict
         kind: value
+        optional: true
+      - name: verified_completion
+        kind: file
+        optional: true
     produces: []
   triage-label:
     description: Labels the issue with the triage result, not actionable or failed. For a not actionable issue it also posts the agent's verdict as a comment.
@@ -291,6 +392,23 @@ stations:
     needs: []
     produces: []
 agent_definitions:
+  triage-assess-implementation:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 15
+      config:
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
   triage-reproduce:
     settings:
       model: claude-sonnet-4-6

@@ -162,7 +162,6 @@ function startItemsOf(
     target: gitItem(repo, baseRef),
     spec_path: valueItem(specPath),
     merge_sha: valueItem(mergeCommitSha),
-    queue: valueItem("true"),
     key: valueItem(key),
   };
 }

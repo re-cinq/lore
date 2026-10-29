@@ -284,13 +284,27 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
   it("starts issue-triage with implementation reconciliation before reproduction", () => {
     expect(issueTriage()?.line?.body).toMatchObject({
-      entry: "reconcile-implementation",
+      entry: "load-implementation",
     });
     expect(
-      ["not-generated", "delegated", "failed"].map((outcome) =>
-        edgeTarget(issueTriageLine(), "reconcile-implementation", outcome),
+      [
+        "implemented",
+        "partial",
+        "missing",
+        "unproven",
+        "changes_requested",
+        "failed",
+      ].map((outcome) =>
+        edgeTarget(issueTriageLine(), "verify-implementation", outcome),
       ),
-    ).toEqual(["reproduce", "done", "label-failed"]);
+    ).toEqual([
+      "close-obsolete",
+      "reproduce",
+      "reproduce",
+      "reproduce",
+      "assess-implementation",
+      "label-failed",
+    ]);
   });
 
   it("routes every reproduce outcome through its matching label node", () => {
@@ -339,7 +353,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     });
   });
 
-  it("routes close-obsolete through the close-issue service and always to done", () => {
+  it("routes verified closure to done and unproven closure to human review", () => {
     const line = issueTriageLine();
     const node = line.nodes.find(
       (pipelineNode) => pipelineNode.id === "close-obsolete",
@@ -358,7 +372,11 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     }).toEqual({
       station: "close-issue",
       kind: "service",
-      outgoing: [{ from: "close-obsolete", to: "done", on: "always" }],
+      outgoing: [
+        { from: "close-obsolete", to: "done", on: "success" },
+        { from: "close-obsolete", to: "human-gate", on: "unproven" },
+        { from: "close-obsolete", to: "label-failed", on: "failed" },
+      ],
     });
   });
 

@@ -89,7 +89,7 @@ function scene(
     },
     issues: {
       list: async () => filed,
-      listLabels: async () => ["priority:high"],
+      listLabels: async () => [],
       listComments: async (number: number) =>
         comments.filter((comment) => comment.number === number),
       create: async (title: string, body: string, labels: string[]) => {
@@ -138,7 +138,6 @@ function scene(
     spec_path: PATH,
     merge_sha: "merge123",
     decomposition: "input",
-    queue: "true",
   };
   const brief = { visitId: "verify-1", iteration: 1, needs };
   const verify = () => verifyImplementationHandle(deps)(brief, tools);
@@ -157,7 +156,6 @@ function scene(
     );
 
   return {
-    needs,
     artifacts,
     filed,
     comments,
@@ -168,47 +166,11 @@ function scene(
     verify,
     file,
     coverage,
+    needs,
   };
 }
 
 describe("verified spec ticket flow", () => {
-  it("parks newly discovered triage tasks without priority labels", async () => {
-    const raw = decomposition("missing");
-
-    raw.stories[0].tasks[0].labels = ["priority:high"];
-    const run = scene(raw);
-
-    run.needs.queue = "false";
-    expect([await run.verify(), await run.file()]).toEqual([
-      { outcome: "success" },
-      { outcome: "success" },
-    ]);
-    expect(
-      run.filed.find((issue) => issue.title.startsWith("T001"))?.labels,
-    ).toEqual(["lore-managed", "triage: needs-priority"]);
-  });
-
-  it("rejects queue=maybe without issue writes", async () => {
-    const run = scene(decomposition("missing"));
-
-    run.needs.queue = "maybe";
-    await run.verify();
-    expect({ report: await run.file(), issues: run.filed }).toEqual({
-      report: { outcome: "failed", error: "queue must be true or false" },
-      issues: [],
-    });
-  });
-
-  it("keeps legacy spec runs queued when the queue value is absent", async () => {
-    const run = scene(decomposition("missing"));
-
-    Reflect.deleteProperty(run.needs, "queue");
-    await run.verify();
-    await run.file();
-    expect(
-      run.filed.find((issue) => issue.title.startsWith("T001"))?.labels,
-    ).toContain("priority:medium");
-  });
   it("files the full task when statement assessments are absent", async () => {
     const { statements: _statements, ...raw } = decomposition();
     const run = scene(raw);

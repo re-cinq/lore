@@ -44,7 +44,7 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       return reportOf(
         await (verified
           ? verifiedIssues(input, project, tools)
-          : legacyIssues(input, project)),
+          : runIssuesStation(input, { project })),
       );
     } catch (err) {
       const message = (err as Error).message;
@@ -54,16 +54,6 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       return { outcome: "failed", error: message };
     }
   };
-}
-
-function legacyIssues(
-  input: StationInput,
-  project: NonNullable<IssuesStationDeps["project"]>,
-): Promise<NodeResult> {
-  return runIssuesStation(input, {
-    project,
-    queue: input.params.queue !== "false",
-  });
 }
 
 async function verifiedIssues(
@@ -96,19 +86,8 @@ async function stationInputOf(
       feature_decomposition: decomposition,
       filing_key: specFilingKey(needs.spec_path),
       spec_path: needs.spec_path,
-      queue: queueOf(needs.queue),
     },
   };
-}
-
-function queueOf(value: string | undefined): string {
-  enforceTrue(
-    value === undefined || ["true", "false"].includes(value),
-    Error,
-    "queue must be true or false",
-  );
-
-  return value ?? "true";
 }
 
 async function runIdOf(

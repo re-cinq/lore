@@ -157,12 +157,22 @@ function taskLabels({
   return distinct([...chosen, ...BASE_TASK_LABELS, ...queued, ...parked]);
 }
 
-function unqueuedLabels({ labels: chosen = [] }: DecompTask): string[] {
+function unqueuedLabels({
+  labels: chosen = [],
+  needs_person,
+}: DecompTask): string[] {
   const unprioritized = chosen.filter(
     (label) => !(PRIORITY_LABELS as readonly string[]).includes(label),
   );
 
-  return distinct([...unprioritized, ...BASE_TASK_LABELS, TRIAGE_TASK_LABEL]);
+  const parked = needs_person ? [LORE_BLOCKED_LABEL] : [];
+
+  return distinct([
+    ...unprioritized,
+    ...BASE_TASK_LABELS,
+    TRIAGE_TASK_LABEL,
+    ...parked,
+  ]);
 }
 
 function distinct(labels: string[]): string[] {
