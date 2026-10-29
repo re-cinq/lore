@@ -25,6 +25,8 @@ venv/
 # Environment
 .env
 .env.*
+# The template dev-setup copies to .env.local: no values, safe to track.
+!.env.local.example
 
 # OS
 .DS_Store
