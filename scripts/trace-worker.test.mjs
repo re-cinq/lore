@@ -13,8 +13,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-const scripts = dirname(fileURLToPath(import.meta.url));
-const repository = resolve(scripts, "../../../..");
+const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const scripts = join(repository, "libs/shared/scripts/trace");
 const file = "apps/fixture/src/cases.test.js";
 const source = `import { describe, it, expect } from "vitest";
 describe("old", () => {
