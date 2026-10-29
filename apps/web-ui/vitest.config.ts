@@ -26,8 +26,6 @@ export default defineConfig({
         "src/lib/webhook-api.ts",
         "src/lib/lore-api-get.ts",
         "src/lib/task-runtime.ts",
-        "src/lib/auth.ts",
-        "src/lib/auth-options.ts",
         "src/lib/session.ts",
         "src/lib/session-token.ts",
         "src/lib/github.ts",
@@ -37,10 +35,9 @@ export default defineConfig({
         "src/middleware.ts",
         // Next.js API route handlers (server endpoints → DB/GitHub IO).
         "src/app/api/**",
-        // App Router containers + layouts + next-auth session provider.
+        // App Router containers + layouts.
         "src/app/**/page.tsx",
         "src/app/**/layout.tsx",
-        "src/app/SessionWrapper.tsx",
         // D3/SVG visualization shells (imperative canvas, not jsdom-testable; pure logic in src/lib/*).
         "src/app/repos/[owner]/[repo]/graph/SpecGraphD3.tsx",
         "src/app/repos/[owner]/[repo]/graph/TestPreview.tsx",

@@ -543,8 +543,10 @@ storage in the org-wide database.
 
 **API security**: Centralized auth in `routes.ts` — every `/api/*`
 route enforces bearer token validation before dispatch. Supports
-legacy single token (`LORE_INGEST_TOKEN`, full access) and per-client
-scoped tokens (`pipeline.api_tokens` table with SHA-256 hashes).
+legacy single token (`LORE_INGEST_TOKEN`, full access), per-client
+scoped tokens (`pipeline.api_tokens` table with SHA-256 hashes) and a
+person's 8 hour web session token (`kind = 'user'` in the same table,
+minted by `POST /api/auth/redeem`, ADR-053).
 Scopes: read, write, task, webhook, admin. Token management via
 `/api/tokens` endpoint. Webhooks (GitHub, Slack) use their own HMAC
 signature verification. Rate limiting: 30/min webhooks, 60/min task
