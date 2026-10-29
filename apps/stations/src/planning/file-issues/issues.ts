@@ -74,7 +74,7 @@ async function planWork(
   });
 }
 
-function specOfRun(
+export function specOfRun(
   project: StationProject,
   input: StationInput,
   decomposition: DecompositionResult,
@@ -115,7 +115,7 @@ interface FilingSources {
 }
 
 // The plan id, or the triaged issue's filing key, is what a rerun recognises its issues by.
-function filingContext(
+export function filingContext(
   input: StationInput,
   decomposition: DecompositionResult,
   { uiUrl, spec }: FilingSources,

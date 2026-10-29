@@ -101,8 +101,9 @@ export function linesIn(
 export function issueCoverage(
   specs: readonly SpecFile[],
   tasks: readonly { spec_lines?: SpecLine[] }[],
+  present: readonly SpecLine[] = [],
 ): IssueCoverage {
-  const cited = tasks.flatMap((task) => task.spec_lines ?? []);
+  const cited = [...tasks.flatMap((task) => task.spec_lines ?? []), ...present];
   const mainFile = mainFileOf(specs);
   const missing = specs.flatMap((spec, index) => {
     const { parts } = spec;
@@ -147,8 +148,9 @@ export function statementLink({
 export function issueCoverageBrief(
   { total, covered, missing }: IssueCoverage,
   linkOf: (cited: SpecLine) => string,
+  options: { implementationVerified?: boolean } = {},
 ): string {
-  const summary = `${covered} of ${total} testable spec statements have a task.`;
+  const summary = coverageSummary(covered, total, options);
 
   if (missing.length === 0) {
     return `## Spec coverage\n\n${summary}\n`;
@@ -159,12 +161,28 @@ export function issueCoverageBrief(
     "",
     `${summary} Not covered yet:`,
     "",
-    ...missing.map(
-      ({ file, line, text }) =>
-        `- ${file ? `${file} ` : ""}line ${line}: ${text} — ${linkOf({ file, line })}`,
-    ),
+    ...missing.map((part) => missingEntry(part, linkOf)),
     "",
   ].join("\n");
+}
+
+function coverageSummary(
+  covered: number,
+  total: number,
+  options: { implementationVerified?: boolean },
+): string {
+  const suffix = options.implementationVerified
+    ? " or verified implementation evidence"
+    : "";
+
+  return `${covered} of ${total} testable spec statements have a task${suffix}.`;
+}
+
+function missingEntry(
+  { file, line, text }: MissingPart,
+  linkOf: (cited: SpecLine) => string,
+): string {
+  return `- ${file ? `${file} ` : ""}line ${line}: ${text} — ${linkOf({ file, line })}`;
 }
 
 function testableStatements(specMd: string) {

@@ -5,6 +5,7 @@ import type {
   UserStory,
 } from "../../domain/feature-planning/decomposition-result.js";
 import { LORE_BLOCKED_LABEL } from "../backlog/labels.js";
+import { implementationEvidenceLink } from "../../domain/feature-planning/grounding.js";
 
 export interface StoryIssueInput {
   repo: string;
@@ -106,6 +107,7 @@ function taskLine(
 }
 
 export interface TaskIssueInput {
+  implementationCommit?: string;
   repo: string;
   /** The story issue this task is part of; absent when there is none to name. */
   storyNumber?: number;
@@ -125,24 +127,46 @@ export function taskIssueBody(input: TaskIssueInput): string {
   return withinLimit(taskIssueLines(input).join("\n"));
 }
 
-function taskIssueLines({
-  repo,
-  storyNumber,
-  task,
-  dependsOn,
-  specStatements,
-}: TaskIssueInput): string[] {
+function taskIssueLines(input: TaskIssueInput): string[] {
+  const { repo, storyNumber, task, dependsOn, specStatements } = input;
+
   return [
     ...placeLines(storyNumber, dependsOn),
     ...implementsSection(specStatements),
     ...needsPersonSection(task.needs_person),
     ...section("Context", task.context),
     ...quotes("From the plan", task.plan_quotes),
+    ...implementationSection(input),
     ...section("What to change", task.changes ?? task.description),
-    ...(task.file_path ? [`Target file: \`${task.file_path}\``, ""] : []),
+    ...targetFile(task.file_path),
     ...checklist("## Acceptance criteria", task.acceptance_criteria ?? []),
     ...section("How to test", task.test_plan),
     ...references(repo, task.references ?? []),
+  ];
+}
+
+function targetFile(path: string | undefined): string[] {
+  return path ? [`Target file: \`${path}\``, ""] : [];
+}
+
+function implementationSection({
+  repo,
+  task,
+  implementationCommit,
+}: Pick<TaskIssueInput, "repo" | "task" | "implementationCommit">): string[] {
+  if (!implementationCommit || !task.in_place?.length) {
+    return [];
+  }
+
+  return [
+    "## Already in place",
+    "",
+    ...task.in_place.map(
+      (entry) =>
+        `- [${quoted(entry.text.replace(/\s+/g, " "))}](${implementationEvidenceLink(repo, implementationCommit, entry)})`,
+    ),
+    "",
+    ...section("Remaining work", task.remaining),
   ];
 }
 

@@ -1,5 +1,22 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { specFileOf } from "./issue-coverage.js";
+import { z } from "zod";
+import { implementationEvidenceSchema } from "./grounding.js";
+
+const statementAssessmentSchema = z.object({
+  file: z.string().min(1),
+  line: z.number().int().positive(),
+  status: z.enum(["missing", "partial", "present"]).catch("missing"),
+  evidence: z.array(implementationEvidenceSchema).catch([]),
+});
+
+const inPlaceSchema = implementationEvidenceSchema.extend({
+  file: z.string().min(1),
+  line: z.number().int().positive(),
+});
+
+export type StatementAssessment = z.infer<typeof statementAssessmentSchema>;
+export type InPlace = z.infer<typeof inPlaceSchema>;
 // Feature spec decomposition into user stories/tasks (ADR-029); lenient parse, pure, no I/O.
 
 export interface DecompTask {
@@ -24,6 +41,8 @@ export interface DecompTask {
   plan_quotes?: string[];
   /** What a person must do because the implementation loop cannot from a checkout of the repo; its issue is filed parked. */
   needs_person?: string;
+  in_place?: InPlace[];
+  remaining?: string;
 }
 
 /** A line of the spec the plan is chiefly about, or of `file` when the plan's spec PR wrote it in another spec. */
@@ -45,6 +64,7 @@ export interface DecompositionResult {
   /** The commit the spec was read at, so its line numbers mean what decompose saw. */
   spec_commit?: string;
   stories: UserStory[];
+  statements?: StatementAssessment[];
 }
 
 /** Parse + normalize decomposition; throws on structural failure, tolerates field-name drift. */
@@ -56,11 +76,9 @@ export function parseDecomposition(raw: unknown): DecompositionResult {
   );
   const stories = (raw as Record<string, unknown>).stories;
 
-  enforceTrue(
-    Array.isArray(stories),
-    Error,
-    "decomposition: stories must be an array",
-  );
+  const message = "decomposition: stories must be an array";
+
+  enforceTrue(Array.isArray(stories), Error, message);
 
   const specCommit = (raw as Record<string, unknown>).spec_commit;
 
@@ -69,6 +87,7 @@ export function parseDecomposition(raw: unknown): DecompositionResult {
       ? { spec_commit: specCommit }
       : {}),
     stories: stories.map(normalizeStory),
+    ...assessmentField((raw as Record<string, unknown>).statements),
   };
 }
 
@@ -216,6 +235,8 @@ export type TaskIssueDetail = Pick<
   | "references"
   | "plan_quotes"
   | "needs_person"
+  | "in_place"
+  | "remaining"
 >;
 
 export function taskIssueDetail(source: object): TaskIssueDetail {
@@ -233,7 +254,29 @@ export function taskIssueDetail(source: object): TaskIssueDetail {
     ...listField("references", t.references),
     ...listField("plan_quotes", t.plan_quotes),
     ...textField("needs_person", t.needs_person),
+    ...implementationDetail(t),
   };
+}
+
+function implementationDetail(
+  source: Record<string, unknown>,
+): Pick<TaskIssueDetail, "remaining" | "in_place"> {
+  const parsed = z.array(inPlaceSchema).safeParse(source.in_place);
+
+  return {
+    ...textField("remaining", source.remaining),
+    ...(Array.isArray(source.in_place)
+      ? { in_place: parsed.success ? parsed.data : [] }
+      : {}),
+  };
+}
+
+function assessmentField(
+  value: unknown,
+): Pick<DecompositionResult, "statements"> {
+  return Array.isArray(value)
+    ? { statements: normalizedAssessments(value) }
+    : {};
 }
 
 function textField<K extends string>(
@@ -283,7 +326,7 @@ function asStringList(v: unknown): string[] {
 // A bare list names lines of the main spec; an object keyed by spec path names lines of each spec the plan wrote.
 function asLineList(v: unknown): SpecLine[] {
   if (Array.isArray(v)) {
-    return wholeLines(v).map((line) => ({ line }));
+    return v.flatMap(lineEntry);
   }
   const byFile = v && typeof v === "object" ? Object.entries(v) : [];
 
@@ -295,8 +338,31 @@ function asLineList(v: unknown): SpecLine[] {
   );
 }
 
+function lineEntry(entry: unknown): SpecLine[] {
+  if (!entry || typeof entry !== "object") {
+    return wholeLines([entry]).map((line) => ({ line }));
+  }
+  const parsed = z
+    .object({ file: z.string().optional(), line: z.number().int().positive() })
+    .safeParse(entry);
+
+  return parsed.success ? [parsed.data] : [];
+}
+
 function wholeLines(values: unknown[]): number[] {
   return values
     .map(Number)
     .filter((line) => Number.isInteger(line) && line > 0);
+}
+
+function normalizedAssessments(value: unknown): StatementAssessment[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry: unknown) => {
+    const parsed = statementAssessmentSchema.safeParse(entry);
+
+    return parsed.success ? [parsed.data] : [];
+  });
 }

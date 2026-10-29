@@ -29,7 +29,12 @@ import {
   type CoverageSections,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { SpecStatementLink } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
-import type { SpecLine } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import type {
+  DecompTask,
+  SpecLine,
+  StatementAssessment,
+} from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import { completeImplementedTasks, completeStory } from "./completion.js";
 import type { DecomposedSpecs } from "./decomposed-spec.js";
 
 /** A task issue as it was filed: what the story's checklist and each task's dependency lines are written from. */
@@ -48,6 +53,11 @@ export interface FilingContext {
   planId?: string;
   /** The spec the tasks name statements of; without one the issues cite none. */
   spec?: DecomposedSpecs;
+  completed?: readonly DecompTask[];
+  completedIds?: ReadonlySet<string>;
+  statements?: readonly StatementAssessment[];
+  commit?: string;
+  nothingRemaining?: boolean;
 }
 
 // Lore-filed issues of either state: a closed task issue still counts as filed, so a rerun doesn't file it again.
@@ -74,13 +84,37 @@ export async function filePlanIssues(
   context: FilingContext,
 ): Promise<number> {
   const existing = await existingPlanIssues(project, context.planId);
+
+  await completeImplementedTasks(project, existing, context);
+
+  if (context.nothingRemaining && !existing.story) {
+    await closeDropped(project, work.tasks, existing, context.completedIds);
+    console.log(
+      eventLine(
+        "nothing to ticket: every spec statement has verified implementation evidence",
+      ),
+    );
+
+    return 0;
+  }
+
+  return fileAndRewrite(project, work, context, existing);
+}
+
+async function fileAndRewrite(
+  project: StationProject,
+  work: ProceedWork,
+  context: FilingContext,
+  existing: PlanIssues,
+): Promise<number> {
   const storyNumber =
     existing.story?.number ?? (await fileStory(project, work, context));
   const filing = { context, existing, storyNumber };
   const taskIssues = await fileTasks(project, work.tasks, filing);
 
-  await closeDropped(project, work.tasks, existing);
+  await closeDropped(project, work.tasks, existing, context.completedIds);
   await rewriteStory(project, work, { ...filing, taskIssues });
+  await completeStory(project, existing, context);
 
   return storyNumber;
 }
@@ -233,16 +267,17 @@ async function fileNewTaskIssue(
 }
 
 function taskBody({ task }: PlannedTask, filing: FiledTasks): string {
-  const { context, storyNumber, taskIssues } = filing;
+  const { context, storyNumber } = filing;
 
   return marked(
     taskIssueBody({
       repo: context.input.repo,
       storyNumber,
       task,
+      implementationCommit: context.commit,
       specStatements: statementsCited(context.spec, task.spec_lines ?? []),
       // A dependency with no issue yet (tasks.md out of order, first run) is named by its task id rather than dropped.
-      dependsOn: task.depends_on.map((id) => taskIssues.get(id)?.number ?? id),
+      dependsOn: dependenciesOf(task, filing),
     }),
     context.planId && taskMarker(context.planId, task.id),
   );
@@ -273,8 +308,11 @@ async function closeDropped(
   project: StationProject,
   tasks: readonly PlannedTask[],
   existing: PlanIssues,
+  completed: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   const kept = new Set(tasks.map((planned) => planned.task.id));
+
+  completed.forEach((id) => kept.add(id));
   const dropped = [...existing.tasks]
     .filter(([id, issue]) => !kept.has(id) && issue.state === "open")
     .map(([, issue]) => issue.number);
@@ -298,4 +336,15 @@ function numbersOf(
 
 function marked(body: string, marker: string | undefined): string {
   return marker ? withMarker(body, marker) : body;
+}
+
+function dependenciesOf(
+  task: DecompTask,
+  { context, taskIssues }: FiledTasks,
+): (number | string)[] {
+  const unresolved = task.depends_on.filter(
+    (id) => !context.completedIds?.has(id) || taskIssues.has(id),
+  );
+
+  return unresolved.map((id) => taskIssues.get(id)?.number ?? id);
 }

@@ -1,5 +1,54 @@
 // Whether the names a generated spec or task issue puts in backticks exist on main: a path must be in the tree, an identifier in the file the same line names, and nothing retired may be named. The planning line's coverage stations send the writer back with these findings.
 
+import { z } from "zod";
+
+export const implementationEvidenceSchema = z.object({
+  path: z.string().min(1),
+  start: z.number().int().positive(),
+  end: z.number().int().positive(),
+  text: z.string().trim().min(1),
+});
+
+export type ImplementationEvidence = z.infer<
+  typeof implementationEvidenceSchema
+>;
+
+export function evidenceIsPresent(
+  evidence: ImplementationEvidence,
+  content: string | null,
+): boolean {
+  const { path, start, end, text } = evidence;
+
+  if (content === null || !repositoryPath(path)) {
+    return false;
+  }
+  const lines = content.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+
+  return (
+    start <= end &&
+    end <= lines.length &&
+    lines
+      .slice(start - 1, end)
+      .join("\n")
+      .includes(text)
+  );
+}
+
+function repositoryPath(path: string): boolean {
+  return (
+    !path.includes("\\") &&
+    path.split("/").every((part) => !["", ".", ".."].includes(part))
+  );
+}
+
+export function implementationEvidenceLink(
+  repo: string,
+  commit: string,
+  evidence: ImplementationEvidence,
+): string {
+  return `https://github.com/${repo}/blob/${commit}/${evidence.path}#L${evidence.start}-L${evidence.end}`;
+}
+
 export interface GroundingInput {
   text: string;
   /** Every file path on main. */

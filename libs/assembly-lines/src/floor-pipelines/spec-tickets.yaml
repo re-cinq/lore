@@ -32,6 +32,8 @@ line:
       station: spec-tickets-load
     - id: decompose
       station: spec-tickets-decompose
+    - id: verify-implementation
+      station: spec-tickets-verify
     - id: issues
       station: spec-tickets-issues
     # The node id is the one the coverage station counts its handbacks by.
@@ -47,8 +49,18 @@ line:
       to: failed
       on: failed
     - from: decompose
+      to: verify-implementation
+      on: success
+    - from: verify-implementation
       to: issues
       on: success
+    - from: verify-implementation
+      to: decompose
+      on: changes_requested
+      iteration_max: 3
+    - from: verify-implementation
+      to: failed
+      on: failed
     # A spec it cannot break down is a question for its author, not something to
     # re-run: the line ends as failed, and no issue was filed.
     - from: decompose
@@ -131,12 +143,16 @@ stations:
         kind: file
         path: issue-coverage.md
         optional: true
+      - name: implementation_report
+        kind: file
+        path: implementation-report.md
+        optional: true
     produces:
       - name: decomposition
         kind: file
         path: decomposition.json
-  spec-tickets-issues:
-    description: Files the decomposition as GitHub issues, a story issue and one task issue per task with a priority label, or rewrites the ones an earlier run of this spec filed.
+  spec-tickets-verify:
+    description: Verifies implementation evidence at the merge commit before any issue writes and requests full-scope correction for rejected claims.
     kind: service
     outcomes:
       - success
@@ -151,7 +167,32 @@ stations:
         kind: file
       - name: spec_path
         kind: value
-    produces: []
+      - name: merge_sha
+        kind: value
+    produces:
+      - name: verified_decomposition
+        kind: file
+      - name: implementation_report
+        kind: file
+  spec-tickets-issues:
+    description: Files the decomposition as GitHub issues, a story issue and one task issue per task with a priority label, or rewrites the ones an earlier run of this spec filed.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: verified_decomposition
+        kind: file
+      - name: spec_path
+        kind: value
+    produces:
+      - name: ticketing_result
+        kind: file
   spec-tickets-coverage:
     description: Counts the testable statements of the spec that no task issue covers, and sends only those back to the decompose agent.
     kind: service
@@ -164,7 +205,7 @@ stations:
         kind: git
         path: target
         access: read
-      - name: decomposition
+      - name: verified_decomposition
         kind: file
       - name: spec_path
         kind: value
