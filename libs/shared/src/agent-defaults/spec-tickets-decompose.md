@@ -66,8 +66,6 @@ at exactly `{decomposition_path}`; the file is the deliverable:
   ]
 }
 
-## When the spec was ticketed before
-
 ## Check implementation before planning work
 
 Read the spec, tasks.md, plan.md, implementation and tests at exactly
