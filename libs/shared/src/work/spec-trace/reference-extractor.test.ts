@@ -2,7 +2,39 @@ import { describe, it, expect } from "vitest";
 import {
   extractCodeSymbols,
   extractImportedCallSites,
+  sourceCallAt,
 } from "./reference-extractor.js";
+
+describe("sourceCallAt", () => {
+  it("bounds each registration at line 1 before the unreported skipped test", async () => {
+    const source =
+      'it.each([1, 2])("case %s", value => {\nexpect(value).toEqual(1);\n});\nit.skip("other", () => expect(false).toEqual(true));';
+
+    expect(await sourceCallAt(".ts", source, { line: 1, column: 1 })).toEqual({
+      start: 1,
+      end: 3,
+      text: 'it.each([1, 2])("case %s", value => {\nexpect(value).toEqual(1);\n})',
+    });
+  });
+
+  it.each(["syntax-error", "wrong-column", "unsupported-grammar"])(
+    "returns null for %s source identity",
+    async (failure) => {
+      const source =
+        failure === "syntax-error"
+          ? 'it("broken", () => {'
+          : 'it("works", () => expect(true).toEqual(true));';
+
+      expect(
+        await sourceCallAt(
+          failure === "unsupported-grammar" ? ".py" : ".ts",
+          source,
+          { line: 1, column: failure === "wrong-column" ? 2 : 1 },
+        ),
+      ).toEqual(null);
+    },
+  );
+});
 
 describe("extractImportedCallSites", () => {
   it("returns imported symbol names and their source paths when those symbols are called in a TypeScript source file", async () => {

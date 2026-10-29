@@ -82,6 +82,9 @@ line:
       to: reproduce
       on: unproven
     - from: verify-implementation
+      to: human-gate
+      on: needs-person
+    - from: verify-implementation
       to: assess-implementation
       on: changes_requested
       iteration_max: 3
@@ -235,6 +238,7 @@ stations:
       - partial
       - missing
       - unproven
+      - needs-person
       - changes_requested
       - failed
     needs:

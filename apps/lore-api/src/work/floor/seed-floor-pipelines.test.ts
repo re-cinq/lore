@@ -292,6 +292,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
         "partial",
         "missing",
         "unproven",
+        "needs-person",
         "changes_requested",
         "failed",
       ].map((outcome) =>
@@ -302,6 +303,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       "reproduce",
       "reproduce",
       "reproduce",
+      "human-gate",
       "assess-implementation",
       "label-failed",
     ]);

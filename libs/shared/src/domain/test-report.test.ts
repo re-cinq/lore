@@ -2,6 +2,34 @@ import { describe, it, expect } from "vitest";
 import { parseTestDescriptors, parseRunResult } from "./test-report.js";
 
 describe("parseTestDescriptors", () => {
+  it("retains explicit skipped execution and its runner location", () => {
+    const descriptor = {
+      id: "a",
+      name: "renders",
+      file: "a.test.ts",
+      runnerId: '["a.test.ts","","native-a"]',
+      execution: {
+        status: "skipped",
+        expectedFailure: false,
+        location: { line: 3, column: 5 },
+      },
+    };
+
+    expect(parseTestDescriptors([descriptor])).toEqual([descriptor]);
+  });
+
+  it("does not promote a malformed execution record into passing proof", () => {
+    expect(
+      parseTestDescriptors([
+        {
+          id: "a",
+          name: "renders",
+          file: "a.test.ts",
+          execution: { status: "passed" },
+        },
+      ]),
+    ).toEqual([{ id: "a", name: "renders", file: "a.test.ts" }]);
+  });
   it("parses a descriptor carrying every field", () => {
     const result = parseTestDescriptors([
       {

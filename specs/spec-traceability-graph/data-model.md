@@ -243,7 +243,7 @@ The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible
 
 Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L185), [validated by surfaces a caller statement as indirect when only the callee chunk is changed (one-hop reference expansion)](libs/shared/src/work/spec-trace/trace-impact.test.ts#L534))
 
-The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L8), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L31), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L47))
+The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L40), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L63), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L79))
 
 ### Code projection (issue #1992)
 
@@ -254,9 +254,9 @@ sends the repository's TypeScript and JavaScript source (tests, `.d.ts`, `node_m
 like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L320))
 
 lore-api parses each file with tree-sitter into its top-level functions,
-function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L75), [validated by maps the local name next to nextTransition imported from ./transition.js](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L92))
+function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L107), [validated by maps the local name next to nextTransition imported from ./transition.js](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L124))
 
-A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L105))
+A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L137))
 
 Each definition becomes one `CodeChunk` keyed `<repo>|code|<module path without extension>#<symbol>`,
 and a call to a sibling definition or to a named import from a relative path becomes a

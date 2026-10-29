@@ -98,6 +98,13 @@ export function scene(raw: object = assessment()) {
         name: "renders widget",
         file: PROOF.evidence.path,
         startLine: 1,
+        runnerId: PROOF.test_id,
+        execution: {
+          fileCaseCount: 1,
+          status: "passed",
+          location: { line: 1, column: 1 },
+          expectedFailure: false,
+        },
       },
     ],
     outcomes: { [PROOF.test_id]: true },
@@ -270,6 +277,50 @@ describe("issue implementation assessment", () => {
     });
   });
 
+  it("retains parent #20 and dependency #21 without a Context heading", async () => {
+    const s = scene(assessment("partial"));
+
+    s.issue.body =
+      "Part of #20.\n\n**Depends on:** #21\n\n## Description\nAdd the colour prop";
+    await s.load();
+    expect(await s.verify()).toEqual({ outcome: "partial" });
+    expect(s.issue.body).toMatch(/Part of #20[\s\S]*Depends on:\*\* #21/);
+  });
+
+  it("retains dependency #21 after a Description section", async () => {
+    const s = scene(assessment("partial"));
+
+    s.issue.body =
+      "## Description\nAdd colour\n\nParent issue: #20\n\nBlocked by #21";
+    await s.load();
+    expect(await s.verify()).toEqual({ outcome: "partial" });
+    expect(s.issue.body).toMatch(/Parent issue: #20[\s\S]*Blocked by #21/);
+  });
+
+  it("retains multiline dependency #21 and parent #20 in the original report", async () => {
+    const s = scene(assessment("partial"));
+
+    s.issue.body =
+      "## Description\nAdd colour\n\n## Dependencies\n- #21\n\n## Parent\n#20";
+    await s.load();
+    expect(await s.verify()).toEqual({ outcome: "partial" });
+    expect(s.issue.body).toContain("## Dependencies\n- #21\n\n## Parent\n#20");
+  });
+
+  it("retains new multiline parent #30 and dependency #31 when triaging a partial issue again", async () => {
+    const s = scene(assessment("partial"));
+
+    await s.load();
+    await s.verify();
+    const relationships = "## Parent\n#30\n\n## Dependencies\n- #31";
+
+    s.issue.body += "\n\n" + relationships;
+
+    await s.load();
+    expect(await s.verify()).toEqual({ outcome: "partial" });
+    expect(s.issue.body).toContain(relationships);
+  });
+
   it.each([
     "missing",
     "wrong-repo",
@@ -282,6 +333,16 @@ describe("issue implementation assessment", () => {
     "no-proof",
     "invented-test-text",
     "cross-test-range",
+    "legacy-file-pass",
+    "dynamic-skip",
+    "pending",
+    "expected-failure",
+    "ambiguous-id",
+    "unknown-sibling-location",
+    "same-line-declarations",
+    "missing-case-count",
+    "partial-file-snapshot",
+    "unreported-skipped-sibling",
   ])("leaves bug 42 open when CI proof is %s", async (failure) => {
     const s = scene();
     const mutations: Record<string, () => void> = {
@@ -301,13 +362,63 @@ describe("issue implementation assessment", () => {
         delete s.report.outcomes[PROOF.test_id];
       },
       "unknown-id": () => {
-        s.report.tests[0].id = "different-case";
+        s.report.tests[0].runnerId = "different-case";
       },
       "wrong-file": () => {
         s.report.tests[0].file = "unrelated.test.ts";
       },
       "wrong-line": () => {
-        s.report.tests[0].startLine = 2;
+        s.report.tests[0].execution!.location!.line = 2;
+      },
+      "legacy-file-pass": () => {
+        delete s.report.tests[0].execution;
+      },
+      "missing-case-count": () => {
+        delete s.report.tests[0].execution!.fileCaseCount;
+      },
+      "partial-file-snapshot": () => {
+        s.report.tests[0].execution!.fileCaseCount = 2;
+      },
+      "unreported-skipped-sibling": () => {
+        const raw = assessment();
+
+        s.files[PROOF.evidence.path] +=
+          '\nit.skip("unreported", () => {\nexpect(hiddenWidget()).toEqual("widget");\n});\n';
+        raw.behavioral_proof[0].evidence.end = 7;
+        raw.behavioral_proof[0].evidence.text =
+          'expect(hiddenWidget()).toEqual("widget")';
+        s.artifacts.implementation_assessment = JSON.stringify(raw);
+      },
+      "dynamic-skip": () => {
+        s.report.tests[0].execution!.status = "skipped";
+      },
+      pending: () => {
+        s.report.tests[0].execution!.status = "pending";
+      },
+      "expected-failure": () => {
+        s.report.tests[0].execution!.expectedFailure = true;
+      },
+      "ambiguous-id": () => {
+        s.report.tests.push({ ...s.report.tests[0] });
+      },
+      "unknown-sibling-location": () => {
+        s.report.tests.push({
+          id: "unknown",
+          name: "unlocated",
+          file: PROOF.evidence.path,
+        });
+      },
+      "same-line-declarations": () => {
+        s.report.tests.push({
+          ...s.report.tests[0],
+          id: "sibling",
+          runnerId: "sibling",
+          execution: {
+            status: "passed",
+            expectedFailure: false,
+            location: { line: 1, column: 70 },
+          },
+        });
       },
       "no-proof": () => {
         const raw = assessment();
@@ -329,7 +440,13 @@ describe("issue implementation assessment", () => {
         s.report.tests.push({
           ...s.report.tests[0],
           id: "other-test",
+          runnerId: "other-test",
           startLine: 5,
+          execution: {
+            status: "passed",
+            expectedFailure: false,
+            location: { line: 5, column: 1 },
+          },
         });
         s.report.outcomes["other-test"] = true;
         raw.behavioral_proof[0].evidence.end = 7;
@@ -351,7 +468,17 @@ describe("issue implementation assessment", () => {
   it("does not cherry-pick one passing parameterized case while another case failed", async () => {
     const s = scene();
 
-    s.report.tests.push({ ...s.report.tests[0], id: "widget-other-case" });
+    s.report.tests.push({
+      ...s.report.tests[0],
+      id: "widget-other-case",
+      runnerId: "widget-other-case",
+      execution: {
+        ...s.report.tests[0].execution!,
+        fileCaseCount: 2,
+        status: "failed",
+      },
+    });
+    s.report.tests[0].execution!.fileCaseCount = 2;
     s.report.outcomes["widget-other-case"] = false;
     await s.load();
     expect(await s.verify()).toEqual({ outcome: "unproven" });
@@ -427,7 +554,7 @@ describe("issue implementation assessment", () => {
     const s = scene(raw);
 
     await s.load();
-    expect(await s.verify()).toEqual({ outcome: "unproven" });
+    expect(await s.verify()).toEqual({ outcome: "needs-person" });
     expect({
       closed: s.project.issues.close.mock.calls,
       labels: s.issue.labels,
@@ -436,6 +563,31 @@ describe("issue implementation assessment", () => {
       labels: ["bug", "priority:medium", "lore:blocked"],
     });
   });
+
+  it.each(["missing", "partial"] as const)(
+    "blocks %s operational work without a CI report",
+    async (status) => {
+      const raw = assessment(status);
+
+      Object.assign(raw.stories[0].tasks[0], {
+        needs_person: "Apply Terraform to the live cluster",
+      });
+      const s = scene(raw);
+
+      s.deps.report = async () => null;
+      await s.load();
+      expect(await s.verify()).toEqual({ outcome: "needs-person" });
+      expect({
+        labels: s.issue.labels,
+        body: s.issue.body,
+        writes: s.calls,
+      }).toEqual({
+        labels: ["bug", "priority:medium", "lore:blocked"],
+        body: "Widgets must render correctly",
+        writes: [],
+      });
+    },
+  );
 });
 
 describe("the close-issue station", () => {

@@ -126,6 +126,10 @@
       "types": "./dist/domain/feature-planning/grounding.d.ts",
       "default": "./dist/domain/feature-planning/grounding.js"
     },
+    "./spec-trace/reference-extractor.js": {
+      "types": "./dist/work/spec-trace/reference-extractor.d.ts",
+      "default": "./dist/work/spec-trace/reference-extractor.js"
+    },
     "./feature-planning/decomposition-result.js": {
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-result.js"

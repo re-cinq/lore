@@ -34,8 +34,10 @@ Rejected proof restores the original scope; never narrow by deleting bad proof.
 
 For partial/present claims, select relevant passing tests from the supplied CI
 report and explain how their assertions cover the reported behavior. Include
-each selected test's exact id and source evidence. The evidence range starts at
-the descriptor's startLine and contains its declaration AND relevant assertions,
+each selected test's exact runnerId as test_id and source evidence. Require explicit
+execution.status="passed", expectedFailure=false, and a matching execution.location;
+legacy file-level outcomes alone are unproven. The evidence range starts at
+execution.location.line and contains its declaration AND relevant assertions,
 ending before the next test in that file. Exact text must be an assertion or
 observable check, not merely the test's name. Account for parameterized cases;
 one passing case does not prove other failed or unexecuted cases. Missing reports,
@@ -56,7 +58,7 @@ Write `{implementation_assessment_path}` (normally `/workspace/implementation-as
     "in_place":[{"file":"issue-scope.md","line":5,"path":"src/widget.ts","start":10,"end":20,"text":"Widget"}],
     "remaining":"<what still fails or is absent>"
   }]}],
-  "behavioral_proof":[{"line":5,"test_id":"<recorded CI id>","evidence":{"path":"src/widget.test.ts","start":30,"end":40,"text":"expect(rendered).toEqual(expected)"},"reason":"<which original behavior this test actually verifies>"}]
+  "behavioral_proof":[{"line":5,"test_id":"<recorded runnerId>","evidence":{"path":"src/widget.test.ts","start":30,"end":40,"text":"expect(rendered).toEqual(expected)"},"reason":"<which original behavior this test actually verifies>"}]
 }
 
 Keep exactly one task, T001, for the original issue; never split or discard it.

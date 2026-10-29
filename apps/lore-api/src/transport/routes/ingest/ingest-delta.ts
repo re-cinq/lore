@@ -17,7 +17,7 @@ import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
 import { applyDocDelta } from "./ingest-doc-delta.js";
 import { mirrorReportDelta } from "./ingest-report-mirror.js";
-import { saveTestReportRow } from "./test-report-row.js";
+import { assertReportIdentity, saveReportEvidence } from "./report-evidence.js";
 import {
   advanceStoredCommit,
   storedCommit,
@@ -141,7 +141,7 @@ async function overlayDeltaResult(
   deps: IngestDeltaDeps,
   ctx: OverlayDeltaCtx,
 ) {
-  await saveOverlayReport(pool, ctx);
+  await saveReportEvidence(pool, ctx.repo, ctx.body);
   const outcome = await deps.ingestReport(ctx.repo, {
     ...(ctx.body.report as object),
     overlayBranch: ctx.overlayBranch,
@@ -158,38 +158,6 @@ async function overlayDeltaResult(
   };
 }
 
-interface OverlayReportBody {
-  tests?: Array<{
-    id: string;
-    name: string;
-    file: string;
-    suite?: string;
-    startLine?: number;
-    [key: string]: unknown;
-  }>;
-  results?: Array<{ id: string; passed: boolean }>;
-}
-
-async function saveOverlayReport(pool: Pool, ctx: OverlayDeltaCtx) {
-  const r = ctx.body.report as OverlayReportBody | undefined;
-
-  await saveTestReportRow(pool, {
-    repo: ctx.repo,
-    commit: ctx.body.commit,
-    branch: ctx.overlayBranch,
-    tests: (r?.tests ?? []).map((t) => ({
-      id: t.id,
-      name: t.name,
-      file: t.file,
-      ...(t.suite !== undefined && { suite: t.suite }),
-      ...(t.startLine !== undefined && { startLine: t.startLine }),
-    })),
-    outcomes: Object.fromEntries(
-      (r?.results ?? []).map((res) => [res.id, res.passed]),
-    ),
-  });
-}
-
 /** A default-branch delta: project it, THEN settle main's stored pointer, so a failed projection never moves the pointer past work that did not land. A settled delta also stamps the repo's `last_ingested_at`; a partial upload has not finished ingesting. */
 async function mainDeltaResult(
   pool: Pool,
@@ -198,6 +166,8 @@ async function mainDeltaResult(
   body: IngestDeltaBody,
 ) {
   const counts = await applyDelta(deps, repo, body);
+
+  await saveReportEvidence(pool, repo, body);
   const state = await settleDelta(pool, repo, body);
 
   if (state !== "pending-chunks") {
@@ -215,6 +185,7 @@ async function assertDeltaAcceptable(
   body: IngestDeltaBody,
 ): Promise<void> {
   assertDeltaSupported(deps, body.kind);
+  assertReportIdentity(body);
 
   const current = await storedCommit(pool, repo, body.kind);
 

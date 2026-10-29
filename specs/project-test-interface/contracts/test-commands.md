@@ -70,6 +70,8 @@ stdout: an array of test descriptors. Exit 0 on success.
 | `suite` | no | Enclosing `describe`/class chain, **outermost→innermost** → one nested `TestSuite` per element (`xid = repo\|file_path\|suite_chain`), `TestChunk.suite` → innermost. A suite name resolving to a spec anchor sets `TestSuite.spec` (`VALIDATES_SPEC`). Omitted for flat/un-nested tests. |
 | `spec` | no | **One** `path#ordinal` anchor → a single `Statement` *or* `AcceptanceCriterion` the test validates. **Stamped by generation**; seeds the one-to-one `VALIDATED_BY` (`generated-provenance`). Absent for human/legacy tests. |
 | `passed` | no | Pass/fail snapshot if listing also ran the test |
+| `runnerId` | no | Unambiguous execution identity, distinct from the historical selector. The Vitest adapter uses `JSON.stringify([repoRelativeFile, projectName, nativeCaseId])`. Discovery can supply identity without proving execution. |
+| `execution` | no | Actual per-case `{status, location?, expectedFailure, fileCaseCount?}` from a settled run. Status is `passed`, `failed`, `skipped`, `pending` or `unknown`; location has positive 1-based `line` and `column`. `fileCaseCount` is the complete native file snapshot size, including all projects, parameterized cases and skips. Expected failures remain explicit. Missing metadata, absent complete-file counts and aggregate file success cannot prove that a case executed. |
 
 Effect: seeds/authoritative-sources `TestChunk` nodes (`xid` = runner-native
 `id`, `test_name`, `file_path`, line range) regardless of language or
@@ -97,6 +99,19 @@ and emit, per `coverage_format`:
 
 - `lcov` / `cobertura`: the coverage report on stdout (scoped to the run);
 - `json`: `passed` + a **list of covered chunks**.
+
+JSON runners may additionally return `tests[]`, a complete file snapshot with
+the descriptor fields above and settled execution metadata. The CI orchestrator
+joins discovery and execution by unique `runnerId`, requiring matching file,
+name, suite and location. Missing or inconsistent identities remain unknown;
+discovery cannot supply passing proof. Parameterized and skipped siblings remain
+in the snapshot, including when only one sibling selected the file for a delta.
+Every enriched chunk contains complete files. Ingestion rejects a file fragment
+whose advertised count differs from the incoming snapshot size; it cannot replace
+a failed sibling with a passing fragment. Legacy snapshots without complete-file
+counts remain usable by existing consumers and unproven for automatic completion.
+Coverage remains file-level. Legacy runners keep their aggregate result behavior,
+but automatic behavioral completion requires explicit ordinary per-case passes.
 
 ```jsonc
 // coverage_format: "json"  (stdout)

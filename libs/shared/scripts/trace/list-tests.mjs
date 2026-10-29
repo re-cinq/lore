@@ -1,41 +1,33 @@
 #!/usr/bin/env node
-// Lore test-command interface -- `list`. Emits per-`it` descriptors across ALL
-// traceability packages. There is no root vitest workspace, so run `vitest list`
-// in each package's own cwd and merge. Per-`it` granularity + the describe-chain
-// name/suite[] come from the pure, unit-tested `descriptorsFromVitestList`; this
-// script is just the per-package vitest spawn + JSON merge. `run` executes one
-// whole FILE per invocation (coverage is file-level) under buildTestReport's
-// concurrency cap, so per-`it` listing does not fork-bomb.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { descriptorsFromVitestList } from "../../dist/domain/spec-trace/trace-descriptors.js";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { bindDescriptorsToSpecLinks } from "../../dist/work/spec-trace/bind-descriptors-to-spec-links.js";
 import { resolveTestLines } from "../../dist/work/spec-trace/resolve-test-lines.js";
 import { PKGS, SCOPE } from "./trace-packages.mjs";
 
 const ROOT = process.cwd(); // manifest cwd == repo root
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 function listPkg(pkg) {
-  // Write vitest's JSON to a FILE, not stdout: CI node runtimes prepend stdout
-  // noise (deprecation/experimental warnings) that would contaminate a parsed
-  // stdout slice and crash the whole list. A file is immune to that.
   const dir = mkdtempSync(join(tmpdir(), "lore-trace-list-"));
   const jsonPath = join(dir, "list.json");
 
   try {
-    execFileSync("npx", ["vitest", "list", SCOPE, `--json=${jsonPath}`], {
-      cwd: join(ROOT, pkg),
-      encoding: "utf-8",
-      maxBuffer: 128 * 1024 * 1024,
-      stdio: ["ignore", "ignore", "ignore"],
-    });
-
-    return descriptorsFromVitestList(
-      JSON.parse(readFileSync(jsonPath, "utf-8")),
-      { pkg },
+    execFileSync(
+      process.execPath,
+      [join(HERE, "list-worker.mjs"), ROOT, pkg, SCOPE, jsonPath],
+      {
+        cwd: join(ROOT, pkg),
+        encoding: "utf-8",
+        maxBuffer: 128 * 1024 * 1024,
+        stdio: ["ignore", "ignore", "ignore"],
+      },
     );
+
+    return JSON.parse(readFileSync(jsonPath, "utf-8"));
   } catch (err) {
     // A package with no matching tests, or a genuine list failure, contributes
     // nothing — but say so, never drop a package silently.
@@ -73,9 +65,6 @@ function readSpecSources(root) {
     }));
 }
 
-// `vitest list` is line-blind, so resolve each `it`'s line span from its source
-// before binding — read each test file once and stamp [startLine, endLine] onto
-// its descriptors (ADR-023).
 function resolveLines(descriptors) {
   const byFile = new Map();
 

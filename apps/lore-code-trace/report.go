@@ -18,14 +18,28 @@ import (
 // Contract types mirror libs/shared/src/test-report.ts. The binary forwards
 // descriptors verbatim, so Spec stays an opaque string|[]string.
 type TestDescriptor struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	File      string   `json:"file"`
-	StartLine *int     `json:"startLine,omitempty"`
-	EndLine   *int     `json:"endLine,omitempty"`
-	Suite     []string `json:"suite,omitempty"`
-	Spec      any      `json:"spec,omitempty"`
-	Passed    *bool    `json:"passed,omitempty"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	File      string          `json:"file"`
+	StartLine *int            `json:"startLine,omitempty"`
+	EndLine   *int            `json:"endLine,omitempty"`
+	Suite     []string        `json:"suite,omitempty"`
+	Spec      json.RawMessage `json:"spec,omitempty"`
+	Passed    *bool           `json:"passed,omitempty"`
+	RunnerID  string          `json:"runnerId,omitempty"`
+	Execution *TestExecution  `json:"execution,omitempty"`
+}
+
+type TestLocation struct {
+	Line   int `json:"line"`
+	Column int `json:"column"`
+}
+
+type TestExecution struct {
+	Status          string        `json:"status"`
+	Location        *TestLocation `json:"location,omitempty"`
+	ExpectedFailure *bool         `json:"expectedFailure"`
+	FileCaseCount   int           `json:"fileCaseCount,omitempty"`
 }
 
 type CoveredChunk struct {
@@ -35,8 +49,9 @@ type CoveredChunk struct {
 }
 
 type RunResult struct {
-	Passed  bool           `json:"passed"`
-	Covered []CoveredChunk `json:"covered"`
+	Passed  bool             `json:"passed"`
+	Covered []CoveredChunk   `json:"covered"`
+	Tests   []TestDescriptor `json:"tests"`
 }
 
 type TaggedRunResult struct {
@@ -60,11 +75,6 @@ type reportMeta struct {
 	Branch string
 }
 
-// buildReport runs the manifest's list, then runs every file in scope through
-// run_many in one go, or the run command once per file (bounded by concurrency)
-// when there is no run_many or it fails, and fans each file's RunResult onto
-// every descriptor id in that file — the file is the coverage granularity. A
-// per-file run failure is logged and skipped, never fatal.
 func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, scope testScope, concurrency int, logw io.Writer) (TestReport, error) {
 	runCwd := filepath.Join(cwd, m.Cwd)
 	timeout := traceTimeout()
@@ -95,7 +105,7 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, s
 	}
 	tests = inScope
 
-	files, idsByFile := groupByFile(tests)
+	files, testsByFile := groupByFile(tests)
 
 	if len(files) > 1 && !strings.Contains(m.Run, "{selector}") {
 		fmt.Fprintf(logw, "[lore-code-trace] run command has no {selector}; the same command runs once per file and every file gets identical results\n")
@@ -110,24 +120,17 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, s
 	}
 
 	results := make([]TaggedRunResult, 0, len(tests))
+	assessed := make([]TestDescriptor, 0, len(tests))
 	for _, f := range files {
-		rr := runByFile[f]
-		if rr == nil {
-			continue
-		}
-		covered := rr.Covered
-		if covered == nil {
-			covered = []CoveredChunk{}
-		}
-		for _, id := range idsByFile[f] {
-			results = append(results, TaggedRunResult{ID: id, Passed: rr.Passed, Covered: covered})
-		}
+		fileTests, fileResults := fileExecutionReport(f, testsByFile[f], runByFile[f])
+		assessed = append(assessed, fileTests...)
+		results = append(results, fileResults...)
 	}
 
 	return TestReport{
 		Commit:  meta.Commit,
 		Branch:  meta.Branch,
-		Tests:   tests,
+		Tests:   assessed,
 		Results: results,
 	}, nil
 }
@@ -161,9 +164,7 @@ func runManyFiles(ctx context.Context, m Manifest, files []string, runCwd string
 			fmt.Fprintf(logw, "[lore-code-trace] run_many did not answer for %s — skipped\n", file)
 			continue
 		}
-		for i := range rr.Covered {
-			rr.Covered[i].File = stripPrefix(rr.Covered[i].File, m.PathPrefixStrip)
-		}
+		normalizeRunPaths(rr, m.PathPrefixStrip)
 		runByFile[file] = rr
 	}
 	return runByFile, nil
@@ -227,28 +228,33 @@ func runOneFile(ctx context.Context, m Manifest, file, runCwd string, timeout ti
 		return nil
 	}
 
-	for i := range rr.Covered {
-		rr.Covered[i].File = stripPrefix(rr.Covered[i].File, m.PathPrefixStrip)
-	}
+	normalizeRunPaths(rr, m.PathPrefixStrip)
 	return rr
+}
+
+func normalizeRunPaths(result *RunResult, prefix string) {
+	for index := range result.Covered {
+		result.Covered[index].File = stripPrefix(result.Covered[index].File, prefix)
+	}
+	for index := range result.Tests {
+		result.Tests[index].File = stripPrefix(result.Tests[index].File, prefix)
+	}
 }
 
 func substituteSelector(run, selector string) string {
 	return strings.ReplaceAll(run, "{selector}", selector)
 }
 
-// groupByFile returns the distinct files in first-appearance order plus the
-// descriptor ids per file.
-func groupByFile(tests []TestDescriptor) ([]string, map[string][]string) {
+func groupByFile(tests []TestDescriptor) ([]string, map[string][]TestDescriptor) {
 	var files []string
-	ids := make(map[string][]string)
+	byFile := make(map[string][]TestDescriptor)
 	for _, d := range tests {
-		if _, seen := ids[d.File]; !seen {
+		if _, seen := byFile[d.File]; !seen {
 			files = append(files, d.File)
 		}
-		ids[d.File] = append(ids[d.File], d.ID)
+		byFile[d.File] = append(byFile[d.File], d)
 	}
-	return files, ids
+	return files, byFile
 }
 
 func stripPrefix(path, prefix string) string {

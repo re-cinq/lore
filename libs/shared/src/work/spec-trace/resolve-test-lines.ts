@@ -1,5 +1,3 @@
-/** Per-it line resolver (ADR-023); scans test source for it/test declarations and stamps [startLine, endLine] on matching descriptors. */
-
 import type { TestDescriptor } from "../../domain/test-report.js";
 import {
   testDeclarations,
@@ -13,9 +11,38 @@ export function resolveTestLines(
   const declarations = testDeclarations(content);
   const lastLine = content.split("\n").length;
 
+  if (descriptors.some(hasRunnerId)) {
+    return nativeLines(descriptors, lastLine);
+  }
+
   return descriptors.map((descriptor) =>
     stampLines(descriptor, declarations, lastLine),
   );
+}
+
+function hasRunnerId(descriptor: TestDescriptor): boolean {
+  return "runnerId" in descriptor && typeof descriptor.runnerId === "string";
+}
+
+function nativeLines(
+  descriptors: TestDescriptor[],
+  lastLine: number,
+): TestDescriptor[] {
+  if (descriptors.some((descriptor) => !descriptor.startLine)) {
+    return descriptors;
+  }
+
+  const lines = [
+    ...new Set(descriptors.map((descriptor) => descriptor.startLine!)),
+  ].sort((first, second) => first - second);
+  const ends = new Map(
+    lines.map((line, index) => [line, (lines[index + 1] ?? lastLine + 1) - 1]),
+  );
+
+  return descriptors.map((descriptor) => ({
+    ...descriptor,
+    endLine: ends.get(descriptor.startLine!),
+  }));
 }
 
 /** One descriptor stamped with the [startLine, endLine] of its matching declaration; unmatched descriptors pass through untouched. */

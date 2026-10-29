@@ -25,18 +25,21 @@ export function remainingIssueBody(
   proofs: BehavioralProof[],
 ): string {
   const original = snapshot.body;
-  const markers = original.match(/<!-- lore-plan(?:-task)?: [^>]+-->/g) ?? [];
 
   return [
     reportPrefix(original),
     scopedTaskBody(snapshot, task),
     "## Behavioral evidence",
     behaviorMessage(snapshot, proofs),
-    ...markers,
+    originalReport(original),
     `<!-- lore-triage-assessed: ${snapshot.commit} -->`,
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function originalReport(body: string): string {
+  return `<details>\n<summary>Issue report before this assessment</summary>\n\n${body}\n\n</details>`;
 }
 
 function scopedTaskBody(snapshot: IssueSnapshot, task: DecompTask): string {
@@ -50,8 +53,18 @@ function scopedTaskBody(snapshot: IssueSnapshot, task: DecompTask): string {
 
 function reportPrefix(original: string): string {
   const context = original.indexOf("## Context");
+  const prefix = context > 0 ? original.slice(0, context) : "";
+  const relationships = original
+    .split("\n")
+    .filter((line) =>
+      /\b(part of|depends on|blocked by|blocks?|parent)\b[^\n]*#\d+/i.test(
+        line,
+      ),
+    );
 
-  return context > 0 ? original.slice(0, context) : "";
+  return [prefix, ...relationships.filter((line) => !prefix.includes(line))]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export function completionMessage(

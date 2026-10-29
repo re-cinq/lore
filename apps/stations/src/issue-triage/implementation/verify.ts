@@ -86,6 +86,10 @@ async function verifiedOutcome(
   project: ImplementationProject,
   tools: Tools,
 ) {
+  if (assessment.task.needs_person) {
+    return parkPersonWork(snapshot, project);
+  }
+
   if (assessment.status === "missing") {
     return { outcome: "missing" };
   }
@@ -94,11 +98,19 @@ async function verifiedOutcome(
     return { outcome: "unproven" };
   }
 
+  return applyAssessment(assessment, snapshot, project, tools);
+}
+
+async function parkPersonWork(
+  snapshot: IssueSnapshot,
+  project: ImplementationProject,
+) {
   if (!(await currentIssue(snapshot, project))) {
     return { outcome: "unproven" };
   }
+  await project.issues.addLabel(snapshot.number, "lore:blocked");
 
-  return applyAssessment(assessment, snapshot, project, tools);
+  return { outcome: "needs-person" };
 }
 
 async function applyAssessment(
@@ -109,8 +121,8 @@ async function applyAssessment(
 ) {
   const { task, status, proofs } = assessment;
 
-  if (task.needs_person) {
-    await project.issues.addLabel(snapshot.number, "lore:blocked");
+  if (!(await currentIssue(snapshot, project))) {
+    return { outcome: "unproven" };
   }
 
   if (status === "partial") {
@@ -119,10 +131,6 @@ async function applyAssessment(
     await project.issues.update(snapshot.number, { body });
 
     return { outcome: "partial" };
-  }
-
-  if (task.needs_person) {
-    return { outcome: "unproven" };
   }
 
   return recordCompletion(assessment, snapshot, tools);
