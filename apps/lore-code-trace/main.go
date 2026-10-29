@@ -151,20 +151,11 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 			return fetchIngestState(ctx, apiBase, token, repo, testReportKind, deltaClient)
 		}, os.Stderr)
 	}
-	combined := TestReport{Commit: commit, Branch: branch}
-	reportIsScoped := full
-	everyManifestNarrowed := true
-	for _, m := range manifests {
-		scope := scopeFor(ctx, m, root, ingestedBase, os.Stderr)
-		everyManifestNarrowed = everyManifestNarrowed && !scope.all
-		report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch}, scope, runConcurrency, os.Stderr)
-		if err != nil {
-			return err
-		}
-		combined.Tests = append(combined.Tests, report.Tests...)
-		combined.Results = append(combined.Results, report.Results...)
+	combined, everyManifestNarrowed, err := buildCombinedReport(ctx, manifests, root, ingestedBase, reportMeta{Commit: commit, Branch: branch}, os.Stderr)
+	if err != nil {
+		return err
 	}
-	reportIsScoped = reportIsScoped || everyManifestNarrowed
+	reportIsScoped := full || everyManifestNarrowed
 
 	if !post {
 		enc := json.NewEncoder(stdout)
@@ -212,6 +203,31 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 	fmt.Fprintf(os.Stderr, "lore-code-trace: posted %d test(s) in %d chunk(s) for %s@%s\n",
 		len(combined.Tests), len(chunks), repo, shortSHA(commit))
 	return nil
+}
+
+// buildCombinedReport builds one report from every manifest entry that lists its
+// tests. A run-whole entry has none to list, so it is skipped with a log line, and
+// never run, rather than failing the report its siblings fill (#3958). Nor does it
+// count when the run asks whether every entry was narrowed to the tests a change
+// affects: it adds nothing to the report for the delta to filter.
+func buildCombinedReport(ctx context.Context, manifests []Manifest, root, ingestedBase string, meta reportMeta, logw io.Writer) (TestReport, bool, error) {
+	combined := TestReport{Commit: meta.Commit, Branch: meta.Branch}
+	everyManifestNarrowed := true
+	for _, m := range manifests {
+		if m.runsWhole() {
+			fmt.Fprintf(logw, "[lore-code-trace] skipping run-whole entry %q — it has no list command, so it has no tests to report\n", m.Run)
+			continue
+		}
+		scope := scopeFor(ctx, m, root, ingestedBase, logw)
+		everyManifestNarrowed = everyManifestNarrowed && !scope.all
+		report, err := buildReport(ctx, m, root, meta, scope, runConcurrency, logw)
+		if err != nil {
+			return TestReport{}, false, err
+		}
+		combined.Tests = append(combined.Tests, report.Tests...)
+		combined.Results = append(combined.Results, report.Results...)
+	}
+	return combined, everyManifestNarrowed, nil
 }
 
 func shortSHA(s string) string {
