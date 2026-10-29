@@ -79,7 +79,7 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, s
 	runCwd := filepath.Join(cwd, m.Cwd)
 	timeout := traceTimeout()
 
-	if strings.TrimSpace(m.List) == "" {
+	if m.runsWhole() {
 		return TestReport{}, fmt.Errorf("test-command manifest entry has no 'list' command; it runs whole and cannot enumerate tests")
 	}
 
