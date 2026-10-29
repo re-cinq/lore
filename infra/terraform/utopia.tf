@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Utopia — deeplethe/utopia, the bitemporal knowledge graph, behind a Google gate.
+# Utopia — deeplethe/utopia, the bitemporal knowledge graph, signed in with Google.
 #
 # WHAT IT IS. One Rust binary serving its own React build on :1516, a Postgres 16
 # with pgvector it migrates itself as the database owner, and a data directory
@@ -7,14 +7,11 @@
 # every stored model credential. Release candidates only (0.1.0-rcN); the tag is
 # pinned by var.utopia_image_tag and moves by a deliberate PR.
 #
-# THE GATE. Utopia's own OIDC never creates an account and never links one by
-# email: it only attaches a Google identity to an account a person already made
-# (crates/utopia-server/src/api/oidc_routes.rs). So Google cannot be the sign-in on
-# its own, and the gate is the same shape as Grafana's (monitoring.tf): oauth2-proxy
-# with its own Google client, two Ingresses, re-cinq.com only. Google decides WHO
-# gets in; Utopia's own accounts and roles decide what they can do. The first
-# account registered inside becomes the administrator; registration stays open
-# because only re-cinq accounts reach the form.
+# SIGN-IN. Utopia authenticates itself: a re-cinq.com Google login (its own OIDC,
+# UTOPIA_OIDC_*) opens or links the account for people, and personal access tokens
+# and source keys serve machines, the MCP route among them. There is no proxy in
+# front: oauth2-proxy accepts only a browser cookie, so it turned every token
+# client away at the Google login page. Registration and password login are off.
 #
 # WHY ITS OWN DATABASE. CNPG bootstraps one database per Cluster, and Utopia runs
 # owner-role DDL on every upgrade. A second small Cluster keeps that away from
@@ -319,7 +316,7 @@ resource "kubernetes_deployment_v1" "utopia" {
             value = "32"
           }
           # Closed: a re-cinq.com Google sign-in opens the account (UTOPIA_OIDC_ALLOWED_DOMAINS
-          # below), and lore-api reaches the pod around the gate (utopia_ingress_only), where
+          # below), and lore-api reaches the pod directly (utopia_ingress_only), where
           # an open form would be a door for anyone holding that pod.
           env {
             name  = "UTOPIA_OPEN_REGISTRATION"
@@ -331,8 +328,7 @@ resource "kubernetes_deployment_v1" "utopia" {
             name  = "UTOPIA_COOKIE_SECURE"
             value = "true"
           }
-          # Sign-in with Google, through the gate's own OAuth client: its redirect URIs
-          # carry Utopia's callback beside oauth2-proxy's.
+          # Sign-in with Google: the OAuth client's redirect URIs carry Utopia's callback.
           env {
             name  = "UTOPIA_OIDC_ISSUER"
             value = "https://accounts.google.com"
@@ -476,81 +472,6 @@ resource "kubernetes_service_v1" "utopia" {
   }
 }
 
-# ---- The gate: oauth2-proxy in auth_request mode, as in monitoring.tf.
-
-resource "helm_release" "utopia_oauth2_proxy" {
-  count = var.enable_utopia ? 1 : 0
-
-  name       = "utopia-oauth2-proxy"
-  repository = "https://oauth2-proxy.github.io/manifests"
-  chart      = "oauth2-proxy"
-  namespace  = local.utopia_namespace
-  version    = "10.7.0"
-
-  values = [yamlencode({
-    config = {
-      existingSecret = "utopia-oauth"
-      emailDomains   = ["re-cinq.com"]
-    }
-
-    extraArgs = {
-      provider      = "google"
-      redirect-url  = "${local.utopia_url}/oauth2/callback"
-      cookie-domain = var.utopia_hostname
-      cookie-secure = true
-      reverse-proxy = true
-    }
-
-    resources = {
-      requests = { cpu = "50m", memory = "64Mi" }
-      limits   = { cpu = "200m", memory = "128Mi" }
-    }
-  })]
-
-  depends_on = [
-    kubernetes_namespace.utopia,
-    kubectl_manifest.es_utopia_oauth,
-  ]
-}
-
-# Two Ingresses, as everywhere else here: the auth annotations apply per Ingress,
-# and the sign-in endpoint must not itself require a sign-in. No tls block on this
-# one; nginx picks the certificate by SNI from the Ingress below.
-resource "kubernetes_ingress_v1" "utopia_oauth2_proxy" {
-  count = var.enable_utopia ? 1 : 0
-
-  metadata {
-    name      = "utopia-oauth2-proxy"
-    namespace = local.utopia_namespace
-  }
-
-  spec {
-    ingress_class_name = "nginx-ingress"
-
-    rule {
-      host = var.utopia_hostname
-
-      http {
-        path {
-          path      = "/oauth2"
-          path_type = "Prefix"
-
-          backend {
-            service {
-              name = "utopia-oauth2-proxy"
-              port {
-                number = 80
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [helm_release.utopia_oauth2_proxy]
-}
-
 resource "kubernetes_ingress_v1" "utopia" {
   count = var.enable_utopia ? 1 : 0
 
@@ -561,9 +482,6 @@ resource "kubernetes_ingress_v1" "utopia" {
     annotations = {
       "cert-manager.io/cluster-issuer"            = "letsencrypt-prod"
       "external-dns.alpha.kubernetes.io/hostname" = var.utopia_hostname
-
-      "nginx.ingress.kubernetes.io/auth-url"    = "${local.utopia_url}/oauth2/auth"
-      "nginx.ingress.kubernetes.io/auth-signin" = "${local.utopia_url}/oauth2/start?rd=$escaped_request_uri"
 
       # Document uploads, and the alerts stream is server-sent events held open.
       "nginx.ingress.kubernetes.io/proxy-body-size"    = "200m"
@@ -603,9 +521,9 @@ resource "kubernetes_ingress_v1" "utopia" {
   depends_on = [kubernetes_service_v1.utopia]
 }
 
-# Only the ingress controller (the Google gate in front of every browser) and
-# lore-api may talk to the app pod. lore-api mirrors each repository's spec and
-# ADR graph into Utopia (ADR-052) and comes in around the gate, so it holds a
+# Only the ingress controller and lore-api may talk to the app pod. lore-api
+# mirrors each repository's spec and ADR graph into Utopia (ADR-052) over the
+# cluster network instead of the ingress, so it holds a
 # Utopia credential of its own on every call: a source key for pushes, a
 # person's session for setup. Registration is closed, so this second door
 # cannot mint an account.

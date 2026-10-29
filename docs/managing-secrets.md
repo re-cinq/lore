@@ -231,14 +231,14 @@ name the ServiceAccount rather than the person.
 ## The Utopia credentials (`lore-utopia-*`)
 
 Utopia (`infra/terraform/utopia.tf`, `enable_utopia`) is the deeplethe/utopia
-knowledge-graph app behind its own oauth2-proxy at `utopia_hostname`. Its OIDC
-cannot create accounts, so Google is the gate and Utopia keeps its own accounts
-inside it: the first person to register becomes the administrator. Six
-containers behind `enable_utopia`.
+knowledge-graph app at `utopia_hostname`. It signs people in with Google through
+its own OIDC (re-cinq.com only) and serves tokens (personal access tokens, source
+keys) itself; no proxy sits in front. Six containers behind `enable_utopia`.
 
 The Google client is the Grafana recipe with the name `utopia` and the redirect
-URI `https://<utopia_hostname>/oauth2/callback`, on the same **Internal** consent
-screen. Then:
+URIs `https://<utopia_hostname>/api/v1/auth/oidc/callback` and
+`https://<utopia_hostname>/api/v1/google-drive/callback`, on the same **Internal**
+consent screen. The old `/oauth2/callback` URI can be removed. Then:
 
 ```bash
 printf '%s' "<client id>"     | gcloud secrets versions add lore-utopia-oauth-client-id     --data-file=-
@@ -287,8 +287,8 @@ restart of `deploy/utopia`.
 
 The database password is read by Terraform into the CNPG credentials Secret, as
 `lore-db-password` is, so a rotation needs `terraform apply`, then a restart of
-`deploy/utopia` in the `utopia` namespace; the OAuth trio needs the same
-`force-sync` annotation and `rollout restart deploy/utopia-oauth2-proxy` as Grafana's.
+`deploy/utopia` in the `utopia` namespace; the OAuth pair needs the same
+`force-sync` annotation and `rollout restart deploy/utopia`.
 First install order is Headlamp's too: containers first, seed, then the rest.
 
 ### The Utopia source key (`lore.utopia_sources`)
