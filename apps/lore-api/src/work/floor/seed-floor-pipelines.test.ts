@@ -282,8 +282,15 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     ).toEqual([]);
   });
 
-  it("starts issue-triage at reproduce", () => {
-    expect(issueTriage()?.line?.body).toMatchObject({ entry: "reproduce" });
+  it("starts issue-triage with implementation reconciliation before reproduction", () => {
+    expect(issueTriage()?.line?.body).toMatchObject({
+      entry: "reconcile-implementation",
+    });
+    expect(
+      ["not-generated", "delegated", "failed"].map((outcome) =>
+        edgeTarget(issueTriageLine(), "reconcile-implementation", outcome),
+      ),
+    ).toEqual(["reproduce", "done", "label-failed"]);
   });
 
   it("routes every reproduce outcome through its matching label node", () => {

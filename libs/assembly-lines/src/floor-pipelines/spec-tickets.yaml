@@ -23,6 +23,8 @@ line:
       kind: value
     merge_sha:
       kind: value
+    queue:
+      kind: value
     # One run per merged revision of a spec; a redelivered merge joins the open one.
     key:
       kind: value
@@ -190,6 +192,9 @@ stations:
         kind: file
       - name: spec_path
         kind: value
+      - name: queue
+        kind: value
+        optional: true
     produces:
       - name: ticketing_result
         kind: file

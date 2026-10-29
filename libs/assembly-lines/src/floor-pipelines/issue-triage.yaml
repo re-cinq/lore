@@ -1,6 +1,6 @@
 line:
   id: issue-triage
-  entry: reproduce
+  entry: reconcile-implementation
   exit: done
   args:
     # One run per issue: the webhook starts a run the moment the label lands and the
@@ -18,6 +18,8 @@ line:
     target:
       kind: git
   nodes:
+    - id: reconcile-implementation
+      station: triage-reconcile-implementation
     - id: reproduce
       station: triage-reproduce
     - id: label-reproduced
@@ -48,6 +50,15 @@ line:
       station: human-gate
     - id: done
   edges:
+    - from: reconcile-implementation
+      to: reproduce
+      on: not-generated
+    - from: reconcile-implementation
+      to: done
+      on: delegated
+    - from: reconcile-implementation
+      to: label-failed
+      on: failed
     - from: reproduce
       to: label-reproduced
       on: success
@@ -132,6 +143,19 @@ line:
       to: done
       on: success
 stations:
+  triage-reconcile-implementation:
+    description: Hands generated implementation tasks to the existing evidence verifier at a pinned main revision; bug reports continue to reproduction.
+    kind: service
+    outcomes:
+      - not-generated
+      - delegated
+      - failed
+    needs:
+      - name: repo
+        kind: value
+      - name: issue_number
+        kind: value
+    produces: []
   triage-verify:
     description: An AI agent checks the issue against the repository's specs and docs and decides whether it is a genuine bug, obsolete, or not actionable, with a short verdict for the reporter.
     kind: agent

@@ -31,7 +31,9 @@ export async function runVerifiedIssuesStation(
   const { actionable, context, original } = prepared;
   const work = context.nothingRemaining
     ? emptyWork(original, input.params.spec_path)
-    : decideIssueWork(actionable, await project.issues.listLabels());
+    : decideIssueWork(actionable, await project.issues.listLabels(), {
+        queue: input.params.queue !== "false",
+      });
 
   if (work.outcome === "changes_requested") {
     return {
