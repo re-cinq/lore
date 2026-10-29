@@ -18,7 +18,7 @@ author:
 
 - **Nobody is identified.** A feature's `created_by` is the literal `"ui"`
   (`features-memory.ts`), even though every web-ui visitor is signed in with
-  GitHub through next-auth. The system cannot say who started a draft or who
+  GitHub through lore-api's sign-in. The system cannot say who started a draft or who
   wrote a comment.
 - **Feedback is one private form.** A round's per-section comments, directions,
   question answers and free-form input live in local React state until one
@@ -237,7 +237,7 @@ draft to someone without access to that repo.
 ### FR-1: Identity & Access
 
 - FR-1.1: Every collaboration action is attributed to the viewer's GitHub login
-  taken from the server-side next-auth session, never from a client-supplied
+  taken from the person's lore-api session (`GET /api/auth/me`), never from a client-supplied
   value.
 - FR-1.2: Joining a feature's session requires GitHub access to the feature's
   repo, checked with the same rule as `userCanAccessRepo`, at connect time and
