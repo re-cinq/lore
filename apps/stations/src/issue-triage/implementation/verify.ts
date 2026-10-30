@@ -16,7 +16,7 @@ import {
   issueSnapshotSchema,
   type IssueSnapshot,
 } from "./scope.js";
-import { assessIssue } from "./assessment.js";
+import { AssessmentRejected, assessIssue } from "./assessment.js";
 import { completionMessage, remainingIssueBody } from "./issue-write.js";
 
 type Assessment = Awaited<ReturnType<typeof assessIssue>>;
@@ -32,7 +32,13 @@ export function verifyIssueImplementationHandle(
 
       await tools.produce("implementation_report", message);
 
-      return { outcome: correctionOutcome(brief), error: message };
+      return {
+        outcome:
+          error instanceof AssessmentRejected
+            ? correctionOutcome(brief)
+            : "failed",
+        error: message,
+      };
     }
   };
 }

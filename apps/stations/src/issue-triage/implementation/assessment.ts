@@ -24,17 +24,31 @@ const proofSchema = z.object({
   behavioral_proof: z.array(behavioralProofSchema).default([]),
 });
 
+/** What the agent wrote cannot be read as an assessment; only the agent can correct that, unlike a store that is down. */
+export class AssessmentRejected extends Error {}
+
+function parseAssessment(content: string) {
+  try {
+    const raw = parseModelJson(content);
+
+    return {
+      decomposition: parseDecomposition(raw),
+      proofs: proofSchema.parse(raw).behavioral_proof,
+    };
+  } catch (error) {
+    throw new AssessmentRejected((error as Error).message);
+  }
+}
+
 export async function assessIssue(
   snapshot: IssueSnapshot,
   content: string,
   deps: ImplementationDeps,
   project: ImplementationProject,
 ) {
-  const raw = parseModelJson(content);
-  const decomposition = parseDecomposition(raw);
+  const { decomposition, proofs } = parseAssessment(content);
   const read = (path: string) => project.repo.read(path, snapshot.commit);
   const checked = await sourceAssessment(snapshot, decomposition, read);
-  const { behavioral_proof: proofs } = proofSchema.parse(raw);
   const report = await deps.report(snapshot.repo, snapshot.commit);
   const behavioral = await behaviorIsVerified(snapshot, proofs, report, read);
 
@@ -72,7 +86,7 @@ function assessmentDetails(checked: ImplementationAssessment) {
 function onlyTask(tasks: DecompTask[]): DecompTask {
   enforceTrue(
     tasks.length === 1 && tasks[0].id === "T001",
-    Error,
+    AssessmentRejected,
     "assessment must retain exactly the original issue as T001",
   );
 

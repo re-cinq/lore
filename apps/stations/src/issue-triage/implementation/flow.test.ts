@@ -349,6 +349,43 @@ describe("issue implementation assessment", () => {
     }).toEqual({ fits: true, marker: true });
   });
 
+  it("fails on the first visit when the stored report cannot be read, since the agent cannot correct that", async () => {
+    const s = scene(assessment("partial"));
+
+    await s.load();
+    vi.mocked(s.deps.report).mockRejectedValue(new Error("postgres is down"));
+
+    expect(await s.verify()).toEqual({
+      outcome: "failed",
+      error: "postgres is down",
+    });
+  });
+
+  it("fails on the first visit when the assessment belongs to another issue", async () => {
+    const s = scene(assessment("partial"));
+
+    await s.load();
+
+    expect(
+      await verifyIssueImplementationHandle(s.deps)(
+        { ...s.brief, needs: { ...s.brief.needs, issue_number: "43" } },
+        s.tools,
+      ),
+    ).toEqual({
+      outcome: "failed",
+      error: "assessment does not belong to this issue",
+    });
+  });
+
+  it("asks the agent for a correction when its assessment is not valid JSON", async () => {
+    const s = scene(assessment("partial"));
+
+    await s.load();
+    s.artifacts.implementation_assessment = "not json at all";
+
+    expect(await s.verify()).toMatchObject({ outcome: "changes_requested" });
+  });
+
   it.each([
     "missing",
     "wrong-repo",
