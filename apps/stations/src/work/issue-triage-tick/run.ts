@@ -11,6 +11,7 @@ import {
   enabledTriageRepos,
   issueTriageTick,
   type IssueTriageIssue,
+  type OpenTriageRun,
 } from "./issue-triage-tick.js";
 
 export const NO_FLOOR =
@@ -31,7 +32,7 @@ export async function runIssueTriageTick(
     repos: async () =>
       enabledTriageRepos(await settings().onboardedRepoSettings()),
     needsTriageIssues: fetchNeedsTriageIssues,
-    runningCount: countRunning,
+    openRuns: listOpenRuns,
     defaultBranch: async (repo) =>
       (await projectFor(repo)).repo.defaultBranch(),
     cap: DEFAULT_CAP,
@@ -56,12 +57,25 @@ async function fetchNeedsTriageIssues(
     .map((i) => ({ url: i.url as string, number: i.number, labels: i.labels }));
 }
 
-async function countRunning(repo: string): Promise<number> {
-  const { items: activeRuns } = await floorClient().runs.list({
+async function listOpenRuns(repo: string): Promise<OpenTriageRun[]> {
+  const floor = floorClient();
+  const { items: runs } = await floor.runs.list({
     repo: floorRepoOf(repo),
     line: "issue-triage",
     open: true,
   });
 
-  return activeRuns.length;
+  return Promise.all(
+    runs.map(async (run) => {
+      const visits = await floor.stationRuns.list({ run: run.id });
+      const { issue_number: issueItem } = run.startItems;
+
+      return {
+        issueNumber: Number(issueItem.ref),
+        atGate: visits.some(
+          (v) => v.nodeId === "human-gate" && v.report === null,
+        ),
+      };
+    }),
+  );
 }

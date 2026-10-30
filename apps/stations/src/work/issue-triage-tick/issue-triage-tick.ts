@@ -1,4 +1,4 @@
-// Picks the oldest `triage: needs-triage`-labelled issues up to a per-repo concurrency cap and starts a floor run for each with no shared context between runs (specs/issue-triage/spec.md FR9).
+// Picks the oldest `triage: needs-triage`-labelled issues up to a per-repo concurrency cap and starts a floor run for each issue no open run holds; a run parked at the human gate holds its issue but no slot, with no shared context between runs (specs/issue-triage/spec.md FR9).
 import type { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   floorRepoOf,
@@ -41,13 +41,19 @@ export function awaitingTriage(issue: IssueTriageIssue): boolean {
   return triageLabels.length === 1 && triageLabels[0] === NEEDS_TRIAGE;
 }
 
+export interface OpenTriageRun {
+  issueNumber: number;
+  /** Parked at `human-gate`, waiting on a person rather than working. */
+  atGate: boolean;
+}
+
 export interface IssueTriageTickDeps {
   /** All onboarded repos to sweep. */
   repos(): Promise<string[]>;
   /** Issues labelled `triage: needs-triage` for a repo, oldest first (created_at ASC). */
   needsTriageIssues(repo: string): Promise<IssueTriageIssue[]>;
-  /** Count of currently-running issue-triage floor runs for a repo. */
-  runningCount(repo: string): Promise<number>;
+  /** The repo's open issue-triage floor runs. */
+  openRuns(repo: string): Promise<OpenTriageRun[]>;
   /** The branch the run's checkout (`target`) is cut from. */
   defaultBranch(repo: string): Promise<string>;
   /** Per-repo concurrency cap. */
@@ -75,12 +81,16 @@ async function startForRepo(
   repo: string,
   deps: IssueTriageTickDeps,
 ): Promise<number> {
-  const [issues, running] = await Promise.all([
+  const [issues, openRuns] = await Promise.all([
     deps.needsTriageIssues(repo),
-    deps.runningCount(repo),
+    deps.openRuns(repo),
   ]);
-  const slots = Math.max(0, deps.cap - running);
-  const qualifying = issues.filter(awaitingTriage).slice(0, slots);
+  const working = openRuns.filter((run) => !run.atGate).length;
+  const held = new Set(openRuns.map((run) => run.issueNumber));
+  const slots = Math.max(0, deps.cap - working);
+  const qualifying = issues
+    .filter((issue) => awaitingTriage(issue) && !held.has(issue.number))
+    .slice(0, slots);
 
   return qualifying.length === 0 ? 0 : startRuns(repo, qualifying, deps);
 }
