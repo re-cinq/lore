@@ -9,7 +9,8 @@ const repoRow = (
   full_name: string,
   channel: string | undefined,
   digest: Record<string, unknown> = { enabled: true },
-) => ({ full_name, settings: { slack_channel_id: channel, digest } });
+  more: Record<string, unknown> = {},
+) => ({ full_name, settings: { slack_channel_id: channel, digest, ...more } });
 
 interface FloorRun {
   id: string;
@@ -162,5 +163,29 @@ describe("the digest tick on the external floor", () => {
       "slack_users",
       '{"github_user":"U123"}',
     );
+  });
+
+  it("starts nothing for a repo whose digest loop is paused", async () => {
+    const { deps, started } = scene([
+      repoRow(
+        "re-cinq/lore",
+        "C1",
+        { enabled: true },
+        {
+          loop_pauses: {
+            digest: {
+              reason: "model credit exhausted",
+              run_id: "run-1",
+              at: "2026-09-25T06:00:00.000Z",
+              until: null,
+            },
+          },
+        },
+      ),
+    ]);
+
+    await digestTick({}, deps);
+
+    expect(started).toEqual([]);
   });
 });
