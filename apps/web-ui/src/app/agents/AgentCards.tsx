@@ -108,7 +108,7 @@ function AgentFacts({ agent, catalog }: AgentCardProps) {
 function EditButton({ href }: { href: string }) {
   return (
     <Form action={href} className={styles.edit}>
-      <SubmitButton className="btn-secondary">Edit</SubmitButton>
+      <SubmitButton>Edit</SubmitButton>
     </Form>
   );
 }

@@ -60,3 +60,16 @@
     linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
     var(--card-border) border-box;
 }
+
+/* Edit wears its card's colour; the attribute selector outranks every theme's button rules, chicago's included. */
+.agentCard[data-vendor] .edit button {
+  border: none;
+  box-shadow: none;
+  background: var(--card-border);
+  color: var(--white);
+}
+
+.agentCard[data-vendor] .edit button:hover {
+  background: var(--card-border);
+  filter: brightness(1.1);
+}
