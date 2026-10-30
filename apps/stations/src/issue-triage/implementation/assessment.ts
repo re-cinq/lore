@@ -27,19 +27,6 @@ const proofSchema = z.object({
 /** What the agent wrote cannot be read as an assessment; only the agent can correct that, unlike a store that is down. */
 export class AssessmentRejected extends Error {}
 
-function parseAssessment(content: string) {
-  try {
-    const raw = parseModelJson(content);
-
-    return {
-      decomposition: parseDecomposition(raw),
-      proofs: proofSchema.parse(raw).behavioral_proof,
-    };
-  } catch (error) {
-    throw new AssessmentRejected((error as Error).message);
-  }
-}
-
 export async function assessIssue(
   snapshot: IssueSnapshot,
   content: string,
@@ -53,6 +40,19 @@ export async function assessIssue(
   const behavioral = await behaviorIsVerified(snapshot, proofs, report, read);
 
   return { ...assessmentDetails(checked), proofs, behavioral };
+}
+
+function parseAssessment(content: string) {
+  try {
+    const raw = parseModelJson(content);
+
+    return {
+      decomposition: parseDecomposition(raw),
+      proofs: proofSchema.parse(raw).behavioral_proof,
+    };
+  } catch (error) {
+    throw new AssessmentRejected((error as Error).message);
+  }
 }
 
 function sourceAssessment(

@@ -14,7 +14,7 @@ export interface DbConfig {
   password: string | undefined;
 }
 
-/** Connection settings are deployment facts, never code defaults: every chart and `scripts/dev-local.sh` set all four, so a missing one is a broken deployment that must fail at boot instead of silently dialing localhost. */
+/** Connection settings are deployment facts, never code defaults: every chart and `scripts/dev/start.tsx` set all four, so a missing one is a broken deployment that must fail at boot instead of silently dialing localhost. */
 export function dbConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): DbConfig {

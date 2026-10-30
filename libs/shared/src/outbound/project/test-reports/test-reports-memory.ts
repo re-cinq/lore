@@ -6,6 +6,13 @@ import {
   type TestReportsRepository,
 } from "./test-reports-port.js";
 
+function newestFirst(a: TestReportRow, b: TestReportRow): number {
+  return (
+    b.receivedAt.getTime() - a.receivedAt.getTime() ||
+    Number(b.id) - Number(a.id)
+  );
+}
+
 /** In-memory {@link TestReportsRepository} with the Pg contract: one row per (repo, commit), newest receivedAt wins per branch. Inject `now` for deterministic ordering. */
 export class InMemoryTestReports implements TestReportsRepository {
   // eslint-disable-next-line re-lint/no-duplicate-code -- the double's deterministic-clock preamble, shared by shape with the agent-run-events double and by nothing else; see that file for why the two are not folded together
@@ -35,11 +42,7 @@ export class InMemoryTestReports implements TestReportsRepository {
   ): Promise<TestReportRow | null> {
     const onBranch = this.rows
       .filter((row) => row.repo === repo && row.branch === branch)
-      .sort(
-        (a, b) =>
-          b.receivedAt.getTime() - a.receivedAt.getTime() ||
-          Number(b.id) - Number(a.id),
-      );
+      .sort(newestFirst);
 
     return onBranch[0] ?? null;
   }
@@ -68,11 +71,7 @@ export class InMemoryTestReports implements TestReportsRepository {
           row.commit !== commit &&
           row.receivedAt <= head.receivedAt,
       )
-      .sort(
-        (a, b) =>
-          b.receivedAt.getTime() - a.receivedAt.getTime() ||
-          Number(b.id) - Number(a.id),
-      )
+      .sort(newestFirst)
       .slice(0, REPORT_HISTORY_DEPTH);
 
     return reportWithHistory(head, earlier);

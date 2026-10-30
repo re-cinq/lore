@@ -7,7 +7,7 @@ set -euo pipefail
 # re-running after adding one tool or one token costs nothing.
 #
 # Deliberately touches NOTHING outside this machine. Cluster bootstrap stays in
-# `npm start` (scripts/dev-local.sh), which is
+# `npm start` (scripts/dev/start.tsx), which is
 # unattended and re-runnable; keeping the interactive half separate is what lets
 # the other half stay that way.
 #

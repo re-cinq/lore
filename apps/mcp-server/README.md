@@ -53,7 +53,7 @@ Run it locally:
 
 ```bash
 LORE_MCP_HTTP=1 LORE_MCP_PORT=8080 LORE_MCP_AUTH_TOKEN=dev-token \
-  LORE_API_URL=http://localhost:3000 node apps/mcp-server/dist/index.js
+  LORE_API_URL=http://localhost:3001 node apps/mcp-server/dist/index.js
 # → [lore] MCP HTTP gateway listening on :8080 (mode=full, auth=on)
 curl -s localhost:8080/healthz   # → ok
 ```

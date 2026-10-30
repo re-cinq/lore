@@ -214,7 +214,7 @@ To run the whole stack on your own machine instead of against a deployed backend
 ```bash
 npm install
 npm run dev-setup   # one-time: toolchain check + credentials into .env.local
-npm start           # Postgres + Dgraph + minikube agents + every service, live reload
+npm start           # whole stack with live reload, or only the UI when LORE_API_URL points at a remote lore-api
 ```
 
 This needs Node.js >= 20 plus `docker`, `docker compose` v2, `minikube`, `kubectl`, `helm`, and `claude` on your PATH. [Contributing](docs/building-lore/contributing.md#run-the-full-stack-locally) walks through all three steps, the ports, and how to tear it all down and start over.

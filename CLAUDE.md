@@ -330,7 +330,7 @@ bootstrap: it checks the toolchain (docker, minikube, kubectl, helm,
 claude) and fills the gaps in `.env.local` — the agent LLM credential
 (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`, so laptop runs bill a
 subscription rather than org API credit; `ANTHROPIC_API_KEY` wins if both
-are set), `GITHUB_TOKEN`, ghcr creds, and `LORE_STATION_BACKEND=k8s`. When
+are set), `GITHUB_TOKEN` and ghcr creds. When
 your `gcloud` login can read GCP Secret Manager it offers (never silently)
 to import the ghcr pull pair and the GitHub App triple from there, so a
 deployer mints no new PATs; `lore-anthropic-api-key` is deliberately never
@@ -341,12 +341,14 @@ unattended. Already-set values are never overwritten, so re-running is
 free.
 
 To run the full stack on your machine instead, `npm start` from the
-repo root runs `scripts/dev-local.sh`: it brings up a docker Postgres
-(pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds
-`shared`→`assembly-lines`→`stations`→`server-core`→`lore-api`→`mcp-server`,
-then runs lore-api, stations, the skills gateway and web-ui under
-`concurrently` with live reload. Ports: web-ui `:3000`, lore-api `:3001`,
-skills gateway `:3002`, stations `:3004`, Postgres `:5432`. `npm run db:up` / `db:down`
+repo root runs `scripts/dev/start.tsx` (TypeScript under `tsx`, a small `ink`
+dashboard on a terminal, plain `[lore]` lines otherwise). It reads one env file,
+the root `.env.local`, and `LORE_API_URL` picks the mode: unset or a localhost host
+runs everything (docker compose Postgres + Dgraph, the schema, the build, then
+lore-api, stations, the skills gateway and web-ui with live reload, plus the floor
+when a `re-cinq/floor` checkout sits beside lore); any other host runs only web-ui
+against that backend. Ports: web-ui `:3000`, lore-api `:3001`,
+skills gateway `:3002`, stations `:3004`, Postgres `:5432`, floor `:8180`. `npm run db:up` / `db:down`
 manage the Postgres container on their own; `npm run db:schema` applies
 the schema DDL. `scripts/infra/setup-local-schema.sh` bootstraps the
 `lore`/`lore_ui` roles, the pgvector extension, and all schemas by

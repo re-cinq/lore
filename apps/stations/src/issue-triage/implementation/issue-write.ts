@@ -35,14 +35,7 @@ export function remainingIssueBody(
 ): string {
   const original = originalOf(snapshot.body);
   const marker = `<!-- lore-triage-assessed: ${snapshot.commit} -->`;
-  const head = [
-    reportPrefix(original),
-    scopedTaskBody(snapshot, task),
-    "## Behavioral evidence",
-    behaviorMessage(snapshot, proofs),
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const head = bodyHead(snapshot, task, proofs, original);
   const room =
     GITHUB_BODY_LIMIT -
     (head.length + marker.length + ARCHIVE_OPEN.length + ARCHIVE_CLOSE.length) -
@@ -50,6 +43,22 @@ export function remainingIssueBody(
     8;
 
   return [head, archive(original, room), marker].join("\n\n");
+}
+
+function bodyHead(
+  snapshot: IssueSnapshot,
+  task: DecompTask,
+  proofs: BehavioralProof[],
+  original: string,
+): string {
+  return [
+    reportPrefix(original),
+    scopedTaskBody(snapshot, task),
+    "## Behavioral evidence",
+    behaviorMessage(snapshot, proofs),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /** The report as it was before the first assessment, plus anything written under the previous archive since: an assessed body is never wrapped again. */

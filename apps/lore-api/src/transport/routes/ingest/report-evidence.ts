@@ -21,20 +21,6 @@ type ReportedTests = ReturnType<typeof parseTestDescriptors>;
 
 const parsedByReport = new WeakMap<object, ReportedTests>();
 
-/** A chunk can carry thousands of descriptors; the identity check and the save share one parse of them. */
-function reportedTests(report: EvidenceReport): ReportedTests {
-  const cached = parsedByReport.get(report);
-
-  if (cached) {
-    return cached;
-  }
-  const parsed = parseTestDescriptors(report.tests ?? []);
-
-  parsedByReport.set(report, parsed);
-
-  return parsed;
-}
-
 export function assertReportIdentity(body: ReportEnvelope): void {
   if (body.kind !== "test-report" || !body.report) {
     return;
@@ -49,6 +35,20 @@ export function assertReportIdentity(body: ReportEnvelope): void {
     "execution evidence must name the envelope commit",
   );
   assertCompleteFiles(tests);
+}
+
+/** A chunk can carry thousands of descriptors; the identity check and the save share one parse of them. */
+function reportedTests(report: EvidenceReport): ReportedTests {
+  const cached = parsedByReport.get(report);
+
+  if (cached) {
+    return cached;
+  }
+  const parsed = parseTestDescriptors(report.tests ?? []);
+
+  parsedByReport.set(report, parsed);
+
+  return parsed;
 }
 
 function assertCompleteFiles(tests: ReportedTests): void {

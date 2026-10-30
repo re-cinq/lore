@@ -42,11 +42,19 @@ Already-set values are never overwritten, so re-running after adding one tool or
 
 ### 3. `npm start`
 
-Runs `scripts/dev-local.sh`, which is unattended and re-runnable:
+Runs `scripts/dev/start.tsx` (TypeScript, run by `tsx`). It reads one file, the repo-root `.env.local`; `apps/web-ui/.env.local` is ignored, and the launcher warns when it exists. The backend you point `LORE_API_URL` at picks the mode:
 
-1. Brings up Postgres (pgvector) and Dgraph from `infra/compose.yaml`, waiting on their healthchecks. Data persists in the git-ignored `.lore-pgdata/` and `.lore-dgraphdata/` bind mounts.
-2. Applies the schemas — `scripts/infra/setup-local-schema.sh` for Postgres, then the two Dgraph schema scripts.
-3. Installs `apps/web-ui` dependencies on first run, builds `libs/shared` → `libs/assembly-lines` → `apps/stations` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server`, then runs everything under `concurrently` with live reload.
+- **Local** (`LORE_API_URL` unset or a localhost host): the whole stack.
+- **Remote** (any other host): only the web UI. See [Remote mode](#remote-mode).
+
+Local mode runs these steps, and prints a fix beside any that fails:
+
+1. Checks `docker` and `docker compose` v2.
+2. Brings up Postgres (pgvector) and Dgraph from `infra/compose.yaml`, waiting on their healthchecks. Data persists in the git-ignored `.lore-pgdata/` and `.lore-dgraphdata/` bind mounts.
+3. Applies the Postgres schema with `scripts/infra/setup-local-schema.sh`. The two Dgraph schema scripts run only when `LORE_DGRAPH_HTTP` is set in `.env.local`; no service needs Dgraph to boot.
+4. Installs `apps/web-ui` dependencies on first run, then builds `libs/shared` → `libs/assembly-lines` → `apps/stations` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server`.
+5. Frees ports `3000`, `3001`, `3002` and `3004` from a stale instance and reports each PID it stopped.
+6. Starts every service with live reload and shows a table of them: which layer each runs in, its status and its role. On a terminal it is a dashboard (`↑`/`↓` select a service, `enter` shows its log, `a` shows all logs, `r` restarts the selected service, `q` quits). Without a terminal (`CI`, a pipe, or `LORE_DEV_PLAIN=1`) it prints plain `[lore]` lines and prefixes each service's output with `[name]`. Ctrl-C stops everything in both.
 
 Ports:
 
@@ -58,10 +66,17 @@ Ports:
 | stations | `:3004` |
 | Postgres | `:5432` |
 | Dgraph — HTTP / gRPC | `:8081` / `:9080` |
+| floor API (when a floor is present) | `:8180` |
 
 The stdio MCP server (`apps/mcp-server`) is built here but launched on demand by Claude Code, not run as a daemon; the `:3002` entry is that same adapter in gateway mode, serving the skills bundle a run pod fetches at startup.
 
-Agent runs need a floor: the local stack starts none, so point `FLOOR_API_URL` and `FLOOR_SERVICE_TOKEN` at a running [floor](https://github.com/re-cinq/floor) to execute lines. The minikube path that ran agents through Lore's own cluster agent was removed on 2026-10-02.
+#### Agent layer
+
+Agent runs need a floor. Clone [re-cinq/floor](https://github.com/re-cinq/floor) beside lore (or set `FLOOR_DIR` in `.env.local`), run `npm install` and its `npm run minikube-setup` once (it needs `GHCR_USER` and `GHCR_TOKEN`, and a Claude credential, in the floor's own `.env.local`). From then on lore's `npm start` starts the floor and shows its rows next to the others: the `floor` process, `floor-postgres`, `minikube` and the `ai-subsystem` controller. It also gives lore-api and stations the variables the floor pipelines name (`FLOOR_API_URL`, `FLOOR_SERVICE_TOKEN`, `LORE_AGENT_IMAGE`, `LORE_SKILLS_URL`, `LORE_MCP_URL`); anything you set in `.env.local` wins. `LORE_DEV_FLOOR=0` runs Lore without the agent layer even when the checkout exists. Ctrl-C stops the floor's host processes; its Postgres and minikube stay up.
+
+#### Remote mode
+
+Set `LORE_API_URL=https://lore-api.gcp.re-cinq.com` (or another deployed lore-api) in `.env.local` and run `npm start`. Only the web UI starts on `:3000`; there is no docker, build or token. You sign in through the remote lore-api (ADR-053). The launcher probes `GET /healthz` of that URL and warns, without stopping, when it does not answer.
 
 On first run, `scripts/infra/setup-local-schema.sh` bootstraps the `lore`/`lore_ui` roles, the pgvector extension, and all schemas by shimming `kubectl` → `docker exec` so the existing `setup-*.sh` scripts run unmodified against the container (no SQL duplication). It then applies the `ui-helm/migrations/*.sql` incremental migrations the same way the GKE Helm hook does — tracked in `lore.schema_migrations`, in filename order, one transaction per file, skipping already-applied ones — so migration-added tables exist locally even though local dev has no Helm hook.
 
@@ -71,9 +86,9 @@ Useful sub-commands:
 - `npm run db:schema` — apply the schema DDL
 - `npm run services:up` / `npm run services:down` — both containers via compose
 
-If a service dies with `EADDRINUSE`, a previous stack is still holding the port: `concurrently -k` does not reliably reap its children, so services can outlive the run that started them and stay bound to `:3000`/`:3001`/`:3002`/`:8080`. `dev-local.sh` sweeps those four ports before starting, but that sweep happens once — anything that comes back after it still wins the port, and because one failing child tears down the whole stack, a single collision costs you the entire run. Check with `ss -lptn 'sport = :3002'` and kill what you find before re-running.
+If a port stays held after a run, `npm start` frees it on the next start, and every service it launches is stopped as a whole process group so `node --watch` children no longer outlive the run. To see what holds a port yourself: `ss -lptn 'sport = :3002'`.
 
-`db:up` and `dgraph:up` run a bare `docker run` rather than compose. They reuse the same container names and bind mounts, but a container compose did not create is one compose will not adopt — so a stack brought up that way makes the next `npm start` die with `Conflict. The container name "/lore-postgres" is already in use`, behind the misleading `backing services did not become healthy — check 'docker compose logs'`. Prefer `services:up`; if you hit the conflict, `docker rm -f lore-postgres lore-dgraph` and re-run. The data survives — it lives in the bind mount, not the container.
+`db:up` and `dgraph:up` run a bare `docker run` rather than compose. They reuse the same container names and bind mounts, but a container compose did not create is one compose will not adopt — so a stack brought up that way makes the compose step of the next `npm start` fail with `Conflict. The container name "/lore-postgres" is already in use`. Prefer `services:up`; if you hit the conflict, `docker rm -f lore-postgres lore-dgraph` and re-run. The data survives — it lives in the bind mount, not the container.
 
 ### Working in a git worktree
 

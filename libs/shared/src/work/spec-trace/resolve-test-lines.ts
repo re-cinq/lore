@@ -34,19 +34,28 @@ function nativeLines(
     return descriptors;
   }
 
-  const starts = new Set([
-    ...descriptors.map((descriptor) => descriptor.startLine!),
-    ...declarations.map((declaration) => declaration.line),
-  ]);
-  const lines = [...starts].sort((first, second) => first - second);
-  const ends = new Map(
-    lines.map((line, index) => [line, (lines[index + 1] ?? lastLine + 1) - 1]),
-  );
+  const ends = lineEnds(descriptors, declarations, lastLine);
 
   return descriptors.map((descriptor) => ({
     ...descriptor,
     endLine: ends.get(descriptor.startLine!),
   }));
+}
+
+function lineEnds(
+  descriptors: TestDescriptor[],
+  declarations: TestDeclaration[],
+  lastLine: number,
+): Map<number, number> {
+  const starts = new Set([
+    ...descriptors.map((descriptor) => descriptor.startLine!),
+    ...declarations.map((declaration) => declaration.line),
+  ]);
+  const lines = [...starts].sort((first, second) => first - second);
+
+  return new Map(
+    lines.map((line, index) => [line, (lines[index + 1] ?? lastLine + 1) - 1]),
+  );
 }
 
 /** One descriptor stamped with the [startLine, endLine] of its matching declaration; unmatched descriptors pass through untouched. */

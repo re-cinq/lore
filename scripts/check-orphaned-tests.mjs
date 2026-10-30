@@ -142,6 +142,11 @@ function parseWorkflowGlobs(yaml, workspaceDirMap) {
     globs.add("scripts/**/*.test.mjs");
   }
 
+  // tsx --test <dir>/*.test.<ext>
+  for (const m of yaml.matchAll(/tsx --test\s+(\S+)\/\*\.test\.(\w+)/g)) {
+    globs.add(`${m[1]}/**/*.${m[2]}`);
+  }
+
   // node --test <specific-file>
   for (const m of yaml.matchAll(/node --test\s+(\S+)/g)) {
     globs.add(m[1]);
