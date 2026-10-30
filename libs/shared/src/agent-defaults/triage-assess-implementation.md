@@ -72,4 +72,6 @@ Use actual repository references, never issue-scope.md as a public reference.
 Do not weaken an acceptance criterion to match the source. If the issue and spec
 disagree, retain a person-needed reconciliation gap rather than calling it done.
 
-End with `LORE_NODE_RESULT: {"outcome":"success"}` after writing the file.
+End with `LORE_NODE_RESULT: {"outcome":"success"}` after writing the file, or `LORE_NODE_RESULT: {"outcome":"failed"}` when you cannot write it.
+
+Print the result as your LAST line, exactly once and with nothing after it: the line reads only that line, and a run that ends without it is labelled `triage: failed`.

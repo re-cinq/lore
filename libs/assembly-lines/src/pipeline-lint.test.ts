@@ -214,6 +214,22 @@ describe("pipelineProblems — the inputs an agent's recipe reads", () => {
   it("reports nothing when a need supplies the placeholder, counting a _path suffix as the bag item's name", () => {
     expect(rules(DECOMPOSE_INPUTS_DECLARED)).toEqual([]);
   });
+
+  it("reports unsupplied-input naming args.issue_url when a recipe reads the arg under a dotted name the floor never fills", () => {
+    const dottedRecipe = new Map([
+      ["spec-tickets-decompose", "Read the issue at `{args.issue_url}`."],
+    ]);
+
+    expect(
+      pipelineProblems(SPEC_TICKETS_DECOMPOSE_REUSED, dottedRecipe),
+    ).toMatchObject([
+      {
+        node: "decompose",
+        rule: "unsupplied-input",
+        detail: expect.stringContaining("args.issue_url"),
+      },
+    ]);
+  });
 });
 
 const DEAD_END = `
