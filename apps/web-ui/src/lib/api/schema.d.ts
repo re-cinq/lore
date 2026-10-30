@@ -9152,7 +9152,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep, the digest) also runs again the station whose model credit ran out, and answers that run's id. */
+      /** @description Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep) first runs again the station whose model credit ran out, and answers that run's id. */
       200: {
         headers: {
           [name: string]: unknown;

@@ -6,8 +6,8 @@ import {
 import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import type { LoopPause } from "@re-cinq/lore-shared/loops/loop-pause.js";
 
-/** Loops that start a run once per item (a merged spec, a week, a day). The rest pick the item up again themselves: the implementation loop's tick takes the ticket, the triage sweep the issue; review approved without one and auto merge runs no model. */
-const RERUN_ON_RESUME: readonly LoopKey[] = ["tickets", "upkeep", "digest"];
+/** Loops that start a run once per item (a merged spec, a week) and would never start it again. The rest pick the item up again themselves: the implementation loop's tick takes the ticket, the triage sweep the issue; review approved without one, auto merge runs no model, and a digest run again would post a day already past beside the next one. */
+const RERUN_ON_RESUME: readonly LoopKey[] = ["tickets", "upkeep"];
 
 export interface ResumeLoopDeps {
   resume(): Promise<void>;
@@ -15,13 +15,24 @@ export interface ResumeLoopDeps {
   rerun(runId: string, nodeId: string): Promise<void>;
 }
 
-/** Resumes the loop, and answers the run it started again, or null. */
+/** Runs the starved station again, then resumes the loop, and answers the run it started again, or null. The station runs first: a floor that refuses it leaves the pause in place, so the person can resume again. */
 export async function resumeLoop(
   key: LoopKey,
   pause: LoopPause | null,
   deps: ResumeLoopDeps,
 ): Promise<string | null> {
+  const rerun = await rerunStarvedStation(key, pause, deps);
+
   await deps.resume();
+
+  return rerun;
+}
+
+async function rerunStarvedStation(
+  key: LoopKey,
+  pause: LoopPause | null,
+  deps: ResumeLoopDeps,
+): Promise<string | null> {
   const runId = pause?.run_id;
 
   if (!runId || !RERUN_ON_RESUME.includes(key)) {

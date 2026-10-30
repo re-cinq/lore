@@ -17,18 +17,11 @@ import {
   pauseActive,
   type LoopPause,
 } from "@re-cinq/lore-shared/loops/loop-pause.js";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import {
-  resumeLoop,
-  type ResumeLoopDeps,
-} from "../../../work/loops/resume-loop.js";
-import { handleRunNode } from "../floor/run-node.js";
-import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
-import { enforceRepoRow, switchLoop } from "./loop-switch.js";
+import { enforceRepoRow, resumeLoopOf, switchLoop } from "./loop-switch.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
 import { autoMergeRoute } from "../auto-merge/auto-merge.js";
 import { specUpkeepRoute } from "../spec-upkeep/spec-upkeep.js";
@@ -120,7 +113,7 @@ const RESUME_OPTIONS = zodResponse(
   {
     name: "LoopResume",
     description:
-      "Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep, the digest) also runs again the station whose model credit ran out, and answers that run's id.",
+      "Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep) first runs again the station whose model credit ran out, and answers that run's id.",
     errors: [400, 404],
   },
 );
@@ -143,32 +136,10 @@ async function serveResumeLoop(
   const repo = repoOf(request.params);
 
   await enforceRepoRow(pool, repo);
-  const settings = new PgSettings(pool);
-  const pause = loopPause(key, await settings.rawSettings(repo));
-  const rerun = await resumeLoop(key, pause, {
-    resume: () => settings.resumeLoop(repo, key),
-    ...floorRerun(pool),
-  });
+  const rerun = await resumeLoopOf(pool, repo, key);
 
   return h.response({ ok: true as const, key, rerun_run_id: rerun }).code(200);
 }
-
-/** Reads a run's visits from the floor and runs one of its stations again, as a start by hand does. */
-function floorRerun(pool: Pool): Omit<ResumeLoopDeps, "resume"> {
-  return {
-    visits: (runId) => floorClient().stationRuns.list({ run: runId }),
-    rerun: async (runId, nodeId) => {
-      await handleRunNode(floorClient(), pool, {
-        runId,
-        nodeId,
-        actor: RESUME_ACTOR,
-      });
-    },
-  };
-}
-
-/** Who a station run again on resume is recorded as asked by. */
-const RESUME_ACTOR = "lore:loop-resume";
 
 async function serveReadLoops(
   pool: Pool,

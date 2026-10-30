@@ -119,4 +119,21 @@ describe("LoopSwitch", () => {
     paused.unmount();
     expect(renderOn().queryByRole("button", { name: "Resume" })).toBeNull();
   });
+
+  it("shows no pause notice while the paused loop is switched off", () => {
+    const { queryByRole } = render(
+      <LoopSwitch
+        {...triageSwitch}
+        enabled={false}
+        paused={{
+          reason: "model credit exhausted",
+          run_id: "run-7",
+          at: "2026-10-31T09:00:00.000Z",
+          until: null,
+        }}
+      />,
+    );
+
+    expect(queryByRole("button", { name: "Resume" })).toBeNull();
+  });
 });

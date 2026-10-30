@@ -35,7 +35,9 @@ describe("LoopPaused", () => {
       />,
     );
 
-    expect(getByRole("status").textContent).toContain("· until");
+    expect(getByRole("status").textContent).toContain(
+      `· until ${new Date("2026-11-03T09:00:00.000Z").toLocaleString()} ·`,
+    );
   });
 
   it("resumes the loop through the bound action when Resume is clicked", async () => {

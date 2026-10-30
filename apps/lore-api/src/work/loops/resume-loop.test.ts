@@ -42,7 +42,7 @@ describe("resumeLoop", () => {
     ]);
 
     expect(await resume()).toBe("run-7");
-    expect(steps).toEqual(["resume", "visits run-7", "rerun run-7 decompose"]);
+    expect(steps).toEqual(["visits run-7", "rerun run-7 decompose", "resume"]);
   });
 
   it("resumes the implementation loop without running anything again, since its tick picks the ticket", async () => {
@@ -54,14 +54,14 @@ describe("resumeLoop", () => {
     expect(steps).toEqual(["resume"]);
   });
 
-  it("resumes the digest loop without running anything again when its run has no credit failure left", async () => {
-    const { resume, steps } = scene("digest", creditPause("run-7"), [
-      { nodeId: "write", report: { outcome: "failed", error: CREDIT } },
-      { nodeId: "write", report: { outcome: "success" } },
+  it("resumes the upkeep loop without running anything again when its run has no credit failure left", async () => {
+    const { resume, steps } = scene("upkeep", creditPause("run-7"), [
+      { nodeId: "update-specs", report: { outcome: "failed", error: CREDIT } },
+      { nodeId: "update-specs", report: { outcome: "success" } },
     ]);
 
     expect(await resume()).toBeNull();
-    expect(steps).toEqual(["resume", "visits run-7"]);
+    expect(steps).toEqual(["visits run-7", "resume"]);
   });
 
   it("resumes the upkeep loop without running anything again when it was paused by no run", async () => {
@@ -76,5 +76,34 @@ describe("resumeLoop", () => {
 
     expect(await resume()).toBeNull();
     expect(steps).toEqual(["resume"]);
+  });
+
+  it("resumes the digest loop without posting its starved day again beside the next one", async () => {
+    const { resume, steps } = scene("digest", creditPause("run-7"), [
+      { nodeId: "write", report: { outcome: "failed", error: CREDIT } },
+    ]);
+
+    expect(await resume()).toBeNull();
+    expect(steps).toEqual(["resume"]);
+  });
+
+  it("keeps the tickets pause when the floor refuses to run decompose again", async () => {
+    const steps: string[] = [];
+    const resumed = resumeLoop("tickets", creditPause("run-7"), {
+      resume: async () => {
+        steps.push("resume");
+      },
+      visits: async () => [
+        { nodeId: "decompose", report: { outcome: "failed", error: CREDIT } },
+      ],
+      rerun: async () => {
+        throw new Error("409 the run is still open");
+      },
+    });
+
+    await expect(resumed).rejects.toThrow(
+      new Error("409 the run is still open"),
+    );
+    expect(steps).toEqual([]);
   });
 });

@@ -34,7 +34,7 @@ export default function LoopSwitch(props: LoopSwitchProps) {
       <div>
         <h2 className={styles.name}>{label}</h2>
         <p className={`meta ${styles.description}`}>{description}</p>
-        {props.paused && (
+        {props.enabled && props.paused && (
           <LoopPaused pause={props.paused} resume={props.resume} />
         )}
       </div>

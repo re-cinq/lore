@@ -33,11 +33,15 @@ function PauseText({ pause }: { pause: LoopPause }) {
   );
 }
 
+/** A plain date: the relative half of TimeAgo reads any time to come as "just now". */
 function Until({ date }: { date: string }) {
   return (
     <>
       {" "}
-      · until <TimeAgo date={date} inline />
+      · until{" "}
+      <time dateTime={date} suppressHydrationWarning>
+        {new Date(date).toLocaleString()}
+      </time>
     </>
   );
 }
