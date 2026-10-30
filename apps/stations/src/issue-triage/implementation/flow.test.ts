@@ -321,6 +321,34 @@ describe("issue implementation assessment", () => {
     expect(s.issue.body).toContain(relationships);
   });
 
+  it("keeps the body the same length when a partial issue is triaged again", async () => {
+    const s = scene(assessment("partial"));
+
+    await s.load();
+    await s.verify();
+    const firstLength = s.issue.body?.length;
+
+    await s.load();
+    await s.verify();
+    await s.load();
+    await s.verify();
+
+    expect(s.issue.body?.length).toEqual(firstLength);
+  });
+
+  it("fits a huge original report into GitHub's body limit and keeps the assessed marker last", async () => {
+    const s = scene(assessment("partial"));
+
+    s.issue.body = "Widgets must render\n\n" + "detail ".repeat(12_000);
+    await s.load();
+    await s.verify();
+
+    expect({
+      fits: (s.issue.body?.length ?? 0) <= 65_536,
+      marker: s.issue.body?.trimEnd().endsWith("-->"),
+    }).toEqual({ fits: true, marker: true });
+  });
+
   it.each([
     "missing",
     "wrong-repo",
