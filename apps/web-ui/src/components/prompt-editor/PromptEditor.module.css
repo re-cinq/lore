@@ -1,0 +1,72 @@
+/* The prompt reads as the document it formats: the frame of the form's other fields, prose type, and the run's own tokens marked. CodeMirror names its parts globally, so they are reached through this frame. */
+.editor {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.editor :global(.cm-editor) {
+  min-height: 12rem;
+}
+
+.editor :global(.cm-editor.cm-focused) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.editor :global(.cm-content) {
+  padding: var(--space-4) var(--space-5);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+.editor :global(.cm-placeholder) {
+  color: var(--text-muted);
+}
+
+.editor :global(.cm-prompt-heading) {
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-sm);
+}
+
+.editor :global(.cm-prompt-heading-1) {
+  padding-top: var(--space-5);
+  font-size: var(--fs-xl);
+}
+
+.editor :global(.cm-prompt-heading-2) {
+  padding-top: var(--space-4);
+  font-size: var(--fs-lg);
+}
+
+.editor :global(.cm-prompt-heading-3),
+.editor :global(.cm-prompt-heading-4),
+.editor :global(.cm-prompt-heading-5),
+.editor :global(.cm-prompt-heading-6) {
+  padding-top: var(--space-3);
+  font-size: var(--fs-md);
+}
+
+.editor :global(.cm-prompt-bold) {
+  font-weight: var(--fw-semibold);
+}
+
+.editor :global(.cm-prompt-placeholder),
+.editor :global(.cm-prompt-tag) {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.editor :global(.cm-prompt-placeholder) {
+  background: color-mix(in srgb, var(--info) 15%, transparent);
+  color: var(--info);
+}
+
+.editor :global(.cm-prompt-tag) {
+  background: var(--pill-bg);
+  color: var(--text-muted);
+}

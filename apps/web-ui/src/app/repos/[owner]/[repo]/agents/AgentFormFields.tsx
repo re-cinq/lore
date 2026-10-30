@@ -1,5 +1,6 @@
 // The agent form's individual fields. Split out so AgentForm itself reads as the shape of the request it builds rather than as every input in it.
 
+import PromptEditor from "@/components/prompt-editor/PromptEditor";
 import { KNOWN_MODELS } from "@/lib/agents-mirror";
 import { type AgentFormState, type PodResources } from "@/lib/agents-form";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -175,9 +176,8 @@ export function RunLimitsFields(props: RunLimitsFieldsProps) {
       {promptInherited && (
         <span className="prompt-note">inherited from org</span>
       )}
-      <textarea
+      <PromptEditor
         name="prompt"
-        rows={6}
         defaultValue={prompt}
         placeholder={promptPlaceholder}
       />
