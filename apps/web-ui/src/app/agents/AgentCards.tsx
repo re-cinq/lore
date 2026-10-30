@@ -3,7 +3,7 @@ import Form from "next/form";
 import { SubmitButton } from "@/components/SubmitButton";
 import { modelVendor } from "@/lib/model-vendor";
 import type { AgentDefinition } from "@/lib/agents-mirror";
-import type { AgentUsage } from "@/lib/agents-api";
+import type { AgentUsage, DefinitionActivity } from "@/lib/agents-api";
 import { SettingsCard } from "@/components/SettingsCard";
 import { ScopePill } from "../repos/[owner]/[repo]/agents/AgentList";
 import { rowCells } from "../repos/[owner]/[repo]/agents/agent-row-cells";
@@ -13,23 +13,30 @@ import {
   lineTitle,
   type LineGroup,
 } from "./group-by-line";
+import { activityLine } from "./activity-line";
 import styles from "./page.module.css";
+
+/** What the cards read beside the definitions; each part is null when its endpoint could not answer. */
+export interface Catalog {
+  usage: AgentUsage | null;
+  activity: Partial<Record<string, DefinitionActivity>> | null;
+}
 
 interface AgentCardsProps {
   agents: AgentDefinition[];
-  usage: AgentUsage | null;
+  catalog: Catalog;
 }
 
 /** The org catalog as one section per assembly line, one card per agent. */
-export default function AgentCards({ agents, usage }: AgentCardsProps) {
-  return groupAgentsByLine(agents, usage).map((group) => (
-    <LineSection key={group.line} {...group} usage={usage} />
+export default function AgentCards({ agents, catalog }: AgentCardsProps) {
+  return groupAgentsByLine(agents, catalog.usage).map((group) => (
+    <LineSection key={group.line} {...group} catalog={catalog} />
   ));
 }
 
-type LineSectionProps = LineGroup & { usage: AgentUsage | null };
+type LineSectionProps = LineGroup & { catalog: Catalog };
 
-function LineSection({ line, agents, usage }: LineSectionProps) {
+function LineSection({ line, agents, catalog }: LineSectionProps) {
   const titles = agentTitles(agents.map((agent) => agent.name));
 
   return (
@@ -41,7 +48,7 @@ function LineSection({ line, agents, usage }: LineSectionProps) {
             key={agent.name}
             agent={agent}
             title={titles[index]}
-            usage={usage}
+            catalog={catalog}
           />
         ))}
       </div>
@@ -51,13 +58,13 @@ function LineSection({ line, agents, usage }: LineSectionProps) {
 
 interface AgentCardProps {
   agent: AgentDefinition;
-  usage: AgentUsage | null;
+  catalog: Catalog;
 }
 
 function AgentCard({
   agent,
   title,
-  usage,
+  catalog,
 }: AgentCardProps & { title: string }) {
   const editHref = `/agents/edit/${encodeURIComponent(agent.name)}`;
 
@@ -66,24 +73,24 @@ function AgentCard({
       <SettingsCard
         id={`agent-${agent.name}`}
         title={title}
-        description={rowCells(agent, usage).use.text}
+        description={rowCells(agent, catalog.usage).use.text}
         headingLevel={3}
       >
-        <AgentFacts agent={agent} usage={usage} />
+        <AgentFacts agent={agent} catalog={catalog} />
         <EditButton href={editHref} />
       </SettingsCard>
     </div>
   );
 }
 
-function AgentFacts({ agent, usage }: AgentCardProps) {
-  const isProject = agent.project_id != null && agent.project_id !== "";
+function AgentFacts({ agent, catalog }: AgentCardProps) {
   const facts: Array<[string, ReactNode]> = [
     ["Name", agent.name],
-    ["Scope", <ScopePill key="scope" isProject={isProject} />],
+    ["Scope", <ScopePill key="scope" isProject={Boolean(agent.project_id)} />],
     ["Model", agent.model ?? "(inherit)"],
     ["Timeout", `${agent.timeout_minutes ?? "–"}m`],
-    ["Mode", rowCells(agent, usage).mode],
+    ["Mode", rowCells(agent, catalog.usage).mode],
+    ["Last 30 days", activityLine(catalog.activity, agent.name)],
   ];
 
   return (

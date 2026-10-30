@@ -38,6 +38,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-definitions/activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/agent-definitions/activity */
+    get: operations["get_api_agent-definitions_activity"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-definitions/usage": {
     parameters: {
       query?: never;
@@ -2704,6 +2721,16 @@ export interface components {
         reason: string | null;
         memory_count: number;
         last_active: string | null;
+      }[];
+    };
+    AgentDefinitionActivity: {
+      since: string;
+      activity: {
+        name: string;
+        visits: number;
+        cost_usd: number;
+        tokens_in: number;
+        tokens_out: number;
       }[];
     };
     AgentDefinitionDeleted: {
@@ -5935,6 +5962,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["OrgAgentDefinitions"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_agent-definitions_activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Each agent definition's floor visits, cost and tokens over the last 30 days; 503 on a deployment given no floor, whose activity is unknown rather than none */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionActivity"];
         };
       };
       401: components["responses"]["Unauthorized"];
