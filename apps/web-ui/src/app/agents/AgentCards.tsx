@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import Form from "next/form";
 import { SubmitButton } from "@/components/SubmitButton";
+import { modelVendor } from "@/lib/model-vendor";
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import type { AgentUsage } from "@/lib/agents-api";
 import { SettingsCard } from "@/components/SettingsCard";
@@ -61,17 +62,17 @@ function AgentCard({
   const editHref = `/agents/edit/${encodeURIComponent(agent.name)}`;
 
   return (
-    <SettingsCard
-      id={`agent-${agent.name}`}
-      title={title}
-      description={rowCells(agent, usage).use.text}
-      headingLevel={3}
-    >
-      <AgentFacts agent={agent} usage={usage} />
-      <Form action={editHref} className={styles.edit}>
-        <SubmitButton>Edit</SubmitButton>
-      </Form>
-    </SettingsCard>
+    <div className={styles.agentCard} data-vendor={modelVendor(agent.model)}>
+      <SettingsCard
+        id={`agent-${agent.name}`}
+        title={title}
+        description={rowCells(agent, usage).use.text}
+        headingLevel={3}
+      >
+        <AgentFacts agent={agent} usage={usage} />
+        <EditButton href={editHref} />
+      </SettingsCard>
+    </div>
   );
 }
 
@@ -94,5 +95,13 @@ function AgentFacts({ agent, usage }: AgentCardProps) {
         </Fragment>
       ))}
     </dl>
+  );
+}
+
+function EditButton({ href }: { href: string }) {
+  return (
+    <Form action={href} className={styles.edit}>
+      <SubmitButton>Edit</SubmitButton>
+    </Form>
   );
 }

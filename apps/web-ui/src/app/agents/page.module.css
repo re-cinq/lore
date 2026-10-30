@@ -28,3 +28,31 @@
   flex-direction: column;
   margin-top: auto;
 }
+
+/* A card's border is its model vendor's brand gradient; an inherited or unknown model wears the AI gradient of an agent station on the run graph. */
+.agentCard {
+  --card-border: linear-gradient(
+    135deg,
+    var(--chart-spec),
+    var(--chart-feature) 50%,
+    var(--chart-section)
+  );
+
+  display: flex;
+}
+
+.agentCard[data-vendor="anthropic"] {
+  --card-border: var(--brand-anthropic);
+}
+
+.agentCard[data-vendor="google"] {
+  --card-border: var(--brand-google);
+}
+
+.agentCard > section {
+  flex: 1;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    var(--card-border) border-box;
+}
