@@ -17,6 +17,35 @@ describe("sourceCallAt", () => {
     });
   });
 
+  it.each([
+    [
+      "it.each",
+      'it.each([1, 2])("case %s", value => expect(value).toEqual(1));',
+      16,
+    ],
+    [
+      "test.each",
+      'test.each([1, 2])("case %s", value => expect(value).toEqual(1));',
+      18,
+    ],
+    [
+      "it.concurrent",
+      'it.concurrent("works", () => expect(true).toEqual(true));',
+      4,
+    ],
+    ["it.fails", 'it.fails("works", () => expect(1).toEqual(2));', 4],
+    ["it.only", 'it.only("works", () => expect(true).toEqual(true));', 4],
+  ])(
+    "locates the registration of %s at the column vitest reports",
+    async (_modifier, source, column) => {
+      expect(await sourceCallAt(".ts", source, { line: 1, column })).toEqual({
+        start: 1,
+        end: 1,
+        text: source.replace(/;$/, ""),
+      });
+    },
+  );
+
   it.each(["syntax-error", "wrong-column", "unsupported-grammar"])(
     "returns null for %s source identity",
     async (failure) => {
