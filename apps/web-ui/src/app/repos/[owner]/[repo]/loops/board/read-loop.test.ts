@@ -16,6 +16,7 @@ const loop = (key: RepoLoop["key"], label: string): RepoLoop => ({
   label,
   description: "",
   enabled: true,
+  paused: null,
 });
 
 describe("readLoop", () => {

@@ -1,0 +1,27 @@
+.paused {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  color: var(--warning);
+  font-size: var(--fs-sm);
+}
+
+.resume {
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-pill);
+  color: var(--warning);
+  background: transparent;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+}
+
+.failed {
+  color: var(--danger);
+}

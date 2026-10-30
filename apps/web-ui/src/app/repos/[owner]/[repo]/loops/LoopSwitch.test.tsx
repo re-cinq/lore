@@ -5,10 +5,14 @@ import LoopSwitch from "./LoopSwitch";
 
 const toggle = vi.fn(async () => null);
 
+const resume = vi.fn(async () => null);
+
 const triageSwitch = {
   label: "Issue triage",
   description: "Reads every issue labelled triage: needs-triage.",
   toggle,
+  paused: null,
+  resume,
 };
 
 const renderOn = () => render(<LoopSwitch {...triageSwitch} enabled />);
@@ -93,5 +97,26 @@ describe("LoopSwitch", () => {
       label: "Off",
       alert: "repo not found: re-cinq/lore",
     });
+  });
+
+  it("shows why a paused loop is held and its Resume under the name, and nothing while it runs", () => {
+    const paused = render(
+      <LoopSwitch
+        {...triageSwitch}
+        enabled
+        paused={{
+          reason: "model credit exhausted",
+          run_id: "run-7",
+          at: "2026-10-31T09:00:00.000Z",
+          until: null,
+        }}
+      />,
+    );
+
+    expect(paused.getByRole("button", { name: "Resume" }).textContent).toBe(
+      "Resume",
+    );
+    paused.unmount();
+    expect(renderOn().queryByRole("button", { name: "Resume" })).toBeNull();
   });
 });

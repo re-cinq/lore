@@ -8,6 +8,8 @@ export type RepoLoops = components["schemas"]["RepoLoops"];
 export type RepoLoop = RepoLoops["loops"][number];
 export type LoopKey = RepoLoop["key"];
 export type LoopSwitch = components["schemas"]["LoopSwitch"];
+export type LoopResume = components["schemas"]["LoopResume"];
+export type LoopPause = NonNullable<RepoLoop["paused"]>;
 
 const path = (repo: string) => `/api/repos/${repo}/loops`;
 
@@ -42,5 +44,15 @@ export function setLoopEnabled(
   return apiFetch("lore-api", `${path(repo)}/${key}`, {
     method: "PUT",
     body: request,
+  });
+}
+
+/** Resumes a paused loop; its switch is left as it is. */
+export function resumeLoop(
+  repo: string,
+  key: LoopKey,
+): Promise<ApiResult<LoopResume>> {
+  return apiFetch("lore-api", `${path(repo)}/${key}/pause`, {
+    method: "DELETE",
   });
 }

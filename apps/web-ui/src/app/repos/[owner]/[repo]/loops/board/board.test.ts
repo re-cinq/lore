@@ -21,6 +21,7 @@ const loop = (key: RepoLoop["key"], label: string): RepoLoop => ({
   label,
   description: "",
   enabled: true,
+  paused: null,
 });
 
 const REVIEW = loop("review", "Code review");

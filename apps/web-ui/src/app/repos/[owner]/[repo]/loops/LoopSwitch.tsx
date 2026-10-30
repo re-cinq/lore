@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import PendingActionButton from "@/components/PendingActionButton";
+import type { LoopPause } from "@/lib/api/loops";
+import LoopPaused from "./LoopPaused";
 import StateDot from "./StateDot";
 import styles from "./LoopSwitch.module.scss";
 
@@ -17,9 +19,13 @@ interface LoopSwitchProps {
   enabled: boolean;
   /** Answers why the switch was refused, or null. */
   toggle: (next: SwitchAsk) => Promise<string | null>;
+  /** The loop's pause while it holds, or null. */
+  paused: LoopPause | null;
+  /** Answers why the resume was refused, or null. */
+  resume: () => Promise<string | null>;
 }
 
-/** The loop's name and its one control: a button that shows the state it is in (green On, red Off) and flips it on click. */
+/** The loop's name and its one control: a button that shows the state it is in (green On, red Off) and flips it on click; under the name, why a paused loop is held and its Resume. */
 export default function LoopSwitch(props: LoopSwitchProps) {
   const { label, description } = props;
 
@@ -28,6 +34,9 @@ export default function LoopSwitch(props: LoopSwitchProps) {
       <div>
         <h2 className={styles.name}>{label}</h2>
         <p className={`meta ${styles.description}`}>{description}</p>
+        {props.paused && (
+          <LoopPaused pause={props.paused} resume={props.resume} />
+        )}
       </div>
       <SwitchButton {...props} />
     </div>

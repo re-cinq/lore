@@ -16,7 +16,7 @@ import LoopBodyLoading from "./LoopBodyLoading";
 import LoopPicker, { ALL_LOOPS } from "./LoopPicker";
 import LoopSwitch from "./LoopSwitch";
 import styles from "./LoopsPage.module.scss";
-import { switchLoopAction } from "./actions";
+import { resumeLoopAction, switchLoopAction } from "./actions";
 
 interface LoopsPageProps {
   params: Promise<{ owner: string; repo: string }>;
@@ -105,6 +105,7 @@ function Switches({
           key={key}
           {...loop}
           toggle={switchLoopAction.bind(null, fullName, key)}
+          resume={resumeLoopAction.bind(null, fullName, key)}
         />
       ))}
     </div>

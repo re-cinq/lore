@@ -18,7 +18,10 @@ import {
   type LoopPause,
 } from "@re-cinq/lore-shared/loops/loop-pause.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { resumeLoop } from "../../../work/loops/resume-loop.js";
+import {
+  resumeLoop,
+  type ResumeLoopDeps,
+} from "../../../work/loops/resume-loop.js";
 import { handleRunNode } from "../floor/run-node.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -144,6 +147,15 @@ async function serveResumeLoop(
   const pause = loopPause(key, await settings.rawSettings(repo));
   const rerun = await resumeLoop(key, pause, {
     resume: () => settings.resumeLoop(repo, key),
+    ...floorRerun(pool),
+  });
+
+  return h.response({ ok: true as const, key, rerun_run_id: rerun }).code(200);
+}
+
+/** Reads a run's visits from the floor and runs one of its stations again, as a start by hand does. */
+function floorRerun(pool: Pool): Omit<ResumeLoopDeps, "resume"> {
+  return {
     visits: (runId) => floorClient().stationRuns.list({ run: runId }),
     rerun: async (runId, nodeId) => {
       await handleRunNode(floorClient(), pool, {
@@ -152,9 +164,7 @@ async function serveResumeLoop(
         actor: RESUME_ACTOR,
       });
     },
-  });
-
-  return h.response({ ok: true as const, key, rerun_run_id: rerun }).code(200);
+  };
 }
 
 /** Who a station run again on resume is recorded as asked by. */
