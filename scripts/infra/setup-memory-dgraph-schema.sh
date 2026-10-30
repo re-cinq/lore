@@ -6,7 +6,7 @@ set -euo pipefail
 # Dgraph Alpha. The Dgraph analogue of scripts/infra/setup-local-schema.sh.
 #
 # Idempotent: Dgraph's /alter re-applies the same schema as a no-op (no data
-# touched, indexes converge to the declared set). Invoked from dev-local.sh
+# touched, indexes converge to the declared set). Invoked from scripts/dev/start.tsx
 # after the lore-dgraph container is healthy; also runnable standalone via
 # `npm run dgraph:schema`.
 #

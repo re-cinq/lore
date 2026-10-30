@@ -8,7 +8,7 @@ DB_SERVICE="svc/lore-db-rw"
 # CloudNativePG generates a basic-auth secret (username/password keys); the
 # name terraform claims to create (lore-db-password) does not exist in-cluster.
 DB_SECRET="${LORE_DB_GUI_SECRET:-lore-db-credentials}"
-# Default off 5432 to dodge a local dev Postgres (scripts/dev-local.sh) on 5432.
+# Default off 5432 to dodge a local dev Postgres (scripts/dev/start.tsx) on 5432.
 LOCAL_DB_PORT="${LORE_DB_GUI_DB_PORT:-15432}"
 ADMINER_PORT="${LORE_DB_GUI_WEB_PORT:-8080}"
 

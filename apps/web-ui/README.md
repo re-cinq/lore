@@ -50,7 +50,10 @@ npm run build          # production build (Next standalone output)
 ```
 
 For the full local stack (Postgres + every service), run `npm start` from
-the repo root; the UI comes up on `:3000`.
+the repo root; the UI comes up on `:3000`. With `LORE_API_URL=https://...` in
+the root `.env.local`, `npm start` runs only the UI against that backend. The
+root `.env.local` is the one env file; `apps/web-ui/.env.local` is ignored by
+`npm start`.
 
 ## Deploy
 

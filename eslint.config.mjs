@@ -537,6 +537,29 @@ export default tseslint.config(
     },
   },
 
+  // The `npm start` launcher (scripts/dev, run by tsx). It is dev tooling made of
+  // process, terminal and table code, not a package with spec statements, so the
+  // per-function budgets and the spec-link requirement do not describe it.
+  {
+    files: ["scripts/dev/**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: { projectService: false, project: false },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/await-thenable": "off",
+      "@typescript-eslint/no-unnecessary-condition": "off",
+      "max-lines-per-function": "off",
+      "max-params": "off",
+      complexity: "off",
+      "re-lint/prefer-polymorphism": "off",
+      "re-lint/no-flag-params": "off",
+      "re-lint/callee-below-caller": "off",
+      "re-lint/require-spec-link": "off",
+    },
+  },
+
   // Tests run syntactically (some live outside their package's tsconfig, e.g.
   // lore-station excludes *.test.ts) and may lean on `any` for doubles. Keep the
   // custom + syntactic rules on; drop the type-aware ones.

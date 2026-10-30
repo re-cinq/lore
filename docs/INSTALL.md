@@ -398,7 +398,7 @@ git config --global lore.ingest-token "<your-token>"   # optional; needed to del
 
 If you run the **whole stack locally** instead, these are set for you (`http://localhost:3001` and a fixed dev token), so you can skip this step. The token is also prompted for interactively on first install. Re-run `scripts/install.sh` (or `scripts/lore-doctor.sh`) to confirm everything is green.
 
-> **Want the whole stack on your laptop instead?** `npm start` from the repo root brings up Docker Postgres + Dgraph and runs the web UI, API, stations and MCP server locally with live reload, no remote backend needed. To sign into the web UI you create a one-time GitHub OAuth app; full steps in [Run the full stack locally](building-lore/contributing.md#run-the-full-stack-locally).
+> **Want the whole stack on your laptop instead?** `npm start` from the repo root brings up Docker Postgres + Dgraph and runs the web UI, API, stations and MCP server locally with live reload, no remote backend needed. Or set `LORE_API_URL` to a deployed lore-api in `.env.local` and `npm start` runs only the web UI against it. To sign into the web UI you create a one-time GitHub OAuth app; full steps in [Run the full stack locally](building-lore/contributing.md#run-the-full-stack-locally).
 
 ## 7. Onboard repos
 

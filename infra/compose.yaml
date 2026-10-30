@@ -1,7 +1,7 @@
 # Local-dev backing services for Lore: Postgres (pgvector) + Dgraph (standalone).
 #
 # The app components (web-ui, mcp-server, agent) run on the HOST via `npm start`
-# (scripts/dev-local.sh) with live reload — only the stateful databases are
+# (scripts/dev/start.tsx) with live reload — only the stateful databases are
 # containerised here. Data persists in the git-ignored .lore-*data/ bind mounts,
 # so `down` + `up` never loses local state.
 #

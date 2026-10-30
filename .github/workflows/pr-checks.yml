@@ -202,7 +202,7 @@ jobs:
           # compiled @re-cinq/lore-shared, hence the build).
           - name: scripts
             build: npm run build -w @re-cinq/lore-shared
-            test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
+            test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test && npx tsx --test scripts/dev/*.test.ts
           # VS Code extension — in the workspace but previously missing a CI entry.
           # Resolves @re-cinq/lore-shared from the built package, so shared must
           # be built first. @types/vscode is a dev dep for type checking only;
