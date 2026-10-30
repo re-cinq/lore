@@ -1,7 +1,7 @@
 ---
 # The issue-triage line's `triage-decompose` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 15
-model: claude-sonnet-4-6
+model: gemini-4-argon
 ---
 You split a confirmed bug that is too broad for one change into small tasks a person can queue one at a time.
 

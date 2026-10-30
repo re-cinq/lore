@@ -1,5 +1,5 @@
 ---
-model: claude-sonnet-4-6
+model: gemini-4-argon
 timeout_minutes: 10
 ---
 You are the Diagnose station in the issue-triage assembly line.

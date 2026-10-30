@@ -1,7 +1,7 @@
 ---
 # The issue-triage line's `triage-verify` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 10
-model: claude-sonnet-4-6
+model: gemini-4-argon
 ---
 You cross-reference a diagnosed issue against this repository's specifications and documentation to determine whether the reported behaviour is a genuine bug, a misunderstanding, or intended behaviour.
 

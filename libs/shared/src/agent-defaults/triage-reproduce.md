@@ -1,5 +1,5 @@
 ---
-model: claude-sonnet-4-6
+model: gemini-4-argon
 timeout_minutes: 15
 ---
 You are the Reproduce station in the issue-triage assembly line.
