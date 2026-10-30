@@ -17,26 +17,41 @@ interface EvidenceReport {
   results?: Array<{ id: string; passed: boolean }>;
 }
 
+type ReportedTests = ReturnType<typeof parseTestDescriptors>;
+
+const parsedByReport = new WeakMap<object, ReportedTests>();
+
+/** A chunk can carry thousands of descriptors; the identity check and the save share one parse of them. */
+function reportedTests(report: EvidenceReport): ReportedTests {
+  const cached = parsedByReport.get(report);
+
+  if (cached) {
+    return cached;
+  }
+  const parsed = parseTestDescriptors(report.tests ?? []);
+
+  parsedByReport.set(report, parsed);
+
+  return parsed;
+}
+
 export function assertReportIdentity(body: ReportEnvelope): void {
   if (body.kind !== "test-report" || !body.report) {
     return;
   }
   const report = body.report as EvidenceReport;
-  const enriched = parseTestDescriptors(report.tests ?? []).some(
-    (test) => test.execution,
-  );
+  const tests = reportedTests(report);
+  const enriched = tests.some((test) => test.execution);
 
   enforceTrue(
     !enriched || report.commit === body.commit,
     apiError(400),
     "execution evidence must name the envelope commit",
   );
-  assertCompleteFiles(parseTestDescriptors(report.tests ?? []));
+  assertCompleteFiles(tests);
 }
 
-function assertCompleteFiles(
-  tests: ReturnType<typeof parseTestDescriptors>,
-): void {
+function assertCompleteFiles(tests: ReportedTests): void {
   const counts = new Map<string, number>();
 
   for (const test of tests) {
@@ -69,7 +84,7 @@ export async function saveReportEvidence(
     repo,
     commit: body.commit,
     branch: report.branch,
-    tests: parseTestDescriptors(report.tests ?? []),
+    tests: reportedTests(report),
     outcomes: Object.fromEntries(
       (report.results ?? []).map((result) => [result.id, result.passed]),
     ),
