@@ -58,7 +58,7 @@ describe("resolveTestLines", () => {
 
     expect(resolveTestLines(FILE, descriptors)).toEqual([
       { ...descriptors[0], endLine: 7 },
-      { ...descriptors[1], endLine: FILE.split("\n").length },
+      { ...descriptors[1], endLine: 11 },
     ]);
   });
 
@@ -71,7 +71,18 @@ describe("resolveTestLines", () => {
 
     expect(
       resolveTestLines(FILE, descriptors).map(({ endLine }) => endLine),
-    ).toEqual([7, 7, FILE.split("\n").length]);
+    ).toEqual([7, 7, 11]);
+  });
+
+  it("ends a native test before a declaration the report omits at line 8", () => {
+    const descriptors = [
+      { ...desc("greets the user"), runnerId: "native-1", startLine: 4 },
+      { ...desc("naps"), runnerId: "native-3", startLine: 12 },
+    ];
+
+    expect(
+      resolveTestLines(FILE, descriptors).map(({ endLine }) => endLine),
+    ).toEqual([7, FILE.split("\n").length]);
   });
 
   it("leaves native bounds unknown when one case lacks its runner location", () => {

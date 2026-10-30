@@ -12,7 +12,7 @@ export function resolveTestLines(
   const lastLine = content.split("\n").length;
 
   if (descriptors.some(hasRunnerId)) {
-    return nativeLines(descriptors, lastLine);
+    return nativeLines(descriptors, declarations, lastLine);
   }
 
   return descriptors.map((descriptor) =>
@@ -24,17 +24,21 @@ function hasRunnerId(descriptor: TestDescriptor): boolean {
   return "runnerId" in descriptor && typeof descriptor.runnerId === "string";
 }
 
+/** A native test ends before the next declaration in the file, reported or not: a skipped test the runner left out is still where the previous one stops. */
 function nativeLines(
   descriptors: TestDescriptor[],
+  declarations: TestDeclaration[],
   lastLine: number,
 ): TestDescriptor[] {
   if (descriptors.some((descriptor) => !descriptor.startLine)) {
     return descriptors;
   }
 
-  const lines = [
-    ...new Set(descriptors.map((descriptor) => descriptor.startLine!)),
-  ].sort((first, second) => first - second);
+  const starts = new Set([
+    ...descriptors.map((descriptor) => descriptor.startLine!),
+    ...declarations.map((declaration) => declaration.line),
+  ]);
+  const lines = [...starts].sort((first, second) => first - second);
   const ends = new Map(
     lines.map((line, index) => [line, (lines[index + 1] ?? lastLine + 1) - 1]),
   );
