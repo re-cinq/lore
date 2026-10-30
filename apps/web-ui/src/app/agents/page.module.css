@@ -37,20 +37,24 @@
     var(--chart-feature) 50%,
     var(--chart-section)
   );
+  --card-solid: var(--chart-feature);
 
   display: flex;
 }
 
 .agentCard[data-vendor="anthropic"] {
   --card-border: var(--brand-anthropic);
+  --card-solid: var(--brand-anthropic-solid);
 }
 
 .agentCard[data-vendor="google"] {
   --card-border: var(--brand-google);
+  --card-solid: var(--brand-google-solid);
 }
 
 .agentCard[data-vendor="openai"] {
   --card-border: var(--brand-openai);
+  --card-solid: var(--brand-openai-solid);
 }
 
 .agentCard > section {
@@ -61,15 +65,15 @@
     var(--card-border) border-box;
 }
 
-/* Edit wears its card's colour; the attribute selector outranks every theme's button rules, chicago's included. */
+/* Edit wears its vendor's solid colour; the attribute selector outranks every theme's button rules, chicago's included. */
 .agentCard[data-vendor] .edit button {
   border: none;
   box-shadow: none;
-  background: var(--card-border);
+  background: var(--card-solid);
   color: var(--white);
 }
 
 .agentCard[data-vendor] .edit button:hover {
-  background: var(--card-border);
+  background: var(--card-solid);
   filter: brightness(1.1);
 }
