@@ -12,7 +12,6 @@ function row(
   commit: string,
   receivedAt: number,
   tests: ReturnType<typeof test>[],
-  passed = true,
 ): TestReportRow {
   return {
     id: String(receivedAt),
@@ -20,8 +19,17 @@ function row(
     commit,
     branch: "main",
     tests,
-    outcomes: Object.fromEntries(tests.map(({ id }) => [id, passed])),
+    outcomes: Object.fromEntries(tests.map(({ id }) => [id, true])),
     receivedAt: new Date(receivedAt * 1000),
+  };
+}
+
+function failing(passing: TestReportRow): TestReportRow {
+  return {
+    ...passing,
+    outcomes: Object.fromEntries(
+      Object.keys(passing.outcomes).map((id) => [id, false]),
+    ),
   };
 }
 
@@ -38,10 +46,10 @@ describe("reportWithHistory", () => {
   });
 
   it("takes a file from the newest earlier commit that ran it", () => {
-    const head = row("head", 30, [test("a.test.ts", "adds")], false);
+    const head = failing(row("head", 30, [test("a.test.ts", "adds")]));
     const earlier = [
-      row("mid", 20, [test("b.test.ts", "subtracts")], false),
-      row("first", 10, [test("b.test.ts", "subtracts")], true),
+      failing(row("mid", 20, [test("b.test.ts", "subtracts")])),
+      row("first", 10, [test("b.test.ts", "subtracts")]),
     ];
 
     expect(reportWithHistory(head, earlier)).toMatchObject({
@@ -54,7 +62,7 @@ describe("reportWithHistory", () => {
 
     expect(
       reportWithHistory(head, [
-        row("old", 10, [test("a.test.ts", "adds")], false),
+        failing(row("old", 10, [test("a.test.ts", "adds")])),
       ]),
     ).toEqual(head);
   });

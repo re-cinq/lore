@@ -1,25 +1,34 @@
 import type { ReportedTest, TestReportRow } from "./test-reports-port.js";
 
-/**
- * The head commit's report completed with the files it did not run. CI runs only the files a push affects, so a file missing from the head row was unaffected and its newest earlier result still stands; `earlier` is newest first.
- */
+interface CarriedTest {
+  test: ReportedTest;
+  outcome: boolean;
+}
+
+/** CI runs only the files a push affects, so a file the head row lacks was unaffected and its newest earlier result still stands; `earlier` is newest first. */
 export function reportWithHistory(
   head: TestReportRow,
   earlier: readonly TestReportRow[],
 ): TestReportRow {
   const taken = new Set(head.tests.map((test) => test.file));
-  const tests: ReportedTest[] = [...head.tests];
-  const outcomes = { ...head.outcomes };
+  const carried = earlier.flatMap((row) => carriedFrom(row, taken));
 
-  for (const row of earlier) {
-    const fresh = row.tests.filter((test) => !taken.has(test.file));
+  return {
+    ...head,
+    tests: [...head.tests, ...carried.map(({ test }) => test)],
+    outcomes: {
+      ...head.outcomes,
+      ...Object.fromEntries(
+        carried.map(({ test, outcome }) => [test.id, outcome]),
+      ),
+    },
+  };
+}
 
-    for (const test of fresh) {
-      tests.push(test);
-      outcomes[test.id] = row.outcomes[test.id];
-    }
-    fresh.forEach((test) => taken.add(test.file));
-  }
+function carriedFrom(row: TestReportRow, taken: Set<string>): CarriedTest[] {
+  const fresh = row.tests.filter((test) => !taken.has(test.file));
 
-  return { ...head, tests, outcomes };
+  fresh.forEach((test) => taken.add(test.file));
+
+  return fresh.map((test) => ({ test, outcome: row.outcomes[test.id] }));
 }
