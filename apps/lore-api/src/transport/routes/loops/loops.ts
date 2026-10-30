@@ -11,6 +11,15 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { LOOP_KINDS } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import { loopSwitchedOn } from "@re-cinq/lore-shared/loops/loop-enabled.js";
+import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
+import {
+  loopPause,
+  pauseActive,
+  type LoopPause,
+} from "@re-cinq/lore-shared/loops/loop-pause.js";
+import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { resumeLoop } from "../../../work/loops/resume-loop.js";
+import { handleRunNode } from "../floor/run-node.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -108,7 +117,7 @@ const RESUME_OPTIONS = zodResponse(
   {
     name: "LoopResume",
     description:
-      "Resume one of the repository's loops: forget its pause and leave its switch as it is.",
+      "Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep, the digest) also runs again the station whose model credit ran out, and answers that run's id.",
     errors: [400, 404],
   },
 );
@@ -131,10 +140,25 @@ async function serveResumeLoop(
   const repo = repoOf(request.params);
 
   await enforceRepoRow(pool, repo);
-  await new PgSettings(pool).resumeLoop(repo, key);
+  const settings = new PgSettings(pool);
+  const pause = loopPause(key, await settings.rawSettings(repo));
+  const rerun = await resumeLoop(key, pause, {
+    resume: () => settings.resumeLoop(repo, key),
+    visits: (runId) => floorClient().stationRuns.list({ run: runId }),
+    rerun: async (runId, nodeId) => {
+      await handleRunNode(floorClient(), pool, {
+        runId,
+        nodeId,
+        actor: RESUME_ACTOR,
+      });
+    },
+  });
 
-  return h.response({ ok: true as const, key }).code(200);
+  return h.response({ ok: true as const, key, rerun_run_id: rerun }).code(200);
 }
+
+/** Who a station run again on resume is recorded as asked by. */
+const RESUME_ACTOR = "lore:loop-resume";
 
 async function serveReadLoops(
   pool: Pool,
@@ -157,7 +181,14 @@ export function repoLoops(settings: unknown): RepoLoop[] {
   return LOOP_KINDS.map((kind) => ({
     ...kind,
     enabled: loopSwitchedOn(kind.key, settings),
+    paused: activePause(kind.key, settings),
   }));
+}
+
+function activePause(key: LoopKey, settings: unknown): LoopPause | null {
+  const pause = loopPause(key, settings);
+
+  return pauseActive(pause, new Date()) ? pause : null;
 }
 
 async function serveSwitchLoop(

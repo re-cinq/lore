@@ -4218,6 +4218,7 @@ export interface components {
         | "upkeep"
         | "digest"
         | "tickets";
+      rerun_run_id: string | null;
     };
     LoopSwitch: {
       /** @constant */
@@ -4821,6 +4822,12 @@ export interface components {
         label: string;
         description: string;
         enabled: boolean;
+        paused: {
+          reason: string;
+          run_id: string | null;
+          at: string;
+          until: string | null;
+        } | null;
       }[];
     };
     RepoOnboarded: {
@@ -9145,7 +9152,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Resume one of the repository's loops: forget its pause and leave its switch as it is. */
+      /** @description Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep, the digest) also runs again the station whose model credit ran out, and answers that run's id. */
       200: {
         headers: {
           [name: string]: unknown;

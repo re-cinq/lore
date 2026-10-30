@@ -6500,7 +6500,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Resume one of the repository's loops: forget its pause and leave its switch as it is.",
+            "description": "Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep, the digest) also runs again the station whose model credit ran out, and answers that run's id.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15924,9 +15924,12 @@
               "digest",
               "tickets"
             ]
+          },
+          "rerun_run_id": {
+            "type": ["string", "null"]
           }
         },
-        "required": ["ok", "key"],
+        "required": ["ok", "key", "rerun_run_id"],
         "additionalProperties": false
       },
       "LoopSwitch": {
@@ -17914,9 +17917,35 @@
                 },
                 "enabled": {
                   "type": "boolean"
+                },
+                "paused": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string"
+                        },
+                        "run_id": {
+                          "type": ["string", "null"]
+                        },
+                        "at": {
+                          "type": "string"
+                        },
+                        "until": {
+                          "type": ["string", "null"]
+                        }
+                      },
+                      "required": ["reason", "run_id", "at", "until"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
-              "required": ["key", "label", "description", "enabled"],
+              "required": ["key", "label", "description", "enabled", "paused"],
               "additionalProperties": false
             }
           }

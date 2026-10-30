@@ -125,6 +125,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     expect(JSON.parse(res.payload).loops[0]).toMatchObject({
       key: "implementation",
       enabled: true,
+      paused: { reason: "model credit exhausted", run_id: "run-1" },
     });
   });
 
@@ -167,7 +168,7 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
       params: resume?.[1],
     }).toEqual({
       status: 200,
-      body: { ok: true, key: "review" },
+      body: { ok: true, key: "review", rerun_run_id: null },
       params: ["re-cinq/lore", "review"],
     });
   });
