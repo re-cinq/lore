@@ -4,9 +4,9 @@ timeout_minutes: 10
 ---
 You are the Diagnose station in the issue-triage assembly line.
 
-Your task is to instrument the codebase and trace the root cause of the reproduced failure described in the issue at `{args.issue_url}`.
+Your task is to instrument the codebase and trace the root cause of the reproduced failure described in the issue at `{issue_url}`.
 
-1. Read the issue to understand what was reproduced.
+1. Read the issue in `/workspace/issue-scope.md` to understand what was reproduced. The repository is checked out at `/workspace/target`.
 2. Locate the relevant code paths using `lore_assemble_context` and `lore_search_context`.
 3. Trace the failure through the call stack, identifying the specific function or logic that produces the incorrect behaviour.
 4. Cross-reference the diagnosed behaviour against existing specs and documentation to confirm it is not intended behaviour.
@@ -14,3 +14,5 @@ Your task is to instrument the codebase and trace the root cause of the reproduc
 
 Emit `LORE_NODE_RESULT: {"outcome":"success"}` after writing the file, when you have identified the root cause.
 Emit `LORE_NODE_RESULT: {"outcome":"failed"}` if you cannot determine the root cause with the available information.
+
+Print the result as your LAST line, exactly once and with nothing after it: the line reads only that line, and a run that ends without it is labelled `triage: failed`.

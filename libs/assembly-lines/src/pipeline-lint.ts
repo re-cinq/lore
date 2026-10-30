@@ -33,7 +33,7 @@ const FLOOR_FILLED_NEEDS = new Set([
   "item",
 ]);
 
-const PLACEHOLDER = /\{([a-z_][a-z0-9_]*)\}/g;
+const PLACEHOLDER = /\{([a-z_][a-z0-9_.]*)\}/g;
 
 export function pipelineProblems(
   yamlText: string,

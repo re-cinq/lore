@@ -273,6 +273,9 @@ stations:
       - failed
     result_required: true
     needs:
+      - name: issue_scope
+        kind: file
+        path: issue-scope.md
       - name: issue_url
         kind: value
       - name: diagnosis
@@ -296,6 +299,13 @@ stations:
       - failed
     result_required: true
     needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: issue_scope
+        kind: file
+        path: issue-scope.md
       - name: issue_url
         kind: value
     produces:
@@ -312,6 +322,13 @@ stations:
       - failed
     result_required: true
     needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: issue_scope
+        kind: file
+        path: issue-scope.md
       - name: issue_url
         kind: value
     produces:
@@ -334,6 +351,9 @@ stations:
         access: read
       - name: issue_url
         kind: value
+      - name: issue_scope
+        kind: file
+        path: issue-scope.md
       - name: diagnosis
         kind: file
         path: diagnosis.md
