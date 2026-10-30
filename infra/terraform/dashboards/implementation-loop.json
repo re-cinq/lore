@@ -565,6 +565,25 @@
         }
        }
       ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "requeued"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "Requeued (model credit)"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#8a8a8a"
+        }
+       }
+      ]
      }
     ]
    },

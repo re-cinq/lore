@@ -13,11 +13,15 @@ const TOOLS: Tools = {
 const ISSUE_NUMBER = 42;
 const ISSUE_URL = `https://github.com/re-cinq/lore/issues/${ISSUE_NUMBER}`;
 
-function scene(outcome: string) {
+function scene(
+  outcome: string,
+  run: { creditLeft: boolean } = { creditLeft: true },
+) {
   const applied: Array<{ repo: string; issue: number; label: string }> = [];
   const deps = {
     run: () => Promise.resolve(triageRun(outcome)),
     failedAgentVisit: () => Promise.resolve(null),
+    ranOutOfCredit: () => Promise.resolve(!run.creditLeft),
     project: (_repo: string) =>
       Promise.reject(new Error("project not expected for issue-triage")),
     addLabel: (repo: string, issue: number, label: string) => {
@@ -74,5 +78,13 @@ describe("triage: failed on a terminal issue-triage run", () => {
       issue: ISSUE_NUMBER,
       label: "triage: failed",
     });
+  });
+
+  it("leaves issue 42 unlabelled when the run failed because the model's credit ran out", async () => {
+    const { settle, applied } = scene("failed", { creditLeft: false });
+
+    await settle();
+
+    expect(applied).toEqual([]);
   });
 });

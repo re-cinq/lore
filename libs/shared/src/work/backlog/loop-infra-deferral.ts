@@ -20,10 +20,24 @@ export interface ParkVerdict {
   deferral?: Deferral;
   /** The definition-of-done step found the ticket's claim already true on the base branch: close, do not park. */
   resolved?: string;
+  /** The model's credit ran out: the loop is paused (specs/loop-pause FR4) and the ticket stays queued for when it resumes. */
+  requeued?: true;
 }
 
 /** Failure classes that say nothing about the ticket: no pod ever ran, the pod died under it, or it could not clone the repository before the agent started. Re-running the previous node cannot summon a cluster (#1648), but the NEXT tick can; a checkout that keeps failing still parks at the bound. */
 const INFRA_CLASSES = new Set(["unclaimed", "infra", "repo-checkout"]);
+
+/** A run whose failing visit ran out of model credit: nothing about the ticket failed. */
+export function isCreditFailure(
+  run: ClosedLoopRun,
+  visits: readonly StationVisit[],
+): boolean {
+  const judged = failingVisit(run, visits);
+
+  return (
+    judged?.outcome === "failed" && judged.failureClass === "anthropic-credit"
+  );
+}
 
 /** A run whose failing visit failed on the cluster rather than on the work. The failing visit is the one that routed into a retrospective that succeeded (a reaped round routes its failure there, and the retrospective's own success must not hide it — run eb46675f), otherwise the last recorded one, a retrospective that itself failed included. */
 export function isInfraFailure(
@@ -97,10 +111,12 @@ export async function erroredVerdict(
   reason: string | undefined,
   deps: LoopRunClosedDeps,
 ): Promise<ParkVerdict> {
-  const why = reason
-    ? `the run ended ${outcome}: ${reason}`
-    : `the run ended ${outcome}`;
+  const why = `the run ended ${outcome}${reason ? `: ${reason}` : ""}`;
   const visits = await deps.listStationRuns(run.id);
+
+  if (isCreditFailure(run, visits)) {
+    return { why, askForRewrite: false, requeued: true };
+  }
 
   if (!deferrable(run) || !isInfraFailure(run, visits)) {
     return { why, askForRewrite: false };
@@ -136,24 +152,42 @@ function boundedDeferral(
 }
 
 /** A deferral leaves the ticket eligible: no label, one short comment so the issue shows why nothing landed, and the re-arm picks it again. */
-export async function commentDeferral(
+export function commentDeferral(
   run: ClosedLoopRun,
   deferral: Deferral,
   deps: LoopRunClosedDeps,
+): Promise<void> {
+  return commentOnTicket(
+    run,
+    deps,
+    `Lore's implementation loop is deferring this ticket, not parking it (infrastructure attempt ${deferral.attempt} of ${deferral.max}): ${deferral.reason}. Nothing about the ticket failed; it stays queued and the next tick picks it again. Run: \`${run.id}\``,
+  );
+}
+
+/** A ticket requeued for want of credit keeps no label; one comment says the loop paused, so the issue shows why nothing landed. */
+export function commentRequeue(
+  run: ClosedLoopRun,
+  deps: LoopRunClosedDeps,
+): Promise<void> {
+  return commentOnTicket(
+    run,
+    deps,
+    `Lore's implementation loop paused: the model's credit is exhausted. Nothing about this ticket failed; it stays queued and is picked up when the loop resumes. Run: \`${run.id}\``,
+  );
+}
+
+async function commentOnTicket(
+  run: ClosedLoopRun,
+  deps: LoopRunClosedDeps,
+  body: string,
 ): Promise<void> {
   const issueNumber = run.taskId
     ? await deps.getTaskIssueNumber(run.taskId)
     : null;
 
-  if (!issueNumber) {
-    return;
+  if (issueNumber) {
+    await deps.comment(run.repo, issueNumber, body);
   }
-
-  await deps.comment(
-    run.repo,
-    issueNumber,
-    `Lore's implementation loop is deferring this ticket, not parking it (infrastructure attempt ${deferral.attempt} of ${deferral.max}): ${deferral.reason}. Nothing about the ticket failed; it stays queued and the next tick picks it again. Run: \`${run.id}\``,
-  );
 }
 
 export interface InfraFailureCountInput {

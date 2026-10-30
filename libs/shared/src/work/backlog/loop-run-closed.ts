@@ -7,6 +7,7 @@ import type { RunGraph } from "../../domain/run-graph.js";
 import { LOOP_PARKING_PREFIX, LORE_BLOCKED_LABEL } from "./labels.js";
 import {
   commentDeferral,
+  commentRequeue,
   erroredVerdict,
   nodeIdsOfType,
   routedIntoRetrospective,
@@ -111,10 +112,14 @@ export function ticketResultOf(verdict: ParkVerdict): LoopTicketResult {
     return "closed_done";
   }
 
+  if (verdict.requeued) {
+    return "requeued";
+  }
+
   return verdict.deferral ? "deferred" : "parked";
 }
 
-/** The ticket stays open and unworked: its task keeps why, and the issue is either deferred to the next tick or parked for a human. */
+/** The ticket stays open and unworked: its task keeps why, and the issue is requeued for when its paused loop resumes, deferred to the next tick, or parked for a human. */
 async function holdTicket(
   run: ClosedLoopRun,
   verdict: ParkVerdict,
@@ -122,6 +127,12 @@ async function holdTicket(
 ): Promise<void> {
   if (run.taskId) {
     await deps.recordWhy(run.taskId, verdict.why);
+  }
+
+  if (verdict.requeued) {
+    await commentRequeue(run, deps);
+
+    return;
   }
 
   if (verdict.deferral) {

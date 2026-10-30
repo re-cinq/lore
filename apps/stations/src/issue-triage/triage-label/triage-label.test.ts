@@ -26,12 +26,16 @@ function brief(overrides: Record<string, string> = {}) {
   };
 }
 
-function scene(nodeId: string) {
+function scene(
+  nodeId: string,
+  run: { creditLeft: boolean } = { creditLeft: true },
+) {
   const labelled: Array<{ number: number; label: string }> = [];
   const commented: Array<{ number: number; body: string }> = [];
 
   const handle = triageLabelHandle({
     nodeOf: () => Promise.resolve(nodeId),
+    ranOutOfCredit: () => Promise.resolve(!run.creditLeft),
     issues: (repo) =>
       repo !== REPO
         ? Promise.reject(new Error(`Not Found: ${repo}`))
@@ -142,5 +146,14 @@ describe("the triage-label station", () => {
     await expect(handle(brief(), TOOLS)).rejects.toThrow(
       new Error('no triage label is declared for node "human-gate"'),
     );
+  });
+
+  it("leaves issue 42 unlabelled when the pass failed because the model's credit ran out", async () => {
+    const { handle, labelled } = scene("label-failed", { creditLeft: false });
+
+    expect(await handle(brief({ verdict: "" }), TOOLS)).toEqual({
+      outcome: "success",
+    });
+    expect(labelled).toEqual([]);
   });
 });
