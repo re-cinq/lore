@@ -249,6 +249,43 @@ describe("issue implementation assessment", () => {
     );
   });
 
+  it("hands the agent the recorded tests one per line, apart from the pinned issue", async () => {
+    const s = scene();
+
+    s.report.tests.push({
+      ...s.report.tests[0],
+      id: "second-case",
+      name: "renders a second widget",
+      runnerId: "second-case",
+    });
+    await s.load();
+
+    const lines = s.artifacts.test_report.split("\n");
+    const scope = JSON.parse(s.artifacts.implementation_scope) as {
+      snapshot: { number: number };
+      report?: unknown;
+    };
+
+    expect({
+      lines: lines.length,
+      runnerIds: lines.map((line) => JSON.parse(line).runnerId),
+      scope: { number: scope.snapshot.number, report: scope.report },
+    }).toEqual({
+      lines: 2,
+      runnerIds: [PROOF.test_id, "second-case"],
+      scope: { number: 42, report: undefined },
+    });
+  });
+
+  it("hands the agent an empty test file when the commit has no stored report", async () => {
+    const s = scene();
+
+    vi.mocked(s.deps.report).mockResolvedValue(null);
+    await s.load();
+
+    expect(s.artifacts.test_report).toEqual("");
+  });
+
   it("narrows task 42 to the verified remaining gap and preserves its marker and priority", async () => {
     const s = scene(assessment("partial"));
 

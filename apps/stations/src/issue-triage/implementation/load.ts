@@ -4,6 +4,7 @@ import {
   type RunningStation,
   type Tools,
 } from "@re-cinq/floor-station";
+import type { TestReport } from "@re-cinq/lore-shared/models/test-report.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { implementationDeps, type ImplementationDeps } from "./deps.js";
 import { issueSnapshot, issueScope, type IssueSnapshot } from "./scope.js";
@@ -49,11 +50,24 @@ async function publishScope(
 ): Promise<void> {
   const report = await deps.report(snapshot.repo, snapshot.commit);
 
-  await tools.produce(
-    "implementation_scope",
-    JSON.stringify({ snapshot, report }),
-  );
+  await tools.produce("implementation_scope", JSON.stringify({ snapshot }));
   await tools.produce("issue_scope", issueScope(snapshot));
+  await tools.produce("test_report", recordedTestLines(report));
+}
+
+/** One recorded test per line, so the agent can search a commit's thousands of tests instead of reading them as one block. */
+function recordedTestLines(report: TestReport | null): string {
+  return (report?.tests ?? [])
+    .map(({ id, runnerId, name, file, execution }) =>
+      JSON.stringify({
+        runnerId,
+        name,
+        file,
+        execution,
+        passed: report?.outcomes[id] === true,
+      }),
+    )
+    .join("\n");
 }
 
 export function startLoadImplementationStation(): RunningStation {

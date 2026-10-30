@@ -182,7 +182,7 @@ line:
       on: success
 stations:
   triage-load-implementation:
-    description: Pins every issue report and main revision and supplies its matching recorded CI test outcomes for assessment.
+    description: Pins every issue report and main revision and lists its matching recorded CI test outcomes, one test per line, for assessment.
     kind: service
     outcomes:
       - success
@@ -197,6 +197,8 @@ stations:
       - name: implementation_scope
         kind: file
       - name: issue_scope
+        kind: file
+      - name: test_report
         kind: file
   triage-assess-implementation:
     description: Assesses the whole issue report against source and relevant recorded test behavior without changing the repository or GitHub.
@@ -218,6 +220,9 @@ stations:
       - name: issue_scope
         kind: file
         path: issue-scope.md
+      - name: test_report
+        kind: file
+        path: test-report.jsonl
       - name: implementation_report
         kind: file
         path: implementation-report.md
