@@ -11,6 +11,7 @@ import {
 } from "@re-cinq/floor-pipeline";
 import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
 
 export interface PipelineText {
   name: string;
@@ -20,6 +21,8 @@ export interface PipelineText {
 export interface SeedDeps {
   files(): Promise<PipelineText[]>;
   env: Record<string, string | undefined>;
+  /** The agent definitions the floor already holds: those are saved there and never re-seeded from a file. */
+  heldAgentDefinitions(): Promise<string[]>;
   /** Puts a pipeline's definitions and answers for each whether the floor already held that content. */
   importPipeline(pipeline: Pipeline): Promise<Put[]>;
 }
@@ -60,32 +63,42 @@ export interface Seeded {
   failed: SeedFailure[];
 }
 
-/** Puts every shipped pipeline, every time. A version is its content, so a definition the floor already holds is left exactly as it is and an edit made on the floor since stays the latest; only a file that CHANGED here becomes a new version. A file the floor refuses is reported and the rest are still put: one unshippable file froze four pipelines for a day when a single throw ended the pass. */
+/** Puts every shipped pipeline, every time. A version is its content, so a definition the floor already holds is left exactly as it is and an edit made on the floor since stays the latest; only a file that CHANGED here becomes a new version. An agent definition is seeded only when the floor holds none of that name: once there, it is edited on the floor (#3995), and a changed file must not overwrite a saved prompt or a repository's variant. A file the floor refuses is reported and the rest are still put: one unshippable file froze four pipelines for a day when a single throw ended the pass. */
 export async function seedFloorPipelines(deps: SeedDeps): Promise<Seeded> {
   const files = await deps.files();
-  const changed: string[] = [];
-  const failed: SeedFailure[] = [];
+  const held = new Set(await deps.heldAgentDefinitions());
+  const tally: Seeded = { changed: [], failed: [] };
 
   for (const file of files) {
-    await putOne(deps, file, changed, failed);
+    await putOne(deps, held, file, tally);
   }
 
-  return { changed: [...new Set(changed)], failed };
+  return { changed: [...new Set(tally.changed)], failed: tally.failed };
 }
 
 async function putOne(
   deps: SeedDeps,
+  held: ReadonlySet<string>,
   file: PipelineText,
-  changed: string[],
-  failed: SeedFailure[],
+  tally: Seeded,
 ): Promise<void> {
   try {
-    const puts = await deps.importPipeline(pipelineOfText(file.text, deps.env));
+    const pipeline = unseededOnly(pipelineOfText(file.text, deps.env), held);
+    const puts = await deps.importPipeline(pipeline);
 
-    changed.push(...puts.filter((put) => put.changed).map(putName));
+    tally.changed.push(...puts.filter((put) => put.changed).map(putName));
   } catch (cause) {
-    failed.push({ name: file.name, reason: reasonOf(cause) });
+    tally.failed.push({ name: file.name, reason: reasonOf(cause) });
   }
+}
+
+function unseededOnly(pipeline: Pipeline, held: ReadonlySet<string>): Pipeline {
+  const { agentDefinitions } = pipeline;
+
+  return {
+    ...pipeline,
+    agentDefinitions: agentDefinitions.filter((named) => !held.has(named.id)),
+  };
 }
 
 // A 400's title alone ("invalid line body") hid the two unseeded binds that kept feature-planning off the floor for four days (#3487): the floor's problem list rides along.
@@ -109,6 +122,8 @@ export function productionSeedDeps(
   return {
     env,
     files: readFloorPipelineFiles,
+    heldAgentDefinitions: async () =>
+      (await floorClientFrom(env).agentDefinitions.list()).map((row) => row.id),
     importPipeline: (pipeline) => importPipeline(floor, pipeline),
   };
 }
