@@ -3,6 +3,8 @@ import { BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import { storedBlock } from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { disarmAutoMerge } from "../repos/auto-merge-gate.js";
 
@@ -20,11 +22,6 @@ const SWITCH_SQL: Record<LoopKey, string> = {
   tickets: blockSwitchSql("spec_tickets"),
 };
 
-/** The block as stored, or an empty one when it is absent or was cleared to null: `null || {…}` would make a JSONB array. */
-export function storedBlock(block: string): string {
-  return `(CASE WHEN jsonb_typeof(settings->'${block}') = 'object' THEN settings->'${block}' ELSE '{}'::jsonb END)`;
-}
-
 /** Merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. */
 function blockSwitchSql(block: string): string {
   return `UPDATE lore.repos
@@ -35,13 +32,17 @@ function blockSwitchSql(block: string): string {
           WHERE full_name = $1`;
 }
 
-/** Flips one loop's switch on a repository the caller has already found (`enforceRepoRow`). Switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
+/** Flips one loop's switch on a repository the caller has already found (`enforceRepoRow`). Switching a loop on also forgets its pause; switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
 export async function switchLoop(
   pool: Pool,
   repo: string,
   { key, enabled }: { key: LoopKey; enabled: boolean },
 ): Promise<void> {
   await pool.query(SWITCH_SQL[key], [repo, enabled]);
+
+  if (enabled) {
+    await new PgSettings(pool).resumeLoop(repo, key);
+  }
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);

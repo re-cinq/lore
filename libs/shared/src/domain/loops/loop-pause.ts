@@ -20,8 +20,8 @@ export function loopPause(
   key: LoopKey,
   rawSettings: unknown,
 ): LoopPause | null {
-  const settings = PausesSchema.safeParse(parsedSettings(rawSettings));
-  const pause = LoopPauseSchema.safeParse(settings.data?.loop_pauses[key]);
+  const pauses = PausesSchema.safeParse(parsedSettings(rawSettings)).data;
+  const pause = LoopPauseSchema.safeParse(pauses?.loop_pauses[key]);
 
   return pause.success ? pause.data : null;
 }

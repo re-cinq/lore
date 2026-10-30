@@ -12,7 +12,7 @@ import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { storedBlock } from "../loops/loop-switch.js";
+import { storedBlock } from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";

@@ -1,4 +1,4 @@
-// The repository's loops (specs/implementation-loop FR9, specs/issue-triage FR33, specs/protected-branch-merge): GET lists every loop with its switch state for the Loops tab's pill row, PUT flips one.
+// The repository's loops (specs/implementation-loop FR9, specs/issue-triage FR33, specs/protected-branch-merge): GET lists every loop with its switch state for the Loops tab's pill row, PUT flips one, DELETE …/pause resumes a paused one.
 import type { Pool } from "pg";
 import type {
   Request,
@@ -10,7 +10,8 @@ import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { LOOP_KINDS } from "@re-cinq/lore-shared/loops/loop-kinds.js";
-import { loopEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
+import { loopSwitchedOn } from "@re-cinq/lore-shared/loops/loop-enabled.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -25,6 +26,7 @@ import { floorRunPagesWithoutCost } from "../floor/floor-runs.js";
 import { loopPullReads } from "./loop-pull-reads.js";
 import {
   LoopKeySchema,
+  LoopResumeResultSchema,
   LoopSwitchBodySchema,
   LoopSwitchResultSchema,
   RepoLoopsSchema,
@@ -48,6 +50,7 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     readLoopsRoute(getPool),
     switchLoopRoute(getPool),
+    resumeLoopRoute(getPool),
     codeReviewRoute(floorRunPagesWithoutCost, pullReads),
     autoMergeRoute(getPool, floorRunPagesWithoutCost, pullReads),
     specUpkeepRoute(floorRunPagesWithoutCost, pullReads),
@@ -96,6 +99,43 @@ function switchLoopRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+const RESUME_OPTIONS = zodResponse(
+  {
+    ...bearerScope("admin"),
+    validate: { params: zodValidate(SwitchParams) },
+  },
+  LoopResumeResultSchema,
+  {
+    name: "LoopResume",
+    description:
+      "Resume one of the repository's loops: forget its pause and leave its switch as it is.",
+    errors: [400, 404],
+  },
+);
+
+function resumeLoopRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "DELETE",
+    path: `${PATH}/{key}/pause`,
+    options: RESUME_OPTIONS,
+    handler: withPool(getPool, serveResumeLoop),
+  };
+}
+
+async function serveResumeLoop(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { key } = request.params as z.infer<typeof SwitchParams>;
+  const repo = repoOf(request.params);
+
+  await enforceRepoRow(pool, repo);
+  await new PgSettings(pool).resumeLoop(repo, key);
+
+  return h.response({ ok: true as const, key }).code(200);
+}
+
 async function serveReadLoops(
   pool: Pool,
   request: Request,
@@ -116,7 +156,7 @@ async function serveReadLoops(
 export function repoLoops(settings: unknown): RepoLoop[] {
   return LOOP_KINDS.map((kind) => ({
     ...kind,
-    enabled: loopEnabled(kind.key, settings),
+    enabled: loopSwitchedOn(kind.key, settings),
   }));
 }
 

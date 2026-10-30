@@ -26,3 +26,8 @@ export const LoopSwitchResultSchema = z.object({
 });
 
 export type RepoLoop = z.infer<typeof RepoLoopSchema>;
+
+export const LoopResumeResultSchema = z.object({
+  ok: OkTrue,
+  key: LoopKeySchema,
+});

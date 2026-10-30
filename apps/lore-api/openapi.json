@@ -6487,6 +6487,76 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/loops/{key}/pause": {
+      "delete": {
+        "operationId": "delete_api_repos_owner_repo_loops_key_pause",
+        "summary": "DELETE /api/repos/{owner}/{repo}/loops/{key}/pause",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Resume one of the repository's loops: forget its pause and leave its switch as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopResume"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/onboarded": {
       "get": {
         "operationId": "get_api_repos_owner_repo_onboarded",
@@ -15835,6 +15905,29 @@
       },
       "LoginRedirect": {
         "type": "null"
+      },
+      "LoopResume": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "key": {
+            "type": "string",
+            "enum": [
+              "implementation",
+              "review",
+              "merge",
+              "triage",
+              "upkeep",
+              "digest",
+              "tickets"
+            ]
+          }
+        },
+        "required": ["ok", "key"],
+        "additionalProperties": false
       },
       "LoopSwitch": {
         "type": "object",
