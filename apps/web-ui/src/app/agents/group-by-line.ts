@@ -37,3 +37,10 @@ export function groupAgentsByLine(
 function lineOf(refs: AgentUsageRef[] | undefined): string {
   return refs && refs.length > 0 ? refs[0].blueprint : UNUSED_LINE;
 }
+
+/** An assembly line's id as a sentence-case title: "code-review" reads "Code review". */
+export function lineTitle(line: string): string {
+  const words = line.replaceAll("-", " ");
+
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AgentDefinition } from "@/lib/agents-mirror";
-import { groupAgentsByLine, UNUSED_LINE } from "./group-by-line";
+import { groupAgentsByLine, lineTitle, UNUSED_LINE } from "./group-by-line";
 
 const agentNamed = (name: string): AgentDefinition => ({
   name,
@@ -52,5 +52,13 @@ describe("groupAgentsByLine", () => {
     expect(groupAgentsByLine(agents, null)).toEqual([
       { line: UNUSED_LINE, agents },
     ]);
+  });
+});
+
+describe("lineTitle", () => {
+  it("returns Code review, Feature planning and Code review recheck for their line ids", () => {
+    expect(
+      ["code-review", "feature-planning", "code-review-recheck"].map(lineTitle),
+    ).toEqual(["Code review", "Feature planning", "Code review recheck"]);
   });
 });

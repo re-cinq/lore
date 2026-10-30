@@ -5,7 +5,7 @@ import type { AgentUsage } from "@/lib/agents-api";
 import { SettingsCard } from "@/components/SettingsCard";
 import { ScopePill } from "../repos/[owner]/[repo]/agents/AgentList";
 import { rowCells } from "../repos/[owner]/[repo]/agents/agent-row-cells";
-import { groupAgentsByLine } from "./group-by-line";
+import { groupAgentsByLine, lineTitle } from "./group-by-line";
 import styles from "./page.module.css";
 
 interface AgentCardsProps {
@@ -18,7 +18,7 @@ export default function AgentCards({ agents, usage }: AgentCardsProps) {
   return groupAgentsByLine(agents, usage).map(
     ({ line, agents: lineAgents }) => (
       <section key={line} className={styles.line}>
-        <h3>{line}</h3>
+        <h3>{lineTitle(line)}</h3>
         <div className={styles.cards}>
           {lineAgents.map((agent) => (
             <AgentCard key={agent.name} agent={agent} usage={usage} />
