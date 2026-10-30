@@ -135,6 +135,10 @@ overlapping `CodeChunk` — the **execution-verified** evidence tier — on
 demand, without a full-report upload. `passed: false` on a validating
 test raises the **`violated`** signal (after the flaky guard).
 
+### Browser suites
+
+A browser suite answers `covered: []` unless its run adapter measures coverage. A Chromium suite can: Playwright's `page.coverage` reports the V8 ranges a test ran, the build writes hidden source maps (no `sourceMappingURL` comment, so the served bundle is unchanged), and `v8-to-istanbul` maps the ranges back to source lines. The adapter merges them per spec file and prints contiguous `{file, startLine, endLine}` ranges in `covered`. Declare `run_many` when the suite holds fixed ports, so every file runs in one process. Otto's `scripts/lore-run-playwright.mjs` and `apps/web/tests/browser/test.ts` are the reference. Without such an adapter the empty `covered` is still posted on every delta, because a test with no coverage may depend on any change.
+
 ## `tests.run_many` — run many test files at once (optional, `json` only)
 
 Reads the test files to run on stdin, one per line (paths as `list` reports
