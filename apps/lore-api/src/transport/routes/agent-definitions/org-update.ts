@@ -26,8 +26,10 @@ const IMAGE_ORG_DETAIL =
   "Changing an execution image is CODEOWNERS-gated per repo. Set it through " +
   "/api/repos/{owner}/{repo}/agent-definitions with an approval PR instead.";
 
+/** `onSaved` re-puts the floor pipelines, so a saved prompt is what the next run is handed; it never fails the save. */
 export function orgAgentDefinitionUpdateRoute(
   getPool: () => Pool | null,
+  onSaved: (pool: Pool) => Promise<void>,
 ): ServerRoute {
   return {
     method: "PUT",
@@ -37,20 +39,27 @@ export function orgAgentDefinitionUpdateRoute(
       description: "The updated org-default definition",
       errors: [400],
     }),
-    handler: withPool(getPool, serveOrgUpdate),
+    handler: withPool(getPool, (pool, request, h) =>
+      serveOrgUpdate({ pool, onSaved }, request, h),
+    ),
   };
 }
 
 /** The org-default write. Anything past the body parse is either a guard's own refusal (which already carries its status) or an unexpected failure. */
+interface OrgSave {
+  pool: Pool;
+  onSaved: (pool: Pool) => Promise<void>;
+}
+
 async function serveOrgUpdate(
-  pool: Pool,
+  save: OrgSave,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const name = request.params.name as string;
 
   try {
-    return await orgUpdateOutcome(pool, name, request, h);
+    return await orgUpdateOutcome(save, name, request, h);
   } catch (err) {
     // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
@@ -63,7 +72,7 @@ async function serveOrgUpdate(
 
 /** Parses the body and applies it. A malformed body is the CALLER's mistake and answers 400 with the parse issues, rather than reaching the route's catch. */
 async function orgUpdateOutcome(
-  pool: Pool,
+  { pool, onSaved }: OrgSave,
   name: string,
   request: Request,
   h: ResponseToolkit,
@@ -79,10 +88,11 @@ async function orgUpdateOutcome(
       .code(400);
   }
 
-  return h.response({
-    ok: true,
-    agent: await applyOrgPatch(pool, name, patch),
-  });
+  const agent = await applyOrgPatch(pool, name, patch);
+
+  await onSaved(pool);
+
+  return h.response({ ok: true, agent });
 }
 
 function issuesOf(err: unknown): unknown {

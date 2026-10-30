@@ -13,6 +13,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   pipelineOfText,
   seedFloorPipelines,
+  storedAgentSettings,
   withEnvironment,
   type SeedDeps,
 } from "./seed-floor-pipelines.js";
@@ -45,6 +46,8 @@ function fakeFloor(held: string[]) {
       { name: "b.yaml", text: "line:\n  id: lore-run-settled\n" },
     ],
     env: {},
+    agentSettings: async () => new Map(),
+    heldAgentDefinitions: async () => [],
     importPipeline: async (pipeline) => {
       const id = pipeline.line?.id ?? "";
 
@@ -86,10 +89,93 @@ describe("withEnvironment", () => {
 });
 
 describe("seedFloorPipelines", () => {
+  it("reads code-review's stored prompt, model, timeout, image and config from its org row", () => {
+    const row = {
+      name: "code-review",
+      prompt: "Review.\n",
+      model: "claude-sonnet-4-6",
+      timeout_minutes: 25,
+      image: null,
+      execution_mode: "claude-code",
+      review_required: true,
+      config: null,
+      project_id: null,
+    };
+
+    expect(Object.fromEntries(storedAgentSettings([row]))).toEqual({
+      "code-review": {
+        prompt: "Review.\n",
+        model: "claude-sonnet-4-6",
+        timeout_minutes: 25,
+        image: null,
+        config: null,
+      },
+    });
+  });
+
+  it("puts the stored code-review prompt and claude-sonnet-4-6 over the pipeline file's gemini-4-argon", async () => {
+    const put: unknown[] = [];
+
+    await seedFloorPipelines({
+      files: async () => [
+        {
+          name: "code-review.yaml",
+          text: "agent_definitions:\n  code-review:\n    settings:\n      model: gemini-4-argon\n",
+        },
+      ],
+      env: {},
+      agentSettings: async () =>
+        new Map([
+          [
+            "code-review",
+            { prompt: "Stored prompt.\n", model: "claude-sonnet-4-6" },
+          ],
+        ]),
+      importPipeline: async (pipeline) => {
+        put.push(...pipeline.agentDefinitions);
+
+        return [];
+      },
+      heldAgentDefinitions: async () => [],
+    });
+
+    expect(put).toEqual([
+      {
+        id: "code-review",
+        body: {
+          settings: { model: "claude-sonnet-4-6", prompt: "Stored prompt.\n" },
+        },
+      },
+    ]);
+  });
+
+  it("reports code-review's prompt as drifted when the floor still holds the old prompt after the put", async () => {
+    const seeded = await seedFloorPipelines({
+      files: async () => [
+        {
+          name: "code-review.yaml",
+          text: "agent_definitions:\n  code-review:\n    settings: {}\n",
+        },
+      ],
+      env: {},
+      agentSettings: async () =>
+        new Map([
+          ["code-review", { prompt: "New.\n" }],
+          ["no-pipeline-runs-me", { prompt: "Unused.\n" }],
+        ]),
+      importPipeline: async () => [],
+      heldAgentDefinitions: async (ids) =>
+        ids.map((id) => ({ id, body: { settings: { prompt: "Old.\n" } } })),
+    });
+
+    expect(seeded.drift).toEqual([{ name: "code-review", fields: ["prompt"] }]);
+  });
+
   it("puts both pipelines and reports only lore-run-settled as changed when the floor holds code-review as written", async () => {
     const { deps, imported } = fakeFloor(["code-review"]);
 
     expect(await seedFloorPipelines(deps)).toEqual({
+      drift: [],
       changed: ["assembly-lines/lore-run-settled"],
       failed: [],
     });
@@ -100,6 +186,7 @@ describe("seedFloorPipelines", () => {
     const { deps } = fakeFloor([]);
 
     expect(await seedFloorPipelines(deps)).toEqual({
+      drift: [],
       changed: [
         "assembly-lines/code-review",
         "assembly-lines/lore-run-settled",
@@ -111,7 +198,11 @@ describe("seedFloorPipelines", () => {
   it("reports nothing changed when the floor holds every pipeline as written", async () => {
     const { deps } = fakeFloor(["code-review", "lore-run-settled"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual({ changed: [], failed: [] });
+    expect(await seedFloorPipelines(deps)).toEqual({
+      drift: [],
+      changed: [],
+      failed: [],
+    });
   });
 
   it("puts b.yaml and reports a.yaml as failed when the floor refuses a.yaml", async () => {
@@ -124,6 +215,7 @@ describe("seedFloorPipelines", () => {
         : put(pipeline);
 
     expect(await seedFloorPipelines(deps)).toEqual({
+      drift: [],
       changed: ["assembly-lines/lore-run-settled"],
       failed: [{ name: "a.yaml", reason: "invalid station body" }],
     });
@@ -148,6 +240,7 @@ describe("seedFloorPipelines", () => {
     deps.importPipeline = () => Promise.reject(refusal);
 
     expect(await seedFloorPipelines(deps)).toEqual({
+      drift: [],
       changed: [],
       failed: [
         {
@@ -171,6 +264,7 @@ describe("seedFloorPipelines", () => {
     deps.importPipeline = () => Promise.resolve([shared]);
 
     expect(await seedFloorPipelines(deps)).toEqual({
+      drift: [],
       changed: ["stations/post-review"],
       failed: [],
     });

@@ -66,6 +66,7 @@ import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
 import { agentDefinitionActivityRoute } from "./routes/agent-definitions/activity.js";
 import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
 import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
+import { productionSeeding, seedFloor } from "../work/floor/seed-floor.js";
 import {
   agentsGetRoute,
   agentsPostRoute,
@@ -282,7 +283,9 @@ function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
     agentDefinitionUsageRoute(),
     agentDefinitionActivityRoute(),
     orgAgentDefinitionsRoute(getPool),
-    orgAgentDefinitionUpdateRoute(getPool),
+    orgAgentDefinitionUpdateRoute(getPool, (pool) =>
+      seedFloor(productionSeeding(pool)),
+    ),
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),
     agentsDeleteRoute(getPool),

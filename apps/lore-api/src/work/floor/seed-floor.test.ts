@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seedFloor, type FloorSeeding } from "./seed-floor.js";
-import type { SeedDeps } from "../work/floor/seed-floor-pipelines.js";
+import type { SeedDeps } from "./seed-floor-pipelines.js";
 
 const LINE = `line:
   id: walk
@@ -20,6 +20,8 @@ function seeding(overrides: Partial<SeedDeps>) {
   const deps: SeedDeps = {
     files: () => Promise.resolve([{ name: "walk.yaml", text: LINE }]),
     env: {},
+    agentSettings: async () => new Map(),
+    heldAgentDefinitions: async () => [],
     importPipeline: (pipeline) => {
       const id = pipeline.line?.id ?? "";
 
@@ -48,6 +50,34 @@ describe("seedFloor", () => {
       logged: ["floor pipelines put: assembly-lines/walk"],
       imported: ["walk"],
     });
+  });
+
+  it("logs code-review's drifted prompt and model when the floor holds them differently after the put", async () => {
+    const { floorSeeding, logged } = seeding({
+      files: () =>
+        Promise.resolve([
+          {
+            name: "code-review.yaml",
+            text: "agent_definitions:\n  code-review:\n    settings: {}\n",
+          },
+        ]),
+      agentSettings: async () =>
+        new Map([
+          ["code-review", { prompt: "New.\n", model: "claude-sonnet-4-6" }],
+        ]),
+      heldAgentDefinitions: async () => [
+        {
+          id: "code-review",
+          body: { settings: { prompt: "Old.\n", model: "gemini-4-argon" } },
+        },
+      ],
+    });
+
+    await seedFloor(floorSeeding);
+
+    expect(logged).toContain(
+      "floor agent definitions DRIFTED from lore.agent_definitions after the put: code-review (prompt, model)",
+    );
   });
 
   it("logs none changed when the floor holds the line walk as written", async () => {

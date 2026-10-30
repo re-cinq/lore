@@ -10,7 +10,7 @@ import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context
 import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
-import { seedFloor } from "./app/seed-floor.js";
+import { seedFloorAtBoot } from "./app/seed-floor.js";
 import { seedAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-seed.js";
 import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
@@ -39,7 +39,7 @@ async function main() {
     await seedShippedAgents(state.pool);
     await seedShippedSkills(state.pool);
   }
-  await seedFloor();
+  await seedFloorAtBoot(state.pool);
 
   await startHttpServer(getPool);
 }

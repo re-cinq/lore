@@ -49,11 +49,14 @@ function paramOr<T>(
   return (params?.[index] as T | undefined) ?? fallback;
 }
 
-async function server(pool: Pool | null): Promise<Hapi.Server> {
+async function server(
+  pool: Pool | null,
+  onSaved: (pool: Pool) => Promise<void> = async () => {},
+): Promise<Hapi.Server> {
   const s = Hapi.server();
 
   registerBearerScope(s, () => pool);
-  s.route(orgAgentDefinitionUpdateRoute(() => pool));
+  s.route(orgAgentDefinitionUpdateRoute(() => pool, onSaved));
 
   return s;
 }
@@ -89,6 +92,23 @@ describe("PUT /api/agent-definitions/{name}", () => {
     const upsert = capture.find((c) => /on conflict \(name\)/i.test(c.text));
 
     expect(upsert?.text).toMatch(/where project_id is null/i);
+  });
+
+  it("re-seeds the floor once, through the same pool, after fix-ci's org row is saved", async () => {
+    const pool = fakePool([]);
+    const reseeded: Pool[] = [];
+    const s = await server(pool, async (saved) => {
+      reseeded.push(saved);
+    });
+
+    await s.inject({
+      method: "PUT",
+      url: "/api/agent-definitions/fix-ci",
+      headers: AUTH,
+      payload: { name: "fix-ci", model: "claude-opus-4-8" },
+    });
+
+    expect(reseeded).toEqual([pool]);
   });
 
   it("merges pod_resources inside the upsert: binds touched=true and the block, and merges over the row's own config in SQL", async () => {

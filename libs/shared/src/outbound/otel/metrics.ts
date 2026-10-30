@@ -136,6 +136,11 @@ export function recordUtopiaMirrorFailure(repo: string): void {
   instruments().utopiaMirrorFailures.add(1, { repo });
 }
 
+/** One agent definition the floor holds differently from lore.agent_definitions after a seed, so its next run is handed something nobody saved. */
+export function recordFloorAgentDrift(agent: string): void {
+  instruments().floorAgentDrift.add(1, { agent });
+}
+
 export interface LlmCallMetric {
   model: string;
   inputTokens: number;
@@ -184,6 +189,7 @@ function instrumentsOf(meter: Meter) {
     ...recordInstruments(meter),
     ...stationInstruments(meter),
     ...floorInstruments(meter),
+    ...seedInstruments(meter),
     ...llmInstruments(meter),
     ...billingInstruments(meter),
   };
@@ -276,6 +282,15 @@ function floorInstruments(meter: Meter) {
     utopiaMirrorFailures: meter.createCounter("lore.utopia.mirror_failures", {
       description:
         "Spec and ADR ingests whose mirror into Utopia failed, by repo; the ingest itself still landed",
+    }),
+  };
+}
+
+function seedInstruments(meter: Meter) {
+  return {
+    floorAgentDrift: meter.createCounter("lore.floor.agent_drift", {
+      description:
+        "Agent definitions the floor held differently from lore.agent_definitions when read back after a seed, by agent",
     }),
   };
 }

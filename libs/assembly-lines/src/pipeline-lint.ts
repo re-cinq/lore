@@ -187,7 +187,8 @@ function unsuppliedInputs(
   prompts: AgentPrompts,
 ): PipelineProblem[] {
   const definition = station.agent_definition ?? node.station ?? "";
-  const missing = missingInputsOf(checked, station, prompts.get(definition));
+  const prompt = prompts.get(definition)?.prompt;
+  const missing = missingInputsOf(checked, station, prompt);
 
   return missing.length === 0
     ? []

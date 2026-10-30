@@ -217,7 +217,10 @@ describe("pipelineProblems — the inputs an agent's recipe reads", () => {
 
   it("reports unsupplied-input naming args.issue_url when a recipe reads the arg under a dotted name the floor never fills", () => {
     const dottedRecipe = new Map([
-      ["spec-tickets-decompose", "Read the issue at `{args.issue_url}`."],
+      [
+        "spec-tickets-decompose",
+        { prompt: "Read the issue at `{args.issue_url}`." },
+      ],
     ]);
 
     expect(
