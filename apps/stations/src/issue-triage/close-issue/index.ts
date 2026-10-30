@@ -107,7 +107,7 @@ async function completeIssue(
   const body = marker + "\n\n" + message;
   const comments = await issues.listComments(snapshot.number);
 
-  if (!comments.some((comment) => comment.body === body)) {
+  if (!comments.some((comment) => comment.body.includes(marker))) {
     await issues.comment(snapshot.number, body);
   }
   await issues.close(snapshot.number, "completed");

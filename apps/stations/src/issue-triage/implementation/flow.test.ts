@@ -610,6 +610,26 @@ describe("issue implementation assessment", () => {
     });
   });
 
+  it("does not repeat the evidence comment when GitHub returned it with other line endings and a changed message", async () => {
+    const s = scene();
+
+    s.project.issues.close.mockRejectedValueOnce(
+      new Error("GitHub unavailable"),
+    );
+    await s.load();
+    await s.verify();
+    await s.finish();
+    s.comments[0].body =
+      s.comments[0].body.replace(/\n/g, "\r\n").replace("fully", "  fully") +
+      "\r\n";
+
+    expect(await s.finish()).toEqual({ outcome: "success" });
+    expect({ comments: s.comments.length, state: s.issue.state }).toEqual({
+      comments: 1,
+      state: "closed",
+    });
+  });
+
   it("keeps person-only operational work open even when a configuration test passes", async () => {
     const raw = assessment();
 
