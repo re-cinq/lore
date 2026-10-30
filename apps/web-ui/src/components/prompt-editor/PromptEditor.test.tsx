@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
-import { EditorView } from "@codemirror/view";
+import { EditorView, runScopeHandlers } from "@codemirror/view";
+import { undo } from "@codemirror/commands";
 import PromptEditor from "./PromptEditor";
 
 const PROMPT =
@@ -87,5 +88,41 @@ describe("PromptEditor", () => {
         .querySelector(".cm-content")
         ?.classList.contains("cm-lineWrapping"),
     ).toBe(true);
+  });
+
+  it("submits 'Read' again after typing ' the ticket' and undoing it", () => {
+    const { container } = render(
+      <form>
+        <PromptEditor name="prompt" defaultValue="Read" />
+      </form>,
+    );
+    const view = EditorView.findFromDOM(
+      container.querySelector<HTMLElement>(".cm-editor")!,
+    )!;
+
+    view.dispatch({ changes: { from: 4, insert: " the ticket" } });
+    undo(view);
+
+    expect(submittedPrompt(container.querySelector("form")!)).toBe("Read");
+  });
+
+  it("submits 'Read\\n' after Enter is pressed at the end of 'Read'", () => {
+    const { container } = render(
+      <form>
+        <PromptEditor name="prompt" defaultValue="Read" />
+      </form>,
+    );
+    const view = EditorView.findFromDOM(
+      container.querySelector<HTMLElement>(".cm-editor")!,
+    )!;
+
+    view.dispatch({ selection: { anchor: 4 } });
+    runScopeHandlers(
+      view,
+      new KeyboardEvent("keydown", { key: "Enter" }),
+      "editor",
+    );
+
+    expect(submittedPrompt(container.querySelector("form")!)).toBe("Read\n");
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, placeholder as emptyText } from "@codemirror/view";
+import { EditorView, keymap, placeholder as emptyText } from "@codemirror/view";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { livePreview } from "./live-preview";
 
 export interface PromptViewOptions {
@@ -49,6 +50,8 @@ function promptExtensions({
   onChange,
 }: PromptViewOptions): Extension[] {
   return [
+    history(),
+    keymap.of([...defaultKeymap, ...historyKeymap]),
     livePreview,
     EditorView.lineWrapping,
     emptyText(placeholder ?? ""),
