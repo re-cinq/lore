@@ -12,15 +12,22 @@ const ISSUE: IssueRef = {
 };
 
 describe("ticketsListing", () => {
-  it("lists a filed task by its id, title, issue number and state, without the body", () => {
+  it("lists task T001 with its current body so triage preserves the reported gap", () => {
     expect(ticketsListing(new Map([["T001", ISSUE]]))).toEqual([
       {
         id: "T001",
         title: "T001: Add the parser",
         number: 12,
         state: "closed",
+        body: "long body",
       },
     ]);
+  });
+
+  it("lists an empty body when task T001 has no issue text", () => {
+    expect(
+      ticketsListing(new Map([["T001", { ...ISSUE, body: undefined }]])),
+    ).toMatchObject([{ id: "T001", body: "" }]);
   });
 
   it("is empty for a spec nothing was filed for", () => {

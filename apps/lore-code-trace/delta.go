@@ -55,6 +55,13 @@ func selectDelta(report TestReport, changed []string) TestReport {
 	for _, result := range report.Results {
 		resultByID[result.ID] = result
 	}
+	affectedFiles := make(map[string]bool)
+	for _, test := range report.Tests {
+		result, hasResult := resultByID[test.ID]
+		if affected(test, result, hasResult, changedSet) {
+			affectedFiles[test.File] = true
+		}
+	}
 
 	out := TestReport{
 		Commit:  report.Commit,
@@ -64,7 +71,7 @@ func selectDelta(report TestReport, changed []string) TestReport {
 	}
 	for _, test := range report.Tests {
 		result, hasResult := resultByID[test.ID]
-		if !affected(test, result, hasResult, changedSet) {
+		if !affectedFiles[test.File] {
 			continue
 		}
 		out.Tests = append(out.Tests, test)

@@ -2,7 +2,68 @@ import { describe, it, expect } from "vitest";
 import {
   extractCodeSymbols,
   extractImportedCallSites,
+  sourceCallAt,
 } from "./reference-extractor.js";
+
+describe("sourceCallAt", () => {
+  it("bounds each registration at line 1 before the unreported skipped test", async () => {
+    const source =
+      'it.each([1, 2])("case %s", value => {\nexpect(value).toEqual(1);\n});\nit.skip("other", () => expect(false).toEqual(true));';
+
+    expect(await sourceCallAt(".ts", source, { line: 1, column: 1 })).toEqual({
+      start: 1,
+      end: 3,
+      text: 'it.each([1, 2])("case %s", value => {\nexpect(value).toEqual(1);\n})',
+    });
+  });
+
+  it.each([
+    [
+      "it.each",
+      'it.each([1, 2])("case %s", value => expect(value).toEqual(1));',
+      16,
+    ],
+    [
+      "test.each",
+      'test.each([1, 2])("case %s", value => expect(value).toEqual(1));',
+      18,
+    ],
+    [
+      "it.concurrent",
+      'it.concurrent("works", () => expect(true).toEqual(true));',
+      4,
+    ],
+    ["it.fails", 'it.fails("works", () => expect(1).toEqual(2));', 4],
+    ["it.only", 'it.only("works", () => expect(true).toEqual(true));', 4],
+  ])(
+    "locates the registration of %s at the column vitest reports",
+    async (_modifier, source, column) => {
+      expect(await sourceCallAt(".ts", source, { line: 1, column })).toEqual({
+        start: 1,
+        end: 1,
+        text: source.replace(/;$/, ""),
+      });
+    },
+  );
+
+  it.each(["syntax-error", "wrong-column", "unsupported-grammar"])(
+    "returns null for %s source identity",
+    async (failure) => {
+      const source =
+        failure === "syntax-error"
+          ? 'it("broken", () => {'
+          : 'it("works", () => expect(true).toEqual(true));';
+
+      expect(
+        await sourceCallAt(
+          failure === "unsupported-grammar" ? ".py" : ".ts",
+          source,
+          { line: 1, column: failure === "wrong-column" ? 2 : 1 },
+        ),
+      ).toEqual(null);
+    },
+  );
+});
 
 describe("extractImportedCallSites", () => {
   it("returns imported symbol names and their source paths when those symbols are called in a TypeScript source file", async () => {

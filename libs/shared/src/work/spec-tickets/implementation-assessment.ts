@@ -3,7 +3,10 @@ import type {
   StatementAssessment,
 } from "../../domain/feature-planning/decomposition-result.js";
 import { taskErrors, type VerifyEvidence } from "./implementation-tasks.js";
-import { specParts } from "../../domain/feature-planning/issue-coverage.js";
+import {
+  specParts,
+  type SpecPart,
+} from "../../domain/feature-planning/issue-coverage.js";
 import { evidenceIsPresent } from "../../domain/feature-planning/grounding.js";
 import {
   testLinksOfDoc,
@@ -15,6 +18,7 @@ export interface ImplementationAssessmentInput {
   specPath: string;
   commit: string;
   read(path: string): Promise<string | null>;
+  parts?: readonly SpecPart[];
 }
 
 export interface ImplementationAssessment {
@@ -74,13 +78,13 @@ function checkStatements(
   verify: VerifyEvidence,
 ): Promise<CheckedStatement[]> {
   return Promise.all(
-    specParts(input.spec).map(({ line }) =>
+    (input.parts ?? specParts(input.spec)).map(({ line }) =>
       checkStatement(decomposition, { ...input, line }, verify),
     ),
   );
 }
 
-function cachedRead(
+export function cachedRead(
   read: ImplementationAssessmentInput["read"],
 ): ImplementationAssessmentInput["read"] {
   const contents = new Map<string, Promise<string | null>>();

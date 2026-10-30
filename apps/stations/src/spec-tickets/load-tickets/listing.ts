@@ -6,15 +6,17 @@ export interface TicketListing {
   title: string;
   number: number;
   state: IssueRef["state"];
+  body: string;
 }
 
 export function ticketsListing(
   tasks: ReadonlyMap<string, IssueRef>,
 ): TicketListing[] {
-  return [...tasks].map(([id, { title, number, state }]) => ({
+  return [...tasks].map(([id, { title, number, state, body }]) => ({
     id,
     title,
     number,
     state,
+    body: body ?? "",
   }));
 }

@@ -1,4 +1,6 @@
 import { enforceTrue } from "../lib/enforce.js";
+import { TestExecutionSchema } from "./models/test-report.js";
+import type { z } from "zod";
 /** Parsers for the project's test-command output (`specs/project-test-interface/contracts/test-commands.md`): `parseTestDescriptors` turns `tests.list` stdout into {@link TestDescriptor}s, `parseRunResult` turns `tests.run <id>` stdout into a {@link RunResult}. */
 
 export interface TestDescriptor {
@@ -11,6 +13,8 @@ export interface TestDescriptor {
   /** One `path#ordinal` spec anchor, or several when one test validates several statements. */
   spec?: string | string[];
   passed?: boolean;
+  runnerId?: string;
+  execution?: z.infer<typeof TestExecutionSchema>;
 }
 
 export interface CoveredChunk {
@@ -57,12 +61,23 @@ function buildTestDescriptor(entry: Record<string, unknown>): TestDescriptor {
 
   descriptor.suite = stringArrayOrUndefined(entry.suite);
   descriptor.spec = normalizeSpecField(entry.spec);
+  Object.assign(descriptor, executionFields(entry));
 
   if (typeof entry.passed === "boolean") {
     descriptor.passed = entry.passed;
   }
 
   return descriptor;
+}
+
+function executionFields(entry: Record<string, unknown>) {
+  const execution = TestExecutionSchema.safeParse(entry.execution);
+
+  return {
+    ...(typeof entry.runnerId === "string" &&
+      entry.runnerId !== "" && { runnerId: entry.runnerId }),
+    ...(execution.success && { execution: execution.data }),
+  };
 }
 
 function parseCoveredChunks(raw: unknown): CoveredChunk[] {

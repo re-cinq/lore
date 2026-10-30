@@ -223,6 +223,27 @@ describe("decideIssueWork", () => {
     ]);
   });
 
+  it("keeps person-only triage work blocked even after someone adds a priority", () => {
+    const original = decomposition();
+    const [story] = original.stories;
+    const task = {
+      ...story.tasks[0],
+      needs_person: "Apply Terraform in production",
+    };
+    const work = decideIssueWork(
+      { stories: [{ ...story, tasks: [task] }] },
+      REPO_LABELS,
+      { queue: false },
+    );
+
+    expect(work.outcome === "proceed" && work.tasks[0].labels).toEqual([
+      "area:floor",
+      "lore-managed",
+      "triage: needs-priority",
+      "lore:blocked",
+    ]);
+  });
+
   it("files a task a person must do with lore:blocked beside priority:medium, so the loop skips it until the label is removed", () => {
     const [slice] = decomposition().stories;
     const work = decideIssueWork(

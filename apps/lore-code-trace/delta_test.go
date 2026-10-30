@@ -76,6 +76,22 @@ func TestSelectDeltaKeepsTestsWhoseCoverageTouchesAChangedFile(t *testing.T) {
 	}
 }
 
+func TestSelectDeltaKeepsSkippedAndUnknownSiblingsOfAnAffectedCase(t *testing.T) {
+	full := TestReport{
+		Tests: []TestDescriptor{
+			nativeTest("one", "passed", 2),
+			nativeTest("two", "skipped", 2),
+			nativeTest("three", "unknown", 4),
+			{ID: "unrelated", Name: "unrelated", File: "src/b.test.ts"},
+		},
+		Results: []TaggedRunResult{{ID: "one", Passed: true, Covered: []CoveredChunk{{File: "src/widget.ts", StartLine: 1, EndLine: 5}}}},
+	}
+	got := selectDelta(full, []string{"src/widget.ts"})
+	if !reflect.DeepEqual(got.Tests, full.Tests[:3]) || !reflect.DeepEqual(got.Results, full.Results) {
+		t.Fatalf("affected file lost siblings: %#v", got)
+	}
+}
+
 func TestSelectDeltaKeepsNothingWhenNothingRelevantChanged(t *testing.T) {
 	got := selectDelta(report(), []string{"README.md"})
 

@@ -53,6 +53,19 @@ func TestChunkReportKeepsSingleChunkUnderMax(t *testing.T) {
 	}
 }
 
+func TestChunkReportKeepsNativeCaseSnapshotsComplete(t *testing.T) {
+	full := TestReport{Commit: "abc", Branch: "main", Tests: []TestDescriptor{
+		nativeTest("one", "passed", 2),
+		{ID: "other", Name: "other", File: "src/b.test.ts"},
+		nativeTest("two", "skipped", 2),
+		nativeTest("three", "unknown", 4),
+	}}
+	chunks := chunkReport(full, 1)
+	if len(chunks) != 2 || !reflect.DeepEqual(chunks[0].Tests, []TestDescriptor{full.Tests[0], full.Tests[2], full.Tests[3]}) {
+		t.Fatalf("native cases split or lost: %#v", chunks)
+	}
+}
+
 func TestChunkReportKeepsBothDescriptorsOfAGoInOneChunkUnderABudgetThatFitsOneFile(t *testing.T) {
 	report := TestReport{
 		Commit: "c", Branch: "b",

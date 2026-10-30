@@ -24,6 +24,10 @@ const EXT_TO_WASM: Record<string, string> = {
   ".tsx": "tree-sitter-tsx.wasm",
   ".js": "tree-sitter-javascript.wasm",
   ".jsx": "tree-sitter-javascript.wasm",
+  ".mjs": "tree-sitter-javascript.wasm",
+  ".cjs": "tree-sitter-javascript.wasm",
+  ".mts": "tree-sitter-typescript.wasm",
+  ".cts": "tree-sitter-typescript.wasm",
 };
 
 /** The named imports `source` actually calls, paired with the path each came from; an unsupported extension yields none. */
@@ -99,6 +103,105 @@ export async function extractCodeSymbols(
 function importStatements(root: Parser.SyntaxNode): Parser.SyntaxNode[] {
   return root.namedChildren.filter(
     (child) => child.type === "import_statement",
+  );
+}
+
+export async function sourceCallAt(
+  ext: string,
+  source: string,
+  location: { line: number; column: number },
+): Promise<{ start: number; end: number; text: string } | null> {
+  const parser = await ensureParser();
+  const grammar = await loadGrammar(ext);
+
+  if (!grammar) {
+    return null;
+  }
+  parser.setLanguage(grammar);
+  const tree = parser.parse(source);
+
+  try {
+    return locatedCall(tree.rootNode, location);
+  } finally {
+    tree.delete();
+  }
+}
+
+function locatedCall(
+  root: Parser.SyntaxNode,
+  location: { line: number; column: number },
+) {
+  if (root.hasError) {
+    return null;
+  }
+  const calls: Parser.SyntaxNode[] = [];
+
+  walk(root, (node) => {
+    if (isLocatedCallback(node, location)) {
+      calls.push(node);
+    }
+  });
+  const call = calls[0];
+
+  return calls.length === 1 ? callRange(call) : null;
+}
+
+function callRange(call: Parser.SyntaxNode) {
+  return {
+    start: call.startPosition.row + 1,
+    end: call.endPosition.row + 1,
+    text: call.text,
+  };
+}
+
+function isLocatedCallback(
+  node: Parser.SyntaxNode,
+  location: { line: number; column: number },
+): boolean {
+  const reportedAtCall = registrationAnchors(node).some(
+    (anchor) =>
+      anchor.row + 1 === location.line && anchor.column + 1 === location.column,
+  );
+
+  return node.type === "call_expression" && reportedAtCall && hasCallback(node);
+}
+
+/**
+ * Where vitest may say a registration begins: the call itself, the member of a
+ * modifier (`it.only`, `it.fails`), or the end of a curried callee
+ * (`it.each([1, 2])` before its second argument list).
+ */
+function registrationAnchors(call: Parser.SyntaxNode): Parser.Point[] {
+  const callee = call.childForFieldName("function");
+
+  if (callee?.type === "member_expression") {
+    return [call.startPosition, ...memberStart(callee)];
+  }
+
+  if (callee?.type === "call_expression") {
+    return [
+      call.startPosition,
+      callee.endPosition,
+      ...registrationAnchors(callee),
+    ];
+  }
+
+  return [call.startPosition];
+}
+
+function memberStart(member: Parser.SyntaxNode): Parser.Point[] {
+  const property = member.childForFieldName("property");
+
+  return property ? [property.startPosition] : [];
+}
+
+function hasCallback(node: Parser.SyntaxNode): boolean {
+  const args = node.childForFieldName("arguments");
+
+  return (
+    args?.namedChildren.some((child) =>
+      ["arrow_function", "function_expression"].includes(child.type),
+    ) ?? false
   );
 }
 

@@ -49,4 +49,48 @@ describe("resolveTestLines", () => {
     expect(missing.startLine).toBeUndefined();
     expect(missing.endLine).toBeUndefined();
   });
+
+  it("keeps native duplicate titles at lines 4 and 8 instead of rebinding both to line 4", () => {
+    const descriptors = [
+      { ...desc("greets the user"), runnerId: "native-1", startLine: 4 },
+      { ...desc("greets the user"), runnerId: "native-2", startLine: 8 },
+    ];
+
+    expect(resolveTestLines(FILE, descriptors)).toEqual([
+      { ...descriptors[0], endLine: 7 },
+      { ...descriptors[1], endLine: 11 },
+    ]);
+  });
+
+  it("keeps both native parameter cases at line 4 bounded before the next declaration at line 8", () => {
+    const descriptors = [
+      { ...desc("case 1"), runnerId: "native-1", startLine: 4 },
+      { ...desc("case 2"), runnerId: "native-2", startLine: 4 },
+      { ...desc("next"), runnerId: "native-3", startLine: 8 },
+    ];
+
+    expect(
+      resolveTestLines(FILE, descriptors).map(({ endLine }) => endLine),
+    ).toEqual([7, 7, 11]);
+  });
+
+  it("ends a native test before a declaration the report omits at line 8", () => {
+    const descriptors = [
+      { ...desc("greets the user"), runnerId: "native-1", startLine: 4 },
+      { ...desc("naps"), runnerId: "native-3", startLine: 12 },
+    ];
+
+    expect(
+      resolveTestLines(FILE, descriptors).map(({ endLine }) => endLine),
+    ).toEqual([7, FILE.split("\n").length]);
+  });
+
+  it("leaves native bounds unknown when one case lacks its runner location", () => {
+    const descriptors = [
+      { ...desc("greets the user"), runnerId: "native-1", startLine: 4 },
+      { ...desc("farewells the user"), runnerId: "native-2" },
+    ];
+
+    expect(resolveTestLines(FILE, descriptors)).toEqual(descriptors);
+  });
 });

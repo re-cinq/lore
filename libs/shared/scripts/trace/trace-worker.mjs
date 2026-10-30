@@ -11,45 +11,21 @@
 // files.json holds repo-relative test files; out.json receives
 // {file: {passed, covered}} for every file this package's vitest knows. The
 // answer goes to a file, not stdout, which the tests themselves write to.
-import { createRequire } from "node:module";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { coveredRanges } from "../../dist/domain/spec-trace/covered-ranges.js";
+import { descriptorsFromVitestModules } from "../../dist/domain/spec-trace/trace-descriptors.js";
+import { createTraceVitest } from "./trace-vitest.mjs";
 
 const [root, pkg, filesPath, outPath] = process.argv.slice(2);
 const files = JSON.parse(readFileSync(filesPath, "utf-8"));
-const pkgDir = join(root, pkg);
-
-// The package's own vitest: apps/web-ui installs its own, and the root one runs
-// its tests without its jsdom setup.
-const vitestNode = createRequire(join(pkgDir, "package.json")).resolve(
-  "vitest/node",
-);
-const { createVitest } = await import(pathToFileURL(vitestNode).href);
-
 const reportsDirectory = mkdtempSync(join(tmpdir(), "lore-trace-cov-"));
 let coverage;
-const vitest = await createVitest("test", {
-  root: pkgDir,
-  watch: false,
-  reporters: [
-    {
-      onCoverage(map) {
-        coverage = map;
-      },
-    },
-  ],
-  coverage: {
-    enabled: true,
-    provider: "v8",
-    reporter: [],
-    include: ["src/**"],
-    cleanOnRerun: true,
-    reportsDirectory,
-    // One file never meets a package's global thresholds (mcp-server's 100%).
-    thresholds: { lines: 0, functions: 0, statements: 0, branches: 0 },
+const vitest = await createTraceVitest(root, pkg, {
+  directory: reportsDirectory,
+  onCoverage(map) {
+    coverage = map;
   },
 });
 
@@ -59,27 +35,34 @@ try {
   await vitest.createCoverageProvider();
   // By module id, not by filter: a filter is a pattern, and web-ui's `[id]`
   // directories read as a character class that matches nothing.
-  const specByModule = new Map(
-    (await vitest.getRelevantTestSpecifications()).map((spec) => [
-      spec.moduleId,
-      spec,
-    ]),
+  const specsByModule = Map.groupBy(
+    await vitest.getRelevantTestSpecifications(),
+    (spec) => spec.moduleId,
   );
 
   for (const file of files) {
-    const spec = specByModule.get(join(root, file));
+    const specs = specsByModule.get(join(root, file));
 
-    if (!spec) {
+    if (!specs) {
       continue; // not a test of this package's config: left unanswered
     }
     coverage = undefined;
-    const run = await vitest.rerunTestSpecifications([spec], false);
-    const module = run.testModules.find((m) => m.moduleId === spec.moduleId);
+    const run = await vitest.rerunTestSpecifications(specs, false);
+    const modules = run.testModules.filter(
+      (module) => module.moduleId === join(root, file),
+    );
 
     results[file] = {
       passed:
-        module !== undefined && module.ok() && run.unhandledErrors.length === 0,
+        modules.length === specs.length &&
+        modules.every((module) => module.ok()) &&
+        run.unhandledErrors.length === 0,
       covered: coverage ? coveredRanges(coverage.toJSON(), root) : [],
+      tests: descriptorsFromVitestModules(modules, {
+        pkg,
+        executed: true,
+        unhandledErrors: run.unhandledErrors,
+      }),
     };
   }
 } finally {

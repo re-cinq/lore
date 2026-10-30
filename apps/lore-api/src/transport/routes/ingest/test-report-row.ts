@@ -4,8 +4,22 @@ const UPSERT_TEST_REPORT_SQL = `INSERT INTO pipeline.test_reports (repo, commit,
      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
      ON CONFLICT (repo, commit) DO UPDATE
        SET branch = EXCLUDED.branch,
-           tests = EXCLUDED.tests,
-           outcomes = EXCLUDED.outcomes,
+           tests = COALESCE((
+             SELECT jsonb_agg(old_test)
+               FROM jsonb_array_elements(test_reports.tests) old_test
+              WHERE NOT EXISTS (
+                SELECT 1 FROM jsonb_array_elements(EXCLUDED.tests) incoming
+                 WHERE incoming->>'file' = old_test->>'file'
+              )
+           ), '[]'::jsonb) || EXCLUDED.tests,
+           outcomes = (test_reports.outcomes - ARRAY(
+             SELECT old_test->>'id'
+               FROM jsonb_array_elements(test_reports.tests) old_test
+              WHERE EXISTS (
+                SELECT 1 FROM jsonb_array_elements(EXCLUDED.tests) incoming
+                 WHERE incoming->>'file' = old_test->>'file'
+              )
+           )) || EXCLUDED.outcomes,
            received_at = now()`;
 
 export type TestReportInput = {
@@ -16,7 +30,6 @@ export type TestReportInput = {
   outcomes: unknown;
 };
 
-/** Upserts one lore-code-trace test report into pipeline.test_reports. Re-posting a commit replaces its row. */
 export async function saveTestReportRow(
   pool: Pool,
   row: TestReportInput,

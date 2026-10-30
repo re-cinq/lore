@@ -4,12 +4,26 @@ import type { ColumnMap } from "../../lib/row.js";
 /** `pipeline.test_reports` (migration `0069`) — the latest lore-code-trace report per (repo, commit), what the Definition-of-Done read matches acceptance tests against; `id` is a string-encoded bigint like agent-run-event; no FKs (a report may arrive for a branch no run owns). */
 
 /** One test as the report describes it: the descriptor trimmed to what a match needs. */
+export const TestExecutionSchema = z.object({
+  status: z.enum(["passed", "failed", "skipped", "pending", "unknown"]),
+  location: z
+    .object({
+      line: z.number().int().positive(),
+      column: z.number().int().positive(),
+    })
+    .optional(),
+  expectedFailure: z.boolean(),
+  fileCaseCount: z.number().int().positive().optional(),
+});
+
 export const ReportedTestSchema = z.object({
   id: z.string(),
   name: z.string(),
   file: z.string(),
   suite: z.array(z.string()).optional(),
   startLine: z.number().optional(),
+  runnerId: z.string().min(1).optional(),
+  execution: TestExecutionSchema.optional(),
 });
 
 export type ReportedTest = z.infer<typeof ReportedTestSchema>;
