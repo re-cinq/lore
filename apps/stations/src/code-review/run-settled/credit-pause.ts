@@ -1,4 +1,4 @@
-// A run that ran out of model credit pauses the loop it belongs to (specs/loop-pause FR3): the next tick would only fail its next item the same way.
+// A run that ran out of model credit pauses the loop it belongs to (specs/loop-pause FR3): the next tick would only fail its next item the same way. Read off the visits, not the outcome: a line may route the failure on to a station that ends the run green.
 import type { Handle } from "@re-cinq/floor-station";
 import type { RunView, VisitView } from "@re-cinq/floor-client";
 import { loreRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
@@ -23,7 +23,7 @@ export function pausingLoopsOnCredit(
   return async (brief, tools) => {
     const key = loopOfLine(brief.needs.line_id);
 
-    if (key && brief.needs.outcome !== "success") {
+    if (key) {
       await pauseOnCredit(deps, key, brief.needs.run_id);
     }
 
@@ -46,13 +46,18 @@ async function pauseOnCredit(
   }
   const repo = loreRepoOf(run.repo);
 
-  await deps.pauseLoop(repo, key, {
-    reason: CREDIT_PAUSE_REASON,
-    run_id: runId,
-    at: deps.now().toISOString(),
-    until: null,
-  });
+  await deps.pauseLoop(repo, key, creditPause(runId, deps.now()));
   console.warn(
     `[run-settled] paused the ${key} loop on ${repo}: ${CREDIT_PAUSE_REASON} (run ${runId})`,
   );
+}
+
+/** A pause with no end: only a person knows when the credit is topped up. */
+export function creditPause(runId: string, at: Date): LoopPause {
+  return {
+    reason: CREDIT_PAUSE_REASON,
+    run_id: runId,
+    at: at.toISOString(),
+    until: null,
+  };
 }

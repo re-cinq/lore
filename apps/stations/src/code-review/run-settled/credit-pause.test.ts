@@ -111,7 +111,7 @@ describe("pausingLoopsOnCredit", () => {
     expect(pauses).toEqual([]);
   });
 
-  it("pauses nothing when the run succeeded", async () => {
+  it("pauses nothing when the review that ran out of credit succeeded on its retry", async () => {
     const { settle, pauses } = scene("code-review", "success", [
       planVisit("review", { outcome: "failed", error: CREDIT }),
       planVisit("review", { outcome: "success" }),
@@ -129,5 +129,16 @@ describe("pausingLoopsOnCredit", () => {
 
     expect(await settle()).toEqual({ outcome: "success" });
     expect(nextCalled()).toBe(true);
+  });
+
+  it("pauses the triage loop when reproduce ran out of credit and the run ended green through label-failed", async () => {
+    const { settle, pauses } = scene("issue-triage", "success", [
+      planVisit("reproduce", { outcome: "failed", error: CREDIT }),
+      planVisit("label-failed", { outcome: "success" }),
+    ]);
+
+    await settle();
+
+    expect(pauses.map(({ key }) => key)).toEqual(["triage"]);
   });
 });

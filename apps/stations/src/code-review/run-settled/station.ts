@@ -13,6 +13,7 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { creditFailureOf } from "@re-cinq/lore-shared/loops/credit-failure.js";
 import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
 import type { ReviewPoster } from "../post-review/post-review.js";
 import {
@@ -53,6 +54,8 @@ export interface SettledProject extends Pick<
 export interface RunSettledDeps {
   run(runId: string): Promise<RunView | null>;
   failedAgentVisit(runId: string): Promise<FailedAgentVisit | null>;
+  /** Whether a station of the run ran out of model credit: the loop is paused for it, and its item must not read as failed (specs/loop-pause FR4). */
+  ranOutOfCredit(runId: string): Promise<boolean>;
   project(repo: string): Promise<SettledProject>;
   addLabel(repo: string, issueNumber: number, label: string): Promise<void>;
 }
@@ -93,7 +96,7 @@ async function applyTriageFailed(
   }
   const issueNumberStr = startValueOf(run, "issue_number");
 
-  if (!issueNumberStr) {
+  if (!issueNumberStr || (await deps.ranOutOfCredit(runId))) {
     return;
   }
   await deps.addLabel(
@@ -161,6 +164,9 @@ const productionDeps: RunSettledDeps = {
   run: async (runId) => (await floorClient().runs.get(runId))?.run ?? null,
   failedAgentVisit: async (runId) =>
     failedAgentVisitOf(await floorClient().stationRuns.list({ run: runId })),
+  ranOutOfCredit: async (runId) =>
+    creditFailureOf(await floorClient().stationRuns.list({ run: runId })) !==
+    null,
   project: async (repo) => {
     const { pulls, repo: repository } = await projectFor(repo);
 

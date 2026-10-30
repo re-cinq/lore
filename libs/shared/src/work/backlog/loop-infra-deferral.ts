@@ -111,9 +111,7 @@ export async function erroredVerdict(
   reason: string | undefined,
   deps: LoopRunClosedDeps,
 ): Promise<ParkVerdict> {
-  const why = reason
-    ? `the run ended ${outcome}: ${reason}`
-    : `the run ended ${outcome}`;
+  const why = `the run ended ${outcome}${reason ? `: ${reason}` : ""}`;
   const visits = await deps.listStationRuns(run.id);
 
   if (isCreditFailure(run, visits)) {
@@ -154,44 +152,42 @@ function boundedDeferral(
 }
 
 /** A deferral leaves the ticket eligible: no label, one short comment so the issue shows why nothing landed, and the re-arm picks it again. */
-export async function commentDeferral(
+export function commentDeferral(
   run: ClosedLoopRun,
   deferral: Deferral,
   deps: LoopRunClosedDeps,
 ): Promise<void> {
-  const issueNumber = run.taskId
-    ? await deps.getTaskIssueNumber(run.taskId)
-    : null;
-
-  if (!issueNumber) {
-    return;
-  }
-
-  await deps.comment(
-    run.repo,
-    issueNumber,
+  return commentOnTicket(
+    run,
+    deps,
     `Lore's implementation loop is deferring this ticket, not parking it (infrastructure attempt ${deferral.attempt} of ${deferral.max}): ${deferral.reason}. Nothing about the ticket failed; it stays queued and the next tick picks it again. Run: \`${run.id}\``,
   );
 }
 
 /** A ticket requeued for want of credit keeps no label; one comment says the loop paused, so the issue shows why nothing landed. */
-export async function commentRequeue(
+export function commentRequeue(
   run: ClosedLoopRun,
   deps: LoopRunClosedDeps,
+): Promise<void> {
+  return commentOnTicket(
+    run,
+    deps,
+    `Lore's implementation loop paused: the model's credit is exhausted. Nothing about this ticket failed; it stays queued and is picked up when the loop resumes. Run: \`${run.id}\``,
+  );
+}
+
+async function commentOnTicket(
+  run: ClosedLoopRun,
+  deps: LoopRunClosedDeps,
+  body: string,
 ): Promise<void> {
   const issueNumber = run.taskId
     ? await deps.getTaskIssueNumber(run.taskId)
     : null;
 
-  if (!issueNumber) {
-    return;
+  if (issueNumber) {
+    await deps.comment(run.repo, issueNumber, body);
   }
-
-  await deps.comment(
-    run.repo,
-    issueNumber,
-    `Lore's implementation loop paused: the model's credit is exhausted. Nothing about this ticket failed; it stays queued and is picked up when the loop resumes. Run: \`${run.id}\``,
-  );
 }
 
 export interface InfraFailureCountInput {
