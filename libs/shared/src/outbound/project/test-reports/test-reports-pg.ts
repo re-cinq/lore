@@ -5,10 +5,12 @@ import {
   TEST_REPORT_TABLE,
   type TestReport,
 } from "../../../domain/models/test-report.js";
-import type {
-  NewTestReport,
-  TestReportRow,
-  TestReportsRepository,
+import { reportWithHistory } from "./report-history.js";
+import {
+  REPORT_HISTORY_DEPTH,
+  type NewTestReport,
+  type TestReportRow,
+  type TestReportsRepository,
 } from "./test-reports-port.js";
 
 const SELECT_COLUMNS = selectList(TEST_REPORT_COLUMNS);
@@ -71,5 +73,25 @@ export class PgTestReports implements TestReportsRepository {
     const row = firstOf(rows);
 
     return row ? toRow(row) : null;
+  }
+
+  async forCommitWithHistory(
+    repo: string,
+    commit: string,
+  ): Promise<TestReportRow | null> {
+    const head = await this.forCommit(repo, commit);
+
+    if (!head) {
+      return null;
+    }
+    const { rows } = await this.pool.query<Record<string, unknown>>(
+      `SELECT ${SELECT_COLUMNS} FROM ${TEST_REPORT_TABLE}
+        WHERE repo = $1 AND branch = $2 AND commit <> $3 AND received_at <= $4
+        ORDER BY received_at DESC, id DESC
+        LIMIT $5`,
+      [repo, head.branch, commit, head.receivedAt, REPORT_HISTORY_DEPTH],
+    );
+
+    return reportWithHistory(head, rows.map(toRow));
   }
 }

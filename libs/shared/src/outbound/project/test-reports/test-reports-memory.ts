@@ -1,7 +1,9 @@
-import type {
-  NewTestReport,
-  TestReportRow,
-  TestReportsRepository,
+import { reportWithHistory } from "./report-history.js";
+import {
+  REPORT_HISTORY_DEPTH,
+  type NewTestReport,
+  type TestReportRow,
+  type TestReportsRepository,
 } from "./test-reports-port.js";
 
 /** In-memory {@link TestReportsRepository} with the Pg contract: one row per (repo, commit), newest receivedAt wins per branch. Inject `now` for deterministic ordering. */
@@ -47,5 +49,32 @@ export class InMemoryTestReports implements TestReportsRepository {
       this.rows.find((row) => row.repo === repo && row.commit === commit) ??
       null
     );
+  }
+
+  async forCommitWithHistory(
+    repo: string,
+    commit: string,
+  ): Promise<TestReportRow | null> {
+    const head = await this.forCommit(repo, commit);
+
+    if (!head) {
+      return null;
+    }
+    const earlier = this.rows
+      .filter(
+        (row) =>
+          row.repo === repo &&
+          row.branch === head.branch &&
+          row.commit !== commit &&
+          row.receivedAt <= head.receivedAt,
+      )
+      .sort(
+        (a, b) =>
+          b.receivedAt.getTime() - a.receivedAt.getTime() ||
+          Number(b.id) - Number(a.id),
+      )
+      .slice(0, REPORT_HISTORY_DEPTH);
+
+    return reportWithHistory(head, earlier);
   }
 }
