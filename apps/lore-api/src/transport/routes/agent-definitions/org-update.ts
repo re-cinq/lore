@@ -4,6 +4,11 @@ import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { updateOrgDefinition } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
+import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
+import {
+  floorClient,
+  floorConfigured,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -102,16 +107,35 @@ async function applyOrgPatch(
     apiError(400, { detail: IMAGE_ORG_DETAIL }),
     "image_org_gated",
   );
-  const { pod_resources, ...fields } = patch;
-  const agent = await updateOrgDefinition(
-    pool,
-    orgDefinitionFields(name, fields),
-    orgPodResourcesUpdate(pod_resources),
-  );
+  const agent = await writeOrgPatch(pool, name, patch);
 
   await audit(pool, "agent_org_updated", { name });
 
   return agent;
+}
+
+/** The floor's settings when a floor is configured (#3995): only the patched fields change there. Postgres otherwise, whose org row is replaced whole. */
+function writeOrgPatch(
+  pool: Pool,
+  name: string,
+  patch: ReturnType<typeof parseAgentPatch>,
+) {
+  const { pod_resources, ...fields } = patch;
+  const podResources = orgPodResourcesUpdate(pod_resources);
+
+  if (floorConfigured()) {
+    return new FloorAgentDefs(floorClient().agentDefinitions).updateOrg(
+      name,
+      fields,
+      podResources,
+    );
+  }
+
+  return updateOrgDefinition(
+    pool,
+    orgDefinitionFields(name, fields),
+    podResources,
+  );
 }
 
 function orgDefinitionFields(

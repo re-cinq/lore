@@ -5,6 +5,7 @@ import type { PipelineRepositories } from "../pipeline/pipeline-repositories.js"
 import type { LeasePool } from "../leases/lease-backends.js";
 import type { AssemblyRunsPort } from "../assembly-runs/assembly-runs-port.js";
 import { Project } from "./project.js";
+import { floorClientFrom, floorConfigured } from "../../floor/floor-client.js";
 
 /** Builds a Project from a repo fullName + two DB connections; Project owns port init (every adapter is constructed here via dynamic import so no heavy dep loads statically). Boot-time composition root, called once per repo. */
 export interface ProjectOptions {
@@ -158,17 +159,31 @@ function ledgerModules() {
   ]);
 }
 
-// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> the shipped files, read-only.
+// Agent definitions port, by environment: a floor -> FloorAgentDefs (the floor is where an agent lives, #3995), else DB -> PgAgentDefs, API only -> AgentDefsHttp, neither -> the shipped files, read-only.
 async function agentDefsForEnv(
   env: NodeJS.ProcessEnv,
   pgPool: PgPool,
 ): Promise<unknown> {
+  if (floorConfigured(env)) {
+    return floorAgentDefs(env);
+  }
+
   if (env.LORE_DB_HOST) {
     const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
 
     return new PgAgentDefs(pgPool);
   }
 
+  return readOnlyAgentDefs(env);
+}
+
+async function floorAgentDefs(env: NodeJS.ProcessEnv): Promise<unknown> {
+  const { FloorAgentDefs } = await import("../agents/agent-defs-floor.js");
+
+  return new FloorAgentDefs(floorClientFrom(env).agentDefinitions);
+}
+
+async function readOnlyAgentDefs(env: NodeJS.ProcessEnv): Promise<unknown> {
   if (env.LORE_API_URL) {
     const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
 

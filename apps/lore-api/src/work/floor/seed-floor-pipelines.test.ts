@@ -45,6 +45,7 @@ function fakeFloor(held: string[]) {
       { name: "b.yaml", text: "line:\n  id: lore-run-settled\n" },
     ],
     env: {},
+    heldAgentDefinitions: async () => [],
     importPipeline: async (pipeline) => {
       const id = pipeline.line?.id ?? "";
 
@@ -85,7 +86,40 @@ describe("withEnvironment", () => {
   });
 });
 
+function codeReviewOnFloor(held: string[]) {
+  const imported: string[][] = [];
+  const deps: SeedDeps = {
+    files: async () =>
+      realFiles().filter((file) => file.name === "code-review.yaml"),
+    env: FIXED_ENV,
+    heldAgentDefinitions: async () => held,
+    importPipeline: async (pipeline) => {
+      imported.push(pipeline.agentDefinitions.map((named) => named.id));
+
+      return [];
+    },
+  };
+
+  return { deps, imported };
+}
+
 describe("seedFloorPipelines", () => {
+  it("leaves out agent code-review when the floor already holds it", async () => {
+    const { deps, imported } = codeReviewOnFloor(["code-review"]);
+
+    await seedFloorPipelines(deps);
+
+    expect(imported).toEqual([[]]);
+  });
+
+  it("seeds agent code-review from its file on a floor that holds none", async () => {
+    const { deps, imported } = codeReviewOnFloor([]);
+
+    await seedFloorPipelines(deps);
+
+    expect(imported).toEqual([["code-review"]]);
+  });
+
   it("puts both pipelines and reports only lore-run-settled as changed when the floor holds code-review as written", async () => {
     const { deps, imported } = fakeFloor(["code-review"]);
 
