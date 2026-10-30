@@ -1,4 +1,6 @@
 import { REPO_COLUMNS, type Repo } from "../../../domain/models/repo.js";
+import type { LoopKey } from "../../../domain/loops/loop-kinds.js";
+import type { LoopPause } from "../../../domain/loops/loop-pause.js";
 import type { RepoSettings } from "../../../domain/models/repo-settings.js";
 
 /** One lore.repos column per named field, typed off the model. */
@@ -46,6 +48,10 @@ export interface SettingsPort {
     repo: string,
     settings: Record<string, unknown>,
   ): Promise<void>;
+  /** Holds one loop without touching its switch (`settings.loop_pauses.<key>`), replacing any pause it had; the repo's other settings are merged, never overwritten. */
+  pauseLoop(repo: string, key: LoopKey, pause: LoopPause): Promise<void>;
+  /** Forgets one loop's pause. */
+  resumeLoop(repo: string, key: LoopKey): Promise<void>;
   /** The repo's team (schema) name, or null. */
   team(repo: string): Promise<string | null>;
   /** The first repo full_name mapped to a team (schema), or null. */
