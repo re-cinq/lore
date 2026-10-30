@@ -5,6 +5,7 @@ import {
   type LabelDispatchDeps,
   type LabeledIssue,
 } from "@re-cinq/lore-shared/backlog/label-dispatch.js";
+import { PRIORITY_LABELS } from "@re-cinq/lore-shared/backlog/labels.js";
 
 export interface RepoEventDeps {
   /** The ports a labelled Issue of this repository is dispatched through. */
@@ -71,6 +72,12 @@ const WAITING_TRIAGE_LABELS = [
   "triage: unable-to-reproduce",
 ] as const;
 
+/** Either hands the ticket to the implementation loop, so a triage run waiting at `human-gate` for that decision is done. */
+const GATE_RELEASE_LABELS: readonly string[] = [
+  "lore:implementation",
+  ...PRIORITY_LABELS,
+];
+
 type LabeledIssueParams = {
   repo: string;
   label: string;
@@ -87,10 +94,9 @@ function issueLabeled(deps: RepoEventDeps): EventHandler {
       return;
     }
 
-    const visitId =
-      label === "lore:implementation"
-        ? await deps.findParkedTriageVisit(repo, issue.number)
-        : null;
+    const visitId = GATE_RELEASE_LABELS.includes(label)
+      ? await deps.findParkedTriageVisit(repo, issue.number)
+      : null;
 
     if (visitId) {
       await deps.reportTriageGate(visitId);
