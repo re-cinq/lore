@@ -22,3 +22,8 @@
 .facts dd {
   margin: 0;
 }
+
+.edit {
+  margin-top: auto;
+  text-align: center;
+}
