@@ -128,7 +128,7 @@ function floorAccessOf(env: Record<string, string | undefined>) {
   return access;
 }
 
-async function readFloorPipelineFiles(): Promise<PipelineText[]> {
+export async function readFloorPipelineFiles(): Promise<PipelineText[]> {
   const dir = floorPipelinesDir();
   const names = (await readdir(dir)).filter((name) => name.endsWith(".yaml"));
 

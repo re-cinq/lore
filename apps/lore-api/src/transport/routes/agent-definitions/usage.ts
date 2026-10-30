@@ -1,9 +1,14 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { readFloorPipelineFiles } from "../../../work/floor/seed-floor-pipelines.js";
+import {
+  usageOfPipelines,
+  type StationUsageRef,
+} from "../../../work/agents/pipeline-agents.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 
-// Where each catalog entry dispatches from; a definition with no reference here is either blueprint-less (runbook/onboard) or dormant — the caller decides which.
+// Where each catalog entry dispatches from: the floor pipeline files name each agent station's agent_definition.
 
 const UsageRefSchema = z.object({
   blueprint: z.string(),
@@ -21,11 +26,8 @@ const UsageResponse = z.object({
   ),
 });
 
-interface StationUsageRef {
-  blueprint: string;
-  nodeId: string;
-  inherited: boolean;
-}
+// The shipped files change only with the image, so one read serves the process.
+let usageOfFiles: Promise<Map<string, StationUsageRef[]>> | undefined;
 
 export function agentDefinitionUsageRoute(): ServerRoute {
   return {
@@ -34,11 +36,12 @@ export function agentDefinitionUsageRoute(): ServerRoute {
     options: zodResponse(bearerScope("read"), UsageResponse, {
       name: "AgentDefinitionUsage",
       description:
-        "Which lines use each stored definition (none: a floor pipeline carries its agents inline)",
+        "Which assembly lines use each stored definition, read from the floor pipeline files",
     }),
-    handler: (_request, h) => {
-      // No line names a stored definition: a floor pipeline file carries its agents inline.
-      return h.response(usageResponse(new Map()));
+    handler: async (_request, h) => {
+      usageOfFiles ??= readFloorPipelineFiles().then(usageOfPipelines);
+
+      return h.response(usageResponse(await usageOfFiles));
     },
   };
 }

@@ -90,3 +90,4 @@ infra/terraform/modules/gke-mcp/**/charts/*.tgz
 
 # jscpd duplication reports (npm run dup)
 reports/
+.lore-nextauth-secret

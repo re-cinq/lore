@@ -137,6 +137,44 @@
         "x-required-scope": "read"
       }
     },
+    "/api/agent-definitions/activity": {
+      "get": {
+        "operationId": "get_api_agent-definitions_activity",
+        "summary": "GET /api/agent-definitions/activity",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Each agent definition's floor visits, cost and tokens over the last 30 days; 503 on a deployment given no floor, whose activity is unknown rather than none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionActivity"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/agent-definitions/usage": {
       "get": {
         "operationId": "get_api_agent-definitions_usage",
@@ -150,7 +188,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Which lines use each stored definition (none: a floor pipeline carries its agents inline)",
+            "description": "Which assembly lines use each stored definition, read from the floor pipeline files",
             "content": {
               "application/json": {
                 "schema": {
@@ -10243,6 +10281,47 @@
           }
         },
         "required": ["agents"],
+        "additionalProperties": false
+      },
+      "AgentDefinitionActivity": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "string"
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "visits": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                },
+                "tokens_in": {
+                  "type": "number"
+                },
+                "tokens_out": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "name",
+                "visits",
+                "cost_usd",
+                "tokens_in",
+                "tokens_out"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["since", "activity"],
         "additionalProperties": false
       },
       "AgentDefinitionDeleted": {

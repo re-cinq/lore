@@ -140,6 +140,14 @@
   --glass-border: rgba(0, 0, 0, 0.08);
   --backdrop: rgba(0, 0, 0, 0.5);
 
+  /* Model vendor brand gradients: the same in every theme, as a brand is. */
+  --brand-anthropic: linear-gradient(135deg, #f0a586, #d97757 50%, #b5532f);
+  --brand-google: linear-gradient(135deg, #4796e3, #9177c7 50%, #ca6673);
+  --brand-openai: linear-gradient(135deg, #74aa9c, #10a37f 50%, #0b6e55);
+  --brand-anthropic-solid: #d97757;
+  --brand-google-solid: #4796e3;
+  --brand-openai-solid: #10a37f;
+
   /* Categorical chart palette: spec-graph node types + neutral fallback. */
   --chart-feature: #db2777;
   --chart-spec: #7c3aed;

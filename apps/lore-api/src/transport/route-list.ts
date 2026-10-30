@@ -63,6 +63,7 @@ import { incidentWebhookRoute } from "./routes/webhooks/webhook-incident.js";
 import { repoWebhookRoutes } from "./routes/webhooks/webhook.js";
 import { tokensRoute } from "./routes/tokens/tokens.js";
 import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
+import { agentDefinitionActivityRoute } from "./routes/agent-definitions/activity.js";
 import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
 import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
 import {
@@ -279,6 +280,7 @@ function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     agentsGetRoute(getPool),
     agentDefinitionUsageRoute(),
+    agentDefinitionActivityRoute(),
     orgAgentDefinitionsRoute(getPool),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),

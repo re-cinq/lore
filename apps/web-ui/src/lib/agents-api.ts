@@ -1,3 +1,4 @@
+import type { components } from "./api/schema";
 import type { AgentDefinition } from "./agents-mirror";
 import { resolveLoreApiConfig } from "./lore-api-config";
 
@@ -38,6 +39,33 @@ interface AgentUsageBody {
 }
 
 export async function fetchAgentUsage(): Promise<AgentUsage | null> {
+  const body = await getCatalogJson<AgentUsageBody>(
+    "/api/agent-definitions/usage",
+  );
+
+  return body ? buildAgentUsage(body) : null;
+}
+
+/** One definition's floor work over the activity window. */
+export type DefinitionActivity =
+  components["schemas"]["AgentDefinitionActivity"]["activity"][number];
+
+/** Each definition's last 30 days on the floor, keyed by name; null when the endpoint is unreachable, so unknown never reads as "no runs". */
+export async function fetchDefinitionActivity(): Promise<Record<
+  string,
+  DefinitionActivity
+> | null> {
+  const body = await getCatalogJson<
+    components["schemas"]["AgentDefinitionActivity"]
+  >("/api/agent-definitions/activity");
+
+  return body
+    ? Object.fromEntries(body.activity.map((entry) => [entry.name, entry]))
+    : null;
+}
+
+/** A catalog GET that answers null for an unreachable or unhappy endpoint rather than throwing into the render. */
+async function getCatalogJson<T>(path: string): Promise<T | null> {
   const c = await resolveLoreApiConfig();
 
   if (!c) {
@@ -45,17 +73,13 @@ export async function fetchAgentUsage(): Promise<AgentUsage | null> {
   }
 
   try {
-    const res = await fetch(`${c.apiUrl}/api/agent-definitions/usage`, {
+    const res = await fetch(`${c.apiUrl}${path}`, {
       signal: AbortSignal.timeout(15_000),
       headers: { authorization: `Bearer ${c.token}` },
       cache: "no-store",
     });
 
-    if (!res.ok) {
-      return null;
-    }
-
-    return buildAgentUsage((await res.json()) as AgentUsageBody);
+    return res.ok ? ((await res.json()) as T) : null;
   } catch {
     return null;
   }
