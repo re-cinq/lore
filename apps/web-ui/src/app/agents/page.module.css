@@ -49,6 +49,10 @@
   --card-border: var(--brand-google);
 }
 
+.agentCard[data-vendor="openai"] {
+  --card-border: var(--brand-openai);
+}
+
 .agentCard > section {
   flex: 1;
   border: 2px solid transparent;
