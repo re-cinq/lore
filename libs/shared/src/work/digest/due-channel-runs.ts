@@ -7,6 +7,7 @@ import {
   resolveDigestSettings,
   type ResolvedDigestSettings,
 } from "../../domain/digest-settings.js";
+import { digestEnabled } from "../../domain/loops/loop-enabled.js";
 import { decideDigestDue, localParts } from "./decide-due.js";
 import { isoWeekKey } from "./iso-week.js";
 import { encodeDigestRepos, type DigestRepo } from "./codec.js";
@@ -71,7 +72,7 @@ function byChannel(due: DueRepo[]): Map<string, DueRepo[]> {
   );
 }
 
-/** Every repo that switched the digest on and has a channel, sorted by name: the members of each channel, due or not. */
+/** Every repo whose digest loop is on and not paused, with a channel, sorted by name: the members of each channel, due or not. */
 async function digestTargets(deps: DueDeps): Promise<DigestTarget[]> {
   const targets = (await deps.repoSettings()).map(digestTargetOf);
 
@@ -84,7 +85,7 @@ function digestTargetOf(row: OnboardedRepoSettings): DigestTarget | null {
   const settings = resolveDigestSettings(row.settings?.digest ?? undefined);
   const channel = row.settings?.slack_channel_id;
 
-  return channel && settings.enabled
+  return channel && digestEnabled(row.settings)
     ? { repo: row.full_name, channel, settings }
     : null;
 }

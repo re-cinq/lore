@@ -1747,6 +1747,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/loops/{key}/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** DELETE /api/repos/{owner}/{repo}/loops/{key}/pause */
+    delete: operations["delete_api_repos_owner_repo_loops_key_pause"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/onboarded": {
     parameters: {
       query?: never;
@@ -4189,6 +4206,19 @@ export interface components {
       };
     };
     LoginRedirect: null;
+    LoopResume: {
+      /** @constant */
+      ok: true;
+      /** @enum {string} */
+      key:
+        | "implementation"
+        | "review"
+        | "merge"
+        | "triage"
+        | "upkeep"
+        | "digest"
+        | "tickets";
+    };
     LoopSwitch: {
       /** @constant */
       ok: true;
@@ -9098,6 +9128,36 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  delete_api_repos_owner_repo_loops_key_pause: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Resume one of the repository's loops: forget its pause and leave its switch as it is. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoopResume"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

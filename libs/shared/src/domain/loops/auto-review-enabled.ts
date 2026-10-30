@@ -1,15 +1,17 @@
-/** The per-repo `auto_review` opt-in, the code-review loop's switch, read off the repository's settings however they were stored; off by omission. */
-export function autoReviewEnabled(rawSettings: unknown): boolean {
-  const parsed =
-    typeof rawSettings === "string" ? parsedJson(rawSettings) : rawSettings;
+import { loopPaused } from "./loop-pause.js";
+import { parsedSettings } from "./raw-settings.js";
 
-  return (parsed as { auto_review?: boolean } | null)?.auto_review === true;
+/** The per-repo `auto_review` opt-in, the code-review loop's switch, read off the repository's settings however they were stored; off by omission. */
+export function autoReviewSwitchedOn(rawSettings: unknown): boolean {
+  return (
+    (parsedSettings(rawSettings) as { auto_review?: boolean } | null)
+      ?.auto_review === true
+  );
 }
 
-function parsedJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+/** Whether the code-review loop may start work: switched on and not paused. */
+export function autoReviewEnabled(rawSettings: unknown): boolean {
+  return (
+    autoReviewSwitchedOn(rawSettings) && !loopPaused("review", rawSettings)
+  );
 }

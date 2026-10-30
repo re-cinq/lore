@@ -1,9 +1,11 @@
-import { autoReviewEnabled } from "./auto-review-enabled.js";
-import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
+import { autoReviewSwitchedOn } from "./auto-review-enabled.js";
+import { implementationLoopSwitchedOn } from "./implementation-loop-enabled.js";
 import type { LoopKey } from "./loop-kinds.js";
+import { loopPaused } from "./loop-pause.js";
+import { parsedSettings } from "./raw-settings.js";
 
 /** The issue-triage loop's `issue_triage.enabled` switch (specs/issue-triage FR33): on unless the repository switched it off, so a repository onboarded before the switch existed keeps being triaged. */
-export function issueTriageEnabled(rawSettings: unknown): boolean {
+function issueTriageSwitchedOn(rawSettings: unknown): boolean {
   const block = (
     parsedSettings(rawSettings) as {
       issue_triage?: { enabled?: unknown };
@@ -14,7 +16,7 @@ export function issueTriageEnabled(rawSettings: unknown): boolean {
 }
 
 /** The spec upkeep loop's `spec_upkeep.enabled` switch: on unless the repository switched it off, so a repository keeps the weekly upkeep it had before the switch existed. */
-export function specUpkeepEnabled(rawSettings: unknown): boolean {
+function specUpkeepSwitchedOn(rawSettings: unknown): boolean {
   const block = (
     parsedSettings(rawSettings) as {
       spec_upkeep?: { enabled?: unknown };
@@ -25,7 +27,7 @@ export function specUpkeepEnabled(rawSettings: unknown): boolean {
 }
 
 /** The spec tickets loop's `spec_tickets.enabled` switch (specs/spec-tickets FR14): on unless the repository switched it off, so a repository keeps the ticketing it had before the switch existed. */
-export function specTicketsEnabled(rawSettings: unknown): boolean {
+function specTicketsSwitchedOn(rawSettings: unknown): boolean {
   const block = (
     parsedSettings(rawSettings) as {
       spec_tickets?: { enabled?: unknown };
@@ -36,7 +38,7 @@ export function specTicketsEnabled(rawSettings: unknown): boolean {
 }
 
 /** The daily digest's switch, `digest.enabled` (specs/daily-digest); off by omission. */
-export function digestEnabled(rawSettings: unknown): boolean {
+function digestSwitchedOn(rawSettings: unknown): boolean {
   const block = (
     parsedSettings(rawSettings) as { digest?: { enabled?: unknown } } | null
   )?.digest;
@@ -45,7 +47,7 @@ export function digestEnabled(rawSettings: unknown): boolean {
 }
 
 /** The auto-merge loop's switch, `auto_merge.enabled` (specs/protected-branch-merge); off by omission. */
-export function autoMergeEnabled(rawSettings: unknown): boolean {
+function autoMergeSwitchedOn(rawSettings: unknown): boolean {
   return autoMergeBlock(rawSettings)?.enabled === true;
 }
 
@@ -71,29 +73,37 @@ function autoMergeBlock(
   )?.auto_merge;
 }
 
-const ENABLED_BY_KEY: Record<LoopKey, (rawSettings: unknown) => boolean> = {
-  implementation: implementationLoopEnabled,
-  review: autoReviewEnabled,
-  merge: autoMergeEnabled,
-  triage: issueTriageEnabled,
-  upkeep: specUpkeepEnabled,
-  digest: digestEnabled,
-  tickets: specTicketsEnabled,
+const SWITCHED_ON_BY_KEY: Record<LoopKey, (rawSettings: unknown) => boolean> = {
+  implementation: implementationLoopSwitchedOn,
+  review: autoReviewSwitchedOn,
+  merge: autoMergeSwitchedOn,
+  triage: issueTriageSwitchedOn,
+  upkeep: specUpkeepSwitchedOn,
+  digest: digestSwitchedOn,
+  tickets: specTicketsSwitchedOn,
 };
 
-/** Whether the named loop is switched on for a repository, read from its raw `lore.repos.settings`. */
+/** Whether the named loop's switch is on for a repository, read from its raw `lore.repos.settings`; a pause does not turn it off. */
+export function loopSwitchedOn(key: LoopKey, rawSettings: unknown): boolean {
+  return SWITCHED_ON_BY_KEY[key](rawSettings);
+}
+
+/** Whether the named loop may start work: switched on and not paused. */
 export function loopEnabled(key: LoopKey, rawSettings: unknown): boolean {
-  return ENABLED_BY_KEY[key](rawSettings);
+  return loopSwitchedOn(key, rawSettings) && !loopPaused(key, rawSettings);
 }
 
-function parsedSettings(raw: unknown): unknown {
-  if (typeof raw !== "string") {
-    return raw;
-  }
+export const issueTriageEnabled = (rawSettings: unknown): boolean =>
+  loopEnabled("triage", rawSettings);
 
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+export const specUpkeepEnabled = (rawSettings: unknown): boolean =>
+  loopEnabled("upkeep", rawSettings);
+
+export const specTicketsEnabled = (rawSettings: unknown): boolean =>
+  loopEnabled("tickets", rawSettings);
+
+export const digestEnabled = (rawSettings: unknown): boolean =>
+  loopEnabled("digest", rawSettings);
+
+export const autoMergeEnabled = (rawSettings: unknown): boolean =>
+  loopEnabled("merge", rawSettings);

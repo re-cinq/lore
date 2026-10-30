@@ -1,4 +1,7 @@
 import { enforceTrue } from "../../../lib/enforce.js";
+import type { LoopKey } from "../../../domain/loops/loop-kinds.js";
+import type { LoopPause } from "../../../domain/loops/loop-pause.js";
+import { storedBlock } from "./settings-sql.js";
 import { selectList, fromRow } from "../../../lib/row.js";
 import { REPO_COLUMNS } from "../../../domain/models/repo.js";
 import type { PgPool } from "../../memory-store.js";
@@ -166,6 +169,24 @@ export class PgSettings implements SettingsPort {
     await this.pool.query(
       "UPDATE lore.repos SET settings = $1 WHERE full_name = $2",
       [JSON.stringify(settings), repo],
+    );
+  }
+
+  async pauseLoop(repo: string, key: LoopKey, pause: LoopPause): Promise<void> {
+    await this.pool.query(
+      `UPDATE lore.repos
+          SET settings = (CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END)
+            || jsonb_build_object('loop_pauses',
+                 ${storedBlock("loop_pauses")} || jsonb_build_object($2::text, $3::jsonb))
+        WHERE full_name = $1`,
+      [repo, key, JSON.stringify(pause)],
+    );
+  }
+
+  async resumeLoop(repo: string, key: LoopKey): Promise<void> {
+    await this.pool.query(
+      "UPDATE lore.repos SET settings = settings #- ARRAY['loop_pauses', $2::text] WHERE full_name = $1",
+      [repo, key],
     );
   }
 
