@@ -21,8 +21,9 @@ import {
   signed,
 } from "../post-review/post-review.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { taskStore } from "../../outbound/queues.js";
+import { settings, taskStore } from "../../outbound/queues.js";
 import { postSessionSummary } from "../../outbound/session-summary.js";
+import { pausingLoopsOnCredit, type CreditPauseDeps } from "./credit-pause.js";
 import { settlingLoopTickets } from "./loop-closed.js";
 import { loopClosedDeps } from "./loop-closed-deps.js";
 import { settlingTasks, type SettleTaskDeps } from "./settle-task.js";
@@ -215,15 +216,25 @@ const episodeDeps: RunEpisodeDeps = {
   warn: (message) => console.warn(message),
 };
 
+const creditPauseDeps: CreditPauseDeps = {
+  run: productionDeps.run,
+  visits: (runId) => floorClient().stationRuns.list({ run: runId }),
+  pauseLoop: (repo, key, pause) => settings().pauseLoop(repo, key, pause),
+  now: () => new Date(),
+};
+
 export function startRunSettledStation(): RunningStation {
   return defineStation(
     "run-settled",
-    // The task first: the loop's re-armed tick must find it settled. The episode last: memory waits on nothing a person sees.
-    settlingTasks(
-      taskDeps,
-      settlingLoopTickets(
-        loopClosedDeps,
-        recordingRunEpisode(episodeDeps, runSettledHandle(productionDeps)),
+    // The pause first: the loop's re-armed tick must find a loop that ran out of credit paused. Then the task: that tick must find it settled. The episode last: memory waits on nothing a person sees.
+    pausingLoopsOnCredit(
+      creditPauseDeps,
+      settlingTasks(
+        taskDeps,
+        settlingLoopTickets(
+          loopClosedDeps,
+          recordingRunEpisode(episodeDeps, runSettledHandle(productionDeps)),
+        ),
       ),
     ),
   );

@@ -601,6 +601,89 @@ describe("handleLoopRunClosed", () => {
 
     expect(ticks).toEqual(["acme/widgets"]);
   });
+
+  it("requeues a ticket whose tdd-round ran out of credit: no label, one comment saying the loop paused, its reason on task-1, and the re-arm", async () => {
+    const { d, labeled, comments, whys, ticks } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      {
+        nodeId: "tdd-round",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "anthropic-credit",
+      },
+    ]);
+
+    await handleLoopRunClosed(
+      run(),
+      "failed",
+      "Your credit balance is too low to access the Anthropic API.",
+      d,
+    );
+
+    expect({ labeled, comments, whys, ticks }).toEqual({
+      labeled: [],
+      comments: [
+        {
+          number: 7,
+          body: "Lore's implementation loop paused: the model's credit is exhausted. Nothing about this ticket failed; it stays queued and is picked up when the loop resumes. Run: `run-1`",
+        },
+      ],
+      whys: [
+        {
+          taskId: "task-1",
+          why: "the run ended failed: Your credit balance is too low to access the Anthropic API.",
+        },
+      ],
+      ticks: ["acme/widgets"],
+    });
+  });
+
+  it("requeues a plan's task that ran out of credit without labelling it", async () => {
+    const { d, labeled, comments } = deps([
+      {
+        nodeId: "tdd-round",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "anthropic-credit",
+      },
+    ]);
+
+    await handleLoopRunClosed(run({ source: "plan" }), "failed", undefined, d);
+
+    expect({ labeled, comments: comments.map(({ body }) => body) }).toEqual({
+      labeled: [],
+      comments: [expect.stringContaining("implementation loop paused")],
+    });
+  });
+
+  it("counts an earlier run that ran out of credit as no infrastructure failure", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const branch = "lore/implementation-loop/issue-7";
+    const earlier = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "acme/widgets",
+      branch,
+    });
+    const { nodeRowId } = await port.ensureStationRun({
+      assemblyRunId: earlier,
+      nodeId: "tdd-round",
+      iteration: 1,
+    });
+
+    await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+      failureClass: "anthropic-credit",
+    });
+    await port.finish(earlier, "failed", "credit balance is too low");
+
+    expect(
+      await countInfraFailures(port, {
+        repo: "acme/widgets",
+        branch,
+        since: new Date(0),
+        excludeRunId: "run-now",
+      }),
+    ).toBe(0);
+  });
 });
 
 describe("ticketResultOf", () => {
@@ -622,5 +705,11 @@ describe("ticketResultOf", () => {
     expect(ticketResultOf({ why: "stuck", askForRewrite: true })).toBe(
       "parked",
     );
+  });
+
+  it("reads a verdict that ran out of credit as requeued", () => {
+    expect(
+      ticketResultOf({ why: "credit", askForRewrite: false, requeued: true }),
+    ).toBe("requeued");
   });
 });
