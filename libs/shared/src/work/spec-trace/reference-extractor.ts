@@ -177,6 +177,7 @@ function registrationAnchors(call: Parser.SyntaxNode): Parser.Point[] {
   if (callee?.type === "member_expression") {
     return [call.startPosition, ...memberStart(callee)];
   }
+
   if (callee?.type === "call_expression") {
     return [
       call.startPosition,
