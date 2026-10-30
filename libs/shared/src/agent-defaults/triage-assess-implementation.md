@@ -1,5 +1,5 @@
 ---
-model: claude-sonnet-4-6
+model: gemini-4-argon
 timeout_minutes: 15
 ---
 Assess the entire issue report before triage plans new work. This applies to bugs,
