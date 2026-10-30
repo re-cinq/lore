@@ -58,7 +58,8 @@ import { triageStart } from "../work/issue-triage-tick/issue-triage-tick.js";
 import type { PullFileChange } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
   type ChangedFile,
-  runKeysOf,
+  openSpecTicketRunsOf,
+  type OpenSpecTicketsRun,
   SPEC_TICKETS_LINE,
 } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
@@ -154,19 +155,19 @@ const floorSpecTicketsDeps: FloorSpecTicketsDeps = {
       defaultBranch: () => files.defaultBranch(),
       changedFiles: (_repo, prNumber) => changedFilesOf(pulls, prNumber),
       readSpec: (_repo, path, ref) => files.read(path, ref),
-      openRunKeys: openSpecTicketRunKeys,
+      openRuns: openSpecTicketRuns,
     };
   },
 };
 
-async function openSpecTicketRunKeys(name: string): Promise<string[]> {
+async function openSpecTicketRuns(name: string): Promise<OpenSpecTicketsRun[]> {
   const open = await floorClient().runs.list({
     repo: floorRepoOf(name),
     line: SPEC_TICKETS_LINE,
     open: true,
   });
 
-  return runKeysOf(open.items);
+  return openSpecTicketRunsOf(open.items);
 }
 
 async function findParkedVisitId(

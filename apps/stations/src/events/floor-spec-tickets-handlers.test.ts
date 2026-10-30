@@ -44,7 +44,7 @@ describe("floorSpecTicketsHandlers", () => {
               { path: "README.md", patch: null },
             ]),
           readSpec: () => Promise.resolve("| Status | In Progress |"),
-          openRunKeys: () => Promise.resolve([]),
+          openRuns: () => Promise.resolve([]),
         }),
     });
 

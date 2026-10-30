@@ -1,4 +1,4 @@
-// The spec-tickets line on the external floor: every merged specs/<name>/spec.md gets one run that splits the spec into a user story and task tickets, and a later merge of the same spec updates the tickets that run filed.
+// The spec-tickets line on the external floor: every merged specs/<name>/spec.md gets one run that splits the spec into a user story and task tickets, and a later merge of the same spec updates the tickets that run filed. One run per spec is open at a time: a merge that lands while the earlier run is still filing cancels it, or two runs would each read "no tickets yet" and file over each other.
 import type { FloorClient } from "@re-cinq/floor-client";
 import { parseDocStatus, statusTier } from "../../domain/spec-status.js";
 import {
@@ -25,8 +25,16 @@ export interface ChangedFile {
   patch: string | null;
 }
 
+export interface OpenSpecTicketsRun {
+  id: string;
+  key: string;
+}
+
 export interface SpecTicketsDeps {
-  floor: { lines: Pick<FloorClient["lines"], "start"> };
+  floor: {
+    lines: Pick<FloorClient["lines"], "start">;
+    runs: Pick<FloorClient["runs"], "cancel">;
+  };
   /** The repository's spec tickets loop is on (`spec_tickets.enabled`, specs/spec-tickets FR14). */
   loopOn(repo: string): Promise<boolean>;
   defaultBranch(repo: string): Promise<string>;
@@ -34,18 +42,22 @@ export interface SpecTicketsDeps {
   changedFiles(repo: string, prNumber: number): Promise<ChangedFile[]>;
   /** The file as the commit holds it; null when the commit has none. */
   readSpec(repo: string, path: string, ref: string): Promise<string | null>;
-  /** The run keys of the repository's open spec-tickets runs. */
-  openRunKeys(repo: string): Promise<string[]>;
+  /** The repository's open spec-tickets runs, each with its run key. */
+  openRuns(repo: string): Promise<OpenSpecTicketsRun[]>;
 }
 
-/** The keys of the runs given, for the run keys a repository's open runs hold. */
-export function runKeysOf(
-  runs: readonly { startItems: Readonly<Record<string, { ref: string }>> }[],
-): string[] {
+/** The runs given with their run keys; a run without one is not the line's. */
+export function openSpecTicketRunsOf(
+  runs: readonly {
+    id: string;
+    startItems: Readonly<Record<string, { ref: string }>>;
+  }[],
+): OpenSpecTicketsRun[] {
   return runs.flatMap((run) => {
     const startItems: Partial<Record<string, { ref: string }>> = run.startItems;
+    const key = startItems["key"]?.ref;
 
-    return startItems["key"]?.ref ?? [];
+    return key === undefined ? [] : [{ id: run.id, key }];
   });
 }
 
@@ -135,19 +147,31 @@ async function specsToTicket(
   return mergedSpecPaths(await deps.changedFiles(repo, prNumber));
 }
 
+/** One merged spec against the repository's open runs. */
+interface SpecRevision {
+  specPath: string;
+  key: string;
+  open: readonly OpenSpecTicketsRun[];
+}
+
 async function startFor(
   specPath: string,
   merge: SpecMerge,
   deps: SpecTicketsDeps,
 ): Promise<boolean> {
-  const key = specTicketsKey(merge.repo, specPath, merge.mergeCommitSha);
+  const revision: SpecRevision = {
+    specPath,
+    key: specTicketsKey(merge.repo, specPath, merge.mergeCommitSha),
+    open: await deps.openRuns(merge.repo),
+  };
 
-  if (!(await worthTicketing(specPath, key, merge, deps))) {
+  if (!(await worthTicketing(revision, merge, deps))) {
     return false;
   }
+  await cancelEarlierRuns(revision, merge.repo, deps.floor.runs);
   await startLine(deps.floor.lines, SPEC_TICKETS_LINE, {
     repo: floorRepoOf(merge.repo),
-    startItems: startItemsOf(specPath, key, merge),
+    startItems: startItemsOf(specPath, revision.key, merge),
   });
 
   return true;
@@ -168,18 +192,29 @@ function startItemsOf(
 
 /** A spec the merge deleted, or one that is not buildable, a key already open is a redelivered merge. */
 async function worthTicketing(
-  specPath: string,
-  key: string,
+  { specPath, key, open }: SpecRevision,
   { repo, mergeCommitSha }: SpecMerge,
   deps: SpecTicketsDeps,
 ): Promise<boolean> {
   const spec = await deps.readSpec(repo, specPath, mergeCommitSha);
 
   return (
-    spec !== null &&
-    isBuildable(spec) &&
-    !(await deps.openRunKeys(repo)).includes(key)
+    spec !== null && isBuildable(spec) && !open.some((run) => run.key === key)
   );
+}
+
+/** An open run of an earlier merge of the same spec is filing tickets the new run would file again under other ids; the new run reads the branch as it stands, so nothing of the old one is lost. */
+async function cancelEarlierRuns(
+  { specPath, key, open }: SpecRevision,
+  repo: string,
+  runs: SpecTicketsDeps["floor"]["runs"],
+): Promise<void> {
+  const sameSpec = `${repo}:${specPath}@`;
+  const earlier = open.filter(
+    (run) => run.key !== key && run.key.startsWith(sameSpec),
+  );
+
+  await Promise.all(earlier.map((run) => runs.cancel(run.id, "superseded")));
 }
 
 /** A spec that is rejected, retired or shipped has nothing left to build. */
