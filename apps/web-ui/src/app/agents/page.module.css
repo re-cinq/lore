@@ -24,6 +24,7 @@
 }
 
 .edit {
+  display: flex;
+  flex-direction: column;
   margin-top: auto;
-  text-align: center;
 }

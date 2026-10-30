@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
-import Link from "next/link";
+import Form from "next/form";
+import { SubmitButton } from "@/components/SubmitButton";
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import type { AgentUsage } from "@/lib/agents-api";
 import { SettingsCard } from "@/components/SettingsCard";
@@ -67,9 +68,9 @@ function AgentCard({
       headingLevel={3}
     >
       <AgentFacts agent={agent} usage={usage} />
-      <Link className={`btn-secondary ${styles.edit}`} href={editHref}>
-        Edit
-      </Link>
+      <Form action={editHref} className={styles.edit}>
+        <SubmitButton>Edit</SubmitButton>
+      </Form>
     </SettingsCard>
   );
 }
