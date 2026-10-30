@@ -12,7 +12,7 @@ function scene(opts: {
     string,
     Array<{ url: string; number: number; labels?: string[] }>
   >;
-  running?: Record<string, number>;
+  openRuns?: Record<string, Array<{ issueNumber: number; atGate: boolean }>>;
   cap?: number;
   repos?: string[];
 }) {
@@ -26,8 +26,8 @@ function scene(opts: {
     repos: () => Promise.resolve(opts.repos ?? ["acme/widgets"]),
     needsTriageIssues: (repo: string) =>
       Promise.resolve((opts.issues ?? {})[repo] ?? []),
-    runningCount: (repo: string) =>
-      Promise.resolve((opts.running ?? {})[repo] ?? 0),
+    openRuns: (repo: string) =>
+      Promise.resolve((opts.openRuns ?? {})[repo] ?? []),
     defaultBranch: () => Promise.resolve("main"),
     cap: opts.cap ?? 3,
     floor: {
@@ -156,7 +156,12 @@ describe("the issue-triage-tick sweep on the external floor", () => {
           { url: "https://github.com/acme/widgets/issues/3", number: 3 },
         ],
       },
-      running: { "acme/widgets": 2 },
+      openRuns: {
+        "acme/widgets": [
+          { issueNumber: 7, atGate: false },
+          { issueNumber: 8, atGate: false },
+        ],
+      },
       cap: 3,
     });
 
@@ -168,6 +173,49 @@ describe("the issue-triage-tick sweep on the external floor", () => {
         ref: "https://github.com/acme/widgets/issues/1",
       }),
     });
+  });
+  it("starts #3 and leaves #1 and #2, whose runs wait at the human gate, without counting them against a cap of 1", async () => {
+    const { deps, started } = scene({
+      issues: {
+        "acme/widgets": [
+          { url: "https://github.com/acme/widgets/issues/1", number: 1 },
+          { url: "https://github.com/acme/widgets/issues/2", number: 2 },
+          { url: "https://github.com/acme/widgets/issues/3", number: 3 },
+        ],
+      },
+      openRuns: {
+        "acme/widgets": [
+          { issueNumber: 1, atGate: true },
+          { issueNumber: 2, atGate: true },
+        ],
+      },
+      cap: 1,
+    });
+
+    await issueTriageTick({}, deps);
+
+    expect(started.map((s) => s.startItems.issue_number)).toMatchObject([
+      { ref: "3" },
+    ]);
+  });
+
+  it("starts #2 and leaves #1, whose run is still working", async () => {
+    const { deps, started } = scene({
+      issues: {
+        "acme/widgets": [
+          { url: "https://github.com/acme/widgets/issues/1", number: 1 },
+          { url: "https://github.com/acme/widgets/issues/2", number: 2 },
+        ],
+      },
+      openRuns: { "acme/widgets": [{ issueNumber: 1, atGate: false }] },
+      cap: 3,
+    });
+
+    await issueTriageTick({}, deps);
+
+    expect(started.map((s) => s.startItems.issue_number)).toMatchObject([
+      { ref: "2" },
+    ]);
   });
 });
 
