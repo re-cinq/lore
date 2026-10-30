@@ -4,7 +4,7 @@ import { classifyAgent } from "@/lib/agent-classify";
 import { fetchAgentUsage, listOrgAgents } from "@/lib/agents-api";
 import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
 import ScreenHeader from "@/components/ScreenHeader";
-import AgentList from "../repos/[owner]/[repo]/agents/AgentList";
+import AgentCards from "./AgentCards";
 import styles from "./page.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -31,7 +31,7 @@ export default async function AgentsPage() {
       <AgentsTable agents={agents} embedded />
       <section className={styles.definitions}>
         <h2>Agent definitions</h2>
-        <AgentList base={null} agents={definitions} usage={usage} orgEditable />
+        <AgentCards agents={definitions} usage={usage} />
       </section>
     </div>
   );

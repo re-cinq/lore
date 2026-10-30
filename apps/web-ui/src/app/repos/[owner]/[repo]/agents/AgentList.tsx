@@ -218,7 +218,7 @@ function UsageCell({
   );
 }
 
-function ScopePill({ isProject }: { isProject: boolean }) {
+export function ScopePill({ isProject }: { isProject: boolean }) {
   return (
     <span
       className="status-pill"

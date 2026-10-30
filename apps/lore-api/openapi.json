@@ -150,7 +150,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Which lines use each stored definition (none: a floor pipeline carries its agents inline)",
+            "description": "Which assembly lines use each stored definition, read from the floor pipeline files",
             "content": {
               "application/json": {
                 "schema": {

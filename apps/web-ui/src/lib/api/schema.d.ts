@@ -5952,7 +5952,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Which lines use each stored definition (none: a floor pipeline carries its agents inline) */
+      /** @description Which assembly lines use each stored definition, read from the floor pipeline files */
       200: {
         headers: {
           [name: string]: unknown;
