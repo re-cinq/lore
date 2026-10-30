@@ -124,3 +124,24 @@ func TestParseNameStatusUnquotesCStylePaths(t *testing.T) {
 		t.Fatalf("deleted = %q, want %q", deleted, want)
 	}
 }
+
+func TestSelectDeltaKeepsATestWhoseRunReportedNoCoverage(t *testing.T) {
+	// A browser suite answers covered: [] — no evidence of what the test reads,
+	// so every delta carries it, a failure included. A test with no result at
+	// all still waits on its own file, as before.
+	r := report()
+	r.Tests = append(r.Tests,
+		TestDescriptor{ID: "t4", Name: "four", File: "e2e/d.spec.ts"},
+		TestDescriptor{ID: "t5", Name: "five", File: "e2e/e.spec.ts"},
+	)
+	r.Results = append(r.Results, TaggedRunResult{ID: "t4", Passed: false, Covered: []CoveredChunk{}})
+
+	got := selectDelta(r, []string{"README.md"})
+
+	if want := []string{"t4"}; !reflect.DeepEqual(ids(got.Tests), want) {
+		t.Fatalf("tests = %v, want %v", ids(got.Tests), want)
+	}
+	if len(got.Results) != 1 || got.Results[0].ID != "t4" || got.Results[0].Passed {
+		t.Fatalf("results should carry t4's failing result alone, got %v", got.Results)
+	}
+}
