@@ -84,7 +84,7 @@ function checkStatements(
   );
 }
 
-function cachedRead(
+export function cachedRead(
   read: ImplementationAssessmentInput["read"],
 ): ImplementationAssessmentInput["read"] {
   const contents = new Map<string, Promise<string | null>>();

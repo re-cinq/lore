@@ -4,6 +4,7 @@ import type {
 } from "@re-cinq/lore-shared/models/test-report.js";
 import { evidenceIsPresent } from "@re-cinq/lore-shared/feature-planning/grounding.js";
 import { sourceCallAt } from "@re-cinq/lore-shared/spec-trace/reference-extractor.js";
+import { cachedRead } from "@re-cinq/lore-shared/spec-tickets/implementation-assessment.js";
 import { extname } from "node:path";
 import type { BehavioralProof, IssueSnapshot } from "./scope.js";
 
@@ -153,8 +154,9 @@ export async function behaviorIsVerified(
   ) {
     return false;
   }
+  const readOnce = cachedRead(read);
   const results = await Promise.all(
-    proof.map((entry) => behavioralProofPresent(entry, report, read)),
+    proof.map((entry) => behavioralProofPresent(entry, report, readOnce)),
   );
 
   return results.length > 0 && results.every(Boolean);

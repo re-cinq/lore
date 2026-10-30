@@ -630,6 +630,20 @@ describe("issue implementation assessment", () => {
     });
   });
 
+  it("reads a test file once when two proofs cite it", async () => {
+    const raw = assessment();
+    const s = scene({
+      ...raw,
+      behavioral_proof: [...raw.behavioral_proof, ...raw.behavioral_proof],
+    });
+
+    await s.load();
+    expect(await s.verify()).toEqual({ outcome: "implemented" });
+    expect(
+      s.read.mock.calls.filter(([path]) => path === PROOF.evidence.path),
+    ).toHaveLength(1);
+  });
+
   it("keeps person-only operational work open even when a configuration test passes", async () => {
     const raw = assessment();
 
