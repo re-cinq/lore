@@ -11,6 +11,7 @@ import type { UtopiaReads } from "../../utopia/utopia-reads.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
+import { codeQueryOf, queryTerms } from "./context-assembly-query-terms.js";
 import {
   memorySectionReader,
   type UtopiaMemoryRead,
@@ -60,14 +61,21 @@ export function utopiaSectionReader(
   arm: UtopiaArm,
   query: string,
 ): SectionReader {
-  const docs = docsSectionReader(arm, query);
-  const memorySection = memorySectionReader(arm.memories, query);
+  const terms = queryTerms(query);
+  const docs = docsSectionReader(arm, query, codeQueryOf(terms));
+  const memorySection = memorySectionReader(arm.memories, query, terms);
 
   return (section) => memorySection(section.source) ?? docs(section);
 }
 
-function docsSectionReader(arm: UtopiaArm, query: string): SectionReader {
+/** The `code` section searches by the files and symbols the ticket names when it names any (FR13.9): a ticket's prose ranks spec statements, and the `code:` items it needs stand nowhere near its top 100; every other section reads the ticket's own search. */
+function docsSectionReader(
+  arm: UtopiaArm,
+  query: string,
+  codeQuery: string | null,
+): SectionReader {
   const page = searchPages(arm, query);
+  const codePage = codeQuery ? searchPages(arm, codeQuery) : page;
 
   return async ({ source }) => {
     const read = hitsReader(arm, source);
@@ -75,7 +83,10 @@ function docsSectionReader(arm: UtopiaArm, query: string): SectionReader {
     if (!read) {
       return { sources: [], status: "disabled" };
     }
-    const sources = await sectionDocuments(page, read);
+    const sources = await sectionDocuments(
+      source === "code" ? codePage : page,
+      read,
+    );
 
     return { sources, status: sources.length > 0 ? "ok" : "empty" };
   };

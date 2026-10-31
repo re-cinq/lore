@@ -443,3 +443,137 @@ describe("utopiaSectionReader memories and episodes", () => {
     });
   });
 });
+
+describe("utopiaSectionReader code search by the ticket's names (FR13.9)", () => {
+  const COVERAGE = "c0c0c0c0-5a49";
+  const FOOTER = "libs/shared/src/domain/pr-body.ts";
+  const codeText = JSON.stringify({
+    e: [["f", "SourceFile", true]],
+    s: [
+      [null, "f", "path", null, FOOTER, {}, null, null],
+      [null, "f", "defines", "f#prFooter", null, {}, null, null],
+      [null, "f#prFooter", "symbol", null, "prFooter", {}, null, null],
+      [null, "f#prFooter", "line_start", null, "20", {}, null, null],
+      [null, "f#prFooter", "line_end", null, "31", {}, null, null],
+    ],
+    external_id: `code:${FOOTER}`,
+  });
+  const TICKET = `Footer names the task\n\nEdit \`${FOOTER}\` so prFooter adds the Refs line.`;
+  const section = (source: string) =>
+    ({ source }) as Parameters<ReturnType<typeof utopiaSectionReader>>[0];
+  const searchByQuery = (asked: string[]): UtopiaReads => ({
+    search: async (_kbId, q): Promise<SearchPage> => {
+      asked.push(q);
+
+      return {
+        hits:
+          q === "pr-body.ts prFooter"
+            ? [hit(`code:${FOOTER}`, codeText, 0.02, { sourceId: COVERAGE })]
+            : [hit(`doc:${SPEC}`, specFirst, 0.03)],
+        hasMore: false,
+        vectorUsed: true,
+      };
+    },
+    documentByExternalId: async () => null,
+  });
+
+  it("asks a second search 'pr-body.ts prFooter' for code, both its pages at once, and fills it with pr-body.ts, while repo reads the ticket's own search", async () => {
+    const asked: string[] = [];
+    const read = utopiaSectionReader(
+      {
+        reads: searchByQuery(asked),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+        coverageSourceId: COVERAGE,
+      },
+      TICKET,
+    );
+    const [code, repo] = await Promise.all([
+      read(section("code")),
+      read(section("repo")),
+    ]);
+
+    expect({
+      asked: [...new Set(asked)].sort(),
+      code: code.sources.map(({ source_path }) => source_path),
+      repo: repo.sources.map(({ source_path }) => source_path),
+    }).toEqual({
+      asked: [TICKET, "pr-body.ts prFooter"],
+      code: [FOOTER],
+      repo: [SPEC],
+    });
+  });
+
+  it("reads code from the ticket's own search when the ticket names no file or symbol", async () => {
+    const asked: string[] = [];
+    const read = utopiaSectionReader(
+      {
+        reads: searchByQuery(asked),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+        coverageSourceId: COVERAGE,
+      },
+      "Make the digest shorter.",
+    );
+
+    await Promise.all([read(section("code")), read(section("repo"))]);
+
+    expect([...new Set(asked)]).toEqual(["Make the digest shorter."]);
+  });
+});
+
+describe("utopiaSectionReader memories filtered to the ticket's names (FR13.9)", () => {
+  const memoryHit = (key: string, value: string, score: number) => ({
+    key,
+    value,
+    score,
+    agent_id: "a",
+    source: "memory" as const,
+    backend: "utopia" as const,
+  });
+  const noSearch: UtopiaReads = {
+    async search() {
+      return { hits: [], hasMore: false, vectorUsed: true };
+    },
+    async documentByExternalId() {
+      return null;
+    },
+  };
+  const found = [
+    memoryHit("dod/4012", "triage failed label on a credit failure", 1),
+    memoryHit("board-pill", "Board.ts draws one pill per loop", 0.9),
+    memoryHit("dod/3990", "execution images are built by hand", 0.8),
+    memoryHit("loop-paused", "LoopPaused.tsx has the resume button", 0.7),
+    memoryHit("session-1", "mentions loopEnabled in passing", 0.6),
+    memoryHit("session-2", "loopEnabled reads each loop's own key", 0.5),
+  ];
+  const read = (query: string) =>
+    utopiaSectionReader(
+      { reads: noSearch, kbId: "kb", docsSourceId: DOCS, memories: async () => found },
+      query,
+    )({ source: "memories" } as Parameters<
+      ReturnType<typeof utopiaSectionReader>
+    >[0]);
+
+  it("keeps the three best memories that name board.ts, LoopPaused.tsx or loopEnabled and drops the DoD runs of other tickets", async () => {
+    const memories = await read(
+      "Pause on the pill\n\nEdit `apps/web-ui/src/app/loops/board/board.ts`, reuse LoopPaused.tsx and loopEnabled.",
+    );
+
+    expect(memories.sources.map(({ source_path }) => source_path)).toEqual([
+      "board-pill",
+      "loop-paused",
+      "session-1",
+    ]);
+  });
+
+  it("keeps the three best memories as they come when the ticket names nothing", async () => {
+    const memories = await read("Make the digest shorter.");
+
+    expect(memories.sources.map(({ source_path }) => source_path)).toEqual([
+      "dod/4012",
+      "board-pill",
+      "dod/3990",
+    ]);
+  });
+});
