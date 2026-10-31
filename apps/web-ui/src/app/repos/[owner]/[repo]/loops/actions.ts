@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  resumeLoop,
   setLoopEnabled,
   type LoopKey,
   type SwitchRequest,
@@ -17,6 +18,21 @@ export async function switchLoopAction(
   asked: SwitchRequest,
 ): Promise<string | null> {
   const result = await setLoopEnabled(fullName, key, asked);
+
+  if (result.status !== "ok") {
+    return refusalReason(result);
+  }
+  revalidateLoopsTab(fullName);
+
+  return null;
+}
+
+/** Resume one of the repo's paused loops; answers why lore-api refused, or null, like the switch. */
+export async function resumeLoopAction(
+  fullName: string,
+  key: LoopKey,
+): Promise<string | null> {
+  const result = await resumeLoop(fullName, key);
 
   if (result.status !== "ok") {
     return refusalReason(result);

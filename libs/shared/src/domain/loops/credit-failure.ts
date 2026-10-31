@@ -10,20 +10,26 @@ export interface ReportedVisit {
 export function creditFailureOf(
   visits: readonly ReportedVisit[],
 ): string | null {
+  return creditFailedVisitOf(visits)?.error ?? null;
+}
+
+/** The station that ran out of credit and its error, by the same rule as `creditFailureOf`: what resuming the loop runs again. */
+export function creditFailedVisitOf(
+  visits: readonly ReportedVisit[],
+): { nodeId: string; error: string } | null {
   const at = visits.findLastIndex(isCreditFailure);
 
   if (at < 0) {
     return null;
   }
-  const failed = visits[at];
+  const { nodeId, report } = visits[at];
   const recovered = visits
     .slice(at + 1)
     .some(
-      ({ nodeId, report }) =>
-        nodeId === failed.nodeId && report?.outcome === "success",
+      (later) => later.nodeId === nodeId && later.report?.outcome === "success",
     );
 
-  return recovered ? null : (failed.report?.error ?? null);
+  return recovered ? null : { nodeId, error: report?.error ?? "" };
 }
 
 function isCreditFailure({ report }: ReportedVisit): boolean {

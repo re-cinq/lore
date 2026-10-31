@@ -3,7 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/lib/api/loops", () => ({ getRepoLoops: vi.fn() }));
-vi.mock("./actions", () => ({ switchLoopAction: vi.fn() }));
+vi.mock("./actions", () => ({
+  switchLoopAction: vi.fn(),
+  resumeLoopAction: vi.fn(),
+}));
 vi.mock("./board/LoopBoard", () => ({
   default: ({
     loops,
@@ -28,18 +31,21 @@ const loops = [
     label: "Implementation loop",
     description: "Works the backlog.",
     enabled: false,
+    paused: null,
   },
   {
     key: "review",
     label: "Code review",
     description: "Reviews pull requests.",
     enabled: false,
+    paused: null,
   },
   {
     key: "triage",
     label: "Issue triage",
     description: "Triages issues.",
     enabled: true,
+    paused: null,
   },
 ];
 

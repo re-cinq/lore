@@ -29,7 +29,7 @@ export default function LoopPicker({ loops, selected, base }: LoopPickerProps) {
           href={`${base}?loop=${loop.key}`}
           current={loop.key === selected}
         >
-          <StateDot enabled={loop.enabled} />
+          <StateDot enabled={loop.enabled} paused={loop.paused !== null} />
           {loop.label}
         </Pill>
       ))}

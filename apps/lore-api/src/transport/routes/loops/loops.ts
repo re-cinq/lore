@@ -11,12 +11,17 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { LOOP_KINDS } from "@re-cinq/lore-shared/loops/loop-kinds.js";
 import { loopSwitchedOn } from "@re-cinq/lore-shared/loops/loop-enabled.js";
-import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
+import {
+  loopPause,
+  pauseActive,
+  type LoopPause,
+} from "@re-cinq/lore-shared/loops/loop-pause.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
-import { enforceRepoRow, switchLoop } from "./loop-switch.js";
+import { enforceRepoRow, resumeLoopOf, switchLoop } from "./loop-switch.js";
 import { codeReviewRoute } from "../code-review/code-review.js";
 import { autoMergeRoute } from "../auto-merge/auto-merge.js";
 import { specUpkeepRoute } from "../spec-upkeep/spec-upkeep.js";
@@ -108,7 +113,7 @@ const RESUME_OPTIONS = zodResponse(
   {
     name: "LoopResume",
     description:
-      "Resume one of the repository's loops: forget its pause and leave its switch as it is.",
+      "Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep) first runs again the station whose model credit ran out, and answers that run's id.",
     errors: [400, 404],
   },
 );
@@ -131,9 +136,9 @@ async function serveResumeLoop(
   const repo = repoOf(request.params);
 
   await enforceRepoRow(pool, repo);
-  await new PgSettings(pool).resumeLoop(repo, key);
+  const rerun = await resumeLoopOf(pool, repo, key);
 
-  return h.response({ ok: true as const, key }).code(200);
+  return h.response({ ok: true as const, key, rerun_run_id: rerun }).code(200);
 }
 
 async function serveReadLoops(
@@ -157,7 +162,14 @@ export function repoLoops(settings: unknown): RepoLoop[] {
   return LOOP_KINDS.map((kind) => ({
     ...kind,
     enabled: loopSwitchedOn(kind.key, settings),
+    paused: activePause(kind.key, settings),
   }));
+}
+
+function activePause(key: LoopKey, settings: unknown): LoopPause | null {
+  const pause = loopPause(key, settings);
+
+  return pauseActive(pause, new Date()) ? pause : null;
 }
 
 async function serveSwitchLoop(

@@ -41,6 +41,7 @@ function renderView(over: Partial<ImplementationLoop> = {}) {
     label: "Implementation loop",
     description: "",
     enabled: backlog.enabled,
+    paused: null,
   };
   const board = loopBoard(
     [
@@ -369,6 +370,7 @@ describe("BoardView for every loop", () => {
       label: "Code review",
       description: "",
       enabled: true,
+      paused: null,
     };
     const implementation: RepoLoop = {
       ...review,

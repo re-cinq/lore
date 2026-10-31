@@ -2,13 +2,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/api/loops", () => ({ setLoopEnabled: vi.fn() }));
+vi.mock("@/lib/api/loops", () => ({
+  setLoopEnabled: vi.fn(),
+  resumeLoop: vi.fn(),
+}));
 vi.mock("@/lib/api/repos", () => ({ onboardRepo: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
-import { setLoopEnabled } from "@/lib/api/loops";
+import { resumeLoop, setLoopEnabled } from "@/lib/api/loops";
 import { onboardRepo } from "@/lib/api/repos";
-import { retryOnboardingAction, switchLoopAction } from "./actions";
+import {
+  resumeLoopAction,
+  retryOnboardingAction,
+  switchLoopAction,
+} from "./actions";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -69,5 +76,26 @@ describe("retryOnboardingAction", () => {
 
     expect(onboardRepo).toHaveBeenCalledWith("re-cinq/Otto");
     expect(revalidatePath).toHaveBeenCalledWith("/repos/re-cinq/Otto/loops");
+  });
+});
+
+describe("resumeLoopAction", () => {
+  it("resumes the tickets loop and revalidates the Loops tab", async () => {
+    vi.mocked(resumeLoop).mockResolvedValue({
+      status: "ok",
+      data: { ok: true, key: "tickets", rerun_run_id: "run-7" },
+    } as never);
+
+    const refused = await resumeLoopAction("re-cinq/lore", "tickets");
+
+    expect({
+      refused,
+      asked: vi.mocked(resumeLoop).mock.calls,
+      revalidated: vi.mocked(revalidatePath).mock.calls,
+    }).toEqual({
+      refused: null,
+      asked: [["re-cinq/lore", "tickets"]],
+      revalidated: [["/repos/re-cinq/lore/loops"]],
+    });
   });
 });

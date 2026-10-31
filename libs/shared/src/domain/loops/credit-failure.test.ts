@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { creditFailureOf } from "./credit-failure.js";
+import { creditFailedVisitOf, creditFailureOf } from "./credit-failure.js";
 
 const ANTHROPIC =
   '400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}';
@@ -67,5 +67,19 @@ describe("creditFailureOf", () => {
         { nodeId: "review", report: { outcome: "success" } },
       ]),
     ).toBeNull();
+  });
+});
+
+describe("creditFailedVisitOf", () => {
+  it("returns tdd-round and its error for a round that ran out of credit", () => {
+    expect(
+      creditFailedVisitOf([
+        { nodeId: "dod", report: { outcome: "success" } },
+        {
+          nodeId: "tdd-round",
+          report: { outcome: "failed", error: ANTHROPIC },
+        },
+      ]),
+    ).toEqual({ nodeId: "tdd-round", error: ANTHROPIC });
   });
 });
