@@ -1,10 +1,9 @@
 import { Fragment, type ReactNode } from "react";
-import Form from "next/form";
-import { SubmitButton } from "@/components/SubmitButton";
 import { modelVendor } from "@/lib/model-vendor";
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import type { AgentUsage, DefinitionActivity } from "@/lib/agents-api";
 import { SettingsCard } from "@/components/SettingsCard";
+import EditLink from "@/components/EditLink";
 import { ScopePill } from "../repos/[owner]/[repo]/agents/AgentList";
 import { rowCells } from "../repos/[owner]/[repo]/agents/agent-row-cells";
 import {
@@ -77,7 +76,7 @@ function AgentCard({
         headingLevel={3}
       >
         <AgentFacts agent={agent} catalog={catalog} />
-        <EditButton href={editHref} />
+        <EditAction href={editHref} />
       </SettingsCard>
     </div>
   );
@@ -105,10 +104,10 @@ function AgentFacts({ agent, catalog }: AgentCardProps) {
   );
 }
 
-function EditButton({ href }: { href: string }) {
+function EditAction({ href }: { href: string }) {
   return (
-    <Form action={href} className={styles.edit}>
-      <SubmitButton>Edit</SubmitButton>
-    </Form>
+    <div className={styles.edit}>
+      <EditLink href={href} />
+    </div>
   );
 }

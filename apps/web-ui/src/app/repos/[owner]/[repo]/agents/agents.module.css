@@ -79,6 +79,13 @@
   align-items: center;
 }
 
+/* An Edit whose page is loading: dimmed, and no second click. */
+.actions a:has([data-pending]) {
+  opacity: 0.7;
+  pointer-events: none;
+  cursor: progress;
+}
+
 /* The confirm step replaces the Remove button inside its table cell; nowrap keeps the two buttons on one line while the sentence wraps. */
 .confirmRow {
   display: flex;
