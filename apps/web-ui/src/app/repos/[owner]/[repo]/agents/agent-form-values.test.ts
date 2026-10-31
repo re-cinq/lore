@@ -39,7 +39,10 @@ describe("agentFormValues", () => {
 
     const values = agentFormValues(agent, { isNew: false, orgScope: true });
 
-    expect({ prompt: values.prompt, promptInherited: values.promptInherited }).toEqual({
+    expect({
+      prompt: values.prompt,
+      promptInherited: values.promptInherited,
+    }).toEqual({
       prompt: "Make the test pass.",
       promptInherited: false,
     });
