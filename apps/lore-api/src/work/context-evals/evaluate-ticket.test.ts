@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { FakeLlm } from "@re-cinq/lore-shared/llm/fake-llm.js";
 import {
   evaluateTicket,
@@ -142,9 +143,7 @@ describe("evaluateTicket", () => {
     );
     const prompt = String(llm.calls[0]?.prompt);
 
-    if (!("score" in verdict)) {
-      throw new Error("one side was asked for");
-    }
+    enforceTrue("score" in verdict, Error, "one side was asked for");
 
     expect({
       score: verdict.score,
