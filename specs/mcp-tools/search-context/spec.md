@@ -23,7 +23,7 @@ any ingest has run.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts#L25)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts#L30)).
 
 - **name**: `lore_search_context`
 - **description** (verbatim):
@@ -124,7 +124,7 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 *(added 2026-10-16, ADR-052 amendment "reads choose a backend")* An optional `backend` param (`lore`, `utopia`, `both`) is forwarded to `GET /api/search-context`, and the API's notes are printed after the passages. ([validated by forwards backend=both to GET /api/search-context and prints the API's no-reader note after the passages](apps/mcp-server/src/transport/tools/context-tools.test.ts#L297))
 
-`utopia` or `both` is answered by the API only: with no API the tool refuses instead of scanning local files, which hold Lore's documents alone. ([validated by refuses backend utopia instead of scanning local files when no API is configured](apps/mcp-server/src/transport/tools/context-tools.test.ts#L339))
+`utopia` or `both` is answered by the API only: with no API the tool refuses instead of scanning local files, which hold Lore's documents alone. ([validated by refuses backend utopia instead of scanning local files when no API is configured](apps/mcp-server/src/transport/tools/context-tools.test.ts#L353))
 
 `GET /api/search-context` answers `utopia` with no mirror to read with the note `search_context: no Utopia reader yet`, without searching Lore; `both` with Lore's passages and that note; an unknown backend with 400. A Lore search answers as before, with no `notes`. A request naming no backend is answered as `utopia` (2026-10-28). ([validated by answers no passages and a no-reader note when the request names no repo, without searching Lore](apps/lore-api/src/transport/routes/context/search-context.test.ts#L143), [validated by answers the no-reader note for backend=utopia with repo=o/r when the repo has no mirror](apps/lore-api/src/transport/routes/context/search-context.test.ts#L187), [validated by answers Lore's passages plus the no-reader note for backend=both without a repo](apps/lore-api/src/transport/routes/context/search-context.test.ts#L224), [validated by refuses a backend of dgraph with 400](apps/lore-api/src/transport/routes/context/search-context.test.ts#L242))
 

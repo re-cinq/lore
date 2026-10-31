@@ -336,6 +336,20 @@ describe("the backend param on lore_assemble_context and lore_search_context", (
     );
   });
 
+  it("refuses repo 'not a repo' before asking the API", async () => {
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await searchContext({
+      query: "deploys",
+      limit: 8,
+      repo: "not a repo",
+    });
+
+    expect(result.content[0]?.text).toMatch(/owner\/name/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("refuses backend utopia instead of scanning local files when no API is configured", async () => {
     delete process.env.LORE_API_URL;
     const result = await searchContext({

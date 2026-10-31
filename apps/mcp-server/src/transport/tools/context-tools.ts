@@ -10,7 +10,12 @@ import {
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
 import { textResult, proxyGetApi, ASSEMBLY_PROXY_LIMITS } from "./deps.js";
 import { registerAssembleContextTool } from "./context-tools-assemble.js";
-import { repoParam, resolveRepo, type ServerMode } from "./repo-scope.js";
+import {
+  invalidRepoRefusal,
+  repoParam,
+  resolveRepo,
+  type ServerMode,
+} from "./repo-scope.js";
 import { backendNeedsApi, backendParam, readsUtopia } from "./backend-param.js";
 import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 
@@ -66,6 +71,11 @@ interface CorpusSearch {
 
 /** A Utopia read goes to the API or is refused: the local paths read Lore's stores alone. */
 async function searchContextFor(requested: CorpusSearch, mode: ServerMode) {
+  const refusal = invalidRepoRefusal(requested.repo);
+
+  if (refusal) {
+    return textResult(refusal);
+  }
   const search = withDetectedRepo(requested, mode);
   const { query, team, limit, backend } = search;
 
