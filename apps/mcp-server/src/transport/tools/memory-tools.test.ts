@@ -414,6 +414,20 @@ describe("lore_search_memory backend param", () => {
     vi.unstubAllGlobals();
   });
 
+  it("gives a memory search 45s per attempt", async () => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [] }),
+    });
+    await searchMemory({ query: "timeout probe memory", limit: 10 });
+
+    expect(timeoutSpy).toHaveBeenCalledWith(45_000);
+  });
+
   it("forwards backend both to POST /api/memory and prints the API's answer", async () => {
     process.env.LORE_API_URL = "https://lore-api.example.com";
     process.env.LORE_INGEST_TOKEN = "tok";

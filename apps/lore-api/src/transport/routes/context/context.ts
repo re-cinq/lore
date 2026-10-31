@@ -17,6 +17,7 @@ import {
   resolveBackend,
   type KnowledgeBackend,
 } from "@re-cinq/lore-shared/knowledge-backend.js";
+import { reportingAssembly } from "./assembly-report.js";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -170,7 +171,7 @@ async function assembledResponse(pool: Pool, q: ContextQuery) {
   return {
     text: result.text || null,
     sections: result.sections,
-    trace: result.trace,
+    trace: q.debug ? result.trace : undefined,
   };
 }
 
@@ -183,15 +184,39 @@ async function assembleForQuery(
   const repo = opts.repo || undefined;
   const settings = await repoContextSettings(pool, repo);
 
-  return await assembleContext(pool, query, {
+  const backend = resolveBackend(opts.backend, settings.contextBackend);
+
+  return await reportingAssembly(
+    { backend, repo, template: opts.template },
+    () =>
+      assembleContext(
+        pool,
+        query,
+        engineOptions(pool, opts, settings, backend),
+      ),
+  );
+}
+
+/** The trace is always kept (in memory only) because the assembly report reads it; the response still carries it only on `debug`. */
+async function engineOptions(
+  pool: Pool,
+  opts: AssembleOptions,
+  settings: Awaited<ReturnType<typeof repoContextSettings>>,
+  backend: KnowledgeBackend,
+) {
+  return {
     templateName: opts.template,
     maxTokens: opts.maxTokens,
-    repo,
+    repo: opts.repo || undefined,
     agentId: opts.agentId,
     crossRepo: opts.crossRepoRequested || settings.crossRepo,
-    debug: opts.debug,
+    debug: true,
     graph: traceFromEnv(process.env),
-    backend: resolveBackend(opts.backend, settings.contextBackend),
-    ...(await utopiaAssemblyOptions(pool, repo, settings.utopiaMirror)),
-  });
+    backend,
+    ...(await utopiaAssemblyOptions(
+      pool,
+      opts.repo || undefined,
+      settings.utopiaMirror,
+    )),
+  };
 }

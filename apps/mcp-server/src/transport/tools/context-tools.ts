@@ -8,7 +8,7 @@ import {
   isDbAvailable,
 } from "@re-cinq/lore-server-core/platform/db.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
-import { textResult, proxyGetApi } from "./deps.js";
+import { textResult, proxyGetApi, ASSEMBLY_PROXY_LIMITS } from "./deps.js";
 import { registerAssembleContextTool } from "./context-tools-assemble.js";
 import { resolveRepo, type ServerMode } from "./repo-scope.js";
 import { backendNeedsApi, backendParam, readsUtopia } from "./backend-param.js";
@@ -187,7 +187,8 @@ async function fetchCorpusPassages(params: URLSearchParams): Promise<{
   results: { rrf_score: number; content: string }[];
   notes: string[];
 } | null> {
-  const proxied = await proxyGetApi(`/api/search-context?${params.toString()}`);
+  const path = `/api/search-context?${params.toString()}`;
+  const proxied = await proxyGetApi(path, ASSEMBLY_PROXY_LIMITS);
 
   if (!proxied.ok) {
     return null;

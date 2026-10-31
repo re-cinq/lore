@@ -147,6 +147,14 @@ The handler's GKE-proxy success/empty/error envelope framing on the DB-backed pa
 is exercised only against live Postgres. *(untested: the success branch needs a
 populated DB; the engine itself is covered above.)*
 
+## Proxy timeout *(2026-10-31)*
+
+`lore_assemble_context`, `lore_search_context` and `lore_search_memory` give the API 45 s per attempt (`ASSEMBLY_PROXY_LIMITS`), above the 30 s tail Utopia-backed assembly measured on 2026-10-31. ([validated by waits 45s per attempt on /api/context and names 45s in the timeout detail](../../../libs/server-core/src/outbound/proxy.test.ts#L499), [validated by %s gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context-tools-assemble.test.ts#L58), [validated by gives a memory search 45s per attempt](../../../apps/mcp-server/src/transport/tools/memory-tools.test.ts#L417))
+
+A timed-out assembly is retried once, two attempts in all. ([validated by retries a timed-out /api/context assembly once, 2 attempts in all](../../../libs/server-core/src/outbound/proxy.test.ts#L518))
+
+Every other proxied call keeps 15 s and four attempts. ([validated by keeps 15s and 4 attempts for a proxied call given no limits](../../../libs/server-core/src/outbound/proxy.test.ts#L533))
+
 ## Out of Scope
 
 - The retrieval/ranking/XML engine internals — owned by [`context-assembly`](../../context-assembly/spec.md).
