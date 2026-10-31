@@ -120,6 +120,41 @@ describe("evaluateTicket", () => {
     ).toMatchObject({ score: 0, useful: [] });
   });
 
+  it("counts no quote taken from the block's own <context query> header, which echoes the ticket, and hands the judge the block without it", async () => {
+    const echoing = `<context query="Ticket 4024: run.mjs owns the runner\n\nEdit the route." template="implementation" budget="8000">\n${BLOCK}\n</context>`;
+    const llm = new FakeLlm({
+      data: {
+        useful: [
+          { fact: "the ticket's own words", quote: "Edit the route." },
+          {
+            fact: "the route to post to",
+            quote: "POST /api/context-evals/ticket",
+          },
+        ],
+        background: false,
+        noise: "",
+      },
+      usage: { model: "gemini-4-argon" },
+    });
+    const verdict = await evaluateTicket(
+      { llm, assemble: async () => ({ text: echoing, sections: ["code"] }) },
+      { repo: "re-cinq/lore", ticket: TICKET, backend: "lore" },
+    );
+    const prompt = String(llm.calls[0]?.prompt);
+
+    expect({
+      score: verdict.score,
+      useful: verdict.useful,
+      judgeSawQuery: prompt.includes("<context query="),
+      judgeSawBlock: prompt.includes("## Relevant Code"),
+    }).toEqual({
+      score: 2,
+      useful: ["the route to post to"],
+      judgeSawQuery: false,
+      judgeSawBlock: true,
+    });
+  });
+
   it("grades lore then utopia separately when the backend is both", async () => {
     const { deps, queries } = scenario();
 
