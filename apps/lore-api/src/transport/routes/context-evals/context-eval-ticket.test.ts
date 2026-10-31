@@ -26,11 +26,19 @@ describe("POST /api/context-evals/ticket", () => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
     setTicketEvalDepsForTests({
       llm: new FakeLlm({
-        data: { score: 3, useful: ["run.mjs"], noise: "none" },
+        data: {
+          useful: [
+            { fact: "run.mjs", quote: "run.mjs" },
+            { fact: "the route", quote: "the route" },
+            { fact: "the label", quote: "the label" },
+          ],
+          background: true,
+          noise: "none",
+        },
         usage: { model: "gemini-4-argon" },
       }),
       assemble: async (_repo, _query, backend) => ({
-        text: `<${backend}/>`,
+        text: `run.mjs, the route, the label <${backend}/>`,
         sections: ["code"],
       }),
       clock: () => 0,
@@ -48,11 +56,11 @@ describe("POST /api/context-evals/ticket", () => {
       status: 200,
       body: {
         score: 3,
-        useful: ["run.mjs"],
+        useful: ["run.mjs", "the route", "the label"],
         noise: "none",
         model: "gemini-4-argon",
         latency_ms: 0,
-        chars: 7,
+        chars: 37,
         sections: ["code"],
       },
     });
