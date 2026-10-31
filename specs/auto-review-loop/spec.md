@@ -425,9 +425,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/issues/issues.test.ts`
 
-- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L67))
-- creates an issue bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
-- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L124))
+- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L68))
+- creates an issue bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L112))
+- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L125))
 
 ### `libs/shared/src/outbound/project/lib/platform-github.test.ts`
 
@@ -455,9 +455,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/repo/repo-files.test.ts`
 
-- reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L59))
-- returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L71))
-- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L77))
+- reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L60))
+- returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L72))
+- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L78))
 
 ### `libs/shared/src/work/review/conventional-comment.test.ts`
 
