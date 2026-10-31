@@ -23,4 +23,25 @@ describe("agentFormValues", () => {
     expect(values.promptInherited).toBe(true);
     expect(values.promptPlaceholder).toBe("org prompt");
   });
+
+  it("fills the editor with the org prompt 'Make the test pass.' on the organisation default's own page", () => {
+    const agent = {
+      name: "loop-tdd",
+      model: "claude-opus-4-7",
+      timeout_minutes: 60,
+      prompt: "Make the test pass.",
+      image: null,
+      execution_mode: "claude-code",
+      review_required: false,
+      config: null,
+      project_id: null,
+    } satisfies AgentDefinition;
+
+    const values = agentFormValues(agent, { isNew: false, orgScope: true });
+
+    expect({ prompt: values.prompt, promptInherited: values.promptInherited }).toEqual({
+      prompt: "Make the test pass.",
+      promptInherited: false,
+    });
+  });
 });

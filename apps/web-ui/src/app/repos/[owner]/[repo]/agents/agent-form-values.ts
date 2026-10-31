@@ -24,7 +24,7 @@ export function scopeNote(scope: {
 
 export function agentFormValues(
   agent: AgentWithInheritedFields | null,
-  { isNew }: { isNew: boolean },
+  { isNew, orgScope = false }: { isNew: boolean; orgScope?: boolean },
 ) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
@@ -35,7 +35,7 @@ export function agentFormValues(
     executionMode,
     reviewRequired,
     timeoutMinutes,
-    prompt: resolvePrompt(agent, { isNew, promptInherited }),
+    prompt: resolvePrompt(agent, { isNew, promptInherited, orgScope }),
     promptPlaceholder: resolvePromptPlaceholder(agent),
     promptInherited,
     ...resolveModelFields(agent),
@@ -48,17 +48,25 @@ function isPromptInherited(agent: AgentWithInheritedFields | null): boolean {
   return !!agent?.inherited_fields?.includes("prompt");
 }
 
+/** The org default's own page edits its prompt, which the floor cannot clear; a repo's page edits only an override, leaving an inherited prompt as the placeholder. */
 function resolvePrompt(
   agent: AgentWithInheritedFields | null,
-  { isNew, promptInherited }: { isNew: boolean; promptInherited: boolean },
+  scope: { isNew: boolean; promptInherited: boolean; orgScope: boolean },
 ): string {
-  const noProjectOverride = agent == null || agent.project_id == null;
-
-  if (isNew || promptInherited || noProjectOverride) {
+  if (scope.isNew) {
     return "";
   }
 
-  return agent.prompt ?? "";
+  return (scope.orgScope ? agent?.prompt : overridePrompt(agent, scope)) ?? "";
+}
+
+function overridePrompt(
+  agent: AgentDefinition | null,
+  scope: { promptInherited: boolean },
+): string | null {
+  const overridden = agent?.project_id != null;
+
+  return scope.promptInherited || !overridden ? null : agent.prompt;
 }
 
 /** A custom model fills the free-text field and selects the custom option; a known one leaves the field empty and selects itself. */
