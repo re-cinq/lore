@@ -308,15 +308,32 @@ describe("the backend param on lore_assemble_context and lore_search_context", (
       query: "deploys",
       limit: 8,
       backend: "both",
+      repo: "owner/r",
     });
 
     expect({
       url: String(fetchMock.mock.calls[0]?.[0]),
       text: result.content[0].text,
     }).toEqual({
-      url: "https://lore.example/api/search-context?query=deploys&limit=8&backend=both",
+      url: "https://lore.example/api/search-context?query=deploys&limit=8&backend=both&repo=owner%2Fr",
       text: "**Score:** 0.500\n\ndeploy on Friday\n\nsearch_context: no Utopia reader yet",
     });
+  });
+
+  it("forwards repo=owner/r to GET /api/search-context for the default backend", async () => {
+    const fetchMock = vi.fn(async (_url: unknown) => ({
+      ok: true,
+      json: async () => ({
+        results: [{ content: "deploy on Friday", score: 1 }],
+      }),
+    }));
+
+    vi.stubGlobal("fetch", fetchMock);
+    await searchContext({ query: "deploys", limit: 8, repo: "owner/r" });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://lore.example/api/search-context?query=deploys&limit=8&repo=owner%2Fr",
+    );
   });
 
   it("refuses backend utopia instead of scanning local files when no API is configured", async () => {

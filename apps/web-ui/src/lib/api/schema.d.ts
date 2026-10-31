@@ -5103,6 +5103,8 @@ export interface components {
         content: string;
         score: number;
         source_path: string | null;
+        /** @enum {string} */
+        backend?: "lore" | "utopia";
       }[];
       notes?: string[];
     };

@@ -18943,6 +18943,10 @@
                 },
                 "source_path": {
                   "type": ["string", "null"]
+                },
+                "backend": {
+                  "type": "string",
+                  "enum": ["lore", "utopia"]
                 }
               },
               "required": ["content", "score", "source_path"],
