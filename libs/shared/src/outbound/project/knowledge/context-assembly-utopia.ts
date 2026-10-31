@@ -11,6 +11,10 @@ import type { UtopiaReads } from "../../utopia/utopia-reads.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
+import {
+  memorySectionReader,
+  type UtopiaMemoryRead,
+} from "./context-assembly-utopia-memory.js";
 import type { SectionReader } from "./context-assembly-types.js";
 
 /** Where a repository's mirror lives: its knowledge base and the `docs` source its documents were pushed to (`settings.utopia`). */
@@ -22,6 +26,8 @@ export interface UtopiaMirror {
 /** What the Utopia arm reads with; absent when the deployment has no reader or the repository no mirror. */
 export interface UtopiaArm extends UtopiaMirror {
   reads: UtopiaReads;
+  /** The memory search behind the `memories` and `episodes` sections; without it they say there is no reader. */
+  memories?: UtopiaMemoryRead;
 }
 
 const PAGE_SIZE = 50;
@@ -38,8 +44,9 @@ const SECTIONS: Partial<
 export function utopiaArmOf(
   reads: UtopiaReads | null | undefined,
   mirror: UtopiaMirror | undefined,
+  memories?: UtopiaMemoryRead,
 ): UtopiaArm | null {
-  return reads && mirror ? { reads, ...mirror } : null;
+  return reads && mirror ? { reads, ...mirror, memories } : null;
 }
 
 /** One assembly's reader: every section shares one search, and a second page is asked for only by a section the first left short. */
@@ -47,6 +54,13 @@ export function utopiaSectionReader(
   arm: UtopiaArm,
   query: string,
 ): SectionReader {
+  const docs = docsSectionReader(arm, query);
+  const memorySection = memorySectionReader(arm.memories, query);
+
+  return (section) => memorySection(section.source) ?? docs(section);
+}
+
+function docsSectionReader(arm: UtopiaArm, query: string): SectionReader {
   const page = searchPages(arm, query);
 
   return async ({ source }) => {
