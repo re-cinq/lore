@@ -1,3 +1,11 @@
+import { metrics } from "@opentelemetry/api";
+import {
+  AggregationTemporality,
+  InMemoryMetricExporter,
+  MeterProvider,
+  PeriodicExportingMetricReader,
+  type DataPoint,
+} from "@opentelemetry/sdk-metrics";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../app/build-server.js";
 import {
@@ -241,5 +249,110 @@ describe("GET /api/context", () => {
     await get(pool, "/api/context?query=hi&repo=o/r");
 
     expect(vi.mocked(assembleContext).mock.calls[0][2]?.backend).toBe("both");
+  });
+});
+
+const reader = new PeriodicExportingMetricReader({
+  exporter: new InMemoryMetricExporter(AggregationTemporality.DELTA),
+  exportIntervalMillis: 60_000,
+});
+
+metrics.setGlobalMeterProvider(new MeterProvider({ readers: [reader] }));
+
+const assemblyCounts = async () => {
+  const { resourceMetrics } = await reader.collect();
+
+  return resourceMetrics.scopeMetrics
+    .flatMap((scope) => scope.metrics)
+    .filter(({ descriptor }) => descriptor.name === "lore.context.assembly")
+    .flatMap((metric) => metric.dataPoints as Array<DataPoint<number>>)
+    .map(({ attributes, value }) => ({ attributes, value }));
+};
+
+const traceKeeping = (source: string, tokens: number) => ({
+  sections: [
+    {
+      source,
+      included: true,
+      items: [{ text: "x", tokens, source_path: "docs/a.md" }],
+    },
+  ],
+});
+
+describe("GET /api/context assembly report", () => {
+  useRateLimitSafeClock();
+  beforeEach(async () => {
+    await reader.collect();
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  it("logs backend=utopia, repo o/r, template default, sections docs and tokens=120 for an assembly that kept one docs document", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    vi.mocked(assembleContext).mockResolvedValue({
+      text: "ctx",
+      sections: [],
+      trace: traceKeeping("docs", 120),
+    } as any);
+    await get(makePool(), "/api/context?query=hi&repo=o/r");
+
+    expect(log.mock.calls.map(([line]) => line)).toEqual([
+      expect.stringMatching(
+        /^\[context\] assembled backend=utopia repo=o\/r template=default sections=docs tokens=120 ms=\d+$/,
+      ),
+    ]);
+  });
+
+  it("counts an ok utopia assembly, then an empty one with no kept section", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.mocked(assembleContext).mockResolvedValueOnce({
+      text: "ctx",
+      trace: traceKeeping("docs", 5),
+    } as any);
+    vi.mocked(assembleContext).mockResolvedValueOnce({
+      text: "",
+      trace: { sections: [] },
+    } as any);
+    await get(makePool(), "/api/context?query=hi&repo=o/r");
+    await get(makePool(), "/api/context?query=hi&repo=o/r");
+
+    expect(await assemblyCounts()).toEqual([
+      { attributes: { backend: "utopia", outcome: "ok" }, value: 1 },
+      { attributes: { backend: "utopia", outcome: "empty" }, value: 1 },
+    ]);
+  });
+
+  it("counts outcome=error and answers 500 when the assembly throws", async () => {
+    vi.mocked(assembleContext).mockRejectedValue(new Error("utopia down"));
+    const res = await get(makePool(), "/api/context?query=hi&repo=o/r");
+
+    expect({
+      status: res.statusCode,
+      counts: (await assemblyCounts()).filter(
+        ({ attributes }) => attributes.outcome === "error",
+      ),
+    }).toEqual({
+      status: 500,
+      counts: [
+        { attributes: { backend: "utopia", outcome: "error" }, value: 1 },
+      ],
+    });
+  });
+
+  it("omits the trace from the response when debug is not set", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.mocked(assembleContext).mockResolvedValue({
+      text: "ctx",
+      sections: [],
+      trace: traceKeeping("docs", 1),
+    } as any);
+    const res = await get(makePool(), "/api/context?query=hi");
+
+    expect(res.result).toEqual({ text: "ctx", sections: [] });
   });
 });

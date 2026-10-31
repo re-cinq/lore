@@ -137,6 +137,15 @@ export function recordUtopiaMirrorFailure(repo: string): void {
   instruments().utopiaMirrorFailures.add(1, { repo });
 }
 
+export type ContextAssemblyRecord = {
+  backend: string;
+  outcome: "ok" | "empty" | "error";
+};
+
+export function recordContextAssembly(assembly: ContextAssemblyRecord): void {
+  instruments().contextAssemblies.add(1, assembly);
+}
+
 export interface LlmCallMetric {
   model: string;
   inputTokens: number;
@@ -238,6 +247,10 @@ function recordInstruments(meter: Meter) {
     }),
     episodesWritten: meter.createCounter("lore.episodes.written", {
       description: "Episodes written",
+    }),
+    contextAssemblies: meter.createCounter("lore.context.assembly", {
+      description:
+        "Context assemblies, by backend and outcome (ok, empty, error)",
     }),
   };
 }

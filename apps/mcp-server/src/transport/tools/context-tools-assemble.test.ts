@@ -50,3 +50,26 @@ describe("lore_assemble_context audit logging", () => {
     expect(logs).toMatch(/tokens:.*550/i);
   });
 });
+
+describe("lore_assemble_context and lore_search_context timeout", () => {
+  it.each([
+    ["lore_assemble_context", { query: "timeout probe assemble" }],
+    ["lore_search_context", { query: "timeout probe search" }],
+  ])("%s gives the API 45s per attempt", async (tool, args) => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ text: "t", sections: [], results: [] }),
+      })),
+    );
+    await toolHandlers(registerContextTools, "full")[tool]({
+      ...args,
+      repo: "owner/repo",
+    });
+
+    expect(timeoutSpy).toHaveBeenCalledWith(45_000);
+  });
+});

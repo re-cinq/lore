@@ -3,6 +3,23 @@ import type { ProxyResult } from "./proxy.js";
 
 export const PROXY_RETRY_DELAYS_MS = [200, 600, 1800]; // ~2.6s total budget before giving up
 
+/** How long one attempt may take and how many attempts a call gets. */
+export interface ProxyLimits {
+  timeoutMs: number;
+  maxAttempts: number;
+}
+
+export const DEFAULT_PROXY_LIMITS: ProxyLimits = {
+  timeoutMs: 15_000,
+  maxAttempts: PROXY_RETRY_DELAYS_MS.length + 1,
+};
+
+/** For reads that assemble or search (context, search-context, memory search): Utopia-backed assembly measured a 3.4 to 4.2 s median and a 30 s tail on 2026-10-31 (Utopia's own search timeout), so 45 s outlasts the tail, and a timed-out call is retried once at most because a second 45 s wait four times over would hold a pod for minutes. */
+export const ASSEMBLY_PROXY_LIMITS: ProxyLimits = {
+  timeoutMs: 45_000,
+  maxAttempts: 2,
+};
+
 type RequestOutcome =
   { done: true; result: ProxyResult } | { done: false; detail: string };
 
@@ -10,6 +27,7 @@ type RequestOutcome =
 interface Attempt {
   makeRequest: () => Promise<Response>;
   label: string;
+  limits: ProxyLimits;
   buildNonRetriableResult: (
     status: number,
     detail: string,
@@ -26,18 +44,25 @@ export async function requestWithRetry(
     detail: string,
     errorBody: string,
   ) => ProxyResult,
+  limits: ProxyLimits = DEFAULT_PROXY_LIMITS,
 ): Promise<ProxyResult> {
-  const attempt: Attempt = { makeRequest, label, buildNonRetriableResult };
-  const outcome = await retryLoop(attempt);
+  const outcome = await retryLoop({
+    makeRequest,
+    label,
+    limits,
+    buildNonRetriableResult,
+  });
 
-  return outcome.done ? outcome.result : exhausted(label, outcome.detail);
+  return outcome.done
+    ? outcome.result
+    : exhausted(label, outcome.detail, limits.maxAttempts);
 }
 
 // Attempts until one settles or the delays run out. The backoff sits BETWEEN attempts, never after the last — waiting once more before reporting exhaustion would delay the answer without buying another try.
 async function retryLoop(attempt: Attempt): Promise<RequestOutcome> {
   let lastDetail = "no attempts made";
 
-  for (let n = 0; n <= PROXY_RETRY_DELAYS_MS.length; n++) {
+  for (let n = 0; n < attempt.limits.maxAttempts; n++) {
     const outcome = await attemptRequest(attempt);
 
     if (outcome.done) {
@@ -45,7 +70,7 @@ async function retryLoop(attempt: Attempt): Promise<RequestOutcome> {
     }
     lastDetail = outcome.detail;
 
-    if (n < PROXY_RETRY_DELAYS_MS.length) {
+    if (n < attempt.limits.maxAttempts - 1) {
       await backoff(n, attempt.label, lastDetail);
     }
   }
@@ -54,9 +79,13 @@ async function retryLoop(attempt: Attempt): Promise<RequestOutcome> {
 }
 
 // Every attempt is spent. Reports the LAST failure rather than the first: it is the one that was true when the caller gave up, and the earlier ones were already logged as they happened.
-function exhausted(label: string, lastDetail: string): ProxyResult {
+function exhausted(
+  label: string,
+  lastDetail: string,
+  maxAttempts: number,
+): ProxyResult {
   console.error(
-    `[lore-mcp] ${label} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
+    `[lore-mcp] ${label} exhausted ${maxAttempts} attempts; last error: ${lastDetail}`,
   );
 
   return { ok: false, reason: "unreachable", detail: lastDetail };
@@ -77,7 +106,10 @@ async function attemptRequest(attempt: Attempt): Promise<RequestOutcome> {
     return await classifyFailure(res, attempt);
   } catch (err) {
     // A thrown fetch is always worth another attempt: it never reached a status, so nothing has told us the request is unacceptable.
-    return { done: false, detail: describeFetchError(err) };
+    return {
+      done: false,
+      detail: describeFetchError(err, attempt.limits.timeoutMs),
+    };
   }
 }
 
@@ -121,10 +153,10 @@ async function classifyFailure(
 }
 
 // A thrown fetch error (network failure, abort timeout) reduced to a retry detail string.
-function describeFetchError(err: unknown): string {
+function describeFetchError(err: unknown, timeoutMs: number): string {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- err is unknown; `as` trusts the shape unconditionally, but a thrown value can genuinely be null/undefined
   if ((err as { name?: string })?.name === "TimeoutError") {
-    return "request timed out (15s)";
+    return `request timed out (${timeoutMs / 1000}s)`;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- err is unknown; `as` trusts the shape unconditionally, but a thrown value can genuinely be null/undefined

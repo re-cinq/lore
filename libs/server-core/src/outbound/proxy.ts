@@ -8,7 +8,13 @@ import {
   markStale,
   type ReadCachePolicy,
 } from "./proxy-cache.js";
-import { PROXY_RETRY_DELAYS_MS, requestWithRetry } from "./proxy-retry.js";
+import {
+  ASSEMBLY_PROXY_LIMITS,
+  DEFAULT_PROXY_LIMITS,
+  PROXY_RETRY_DELAYS_MS,
+  requestWithRetry,
+  type ProxyLimits,
+} from "./proxy-retry.js";
 
 // ProxyResult distinguishes not_configured/unreachable; denied (401/403) prevents stale-cache serve.
 export type ProxyResult =
@@ -25,24 +31,32 @@ export type ProxyResult =
     }
   | { ok: false; reason: "denied"; detail: string };
 
-export { PROXY_RETRY_DELAYS_MS };
+export { PROXY_RETRY_DELAYS_MS, ASSEMBLY_PROXY_LIMITS };
 
 export async function proxyToApi(
   endpoint: string,
   body: Record<string, unknown>,
+  limits: ProxyLimits = DEFAULT_PROXY_LIMITS,
+): Promise<ProxyResult> {
+  return withApiTarget(({ apiUrl, apiToken }) =>
+    requestWithRetry(
+      () => postJson(`${apiUrl}${endpoint}`, apiToken, body, limits.timeoutMs),
+      `proxy ${endpoint}`,
+      refusalResult,
+      limits,
+    ),
+  );
+}
+
+/** Runs a call against the configured API, or answers not_configured when this process was never pointed at one. */
+function withApiTarget(
+  call: (target: { apiUrl: string; apiToken: string }) => Promise<ProxyResult>,
 ): Promise<ProxyResult> {
   const target = apiTarget();
 
-  if (!target) {
-    return { ok: false, reason: "not_configured" };
-  }
-  const { apiUrl, apiToken } = target;
-
-  return requestWithRetry(
-    () => postJson(`${apiUrl}${endpoint}`, apiToken, body),
-    `proxy ${endpoint}`,
-    refusalResult,
-  );
+  return target
+    ? call(target)
+    : Promise.resolve({ ok: false, reason: "not_configured" });
 }
 
 /** The URL and token every proxied call needs, or null when this process was never pointed at an API. */
@@ -58,12 +72,13 @@ function postJson(
   url: string,
   apiToken: string,
   body: Record<string, unknown>,
+  timeoutMs: number,
 ): Promise<Response> {
   return fetch(url, {
     method: "POST",
     headers: postHeaders(apiToken),
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -87,8 +102,9 @@ function refusalResult(
 export function proxyMemory(
   action: string,
   params: Record<string, unknown>,
+  limits?: ProxyLimits,
 ): Promise<ProxyResult> {
-  return proxyToApi("/api/memory", { action, ...params });
+  return proxyToApi("/api/memory", { action, ...params }, limits);
 }
 
 type ReadCacheOpts = { label?: boolean; cacheIf?: (body: string) => boolean };
@@ -189,23 +205,22 @@ function serveStaleFallback({
 }
 
 // GET sibling of proxyToApi for read-only routes; same gate/budget/shape, no body.
-export async function proxyGetApi(path: string): Promise<ProxyResult> {
-  const target = apiTarget();
-
-  if (!target) {
-    return { ok: false, reason: "not_configured" };
-  }
-  const { apiUrl, apiToken } = target;
-
-  return requestWithRetry(
-    () =>
-      fetch(`${apiUrl}${path}`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${apiToken}` },
-        signal: AbortSignal.timeout(15_000),
-      }),
-    `proxy GET ${path}`,
-    refusalResult,
+export function proxyGetApi(
+  path: string,
+  limits: ProxyLimits = DEFAULT_PROXY_LIMITS,
+): Promise<ProxyResult> {
+  return withApiTarget(({ apiUrl, apiToken }) =>
+    requestWithRetry(
+      () =>
+        fetch(`${apiUrl}${path}`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${apiToken}` },
+          signal: AbortSignal.timeout(limits.timeoutMs),
+        }),
+      `proxy GET ${path}`,
+      refusalResult,
+      limits,
+    ),
   );
 }
 

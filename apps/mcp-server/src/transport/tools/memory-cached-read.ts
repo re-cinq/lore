@@ -1,4 +1,4 @@
-import { proxyMemory, withReadCache } from "./deps.js";
+import { ASSEMBLY_PROXY_LIMITS, proxyMemory, withReadCache } from "./deps.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
 /** What the memory tools resolve to. `textResult` returns a one-element tuple and the proxy interpreter returns an array; naming the wider shape lets both flow out of one function. */
@@ -21,8 +21,13 @@ export async function cachedMemoryRead(
       repo: spec.repo,
       ttlSeconds: 300,
     },
-    () => proxyMemory(spec.op, spec.args),
+    () => proxyMemory(spec.op, spec.args, limitsFor(spec.op)),
   );
 
   return interpretMemoryProxy(spec.tool, proxied) ?? fromFile();
+}
+
+// A search assembles from Utopia and so needs the long timeout; reading or listing a key does not.
+function limitsFor(op: "read" | "list" | "search") {
+  return op === "search" ? ASSEMBLY_PROXY_LIMITS : undefined;
 }

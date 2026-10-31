@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   proxyToApi,
   proxyGetApi,
+  ASSEMBLY_PROXY_LIMITS,
   withReadCache,
   textResult,
   failedProxyError,
@@ -479,5 +480,67 @@ describe("textResult", () => {
     expect(textResult("[lore] nothing found")).toEqual({
       content: [{ type: "text", text: "[lore] nothing found" }],
     });
+  });
+});
+
+describe("proxy limits for assembling and searching reads", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.test";
+    process.env.LORE_INGEST_TOKEN = "token";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    delete process.env.LORE_API_URL;
+    delete process.env.LORE_INGEST_TOKEN;
+  });
+
+  it("waits 45s per attempt on /api/context and names 45s in the timeout detail", async () => {
+    vi.useFakeTimers();
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    const timeoutError = Object.assign(new Error("aborted"), {
+      name: "TimeoutError",
+    });
+
+    global.fetch = vi.fn().mockRejectedValue(timeoutError) as typeof fetch;
+    const pending = proxyGetApi("/api/context?repo=a/b", ASSEMBLY_PROXY_LIMITS);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await pending).toEqual({
+      ok: false,
+      reason: "unreachable",
+      detail: "request timed out (45s)",
+    });
+    expect(timeoutSpy).toHaveBeenCalledWith(45_000);
+  });
+
+  it("retries a timed-out /api/context assembly once, 2 attempts in all", async () => {
+    vi.useFakeTimers();
+    const timeoutError = Object.assign(new Error("aborted"), {
+      name: "TimeoutError",
+    });
+    const spy = vi.fn().mockRejectedValue(timeoutError);
+
+    global.fetch = spy as unknown as typeof fetch;
+    const pending = proxyGetApi("/api/context?repo=a/b", ASSEMBLY_PROXY_LIMITS);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await pending;
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps 15s and 4 attempts for a proxied call given no limits", async () => {
+    vi.useFakeTimers();
+    const spy = vi.fn().mockRejectedValue(new Error("network down"));
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+
+    global.fetch = spy as unknown as typeof fetch;
+    const pending = proxyGetApi("/api/repos");
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await pending;
+    expect(spy).toHaveBeenCalledTimes(4);
+    expect(timeoutSpy).toHaveBeenCalledWith(15_000);
   });
 });

@@ -8,7 +8,7 @@ import {
   isDbAvailable,
 } from "@re-cinq/lore-server-core/platform/db.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
-import { textResult, proxyGetApi } from "./deps.js";
+import { textResult, proxyGetApi, ASSEMBLY_PROXY_LIMITS } from "./deps.js";
 import { registerAssembleContextTool } from "./context-tools-assemble.js";
 import { resolveRepo, type ServerMode } from "./repo-scope.js";
 import { backendNeedsApi, backendParam, readsUtopia } from "./backend-param.js";
@@ -183,19 +183,22 @@ function withNotes(
 }
 
 /** The API's passages in the shape the renderer takes, or null when the proxy could not answer at all — a reachable API that matched nothing returns an empty list, which is a real answer. */
+interface CorpusAnswer {
+  results?: { content: string; score: number }[];
+  notes?: string[];
+}
+
 async function fetchCorpusPassages(params: URLSearchParams): Promise<{
   results: { rrf_score: number; content: string }[];
   notes: string[];
 } | null> {
-  const proxied = await proxyGetApi(`/api/search-context?${params.toString()}`);
+  const path = `/api/search-context?${params.toString()}`;
+  const proxied = await proxyGetApi(path, ASSEMBLY_PROXY_LIMITS);
 
   if (!proxied.ok) {
     return null;
   }
-  const body = JSON.parse(proxied.body) as {
-    results?: { content: string; score: number }[];
-    notes?: string[];
-  };
+  const body = JSON.parse(proxied.body) as CorpusAnswer;
 
   return {
     results: (body.results ?? []).map((r) => ({

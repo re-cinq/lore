@@ -10,6 +10,7 @@ import {
   withReadCache,
   trackLatency,
   proxyGetApi,
+  ASSEMBLY_PROXY_LIMITS,
   type ProxyResult,
 } from "./deps.js";
 import { repoParam, withRepo, type ServerMode } from "./repo-scope.js";
@@ -159,7 +160,10 @@ async function cachedAssemble(
 async function fetchAssembledContext(
   params: URLSearchParams,
 ): Promise<ProxyResult> {
-  const r = await proxyGetApi(`/api/context?${params.toString()}`);
+  const r = await proxyGetApi(
+    `/api/context?${params.toString()}`,
+    ASSEMBLY_PROXY_LIMITS,
+  );
 
   if (!r.ok) {
     return r;

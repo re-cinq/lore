@@ -14,6 +14,7 @@ export {
   unconfiguredError,
   textResult,
   PROXY_RETRY_DELAYS_MS,
+  ASSEMBLY_PROXY_LIMITS,
   type ProxyResult,
 } from "@re-cinq/lore-server-core/proxy.js";
 

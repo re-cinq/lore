@@ -16,6 +16,7 @@ import {
   recordStationRun,
   recordToolCall,
   recordUtopiaMirrorFailure,
+  recordContextAssembly,
   recordWebhookEvent,
   traceHttp,
 } from "./metrics.js";
@@ -125,6 +126,17 @@ describe("lore metrics", () => {
 
     expect(failure).toMatchObject({
       attributes: { repo: "re-cinq/lore" },
+      value: 1,
+    });
+  });
+
+  it("counts an empty utopia context assembly", async () => {
+    recordContextAssembly({ backend: "utopia", outcome: "empty" });
+
+    const [point] = points("lore.context.assembly", await collected());
+
+    expect(point).toMatchObject({
+      attributes: { backend: "utopia", outcome: "empty" },
       value: 1,
     });
   });
