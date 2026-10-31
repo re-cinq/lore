@@ -135,7 +135,7 @@ export function routeList(
     ...agentDefinitionRoutes(getPool),
     ...skillDefinitionsRoutes(getPool),
     ...analyticsRoutes(getPool),
-    ...traceRoutes(),
+    ...traceRoutes(getPool),
   ];
 }
 
@@ -292,14 +292,14 @@ function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
 }
 
 /** The spec-traceability graph: impact, documents, and the chunks behind them. */
-function traceRoutes(): ServerRoute[] {
+function traceRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     impactRoute(),
     impactBaseRoute(),
     traceRoute(),
     chunksRoute(),
     // The corpus search the MCP adapter proxies; without it lore_search_context can only grep the caller's checkout.
-    searchContextRoute(),
+    searchContextRoute(getPool),
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),

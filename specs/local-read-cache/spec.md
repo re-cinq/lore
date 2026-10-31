@@ -74,7 +74,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
 ## Acceptance Criteria
 
 1. **AC1** The cache is active only in local stdio mode (memory DB
-   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/transport/tools/context-tools.ts#L130), [`withReadCache`](apps/mcp-server/src/transport/tools/deps.ts#L19))
+   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/transport/tools/context-tools.ts#L90), [`withReadCache`](apps/mcp-server/src/transport/tools/deps.ts#L18))
 
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
    `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/outbound/proxy-cache.test.ts#L148), [`isCacheEnabled`](libs/server-core/src/outbound/proxy-cache.ts#L43))

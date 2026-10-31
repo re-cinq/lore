@@ -10,7 +10,13 @@ import {
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
 import { textResult, proxyGetApi, ASSEMBLY_PROXY_LIMITS } from "./deps.js";
 import { registerAssembleContextTool } from "./context-tools-assemble.js";
-import { resolveRepo, type ServerMode } from "./repo-scope.js";
+import {
+  invalidRepoRefusal,
+  NO_REPO_GIVEN,
+  repoParam,
+  resolveRepo,
+  type ServerMode,
+} from "./repo-scope.js";
 import { backendNeedsApi, backendParam, readsUtopia } from "./backend-param.js";
 import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 
@@ -50,7 +56,7 @@ function registerSearchContextTool(server: McpServer, mode: ServerMode) {
     "lore_search_context",
     `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval over the ingested corpus, through the API when the adapter holds no pool of its own; only with neither does it fall back to a substring scan of local .md files, and it says so when it does.
 Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
-    SEARCH_CONTEXT_INPUT,
+    { ...SEARCH_CONTEXT_INPUT, repo: repoParam(mode) },
     (search) => searchContextFor(search, mode),
   );
 }
@@ -61,19 +67,39 @@ interface CorpusSearch {
   team?: string;
   limit: number;
   backend?: KnowledgeBackend;
+  repo?: string;
 }
 
 /** A Utopia read goes to the API or is refused: the local paths read Lore's stores alone. */
-async function searchContextFor(search: CorpusSearch, mode: ServerMode) {
-  const { query, team, limit, backend } = search;
+async function searchContextFor(requested: CorpusSearch, mode: ServerMode) {
+  const refusal = repoRefusal(requested.repo, mode);
 
-  logDetectedRepo(team, mode);
-
-  if (readsUtopia(backend)) {
-    return (
-      (await searchApiContext(search)) ?? textResult(backendNeedsApi(backend))
-    );
+  if (refusal) {
+    return textResult(refusal);
   }
+  const search = withDetectedRepo(requested, mode);
+
+  logDetectedRepo(search.team, mode);
+
+  return readsUtopia(search.backend)
+    ? ((await searchApiContext(search)) ??
+        textResult(backendNeedsApi(search.backend)))
+    : searchLoreStores(search);
+}
+
+/** A repo that is not owner/name, or none at all in the shared gateway, is refused before anything is read. */
+function repoRefusal(
+  repo: string | undefined,
+  mode: ServerMode,
+): string | null {
+  return (
+    invalidRepoRefusal(repo) ??
+    (mode === "agent" && !repo ? NO_REPO_GIVEN : null)
+  );
+}
+
+async function searchLoreStores(search: CorpusSearch) {
+  const { query, team, limit } = search;
 
   if (await isDbAvailable()) {
     return searchDbContext(query, team, limit);
@@ -82,6 +108,10 @@ async function searchContextFor(search: CorpusSearch, mode: ServerMode) {
   return (
     (await searchApiContext(search)) ?? fileFallbackSearch(query, team, limit)
   );
+}
+
+function withDetectedRepo(search: CorpusSearch, mode: ServerMode) {
+  return { ...search, repo: resolveRepo(search.repo, mode) ?? undefined };
 }
 
 // Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
@@ -214,12 +244,14 @@ function corpusParams({
   team,
   limit,
   backend,
+  repo,
 }: CorpusSearch): URLSearchParams {
   return new URLSearchParams({
     query,
     limit: String(limit),
     ...(team ? { team } : {}),
     ...(backend ? { backend } : {}),
+    ...(repo ? { repo } : {}),
   });
 }
 
