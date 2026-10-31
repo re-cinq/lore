@@ -183,6 +183,11 @@ function withNotes(
 }
 
 /** The API's passages in the shape the renderer takes, or null when the proxy could not answer at all — a reachable API that matched nothing returns an empty list, which is a real answer. */
+interface CorpusAnswer {
+  results?: { content: string; score: number }[];
+  notes?: string[];
+}
+
 async function fetchCorpusPassages(params: URLSearchParams): Promise<{
   results: { rrf_score: number; content: string }[];
   notes: string[];
@@ -193,10 +198,7 @@ async function fetchCorpusPassages(params: URLSearchParams): Promise<{
   if (!proxied.ok) {
     return null;
   }
-  const body = JSON.parse(proxied.body) as {
-    results?: { content: string; score: number }[];
-    notes?: string[];
-  };
+  const body = JSON.parse(proxied.body) as CorpusAnswer;
 
   return {
     results: (body.results ?? []).map((r) => ({
