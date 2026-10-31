@@ -39,13 +39,10 @@ describe("AgentForm (Acceptance)", () => {
       getByText(/inherited from org/i, { selector: ".prompt-note" }),
     ).toBeInTheDocument();
 
-    const textarea = container.querySelector(
-      'textarea[name="prompt"]',
-    ) as HTMLTextAreaElement;
-
     expect({
-      value: textarea.value,
-      placeholder: textarea.placeholder,
+      value: container.querySelector<HTMLInputElement>('input[name="prompt"]')
+        ?.value,
+      placeholder: container.querySelector(".cm-placeholder")?.textContent,
     }).toEqual({ value: "", placeholder: "org prompt" });
 
     fireEvent.submit(container.querySelector("form")!);

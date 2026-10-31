@@ -36,7 +36,7 @@ interface AgentFormProps {
 export default function AgentForm(props: AgentFormProps) {
   const { repo, agent, isNew, defaultImage, orgScope = false } = props;
   const [state, formAction] = useActionState(props.action, {});
-  const formValues = agentFormValues(agent, { isNew });
+  const formValues = agentFormValues(agent, { isNew, orgScope });
   const values = { ...formValues, repo, isNew, orgScope };
   const [model, setModel] = useState(values.initialSelection);
 
