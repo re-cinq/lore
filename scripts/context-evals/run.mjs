@@ -3,12 +3,10 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { ApiRefusal, loreApi } from "./lore-api.mjs";
+import { ApiRefusal, loreApi, patiently } from "./lore-api.mjs";
 import { sampleDocuments } from "./sample.mjs";
+import { runTickets } from "./tickets.mjs";
 
-// 500 is in the list because a rate limit of the model reaches the runner as one.
-const RETRIED = new Set([429, 500, 502, 503, 504]);
-const RETRY_AFTER_MS = [5000, 15000];
 const BACKENDS = ["lore", "utopia", "both"];
 
 export async function runEval(run) {
@@ -68,29 +66,6 @@ async function evaluate(api, run, path) {
   }
 }
 
-/** A refusal that may pass and a connection that failed are asked again, twice, with a wait between; the last failure is thrown. */
-async function patiently({ pause = wait }, call) {
-  let failure;
-
-  for (const delay of [0, ...RETRY_AFTER_MS]) {
-    if (delay > 0) {
-      await pause(delay);
-    }
-
-    try {
-      return await call();
-    } catch (err) {
-      failure = err;
-
-      if (err instanceof ApiRefusal && !RETRIED.has(err.status)) {
-        break;
-      }
-    }
-  }
-
-  throw failure;
-}
-
 function unanswered(path, reason) {
   return {
     path,
@@ -112,8 +87,6 @@ function reasonOf(failure) {
 
   return `could not reach lore-api: ${failure.message}${cause}`;
 }
-
-const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
 export function summarize(results) {
   const count = (holds) => results.filter(holds).length;
@@ -257,19 +230,27 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         type: "string",
         default: process.env.LORE_EVAL_BACKEND || "lore",
       },
-      // Every verdict as JSON, each returned source with its section, tokens and whether the answer used it.
+      tickets: { type: "string" },
       results: { type: "string" },
     },
   });
-  const outcome = await runEval({
-    env: process.env,
-    repo: values.repo,
-    path: values.path,
-    date: values.date,
-    sample: Number(values.sample),
-    threshold: Number(values.threshold),
-    backend: values.backend,
-  });
+  const { backend, repo } = values;
+  const outcome = values.tickets
+    ? await runTickets({
+        env: process.env,
+        repo,
+        backend,
+        count: Number(values.tickets),
+      })
+    : await runEval({
+        env: process.env,
+        repo,
+        backend,
+        path: values.path,
+        date: values.date,
+        sample: Number(values.sample),
+        threshold: Number(values.threshold),
+      });
 
   console.log(outcome.markdown);
 
@@ -284,7 +265,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${outcome.markdown}\n`);
   }
 
-  if (!outcome.passed) {
+  if (outcome.passed === false) {
     console.error(
       `::error::${values.repo}: ${outcome.stats.answered} of ${outcome.stats.total} questions could be answered from what Lore returned, below the bar of ${values.threshold}`,
     );

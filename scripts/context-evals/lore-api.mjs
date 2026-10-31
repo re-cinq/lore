@@ -38,3 +38,32 @@ export class ApiRefusal extends Error {
     this.status = status;
   }
 }
+
+// 500 is in the list because a rate limit of the model reaches the runner as one.
+const RETRIED = new Set([429, 500, 502, 503, 504]);
+const RETRY_AFTER_MS = [5000, 15000];
+
+/** A refusal that may pass and a connection that failed are asked again, twice, with a wait between; the last failure is thrown. */
+export async function patiently({ pause = wait }, call) {
+  let failure;
+
+  for (const delay of [0, ...RETRY_AFTER_MS]) {
+    if (delay > 0) {
+      await pause(delay);
+    }
+
+    try {
+      return await call();
+    } catch (err) {
+      failure = err;
+
+      if (err instanceof ApiRefusal && !RETRIED.has(err.status)) {
+        break;
+      }
+    }
+  }
+
+  throw failure;
+}
+
+const wait = (ms) => new Promise((done) => setTimeout(done, ms));

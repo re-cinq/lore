@@ -2294,6 +2294,93 @@
         "x-required-scope": "read"
       }
     },
+    "/api/context-evals/ticket": {
+      "post": {
+        "operationId": "post_api_context-evals_ticket",
+        "summary": "POST /api/context-evals/ticket",
+        "tags": ["Context"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One ticket's context eval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketEval"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+                  },
+                  "ticket": {
+                    "type": "object",
+                    "properties": {
+                      "number": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 65000
+                      }
+                    },
+                    "required": ["number", "title", "body"],
+                    "additionalProperties": false
+                  },
+                  "backend": {
+                    "type": "string",
+                    "enum": ["lore", "utopia", "both"]
+                  }
+                },
+                "required": ["repo", "ticket"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/docs": {
       "get": {
         "operationId": "get_api_docs",
@@ -21249,6 +21336,149 @@
           "type": "string"
         },
         "additionalProperties": {}
+      },
+      "TicketEval": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "useful": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "noise": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "latency_ms": {
+                "type": "number"
+              },
+              "chars": {
+                "type": "number"
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "score",
+              "useful",
+              "noise",
+              "model",
+              "latency_ms",
+              "chars",
+              "sections"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "lore": {
+                "type": "object",
+                "properties": {
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
+                  },
+                  "useful": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "noise": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  },
+                  "chars": {
+                    "type": "number"
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "score",
+                  "useful",
+                  "noise",
+                  "model",
+                  "latency_ms",
+                  "chars",
+                  "sections"
+                ],
+                "additionalProperties": false
+              },
+              "utopia": {
+                "type": "object",
+                "properties": {
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
+                  },
+                  "useful": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "noise": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  },
+                  "chars": {
+                    "type": "number"
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "score",
+                  "useful",
+                  "noise",
+                  "model",
+                  "latency_ms",
+                  "chars",
+                  "sections"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["lore", "utopia"],
+            "additionalProperties": false
+          }
+        ]
       },
       "TokenList": {
         "type": "object",

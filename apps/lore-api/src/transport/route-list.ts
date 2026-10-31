@@ -21,6 +21,7 @@ import { autoMergeKpisRoute } from "./routes/repos/auto-merge-kpis.js";
 import { triageRoute } from "./routes/triage/triage.js";
 import { contextRoute } from "./routes/context/context.js";
 import { contextEvalRoute } from "./routes/context-evals/context-evals.js";
+import { contextEvalTicketRoute } from "./routes/context-evals/context-eval-ticket.js";
 import { contextEvalDocumentsRoute } from "./routes/context-evals/context-eval-documents.js";
 import { chunkBrowseRoutes } from "./routes/context/chunks-browse.js";
 import { graphRoute } from "./routes/graph/graph.js";
@@ -191,6 +192,7 @@ function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     contextRoute(getPool),
     contextEvalRoute(getPool),
+    contextEvalTicketRoute(getPool),
     contextEvalDocumentsRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
