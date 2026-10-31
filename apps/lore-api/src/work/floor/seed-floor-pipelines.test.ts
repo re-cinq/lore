@@ -438,6 +438,23 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
 
     expect(featurePlanning).toEqual(inline);
   });
+
+  it("builds code-review-refine from its file alone: claude-sonnet-4-6, 20 minutes, the agent image and the MCP url the environment names", () => {
+    const refine = pipelines
+      .flatMap((pipeline) => pipeline.agentDefinitions)
+      .find((definition) => definition.id === "code-review-refine");
+
+    expect(refine?.body.settings).toMatchObject({
+      model: "claude-sonnet-4-6",
+      timeoutMinutes: 20,
+      image: "ghcr.io/re-cinq/agent:1",
+      config: {
+        max_turns: 100,
+        skills_source: "https://skills.example",
+        mcp_servers: [{ name: "lore", url: "https://mcp.example/mcp" }],
+      },
+    });
+  });
 });
 
 describe("the agent stations a shipped pipeline is put with", () => {

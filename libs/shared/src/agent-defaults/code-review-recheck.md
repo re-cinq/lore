@@ -1,7 +1,34 @@
 ---
-# The code-review-recheck line's `code-review-recheck` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 20
+# The code-review-recheck line's `code-review-recheck` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 model: gemini-4-argon
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 20
+prices:
+  gemini-4-argon:
+    input_per_million: 2
+    output_per_million: 10
+    cache_read_per_million: 0.2
+config:
+  max_turns: 60
+  # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  env:
+    LORE_TEST_POLICY: none
 ---
 {description}
 

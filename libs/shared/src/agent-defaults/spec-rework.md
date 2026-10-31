@@ -1,8 +1,28 @@
 ---
-# The feature-planning line's `spec-rework` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 15
+# The feature-planning line's `spec-rework` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 model: claude-sonnet-4-6
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 15
+config:
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  env:
+    LORE_TEST_POLICY: none
 ---
 Turn an approved plan into committable specifications. The plan was
 written and approved by its people; do not re-open it. It is at

@@ -1,7 +1,30 @@
 ---
-# The issue-triage line's `triage-decompose` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 15
+# The issue-triage line's `triage-decompose` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 model: gemini-4-argon
+prices:
+  gemini-4-argon:
+    input_per_million: 2
+    output_per_million: 10
+    cache_read_per_million: 0.2
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 15
+config:
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+      ephemeral-storage: 2Gi
+    limits:
+      memory: 2Gi
+      ephemeral-storage: 4Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
 ---
 You split a confirmed bug that is too broad for one change into small tasks a person can queue one at a time.
 

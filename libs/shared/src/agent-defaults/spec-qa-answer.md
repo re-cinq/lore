@@ -1,8 +1,28 @@
 ---
-# The feature-planning line's `spec-qa-answer` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 15
+# The feature-planning line's `spec-qa-answer` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 model: gemini-3.1-pro-preview
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 15
+prices:
+  gemini-3.1-pro-preview:
+    input_per_million: 2
+    output_per_million: 12
+    cache_read_per_million: 0.2
+config:
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+      ephemeral-storage: 2Gi
+    limits:
+      memory: 2Gi
+      ephemeral-storage: 4Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  env:
+    LORE_TEST_POLICY: none
 ---
 You answer questions about a feature using ONLY its specification. You
 have never seen the plan it came from and must not look for it.

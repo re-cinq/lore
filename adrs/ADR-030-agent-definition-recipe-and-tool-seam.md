@@ -203,3 +203,17 @@ it still held were moved onto the floor once on 2026-10-31. The two-key gate on 
 repo's `image` (Decision 4) is unchanged: it guards the variant write. The shipped md
 files in `libs/shared/src/agent-defaults/` seed an agent only when the floor holds none
 of that name.
+
+## Update (2026-10-31): an agent is declared once, in its md file
+
+The pipeline files under `libs/assembly-lines/src/floor-pipelines/` no longer carry
+an `agent_definitions` block. An agent's whole seed definition, the `settings` the
+floor is given (`model`, `image`, `timeout_minutes`, `prices`, `config` with its
+`skills`, `mcp_servers`, `pod_resources` and `env`) and its prompt, is
+`libs/shared/src/agent-defaults/<name>.md`: frontmatter and body. A station only names
+its agent, and `withAgentDefinitions`
+(`libs/shared/src/outbound/project/agents/pipeline-agents.ts`) builds each named
+agent's definition from its file when a pipeline is loaded; the pipeline lint fails a
+file that still carries the block, or a station naming an agent with no file
+(`specs/external-floor` FR2.15). The move handed the floor the same 28 agent bodies
+it was given before.

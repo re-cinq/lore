@@ -1,4 +1,4 @@
-// One shipped default agent: `<name>.md`, frontmatter for the row's settings, body for its prompt.
+// One shipped agent: `<name>.md`, its frontmatter the settings the floor is seeded with, its body the prompt (#3995).
 
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
@@ -7,75 +7,119 @@ import {
   CatalogConfigSchema,
   type ResolvedAgentDefinition,
 } from "../models/agent-definition.js";
-import { TestPolicySchema } from "../task-types/test-policy.js";
 
-const ROW_FIELDS = [
-  "model",
-  "timeout_minutes",
-  "execution_mode",
-  "review_required",
-] as const;
+const PriceSchema = z
+  .object({
+    input_per_million: z.number(),
+    output_per_million: z.number(),
+    cache_read_per_million: z.number().optional(),
+  })
+  .strict();
 
 // Strict, unlike the stored config: a misspelled key in a shipped file is a bug to fail on, not a field to carry.
 const FrontmatterSchema = z
   .object({
     model: z.string().optional(),
+    image: z.string().optional(),
     timeout_minutes: z.number().int().positive().optional(),
+    prices: z.record(z.string(), PriceSchema).optional(),
+    config: CatalogConfigSchema.optional(),
     execution_mode: z.string().optional(),
     review_required: z.boolean().optional(),
-    ...CatalogConfigSchema.shape,
-    test_policy: TestPolicySchema.optional(),
   })
   .strict();
 
 type Frontmatter = z.infer<typeof FrontmatterSchema>;
 
+export interface AgentDefaultFile {
+  name: string;
+  frontmatter: Frontmatter;
+  // As written: the validated copy reorders config's keys, and the floor is handed the file's order.
+  written: Record<string, unknown>;
+  prompt: string | null;
+}
+
+/** The settings block a floor agent definition carries, as a pipeline file once wrote it. */
+export type FloorAgentSettings = Pick<
+  Frontmatter,
+  "model" | "image" | "timeout_minutes" | "prices" | "config"
+> & { prompt: string | null };
+
 const FRONTMATTER = /^---\n([\s\S]*?)\n---(?:\n|$)/;
 
-export function parseAgentDefaultFile(
+export function readAgentDefaultFile(
   name: string,
   text: string,
-): ResolvedAgentDefinition {
+): AgentDefaultFile {
   const match = FRONTMATTER.exec(text);
 
   enforceTrue(match, Error, `${name}.md: missing the --- frontmatter block`);
-  const parsed = FrontmatterSchema.safeParse(parseYaml(match[1]) ?? {});
+  const written = (parseYaml(match[1]) ?? {}) as Record<string, unknown>;
+  const body = text.slice(match[0].length);
+
+  return {
+    name,
+    frontmatter: validated(name, written),
+    written,
+    prompt: body === "" ? null : body,
+  };
+}
+
+function validated(name: string, written: Record<string, unknown>) {
+  const parsed = FrontmatterSchema.safeParse(written);
 
   enforceTrue(
     parsed.success,
     Error,
     `${name}.md: ${parsed.success ? "" : z.prettifyError(parsed.error)}`,
   );
-  const body = text.slice(match[0].length);
 
-  return rowFromFrontmatter(name, parsed.data, body === "" ? null : body);
+  return parsed.data;
 }
 
-function rowFromFrontmatter(
+export function parseAgentDefaultFile(
   name: string,
-  frontmatter: Frontmatter,
-  prompt: string | null,
+  text: string,
 ): ResolvedAgentDefinition {
+  return rowOf(readAgentDefaultFile(name, text));
+}
+
+export function rowOf(file: AgentDefaultFile): ResolvedAgentDefinition {
+  const { frontmatter } = file;
+
   return {
-    name,
-    model: frontmatter.model ?? null,
-    timeout_minutes: frontmatter.timeout_minutes ?? null,
-    prompt,
-    image: null,
+    name: file.name,
+    ...settingsOrNull(frontmatter),
+    prompt: file.prompt,
     execution_mode: frontmatter.execution_mode ?? "claude-code",
     review_required: frontmatter.review_required ?? false,
     project_id: null,
-    config: configOf(frontmatter),
   };
 }
 
-// Everything that is not a column rides config, as a stored row carries it.
-function configOf(frontmatter: Frontmatter): Record<string, unknown> | null {
-  const config = Object.fromEntries(
-    Object.entries(frontmatter).filter(
-      ([key]) => !(ROW_FIELDS as readonly string[]).includes(key),
-    ),
-  );
+function settingsOrNull(frontmatter: Frontmatter) {
+  return {
+    model: frontmatter.model ?? null,
+    timeout_minutes: frontmatter.timeout_minutes ?? null,
+    image: frontmatter.image ?? null,
+    config: frontmatter.config ?? null,
+  };
+}
 
-  return Object.keys(config).length > 0 ? config : null;
+const FLOOR_KEYS = new Set([
+  "model",
+  "image",
+  "timeout_minutes",
+  "prices",
+  "config",
+]);
+
+// The keys a pipeline file's `settings` held, in the file's order; a key the file leaves out stays out.
+export function floorSettingsOf(file: AgentDefaultFile): FloorAgentSettings {
+  return {
+    ...Object.fromEntries(
+      Object.entries(file.written).filter(([key]) => FLOOR_KEYS.has(key)),
+    ),
+    prompt: file.prompt,
+  };
 }

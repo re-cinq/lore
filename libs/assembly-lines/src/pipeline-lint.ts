@@ -1,6 +1,6 @@
 // What a pipeline must hold to run at all, and why each rule: specs/7-feature-planning FR-20.
 
-import type { AgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
+import type { AgentPrompts } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import {
   ambiguousEdges,
   danglingEdges,
@@ -33,6 +33,8 @@ const FLOOR_FILLED_NEEDS = new Set([
   "item",
 ]);
 
+const AGENT_DEFAULTS = "libs/shared/src/agent-defaults";
+
 const PLACEHOLDER = /\{([a-z_][a-z0-9_.]*)\}/g;
 
 export function pipelineProblems(
@@ -44,18 +46,68 @@ export function pipelineProblems(
   if (!checked) {
     return [];
   }
-  const { nodes } = checked.line;
 
   return [
+    ...agentDeclarationProblems(checked, prompts),
     ...unkeyedLine(checked),
     ...undeclaredBags(checked),
     ...ambiguousEdges(checked),
     ...undeclaredOutcomes(checked),
-    ...nodes.flatMap((node) => nodeProblems(checked, node, prompts)),
+    ...allNodeProblems(checked, prompts),
     ...danglingEdges(checked),
     ...deadEnds(checked),
     ...unreachableNodes(checked),
   ];
+}
+
+function allNodeProblems(
+  checked: Checked,
+  prompts: AgentPrompts,
+): PipelineProblem[] {
+  const { nodes } = checked.line;
+
+  return nodes.flatMap((node) => nodeProblems(checked, node, prompts));
+}
+
+// #3995: an agent is declared once, in its .md file; a pipeline file only names it from a station.
+function agentDeclarationProblems(
+  checked: Checked,
+  prompts: AgentPrompts,
+): PipelineProblem[] {
+  return [
+    ...agentSettingsInPipeline(checked),
+    ...undeclaredAgents(checked, prompts),
+  ];
+}
+
+function agentSettingsInPipeline(checked: Checked): PipelineProblem[] {
+  return checked.agent_definitions === undefined
+    ? []
+    : [
+        problem(
+          checked,
+          undefined,
+          "agent-settings-in-pipeline",
+          `the file carries an agent_definitions block; an agent's settings live in ${AGENT_DEFAULTS}/<definition>.md`,
+        ),
+      ];
+}
+
+function undeclaredAgents(
+  checked: Checked,
+  prompts: AgentPrompts,
+): PipelineProblem[] {
+  return Object.entries(checked.stations)
+    .map(([name, station]) => ({ name, agent: station.agent_definition }))
+    .filter(({ agent }) => agent !== undefined && !prompts.has(agent))
+    .map(({ name, agent }) =>
+      problem(
+        checked,
+        undefined,
+        "undeclared-agent",
+        `station "${name}" names agent definition "${agent}", and ${AGENT_DEFAULTS}/${agent}.md does not exist`,
+      ),
+    );
 }
 
 // specs/7-feature-planning FR-20: the floor refuses a station missing either array with a 400 naming none.

@@ -1,37 +1,47 @@
 import { describe, it, expect } from "vitest";
-import { parseAgentDefaultFile } from "./agent-default-file.js";
+import {
+  floorSettingsOf,
+  parseAgentDefaultFile,
+  readAgentDefaultFile,
+} from "./agent-default-file.js";
+
+const REVIEW = [
+  "---",
+  "review_required: false",
+  "model: gemini-4-argon",
+  "image: ${LORE_AGENT_IMAGE}",
+  "timeout_minutes: 25",
+  "prices:",
+  "  gemini-4-argon:",
+  "    input_per_million: 2",
+  "    output_per_million: 10",
+  "config:",
+  "  max_turns: 150",
+  "  skills_source: ${LORE_SKILLS_URL}",
+  "  env:",
+  "    LORE_TEST_POLICY: none",
+  "---",
+  "Review the pull request.",
+  "",
+  "Task: {description}",
+  "",
+].join("\n");
 
 describe("parseAgentDefaultFile", () => {
   it("reads review.md's frontmatter as the org-default row and its body as the prompt", () => {
-    const text = [
-      "---",
-      "model: claude-sonnet-4-6",
-      "timeout_minutes: 30",
-      "review_required: false",
-      "repo_workdir: false",
-      "test_policy: none",
-      "disallowed_tools:",
-      "  - Bash(npm ci:*)",
-      "---",
-      "Review the pull request.",
-      "",
-      "Task: {description}",
-      "",
-    ].join("\n");
-
-    expect(parseAgentDefaultFile("review", text)).toEqual({
+    expect(parseAgentDefaultFile("review", REVIEW)).toEqual({
       name: "review",
-      model: "claude-sonnet-4-6",
-      timeout_minutes: 30,
+      model: "gemini-4-argon",
+      timeout_minutes: 25,
       prompt: "Review the pull request.\n\nTask: {description}\n",
-      image: null,
+      image: "${LORE_AGENT_IMAGE}",
       execution_mode: "claude-code",
       review_required: false,
       project_id: null,
       config: {
-        repo_workdir: false,
-        test_policy: "none",
-        disallowed_tools: ["Bash(npm ci:*)"],
+        max_turns: 150,
+        skills_source: "${LORE_SKILLS_URL}",
+        env: { LORE_TEST_POLICY: "none" },
       },
     });
   });
@@ -41,7 +51,8 @@ describe("parseAgentDefaultFile", () => {
       "---",
       "execution_mode: station",
       "timeout_minutes: 15",
-      "command: [lore-station, validate]",
+      "config:",
+      "  command: [lore-station, validate]",
       "---",
       "",
     ].join("\n");
@@ -70,6 +81,29 @@ describe("parseAgentDefaultFile", () => {
   it("refuses general.md with no frontmatter", () => {
     expect(() => parseAgentDefaultFile("general", "Do it.\n")).toThrow(
       new Error("general.md: missing the --- frontmatter block"),
+    );
+  });
+});
+
+describe("floorSettingsOf", () => {
+  it("builds review's floor settings from model, image, timeout, prices and config in the file's order, prompt last, review_required left out", () => {
+    const settings = floorSettingsOf(readAgentDefaultFile("review", REVIEW));
+
+    expect(JSON.stringify(settings)).toEqual(
+      JSON.stringify({
+        model: "gemini-4-argon",
+        image: "${LORE_AGENT_IMAGE}",
+        timeout_minutes: 25,
+        prices: {
+          "gemini-4-argon": { input_per_million: 2, output_per_million: 10 },
+        },
+        config: {
+          max_turns: 150,
+          skills_source: "${LORE_SKILLS_URL}",
+          env: { LORE_TEST_POLICY: "none" },
+        },
+        prompt: "Review the pull request.\n\nTask: {description}\n",
+      }),
     );
   });
 });

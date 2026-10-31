@@ -1,6 +1,25 @@
 ---
+# The issue-triage line's `triage-assess-implementation` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 model: gemini-4-argon
+prices:
+  gemini-4-argon:
+    input_per_million: 2
+    output_per_million: 10
+    cache_read_per_million: 0.2
+image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 15
+config:
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+      ephemeral-storage: 2Gi
+    limits:
+      memory: 2Gi
+      ephemeral-storage: 4Gi
 ---
 Assess the entire issue report before triage plans new work. This applies to bugs,
 feature requests and generated implementation tasks alike. Do not edit source,

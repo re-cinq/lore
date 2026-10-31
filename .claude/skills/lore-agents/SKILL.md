@@ -63,8 +63,9 @@ curl -fsS -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" \
 - A null/absent field on a repo override **inherits** the org default. A field set to null leaves the variant, so it inherits again.
   To drop every override at once, DELETE the variant. The org defaults are edited on
   the global `/agents` page (`PUT /api/agent-definitions/<name>`); the md files in
-  `libs/shared/src/agent-defaults/` only seed an agent the floor does not hold yet,
-  so a PR to one does not change a saved agent.
+  `libs/shared/src/agent-defaults/` (an agent's whole definition: settings in the
+  frontmatter, prompt in the body; the pipeline files only name it) only seed an
+  agent the floor does not hold yet, so a PR to one does not change a saved agent.
 - **`image` is two-key gated.** Setting a non-empty execution image returns
   `403 two_key_required` unless you pass an `x-lore-approval-pr: owner/repo#N`
   header referencing an open PR labeled `dark-factory-approval` approved by a
