@@ -5,7 +5,9 @@ import { joinFragments, splitToFit, type Fragment } from "../fragments.js";
 import { blobUrl, definitionName, fileName } from "../names.js";
 import {
   attribute,
+  knownAs,
   relation,
+  sourceFileStatements,
   tombstone,
   type Entity,
   type StatementItem,
@@ -59,7 +61,7 @@ function fileHead(input: CodeFileInput): Fragment {
     ],
     s: [
       relation(input.repo, "contains", file),
-      attribute(file, "path", input.path),
+      ...sourceFileStatements(file, input.path),
       attribute(file, "permalink", `${blobUrl(input.repo)}/${input.path}`),
     ],
   };
@@ -93,7 +95,7 @@ function importFragment(input: CodeFileInput, target: string): Fragment {
     e: [[imported, "SourceFile", true]],
     s: [
       relation(fileName(input.repo, input.path), "imports", imported),
-      attribute(imported, "path", target),
+      ...sourceFileStatements(imported, target),
     ],
   };
 }
@@ -110,6 +112,7 @@ function definitionFragment(
     s: [
       relation(fileName(input.repo, input.path), "defines", definition),
       attribute(definition, "symbol", symbol.name),
+      knownAs(definition, symbol.name),
       attribute(definition, "line_start", String(symbol.startLine)),
       attribute(definition, "line_end", String(symbol.endLine)),
       attribute(definition, "permalink", definitionPermalink(input, symbol)),
