@@ -1,10 +1,12 @@
 # Which store answers context questions best
 
-**For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first run of 2026-10-16, the re-runs of 2026-10-19, the agent-question experiment of 2026-10-27, and what they say about the switch. The latest evidence favours Utopia; the first run, which does not, was taken before its data was in place.
+**For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first run of 2026-10-16, the re-runs of 2026-10-19, the agent-question experiment of 2026-10-27, the ticket grade and the reader change of 2026-10-31, and what they say about the switch. The latest evidence favours Utopia; the first run, which does not, was taken before its data was in place.
 
-## Where this stands (2026-10-28)
+## Where this stands (2026-10-31)
 
-Utopia is ahead of Lore on the evidence so far, with two caveats.
+Utopia is ahead of Lore on the evidence so far, with two caveats, and since 2026-10-31 its assembly reads six sections instead of two.
+
+- **Document questions, same 20 documents before and after the readers (2026-10-31):** Utopia answered 15 then 19 of 20 on lore, 16 then 18 of 20 on Otto, level with Lore; it found 20 of 20 and 19 of 20. Its assembly took 24 to 26 s median against Lore's 1.3 to 1.7 s, with Utopia's database saturated by its own extraction queue, and the useful share did not move. Details below.
 
 - **Agent questions (2026-10-27, 60 questions, 3 asks each):** Utopia scored 0.86 against Lore's 0.57 and 0.07 with no store. It was ahead on seven of eight kinds of question and behind only on decisions (Lore 0.93, Utopia 0.90, one question's worth, inside the noise). On what changed since the two are level in practice (0.58 against 0.53) and both poor.
 - **Document questions (2026-10-19, 121 documents):** Utopia found 120 and answered 117, Lore 104 and 110.
@@ -48,6 +50,49 @@ The runs above ask questions a model writes from one ADR or spec, answered by a 
 - **Limits:** one run on one day with one answering model, 4–10 questions per kind, the Lore arm on the laptop's installed adapter, and the arms run hours apart.
 
 The full write-up, with every question and every ask as raw data: [context-store-agent-questions.md](context-store-agent-questions.md). Harness and transcripts: re-cinq/loop-bench `results/context-qa/2026-10-27/`, from re-cinq/loop-bench#1.
+
+## Readers for memories, code and tests, 2026-10-31: Utopia answers more, and slower
+
+Until this day the Utopia arm of `lore_assemble_context` filled two of the eight template sections, Conventions and ADRs, from the `docs` source, and rendered the other six as the line `<source>: no Utopia reader yet`. Story #4025 added the readers: the memories and episodes sections from the memory search (#4034), the Relevant Code and Coupled Spec & Tests sections from the `test-coverage` source (#4043), the placeholder lines dropped (#4030), a `Status:` and `Amended:` header on every mirrored document (#4044), `lore_search_context` reading the docs source (#4042), a 45 s gateway timeout with one retry in place of 15 s and four (#4036), and a ticket-shaped eval mode (#4032). All but #4042 were live by 02:00 UTC on 2026-10-31.
+
+### Document evals, the same 20 documents before and after
+
+`run.mjs --backend both --sample 20 --date 2026-10-31`, so both runs asked about the same documents; the "before" ran at 00:40 UTC, the "after" at 02:10 UTC.
+
+| Repo | Store | Found | Answered | Useful share | Utopia assembly p50 |
+|---|---|---|---|---|---|
+| lore, before | Lore | 15 / 20 | 17 / 20 | 58% | 1.7 s |
+| lore, before | Utopia | 18 / 20 | 15 / 20 | 51% | 4.2 s |
+| lore, after | Lore | 16 / 20 | 19 / 20 | 63% | 1.3 s |
+| lore, after | Utopia | **20 / 20** | **19 / 20** | 52% | 24.3 s |
+| Otto, before | Lore | 16 / 20 | 20 / 20 | 70% | 1.2 s |
+| Otto, before | Utopia | 19 / 20 | 16 / 20 | 68% | 3.4 s |
+| Otto, after | Lore | 17 / 20 | 20 / 20 | 59% | 1.7 s |
+| Otto, after | Utopia | 19 / 20 | **18 / 20** | 54% | 26.2 s |
+
+Three things to read off it:
+
+- **Utopia now answers as often as Lore.** On lore the two stores answer 19 of 20 each, and Utopia finds every document; on Otto Utopia went from 16 to 18 answered. The two documents it still misses are a question whose answer is in a sentence the excerpt cut (`support-agent-conversation-history`) and one where the search returned nothing (`support-agent-foundation`), the "whole requirement" problem of #4021.
+- **The useful share did not move.** More sections in the same 8,000-token budget means more of the block is about something else. The judge of the ticket grade below says the same thing in words.
+- **Utopia's assembly got six times slower**, and 8 of lore's 20 and 9 of Otto's 20 Utopia assemblies hit the 30 s search timeout. An assembly now runs three Utopia searches instead of one (the docs source, the repo's memory base, the org's memory base), and Utopia's database sat at 3.4 cores through the run: its job queue held 52,000 `extract_document` and 108,000 `resolve_time` jobs, the extraction over the tracker and history sources that #4039 switches off for new pushes. The 45 s gateway limit of #4036 lets a slow answer reach a pod; the fix is on Utopia's side, in the queue and in a search that filters by source instead of returning 50 hits for Lore to sift.
+
+### The ticket grade
+
+The document evals ask a question a model wrote from one document. To grade the block an implementer is handed, 8 real `priority:*` tickets per repository were assembled with the `implementation` template and the ticket as the query, once per store, and a judge scored each block 0 to 3: nothing relevant, generic background, one ticket-specific fact, several an implementer would otherwise dig for. The first grade used a fresh `claude-sonnet-5-5` on a laptop (00:50 UTC, before the readers); the mode now ships as `run.mjs --tickets 8 --backend both` (#4032), judged inside lore-api by `Llm.for("eval")`, which on this deployment is `gemini-2.5-flash`.
+
+| Repo | Judge, when | Lore mean | Utopia mean | Lore block | Utopia block | Utopia p50 |
+|---|---|---|---|---|---|---|
+| Otto | Sonnet, before the readers (00:50) | 2.63 | 2.63 | 22 to 34k chars | 3.5 to 10k | 2.9 s |
+| Otto | Sonnet, after (02:40) | 2.43 | **2.71** (7 tickets; the eighth assembly failed on a dropped connection) | 20 to 34k | 10 to 31k | 4.1 s |
+| lore | Sonnet, before (00:50) | 2.63 | 2.00 | 9 to 33k | 9 to 13k | 4.0 s |
+| lore | Sonnet, after (02:40) | 2.50 | **2.88** | 9 to 32k | 25 to 35k | 12.1 s |
+| both | `gemini-2.5-flash` in lore-api, after (02:25) | 3.00 | 3.00 | | | |
+
+The same tickets, the same judge, the same scale: Utopia went from behind (2.00) to ahead (2.88) on lore and from level to ahead on Otto, while Lore's own score drifted down by one ticket's worth on each, which is the judge's noise between two runs. The two Utopia blocks the judge scored lowest are the two that hit the 30 s search timeout and came back with the Conventions and coupling sections only.
+
+What the Sonnet judge named useful, before the readers, split cleanly by store: Lore won through the code, test-coupling and memory sections ("`board.ts` already has `pausedNotice`", "`securityHeaders.test.ts` expects exactly CSP, nosniff and no-referrer"), which Utopia rendered as placeholders; Utopia won on the exact wording of the spec statement the ticket named, in a quarter of the text. Its noise line named the six placeholder sections on every Utopia block and other tickets' DoD memories on every Lore block. After the readers a Utopia block carries Conventions, Coupled Spec & Tests, memories and episodes (21 to 35k characters, from 3 to 10k); the Relevant Code section stays empty under Utopia for a ticket query, because a `code:` item only surfaces when the query names its file or a symbol, as the code-location questions of 10-27 did.
+
+The in-API judge scored every ticket 3 for both stores on both repositories, so it separates nothing; a grade that saturates is not a measurement. The next change to #4032 is a stricter scale or a stronger judge model, measured against the Sonnet numbers above.
 
 ## Re-run on 2026-10-19: the gap was missing data
 
