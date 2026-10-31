@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { docDocument, docTombstone } from "./doc-text.js";
+import { docDocument, docTombstone, withoutLocation } from "./doc-text.js";
 
 const base = {
   repo: "re-cinq/lore",
@@ -39,5 +39,33 @@ describe("docTombstone", () => {
       filename: "adrs/ADR-1.md",
       deleted: true,
     });
+  });
+});
+
+describe("docDocument marks", () => {
+  const adr = {
+    ...base,
+    path: "adrs/ADR-044.md",
+    kind: "adr" as const,
+    content:
+      "---\nstatus: superseded\nsuperseded_by: 48\n---\n\n## Amendment 2026-10-16: moved\n",
+  };
+
+  it("leads ADR-044 with Status: superseded by ADR-048 and Amended: 2026-10-16 after Kind: adr", () => {
+    expect((docDocument(adr).content ?? "").split("\n\n")[0]).toEqual(
+      "File: adrs/ADR-044.md\nRepository: re-cinq/lore\nKind: adr\nStatus: superseded by ADR-048\nAmended: 2026-10-16",
+    );
+  });
+
+  it("strips File, Repository and Kind from a chunk but keeps Status: superseded by ADR-048 and Amended: 2026-10-16", () => {
+    expect(withoutLocation(docDocument(adr).content ?? "")).toEqual(
+      `Status: superseded by ADR-048\nAmended: 2026-10-16\n\n${adr.content}`,
+    );
+  });
+
+  it("strips the three-line header of a document with neither mark", () => {
+    expect(withoutLocation(docDocument(base).content ?? "")).toEqual(
+      base.content,
+    );
   });
 });

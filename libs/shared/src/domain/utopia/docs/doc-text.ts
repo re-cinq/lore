@@ -2,6 +2,7 @@
 
 import type { IngestDocument } from "../memory/memory-documents.js";
 import type { DocStatementsInput } from "./doc-statements.js";
+import { docMarks, markLines } from "./doc-status.js";
 
 export function docDocument(
   input: Pick<
@@ -9,7 +10,12 @@ export function docDocument(
     "repo" | "path" | "content" | "kind" | "commitTime"
   >,
 ): IngestDocument {
-  const location = `File: ${input.path}\nRepository: ${input.repo}\nKind: ${input.kind}`;
+  const location = [
+    `File: ${input.path}`,
+    `Repository: ${input.repo}`,
+    `Kind: ${input.kind}`,
+    ...markLines(docMarks(input.content)),
+  ].join("\n");
 
   return {
     external_id: `doc:${input.path}`,
@@ -23,9 +29,10 @@ export function docTombstone(path: string): IngestDocument {
   return { external_id: `doc:${path}`, filename: path, deleted: true };
 }
 
-const LOCATION_HEADER = /^File: [^\n]*\nRepository: [^\n]*\nKind: [^\n]*\n\n/;
+const LOCATION_HEADER =
+  /^File: [^\n]*\nRepository: [^\n]*\nKind: [^\n]*\n(?:\n|(?=(?:Status|Amended): ))/;
 
-/** A chunk of a pushed document without the lines that say where the file lives, which only the first chunk carries. */
+/** A chunk of a pushed document without the lines that say where the file lives, which only the first chunk carries; its Status and Amended lines stay. */
 export function withoutLocation(chunk: string): string {
   return chunk.replace(LOCATION_HEADER, "");
 }
