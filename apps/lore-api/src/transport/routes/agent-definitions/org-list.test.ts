@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Hapi from "@hapi/hapi";
-import type { Pool } from "pg";
 import { registerBearerScope } from "../../http/bearer-scope.js";
 import { orgAgentDefinitionsRoute } from "./org-list.js";
+import { InMemoryAgentDefinitions } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.fixture.js";
 import {
   AUTH,
   LEGACY_TOKEN,
@@ -10,19 +10,28 @@ import {
 
 const originalEnv = { ...process.env };
 
-function fakePool(rows: Array<Record<string, unknown>>): Pool {
-  return {
-    query: async () => ({ rows }),
-  } as unknown as Pool;
-}
-
-async function server(pool: Pool | null): Promise<Hapi.Server> {
+async function server(
+  floor: InMemoryAgentDefinitions | null,
+): Promise<Hapi.Server> {
   const s = Hapi.server();
 
-  registerBearerScope(s, () => pool);
-  s.route(orgAgentDefinitionsRoute(() => pool));
+  registerBearerScope(s, () => null);
+  s.route(orgAgentDefinitionsRoute(() => floor));
 
   return s;
+}
+
+async function listedAgents(
+  s: Hapi.Server,
+): Promise<Array<Record<string, unknown>>> {
+  const res = await s.inject({
+    method: "GET",
+    url: "/api/agent-definitions",
+    headers: AUTH,
+  });
+
+  return (JSON.parse(res.payload) as { agents: Array<Record<string, unknown>> })
+    .agents;
 }
 
 describe("GET /api/agent-definitions", () => {
@@ -33,49 +42,29 @@ describe("GET /api/agent-definitions", () => {
     process.env = { ...originalEnv };
   });
 
-  it("lists the org-default catalog with no project layer applied", async () => {
-    const s = await server(
-      fakePool([
-        {
-          name: "implementation",
-          model: "claude-sonnet-4-6",
-          timeout_minutes: 90,
-          prompt: "Implement.",
-          image: null,
-          execution_mode: "claude-code",
-          review_required: true,
-          project_id: null,
-          config: null,
-        },
-      ]),
-    );
-    const res = await s.inject({
-      method: "GET",
-      url: "/api/agent-definitions",
-      headers: AUTH,
+  it("lists the floor's loop-tdd settings on claude-opus-4-7, the re-cinq/otto variant not applied", async () => {
+    const floor = new InMemoryAgentDefinitions();
+
+    await floor.put("loop-tdd", {
+      settings: {
+        model: "claude-opus-4-7",
+        prompt: "Make the test pass.",
+        image: "ghcr.io/re-cinq/agent:1",
+        timeoutMinutes: 60,
+      },
+      variants: { "github.com/re-cinq/otto": { model: "gemini-3.1-pro" } },
     });
 
-    expect(res.statusCode).toBe(200);
-    const { agents } = JSON.parse(res.payload) as {
-      agents: Array<Record<string, unknown>>;
-    };
-    const implementation = agents.find((a) => a.name === "implementation");
-
-    expect(implementation).toMatchObject({
-      model: "claude-sonnet-4-6",
-      timeout_minutes: 90,
-      project_id: null,
-    });
+    expect(await listedAgents(await server(floor))).toMatchObject([
+      { name: "loop-tdd", model: "claude-opus-4-7", project_id: null },
+    ]);
   });
 
-  it("answers 503 without a database", async () => {
-    const s = await server(null);
-    const res = await s.inject({
-      method: "GET",
-      url: "/api/agent-definitions",
-      headers: AUTH,
-    });
+  it("lists the shipped code-review default when no floor is configured", async () => {
+    const agents = await listedAgents(await server(null));
 
-    expect(res.statusCode).toBe(503);
+    expect(agents.find((a) => a.name === "code-review")).toMatchObject({
+      project_id: null,
+    });
   });
 });

@@ -112,7 +112,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Every org-default agent definition — the org rows, no per-repo layer",
+            "description": "Every org-default agent definition — the floor's settings, no per-repo variant",
             "content": {
               "application/json": {
                 "schema": {

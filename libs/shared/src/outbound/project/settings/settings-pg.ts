@@ -46,12 +46,6 @@ const REPOINT_CROSS_REPO_LINKS_SQL = `UPDATE lore.repos
              FROM jsonb_array_elements(settings->'cross_repo_repos') AS link))
   WHERE settings->'cross_repo_repos' @> jsonb_build_array($1::text)`;
 
-const MOVE_AGENT_DEFINITIONS_SQL = `UPDATE lore.agent_definitions moved
-    SET project_id = $2
-  WHERE moved.project_id = $1
-    AND NOT EXISTS (SELECT 1 FROM lore.agent_definitions kept
-                     WHERE kept.project_id = $2 AND kept.name = moved.name)`;
-
 /** lore.plans.repo is a free-text column with no FK to lore.repos; without this a rename orphans every existing plan under the stale name. */
 const MOVE_PLANS_SQL = "UPDATE lore.plans SET repo = $2 WHERE repo = $1";
 
@@ -92,13 +86,12 @@ async function renameRepoRowInPlace(
   return "renamed";
 }
 
-/** The new row keeps its own definition where both rows define one name, and its own settings unless it has none; the old row's leftovers cascade with it. */
+/** The new row keeps its own settings unless it has none; the old row's leftovers cascade with it. */
 async function mergeRepoRows(
   db: PgPool,
   sourceId: string,
   targetId: string,
 ): Promise<RepoRenameOutcome> {
-  await db.query(MOVE_AGENT_DEFINITIONS_SQL, [sourceId, targetId]);
   await db.query(INHERIT_EMPTY_SETTINGS_SQL, [sourceId, targetId]);
   await db.query("DELETE FROM lore.repos WHERE id = $1", [sourceId]);
 

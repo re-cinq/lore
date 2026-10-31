@@ -24,7 +24,7 @@ export class AgentDefs {
   }
 }
 
-/** project.agentDefsWriter — the same reads plus create/update/delete; only the Pg adapter can back it. */
+/** project.agentDefsWriter — the same reads plus create/update/delete; only the floor adapter can back it. */
 export class AgentDefsWriter extends AgentDefs {
   constructor(
     repo: string,

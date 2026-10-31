@@ -139,7 +139,7 @@ async function registerLedgerPorts(
 ): Promise<void> {
   const [audit, usage] = await ledgerModules();
 
-  ports.set("agentDefs", await agentDefsForEnv(env, pgPool));
+  ports.set("agentDefs", await agentDefsForEnv(env));
   ports.set(
     "audit",
     fromPipelineOrDefault(
@@ -159,19 +159,10 @@ function ledgerModules() {
   ]);
 }
 
-// Agent definitions port, by environment: a floor -> FloorAgentDefs (the floor is where an agent lives, #3995), else DB -> PgAgentDefs, API only -> AgentDefsHttp, neither -> the shipped files, read-only.
-async function agentDefsForEnv(
-  env: NodeJS.ProcessEnv,
-  pgPool: PgPool,
-): Promise<unknown> {
+// Agent definitions port, by environment: the floor is their only store (#3995), so a floor -> FloorAgentDefs, else the API -> AgentDefsHttp, else the shipped files, read-only.
+async function agentDefsForEnv(env: NodeJS.ProcessEnv): Promise<unknown> {
   if (floorConfigured(env)) {
     return floorAgentDefs(env);
-  }
-
-  if (env.LORE_DB_HOST) {
-    const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
-
-    return new PgAgentDefs(pgPool);
   }
 
   return readOnlyAgentDefs(env);

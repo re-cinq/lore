@@ -138,7 +138,6 @@ export const MAX_EXPECTS_BASELINE = [
   "libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts",
   "libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts",
   "libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts",
-  "libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts",
   "libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts",
   "libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts",
   "libs/shared/src/outbound/project/chunks/chunk-schema.test.ts",

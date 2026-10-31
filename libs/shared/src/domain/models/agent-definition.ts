@@ -1,9 +1,7 @@
 import { z } from "zod";
-import type { ColumnMap } from "../../lib/row.js";
 
-// `lore.agent_definitions` — stored Agent CONFIG (ADR-024); resolved project row → org default, the org rows seeded from libs/shared/src/agent-defaults.
+// Agent CONFIG (ADR-024) as Lore reads it off the floor (#3995): a definition's settings are the org default, a repo's variant its override. No table stores it.
 
-// Recipe fields lack columns; pod resources survive deploys as catalog never overwrites existing org rows.
 const PodResourcesSchema = z.object({
   requests: z.record(z.string(), z.string()).optional(),
   limits: z.record(z.string(), z.string()).optional(),
@@ -42,7 +40,7 @@ export const CatalogConfigSchema = z
 
 export type CatalogConfig = z.infer<typeof CatalogConfigSchema>;
 
-// The RESOLVED (project→org→YAML-merged) wire shape; no id/timestamps (may come from YAML), keys stay snake_case since the station runner reads it from a separate image.
+// The RESOLVED (variant → org) wire shape; keys stay snake_case since the station runner reads it from a separate image.
 export const ResolvedAgentDefinitionSchema = z.object({
   name: z.string(),
   model: z.string().nullable(),
@@ -58,51 +56,3 @@ export const ResolvedAgentDefinitionSchema = z.object({
 export type ResolvedAgentDefinition = z.infer<
   typeof ResolvedAgentDefinitionSchema
 >;
-
-// The fields a shipped default sets on an org row; lore.agent_definitions.shipped_default stores the last one seeded.
-export const ShippedFieldsSchema = ResolvedAgentDefinitionSchema.pick({
-  model: true,
-  timeout_minutes: true,
-  prompt: true,
-  execution_mode: true,
-  review_required: true,
-  config: true,
-});
-
-export type ShippedFields = z.infer<typeof ShippedFieldsSchema>;
-
-export const AgentDefinitionSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  model: z.string().nullable(),
-  timeoutMinutes: z.number().nullable(),
-  prompt: z.string().nullable(),
-  image: z.string().nullable(),
-  projectId: z.string().nullable(),
-  executionMode: z.string(),
-  reviewRequired: z.boolean(),
-  config: CatalogConfigSchema.nullable(),
-  shippedDefault: ShippedFieldsSchema.nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>;
-
-export const AGENT_DEFINITION_COLUMNS = {
-  id: "id",
-  name: "name",
-  model: "model",
-  timeoutMinutes: "timeout_minutes",
-  prompt: "prompt",
-  image: "image",
-  projectId: "project_id",
-  executionMode: "execution_mode",
-  reviewRequired: "review_required",
-  config: "config",
-  shippedDefault: "shipped_default",
-  createdAt: "created_at",
-  updatedAt: "updated_at",
-} as const satisfies ColumnMap<AgentDefinition>;
-
-export const AGENT_DEFINITION_TABLE = "lore.agent_definitions";
