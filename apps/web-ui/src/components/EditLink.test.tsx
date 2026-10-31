@@ -37,6 +37,8 @@ describe("EditLink", () => {
     linkStatus.mockReturnValue({ pending: false });
     render(<EditLink href="/agents/edit/loop-tdd" />);
 
-    expect(screen.getByRole("link", { name: "Edit" }).getAttribute("href")).toBe("/agents/edit/loop-tdd");
+    expect(
+      screen.getByRole("link", { name: "Edit" }).getAttribute("href"),
+    ).toBe("/agents/edit/loop-tdd");
   });
 });
