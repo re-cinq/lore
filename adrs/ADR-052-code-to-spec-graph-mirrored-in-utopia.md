@@ -203,3 +203,5 @@ The ontology keeps the `commit` word, which a commit's text and older bases stil
 ## Amendment 2026-10-31: only the docs source is extracted
 
 The `git-history` and `github` sources are created, and the existing ones patched, with `extract: false`: a sample of 3,000 pending duplicate pairs traced 1,693 to `github` and 118 to `git-history` against 951 to `docs`, entities Lore never reads, so the `docs` source alone keeps Utopia's entity extraction (`specs/utopia-graph-mirror` FR18.14, FR18.15).
+
+**2026-10-31 (code links):** each definition, file and test is also pushed with its bare name as a `known_as` name beside the qualified canonical one, because 292,893 pending duplicate pairs (203,628 from the week of 10-26) were bare mentions paired by name vector with their own qualified item instead of resolving by exact name (#4026).

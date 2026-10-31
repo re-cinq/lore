@@ -61,19 +61,33 @@ describe("testReportItems", () => {
         s: [
           relation("re-cinq/lore", "contains", FILE),
           attribute(FILE, "path", "src/a.test.ts"),
+          attribute(FILE, "known_as", "a.test.ts"),
+          attribute(FILE, "known_as", "src/a.test.ts"),
           relation(FILE, "contains", ROUNDS),
           attribute(ROUNDS, "title", "counts rounds"),
+          attribute(ROUNDS, "known_as", "counts rounds"),
           attribute(ROUNDS, "path", "src/a.test.ts"),
           attribute(ROUNDS, "line_start", "4"),
           attribute(ROUNDS, "line_end", "9"),
           attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts#L4-L9`),
           relation(FILE, "contains", stops),
           attribute(stops, "title", "stops"),
+          attribute(stops, "known_as", "stops"),
           attribute(stops, "path", "src/a.test.ts"),
           attribute(stops, "line_start", "12"),
           attribute(stops, "permalink", `${BLOB}/src/a.test.ts#L12`),
         ],
       },
+    ]);
+  });
+
+  it("returns known_as counts rounds for the test and a.test.ts and src/a.test.ts for its file", () => {
+    const pushed = build([{ ...ROUNDS_TEST, spec: undefined }]);
+
+    expect(relationsOf(pushed, "known_as")).toEqual([
+      attribute(FILE, "known_as", "a.test.ts"),
+      attribute(FILE, "known_as", "src/a.test.ts"),
+      attribute(ROUNDS, "known_as", "counts rounds"),
     ]);
   });
 
@@ -135,7 +149,11 @@ describe("testReportItems", () => {
       entity: pushed[0].e.filter(([name]) => name === source),
     }).toEqual({
       covers: [relation(ROUNDS, "covers", source, { lines: "3-9,12-20" })],
-      path: [attribute(source, "path", "src/a.ts")],
+      path: [
+        attribute(source, "path", "src/a.ts"),
+        attribute(source, "known_as", "a.ts"),
+        attribute(source, "known_as", "src/a.ts"),
+      ],
       entity: [[source, "SourceFile", true]],
     });
   });

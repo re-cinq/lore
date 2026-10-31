@@ -1,5 +1,7 @@
 // The wire shapes of one Utopia statements push: `POST /sources/{id}/statements` takes one item, its entities as [name, kindWord, true] and its statements as subject-phrase-object/value tuples.
 
+import { posix } from "node:path";
+
 /** `[name, kind word, true]`: the kind word is the ontology class label the knowledge base bound the word to. */
 export type Entity = [string, string, true];
 
@@ -58,6 +60,18 @@ export function attribute(
   value: string,
 ): Statement {
   return [null, subject, phrase, null, value, {}, null, null];
+}
+
+/** A name Utopia records as a fact beside the canonical one, so a bare mention in prose resolves by exact name. */
+export function knownAs(subject: string, name: string): Statement {
+  return attribute(subject, "known_as", name);
+}
+
+/** The file's `path` and the two names a mention uses for it: its basename and its repo-relative path. */
+export function sourceFileStatements(file: string, path: string): Statement[] {
+  const names = [...new Set([posix.basename(path), path])];
+
+  return [attribute(file, "path", path), ...names.map((n) => knownAs(file, n))];
 }
 
 export function isTombstone(pushed: PushItem): pushed is Tombstone {
