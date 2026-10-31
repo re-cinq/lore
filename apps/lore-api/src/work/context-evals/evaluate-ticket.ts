@@ -49,7 +49,7 @@ const JUDGE_SYSTEM =
 const GRADE_SCHEMA = {
   type: "object",
   properties: {
-    score: { type: "integer", enum: [0, 1, 2, 3] },
+    score: { type: "integer", minimum: 0, maximum: 3 },
     useful: { type: "array", items: { type: "string" }, maxItems: 5 },
     noise: { type: "string" },
   },
