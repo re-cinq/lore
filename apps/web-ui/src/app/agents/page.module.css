@@ -65,21 +65,26 @@
     var(--card-border) border-box;
 }
 
-/* Edit wears its vendor's solid colour; the attribute selector outranks every theme's button rules, chicago's included. */
-.agentCard[data-vendor] .edit button {
-  border: none;
-  box-shadow: none;
+/* Edit is a link in the shape of the theme's button, wearing its vendor's solid colour. */
+.agentCard[data-vendor] .edit a {
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-sm);
   background: var(--card-solid);
   color: var(--white);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-sm);
+  text-align: center;
+  text-decoration: none;
 }
 
-.agentCard[data-vendor] .edit button:hover {
-  background: var(--card-solid);
+.agentCard[data-vendor] .edit a:hover {
   filter: brightness(1.1);
 }
 
 /* Busy until the edit page is shown: the same colour, dimmed, and no second click. */
-.agentCard[data-vendor] .edit button[aria-busy="true"] {
+.agentCard[data-vendor] .edit a:has([data-pending]) {
   filter: brightness(0.85);
+  pointer-events: none;
   cursor: progress;
 }

@@ -3,7 +3,7 @@ import { modelVendor } from "@/lib/model-vendor";
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import type { AgentUsage, DefinitionActivity } from "@/lib/agents-api";
 import { SettingsCard } from "@/components/SettingsCard";
-import EditButton from "./EditButton";
+import EditLink from "@/components/EditLink";
 import { ScopePill } from "../repos/[owner]/[repo]/agents/AgentList";
 import { rowCells } from "../repos/[owner]/[repo]/agents/agent-row-cells";
 import {
@@ -107,7 +107,7 @@ function AgentFacts({ agent, catalog }: AgentCardProps) {
 function EditAction({ href }: { href: string }) {
   return (
     <div className={styles.edit}>
-      <EditButton href={href} />
+      <EditLink href={href} />
     </div>
   );
 }
