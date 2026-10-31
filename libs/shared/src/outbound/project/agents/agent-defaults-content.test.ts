@@ -259,12 +259,12 @@ describe("the fix-ci recipe when the branch moved", () => {
   });
 });
 
-describe("test_policy", () => {
-  it("declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
-    const readOnly = ["code-review"];
+describe("LORE_TEST_POLICY", () => {
+  it("sets none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
+    const readOnly = ["code-review", "code-review-recheck"];
 
     expect(
-      readOnly.map((name) => SHIPPED.get(name)?.config?.test_policy),
+      readOnly.map((name) => SHIPPED.get(name)?.config?.env?.LORE_TEST_POLICY),
     ).toEqual(readOnly.map(() => "none"));
   });
 });

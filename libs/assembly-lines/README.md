@@ -12,10 +12,11 @@ Factory ⊃ Floor ⊃ **AssemblyLine** ⊃ Station ⊃ Agent vocabulary. Depends
 ## Pipeline files
 
 One YAML file per line in [`src/floor-pipelines/`](./src/floor-pipelines/),
-copied into `dist/` at build time. A file has three blocks: `line` (the graph:
-`entry`, `exit`, `args`, `nodes`, `edges`), `stations` (what each station needs,
-produces and can report) and `agent_definitions` (model, image, timeout and the
-prompt, inline). lore-api puts every file to the floor at boot; a file's content
+copied into `dist/` at build time. A file has two blocks: `line` (the graph:
+`entry`, `exit`, `args`, `nodes`, `edges`) and `stations` (what each station needs,
+produces and can report, and for an agent station the `agent_definition` it runs).
+An agent's settings and prompt are not in the file: each is declared once in
+`libs/shared/src/agent-defaults/<name>.md` and added when the file is loaded. lore-api puts every file to the floor at boot; a file's content
 is its version, so only a changed file becomes a new version.
 
 | File | What the line does |

@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { shippedAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
+import { shippedAgentPrompts } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { describe, expect, it } from "vitest";
 import { pipelineProblems, type PipelineProblem } from "./pipeline-lint.js";
 
@@ -563,5 +563,40 @@ describe("pipelineProblems — the pipelines Lore ships", () => {
       checked: true,
       found: [],
     });
+  });
+});
+
+describe("pipelineProblems — where an agent is declared", () => {
+  it("reports agent-settings-in-pipeline for a file that still carries an agent_definitions block", () => {
+    const declared = `${SPEC_TICKETS_DECOMPOSE_REUSED}agent_definitions:
+  spec-tickets-decompose:
+    settings:
+      model: gemini-3.1-pro-preview
+`;
+
+    expect(problems(declared)).toContainEqual({
+      line: "triage",
+      node: undefined,
+      rule: "agent-settings-in-pipeline",
+      detail:
+        "the file carries an agent_definitions block; an agent's settings live in libs/shared/src/agent-defaults/<definition>.md",
+    });
+  });
+
+  it("reports undeclared-agent naming triage-guess.md for a station whose agent has no file", () => {
+    const unknown = SPEC_TICKETS_DECOMPOSE_REUSED.replace(
+      "agent_definition: spec-tickets-decompose",
+      "agent_definition: triage-guess",
+    );
+
+    expect(problems(unknown)).toEqual([
+      {
+        line: "triage",
+        node: undefined,
+        rule: "undeclared-agent",
+        detail:
+          'station "decompose" names agent definition "triage-guess", and libs/shared/src/agent-defaults/triage-guess.md does not exist',
+      },
+    ]);
   });
 });

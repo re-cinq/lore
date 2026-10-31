@@ -7,9 +7,13 @@ import {
   pipelineOf,
   readPipelineFile,
   type Pipeline,
+  type PipelineFile,
   type Put,
 } from "@re-cinq/floor-pipeline";
-import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
+import {
+  withAgentDefinitions,
+  type FloorAgentSettings,
+} from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
 
@@ -42,14 +46,68 @@ export function withEnvironment(
   });
 }
 
-/** A shipped pipeline file as the floor is given it: the environment filled in, and each agent's prompt read from its agent-defaults .md. */
+/** A shipped pipeline file as the floor is given it: each agent a station names built from its agent-defaults .md, and the environment filled in over the pipeline and every agent's settings, never a prompt. */
 export function pipelineOfText(
   yamlText: string,
   env: Record<string, string | undefined>,
 ): Pipeline {
-  return pipelineOf(
-    withAgentPrompts(readPipelineFile(withEnvironment(yamlText, env))),
+  const document = withAgentDefinitions(
+    readPipelineFile(withEnvironment(yamlText, env)),
   );
+
+  return pipelineOf({
+    ...document,
+    agent_definitions: definitionsWithEnvironment(
+      document.agent_definitions,
+      env,
+    ),
+  });
+}
+
+function definitionsWithEnvironment(
+  definitions: PipelineFile["agent_definitions"],
+  env: Record<string, string | undefined>,
+): PipelineFile["agent_definitions"] {
+  return (
+    definitions &&
+    Object.fromEntries(
+      Object.entries(definitions).map(([name, definition]) => [
+        name,
+        { settings: settingsWithEnvironment(definition.settings, env) },
+      ]),
+    )
+  );
+}
+
+function settingsWithEnvironment(
+  settings: unknown,
+  env: Record<string, string | undefined>,
+): FloorAgentSettings {
+  const { prompt, ...rest } = settings as FloorAgentSettings;
+
+  return { ...(filledIn(rest, env) as typeof rest), prompt };
+}
+
+function filledIn(
+  value: unknown,
+  env: Record<string, string | undefined>,
+): unknown {
+  if (typeof value === "string") {
+    return withEnvironment(value, env);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((element) => filledIn(element, env));
+  }
+
+  return value && typeof value === "object"
+    ? Object.fromEntries(
+        Object.entries(value).map(([key, field]) => [
+          key,
+          filledIn(field, env),
+        ]),
+      )
+    : value;
 }
 
 export interface SeedFailure {

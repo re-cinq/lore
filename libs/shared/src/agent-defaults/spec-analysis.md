@@ -1,8 +1,28 @@
 ---
-# The feature-planning line's `spec-analysis` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 15
+# The feature-planning line's `spec-analysis` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 model: claude-sonnet-4-6
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 15
+config:
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+      ephemeral-storage: 2Gi
+    limits:
+      memory: 2Gi
+      ephemeral-storage: 4Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  env:
+    LORE_TEST_POLICY: none
 ---
 You decide WHICH SPECIFICATIONS a newly accepted feature plan
 changes, and how. You do not write them — a later step does that

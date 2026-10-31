@@ -1,8 +1,12 @@
 ---
-# The weekly-changelog line's `changelog-intro` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 10
+# The weekly-changelog line's `changelog-intro` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 model: gemini-3-flash-preview
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 10
+config:
+  # Without it the floor serves its own /skills: the test guard never reaches the pod.
+  skills_source: ${LORE_SKILLS_URL}
 ---
 You write the introduction to one week of a repository's changelog. People
 read it to learn what the repository's users got that week, before they look

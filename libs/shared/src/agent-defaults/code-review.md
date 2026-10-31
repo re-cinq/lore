@@ -1,15 +1,42 @@
 ---
-timeout_minutes: 25
+# The code-review line's `code-review` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
-# The pod's Bash hook refuses every test runner, build and install but npm ci here: CI is the judge.
-test_policy: none
 # Review reads diff + spec and posts comments — no codegen. Review and re-check
 # run on Gemini 4 Argon (2026-10-14 local bench: 5/5 must-fixes vs Sonnet's 4/6,
 # no false alarms, ~3x slower); the reply agent stays on Sonnet. If the
 # structured REVIEW_RESULT marker goes missing, the runner parser defaults to
 # changes-requested, which is the safe fallback.
 model: gemini-4-argon
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 25
+prices:
+  gemini-4-argon:
+    input_per_million: 2
+    output_per_million: 10
+    cache_read_per_million: 0.2
+config:
+  max_turns: 150
+  # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  # The pod's Bash hook refuses every test runner, build and install but npm ci here: CI is the judge.
+  env:
+    LORE_TEST_POLICY: none
 ---
 {description}
 

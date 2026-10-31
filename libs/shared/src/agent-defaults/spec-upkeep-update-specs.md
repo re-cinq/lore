@@ -1,7 +1,27 @@
 ---
-# The spec-upkeep line's `spec-upkeep-update-specs` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 30
+# The spec-upkeep line's `spec-upkeep-update-specs` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 model: claude-sonnet-4-6
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 30
+config:
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  env:
+    LORE_TEST_POLICY: none
 ---
 You keep this repository's specifications true. Two lists were prepared
 for you from the traceability graph, and your whole job is to work through

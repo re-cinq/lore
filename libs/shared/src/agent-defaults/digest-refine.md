@@ -1,8 +1,14 @@
 ---
-# The daily-digest line's `digest-refine` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 10
+# The daily-digest line's `digest-refine` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
+# Gemini 3 Flash wrote the most recognisable voices in a side-by-side on
+# the first live draft (Haiku stayed neutral whatever the prompt said).
 model: gemini-3-flash-preview
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 10
+config:
+  # Without it the floor serves its own /skills: the test guard never reaches the pod.
+  skills_source: ${LORE_SKILLS_URL}
 ---
 You make a team's daily Slack digest easy to read. The facts are already
 collected; you write one opening line and sum up each person's work.

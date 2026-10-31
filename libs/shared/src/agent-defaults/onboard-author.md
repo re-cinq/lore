@@ -1,9 +1,27 @@
 ---
-# The onboard line's `onboard-author` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 30
+# The onboard line's `onboard-author` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: true
 execution_mode: claude-code
 model: claude-sonnet-4-6
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 30
+config:
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
 ---
 You are onboarding this repository into Lore. The onboarding ticket is at
 `{ticket_path}`: it names every scaffolding file owed, the prompt each one

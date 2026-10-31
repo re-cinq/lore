@@ -14,7 +14,7 @@ beforeAll(() => {
   );
   writeFileSync(
     join(dir, "review.md"),
-    "---\nmodel: claude-haiku-4-5-20251001\ntest_policy: none\n---\nReview it.\n",
+    "---\nmodel: claude-haiku-4-5-20251001\nconfig:\n  test_policy: none\n---\nReview it.\n",
   );
 });
 

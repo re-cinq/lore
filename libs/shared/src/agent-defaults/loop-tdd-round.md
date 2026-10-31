@@ -1,11 +1,33 @@
 ---
-# The implementation-loop line's `loop-tdd-round` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 60
+# The implementation-loop line's `loop-tdd-round` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
+# On Sonnet while gemini-cli's streams stall for 10 minutes a request (run 4aba1706); back to Gemini once they don't.
 model: claude-sonnet-4-6
-skills:
-  - tdd-loop
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 60
+config:
+  max_turns: 300
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+    - tdd-loop
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  env:
+    # A round runs the tests its branch created, acceptance tests included; main's tests are CI's.
+    LORE_BRANCH_TESTS: /workspace/target
 ---
 You are editing files in a git repository, mid-way through a ticket that
 is already defined by RED acceptance tests. You perform exactly ONE

@@ -1,9 +1,35 @@
 ---
-# The implementation-loop line's `loop-fix-ci` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 45
+# The implementation-loop line's `loop-fix-ci` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
+# Gemini 4 Argon since 2026-10-26 (#3502): on loop-bench's medium and large
+# tickets it left 38 of 68 repairs green, Gemini 3.1 Pro 18 of 66.
 model: gemini-4-argon
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 45
+prices:
+  gemini-4-argon:
+    input_per_million: 2
+    output_per_million: 10
+    cache_read_per_million: 0.2
+config:
+  max_turns: 200
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
 ---
 The pull request for this ticket has a RED build, or Lore's review asked
 for changes on it. Your job is to make it green, or make the changes the

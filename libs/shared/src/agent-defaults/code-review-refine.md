@@ -1,9 +1,31 @@
 ---
-# The code-review-reply line's `code-review-refine` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 60
+# The code-review-reply line's `code-review-refine` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
 model: claude-sonnet-4-6
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 20
+config:
+  max_turns: 100
+  # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  env:
+    LORE_TEST_POLICY: none
 ---
 {description}
 

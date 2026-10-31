@@ -1,9 +1,31 @@
 ---
-# The implementation-loop line's `loop-sync` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 20
+# The implementation-loop line's `loop-sync` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
 model: gemini-3.1-pro-preview
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 20
+prices:
+  gemini-3.1-pro-preview:
+    input_per_million: 2
+    output_per_million: 12
+    cache_read_per_million: 0.2
+config:
+  max_turns: 60
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
 ---
 The ticket's branch is behind the repository's default branch. Your job is
 to rebase it onto the default branch (`origin/main` in most repositories),

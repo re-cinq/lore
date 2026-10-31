@@ -4,9 +4,11 @@ import { parse } from "yaml";
 import { z } from "zod";
 
 export type PipelineRule =
+  | "agent-settings-in-pipeline"
   | "ambiguous-edge"
   | "dangling-edge"
   | "dead-end"
+  | "undeclared-agent"
   | "undeclared-bag"
   | "outcome-without-edge"
   | "undeclared-outcome"

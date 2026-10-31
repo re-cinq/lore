@@ -1,9 +1,13 @@
-// The shipped default agents: libs/shared/src/agent-defaults/*.md, copied beside dist by the build.
+// The shipped agents: libs/shared/src/agent-defaults/*.md, copied beside dist by the build.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseAgentDefaultFile } from "../../../domain/agent-defaults/agent-default-file.js";
+import {
+  readAgentDefaultFile,
+  rowOf,
+  type AgentDefaultFile,
+} from "../../../domain/agent-defaults/agent-default-file.js";
 import type { ResolvedAgentDefinition } from "../../../domain/models/agent-definition.js";
 
 const SHIPPED_DIR = fileURLToPath(
@@ -13,10 +17,16 @@ const SHIPPED_DIR = fileURLToPath(
 export function loadAgentDefaults(
   dir: string = SHIPPED_DIR,
 ): ResolvedAgentDefinition[] {
+  return loadAgentDefaultFiles(dir).map(rowOf);
+}
+
+export function loadAgentDefaultFiles(
+  dir: string = SHIPPED_DIR,
+): AgentDefaultFile[] {
   return readdirSync(dir)
     .filter((file) => file.endsWith(".md"))
     .map((file) =>
-      parseAgentDefaultFile(
+      readAgentDefaultFile(
         basename(file, ".md"),
         readFileSync(join(dir, file), "utf-8"),
       ),

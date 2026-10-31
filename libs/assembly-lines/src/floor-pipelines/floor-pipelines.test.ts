@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
-import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
+import { withAgentDefinitions } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { SPEC_QA_ROUNDS } from "@re-cinq/lore-shared/feature-planning/spec-qa.js";
 
 interface Arg {
@@ -1778,7 +1778,7 @@ function loadPipelines(): Map<string, Pipeline> {
   const pipelines = readdirSync(folder)
     .filter((file) => file.endsWith(".yaml"))
     .map((file) =>
-      withAgentPrompts(
+      withAgentDefinitions(
         parse(readFileSync(new URL(file, folder), "utf8")) as Pipeline,
       ),
     );

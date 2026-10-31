@@ -1,8 +1,29 @@
 ---
-# The feature-planning line's `plan-analyze` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 15
+# The feature-planning line's `plan-analyze` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 model: claude-sonnet-4-6
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 15
+config:
+  # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+      ephemeral-storage: 2Gi
+    limits:
+      memory: 2Gi
+      ephemeral-storage: 4Gi
+  skills:
+    - lore-context
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
+  env:
+    LORE_TEST_POLICY: none
 ---
 You are a senior software architect drafting a PLAN together with the
 people who asked for it. The plan is a shared document: people are

@@ -13,11 +13,11 @@ ADR-049), and the engine Lore ran itself is deleted.
 ## The definition
 
 - A line is one YAML file at
-  `libs/assembly-lines/src/floor-pipelines/<name>.yaml` with three blocks:
-  `line` (its `id`, `entry`, `exit`, `args`, `nodes` and `edges`), `stations`
-  (what each node's station needs, produces and can report) and
-  `agent_definitions` (model, image, timeout and the prompt, inline, for each
-  agent station).
+  `libs/assembly-lines/src/floor-pipelines/<name>.yaml` with two blocks:
+  `line` (its `id`, `entry`, `exit`, `args`, `nodes` and `edges`) and `stations`
+  (what each node's station needs, produces and can report). Each agent a
+  station names is its own file, `libs/shared/src/agent-defaults/<name>.md`
+  (settings in the frontmatter, prompt in the body).
 - lore-api puts every file in that folder to the floor at boot
   (`apps/lore-api/src/work/floor/seed-floor-pipelines.ts`). A file's content
   is its version, so only a changed file becomes a new version.
@@ -41,9 +41,12 @@ refuses a file that leaves an outcome with nowhere to go. A back-edge needs
 
 ## Stations
 
-- **Agent station** (`kind: agent`): names an entry in `agent_definitions`.
-  Its prompt is the body of `libs/shared/src/agent-defaults/<agent definition>.md`,
-  filled in when the pipeline file is loaded (`withAgentPrompts`).
+- **Agent station** (`kind: agent`): names its agent with `agent_definition`.
+  The agent is declared once, in `libs/shared/src/agent-defaults/<agent definition>.md`:
+  its frontmatter holds the settings (`model`, `image`, `timeout_minutes`, `prices`,
+  `config`) and its body the prompt, and the definition is built from that file
+  when the pipeline file is loaded (`withAgentDefinitions`). Never write an
+  `agent_definitions` block in a pipeline file: the lint fails it.
   Say what the agent is given (`needs`: a `git` checkout with `access: write`
   or `read`, a `file`, a `value`), what it writes (`produces`), and how it
   reports its outcome. A second writer on a branch must come after a human

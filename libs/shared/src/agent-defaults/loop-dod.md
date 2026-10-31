@@ -1,12 +1,37 @@
 ---
-# The implementation-loop line's `loop-dod` agent; the floor pipeline file fills its prompt from this body.
-timeout_minutes: 60
+# The implementation-loop line's `loop-dod` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
 model: gemini-3.1-pro-preview
-skills:
-  - tdd-loop
-  - legacy-characterize
+image: ${LORE_AGENT_IMAGE}
+timeout_minutes: 60
+prices:
+  gemini-3.1-pro-preview:
+    input_per_million: 2
+    output_per_million: 12
+    cache_read_per_million: 0.2
+config:
+  max_turns: 200
+  # Autopilot holds an ephemeral-storage limit to its request, so the limit
+  # is what evicts: runs aa9c26e4's dod pods were evicted at 2Gi by npm ci.
+  pod_resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+    limits:
+      memory: 8Gi
+      ephemeral-storage: 6Gi
+  skills:
+    - lore-context
+    - tdd-loop
+    - legacy-characterize
+  skills_source: ${LORE_SKILLS_URL}
+  mcp_servers:
+    - name: lore
+      transport: http
+      url: ${LORE_MCP_URL}
+      headers_secret: lore-mcp-auth
 ---
 You are editing files in a git repository. Your job is to define DONE for
 the ticket below as executable acceptance tests that FAIL right now, so
