@@ -18,22 +18,28 @@ export async function moveOverridesAtBoot(pool: Pool): Promise<void> {
   }
 
   try {
-    const moves = overrideMoves(await storedAgentRows(pool));
-    const { agentDefinitions } = floorClient();
-    const report = await moveOverridesToFloor(
-      moves,
-      new FloorAgentDefs(agentDefinitions),
-    );
+    const report = await moveStoredOverrides(pool);
 
     console.error(
       `[lore-api] agent overrides moved to the floor: ${described(report)}`,
     );
   } catch (err) {
-    console.error(
-      "[lore-api] moving agent overrides to the floor FAILED — will try again at the next boot:",
-      err,
-    );
+    logMoveFailure(err);
   }
+}
+
+function logMoveFailure(err: unknown): void {
+  console.error(
+    "[lore-api] moving agent overrides to the floor FAILED — will try again at the next boot:",
+    err,
+  );
+}
+
+async function moveStoredOverrides(pool: Pool): Promise<MoveReport> {
+  const moves = overrideMoves(await storedAgentRows(pool));
+  const { agentDefinitions } = floorClient();
+
+  return moveOverridesToFloor(moves, new FloorAgentDefs(agentDefinitions));
 }
 
 function described(report: MoveReport): string {

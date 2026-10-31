@@ -8,6 +8,7 @@ import type { TestReport } from "@re-cinq/lore-shared/models/test-report.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { implementationDeps, type ImplementationDeps } from "./deps.js";
 import { issueSnapshot, issueScope, type IssueSnapshot } from "./scope.js";
+import { issueThread } from "./thread.js";
 
 export function loadImplementationHandle(deps: ImplementationDeps): Handle {
   return async ({ needs }, tools) => {
@@ -48,10 +49,16 @@ async function publishScope(
   deps: ImplementationDeps,
   tools: Tools,
 ): Promise<void> {
-  const report = await deps.report(snapshot.repo, snapshot.commit);
+  const { issues } = await deps.project(snapshot.repo);
+  const [report, comments, pulls] = await Promise.all([
+    deps.report(snapshot.repo, snapshot.commit),
+    issues.listComments(snapshot.number),
+    issues.linkedPullRequests(snapshot.number),
+  ]);
 
   await tools.produce("implementation_scope", JSON.stringify({ snapshot }));
   await tools.produce("issue_scope", issueScope(snapshot));
+  await tools.produce("issue_thread", issueThread(comments, pulls));
   await tools.produce("test_report", recordedTestLines(report));
 }
 

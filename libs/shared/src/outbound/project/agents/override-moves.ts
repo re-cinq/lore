@@ -87,14 +87,21 @@ async function moveOne(
 
     return;
   }
+  const pending = pendingFields(resolved, move);
+
+  if (pending.length > 0) {
+    await floor.update(move.repo, move.name, move.patch);
+    report.moved.push(`${label}: ${pending.join(", ")}`);
+  }
+}
+
+function pendingFields(
+  resolved: NonNullable<Awaited<ReturnType<FloorAgentDefs["resolve"]>>>,
+  move: OverrideMove,
+): MovedField[] {
   const fields = Object.keys(move.patch) as MovedField[];
-  const pending = fields.filter(
+
+  return fields.filter(
     (field) => !isDeepStrictEqual(resolved[field], move.patch[field]),
   );
-
-  if (pending.length === 0) {
-    return;
-  }
-  await floor.update(move.repo, move.name, move.patch);
-  report.moved.push(`${label}: ${pending.join(", ")}`);
 }

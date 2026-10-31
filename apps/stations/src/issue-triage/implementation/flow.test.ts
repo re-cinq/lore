@@ -134,6 +134,15 @@ export function scene(raw: object = assessment()) {
       update,
       close,
       listComments: async () => comments,
+      linkedPullRequests: async () => [
+        {
+          number: 12,
+          title: "Fix widget",
+          state: "closed" as const,
+          merged: true,
+          url: "https://github.com/acme/widgets/pull/12",
+        },
+      ],
       comment: vi.fn(async (_number: number, body: string) => {
         calls.push("comment");
         comments.push({
@@ -275,6 +284,24 @@ describe("issue implementation assessment", () => {
       runnerIds: [PROOF.test_id, "second-case"],
       scope: { number: 42, report: undefined },
     });
+  });
+
+  it("hands the agent the issue thread with the reporter's comment and merged pull request #12", async () => {
+    const s = scene();
+
+    s.comments.push({
+      id: 1,
+      body: "Still broken on 1.4",
+      user: "reporter",
+      created_at: "2026-10-30",
+    });
+
+    await s.load();
+
+    expect(s.artifacts.issue_thread).toContain(
+      "### reporter, 2026-10-30\n\nStill broken on 1.4",
+    );
+    expect(s.artifacts.issue_thread).toContain("- #12 Fix widget (merged)");
   });
 
   it("hands the agent an empty test file when the commit has no stored report", async () => {

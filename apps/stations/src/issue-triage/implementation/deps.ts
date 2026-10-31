@@ -7,7 +7,13 @@ import { issueTestReport } from "../../outbound/issue-evidence.js";
 export type ImplementationProject = {
   issues: Pick<
     IssueCollection,
-    "get" | "update" | "comment" | "listComments" | "close" | "addLabel"
+    | "get"
+    | "update"
+    | "comment"
+    | "listComments"
+    | "linkedPullRequests"
+    | "close"
+    | "addLabel"
   >;
   repo: Pick<RepoFiles, "defaultBranch" | "headSha" | "read">;
 };
