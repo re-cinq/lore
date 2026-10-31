@@ -8,6 +8,10 @@ import {
   type UtopiaSession,
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { Pool } from "pg";
+import {
+  EXTRACTION_OFF_KINDS,
+  kindSourceFor,
+} from "../../outbound/utopia-kind-sources.js";
 import { saveUtopiaMirrorSettings } from "../../outbound/utopia-sources.js";
 import {
   installOntology,
@@ -17,6 +21,7 @@ import {
 
 const settingUp = new Map<string, Promise<string>>();
 const upgrading = new Map<string, Promise<void>>();
+const silencing = new Map<string, Promise<void>>();
 
 /** Answers the id of the knowledge base set up. Two ingests of one repo in this process share one setup; across processes, finding the base by name keeps it at one base. */
 export function autoSetUpRepo(
@@ -41,6 +46,46 @@ export function autoUpgradeOntology(
       ontology_version: LORE_ONTOLOGY_VERSION,
     });
   });
+}
+
+/** Patches the repo's stored `git-history` and `github` sources to `extract: false` and stores that it was done once there was a source to patch (one made after this is born off); two ingests of one repo in this process share one pass. */
+export function autoSilenceExtraction(
+  pool: Pool,
+  repo: string,
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): Promise<void> {
+  return sharedPerRepo(silencing, repo, async () => {
+    const patched = await patchStoredSources(pool, repo, mirror.kb_id, env);
+
+    if (patched > 0) {
+      await saveUtopiaMirrorSettings(pool, repo, {
+        kb_id: mirror.kb_id,
+        sources_extract_off: true,
+      });
+    }
+  });
+}
+
+async function patchStoredSources(
+  pool: Pool,
+  repo: string,
+  kbId: string,
+  env: UtopiaEnv,
+): Promise<number> {
+  const session = loreSession(env);
+  const stored = await Promise.all(
+    EXTRACTION_OFF_KINDS.map((kind) => kindSourceFor(pool, repo, kind)),
+  );
+  const inBase = stored.filter((source) => source?.kbId === kbId);
+
+  await Promise.all(
+    inBase.map((source) =>
+      session.patchSourceConfig(kbId, source!.id, { extract: false }),
+    ),
+  );
+
+  return inBase.length;
 }
 
 /** One call per key runs at a time in this process; a second call while it runs shares its answer. */

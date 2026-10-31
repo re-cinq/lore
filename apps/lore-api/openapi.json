@@ -17470,6 +17470,9 @@
                       },
                       "docs_source_id": {
                         "type": "string"
+                      },
+                      "sources_extract_off": {
+                        "type": "boolean"
                       }
                     },
                     "required": ["kb_id"],
@@ -17907,6 +17910,9 @@
                             },
                             "docs_source_id": {
                               "type": "string"
+                            },
+                            "sources_extract_off": {
+                              "type": "boolean"
                             }
                           },
                           "required": ["kb_id"],

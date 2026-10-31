@@ -40,6 +40,8 @@ export const UtopiaMirrorSettingsSchema = z.object({
   tracker_since: z.string().optional(),
   /** The id of the repo's `docs` Utopia source, which context assembly reads documents from. */
   docs_source_id: z.string().optional(),
+  /** Set once the repo's `git-history` and `github` sources were patched to `extract: false`. */
+  sources_extract_off: z.boolean().optional(),
 });
 
 export type UtopiaMirrorSettings = z.infer<typeof UtopiaMirrorSettingsSchema>;

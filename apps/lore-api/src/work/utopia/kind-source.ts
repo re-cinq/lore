@@ -13,6 +13,7 @@ import type {
 } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { Pool } from "pg";
 import {
+  EXTRACTION_OFF_KINDS,
   kindSourceFor,
   saveKindSource,
   type KindSourceKey,
@@ -158,5 +159,9 @@ function newSource(
 ): Promise<UtopiaSource> {
   return kind === "test-coverage"
     ? session.createStatementsSource(kbId, kind)
-    : session.createApiSource(kbId, kind);
+    : session.createApiSource(
+        kbId,
+        kind,
+        EXTRACTION_OFF_KINDS.includes(kind) ? { extract: false } : {},
+      );
 }
