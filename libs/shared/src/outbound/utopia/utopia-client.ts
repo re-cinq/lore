@@ -1,5 +1,11 @@
 // Utopia (deeplethe/utopia), the knowledge-graph service the spec→test→code chain is mirrored into: a per-source push surface and a person's surface for setting a repository's knowledge base up, reached with their session or their write token.
 
+import {
+  createSource,
+  patchSourceConfig,
+  type SessionCall,
+  type SourceConfig,
+} from "./utopia-source-requests.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { wireBody, type PushItem } from "../../domain/utopia/statements.js";
 import type { IngestDocument } from "../../domain/utopia/memory/memory-documents.js";
@@ -11,6 +17,8 @@ export type UtopiaEnv = Partial<
     string
   >
 >;
+
+export type { SourceConfig };
 
 export interface UtopiaSource {
   id: string;
@@ -48,7 +56,16 @@ export interface UtopiaSession {
   ): Promise<{ importId: string }>;
   bindKindWord(kbId: string, word: string, classKey: string): Promise<void>;
   createStatementsSource(kbId: string, name: string): Promise<UtopiaSource>;
-  createApiSource(kbId: string, name: string): Promise<UtopiaSource>;
+  createApiSource(
+    kbId: string,
+    name: string,
+    config?: SourceConfig,
+  ): Promise<UtopiaSource>;
+  patchSourceConfig(
+    kbId: string,
+    sourceId: string,
+    config: SourceConfig,
+  ): Promise<void>;
 }
 
 export interface UtopiaClient {
@@ -158,7 +175,7 @@ export function utopiaRequester(
 
 export interface RequestOptions {
   token: string;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PATCH";
   json?: unknown;
   form?: FormData;
   /** An ontology import plans against the whole base, writes every class and relation, and queues alignment: on a busy base it outlasts a push's wait by far. */
@@ -250,20 +267,11 @@ async function retryAfter(
   return again();
 }
 
-interface SessionCall {
-  request: Requester;
-  bearer: string;
-}
-
 function sessionOf(request: Requester, bearer: string): UtopiaSession {
   const call: SessionCall = { request, bearer };
 
   return {
-    listKnowledgeBases: (workspaceId) =>
-      request<KnowledgeBase[]>(`/workspaces/${workspaceId}/kbs`, {
-        token: bearer,
-        method: "GET",
-      }),
+    listKnowledgeBases: (workspaceId) => listKnowledgeBases(call, workspaceId),
     createKnowledgeBase: (workspaceId, name) =>
       createKnowledgeBase(call, workspaceId, name),
     importOntology: (kbId, turtle, filename) =>
@@ -272,9 +280,21 @@ function sessionOf(request: Requester, bearer: string): UtopiaSession {
       bindKindWord(call, kbId, word, classKey),
     createStatementsSource: (kbId, name) =>
       createSource(call, kbId, { kind: "statements", name }),
-    createApiSource: (kbId, name) =>
-      createSource(call, kbId, { kind: "api", name }),
+    createApiSource: (kbId, name, config = {}) =>
+      createSource(call, kbId, { kind: "api", name, config }),
+    patchSourceConfig: (kbId, sourceId, config) =>
+      patchSourceConfig(call, kbId, sourceId, config),
   };
+}
+
+function listKnowledgeBases(
+  { request, bearer }: SessionCall,
+  workspaceId: string,
+): Promise<KnowledgeBase[]> {
+  return request(`/workspaces/${workspaceId}/kbs`, {
+    token: bearer,
+    method: "GET",
+  });
 }
 
 function createKnowledgeBase(
@@ -318,20 +338,4 @@ async function importOntology(
   );
 
   return { importId: imported.import_id };
-}
-
-async function createSource(
-  { request, bearer }: SessionCall,
-  kbId: string,
-  { kind, name }: { kind: "statements" | "api"; name: string },
-): Promise<UtopiaSource> {
-  const created = await request<{
-    ingest_token: string;
-    source: { id: string };
-  }>(`/kbs/${kbId}/sources`, {
-    token: bearer,
-    json: { kind, name, config: {} },
-  });
-
-  return { id: created.source.id, key: created.ingest_token };
 }

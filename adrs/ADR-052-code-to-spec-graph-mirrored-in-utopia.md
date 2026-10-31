@@ -199,3 +199,7 @@ Every `test:` and `code:` item carried the commit it was pushed at, as a `commit
 - **One statement once.** Two tests one title names in a file (two `describe` blocks) are one Test, so their item stated each of its attributes twice; an item now states each statement once.
 
 The ontology keeps the `commit` word, which a commit's text and older bases still use; its comment no longer names tests.
+
+## Amendment 2026-10-31: only the docs source is extracted
+
+The `git-history` and `github` sources are created, and the existing ones patched, with `extract: false`: a sample of 3,000 pending duplicate pairs traced 1,693 to `github` and 118 to `git-history` against 951 to `docs`, entities Lore never reads, so the `docs` source alone keeps Utopia's entity extraction (`specs/utopia-graph-mirror` FR18.14, FR18.15).

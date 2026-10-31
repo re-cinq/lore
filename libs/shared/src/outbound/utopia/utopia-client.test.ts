@@ -57,6 +57,7 @@ const ROUTES: Record<string, (body: string) => [number, unknown]> = {
     200,
     { ok: true },
   ],
+  "PATCH /api/v1/kbs/kb-1/sources/src-9": () => [200, { id: "src-9" }],
   "POST /api/v1/kbs/kb-1/sources": () => [
     201,
     { ingest_token: "utp_secret", source: { id: "src-9" } },
@@ -366,6 +367,30 @@ describe("withCredential", () => {
     expect({ source, body: JSON.parse(seen[0].body) }).toEqual({
       source: { id: "src-9", key: "utp_secret" },
       body: { kind: "api", name: "memories", config: {} },
+    });
+  });
+
+  it("creates an api source named github with the config extract false", async () => {
+    await client()
+      .withCredential("jwt-1")
+      .createApiSource("kb-1", "github", { extract: false });
+
+    expect(JSON.parse(seen[0].body)).toEqual({
+      kind: "api",
+      name: "github",
+      config: { extract: false },
+    });
+  });
+
+  it("patches src-9 of kb-1 with the config extract false", async () => {
+    await client()
+      .withCredential("jwt-1")
+      .patchSourceConfig("kb-1", "src-9", { extract: false });
+
+    expect({ ...seen[0], body: JSON.parse(seen[0].body) }).toMatchObject({
+      method: "PATCH",
+      url: "/api/v1/kbs/kb-1/sources/src-9",
+      body: { config: { extract: false } },
     });
   });
 });
