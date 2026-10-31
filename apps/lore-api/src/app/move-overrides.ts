@@ -18,12 +18,7 @@ export async function moveOverridesAtBoot(pool: Pool): Promise<void> {
   }
 
   try {
-    const moves = overrideMoves(await storedAgentRows(pool));
-    const { agentDefinitions } = floorClient();
-    const report = await moveOverridesToFloor(
-      moves,
-      new FloorAgentDefs(agentDefinitions),
-    );
+    const report = await moveStoredOverrides(pool);
 
     console.error(
       `[lore-api] agent overrides moved to the floor: ${described(report)}`,
@@ -34,6 +29,13 @@ export async function moveOverridesAtBoot(pool: Pool): Promise<void> {
       err,
     );
   }
+}
+
+async function moveStoredOverrides(pool: Pool): Promise<MoveReport> {
+  const moves = overrideMoves(await storedAgentRows(pool));
+  const { agentDefinitions } = floorClient();
+
+  return moveOverridesToFloor(moves, new FloorAgentDefs(agentDefinitions));
 }
 
 function described(report: MoveReport): string {
