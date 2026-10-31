@@ -14,6 +14,7 @@ import {
   UPDATE_DEF_SQL,
   UPDATE_ORG_DEF_SQL,
 } from "./agent-defs-sql.js";
+import type { StoredAgentRow } from "./override-moves.js";
 
 // AgentDefsWritePort over lore.agent_definitions via resolveAgentConfig's project → org merge; pods use AgentDefsHttp.
 
@@ -185,4 +186,15 @@ export class PgAgentDefs implements AgentDefsWritePort {
   async delete(repo: string, name: string): Promise<void> {
     await this.pool.query(DELETE_DEF_SQL, [name, repo]);
   }
+}
+
+const STORED_ROWS_SQL = `SELECT a.name, a.model, a.timeout_minutes, a.prompt, a.image, a.config, r.full_name AS repo
+         FROM lore.agent_definitions a
+         LEFT JOIN lore.repos r ON r.id = a.project_id`;
+
+/** Every stored row, the org default with a null repo: what moving the overrides onto the floor reads (#3995). */
+export async function storedAgentRows(pool: PgPool): Promise<StoredAgentRow[]> {
+  const { rows } = await pool.query<StoredAgentRow>(STORED_ROWS_SQL);
+
+  return rows as StoredAgentRow[];
 }
