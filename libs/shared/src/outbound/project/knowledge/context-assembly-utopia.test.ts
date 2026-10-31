@@ -282,6 +282,32 @@ describe("utopiaSectionReader code and coupling", () => {
     });
   });
 
+  it("asks for both pages at once for code, the second window before the first page answers", async () => {
+    const windows: SearchWindow[] = [];
+    const eager = utopiaSectionReader(
+      {
+        reads: searchOver(hits, windows),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+        coverageSourceId: COVERAGE,
+      },
+      "prFooter",
+    );
+
+    const reading = eager(section("code"));
+    const windowsBeforeAnyAnswer = windows.length;
+
+    await reading;
+
+    expect({ windowsBeforeAnyAnswer, windows }).toEqual({
+      windowsBeforeAnyAnswer: 2,
+      windows: [
+        { topK: 50, offset: 0 },
+        { topK: 50, offset: 50 },
+      ],
+    });
+  });
+
   it("leaves code out and asks Utopia nothing when the repo has no test-coverage source", async () => {
     const windows: SearchWindow[] = [];
     const bare = utopiaSectionReader(

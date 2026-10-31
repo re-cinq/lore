@@ -75,7 +75,7 @@ function docsSectionReader(arm: UtopiaArm, query: string): SectionReader {
     if (!read) {
       return { sources: [], status: "disabled" };
     }
-    const sources = await sectionDocuments(page, read.itemsOf, read.limit);
+    const sources = await sectionDocuments(page, read);
 
     return { sources, status: sources.length > 0 ? "ok" : "empty" };
   };
@@ -89,6 +89,7 @@ function hitsReader(arm: UtopiaArm, source: string): HitsReader | null {
       itemsOf: (hits) =>
         utopiaDocuments(hits, { docsSourceId: arm.docsSourceId, ...docs }),
       limit: docs.limit,
+      eager: false,
     };
   }
   const coverage = COVERAGE_SECTIONS[source];
@@ -98,6 +99,7 @@ function hitsReader(arm: UtopiaArm, source: string): HitsReader | null {
     ? {
         itemsOf: (hits) => coverageItems(hits, sourceId, coverage),
         limit: coverage.limit,
+        eager: true,
       }
     : null;
 }
@@ -105,6 +107,8 @@ function hitsReader(arm: UtopiaArm, source: string): HitsReader | null {
 interface HitsReader {
   itemsOf: (hits: SearchHit[]) => SourceItem[];
   limit: number;
+  /** Whether the second page is asked for together with the first: a coverage section's hits are rare among a search's documents, so it needs both nearly every time, and waiting for the first before asking is a second search's latency for nothing. */
+  eager: boolean;
 }
 
 /** The search's pages, each asked for once however many sections read it; Utopia refuses a window past 100, so there are two. */
@@ -121,20 +125,22 @@ function searchPages(
     }));
 }
 
-/** The first page's documents, or both pages' when the first left the section short and Utopia has more. */
+/** The first page's documents, or both pages' when the first left the section short and Utopia has more; an eager reader has the second page on its way before the first answers. */
 async function sectionDocuments(
   page: (index: number) => Promise<SearchPage>,
-  documentsOf: (hits: SearchHit[]) => SourceItem[],
-  limit: number,
+  { itemsOf, limit, eager }: HitsReader,
 ): Promise<SourceItem[]> {
-  const first = await page(0);
-  const documents = documentsOf(first.hits);
+  const firstPage = page(0);
+  const secondPage = eager ? page(1).catch(() => null) : null;
+  const first = await firstPage;
+  const documents = itemsOf(first.hits);
 
   if (!first.hasMore || documents.length >= limit) {
     return documents;
   }
+  const second = (await secondPage) ?? (await page(1));
 
-  return documentsOf([...first.hits, ...(await page(1)).hits]);
+  return itemsOf([...first.hits, ...second.hits]);
 }
 
 interface DocumentFilter {
