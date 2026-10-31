@@ -1,4 +1,4 @@
-// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the whole documents pushed to the repo's `docs` source (specs, ADRs and every other markdown document), one item per document, every other section left out of the block.
+// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the whole documents pushed to the repo's `docs` source (specs, ADRs and every other markdown document), one item per document widened to the statements its hits were cut from, the `code` and `coupling` sections from the `test-coverage` source, the `memories` and `episodes` sections from the memory search, every other section left out of the block.
 
 import { classifyFile } from "../../../domain/content-classify.js";
 import { withoutLocation } from "../../../domain/utopia/docs/doc-text.js";
@@ -6,12 +6,14 @@ import {
   docPathOf,
   type SearchHit,
   type SearchPage,
+  type StoredDocument,
 } from "../../../domain/utopia/read-shapes.js";
 import type { UtopiaReads } from "../../utopia/utopia-reads.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
 import { codeQueryOf, queryTerms } from "./context-assembly-query-terms.js";
+import { widenedChunks } from "./context-assembly-utopia-sections.js";
 import {
   memorySectionReader,
   type UtopiaMemoryRead,
@@ -76,9 +78,10 @@ function docsSectionReader(
 ): SectionReader {
   const page = searchPages(arm, query);
   const codePage = codeQuery ? searchPages(arm, codeQuery) : page;
+  const stored = storedDocuments(arm);
 
   return async ({ source }) => {
-    const read = hitsReader(arm, source);
+    const read = hitsReader(arm, source, stored);
 
     if (!read) {
       return { sources: [], status: "disabled" };
@@ -92,13 +95,21 @@ function docsSectionReader(
   };
 }
 
-function hitsReader(arm: UtopiaArm, source: string): HitsReader | null {
+function hitsReader(
+  arm: UtopiaArm,
+  source: string,
+  stored: (path: string) => Promise<StoredDocument | null>,
+): HitsReader | null {
   const docs = SECTIONS[source];
 
   if (docs) {
     return {
       itemsOf: (hits) =>
-        utopiaDocuments(hits, { docsSourceId: arm.docsSourceId, ...docs }),
+        widenedDocuments(
+          hits,
+          { docsSourceId: arm.docsSourceId, ...docs },
+          stored,
+        ),
       limit: docs.limit,
       eager: false,
     };
@@ -108,7 +119,7 @@ function hitsReader(arm: UtopiaArm, source: string): HitsReader | null {
 
   return coverage && sourceId
     ? {
-        itemsOf: (hits) => coverageItems(hits, sourceId, coverage),
+        itemsOf: async (hits) => coverageItems(hits, sourceId, coverage),
         limit: coverage.limit,
         eager: true,
       }
@@ -116,7 +127,7 @@ function hitsReader(arm: UtopiaArm, source: string): HitsReader | null {
 }
 
 interface HitsReader {
-  itemsOf: (hits: SearchHit[]) => SourceItem[];
+  itemsOf: (hits: SearchHit[]) => Promise<SourceItem[]>;
   limit: number;
   /** Whether the second page is asked for together with the first: a coverage section's hits are rare among a search's documents, so it needs both nearly every time, and waiting for the first before asking is a second search's latency for nothing. */
   eager: boolean;
@@ -136,6 +147,25 @@ function searchPages(
     }));
 }
 
+/** Each stored document of the docs source read once per assembly however many sections widen their hits from it; a read that fails leaves the hits as they came. */
+function storedDocuments(
+  arm: UtopiaArm,
+): (path: string) => Promise<StoredDocument | null> {
+  const documents = new Map<string, Promise<StoredDocument | null>>();
+
+  return (path) => {
+    const started =
+      documents.get(path) ??
+      arm.reads
+        .documentByExternalId(arm.kbId, arm.docsSourceId, `doc:${path}`)
+        .catch(() => null);
+
+    documents.set(path, started);
+
+    return started;
+  };
+}
+
 /** The first page's documents, or both pages' when the first left the section short and Utopia has more; an eager reader has the second page on its way before the first answers. */
 async function sectionDocuments(
   page: (index: number) => Promise<SearchPage>,
@@ -144,7 +174,7 @@ async function sectionDocuments(
   const firstPage = page(0);
   const secondPage = eager ? page(1).catch(() => null) : null;
   const first = await firstPage;
-  const documents = itemsOf(first.hits);
+  const documents = await itemsOf(first.hits);
 
   if (!first.hasMore || documents.length >= limit) {
     return documents;
@@ -172,15 +202,50 @@ export function utopiaDocuments(
   hits: SearchHit[],
   filter: DocumentFilter,
 ): SourceItem[] {
+  return normalizeScores(documentHits(hits, filter).map(toItem));
+}
+
+/** The same documents, each hit widened to the statement it was cut from in the stored document (FR13.10); a document Utopia no longer holds keeps its chunks. */
+async function widenedDocuments(
+  hits: SearchHit[],
+  filter: DocumentFilter,
+  stored: (path: string) => Promise<StoredDocument | null>,
+): Promise<SourceItem[]> {
+  const documents = await Promise.all(
+    documentHits(hits, filter).map(async (document) => {
+      const whole = await stored(document.path);
+
+      return whole ? widened(document, whole.content) : document;
+    }),
+  );
+
+  return normalizeScores(documents.map(toItem));
+}
+
+function widened(document: DocumentHits, content: string): DocumentHits {
+  const chunks = [...document.chunks].sort((a, b) => a.seq - b.seq);
+  const texts = widenedChunks(
+    withoutLocation(content),
+    chunks.map((chunk) => chunk.text),
+  );
+
+  return {
+    ...document,
+    chunks: texts.map((text, seq) => ({ seq, text })),
+  };
+}
+
+function documentHits(
+  hits: SearchHit[],
+  filter: DocumentFilter,
+): DocumentHits[] {
   const byPath = new Map<string, DocumentHits>();
 
   for (const hit of hits) {
     addHit(byPath, hit, filter);
   }
 
-  return normalizeScores(
-    [...byPath.values()].slice(0, filter.limit).map(toItem),
-  );
+  return [...byPath.values()].slice(0, filter.limit);
 }
 
 function addHit(

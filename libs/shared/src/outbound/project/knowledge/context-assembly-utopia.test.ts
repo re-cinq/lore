@@ -577,3 +577,66 @@ describe("utopiaSectionReader memories filtered to the ticket's names (FR13.9)",
     ]);
   });
 });
+
+describe("utopiaSectionReader doc items widened from the stored document (FR13.10)", () => {
+  const PAUSE_SPEC = "specs/loop-pause/spec.md";
+  const stored = firstChunk(
+    PAUSE_SPEC,
+    "spec",
+    "# Loop pause\n\n## Requirements\n\n- FR4 — A paused loop's pill shows the reason, since when, and until when if the pause has an end.\n- FR5 — Resuming a loop deletes its pause row.\n",
+  );
+  const section = (source: string) =>
+    ({ source }) as Parameters<ReturnType<typeof utopiaSectionReader>>[0];
+  const reads = (document: string | null, asked: string[]): UtopiaReads => ({
+    search: async (): Promise<SearchPage> => ({
+      hits: [
+        hit(`doc:${PAUSE_SPEC}`, "until when if the pause has an end.", 0.03, {
+          seq: 3,
+        }),
+      ],
+      hasMore: false,
+      vectorUsed: true,
+    }),
+    documentByExternalId: async (_kb, sourceId, externalId) => {
+      asked.push(`${sourceId} ${externalId}`);
+
+      return document === null
+        ? null
+        : {
+            id: "d1",
+            externalId,
+            filename: PAUSE_SPEC,
+            status: "ready",
+            docTime: null,
+            version: 2,
+            content: document,
+          };
+    },
+  });
+
+  it("reads specs/loop-pause/spec.md from the docs source and gives the whole FR4 line under its heading instead of the cut chunk", async () => {
+    const asked: string[] = [];
+    const repo = await utopiaSectionReader(
+      { reads: reads(stored, asked), kbId: "kb", docsSourceId: DOCS },
+      "pause pill",
+    )(section("repo"));
+
+    expect({ asked, texts: repo.sources.map(({ text }) => text) }).toEqual({
+      asked: [`${DOCS} doc:${PAUSE_SPEC}`],
+      texts: [
+        "## Requirements\n- FR4 — A paused loop's pill shows the reason, since when, and until when if the pause has an end.",
+      ],
+    });
+  });
+
+  it("keeps the chunk as it came when the stored document is gone", async () => {
+    const repo = await utopiaSectionReader(
+      { reads: reads(null, []), kbId: "kb", docsSourceId: DOCS },
+      "pause pill",
+    )(section("repo"));
+
+    expect(repo.sources.map(({ text }) => text)).toEqual([
+      "until when if the pause has an end.",
+    ]);
+  });
+});
