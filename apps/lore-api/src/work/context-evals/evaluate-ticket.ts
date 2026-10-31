@@ -30,6 +30,21 @@ export interface TicketGrade {
   noise: string;
 }
 
+interface UsefulItem {
+  fact: string;
+  quote: string;
+}
+
+/** What the judge reports; the score is decided in code from the items whose quote is in the block (FR4.7). */
+
+interface Judged {
+  useful: UsefulItem[];
+  background: boolean;
+  noise: string;
+}
+
+const SEVERAL = 3;
+
 export interface TicketVerdict extends TicketGrade {
   model: string;
   latency_ms: number;
@@ -44,16 +59,24 @@ export interface TicketTarget {
 }
 
 const JUDGE_SYSTEM =
-  "You grade the context block an implementer is handed before starting a ticket. Score it for THAT ticket: 0 = nothing relevant, 1 = generic repo background only, 2 = at least one fact specific to this ticket (a file, a convention, a decision, a prior attempt), 3 = several ticket-specific facts an implementer would otherwise dig for. In useful, list at most 5 short items an implementer would act on. In noise, say in one line what in the block is irrelevant or filler.";
+  "You read the context block an implementer is handed before starting a ticket. In useful, list at most 5 facts in the block that are specific to THIS ticket (a file, a convention, a decision, a prior attempt) and that an implementer would act on; for each, quote is a span of the block copied word for word that states the fact. Leave useful empty when the block holds nothing specific to the ticket. background is true when the block holds generic background on the repository. In noise, say in one line what in the block is irrelevant or filler.";
 
 const GRADE_SCHEMA = {
   type: "object",
   properties: {
-    score: { type: "integer", minimum: 0, maximum: 3 },
-    useful: { type: "array", items: { type: "string" }, maxItems: 5 },
+    useful: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: { fact: { type: "string" }, quote: { type: "string" } },
+        required: ["fact", "quote"],
+      },
+    },
+    background: { type: "boolean" },
     noise: { type: "string" },
   },
-  required: ["score", "useful", "noise"],
+  required: ["useful", "background", "noise"],
 };
 
 export function ticketQuery({ title, body }: Ticket): string {
@@ -87,7 +110,7 @@ async function gradeSide(
   const { parsed, model } = await judge(deps, ticket, block.text);
 
   return {
-    ...parsed,
+    ...graded(parsed, block.text),
     model,
     latency_ms,
     chars: block.text.length,
@@ -95,17 +118,41 @@ async function gradeSide(
   };
 }
 
+/** A useful item counts only when its quote is in the block: 0 with none and no background, 1 with background only, 2 with one or two, 3 with several. A judge that grades generously has nothing there to quote. */
+export function graded(judged: Judged, block: string): TicketGrade {
+  const text = flattened(block);
+  const grounded = judged.useful.filter(
+    ({ quote }) => quote.trim().length > 0 && text.includes(flattened(quote)),
+  );
+  const useful = grounded.map(({ fact }) => fact);
+
+  if (grounded.length >= SEVERAL) {
+    return { score: 3, useful, noise: judged.noise };
+  }
+
+  if (grounded.length > 0) {
+    return { score: 2, useful, noise: judged.noise };
+  }
+
+  return { score: judged.background ? 1 : 0, useful, noise: judged.noise };
+}
+
+function flattened(text: string): string {
+  return text.toLowerCase().replaceAll(/\s+/g, " ").trim();
+}
+
 async function judge(
   { llm, judgeModel }: TicketDeps,
   ticket: Ticket,
   block: string,
-): Promise<{ parsed: TicketGrade; model: string }> {
-  return llm.completeWithTool<TicketGrade>({
+): Promise<{ parsed: Judged; model: string }> {
+  return llm.completeWithTool<Judged>({
     ...(judgeModel ? { model: judgeModel } : {}),
     systemPrompt: JUDGE_SYSTEM,
     prompt: `Ticket #${ticket.number}: ${ticket.title}\n\n${ticket.body}\n\nContext block:\n\n${block}`,
     toolName: "grade",
-    toolDescription: "The block's score for this ticket",
+    toolDescription:
+      "What in the block is specific to this ticket, each with its quote",
     toolSchema: GRADE_SCHEMA,
     jobName: JOB_NAME,
     temperature: 0,
