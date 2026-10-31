@@ -188,11 +188,11 @@ async function assembleForQuery(
 
   return await reportingAssembly(
     { backend, repo, template: opts.template },
-    () =>
+    async () =>
       assembleContext(
         pool,
         query,
-        engineOptions(pool, opts, settings, backend),
+        await engineOptions(pool, opts, settings, backend),
       ),
   );
 }
@@ -204,19 +204,17 @@ async function engineOptions(
   settings: Awaited<ReturnType<typeof repoContextSettings>>,
   backend: KnowledgeBackend,
 ) {
+  const repo = opts.repo || undefined;
+
   return {
     templateName: opts.template,
     maxTokens: opts.maxTokens,
-    repo: opts.repo || undefined,
+    repo,
     agentId: opts.agentId,
     crossRepo: opts.crossRepoRequested || settings.crossRepo,
     debug: true,
     graph: traceFromEnv(process.env),
     backend,
-    ...(await utopiaAssemblyOptions(
-      pool,
-      opts.repo || undefined,
-      settings.utopiaMirror,
-    )),
+    ...(await utopiaAssemblyOptions(pool, repo, settings.utopiaMirror)),
   };
 }
