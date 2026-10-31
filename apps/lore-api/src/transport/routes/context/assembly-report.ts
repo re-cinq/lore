@@ -38,9 +38,24 @@ function reportAssembled(
 
   recordContextAssembly({
     backend: key.backend,
-    outcome: sections.length > 0 ? "ok" : "empty",
+    outcome: outcomeOf(sections, trace),
   });
   console.log(
     `[context] assembled backend=${key.backend} repo=${key.repo ?? "-"} template=${key.template ?? "-"} sections=${sections.join(",")} tokens=${tokens} ms=${ms}`,
   );
+}
+
+/** ok when a section kept content; else error when a reader failed (a section-level throw is caught into its status), else empty. */
+function outcomeOf(
+  kept: string[],
+  trace: AssemblyTrace | undefined,
+): "ok" | "empty" | "error" {
+  if (kept.length > 0) {
+    return "ok";
+  }
+  const failed = (trace?.sections ?? []).some(
+    (section) => section.status === "error",
+  );
+
+  return failed ? "error" : "empty";
 }
