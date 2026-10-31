@@ -132,7 +132,7 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 *(2026-10-31)* Under `both` with a repo, Lore's passages come first, each carrying `backend: "lore"`, then Utopia's. ([validated by answers Lore's passages first, then Utopia's, each labelled, for backend=both with repo=o/r](apps/lore-api/src/transport/routes/context/search-context.test.ts#L198))
 
-*(2026-10-31)* The tool takes `repo` (required in agent mode, auto-detected from the git remote on a laptop) and forwards it to `GET /api/search-context`. ([validated by forwards repo=owner/r to GET /api/search-context for the default backend](apps/mcp-server/src/transport/tools/context-tools.test.ts#L323))
+*(2026-10-31)* The tool takes `repo` (required in agent mode, auto-detected from the git remote on a laptop) and forwards it to `GET /api/search-context`; a repo that is not `owner/name` is refused before the API is asked. ([validated by forwards repo=owner/r to GET /api/search-context for the default backend](apps/mcp-server/src/transport/tools/context-tools.test.ts#L323), [validated by refuses repo 'not a repo' before asking the API](apps/mcp-server/src/transport/tools/context-tools.test.ts#L339))
 
 ## Out of Scope
 
