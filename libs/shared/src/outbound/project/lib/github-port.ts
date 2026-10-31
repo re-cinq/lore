@@ -10,6 +10,14 @@ export type IssueState = "open" | "closed";
 export type CloseReason = "completed" | "not_planned";
 
 /** What an issue update rewrites; a field left out stays as it is. */
+export interface LinkedPullRequest {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+  merged: boolean;
+  url: string;
+}
+
 export interface IssueEdit {
   title?: string;
   body?: string;
@@ -147,6 +155,11 @@ export interface GitHubPort {
   updateIssue(repo: string, number: number, edit: IssueEdit): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
   listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
+  /** Pull requests that mention the issue, read from its timeline's cross-references. */
+  listLinkedPullRequests(
+    repo: string,
+    number: number,
+  ): Promise<LinkedPullRequest[]>;
   updateIssueComment(repo: string, id: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;

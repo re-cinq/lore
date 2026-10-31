@@ -50,6 +50,7 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
       writes.push(`commit:${branch}:${path}`);
     },
     listIssueComments: async () => [],
+    listLinkedPullRequests: async () => [],
     updateIssueComment: async () => {},
     upsertCheckRun: async () => {},
   };

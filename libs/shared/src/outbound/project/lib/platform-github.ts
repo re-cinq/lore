@@ -22,6 +22,7 @@ import type {
   CloseReason,
   IssueEdit,
   CheckRunInput,
+  LinkedPullRequest,
 } from "./github-port.js";
 import type {
   PullRequestsPort,
@@ -94,6 +95,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async getIssueLabels(repo: string, number: number): Promise<string[]> {
     return issues.getIssueLabels(await this.octo(), repo, number);
+  }
+
+  async listLinkedPullRequests(
+    repo: string,
+    number: number,
+  ): Promise<LinkedPullRequest[]> {
+    return issueLinks.listLinkedPullRequests(await this.octo(), repo, number);
   }
 
   async listOpenBlockers(repo: string, number: number): Promise<number[]> {

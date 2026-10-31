@@ -1,4 +1,5 @@
 import type {
+  LinkedPullRequest,
   GitHubPort,
   IssueRef,
   IssueFilter,
@@ -51,6 +52,10 @@ export class IssueCollection {
 
   listComments(number: number): Promise<IssueComment[]> {
     return this.github.listIssueComments(this.repo, number);
+  }
+
+  linkedPullRequests(number: number): Promise<LinkedPullRequest[]> {
+    return this.github.listLinkedPullRequests(this.repo, number);
   }
 
   updateComment(id: number, body: string): Promise<void> {
