@@ -231,3 +231,43 @@ describe("FloorAgentDefs", () => {
     );
   });
 });
+
+describe("FloorAgentDefs.renameRepo", () => {
+  it("moves loop-tdd's variant from re-cinq/otto to re-cinq/otto2 and answers loop-tdd", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    const moved = await defs.renameRepo("re-cinq/otto", "re-cinq/otto2");
+    const stored = await floor.get("loop-tdd");
+
+    expect({ moved, variants: stored?.body.variants }).toEqual({
+      moved: ["loop-tdd"],
+      variants: {
+        "github.com/re-cinq/otto2": {
+          model: "gemini-3.1-pro",
+          config: { test_policy: "none" },
+        },
+      },
+    });
+  });
+
+  it("leaves code-review, which has no re-cinq/otto variant, at its one version", async () => {
+    const { floor, defs } = await floorWith({ "code-review": LOOP_TDD });
+
+    const moved = await defs.renameRepo("re-cinq/otto", "re-cinq/otto2");
+
+    expect({ moved, versions: (await floor.versions("code-review")).length }).toEqual({ moved: [], versions: 1 });
+  });
+
+  it("keeps both variants of loop-tdd when re-cinq/otto2 already has one", async () => {
+    const both: AgentDefinitionBody = {
+      ...ottoVariant,
+      variants: { ...ottoVariant.variants, "github.com/re-cinq/otto2": { model: "claude-sonnet-4-6" } },
+    };
+    const { floor, defs } = await floorWith({ "loop-tdd": both });
+
+    const moved = await defs.renameRepo("re-cinq/otto", "re-cinq/otto2");
+    const stored = await floor.get("loop-tdd");
+
+    expect({ moved, variants: stored?.body.variants }).toEqual({ moved: [], variants: both.variants });
+  });
+});

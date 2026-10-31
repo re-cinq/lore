@@ -39,6 +39,7 @@ import {
 } from "./floor-spec-tickets-handlers.js";
 import { addHandlers } from "./compose-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
+import { renameAgentVariants } from "../outbound/agent-variants.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
 import { eventProxy } from "../outbound/queues.js";
 import {
@@ -203,7 +204,8 @@ const repoEventDeps: RepoEventDeps = {
       comment: (issueNumber, body) => issues.comment(issueNumber, body),
     };
   },
-  renameRepo: (from, to) => settings().renameRepo(from, to),
+  renameRepo: async (from, to) =>
+    `${await settings().renameRepo(from, to)}; ${await renameAgentVariants(from, to)}`,
   // This service holds no graph client: the drop goes through lore-api.
   dropOverlay: (repo, branch) => dropOverlayOverHttp({ repo, branch }),
   // This service holds no GitHub reader for history and no Utopia key: the walk runs in lore-api.

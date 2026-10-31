@@ -18,7 +18,7 @@ export interface RepoEventDeps {
     issueNumber: number,
     issueUrl: string,
   ): Promise<string>;
-  /** The `lore.repos` row follows the new name, so runs stop minting installation tokens for a name GitHub no longer serves (#2040). */
+  /** The `lore.repos` row follows the new name, so runs stop minting installation tokens for a name GitHub no longer serves (#2040), and so do the repository's agent overrides, floor variants keyed by its name (#4037). */
   renameRepo(from: string, to: string): Promise<string>;
   /** Returns the visit-id of the issue-triage run parked at human-gate for this issue, or null (FR16). */
   findParkedTriageVisit(
