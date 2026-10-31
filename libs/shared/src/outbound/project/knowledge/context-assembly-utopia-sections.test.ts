@@ -36,6 +36,16 @@ describe("widenedChunks", () => {
     ).toEqual(["# Loop pause\nA loop pauses when its run fails on credit."]);
   });
 
+  it("anchors a chunk that Utopia led with the document's heading path on its first line of prose, and widens it to the FR5 line", () => {
+    expect(
+      widenedChunks(CONTENT, [
+        "# Loop pause\n\n## Requirements\n\n- FR5 — Resuming a loop deletes its pause row.\n\n## Out of scope",
+      ]),
+    ).toEqual([
+      "## Requirements\n- FR5 — Resuming a loop deletes its pause row.",
+    ]);
+  });
+
   it("keeps a hit the document no longer contains as it came", () => {
     expect(widenedChunks(CONTENT, ["Text of an older version."])).toEqual([
       "Text of an older version.",
