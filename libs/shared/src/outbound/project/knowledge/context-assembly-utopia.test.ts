@@ -274,7 +274,7 @@ describe("utopiaSectionReader code and coupling", () => {
       sources: [
         {
           text: `${SPEC}#0146: A PR footer names its task.`,
-          source_path: SPEC,
+          source_path: `${SPEC}#0146`,
           content_type: "coupling",
           score: 1,
         },

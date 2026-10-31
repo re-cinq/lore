@@ -58,9 +58,7 @@ function toItem(
   });
 }
 
-/** `stmt:specs/a/spec.md#0003.2` is the file `specs/a/spec.md`. */
+/** `stmt:specs/a/spec.md#0003.2` keeps its statement anchor, `specs/a/spec.md#0003`, so two statements of one spec stay two items and the spec's own doc item is not dropped as seen; `test:a.test.ts.4` and `code:a.ts` are their file. */
 function pathOf(externalId: string): string {
-  const [path] = externalId.slice(externalId.indexOf(":") + 1).split("#");
-
-  return path;
+  return externalId.slice(externalId.indexOf(":") + 1).replace(/(\.\d+)+$/, "");
 }
