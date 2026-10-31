@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 /** A card's Edit: the navigation runs in a transition, so the button stays busy until the edit page is shown and a second click cannot start another. */
 export default function EditButton({ href }: { href: string }) {
   const router = useRouter();
+  // eslint-disable-next-line no-restricted-syntax -- a navigation, not an action: router.push returns at once, so PendingActionButton would drop its pending state before the edit page is shown; the transition's isPending lasts until it is.
   const [pending, startTransition] = useTransition();
 
   return (
