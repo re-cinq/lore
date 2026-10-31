@@ -77,3 +77,9 @@
   background: var(--card-solid);
   filter: brightness(1.1);
 }
+
+/* Busy until the edit page is shown: the same colour, dimmed, and no second click. */
+.agentCard[data-vendor] .edit button[aria-busy="true"] {
+  filter: brightness(0.85);
+  cursor: progress;
+}
