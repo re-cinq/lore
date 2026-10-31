@@ -549,7 +549,12 @@ describe("utopiaSectionReader memories filtered to the ticket's names (FR13.9)",
   ];
   const read = (query: string) =>
     utopiaSectionReader(
-      { reads: noSearch, kbId: "kb", docsSourceId: DOCS, memories: async () => found },
+      {
+        reads: noSearch,
+        kbId: "kb",
+        docsSourceId: DOCS,
+        memories: async () => found,
+      },
       query,
     )({ source: "memories" } as Parameters<
       ReturnType<typeof utopiaSectionReader>

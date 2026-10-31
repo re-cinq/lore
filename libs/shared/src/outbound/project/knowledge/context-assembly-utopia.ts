@@ -102,18 +102,21 @@ function hitsReader(
 ): HitsReader | null {
   const docs = SECTIONS[source];
 
-  if (docs) {
-    return {
-      itemsOf: (hits) =>
-        widenedDocuments(
-          hits,
-          { docsSourceId: arm.docsSourceId, ...docs },
-          stored,
-        ),
-      limit: docs.limit,
-      eager: false,
-    };
-  }
+  return docs
+    ? {
+        itemsOf: (hits) =>
+          widenedDocuments(
+            hits,
+            { docsSourceId: arm.docsSourceId, ...docs },
+            stored,
+          ),
+        limit: docs.limit,
+        eager: false,
+      }
+    : coverageReader(arm, source);
+}
+
+function coverageReader(arm: UtopiaArm, source: string): HitsReader | null {
   const coverage = COVERAGE_SECTIONS[source];
   const sourceId = arm.coverageSourceId;
 
@@ -152,12 +155,13 @@ function storedDocuments(
   arm: UtopiaArm,
 ): (path: string) => Promise<StoredDocument | null> {
   const documents = new Map<string, Promise<StoredDocument | null>>();
+  const { reads, kbId, docsSourceId } = arm;
 
   return (path) => {
     const started =
       documents.get(path) ??
-      arm.reads
-        .documentByExternalId(arm.kbId, arm.docsSourceId, `doc:${path}`)
+      reads
+        .documentByExternalId(kbId, docsSourceId, `doc:${path}`)
         .catch(() => null);
 
     documents.set(path, started);

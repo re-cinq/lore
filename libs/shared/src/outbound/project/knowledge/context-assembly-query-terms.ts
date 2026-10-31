@@ -26,6 +26,7 @@ export function codeQueryOf(terms: string[]): string | null {
     if (term.startsWith("#") || /^FR-?\d/.test(term)) {
       return [];
     }
+
     if (term.includes("/")) {
       const file = term.slice(term.lastIndexOf("/") + 1);
 
@@ -42,7 +43,9 @@ export function codeQueryOf(terms: string[]): string | null {
 export function mentionsAny(text: string, terms: string[]): boolean {
   const haystack = text.toLowerCase();
 
-  return terms.some((term) => haystack.includes(fileNameOf(term).toLowerCase()));
+  return terms.some((term) =>
+    haystack.includes(fileNameOf(term).toLowerCase()),
+  );
 }
 
 function fileNameOf(term: string): string {

@@ -17,10 +17,18 @@ export function widenedChunks(content: string, chunks: string[]): string[] {
     }
     const start = blockStart(lines, line);
 
-    blocks.set(start, [...headingOf(lines, start), ...blockOf(lines, start)].join("\n"));
+    blocks.set(start, blockText(lines, start));
   }
 
-  return [...[...blocks].sort(([a], [b]) => a - b).map(([, text]) => text), ...strays];
+  return [...inFileOrder(blocks), ...strays];
+}
+
+function blockText(lines: string[], start: number): string {
+  return [...headingOf(lines, start), ...blockOf(lines, start)].join("\n");
+}
+
+function inFileOrder(blocks: Map<number, string>): string[] {
+  return [...blocks].sort(([a], [b]) => a - b).map(([, text]) => text);
 }
 
 /** The line the chunk's first words stand on; null when the document has no such line. */
@@ -47,7 +55,9 @@ function blockStart(lines: string[], line: number): number {
 }
 
 function continues(previous: string, current: string): boolean {
-  return previous.trim() !== "" && !HEADING_RE.test(previous) && !isListItem(current);
+  return (
+    previous.trim() !== "" && !HEADING_RE.test(previous) && !isListItem(current)
+  );
 }
 
 function isListItem(line: string): boolean {

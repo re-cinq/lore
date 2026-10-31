@@ -42,10 +42,6 @@ export function memorySectionReader(
   };
 }
 
-function aboutTicket(hit: MemorySearchResult, terms: string[]): boolean {
-  return terms.length === 0 || mentionsAny(`${hit.key} ${hit.value}`, terms);
-}
-
 function once<T>(run: () => Promise<T>): () => Promise<T> {
   let started: Promise<T> | undefined;
 
@@ -68,4 +64,8 @@ async function answer(
     .map((hit) => section.toItem(hit, new Set()));
 
   return { sources, status: sources.length > 0 ? "ok" : "empty" };
+}
+
+function aboutTicket(hit: MemorySearchResult, terms: string[]): boolean {
+  return terms.length === 0 || mentionsAny(`${hit.key} ${hit.value}`, terms);
 }
