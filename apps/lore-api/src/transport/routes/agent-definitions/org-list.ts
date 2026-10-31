@@ -1,28 +1,29 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
-import type { Pool } from "pg";
 import { z } from "zod";
-import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
+import { AgentDefsFiles } from "@re-cinq/lore-shared/project/agents/agent-defs-files.js";
 import type { AgentDefsReadPort } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
-import {
-  floorClient,
-  floorConfigured,
-} from "@re-cinq/lore-shared/floor/floor-client.js";
+import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-// The org-default catalog (no project layer): an empty-string repo matches no override, so PgAgentDefs resolves org rows only.
+// The org-default catalog (no project layer): listed for no repo, so no variant applies.
 
 const OrgAgentsResponse = z.object({
   agents: z.array(ResolvedAgentDefinitionSchema),
 });
 
+type FloorDefinitionApi = ConstructorParameters<typeof FloorAgentDefs>[0];
+
+export type FloorDefinitions = () => FloorDefinitionApi | null;
+
+/** The floor's agent definitions, or null on a deployment that was given no floor. */
+export const floorDefinitions: FloorDefinitions = () =>
+  floorIfConfigured()?.agentDefinitions ?? null;
+
 export function orgAgentDefinitionsRoute(
-  getPool: () => Pool | null,
+  definitions: FloorDefinitions = floorDefinitions,
 ): ServerRoute {
   return {
     method: "GET",
@@ -30,24 +31,17 @@ export function orgAgentDefinitionsRoute(
     options: zodResponse(bearerScope("read"), OrgAgentsResponse, {
       name: "OrgAgentDefinitions",
       description:
-        "Every org-default agent definition — the org rows, no per-repo layer",
+        "Every org-default agent definition — the floor's settings, no per-repo variant",
     }),
     handler: async (_request, h) => {
-      const defs = orgDefinitions(getPool);
+      const defs = orgDefinitions(definitions());
 
       return h.response({ agents: await defs.list("") });
     },
   };
 }
 
-/** The floor's definitions when a floor is configured (#3995), listed for no repo so no variant applies; Postgres otherwise. */
-function orgDefinitions(getPool: () => Pool | null): AgentDefsReadPort {
-  if (floorConfigured()) {
-    return new FloorAgentDefs(floorClient().agentDefinitions);
-  }
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-  return new PgAgentDefs(pool);
+/** The floor is the only store of agent definitions (#3995); with no floor, the shipped defaults answer, read-only. */
+function orgDefinitions(floor: FloorDefinitionApi | null): AgentDefsReadPort {
+  return floor ? new FloorAgentDefs(floor) : new AgentDefsFiles();
 }

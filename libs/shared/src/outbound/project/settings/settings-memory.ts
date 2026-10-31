@@ -35,8 +35,6 @@ export interface SeedRepo {
   last_ingested_at?: Date | null;
   onboarding_pr_merged?: boolean;
   onboarded_at?: Date | null;
-  /** Names of the per-repo `lore.agent_definitions` rows keyed to this repo's id. */
-  agent_definitions?: string[];
 }
 
 function toRepoRecord(row: SeedRepo): RepoRecord {
@@ -288,12 +286,6 @@ export class InMemorySettings implements SettingsPort {
   }
 
   private mergeRepoRows(source: SeedRepo, target: SeedRepo): RepoRenameOutcome {
-    const targetNames = target.agent_definitions ?? [];
-    const moved = (source.agent_definitions ?? []).filter(
-      (name) => !targetNames.includes(name),
-    );
-
-    target.agent_definitions = [...targetNames, ...moved];
     target.settings = hasSettings(target.settings)
       ? target.settings
       : source.settings;

@@ -5,10 +5,12 @@ description: View and edit this repo's Lore agent definitions (model, timeout, p
 
 You are helping a developer manage the **agent definitions** for the repo they're
 in. An *agent definition* is the per-task-type config (model, timeout, prompt,
-image) an Agent runs from — config, not a run (ADR-024). Each repo inherits
-organisation defaults (`project_id = NULL`) and may override any definition with
-its own row. All access goes through the Lore agent-definitions API
-(`/api/repos/:owner/:repo/agent-definitions`) — never the database directly.
+image) an Agent runs from — config, not a run (ADR-024). Agent definitions live
+on the floor: a definition's `settings` are the organisation default, and a repo's
+override is that repo's entry in the definition's `variants`. Every repo inherits
+the org default and may override any field of any definition. All access goes
+through the Lore agent-definitions API (`/api/repos/:owner/:repo/agent-definitions`),
+which saves to the floor; the next run uses what was saved.
 
 ## Prerequisites
 
@@ -26,7 +28,7 @@ curl -fsS -H "authorization: Bearer $TOKEN" \
 ```
 Each entry has `name, model, timeout_minutes, prompt, image, execution_mode,
 review_required, project_id`. `project_id: null` means the value is inherited
-(no repo override yet).
+(no repo variant yet); otherwise it names the repo's variant key.
 
 **Resolve one** agent (what a runner would fetch):
 ```
@@ -41,14 +43,14 @@ curl -fsS -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: appl
   -d '{"name":"my-agent","model":"claude-opus-4-8","timeout_minutes":45,"prompt":"Do {description}"}'
 ```
 
-**Update / override** an agent (upserts the repo's row; admin token):
+**Update / override** an agent (writes the repo's variant on the floor; admin token):
 ```
 curl -fsS -X PUT -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
   "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions/<name>" \
   -d '{"model":"claude-haiku-4-5-20251001"}'
 ```
 
-**Delete** the repo override (reverts to the org default; admin token):
+**Delete** the repo override (removes the repo's variant, reverting to the org default; admin token):
 ```
 curl -fsS -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" \
   "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions/<name>"
@@ -58,8 +60,11 @@ curl -fsS -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" \
 
 - `model` accepts the curated ids (`claude-opus-4-8`, `claude-sonnet-4-6`,
   `claude-haiku-4-5-20251001`, `claude-fable-5`) or any custom model id.
-- A null/absent field on a repo override **inherits** the org default. The org defaults are seeded from `libs/shared/src/agent-defaults/*.md`; change a default with a PR to its file.
-  To clear an override, DELETE the row rather than sending nulls.
+- A null/absent field on a repo override **inherits** the org default. A field set to null leaves the variant, so it inherits again.
+  To drop every override at once, DELETE the variant. The org defaults are edited on
+  the global `/agents` page (`PUT /api/agent-definitions/<name>`); the md files in
+  `libs/shared/src/agent-defaults/` only seed an agent the floor does not hold yet,
+  so a PR to one does not change a saved agent.
 - **`image` is two-key gated.** Setting a non-empty execution image returns
   `403 two_key_required` unless you pass an `x-lore-approval-pr: owner/repo#N`
   header referencing an open PR labeled `dark-factory-approval` approved by a
@@ -77,8 +82,8 @@ curl -fsS -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" \
 **Not for.** Inspecting a *run* — a definition is config, not execution (ADR-024); for runs use `lore_get_pipeline_status` and `lore_get_task_logs`.
 **Examples**
 - `/lore-agents` — lists the repo's resolved definitions; `project_id: null` marks a value still inherited from the org default
-- `/lore-agents "put review on haiku"` — upserts this repo's override (needs an admin-scoped token) and shows you the before/after first
-- `/lore-agents "drop our review override"` — deletes the repo row, reverting to the org default
+- `/lore-agents "put review on haiku"` — saves this repo's override as its variant on the floor (needs an admin-scoped token) and shows you the before/after first
+- `/lore-agents "drop our review override"` — removes the repo's variant, reverting to the org default
 - Setting a custom execution `image` is two-key gated: it needs an approved `dark-factory-approval` PR, and the skill will say so rather than route around it
 **Related:** `/lore-init`
 <!-- lore-help:end -->

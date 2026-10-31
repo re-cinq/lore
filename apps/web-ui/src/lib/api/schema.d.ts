@@ -5992,7 +5992,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Every org-default agent definition — the org rows, no per-repo layer */
+      /** @description Every org-default agent definition — the floor's settings, no per-repo variant */
       200: {
         headers: {
           [name: string]: unknown;

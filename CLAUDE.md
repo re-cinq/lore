@@ -442,9 +442,9 @@ Pipeline tools: lore_get_pipeline_status,
 lore_list_pipeline_tasks, lore_cancel_task, lore_retry_task, lore_list_task_group,
 lore_get_task_logs, lore_my_usage. Local runner tools: lore_run_task_locally,
 lore_list_local_tasks, lore_cancel_local_task.
-Task types are the rows of `lore.agent_definitions`; their shipped defaults
+Task types are agent definitions on the floor; their shipped defaults
 are `libs/shared/src/agent-defaults/<name>.md` (frontmatter = settings,
-body = prompt), which lore-api seeds into the org rows at boot:
+body = prompt), which lore-api seeds onto a floor that holds none of that name:
 
 - **onboard**: runs on the external floor where one is configured (`libs/assembly-lines/src/floor-pipelines/onboard.yaml`, `specs/external-floor` FR11): lore-api creates the task already running, cuts `lore/onboard/<task8>` and starts the run; `enrol` (labels, ingest callback, verbatim workflows + templates on the branch, `libs/shared/src/work/onboard/enrol-repo.ts`) → `author` (AGENTS.md, ADRs, spec and PR template from the onboarding ticket, `onboardTicketBody`) → `open-pr` (the ONE PR, recorded as `lore.repos.onboarding_pr_url`) → `await-ci` ⇄ `fix-ci` (a human station the pr-ready-check sweep answers, `apps/stations/src/work/pr-ready-check/floor-ci-wait.ts`) → `request-review`; the `run-settled` station settles the task. 
 
@@ -484,7 +484,7 @@ Floor renders the recipe from the resolved `lore.agent_definitions` row
 (`renderNodePrompt`, project → org → yaml) and appends the CI verdict,
 failure and round hand-off blocks into the CR parameter `prompt`; the old
 template rendered `{description}` and silently dropped every block. That renderer went with `apps/floor`: on the external floor a pipeline file
-names its agents and their settings (`libs/assembly-lines/src/floor-pipelines/`), and each agent's prompt is the body of `libs/shared/src/agent-defaults/<agent definition>.md`, the only copy (`withAgentPrompts`, `libs/shared/src/outbound/project/agents/agent-prompts.ts`).
+names its agents and their settings (`libs/assembly-lines/src/floor-pipelines/`), and each agent's prompt is the body of `libs/shared/src/agent-defaults/<agent definition>.md` when the floor is seeded with it, after which the floor's copy is the one that runs (`withAgentPrompts`, `libs/shared/src/outbound/project/agents/agent-prompts.ts`).
 
 **Live agent MCP access**: this is the only context path now; agent *pods* get a
 **live, scoped** Lore MCP for the whole run via the shared `lore-mcp` HTTP
@@ -569,20 +569,7 @@ enabled, `lore_assemble_context` searches the linked repos for relevant
 context. Links are bidirectional — adding repo B from repo A's
 settings auto-adds repo A to repo B's list.
 
-**Agent definitions live on the floor** where one is configured (#3995, slices 1–2): `FloorAgentDefs` (`libs/shared/src/outbound/project/agents/agent-defs-floor.ts`) is the `agentDefs` port, reading the floor's latest version merged with the repository's `variants` entry and writing new versions (the org default = `settings`, a repo's override = its variant, every put read back); `/agents` and a repo's Agents tab save there, and the next visit runs it. Boot seeds an agent from its md file only when the floor holds none of that name, so a deploy never overwrites a saved agent. Each boot also moves the per-repo overrides still stored in Postgres onto the floor as variants, only the fields a repo row changed from its org row (`apps/lore-api/src/app/move-overrides.ts`, `override-moves.ts`); idempotent, logged as `agent overrides moved to the floor`. The Postgres table below remains only as the fallback for a deployment with no floor, until it is dropped.
-
-**Agent definitions** (`lore.agent_definitions`): per-task-type config
-(`prompt`, `model`, `timeout_minutes`, `image`) resolved by name via
-`project.agentDefs.resolve(name)` — `project` row (per-repo override) →
-`project_id IS NULL` row (org default); there is no third layer. The org rows
-are seeded at lore-api boot from `libs/shared/src/agent-defaults/*.md`
-(`seedAgentDefaults`, specs/lore-agents FR26/FR27): a field still equal to the
-default last seeded (`shipped_default`, migration 0086) follows a new file, an
-edited field stays, a NULL one fills; `config` other than `pod_resources` always
-follows the file. Change a default with a PR to its md file — prompt tuning is
-never a migration. Per-repo overrides and org defaults are edited in the
-`/repos/[owner]/[repo]/agents` and `/agents` UIs. A process with neither a DB
-nor the API reads the files read-only through `AgentDefsFiles`.
+**Agent definitions live on the floor** (#3995): the floor is their only store. `FloorAgentDefs` (`libs/shared/src/outbound/project/agents/agent-defs-floor.ts`) is the `agentDefs` port in lore-api, reading the floor's latest version merged with the repository's `variants` entry and writing new versions (the org default = `settings`, a repo's override = its variant, every put read back); `/agents` and a repo's Agents tab save there through `PUT /api/agent-definitions/{name}` and `/api/repos/:o/:r/agent-definitions`, and the next visit runs it. Boot seeds an agent from its md file (`libs/shared/src/agent-defaults/<name>.md`, frontmatter = settings, body = prompt) only when the floor holds none of that name, so a deploy never overwrites a saved agent; to change a shipped agent, save it on the floor. The `lore.agent_definitions` table is gone (migration 0122): the per-repo overrides it held were moved onto the floor as variants once, on 2026-10-31. Without a floor, a process with `LORE_API_URL` reads through `AgentDefsHttp`, and anything else, lore-api included, reads the shipped md files read-only through `AgentDefsFiles`; lore-api then refuses an org write `503 no_floor`.
 
 **Progressive trust**: `settings.trust.level` controls which task
 types are allowed per repo: docs (gap-fill/runbook/onboard +

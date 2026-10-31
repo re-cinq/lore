@@ -324,6 +324,8 @@ only through the Project facade port **`project.agentDefs`** (the config side;
   mcp-server), **`AgentDefsHttp` (Station pod / local stdio — the runner fetches
   its config over the API, same channel as context hydration)**, `AgentDefsYaml`
   (offline/bootstrap). No consumer reads `lore.agent_definitions` directly.
+  *(2026-10-31: `PgAgentDefs` and the table are gone; `FloorAgentDefs` reads
+  and writes the floor, the only store, #3995 and ADR-030's update.)*
 
 - **Runners fetch from the port.** The controller resolves only what k8s needs to
   *build* the Station (`image`, `timeout` → `activeDeadlineSeconds`); the runner

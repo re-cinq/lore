@@ -281,7 +281,7 @@ function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
     agentsGetRoute(getPool),
     agentDefinitionUsageRoute(),
     agentDefinitionActivityRoute(),
-    orgAgentDefinitionsRoute(getPool),
+    orgAgentDefinitionsRoute(),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),

@@ -189,3 +189,17 @@ URL; the ai-agent-subsystem init **fetches** and knows nothing of the registry.
 - **Security.** Skill *names* + a URL are inert references (no gate). Executable content (a skill's
   frontmatter hooks, the `settings.json` hooks) is org-authored and org-hosted. A future recipe-supplied
   *inline* hooks/settings field would be two-key gated per Decision 4.
+
+## Update (2026-10-31): the floor is the only store of agent definitions
+
+The recipe this ADR describes is now a floor definition of kind `agent_definition`
+(#3995, ADR-049): its `settings` are the organisation default and its `variants` map
+holds one entry per repo override. lore-api reads and writes it only through
+`FloorAgentDefs` (`libs/shared/src/outbound/project/agents/agent-defs-floor.ts`), and a
+repo's override is saved through the same agent-definitions API as before, landing in
+that repo's variant. The `lore.agent_definitions` table, whose JSONB columns the
+Consequences above planned, is dropped by migration 0122, after the per-repo overrides
+it still held were moved onto the floor once on 2026-10-31. The two-key gate on a
+repo's `image` (Decision 4) is unchanged: it guards the variant write. The shipped md
+files in `libs/shared/src/agent-defaults/` seed an agent only when the floor holds none
+of that name.
