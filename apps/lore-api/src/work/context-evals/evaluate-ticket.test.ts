@@ -142,6 +142,10 @@ describe("evaluateTicket", () => {
     );
     const prompt = String(llm.calls[0]?.prompt);
 
+    if (!("score" in verdict)) {
+      throw new Error("one side was asked for");
+    }
+
     expect({
       score: verdict.score,
       useful: verdict.useful,
