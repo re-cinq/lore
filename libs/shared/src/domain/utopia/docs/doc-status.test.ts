@@ -52,6 +52,19 @@ describe("docMarks", () => {
     ).toEqual("2026-06-29");
   });
 
+  it("takes 2026-10-23 from *(amended 2026-10-23)* and 2026-10-19 from _(2026-10-19)_ as the newest of the two", () => {
+    expect([
+      docMarks("a *(amended 2026-10-23)* b\n_(2026-10-19)_ c\n").amended,
+      docMarks("a _(2026-10-19)_ b *(rewritten 2026-10-02)*\n").amended,
+    ]).toEqual(["2026-10-23", "2026-10-19"]);
+  });
+
+  it("reads no status from the API table header | Status | Body |", () => {
+    expect(
+      docMarks("| Status | Body |\n| --- | --- |\n| 200 | x |\n").status,
+    ).toEqual(null);
+  });
+
   it("finds neither status nor amendment in a plain README", () => {
     expect(docMarks("# Readme\n\nHello.\n")).toEqual({
       status: null,

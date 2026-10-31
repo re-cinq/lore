@@ -6,12 +6,17 @@ export interface DocMarks {
 }
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
-const SPEC_ROW = /^\|\s*Status\s*\|\s*([^|\n]*?)\s*\|/im;
+const STATUS_WORD =
+  "(?:draft|in progress|implemented|shipped|rejected|retired|accepted|superseded|proposed)";
+const SPEC_ROW = new RegExp(
+  `^\\|\\s*Status\\s*\\|\\s*(${STATUS_WORD}\\b[^|\\n]*?)\\s*\\|`,
+  "im",
+);
 const BOLD_LINE = /^[-*]\s*\*\*Status\*\*\s*:\s*(.+)$/im;
 const PLAIN_LINE = /^Status\s*:\s*(.+)$/im;
 const STATUS_SECTION = /^##\s+Status\s*\n+([^\n]+)/im;
 const AMENDMENT_HEADING = /^#{1,6}\s+Amendment[^\n]*?(\d{4}-\d{2}-\d{2})/gim;
-const DATED_MARKER = /\*\((?:added\s+)?(\d{4}-\d{2}-\d{2})[^)]*\)\*/g;
+const DATED_MARKER = /[*_]\((?:[a-z]+\s+)?(\d{4}-\d{2}-\d{2})[^)]*\)[*_]/g;
 
 export function docMarks(content: string): DocMarks {
   return { status: statusOf(content), amended: newestAmendment(content) };

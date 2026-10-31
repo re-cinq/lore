@@ -30,9 +30,9 @@ export function docTombstone(path: string): IngestDocument {
 }
 
 const LOCATION_HEADER =
-  /^File: [^\n]*\nRepository: [^\n]*\nKind: [^\n]*\n(?:(?:Status|Amended): [^\n]*\n){0,2}\n/;
+  /^File: [^\n]*\nRepository: [^\n]*\nKind: [^\n]*\n(?:\n|(?=(?:Status|Amended): ))/;
 
-/** A chunk of a pushed document without the lines that say where the file lives, which only the first chunk carries. */
+/** A chunk of a pushed document without the lines that say where the file lives, which only the first chunk carries; its Status and Amended lines stay. */
 export function withoutLocation(chunk: string): string {
   return chunk.replace(LOCATION_HEADER, "");
 }

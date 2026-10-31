@@ -52,16 +52,20 @@ describe("docDocument marks", () => {
   };
 
   it("leads ADR-044 with Status: superseded by ADR-048 and Amended: 2026-10-16 after Kind: adr", () => {
-    expect(docDocument(adr).content.split("\n\n")[0]).toEqual(
+    expect((docDocument(adr).content ?? "").split("\n\n")[0]).toEqual(
       "File: adrs/ADR-044.md\nRepository: re-cinq/lore\nKind: adr\nStatus: superseded by ADR-048\nAmended: 2026-10-16",
     );
   });
 
-  it("strips the five-line header from a chunk back to the file text", () => {
-    expect(withoutLocation(docDocument(adr).content)).toEqual(adr.content);
+  it("strips File, Repository and Kind from a chunk but keeps Status: superseded by ADR-048 and Amended: 2026-10-16", () => {
+    expect(withoutLocation(docDocument(adr).content ?? "")).toEqual(
+      `Status: superseded by ADR-048\nAmended: 2026-10-16\n\n${adr.content}`,
+    );
   });
 
   it("strips the three-line header of a document with neither mark", () => {
-    expect(withoutLocation(docDocument(base).content)).toEqual(base.content);
+    expect(withoutLocation(docDocument(base).content ?? "")).toEqual(
+      base.content,
+    );
   });
 });
