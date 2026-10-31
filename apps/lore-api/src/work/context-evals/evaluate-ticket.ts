@@ -107,15 +107,23 @@ async function gradeSide(
   const started = clock();
   const block = await deps.assemble(repo, ticketQuery(ticket), backend);
   const latency_ms = Math.round(clock() - started);
-  const { parsed, model } = await judge(deps, ticket, block.text);
+  const judged = withoutQueryEcho(block.text);
+  const { parsed, model } = await judge(deps, ticket, judged);
 
   return {
-    ...graded(parsed, block.text),
+    ...graded(parsed, judged),
     model,
     latency_ms,
     chars: block.text.length,
     sections: block.sections,
   };
+}
+
+const QUERY_ECHO = /^<context\b[^>]*>\n?/;
+
+/** The block without its opening `<context query="…">` tag: the tag repeats the ticket, and a judge allowed to quote it credits the ticket's own words as facts the store supplied (26 of 55 credited facts on 2026-11-01 were such echoes). */
+export function withoutQueryEcho(block: string): string {
+  return block.replace(QUERY_ECHO, "");
 }
 
 /** A useful item counts only when its quote is in the block: 0 with none and no background, 1 with background only, 2 with one or two, 3 with several. A judge that grades generously has nothing there to quote. */
