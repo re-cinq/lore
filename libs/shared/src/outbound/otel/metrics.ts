@@ -137,10 +137,10 @@ export function recordUtopiaMirrorFailure(repo: string): void {
   instruments().utopiaMirrorFailures.add(1, { repo });
 }
 
-export interface ContextAssemblyRecord {
+export type ContextAssemblyRecord = {
   backend: string;
   outcome: "ok" | "empty" | "error";
-}
+};
 
 export function recordContextAssembly(assembly: ContextAssemblyRecord): void {
   instruments().contextAssemblies.add(1, assembly);
