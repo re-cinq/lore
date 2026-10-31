@@ -89,11 +89,10 @@ async function moveOne(
   }
   const pending = pendingFields(resolved, move);
 
-  if (pending.length === 0) {
-    return;
+  if (pending.length > 0) {
+    await floor.update(move.repo, move.name, move.patch);
+    report.moved.push(`${label}: ${pending.join(", ")}`);
   }
-  await floor.update(move.repo, move.name, move.patch);
-  report.moved.push(`${label}: ${pending.join(", ")}`);
 }
 
 function pendingFields(
