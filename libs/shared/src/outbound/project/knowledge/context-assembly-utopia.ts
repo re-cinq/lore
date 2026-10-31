@@ -1,7 +1,6 @@
-// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the whole documents pushed to the repo's `docs` source (specs, ADRs and every other markdown document), one item per document, every other section still saying it has no Utopia reader.
+// The Utopia arm of context assembly (specs/utopia-graph-mirror FR13): the `repo` and `adrs` sections read from a search over the whole documents pushed to the repo's `docs` source (specs, ADRs and every other markdown document), one item per document, every other section left out of the block.
 
 import { classifyFile } from "../../../domain/content-classify.js";
-import { noUtopiaReader } from "../../../domain/knowledge-backend.js";
 import { withoutLocation } from "../../../domain/utopia/docs/doc-text.js";
 import {
   docPathOf,
@@ -35,7 +34,7 @@ const SECTIONS: Partial<
   adrs: { types: new Set(["adr"]), limit: ITEM_LIMITS.adrs },
 };
 
-/** The arm when both halves are there, else null: the caller then answers with no-reader sections. */
+/** The arm when both halves are there, else null: the caller then answers with no sections. */
 export function utopiaArmOf(
   reads: UtopiaReads | null | undefined,
   mirror: UtopiaMirror | undefined,
@@ -54,7 +53,7 @@ export function utopiaSectionReader(
     const section = SECTIONS[source];
 
     if (!section) {
-      return { sources: [mkItem(noUtopiaReader(source))], status: "ok" };
+      return { sources: [], status: "disabled" };
     }
     const filter = { docsSourceId: arm.docsSourceId, ...section };
     const sources = await sectionDocuments(

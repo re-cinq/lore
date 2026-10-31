@@ -1,38 +1,20 @@
 import { describe, it, expect } from "vitest";
 import {
   labelledByBackend,
-  utopiaAssembly,
+  utopiaAssemblyFor,
 } from "./context-assembly-backends.js";
 
-describe("utopiaAssembly", () => {
-  it("returns one no-reader section per template source instead of any stored data", () => {
-    const assembled = utopiaAssembly(
-      { query: "deploys", template: "default", budget: 4000 },
-      [
-        { header: "Conventions", source: "repo", priority: 1 },
-        { header: "Agent Memory", source: "memories", priority: 2 },
-      ],
-    );
+describe("utopiaAssemblyFor", () => {
+  it("returns a block with no sections when Utopia cannot be read", () => {
+    const assembled = utopiaAssemblyFor("deploys", { maxTokens: 4000 });
 
     expect(assembled).toEqual({
       text: [
         '<context query="deploys" template="default" budget="4000">',
-        '<section name="Conventions" source="repo" priority="1">',
-        '<document tokens="7">',
-        "repo: no Utopia reader yet",
-        "</document>",
-        "</section>",
-        '<section name="Agent Memory" source="memories" priority="2">',
-        '<document tokens="8">',
-        "memories: no Utopia reader yet",
-        "</document>",
-        "</section>",
+        "",
         "</context>",
       ].join("\n"),
-      sections: [
-        { header: "Conventions", tokens: 7, truncated: false },
-        { header: "Agent Memory", tokens: 8, truncated: false },
-      ],
+      sections: [],
     });
   });
 });

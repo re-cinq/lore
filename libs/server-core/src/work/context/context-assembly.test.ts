@@ -438,7 +438,7 @@ describe("assembleContext — backend", () => {
       },
     }) as unknown as Parameters<typeof assembleContext>[0];
 
-  it("returns a no-Utopia-reader section for each default source and reads nothing from Lore for backend utopia", async () => {
+  it("returns no sections and reads nothing from Lore for backend utopia with no Utopia reader", async () => {
     const queries: string[] = [];
     const result = await assembleContext(conventionsPool(queries), "deploys", {
       templateName: "default",
@@ -453,17 +453,8 @@ describe("assembleContext — backend", () => {
       loreData: result.text.includes("Deploy on Friday"),
     }).toEqual({
       queries: 0,
-      headers: [
-        "Directory Rules",
-        "Conventions",
-        "Relevant Code",
-        "Architecture Decisions",
-        "Agent Memory",
-        "Related Entities",
-        "Recent Episodes",
-        "Recent Incidents",
-      ],
-      conventions: true,
+      headers: [],
+      conventions: false,
       loreData: false,
     });
   });
@@ -482,14 +473,14 @@ describe("assembleContext — backend", () => {
       loreFirst: lore >= 0 && lore < utopia,
       budgets: result.text.match(/budget="\d+"/g),
       loreConventions: result.sections[0]?.header,
-      utopiaConventions: result.sections.some(
-        (section) => section.header === "utopia: Conventions",
+      utopiaSections: result.sections.filter((section) =>
+        section.header.startsWith("utopia: "),
       ),
     }).toEqual({
       loreFirst: true,
       budgets: ['budget="4000"', 'budget="4000"'],
       loreConventions: "lore: Conventions",
-      utopiaConventions: true,
+      utopiaSections: [],
     });
   });
 });
@@ -562,8 +553,8 @@ describe("assembleContext — the Utopia arm", () => {
       texts: decisions.includes(
         "Every spec and ADR is pushed to Utopia.\n\nA failed mirror is logged, never an ingest failure.",
       ),
-      code: result.text.includes("code: no Utopia reader yet"),
-    }).toEqual({ queries: 0, adr: true, texts: true, code: true });
+      code: result.text.includes("Relevant Code"),
+    }).toEqual({ queries: 0, adr: true, texts: true, code: false });
   });
 
   it("records a trace whose sections list the kept source paths", async () => {
@@ -585,7 +576,7 @@ describe("assembleContext — the Utopia arm", () => {
     expect(keptPaths).toEqual({ repo: [SPEC], adrs: [ADR] });
   });
 
-  it("falls back to no-reader sections when the repo has no Utopia settings", async () => {
+  it("leaves every section out when the repo has no Utopia settings", async () => {
     const searched: string[] = [];
     const result = await assembleContext(untouchedPool([]), "mirror", {
       ...utopiaOptions,
@@ -602,8 +593,7 @@ describe("assembleContext — the Utopia arm", () => {
 
     expect({
       searched,
-      conventions: result.text.includes("repo: no Utopia reader yet"),
-      decisions: result.text.includes("adrs: no Utopia reader yet"),
-    }).toEqual({ searched: [], conventions: true, decisions: true });
+      sectionCount: result.text.split("<section ").length - 1,
+    }).toEqual({ searched: [], sectionCount: 0 });
   });
 });

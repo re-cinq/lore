@@ -203,7 +203,7 @@ describe("utopiaSectionReader", () => {
     });
   });
 
-  it("answers code: no Utopia reader yet for the code section", async () => {
+  it("leaves the code section out and asks Utopia nothing", async () => {
     const windows: SearchWindow[] = [];
     const read = utopiaSectionReader(
       {
@@ -222,10 +222,7 @@ describe("utopiaSectionReader", () => {
       }),
       windows,
     }).toEqual({
-      code: {
-        sources: [{ text: "code: no Utopia reader yet", tokens: 7 }],
-        status: "ok",
-      },
+      code: { sources: [], status: "disabled" },
       windows: [],
     });
   });
